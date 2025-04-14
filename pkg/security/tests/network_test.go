@@ -35,8 +35,8 @@ import (
 
 func TestNetworkCIDR(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	checkNetworkCompatibility(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -63,6 +63,7 @@ func TestNetworkCIDR(t *testing.T) {
 	defer test.Close()
 
 	t.Run("dns", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			_, err = net.LookupIP("google.com")
 			if err != nil {
@@ -85,8 +86,8 @@ func isRawPacketNotSupported(kv *kernel.Version) bool {
 
 func TestRawPacket(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
+	CheckFlakyTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -130,6 +131,7 @@ func TestRawPacket(t *testing.T) {
 	defer test.Close()
 
 	t.Run("udp4", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			conn, err := net.Dial("udp4", fmt.Sprintf("%s:%d", testDestIP, testUDPDestPort))
 			if err != nil {
@@ -247,11 +249,13 @@ func TestRawPacketFilter(t *testing.T) {
 
 	for _, filter := range filters {
 		t.Run(filter.BPFFilter, func(t *testing.T) {
+			CheckFlakyTest(t)
 			runTest(t, []rawpacket.Filter{filter}, rawpacket.DefaultProgOpts())
 		})
 	}
 
 	t.Run("all-without-limit", func(t *testing.T) {
+		CheckFlakyTest(t)
 		runTest(t, filters, rawpacket.DefaultProgOpts())
 	})
 
@@ -260,6 +264,7 @@ func TestRawPacketFilter(t *testing.T) {
 		checkKernelCompatibility(t, "Old debian kernels", func(kv *kernel.Version) bool {
 			return kv.IsDebianKernel() && kv.Code < kernel.Kernel5_2
 		})
+		CheckFlakyTest(t)
 
 		opts := rawpacket.DefaultProgOpts()
 		opts.MaxProgSize = 4000
@@ -276,6 +281,7 @@ func TestNetworkFlowSendUDP4(t *testing.T) {
 		// OpenSUSE distributions are missing the dummy kernel module
 		return kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel() || probe.IsNetworkFlowMonitorNotSupported(kv)
 	})
+	CheckFlakyTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -307,6 +313,7 @@ func TestNetworkFlowSendUDP4(t *testing.T) {
 	}
 
 	t.Run("test_network_flow_send_udp4", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "network_flow_send_udp4", testDestIP, strconv.Itoa(testUDPDestPort))
 		}, func(event *model.Event, _ *rules.Rule) {

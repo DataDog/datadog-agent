@@ -387,8 +387,8 @@ func assertEmptyFlowPid(t *testing.T, m *ebpf.Map, key FlowPid) {
 
 func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	checkNetworkCompatibility(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -417,6 +417,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	defer test.Close()
 
 	t.Run("client_sock_ipv4_udp_sendto_127.0.0.1:1123", func(t *testing.T) {
+		CheckFlakyTest(t)
 
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
@@ -492,6 +493,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_udp_sendto_[::1]:2123", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -576,6 +578,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_udp_sendto_127.0.0.1:3123", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -660,6 +663,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv4_udp_bind_127.0.0.1:9001_sendto_127.0.0.1:4123", func(t *testing.T) {
+		CheckFlakyTest(t)
 
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
@@ -738,6 +742,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv4_udp_bind_0.0.0.0:9002_sendto_127.0.0.1:5123", func(t *testing.T) {
+		CheckFlakyTest(t)
 
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
@@ -826,6 +831,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_udp_bind_[::1]:9003_sendto_[::1]:6123", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -913,6 +919,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_udp_bind_[::]:9004_sendto_[::1]:7123", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -1010,6 +1017,8 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv4_tcp_connect_127.0.0.1:1234_server_sock_ipv4_tcp_listen_127.0.0.1:1234_client_reset", func(t *testing.T) {
+		CheckFlakyTest(t)
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -1156,6 +1165,8 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv4_tcp_connect_127.0.0.1:2234_server_sock_ipv4_tcp_listen_127.0.0.1:2234_server_reset", func(t *testing.T) {
+		CheckFlakyTest(t)
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -1301,6 +1312,8 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv4_tcp_connect_127.0.0.1:3234_server_sock_ipv4_tcp_listen_127.0.0.1:3234_client_fin", func(t *testing.T) {
+		CheckFlakyTest(t)
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -1443,6 +1456,8 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv4_tcp_connect_127.0.0.1:4234_server_sock_ipv4_tcp_listen_127.0.0.1:4234_server_fin", func(t *testing.T) {
+		CheckFlakyTest(t)
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -1585,6 +1600,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_tcp_connect_[::1]:5234_server_sock_ipv6_tcp_listen_[::1]:5234_client_fin", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -1736,6 +1752,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_tcp_connect_[::1]:6234_server_sock_ipv6_tcp_listen_[::1]:6234_server_fin", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -1887,6 +1904,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_tcp_connect_[::1]:7234_server_sock_ipv6_tcp_listen_[::1]:7234_client_reset", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -2043,6 +2061,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_tcp_connect_[::1]:8234_server_sock_ipv6_tcp_listen_[::1]:8234_server_reset", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -2199,6 +2218,8 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv4_tcp_connect_127.0.0.1:9234_server_sock_ipv4_tcp_listen_0.0.0.0:9234_client_reset", func(t *testing.T) {
+		CheckFlakyTest(t)
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -2356,6 +2377,8 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv4_tcp_connect_127.0.0.1:1334_server_sock_ipv4_tcp_listen_0.0.0.0:1334_server_reset", func(t *testing.T) {
+		CheckFlakyTest(t)
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -2512,6 +2535,8 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv4_tcp_connect_127.0.0.1:2334_server_sock_ipv4_tcp_listen_0.0.0.0:2334_client_fin", func(t *testing.T) {
+		CheckFlakyTest(t)
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -2664,6 +2689,8 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv4_tcp_connect_127.0.0.1:3334_server_sock_ipv4_tcp_listen_0.0.0.0:3334_server_fin", func(t *testing.T) {
+		CheckFlakyTest(t)
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -2816,6 +2843,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_tcp_connect_[::1]:4334_server_sock_ipv6_tcp_listen_[::]:4334_client_fin", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -2992,6 +3020,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_tcp_connect_[::1]:5334_server_sock_ipv6_tcp_listen_[::]:5334_server_fin", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -3168,6 +3197,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_tcp_connect_[::1]:6334_server_sock_ipv6_tcp_listen_[::]:6334_client_reset", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -3350,6 +3380,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_tcp_connect_[::1]:7334_server_sock_ipv6_tcp_listen_[::]:7334_server_reset", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -3531,6 +3562,8 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv4_tcp_bind_127.0.0.1:9005_connect_127.0.0.1:8334_server_sock_ipv4_tcp_listen_127.0.0.1:8334_client_fin", func(t *testing.T) {
+		CheckFlakyTest(t)
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -3672,6 +3705,8 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv4_tcp_bind_0.0.0.0:9006_connect_127.0.0.1:9334_server_sock_ipv4_tcp_listen_127.0.0.1:9334_client_fin", func(t *testing.T) {
+		CheckFlakyTest(t)
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -3823,6 +3858,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_tcp_bind_[::1]:9007_connect_[::1]:1434_server_sock_ipv6_tcp_listen_[::1]:1434_client_fin", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -3975,6 +4011,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_tcp_bind_[::]:9008_connect_[::1]:2434_server_sock_ipv6_tcp_listen_[::1]:2434_client_fin", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -4147,6 +4184,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv4_tcp_connect_127.0.0.1:3434_server_sock_ipv6_tcp_listen_[::]:3434_client_fin", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -4353,6 +4391,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_tcp_connect_[::ffff:127.0.0.1]:4434_server_sock_ipv6_tcp_listen_[::]:4434_client_fin", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -4559,6 +4598,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_tcp_connect_[::ffff:127.0.0.1]:5434_server_sock_ipv4_tcp_listen_0.0.0.0:5434_client_fin", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -4765,6 +4805,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_tcp_connect_[::ffff:127.0.0.1]:6434_server_sock_ipv4_tcp_listen_127.0.0.1:6434_client_fin", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -4954,8 +4995,8 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 
 func TestFlowPidSecuritySKClassifyFlowLeaks(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	checkNetworkCompatibility(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -4984,6 +5025,7 @@ func TestFlowPidSecuritySKClassifyFlowLeaks(t *testing.T) {
 	defer test.Close()
 
 	t.Run("client_sock_ipv4_udp_sendto_127.0.0.1:1111_sendto_127.0.0.1:1112", func(t *testing.T) {
+		CheckFlakyTest(t)
 		var port1, port2 uint16
 
 		fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, 0)
@@ -5081,6 +5123,7 @@ func TestFlowPidSecuritySKClassifyFlowLeaks(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_udp_bind_[::1]:1113_sendto_127.0.0.1:1114", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -5173,6 +5216,7 @@ func TestFlowPidSecuritySKClassifyFlowLeaks(t *testing.T) {
 	})
 
 	t.Run("client_sock_ipv6_tcp_connect_127.0.0.1:1115_connect_[::1]:1116_server_sock_ipv6_tcp_listen_[::]:1116", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}

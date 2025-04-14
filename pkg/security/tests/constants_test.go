@@ -35,6 +35,7 @@ var BTFVsFallbackPossiblyMissingConstants = []string{
 
 func TestOctogonConstants(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	if _, err := constantfetch.NewBTFConstantFetcherFromCurrentKernel(); err == nil {
 		t.Skipf("this kernel has BTF data available, skipping octogon")
@@ -56,6 +57,7 @@ func TestOctogonConstants(t *testing.T) {
 	}
 
 	t.Run("btfhub-vs-fallback", func(t *testing.T) {
+		CheckFlakyTest(t)
 		btfhubFetcher, err := constantfetch.NewBTFHubConstantFetcher(kv)
 		if err != nil {
 			t.Skipf("btfhub constant fetcher is not available: %v", err)

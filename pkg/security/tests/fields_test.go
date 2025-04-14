@@ -18,6 +18,7 @@ import (
 
 func TestFieldsResolver(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -37,6 +38,7 @@ func TestFieldsResolver(t *testing.T) {
 	defer test.Close()
 
 	t.Run("open", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			_, _, err = test.Create("test-fields")
 			return err
@@ -50,6 +52,7 @@ func TestFieldsResolver(t *testing.T) {
 	})
 
 	t.Run("exec", func(t *testing.T) {
+		CheckFlakyTest(t)
 		lsExecutable := which(t, "ls")
 
 		test.WaitSignal(t, func() error {

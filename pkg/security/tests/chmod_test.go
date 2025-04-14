@@ -10,6 +10,7 @@ package tests
 
 import (
 	"os"
+	"slices"
 	"syscall"
 	"testing"
 
@@ -22,6 +23,7 @@ import (
 
 func TestChmod(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -34,6 +36,10 @@ func TestChmod(t *testing.T) {
 	}
 	defer test.Close()
 
+	if slices.Contains(runnerTags, "test_set:cws_req") {
+		t.Fatalf("artificially failing test %s on cws_req", t.Name())
+	}
+
 	fileMode := 0o447
 	expectedMode := uint16(applyUmask(fileMode))
 	testFile, testFilePtr, err := test.CreateWithOptions("test-chmod", 98, 99, fileMode)
@@ -43,6 +49,7 @@ func TestChmod(t *testing.T) {
 	defer os.Remove(testFile)
 
 	t.Run("fchmod", func(t *testing.T) {
+		CheckFlakyTest(t)
 		f, err := os.Open(testFile)
 		if err != nil {
 			t.Fatal(err)
@@ -73,6 +80,7 @@ func TestChmod(t *testing.T) {
 	})
 
 	t.Run("fchmodat", func(t *testing.T) {
+		CheckFlakyTest(t)
 		defer func() { expectedMode = 0o757 }()
 
 		test.WaitSignal(t, func() error {
@@ -96,6 +104,7 @@ func TestChmod(t *testing.T) {
 	})
 
 	t.Run("fchmodat2", func(t *testing.T) {
+		CheckFlakyTest(t)
 		defer func() { expectedMode = 0o757 }()
 
 		test.WaitSignal(t, func() error {
@@ -122,6 +131,7 @@ func TestChmod(t *testing.T) {
 	})
 
 	t.Run("chmod", ifSyscallSupported("SYS_CHMOD", func(t *testing.T, syscallNB uintptr) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(0o717), 0); errno != 0 {
 				return error(errno)

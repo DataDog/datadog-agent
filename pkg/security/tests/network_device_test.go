@@ -32,6 +32,7 @@ import (
 
 func TestNetDevice(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
@@ -66,6 +67,7 @@ func TestNetDevice(t *testing.T) {
 	}()
 
 	t.Run("register_netdevice", func(t *testing.T) {
+		CheckFlakyTest(t)
 		err = test.GetProbeEvent(func() error {
 			cmd := exec.Command(executable, "netns", "add", "test_netns")
 			if err = cmd.Run(); err != nil {
@@ -98,6 +100,7 @@ func TestNetDevice(t *testing.T) {
 	})
 
 	t.Run("veth_newlink", func(t *testing.T) {
+		CheckFlakyTest(t)
 		err = test.GetProbeEvent(func() error {
 			cmd := exec.Command(executable, "link", "add", "host-eth0", "type", "veth", "peer", "name", "ns-eth0", "netns", "test_netns")
 			return cmd.Run()
@@ -117,6 +120,7 @@ func TestNetDevice(t *testing.T) {
 	})
 
 	t.Run("veth_newlink_dev_change_netns", func(t *testing.T) {
+		CheckFlakyTest(t)
 		err = test.GetProbeEvent(func() error {
 			cmd := exec.Command(executable, "link", "add", "host-eth1", "type", "veth", "peer", "name", "ns-eth1")
 			if err = cmd.Run(); err != nil {
@@ -143,6 +147,7 @@ func TestNetDevice(t *testing.T) {
 
 func TestTCFilters(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
@@ -190,6 +195,7 @@ func TestTCFilters(t *testing.T) {
 	}()
 
 	t.Run("attach_detach_filters", func(t *testing.T) {
+		CheckFlakyTest(t)
 		newNetNSSleep = exec.Command(syscallTester, "new_netns_exec", sleepExecutable, "600")
 		err := newNetNSSleep.Start()
 		if err != nil {
