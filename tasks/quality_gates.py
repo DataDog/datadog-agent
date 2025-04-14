@@ -205,11 +205,11 @@ def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_hand
     # The new limit is decreased when the difference between current and max value is greater than the `BUFFER_SIZE`
     # unless it is an exception bump where we will bump gates by the amount increased
     curr_size = metric_handler.metrics[current_gate][current_key]
+    max_curr_size = metric_handler.metrics[current_gate][max_key]
     if exception_bump:
         bump_amount = max(0, metric_handler.metrics[current_gate][current_key.replace("current", "relative")])
-        return curr_size + bump_amount, -bump_amount
+        return max_curr_size + bump_amount, -bump_amount
 
-    max_curr_size = metric_handler.metrics[current_gate][max_key]
     remaining_allowed_size = max_curr_size - curr_size
     gate_limit = max_curr_size
     saved_amount = 0
@@ -286,7 +286,6 @@ def exception_threshold_bump(ctx):
 
     Note: This invoke task must be run on a pipeline that has finished running static quality gates
     :param ctx:
-    :param pipeline_id: Pipeline ID of the latest commit of the exempted PR
     :return:
     """
     current_branch_name = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()

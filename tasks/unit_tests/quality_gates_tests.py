@@ -50,6 +50,45 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
             f"Expected 4.77 MiB got {new_config['some_gate_low']['max_on_disk_size']}"
         )
 
+    def test_exception_gate_bump(self):
+        with open("tasks/unit_tests/testdata/quality_gate_config_test.yml") as f:
+            new_config, saved_amount = generate_new_quality_gate_config(
+                f,
+                MockMetricHandler(
+                    {
+                        "some_gate_high": {
+                            "relative_on_wire_size": 424242,
+                            "current_on_wire_size": 50000000,
+                            "max_on_wire_size": 100000000,
+                            "relative_on_disk_size": 242424,
+                            "current_on_disk_size": 50000000,
+                            "max_on_disk_size": 100000000,
+                        },
+                        "some_gate_low": {
+                            "relative_on_wire_size": 424242,
+                            "current_on_wire_size": 4000000,
+                            "max_on_wire_size": 5000000,
+                            "relative_on_disk_size": 242424,
+                            "current_on_disk_size": 4000000,
+                            "max_on_disk_size": 5000000,
+                        },
+                    }
+                ),
+                True,
+            )
+        assert new_config["some_gate_high"]["max_on_wire_size"] == "95.77 MiB", print(
+            f"Expected 48.64 MiB got {new_config['some_gate_high']['max_on_wire_size']}"
+        )
+        assert new_config["some_gate_high"]["max_on_disk_size"] == "95.6 MiB", print(
+            f"Expected 48.64 MiB got {new_config['some_gate_high']['max_on_disk_size']}"
+        )
+        assert new_config["some_gate_low"]["max_on_wire_size"] == "5.17 MiB", print(
+            f"Expected 4.77 MiB got {new_config['some_gate_low']['max_on_wire_size']}"
+        )
+        assert new_config["some_gate_low"]["max_on_disk_size"] == "5.0 MiB", print(
+            f"Expected 4.77 MiB got {new_config['some_gate_low']['max_on_disk_size']}"
+        )
+
 
 class TestQualityGatesPrMessage(unittest.TestCase):
     @patch.dict(
