@@ -22,6 +22,14 @@ type LogsConfigKeys struct {
 	config       pkgconfigmodel.Reader
 }
 
+// CompressionKind constants
+const (
+	GzipCompressionKind  = "gzip"
+	GzipCompressionLevel = 6
+	ZstdCompressionKind  = "zstd"
+	ZstdCompressionLevel = 1
+)
+
 // defaultLogsConfigKeys defines the default YAML keys used to retrieve logs configuration
 func defaultLogsConfigKeys(config pkgconfigmodel.Reader) *LogsConfigKeys {
 	return NewLogsConfigKeys("logs_config.", config)
@@ -118,14 +126,20 @@ func (l *LogsConfigKeys) compressionKind() string {
 		log.Debugf("Pipeline %s compression settings - configured: %s", l.prefix, pipelineCompressionKind)
 	}
 
-	if compressionKind == "zstd" || compressionKind == "gzip" {
+	// Check if additional endpoints are configured
+	endpoints, _ := l.getAdditionalEndpoints()
+	if len(endpoints) > 0 {
+		log.Debugf("Additional endpoints detected, falling back to gzip compression for compatibility")
+		return GzipCompressionKind
+	}
+
+	if compressionKind == ZstdCompressionKind || compressionKind == GzipCompressionKind {
 		log.Debugf("Agent is using configured compression: %s", compressionKind)
 		return compressionKind
 	}
 
 	log.Warnf("Invalid compression kind: '%s', falling back to default compression: '%s' ", compressionKind, pkgconfigsetup.DefaultLogCompressionKind)
 	return pkgconfigsetup.DefaultLogCompressionKind
-
 }
 
 func (l *LogsConfigKeys) compressionLevel() int {
