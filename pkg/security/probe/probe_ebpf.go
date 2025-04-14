@@ -1308,7 +1308,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 
 	case model.FullDNSResponseEventType:
-		fmt.Println("Received Full DNS event")
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode Network Context")
 			return
