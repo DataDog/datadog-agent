@@ -138,12 +138,12 @@ This procedure ensures you not only get the correct version of `invoke`, but als
 
 ### Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.23.7` or
+You must [install Golang](https://golang.org/doc/install) version `1.23.8` or
 later. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 
 **Please note that versions of Golang that aren't an exact match to the version
-specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent-buildimages/blob/main/circleci/Dockerfile#L42))
+specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent-buildimages/blob/34a493504f7600a2fc7ca75e443fa557da367b05/deb-arm/Dockerfile#L19))
 may not be able to build the agent and/or the [rtloader](https://github.com/DataDog/datadog-agent/tree/main/rtloader)
 binary properly.**
 

@@ -32,7 +32,7 @@ jobs:
         fetch-depth: 0
 
     - name: Set up Python
-      uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+      uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
       with:
         python-version-file: .python-version
 
@@ -47,10 +47,10 @@ jobs:
         git config --local user.email 'github-actions[bot]@users.noreply.github.com'
 
     - name: Validate documentation
-      run: dda inv docs.build --validate
+      run: dda inv -- docs.build --validate
 
     - name: Build documentation
-      run: dda inv docs.build
+      run: dda inv -- docs.build
 
     - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
       with:

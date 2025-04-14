@@ -23,8 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -1075,7 +1075,7 @@ func TestPeerTagsEnv(t *testing.T) {
 
 func TestLogDefaults(t *testing.T) {
 	// New config
-	c := viperconfig.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	c := create.NewConfig("test")
 	require.Equal(t, 0, c.GetInt("log_file_max_rolls"))
 	require.Equal(t, "", c.GetString("log_file_max_size"))
 	require.Equal(t, "", c.GetString("log_file"))
@@ -1094,7 +1094,7 @@ func TestLogDefaults(t *testing.T) {
 
 	// SystemProbe config
 
-	SystemProbe := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	SystemProbe := create.NewConfig("datadog")
 	InitSystemProbeConfig(SystemProbe)
 
 	require.Equal(t, 1, SystemProbe.GetInt("log_file_max_rolls"))
@@ -1202,6 +1202,10 @@ func TestConfigAssignAtPath(t *testing.T) {
 
 	config := newTestConf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	// This setting is required because overrideRunInCoreAgentConfig in pkg/config/setup/process.go adds
+	// it for non-linux OSes. By adding it here the test passes on all OSes.
+	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1231,6 +1235,8 @@ process_config:
     - fifth
     https://url2.eu:
     - modified
+  run_in_core_agent:
+    enabled: false
 secret_backend_command: different
 use_proxy_for_cloud_metadata: true
 `
@@ -1254,6 +1260,7 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 
 	config := newTestConf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1283,7 +1290,10 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	require.Equal(t, expected, res)
 }
 
-var testSimpleConf = []byte(`secret_backend_command: some command
+var testSimpleConf = []byte(`process_config:
+  run_in_core_agent:
+    enabled: false
+secret_backend_command: some command
 secret_backend_arguments:
 - ENC[pass1]
 `)
@@ -1294,6 +1304,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 
 	config := newTestConf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1304,7 +1315,10 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
 	assert.NoError(t, err)
 
-	expectedYaml := `secret_backend_arguments:
+	expectedYaml := `process_config:
+  run_in_core_agent:
+    enabled: false
+secret_backend_arguments:
 - password1
 secret_backend_command: some command
 use_proxy_for_cloud_metadata: true
@@ -1406,6 +1420,7 @@ additional_endpoints:
 `)
 	config := newTestConf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1420,6 +1435,9 @@ additional_endpoints:
   "0": apple
   "1": banana
   "2": cherry
+process_config:
+  run_in_core_agent:
+    enabled: false
 use_proxy_for_cloud_metadata: true
 `
 	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
@@ -1435,7 +1453,7 @@ func TestServerlessConfigNumComponents(t *testing.T) {
 }
 
 func TestServerlessConfigInit(t *testing.T) {
-	conf := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	conf := create.NewConfig("datadog")
 
 	initCommonWithServerless(conf)
 
@@ -1451,7 +1469,7 @@ func TestServerlessConfigInit(t *testing.T) {
 
 func TestDisableCoreAgent(t *testing.T) {
 	pkgconfigmodel.CleanOverride(t)
-	conf := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	conf := create.NewConfig("datadog")
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 
 	InitConfig(conf)
@@ -1474,7 +1492,7 @@ func TestDisableCoreAgent(t *testing.T) {
 
 func TestAPMObfuscationDefaultValue(t *testing.T) {
 	pkgconfigmodel.CleanOverride(t)
-	conf := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	conf := create.NewConfig("datadog")
 
 	InitConfig(conf)
 	assert.True(t, conf.GetBool("apm_config.obfuscation.elasticsearch.enabled"))
@@ -1517,7 +1535,7 @@ func TestAgentConfigInit(t *testing.T) {
 
 func TestENVAdditionalKeysToScrubber(t *testing.T) {
 	// Test that the scrubber is correctly configured with the expected keys
-	cfg := viperconfig.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	cfg := create.NewConfig("test")
 
 	data := `scrubber.additional_keys:
 - yet_another_key

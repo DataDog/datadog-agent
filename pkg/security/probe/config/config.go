@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -141,6 +141,9 @@ type Config struct {
 	// NetworkRawPacketEnabled defines if the network raw packet is enabled
 	NetworkRawPacketEnabled bool
 
+	// NetworkRawPacketLimiterRate defines the rate at which raw packets should be sent to user space
+	NetworkRawPacketLimiterRate int
+
 	// NetworkPrivateIPRanges defines the list of IP that should be considered private
 	NetworkPrivateIPRanges []string
 
@@ -158,6 +161,12 @@ type Config struct {
 
 	// DNSResolutionEnabled resolving DNS names from IP addresses
 	DNSResolutionEnabled bool
+
+	// SpanTrackingEnabled defines if span tracking should be enabled
+	SpanTrackingEnabled bool
+
+	// SpanTrackingCacheSize is the size of the span tracking cache
+	SpanTrackingCacheSize int
 }
 
 // NewConfig returns a new Config object
@@ -196,6 +205,7 @@ func NewConfig() (*Config, error) {
 		NetworkEnabled:              getBool("network.enabled"),
 		NetworkIngressEnabled:       getBool("network.ingress.enabled"),
 		NetworkRawPacketEnabled:     getBool("network.raw_packet.enabled"),
+		NetworkRawPacketLimiterRate: getInt("network.raw_packet.limiter_rate"),
 		NetworkPrivateIPRanges:      getStringSlice("network.private_ip_ranges"),
 		NetworkExtraPrivateIPRanges: getStringSlice("network.extra_private_ip_ranges"),
 		StatsPollingInterval:        time.Duration(getInt("events_stats.polling_interval")) * time.Second,
@@ -209,6 +219,10 @@ func NewConfig() (*Config, error) {
 
 		// runtime compilation
 		RuntimeCompilationEnabled: getBool("runtime_compilation.enabled"),
+
+		// span tracking
+		SpanTrackingEnabled:   getBool("span_tracking.enabled"),
+		SpanTrackingCacheSize: getInt("span_tracking.cache_size"),
 	}
 
 	if err := c.sanitize(); err != nil {

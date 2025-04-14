@@ -23,7 +23,7 @@ __attribute__((always_inline)) u8 rate_limiter_allow_basic(u16 rate, u64 now, st
     }
 }
 
-__attribute__((always_inline)) u8 rate_limiter_allow_gen(struct rate_limiter_ctx *rate_ctx_p, u16 rate, u64 now, u8 should_count) {
+__attribute__((always_inline)) u8 rate_limiter_allow_apply(struct rate_limiter_ctx *rate_ctx_p, u16 rate, u64 now, u8 should_count) {
     u64 delta = now - get_current_period(rate_ctx_p);
     u8 allow = rate_limiter_allow_basic(rate, now, rate_ctx_p, delta);
     if (allow && should_count) {
@@ -32,29 +32,32 @@ __attribute__((always_inline)) u8 rate_limiter_allow_gen(struct rate_limiter_ctx
     return (allow);
 }
 
-// For now the generic rate is staticaly defined
-// TODO: put it configurable
-#define GENERIC_RATE_LIMITER_RATE 100
+__attribute__((always_inline)) u8 global_limiter_allow(u32 key, u16 rate, u16 should_count) {
+    u64 now = bpf_ktime_get_ns();
 
-__attribute__((always_inline)) u8 rate_limiter_allow(u32 pid, u64 now, u16 should_count) {
-    if (now == 0) {
-        now = bpf_ktime_get_ns();
-    }
-    if (pid == 0) {
-        pid = bpf_get_current_pid_tgid() >> 32;
-    }
-
-    struct rate_limiter_ctx *rate_ctx_p = bpf_map_lookup_elem(&rate_limiters, &pid);
+    struct rate_limiter_ctx *rate_ctx_p = bpf_map_lookup_elem(&global_rate_limiters, &key);
     if (rate_ctx_p == NULL) {
         struct rate_limiter_ctx rate_ctx = new_rate_limiter(now, should_count);
-        bpf_map_update_elem(&rate_limiters, &pid, &rate_ctx, BPF_ANY);
+        bpf_map_update_elem(&global_rate_limiters, &key, &rate_ctx, BPF_ANY);
         return 1;
     }
 
-    u32 rate = GENERIC_RATE_LIMITER_RATE;
-    return rate_limiter_allow_gen(rate_ctx_p, rate, now, should_count);
+    return rate_limiter_allow_apply(rate_ctx_p, rate, now, should_count);
 }
-#define rate_limiter_allow_simple() rate_limiter_allow(0, 0, 1)
+
+__attribute__((always_inline)) u8 pid_rate_limiter_allow(u16 rate, u16 should_count) {
+    u64 now = bpf_ktime_get_ns();
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+
+    struct rate_limiter_ctx *rate_ctx_p = bpf_map_lookup_elem(&pid_rate_limiters, &pid);
+    if (rate_ctx_p == NULL) {
+        struct rate_limiter_ctx rate_ctx = new_rate_limiter(now, should_count);
+        bpf_map_update_elem(&pid_rate_limiters, &pid, &rate_ctx, BPF_ANY);
+        return 1;
+    }
+
+    return rate_limiter_allow_apply(rate_ctx_p, rate, now, should_count);
+}
 
 __attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(u16 rate, u64 cookie, u64 now, u16 should_count) {
     if (now == 0) {
@@ -68,7 +71,7 @@ __attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(u16 rate, u64
         return 1;
     }
 
-    return rate_limiter_allow_gen(rate_ctx_p, rate, now, should_count);
+    return rate_limiter_allow_apply(rate_ctx_p, rate, now, should_count);
 }
 
 #endif /* _RATE_LIMITER_H_ */
