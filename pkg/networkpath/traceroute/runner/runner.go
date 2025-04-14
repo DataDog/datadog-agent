@@ -232,7 +232,7 @@ func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, 
 		}
 		traceroutePath.Hops = append(traceroutePath.Hops, npHop)
 	}
-
+	traceroutePath.PacketLoss = res.PacketLoss
 	return traceroutePath, nil
 }
 

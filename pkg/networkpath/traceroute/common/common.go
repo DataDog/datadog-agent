@@ -26,6 +26,7 @@ type (
 		Target     net.IP
 		DstPort    uint16
 		Hops       []*Hop
+		PacketLoss float32
 	}
 
 	// Hop encapsulates information about a single

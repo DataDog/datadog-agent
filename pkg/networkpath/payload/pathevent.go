@@ -76,5 +76,6 @@ type NetworkPath struct {
 	Source       NetworkPathSource      `json:"source"`
 	Destination  NetworkPathDestination `json:"destination"`
 	Hops         []NetworkPathHop       `json:"hops"`
+	PacketLoss   float32                `json:"packet_loss"`
 	Tags         []string               `json:"tags,omitempty"`
 }
