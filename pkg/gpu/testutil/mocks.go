@@ -60,6 +60,9 @@ var DefaultGPUComputeCapMajor = 7
 // DefaultGPUComputeCapMinor is the minor number for the compute capabilities for the default device returned by the mock
 var DefaultGPUComputeCapMinor = 5
 
+// DefaultSMVersion is the SM version for the default device returned by the mock
+var DefaultSMVersion = uint32(DefaultGPUComputeCapMajor*10 + DefaultGPUComputeCapMinor)
+
 // DefaultGPUArch is the architecture for the default device returned by the mock
 var DefaultGPUArch = nvml.DeviceArchitecture(nvml.DEVICE_ARCH_HOPPER)
 
@@ -101,6 +104,10 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 		GetAttributesFunc: func() (nvml.DeviceAttributes, nvml.Return) {
 			return DefaultGPUAttributes, nvml.SUCCESS
 		},
+		GetMigModeFunc: func() (int, int, nvml.Return) {
+			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
+		},
+
 		GetComputeRunningProcessesFunc: func() ([]nvml.ProcessInfo, nvml.Return) {
 			return DefaultProcessInfo, nvml.SUCCESS
 		},

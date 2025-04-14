@@ -1026,12 +1026,13 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Installer configuration
 	config.BindEnvAndSetDefault("remote_updates", false)
-	config.BindEnvAndSetDefault("remote_policies", false)
 	config.BindEnvAndSetDefault("installer.mirror", "")
 	config.BindEnvAndSetDefault("installer.registry.url", "")
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
 	config.BindEnvAndSetDefault("installer.registry.username", "")
 	config.BindEnvAndSetDefault("installer.registry.password", "")
+	// Legacy installer configuration
+	config.SetKnown("remote_policies")
 
 	// Data Jobs Monitoring config
 	config.BindEnvAndSetDefault("djm_config.enabled", false)
@@ -1539,6 +1540,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnv("logs_config.processing_rules")
 	// enforce the agent to use files to collect container logs on kubernetes environment
 	config.BindEnvAndSetDefault("logs_config.k8s_container_use_file", false)
+	// Tail a container's logs by querying the kubelet's API
+	config.BindEnvAndSetDefault("logs_config.k8s_container_use_kubelet_api", false)
 	// Enable the agent to use files to collect container logs on standalone docker environment, containers
 	// with an existing registry offset will continue to be tailed from the docker socket unless
 	// logs_config.docker_container_force_use_file is set to true.
@@ -1557,6 +1560,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// This field lets you increase the read timeout to prevent the client from
 	// timing out too early in such a situation. Value in seconds.
 	config.BindEnvAndSetDefault("logs_config.docker_client_read_timeout", 30)
+	// Configurable API client timeout while communicating with the kubelet to stream logs. Value in seconds.
+	config.BindEnvAndSetDefault("logs_config.kubelet_api_client_read_timeout", "30s")
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	// DEPRECATED in favor of `logs_config.force_use_http`.
