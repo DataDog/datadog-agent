@@ -286,11 +286,13 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			expectedProtocol = protocols.Unknown
 		}
 
+		// Default to kafka v4 and port 9092 (kafka server 4.0)
 		version := kversion.V4_0_0()
 		targetPort := kafkaPort
 
 		// on older versions of kafka, test against old kafka server on port 8082
 		if fetchVersion < 8 {
+			// The lib version has to be rolled-back from 4.0 because they dropped support for old versions of produce and fetch
 			version = kversion.V3_8_0()
 			targetPort = "8082"
 		}
