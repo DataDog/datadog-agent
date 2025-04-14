@@ -430,6 +430,10 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 	// check event log for N sets of start and stop messages from each service
 	for _, serviceName := range s.runningUserServices() {
 		providerName := serviceName
+		// skip the installer since it doesn't have a registered provider
+		if providerName == "Datadog Installer" {
+			continue
+		}
 		entries, err := windowsCommon.GetEventLogEntriesFromProvider(host, "Application", providerName)
 		s.Require().NoError(err, "should get event log entries from %s", providerName)
 		// message IDs from pkg/util/winutil/messagestrings
