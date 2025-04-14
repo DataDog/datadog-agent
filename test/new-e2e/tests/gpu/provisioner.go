@@ -59,7 +59,7 @@ var gpuSystems = map[systemName]systemData{
 		cudaSanityCheckImage: "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/nvidia/cuda:12.6.3-base-ubuntu22.04",
 	},
 	gpuSystemUbuntu1804: {
-		ami: "ami-0d4cd594d60c8d668",
+		ami: "ami-02c2cc9ebe9bd4b54",
 		os:  os.Ubuntu2004, // We don't have explicit support for Ubuntu 18.04, but this descriptor is not super-strict
 	},
 }
