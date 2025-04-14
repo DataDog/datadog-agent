@@ -275,11 +275,12 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 
 			// Link
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("vfs_link"),
+				// source dentry
+				kprobeOrFentry("complete_walk"),
+				// target dentry
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
-					kprobeOrFentry("filename_create"),
-					kprobeOrFentry("security_path_link"),
-					kprobeOrFentry("security_path_mkdir"),
+					kretprobeOrFexit("filename_create"),
+					kretprobeOrFexit("__lookup_hash"),
 				}},
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "link", fentry, EntryAndExit)},
@@ -329,7 +330,6 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kprobeOrFentry("vfs_mkdir"),
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
 					kprobeOrFentry("filename_create"),
-					kprobeOrFentry("security_path_link"),
 					kprobeOrFentry("security_path_mkdir"),
 				}},
 			}},

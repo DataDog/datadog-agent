@@ -5,12 +5,8 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.ciproviders.gitlab_api import (
-    resolve_gitlab_ci_configuration,
-)
-from tasks.libs.common.utils import (
-    gitlab_section,
-)
+from tasks.libs.ciproviders.gitlab_api import resolve_gitlab_ci_configuration
+from tasks.libs.common.utils import gitlab_section
 from tasks.libs.pipeline.generation import remove_fields, update_child_job_variables, update_needs_parent
 
 
@@ -24,7 +20,7 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
 
     skipped_test_fips = {
         "new-e2e-otel": "TestOTelAgent",  # No FIPS + OTel image exists yet so these tests will never succeed
-        "new-e2e-amp": ".*/TestJMXFIPSMode",  # These tests are explicitly testing the agent when FIPS is disabled
+        "new-e2e-amp": ".*/TestJMXFIPSMode|TestJMXFetchNixMtls",  # These tests are explicitly testing the agent when FIPS is disabled
     }
 
     if generate_config:
@@ -55,7 +51,17 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
         remove_fields(job)
         if "needs" in job:
             job["needs"] = update_needs_parent(
-                job["needs"], deps_to_keep=["go_e2e_deps", "tests_windows_sysprobe_x64", "tests_windows_secagent_x64"]
+                job["needs"],
+                deps_to_keep=["go_e2e_deps", "tests_windows_sysprobe_x64", "tests_windows_secagent_x64"],
+                package_deps=[
+                    "agent_deb-x64-a7-fips",
+                    "agent_deb-x64-a7",
+                    "windows_msi_and_bosh_zip_x64-a7-fips",
+                    "windows_msi_and_bosh_zip_x64-a7",
+                    "agent_rpm-x64-a7",
+                    "agent_suse-x64-a7",
+                ],
+                package_deps_suffix="-fips",
             )
 
     new_jobs = {}

@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -51,9 +52,9 @@ func (d *DotnetLibraryExec) newDotnetLibraryExecCmd(ctx context.Context, command
 	}
 }
 
-// Install installs the library.
-func (d *DotnetLibraryExec) Install(ctx context.Context, homePath string) (exitCode int, err error) {
-	cmd := d.newDotnetLibraryExecCmd(ctx, "install", "--home-path", homePath)
+// InstallVersion installs a version of the library.
+func (d *DotnetLibraryExec) InstallVersion(ctx context.Context, homePath string) (exitCode int, err error) {
+	cmd := d.newDotnetLibraryExecCmd(ctx, "install-version", "--home-path", homePath)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
@@ -65,26 +66,36 @@ func (d *DotnetLibraryExec) UninstallVersion(ctx context.Context, homePath strin
 	return cmd.Run()
 }
 
-// UninstallProduct cleans up the env variables and other parameters that are not cleaned up in UninstallVersion.
-// This is meant to be called when we completely uninstall the library from the system.
-func (d *DotnetLibraryExec) UninstallProduct(ctx context.Context) (exitCode int, err error) {
-	cmd := d.newDotnetLibraryExecCmd(ctx, "uninstall-product")
+// EnableIISInstrumentation enables the IIS instrumentation on the system.
+func (d *DotnetLibraryExec) EnableIISInstrumentation(ctx context.Context, homePath string) (exitCode int, err error) {
+	cmd := d.newDotnetLibraryExecCmd(ctx, "enable-iis-instrumentation", "--home-path", homePath)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// RemoveIISInstrumentation removes the IIS instrumentation from the system.
+func (d *DotnetLibraryExec) RemoveIISInstrumentation(ctx context.Context) (exitCode int, err error) {
+	cmd := d.newDotnetLibraryExecCmd(ctx, "remove-iis-instrumentation")
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
 
 func (d *dotnetLibraryExecCmd) Run() (int, error) {
-	var errBuf bytes.Buffer
-	d.Stderr = &errBuf
+	var mergedBuffer bytes.Buffer
+	errWriter := io.MultiWriter(&mergedBuffer, os.Stderr)
+	outWriter := io.MultiWriter(&mergedBuffer, os.Stdout)
+	d.Stderr = errWriter
+	d.Stdout = outWriter
+
 	err := d.Cmd.Run()
 	if err == nil {
 		return d.Cmd.ProcessState.ExitCode(), nil
 	}
 
-	if len(errBuf.Bytes()) == 0 {
+	if len(mergedBuffer.Bytes()) == 0 {
 		return d.Cmd.ProcessState.ExitCode(), fmt.Errorf("run failed: %w", err)
 	}
 
-	installerError := installerErrors.FromJSON(strings.TrimSpace(errBuf.String()))
+	installerError := installerErrors.FromJSON(strings.TrimSpace(mergedBuffer.String()))
 	return d.Cmd.ProcessState.ExitCode(), fmt.Errorf("run failed: %w \n%s", installerError, err.Error())
 }

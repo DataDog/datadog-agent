@@ -10,9 +10,6 @@ on:
   pull_request_review_comment:
     types: [created, deleted]
 
-env:
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 permissions: {}
 jobs:
   codereview-complexity:
@@ -26,7 +23,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Setup python
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         with:
           python-version-file: .python-version
           cache: 'pip'
@@ -38,4 +35,5 @@ jobs:
       - name: Check code review complexity
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: dda inv -e github.assign-codereview-label --pr-id="$PR_NUMBER"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dda inv -- -e github.assign-codereview-label --pr-id="$PR_NUMBER"

@@ -72,9 +72,9 @@ type SecurityProfileContext struct {
 
 // IPPortContext is used to hold an IP and Port
 type IPPortContext struct {
-	IPNet            net.IPNet `field:"ip"`                                  // SECLDoc[ip] Definition:`IP address`
-	Port             uint16    `field:"port"`                                // SECLDoc[port] Definition:`Port number`
-	IsPublic         bool      `field:"is_public,handler:ResolveIsIPPublic"` // SECLDoc[is_public] Definition:`Whether the IP address belongs to a public network`
+	IPNet            net.IPNet `field:"ip"`                                               // SECLDoc[ip] Definition:`IP address`
+	Port             uint16    `field:"port"`                                             // SECLDoc[port] Definition:`Port number`
+	IsPublic         bool      `field:"is_public,handler:ResolveIsIPPublic,opts:skip_ad"` // SECLDoc[is_public] Definition:`Whether the IP address belongs to a public network`
 	IsPublicResolved bool      `field:"-"`
 }
 

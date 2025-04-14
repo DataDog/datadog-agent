@@ -10,6 +10,7 @@ package ditypes
 import (
 	"debug/dwarf"
 	"fmt"
+	"math"
 )
 
 // TypeMap contains all the information about functions and their parameters
@@ -50,10 +51,11 @@ func (p Parameter) String() string {
 type NotCaptureReason uint8
 
 const (
-	Unsupported         NotCaptureReason = iota + 1 // Unsupported means the data type of the parameter is unsupported
-	NoFieldLocation                                 // NoFieldLocation means the parameter wasn't captured because location information is missing from analysis
-	FieldLimitReached                               // FieldLimitReached means the parameter wasn't captured because the data type has too many fields
-	CaptureDepthReached                             // CaptureDepthReached means the parameter wasn't captures because the data type has too many levels
+	Unsupported            NotCaptureReason = iota + 1 // Unsupported means the data type of the parameter is unsupported
+	NoFieldLocation                                    // NoFieldLocation means the parameter wasn't captured because location information is missing from analysis
+	FieldLimitReached                                  // FieldLimitReached means the parameter wasn't captured because the data type has too many fields
+	CaptureDepthReached                                // CaptureDepthReached means the parameter wasn't captures because the data type has too many levels
+	CollectionLimitReached                             // CollectionLimitReached means the parameter wasn't captured because the data type has too many elements
 )
 
 func (r NotCaptureReason) String() string {
@@ -63,9 +65,11 @@ func (r NotCaptureReason) String() string {
 	case NoFieldLocation:
 		return "no field location"
 	case FieldLimitReached:
-		return "field limit reached"
+		return "fieldCount"
 	case CaptureDepthReached:
-		return "capture depth reached"
+		return "depth"
+	case CollectionLimitReached:
+		return "collectionSize"
 	default:
 		return fmt.Sprintf("unknown reason (%d)", r)
 	}
@@ -152,6 +156,11 @@ const (
 	OpPopPointerAddress
 	// OpSetParameterIndex sets the parameter index in the base event's param_indicies array field
 	OpSetParameterIndex
+
+	// OpCompilerError represents an operation to insert a compiler error for the sake of testing
+	OpCompilerError = math.MaxUint - 1
+	// OpVerifierError represents an operation to insert a verifier error for the sake of testing
+	OpVerifierError = math.MaxUint
 )
 
 func (op LocationExpressionOpcode) String() string {
@@ -198,6 +207,10 @@ func (op LocationExpressionOpcode) String() string {
 		return "JumpIfGreaterThanLimit"
 	case OpSetParameterIndex:
 		return "SetParamIndex"
+	case OpCompilerError:
+		return "CompilerError"
+	case OpVerifierError:
+		return "VerifierError"
 	default:
 		return fmt.Sprintf("LocationExpressionOpcode(%d)", int(op))
 	}
@@ -411,6 +424,18 @@ func SetParameterIndexLocationExpression(index uint16) LocationExpression {
 		Opcode: OpSetParameterIndex,
 		Arg1:   uint(index),
 	}
+}
+
+// CompilerErrorLocationExpression creates an expression which
+// inserts a compiler error into the bpf program
+func CompilerErrorLocationExpression() LocationExpression {
+	return LocationExpression{Opcode: OpCompilerError}
+}
+
+// VerifierErrorLocationExpression creates an expression which
+// inserts a verifier error into the bpf program
+func VerifierErrorLocationExpression() LocationExpression {
+	return LocationExpression{Opcode: OpVerifierError}
 }
 
 // LocationExpression is an operation which will be executed in bpf with the purpose

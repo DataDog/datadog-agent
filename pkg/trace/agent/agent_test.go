@@ -646,42 +646,6 @@ func TestConcentratorInput(t *testing.T) {
 			},
 		},
 		{
-			name: "containerID no orchestrator",
-			in: &api.Payload{
-				TracerPayload: &pb.TracerPayload{
-					Chunks:      []*pb.TraceChunk{spansToChunk(rootSpan)},
-					ContainerID: "no-orch",
-				},
-			},
-			expected: stats.Input{
-				Traces: []traceutil.ProcessedTrace{
-					{
-						Root:       rootSpan,
-						TraceChunk: spansToChunk(rootSpan),
-					},
-				},
-			},
-		},
-		{
-			name: "containerID feature disabled",
-			in: &api.Payload{
-				TracerPayload: &pb.TracerPayload{
-					Chunks:      []*pb.TraceChunk{spansToChunk(rootSpan)},
-					ContainerID: "feature_disabled",
-				},
-			},
-			withFargate: true,
-			features:    "disable_cid_stats",
-			expected: stats.Input{
-				Traces: []traceutil.ProcessedTrace{
-					{
-						Root:       rootSpan,
-						TraceChunk: spansToChunk(rootSpan),
-					},
-				},
-			},
-		},
-		{
 			name: "client computed stats",
 			in: &api.Payload{
 				TracerPayload: &pb.TracerPayload{
@@ -2486,9 +2450,11 @@ func TestConvertStats(t *testing.T) {
 			name:     "containerID feature enabled, no fargate",
 			features: "enable_cid_stats",
 			in: &pb.ClientStatsPayload{
-				Hostname: "tracer_hots",
-				Env:      "tracer_env",
-				Version:  "code_version",
+				Hostname:        "tracer_hots",
+				Env:             "tracer_env",
+				Version:         "code_version",
+				ProcessTags:     "binary_name:bin",
+				ProcessTagsHash: 123456789,
 				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    1,
@@ -2523,12 +2489,14 @@ func TestConvertStats(t *testing.T) {
 			tracerVersion: "v1",
 			containerID:   "abc123",
 			out: &pb.ClientStatsPayload{
-				Hostname:      "tracer_hots",
-				Env:           "tracer_env",
-				Version:       "code_version",
-				Lang:          "java",
-				TracerVersion: "v1",
-				ContainerID:   "abc123",
+				Hostname:        "tracer_hots",
+				Env:             "tracer_env",
+				Version:         "code_version",
+				Lang:            "java",
+				TracerVersion:   "v1",
+				ContainerID:     "abc123",
+				ProcessTags:     "binary_name:bin",
+				ProcessTagsHash: 123456789,
 				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    1,
@@ -2585,7 +2553,7 @@ func TestConvertStats(t *testing.T) {
 				Version:       "code_version",
 				Lang:          "java",
 				TracerVersion: "v1",
-				ContainerID:   "",
+				ContainerID:   "abc123",
 				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    1,

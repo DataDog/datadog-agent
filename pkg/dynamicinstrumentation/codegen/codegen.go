@@ -27,10 +27,21 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 	out := bytes.NewBuffer(parameterBytes)
 
 	if probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters {
-		params := procInfo.TypeMap.Functions[probe.FuncName]
-		depth := probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth
+		preChange := procInfo.TypeMap.Functions[probe.FuncName]
+		depthLimit := probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth
+		fieldCountLimit := ditypes.MaxFieldCount
+		setDepthLimit(preChange, depthLimit)
+		setFieldLimit(preChange, fieldCountLimit)
+		dontCaptureInterfaces(preChange)
 
-		params = applyCaptureDepth(params, depth)
+		// We make a copy of the parameter tree to avoid modifying the original
+		// for the sake of event translation when uploading to backend
+		params := make([]*ditypes.Parameter, len(preChange))
+		copyTree(&params, &preChange)
+
+		params = applyExclusions(params)
+		correctPointersWithoutPieces(params)
+
 		for i := range params {
 			if params[i].DoNotCapture {
 				log.Tracef("Not capturing parameter %d %s: %s", i, params[i].Name, params[i].NotCaptureReason.String())
@@ -56,6 +67,7 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 		log.Info("Not capturing parameters")
 	}
 
+	log.Tracef("Generated BPF parameters source code:\n %s", out.String())
 	probe.InstrumentationInfo.BPFParametersSourceCode = out.String()
 	return nil
 }
@@ -220,6 +232,10 @@ func resolveLocationExpressionTemplate(locationExpression ditypes.LocationExpres
 		return template.New("comment").Parse(commentText)
 	case ditypes.OpSetParameterIndex:
 		return template.New("set_parameter_index").Parse(setParameterIndexText)
+	case ditypes.OpCompilerError:
+		return template.New("compiler_error").Parse(compilerErrorText)
+	case ditypes.OpVerifierError:
+		return template.New("verifier_error").Parse(verifierErrorText)
 	default:
 		return nil, errors.New("invalid location expression opcode")
 	}
@@ -320,4 +336,60 @@ func excludePopPointerAddressExpressions(expressions *[]ditypes.LocationExpressi
 type sliceHeaderWrapper struct {
 	Parameter           *ditypes.Parameter
 	SliceTypeHeaderText string
+}
+
+func copyTree(dst, src *[]*ditypes.Parameter) {
+	if dst == nil || src == nil || len(*src) == 0 {
+		return
+	}
+	*dst = make([]*ditypes.Parameter, len(*src))
+	for i := range *src {
+		if (*src)[i] == nil {
+			continue
+		}
+
+		// Create a new Parameter object for each element
+		srcParam := (*src)[i]
+		(*dst)[i] = &ditypes.Parameter{
+			Name:             srcParam.Name,
+			ID:               srcParam.ID,
+			Type:             srcParam.Type,
+			TotalSize:        srcParam.TotalSize,
+			Kind:             srcParam.Kind,
+			FieldOffset:      srcParam.FieldOffset,
+			DoNotCapture:     srcParam.DoNotCapture,
+			NotCaptureReason: srcParam.NotCaptureReason,
+		}
+
+		// Deep copy the Location if present
+		if srcParam.Location != nil {
+			(*dst)[i].Location = &ditypes.Location{
+				InReg:            srcParam.Location.InReg,
+				StackOffset:      srcParam.Location.StackOffset,
+				Register:         srcParam.Location.Register,
+				NeedsDereference: srcParam.Location.NeedsDereference,
+				PointerOffset:    srcParam.Location.PointerOffset,
+			}
+		}
+
+		// Deep copy the LocationExpressions slice
+		if len(srcParam.LocationExpressions) > 0 {
+			(*dst)[i].LocationExpressions = make([]ditypes.LocationExpression, len(srcParam.LocationExpressions))
+			for j, expr := range srcParam.LocationExpressions {
+				// Copy the LocationExpression struct
+				(*dst)[i].LocationExpressions[j] = expr
+
+				// Deep copy any IncludedExpressions
+				if len(expr.IncludedExpressions) > 0 {
+					(*dst)[i].LocationExpressions[j].IncludedExpressions = make([]ditypes.LocationExpression, len(expr.IncludedExpressions))
+					copy((*dst)[i].LocationExpressions[j].IncludedExpressions, expr.IncludedExpressions)
+				}
+			}
+		}
+
+		// Recursively copy ParameterPieces
+		if len(srcParam.ParameterPieces) > 0 {
+			copyTree(&((*dst)[i].ParameterPieces), &(srcParam.ParameterPieces))
+		}
+	}
 }

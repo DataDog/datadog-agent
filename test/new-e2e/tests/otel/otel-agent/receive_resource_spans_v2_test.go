@@ -21,7 +21,7 @@ type otelAgentSpanReceiverV2TestSuite struct {
 }
 
 func TestOTelAgentSpanReceiverV2(t *testing.T) {
-	values := `
+	values := enableOTELAgentonfig(`
 datadog:
   logs:
     containerCollectAll: false
@@ -32,14 +32,17 @@ agents:
       env:
         - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_AS_RESOURCE_NAME
           value: 'false'
-`
+`)
 	t.Parallel()
 	e2e.Run(t, &otelAgentSpanReceiverV2TestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(minimalConfig)))))
 }
 
 func (s *otelAgentSpanReceiverV2TestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.SetupSampleTraces(s)
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
+	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
 func (s *otelAgentSpanReceiverV2TestSuite) TestTracesWithSpanReceiverV2() {

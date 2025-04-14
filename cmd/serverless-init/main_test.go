@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
+
 	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"

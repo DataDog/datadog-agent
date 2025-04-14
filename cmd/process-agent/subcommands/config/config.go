@@ -186,7 +186,7 @@ func getClient(cfg model.Reader) (settings.Client, error) {
 		return nil, err
 	}
 
-	httpClient := apiutil.GetClient(false)
+	httpClient := apiutil.GetClient()
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 
 	port := cfg.GetInt("process_config.cmd_port")

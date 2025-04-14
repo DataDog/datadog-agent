@@ -8,11 +8,11 @@
 package cri
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	diagnoseComp "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 )
 
 func init() {
-	diagnosis.RegisterMetadataAvail("CRI availability", diagnose)
+	diagnoseComp.RegisterMetadataAvail("CRI availability", diagnose)
 }
 
 // diagnose the CRI socket connectivity

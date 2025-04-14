@@ -397,7 +397,7 @@ class TestSendStats(unittest.TestCase):
 
         trace_mock.assert_called()
         pipeline_mock.assert_called()
-        self.assertEqual(pipeline_mock.call_count, 2)
+        self.assertEqual(pipeline_mock.call_count, 1)
 
 
 class TestJobOwners(unittest.TestCase):
@@ -440,5 +440,12 @@ class TestFailureSummarySendNotifications(unittest.TestCase):
     @patch('tasks.notify.failure_summary', new=MagicMock())
     @patch('builtins.print')
     def test_sheduled_conductor(self, print_mock):
+        notify.failure_summary_send_notifications(MockContext(), daily_summary=True)
+        print_mock.assert_not_called()
+
+    @patch.dict('os.environ', {'CI_PIPELINE_CREATED_AT': '2025-02-07T05:22:22.222Z'})
+    @patch('tasks.notify.failure_summary', new=MagicMock())
+    @patch('builtins.print')
+    def test_sheduled_conductor_dst(self, print_mock):
         notify.failure_summary_send_notifications(MockContext(), daily_summary=True)
         print_mock.assert_not_called()
