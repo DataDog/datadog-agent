@@ -47,7 +47,7 @@ tests_macos_gitlab_arm64:
   extends: .tests_macos_gitlab
   rules:
     !reference [.manual]
-  tags: ["macos:ventura-arm64", "specific:true"]
+  tags: ["macos:ventura-arm64-test", "specific:true"]
   allow_failure: true
   after_script:
     - !reference [.vault_login]
