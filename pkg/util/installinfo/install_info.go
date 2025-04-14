@@ -64,18 +64,18 @@ func Get(conf model.Reader) (*InstallInfo, error) {
 }
 
 func getFromEnvVars() (*InstallInfo, bool) {
-	installInfoEnvVars := []string{"DD_INSTALL_INFO_TOOL", "DD_INSTALL_INFO_TOOL_VERSION", "DD_INSTALL_INFO_INSTALLER_VERSION"}
-	values := make([]string, len(installInfoEnvVars))
+	tool, okTool := os.LookupEnv("DD_INSTALL_INFO_TOOL")
+	toolVersion, okToolVersion := os.LookupEnv("DD_INSTALL_INFO_TOOL_VERSION")
+	installerVersion, okInstallerVersion := os.LookupEnv("DD_INSTALL_INFO_INSTALLER_VERSION")
 
-	for i, v := range installInfoEnvVars {
-		val, ok := os.LookupEnv(v)
-		if !ok {
-			return nil, false
+	if !okTool || !okToolVersion || !okInstallerVersion {
+		if okTool || okToolVersion || okInstallerVersion {
+			log.Warn("install info partially set through environment, ignoring: tool %t, version %t, installer %t", okTool, okToolVersion, okInstallerVersion)
 		}
-		values[i] = val
+		return nil, false
 	}
 
-	return &InstallInfo{Tool: values[0], ToolVersion: values[1], InstallerVersion: values[2]}, true
+	return &InstallInfo{Tool: tool, ToolVersion: toolVersion, InstallerVersion: installerVersion}, true
 }
 
 func getFromPath(path string) (*InstallInfo, error) {
