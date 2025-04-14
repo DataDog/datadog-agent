@@ -12,5 +12,5 @@ enhancements:
     polling interval that is defined here to be configurable.
     A user can pass a remote_configuration.org_status_refresh_interval
     config to configure the value as they wish, with a default of 1m if
-    they do not provide this value (note: previous polling interval was
-    also 1m, so no change in terms of default behavior). 
+    they do not provide this value (Note: previous polling interval was
+    1m, so the default behavior remains unchanged).
