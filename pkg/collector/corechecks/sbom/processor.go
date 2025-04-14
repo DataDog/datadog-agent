@@ -134,10 +134,11 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
 			container := event.Entity.(*workloadmeta.Container)
+			p.registerContainer(container)
+
 			if containerFilter.IsExcluded(nil, container.Name, container.Image.Name, "") {
 				continue
 			}
-			p.registerContainer(container)
 
 			if p.procfsSBOM {
 				if ok, err := procfs.IsAgentContainer(container.ID); !ok && err == nil {
@@ -282,7 +283,7 @@ func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 	sbom := &model.SBOMEntity{
 		Status:             model.SBOMStatus_SUCCESS,
 		Id:                 result.RequestID,
-		Type:               model.SBOMSourceType_HOST_IMAGE, //Change this to SBOMSourceType_CONTAINER_FILE_SYSTEM once BE is ready
+		Type:               model.SBOMSourceType_CONTAINER_FILE_SYSTEM,
 		InUse:              true,
 		GeneratedAt:        timestamppb.New(result.CreatedAt),
 		GenerationDuration: convertDuration(result.Duration),

@@ -33,7 +33,10 @@ func pruneDoNotCaptureParams(params []*ditypes.Parameter) []*ditypes.Parameter {
 
 	result := []*ditypes.Parameter{}
 	for _, param := range params {
-		if param == nil || param.DoNotCapture {
+		if param == nil {
+			continue
+		}
+		if param.DoNotCapture && param.Kind != uint(reflect.Pointer) {
 			continue
 		}
 
@@ -46,6 +49,46 @@ func pruneDoNotCaptureParams(params []*ditypes.Parameter) []*ditypes.Parameter {
 	}
 
 	return result
+}
+
+func dontCaptureInterfaces(params []*ditypes.Parameter) {
+	if len(params) == 0 {
+		return
+	}
+
+	// Create a queue to hold parameters that need to be processed
+	queue := make([]*ditypes.Parameter, 0, len(params))
+
+	// Initialize the queue with the top-level parameters
+	for _, param := range params {
+		if param != nil {
+			queue = append(queue, param)
+		}
+	}
+
+	// Process parameters until the queue is empty
+	for len(queue) > 0 {
+		// Dequeue the next parameter
+		param := queue[0]
+		queue = queue[1:]
+
+		if param == nil {
+			continue
+		}
+
+		// Check if the parameter is an interface type
+		if param.Type == "runtime.iface" {
+			param.DoNotCapture = true
+			param.NotCaptureReason = ditypes.Unsupported
+		}
+
+		// Add nested parameters to the queue
+		for _, childParam := range param.ParameterPieces {
+			if childParam != nil {
+				queue = append(queue, childParam)
+			}
+		}
+	}
 }
 
 func setFieldLimit(params []*ditypes.Parameter, fieldCountLimit int) {
@@ -200,5 +243,40 @@ func correctStructSize(param *ditypes.Parameter) {
 	}
 	for i := range param.ParameterPieces {
 		correctStructSize(param.ParameterPieces[i])
+	}
+}
+
+// correctPointersWithoutPieces checks recursively if any parameter of kind Pointer in the parameter tree
+// has no parameter pieces and corrects it accordingly. This can occur for various reasons, such as
+// when capture depth is enforced.
+func correctPointersWithoutPieces(params []*ditypes.Parameter) {
+	if len(params) == 0 {
+		return
+	}
+
+	queue := make([]*ditypes.Parameter, 0, len(params))
+	for _, param := range params {
+		if param != nil {
+			queue = append(queue, param)
+		}
+	}
+
+	for len(queue) > 0 {
+		param := queue[0]
+		queue = queue[1:]
+		if param == nil {
+			continue
+		}
+
+		// Check if parameter is a pointer with no parameter pieces
+		if reflect.Kind(param.Kind) == reflect.Pointer && len(param.ParameterPieces) == 0 {
+			param.ParameterPieces = []*ditypes.Parameter{{}}
+			return
+		}
+		for _, childParam := range param.ParameterPieces {
+			if childParam != nil {
+				queue = append(queue, childParam)
+			}
+		}
 	}
 }

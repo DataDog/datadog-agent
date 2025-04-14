@@ -23,7 +23,7 @@ import (
 
 // Test that a setting with a map value is seen as a leaf by the nodetreemodel config
 func TestLeafNodeCanHaveComplexMapValue(t *testing.T) {
-	cfg := NewConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.BindEnvAndSetDefault("kubernetes_node_annotations_as_tags", map[string]string{"cluster.k8s.io/machine": "kube_machine"})
 	cfg.BuildSchema()
 	// Ensure the config is node based
@@ -46,7 +46,7 @@ secret_backend_command: ./my_secret_fetcher.sh
 	os.Setenv("TEST_SECRET_BACKEND_TIMEOUT", "60")
 	os.Setenv("TEST_NETWORK_PATH_COLLECTOR_INPUT_CHAN_SIZE", "23456")
 
-	cfg := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)
@@ -114,7 +114,7 @@ secret_backend_command: ./my_secret_fetcher.sh
 }
 
 func TestNewConfig(t *testing.T) {
-	cfg := NewConfig("config_name", "PREFIX", nil)
+	cfg := NewNodeTreeConfig("config_name", "PREFIX", nil)
 
 	c := cfg.(*ntmConfig)
 
@@ -139,7 +139,7 @@ func TestNewConfig(t *testing.T) {
 
 // TODO: expand testing coverage once we have environment and Set() implemented
 func TestBasicUsage(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 
 	cfg.SetDefault("a", 1)
 	cfg.BuildSchema()
@@ -149,7 +149,7 @@ func TestBasicUsage(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 
 	cfg.SetDefault("default", 0)
 	cfg.SetDefault("unknown", 0)
@@ -212,7 +212,7 @@ file: 2
 }
 
 func TestGetSource(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)
 	cfg.BuildSchema()
 
@@ -222,7 +222,7 @@ func TestGetSource(t *testing.T) {
 }
 
 func TestSetLowerSource(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 
 	cfg.SetDefault("setting", 0)
 	cfg.BuildSchema()
@@ -242,7 +242,7 @@ func TestSetLowerSource(t *testing.T) {
 }
 
 func TestSetUnkownKey(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.BuildSchema()
 
 	cfg.Set("unknown_key", 21, model.SourceAgentRuntime)
@@ -252,7 +252,7 @@ func TestSetUnkownKey(t *testing.T) {
 }
 
 func TestAllSettings(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b.c", 0)
 	cfg.SetDefault("b.d", 0)
@@ -273,7 +273,7 @@ func TestAllSettings(t *testing.T) {
 }
 
 func TestAllSettingsWithoutDefault(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b.c", 0)
 	cfg.SetDefault("b.d", 0)
@@ -292,7 +292,7 @@ func TestAllSettingsWithoutDefault(t *testing.T) {
 }
 
 func TestAllSettingsBySource(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b.c", 0)
 	cfg.SetDefault("b.d", 0)
@@ -328,7 +328,7 @@ func TestAllSettingsBySource(t *testing.T) {
 }
 
 func TestIsSet(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b", 0)
 	cfg.SetKnown("c")
@@ -349,7 +349,7 @@ func TestIsSet(t *testing.T) {
 }
 
 func TestIsConfigured(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b", 0)
 	cfg.SetKnown("c")
@@ -370,7 +370,7 @@ func TestIsConfigured(t *testing.T) {
 }
 
 func TestEnvVarMultipleSettings(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b", 0)
 	cfg.SetDefault("c", 0)
@@ -387,7 +387,7 @@ func TestEnvVarMultipleSettings(t *testing.T) {
 }
 
 func TestAllKeysLowercased(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b", 0)
 	cfg.BuildSchema()
@@ -408,7 +408,7 @@ secret_backend_command: ./my_secret_fetcher.sh
 	os.Setenv("TEST_SECRET_BACKEND_TIMEOUT", "60")
 	os.Setenv("TEST_NETWORK_PATH_COLLECTOR_INPUT_CHAN_SIZE", "23456")
 
-	cfg := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)
@@ -489,7 +489,7 @@ func TestUnsetForSource(t *testing.T) {
     pathtest_contexts_limit: 43210
     processing_chan_size: 45678`
 	// default source, lowest priority
-	cfg := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
@@ -620,7 +620,7 @@ func TestUnsetForSource(t *testing.T) {
 }
 
 func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
-	cfg := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.BindEnv("api_key")
 	cfg.BuildSchema()
 
@@ -659,7 +659,7 @@ func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
 }
 
 func TestMergeFleetPolicy(t *testing.T) {
-	config := NewConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.SetConfigType("yaml")
 	config.SetDefault("foo", "")
 	config.BuildSchema()
@@ -676,7 +676,7 @@ func TestMergeFleetPolicy(t *testing.T) {
 }
 
 func TestMergeConfig(t *testing.T) {
-	config := NewConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.SetConfigType("yaml")
 	config.SetDefault("foo", "")
 	config.BuildSchema()
@@ -693,7 +693,7 @@ func TestMergeConfig(t *testing.T) {
 }
 
 func TestOnUpdate(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 1)
 	cfg.BuildSchema()
 
@@ -722,7 +722,7 @@ func TestOnUpdate(t *testing.T) {
 }
 
 func TestSetInvalidSource(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 1)
 	cfg.BuildSchema()
 
@@ -733,7 +733,7 @@ func TestSetInvalidSource(t *testing.T) {
 }
 
 func TestSetWithoutSource(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 1)
 	cfg.BuildSchema()
 
@@ -744,7 +744,7 @@ func TestSetWithoutSource(t *testing.T) {
 }
 
 func TestPanicAfterBuildSchema(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 1)
 	cfg.BuildSchema()
 
@@ -767,7 +767,7 @@ func TestPanicAfterBuildSchema(t *testing.T) {
 }
 
 func TestEnvVarTransformers(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.BindEnvAndSetDefault("list_of_nums", []float64{}, "TEST_LIST_OF_NUMS")
 	cfg.BindEnvAndSetDefault("list_of_fruit", []string{}, "TEST_LIST_OF_FRUIT")
 	cfg.BindEnvAndSetDefault("tag_set", []map[string]string{}, "TEST_TAG_SET")
@@ -828,7 +828,7 @@ func TestEnvVarTransformers(t *testing.T) {
 }
 
 func TestUnmarshalKeyIsDeprecated(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", []string{"a", "b"})
 	cfg.BuildSchema()
 
@@ -838,11 +838,51 @@ func TestUnmarshalKeyIsDeprecated(t *testing.T) {
 }
 
 func TestSetConfigFile(t *testing.T) {
-	config := NewConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.SetConfigType("yaml")
 	config.SetConfigFile("datadog.yaml")
 	config.SetDefault("foo", "")
 	config.BuildSchema()
 
 	assert.Equal(t, "datadog.yaml", config.ConfigFileUsed())
+}
+
+func TestEnvVarOrdering(t *testing.T) {
+	// Test scenario 1: DD_DD_URL set before DD_URL
+	t.Run("DD_DD_URL set first", func(t *testing.T) {
+		config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+		config.BindEnv("fakeapikey", "DD_API_KEY")
+		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
+		t.Setenv("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
+		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
+		config.BuildSchema()
+
+		assert.Equal(t, true, config.IsConfigured("dd_url"))
+		assert.Equal(t, "https://app.datadoghq.dd_dd_url.eu", config.GetString("dd_url"))
+	})
+
+	// Test scenario 2: DD_URL set before DD_DD_URL
+	t.Run("DD_URL set first", func(t *testing.T) {
+		config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+		config.BindEnv("fakeapikey", "DD_API_KEY")
+		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
+		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
+		t.Setenv("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
+		config.BuildSchema()
+
+		assert.Equal(t, true, config.IsConfigured("dd_url"))
+		assert.Equal(t, "https://app.datadoghq.dd_dd_url.eu", config.GetString("dd_url"))
+	})
+
+	// Test scenario 3: Only DD_URL is set (DD_DD_URL is missing)
+	t.Run("Only DD_URL is set", func(t *testing.T) {
+		config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+		config.BindEnv("fakeapikey", "DD_API_KEY")
+		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
+		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
+		config.BuildSchema()
+
+		assert.Equal(t, true, config.IsConfigured("dd_url"))
+		assert.Equal(t, "https://app.datadoghq.dd_url.eu", config.GetString("dd_url"))
+	})
 }

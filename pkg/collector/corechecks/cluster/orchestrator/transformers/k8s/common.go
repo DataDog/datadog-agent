@@ -31,6 +31,9 @@ func extractMetadata(m *metav1.ObjectMeta) *model.Metadata {
 	if !m.DeletionTimestamp.IsZero() {
 		meta.DeletionTimestamp = m.DeletionTimestamp.Unix()
 	}
+	if m.DeletionGracePeriodSeconds != nil {
+		meta.DeletionGracePeriodSeconds = *m.DeletionGracePeriodSeconds
+	}
 	if len(m.Annotations) > 0 {
 		meta.Annotations = mapToTags(m.Annotations)
 	}

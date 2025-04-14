@@ -120,6 +120,10 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 			"/usr/lib/sysimage/rpm/*",
 			"/var/lib/dpkg/**",
 			"/var/lib/rpm/*",
+			"/aarch64-bottlerocket-linux-gnu/sys-root/usr/lib/*",
+			"/aarch64-bottlerocket-linux-gnu/sys-root/usr/share/bottlerocket/*",
+			"/x86_64-bottlerocket-linux-gnu/sys-root/usr/lib/*",
+			"/x86_64-bottlerocket-linux-gnu/sys-root/usr/share/bottlerocket/*",
 		}
 	} else if looselyCompareAnalyzers(opts.Analyzers, []string{OSAnalyzers, LanguagesAnalyzers}) {
 		option.WalkerOption.SkipDirs = append(
