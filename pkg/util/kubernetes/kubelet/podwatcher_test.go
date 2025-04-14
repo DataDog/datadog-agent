@@ -519,17 +519,67 @@ func (suite *PodwatcherTestSuite) TestPodWatcherContainerCreatingTags() {
 	require.Len(suite.T(), changes, 1)
 }
 
+func (suite *PodwatcherTestSuite) TestContainerStateChange() {
+	podUID := "test-pod-uid"
+	containerID := "test-container-id"
+	containerName := "test-container-name"
+
+	terminatedStatus := ContainerStatus{
+		ID:    containerID,
+		Name:  containerName,
+		State: ContainerState{Terminated: &ContainerStateTerminated{}},
+	}
+
+	waitingStatus := ContainerStatus{
+		ID:    containerID,
+		Name:  containerName,
+		State: ContainerState{Waiting: &ContainerStateWaiting{}},
+	}
+
+	// Create a pod with a container in Terminated state
+	initialPod := &Pod{
+		Metadata: PodMetadata{
+			UID: podUID,
+		},
+		Status: Status{
+			Containers:    []ContainerStatus{terminatedStatus},
+			AllContainers: []ContainerStatus{terminatedStatus},
+		},
+	}
+
+	watcher := newWatcher()
+	_, err := watcher.computeChanges([]*Pod{initialPod})
+	require.NoError(suite.T(), err)
+
+	// Modify container state to Waiting
+	updatedPod := &Pod{
+		Metadata: PodMetadata{
+			UID: podUID,
+		},
+		Status: Status{
+			Containers:    []ContainerStatus{waitingStatus},
+			AllContainers: []ContainerStatus{waitingStatus},
+		},
+	}
+
+	// Same pod with a different state, should be detected as changed
+	updatedPods, err := watcher.computeChanges([]*Pod{updatedPod})
+	require.NoError(suite.T(), err)
+	require.Len(suite.T(), updatedPods, 1)
+}
+
 func TestPodwatcherTestSuite(t *testing.T) {
 	suite.Run(t, new(PodwatcherTestSuite))
 }
 
 func newWatcher() *PodWatcher {
 	return &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
-		lastSeenReady:  make(map[string]time.Time),
-		tagsDigest:     make(map[string]string),
-		oldPhase:       make(map[string]string),
-		oldReadiness:   make(map[string]bool),
-		expiryDuration: 5 * time.Minute,
+		lastSeen:          make(map[string]time.Time),
+		lastSeenReady:     make(map[string]time.Time),
+		tagsDigest:        make(map[string]string),
+		oldPhase:          make(map[string]string),
+		oldReadiness:      make(map[string]bool),
+		oldContainerState: make(map[string]string),
+		expiryDuration:    5 * time.Minute,
 	}
 }
