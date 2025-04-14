@@ -81,6 +81,7 @@ const (
 	orchestratorEndpoint         = "/api/v2/orch"
 	orchestratorManifestEndpoint = "/api/v2/orchmanif"
 	metadataEndpoint             = "/api/v1/metadata"
+	ndmEndpoint                  = "/api/v2/ndm"
 	ndmflowEndpoint              = "/api/v2/ndmflow"
 	netpathEndpoint              = "/api/v2/netpath"
 	apmTelemetryEndpoint         = "/api/v2/apmtelemetry"
@@ -122,6 +123,7 @@ type Client struct {
 	orchestratorAggregator         aggregator.OrchestratorAggregator
 	orchestratorManifestAggregator aggregator.OrchestratorManifestAggregator
 	metadataAggregator             aggregator.MetadataAggregator
+	ndmAggregator                  aggregator.NDMAggregator
 	ndmflowAggregator              aggregator.NDMFlowAggregator
 	netpathAggregator              aggregator.NetpathAggregator
 	serviceDiscoveryAggregator     aggregator.ServiceDiscoveryAggregator
@@ -150,6 +152,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		orchestratorAggregator:         aggregator.NewOrchestratorAggregator(),
 		orchestratorManifestAggregator: aggregator.NewOrchestratorManifestAggregator(),
 		metadataAggregator:             aggregator.NewMetadataAggregator(),
+		ndmAggregator:                  aggregator.NewNDMAggregator(),
 		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
 		netpathAggregator:              aggregator.NewNetpathAggregator(),
 		serviceDiscoveryAggregator:     aggregator.NewServiceDiscoveryAggregator(),
@@ -285,6 +288,14 @@ func (c *Client) getAPMStats() error {
 		return err
 	}
 	return c.apmStatsAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getNDMPayloads() error {
+	payloads, err := c.getFakePayloads(ndmEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.ndmAggregator.UnmarshallPayloads(payloads)
 }
 
 func (c *Client) getNDMFlows() error {
@@ -841,6 +852,25 @@ func (c *Client) GetOrchestratorResources(filter *PayloadFilter) ([]*aggregator.
 	return orchs, nil
 }
 
+// GetOrchestratorResourcesPayloadAPIKeys fetches fakeintake on `/api/v2/orch` endpoint and returns
+// the API keys of the received orchestrator payloads
+func (c *Client) GetOrchestratorResourcesPayloadAPIKeys() ([]string, error) {
+	payloads, err := c.getFakePayloads(orchestratorEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	keys := make([]string, 0, len(payloads))
+	uniqueKeys := make(map[string]struct{}, len(payloads))
+	for _, payload := range payloads {
+		if _, ok := uniqueKeys[payload.APIKey]; !ok {
+			keys = append(keys, payload.APIKey)
+			uniqueKeys[payload.APIKey] = struct{}{}
+		}
+	}
+	return keys, nil
+}
+
 // GetOrchestratorManifests fetches fakeintake on `/api/v2/orchmanif` endpoint and returns
 // all received process payloads
 func (c *Client) GetOrchestratorManifests() ([]*aggregator.OrchestratorManifestPayload, error) {
@@ -950,6 +980,19 @@ func (c *Client) GetAPMStats() ([]*aggregator.APMStatsPayload, error) {
 		stats = append(stats, c.apmStatsAggregator.GetPayloadsByName(name)...)
 	}
 	return stats, nil
+}
+
+// GetNDMPayloads fetches fakeintake on `/api/v2/ndm` endpoint and returns all received NDM payloads
+func (c *Client) GetNDMPayloads() ([]*aggregator.NDMPayload, error) {
+	err := c.getNDMPayloads()
+	if err != nil {
+		return nil, err
+	}
+	var ndmDevices []*aggregator.NDMPayload
+	for _, name := range c.ndmAggregator.GetNames() {
+		ndmDevices = append(ndmDevices, c.ndmAggregator.GetPayloadsByName(name)...)
+	}
+	return ndmDevices, nil
 }
 
 // GetNDMFlows fetches fakeintake on `/api/v2/ndmflows` endpoint and returns all received ndmflow payloads

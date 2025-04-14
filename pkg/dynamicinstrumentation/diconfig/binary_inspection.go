@@ -78,7 +78,7 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 		}
 	}
 
-	fieldIDs := make([]bininspect.FieldIdentifier, 0)
+	fieldIDs := []bininspect.FieldIdentifier{}
 	for _, funcParams := range typeMap.Functions {
 		for _, param := range funcParams {
 			fieldIDs = append(fieldIDs,

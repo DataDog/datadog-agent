@@ -74,7 +74,7 @@ func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
 	detectCloudFoundry(features, cfg)
 	detectPodman(features, cfg)
 	detectPodResources(features, cfg)
-	detectNVML(features)
+	detectNVML(features, cfg)
 }
 
 func detectKubernetes(features FeatureMap, cfg model.Reader) {
@@ -248,7 +248,11 @@ func detectPodResources(features FeatureMap, cfg model.Reader) {
 	}
 }
 
-func detectNVML(features FeatureMap) {
+func detectNVML(features FeatureMap, cfg model.Reader) {
+	if !cfg.GetBool("enable_nvml_detection") {
+		return
+	}
+
 	// Use dlopen to search for the library to avoid importing the go-nvml package here,
 	// which is 1MB in size and would increase the agent binary size, when we don't really
 	// need it for anything else.

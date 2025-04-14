@@ -1,0 +1,23 @@
+timeout: 10s
+queue_size: 100
+metrics:
+  tag_cardinality: high
+  apm_stats_receiver_addr: localhost:1234
+  tags: "tag"
+  delta_ttl: 200
+  endpoint: localhost:5678
+  resource_attributes_as_tags: true
+  instrumentation_scope_metadata_as_tags: true
+  histograms:
+    mode: counters
+    send_aggregation_metrics: true
+  sums:
+    cumulative_monotonic_mode: raw_value
+  summaries:
+    mode: noquantiles
+api:
+  key: abc
+  site: localhost
+  fail_on_invalid_key: true
+host_metadata:
+  enabled: true
