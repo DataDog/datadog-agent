@@ -142,6 +142,7 @@ var (
 		// various kernel behavior
 		"CONFIG_KEXEC",
 		"CONFIG_KEXEC_SIG",
+		"CONFIG_KEXEC_SIG_FORCE",
 		"CONFIG_HIBERNATION",
 		"CONFIG_BINFMT_MISC",
 		"CONFIG_LEGACY_PTYS",

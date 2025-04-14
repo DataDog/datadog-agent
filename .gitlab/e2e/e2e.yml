@@ -73,7 +73,7 @@
     E2E_RESULT_JSON: $CI_PROJECT_DIR/e2e_test_output.json
     E2E_USE_AWS_PROFILE: "true"
   script:
-    - dda inv -- -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --result-json $E2E_RESULT_JSON --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
+    - dda inv -- -e new-e2e-tests.run --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-${CI_JOB_ID}.tgz" "$E2E_RESULT_JSON"
   artifacts:
@@ -93,18 +93,28 @@
 .needs_new_e2e_template:
   - go_e2e_deps
 
+.new_e2e_template_needs_windows_x64:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+    - windows_msi_and_bosh_zip_x64-a7-fips
+
 .new_e2e_template_needs_deb_x64:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_deb_testing-a7_x64
+    - agent_deb-x64-a7
+    - agent_deb-x64-a7-fips
 
 .new_e2e_template_needs_deb_windows_x64:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_deb_testing-a7_x64
-    - deploy_windows_testing-a7
+    - agent_deb-x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
+    - agent_deb-x64-a7-fips
+    - windows_msi_and_bosh_zip_x64-a7-fips
 
 .new_e2e_template_needs_container_deploy:
   extends: .new_e2e_template
@@ -227,11 +237,11 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)RunSuite"
 
 new-e2e-fips-compliance-test:
-  extends: .new_e2e_template_needs_deb_x64
+  extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7-fips
     - qa_agent_fips
-    - deploy_deb_testing-a7_x64
   rules:
     - !reference [.on_arun_or_e2e_changes]
     - !reference [.manual]
@@ -248,7 +258,7 @@ new-e2e-windows-fips-compliance-test:
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_agent_fips
-    - deploy_windows_testing-a7-fips
+    - windows_msi_and_bosh_zip_x64-a7-fips
   rules:
     - !reference [.on_arun_or_e2e_changes]
     - !reference [.manual]
@@ -264,7 +274,7 @@ new-e2e-windows-service-test:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_windows_testing-a7
+    - windows_msi_and_bosh_zip_x64-a7
   rules:
     - !reference [.on_windows_service_or_e2e_changes]
     - !reference [.manual]
@@ -297,9 +307,9 @@ new-e2e-npm-packages:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_deb_testing-a7_x64
-    - deploy_rpm_testing-a7_x64
-    - deploy_windows_testing-a7
+    - agent_deb-x64-a7
+    - agent_rpm-x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
   variables:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
@@ -372,8 +382,8 @@ new-e2e-amp:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_deb_testing-a7_x64
-    - deploy_windows_testing-a7
+    - agent_deb-x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
     - qa_agent
     - qa_agent_jmx
     - qa_agent_fips_jmx
@@ -390,8 +400,8 @@ new-e2e-alp:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_deb_testing-a7_x64
-    - deploy_windows_testing-a7
+    - agent_deb-x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
     - qa_agent
     - qa_agent_jmx
     - qa_agent_fips_jmx
@@ -410,8 +420,8 @@ new-e2e-cws:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_deb_testing-a7_x64
-    - deploy_windows_testing-a7
+    - agent_deb-x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
     - qa_cws_instrumentation
     - qa_agent
     - qa_dca
@@ -432,7 +442,7 @@ new-e2e-discovery:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_deb_testing-a7_x64
+    - agent_deb-x64-a7
     - qa_agent
   rules:
     - !reference [.on_discovery_or_e2e_changes]
@@ -446,8 +456,8 @@ new-e2e-process:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_deb_testing-a7_x64
-    - deploy_windows_testing-a7
+    - agent_deb-x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
     - qa_agent
     - qa_dca
   rules:
@@ -478,7 +488,7 @@ new-e2e-apm:
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_agent
-    - deploy_deb_testing-a7_x64
+    - agent_deb-x64-a7
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
@@ -644,6 +654,7 @@ new-e2e-ndm-snmp:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
     - qa_agent
   variables:
     TARGETS: ./tests/ndm/snmp
@@ -692,6 +703,7 @@ new-e2e-windows-systemprobe:
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
     - tests_windows_sysprobe_x64
+    - windows_msi_and_bosh_zip_x64-a7
   variables:
     TARGETS: ./tests/sysprobe-functional
     TEAM: windows-kernel-integrations
@@ -738,7 +750,7 @@ new-e2e-otel-eks:
     - !reference [.needs_new_e2e_template]
     - qa_dca
     - qa_agent
-    - qa_agent_ot
+    - qa_agent_full
     - new-e2e-otel-eks-init
   variables:
     TARGETS: ./tests/otel
@@ -755,7 +767,7 @@ new-e2e-otel:
     - !reference [.needs_new_e2e_template]
     - qa_dca
     - qa_agent
-    - qa_agent_ot
+    - qa_agent_full
   variables:
     TARGETS: ./tests/otel
     EXTRA_PARAMS: --skip "TestOTelAgentIA(EKS|USTEKS)"
@@ -772,15 +784,29 @@ new-e2e-otel:
 new-e2e-package-signing-debian-a7-x86_64:
   extends:
     - .new_e2e_template
-    - .new-e2e_debian_a7_x86_64
     - .new-e2e_package_signing
+  variables:
+    E2E_ARCH: x86_64
+    E2E_OSVERS: "debian-9,debian-10,debian-11,debian-12"
+    E2E_CWS_SUPPORTED_OSVERS: "debian-10,debian-11"
+    E2E_BRANCH_OSVERS: "debian-11"
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
   rules: !reference [.on_default_new_e2e_tests]
 
 new-e2e-package-signing-suse-a7-x86_64:
   extends:
     - .new_e2e_template
-    - .new-e2e_suse_a7_x86_64
     - .new-e2e_package_signing
+  variables:
+    E2E_ARCH: x86_64
+    E2E_OSVERS: "sles-12,sles-15"
+    E2E_CWS_SUPPORTED_OSVERS: "sles-12,sles-15"
+    E2E_BRANCH_OSVERS: "sles-15"
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_suse-x64-a7
   rules: !reference [.on_default_new_e2e_tests]
 
 new-e2e-cspm:
@@ -810,7 +836,7 @@ new-e2e-gpu:
     ON_NIGHTLY_FIPS: "true"
   needs:                                         # list of required jobs. By default gitlab waits for any previous jobs.
     - !reference [.new_e2e_template_needs_container_deploy, needs]
-    - deploy_deb_testing-a7_x64                  # agent 7 debian package
+    - agent_deb-x64-a7                  # agent 7 debian package
   parallel:
     matrix:
       - EXTRA_PARAMS: "--run TestGPUHostSuite"
@@ -838,7 +864,7 @@ generate-flakes-finder-pipeline:
     - qa_dca
     - qa_dogstatsd
     - qa_agent
-    - qa_agent_ot
+    - qa_agent_full
     - tests_windows_sysprobe_x64
   tags: ["arch:amd64"]
   script:
@@ -874,6 +900,12 @@ generate-fips-e2e-pipeline:
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
   needs:
+    - agent_deb-x64-a7-fips
+    - agent_deb-x64-a7
+    - windows_msi_and_bosh_zip_x64-a7-fips
+    - windows_msi_and_bosh_zip_x64-a7
+    - agent_rpm-x64-a7
+    - agent_suse-x64-a7
     - compute_gitlab_ci_config
     - deploy_deb_testing-a7_arm64
     - deploy_deb_testing-a7_x64
@@ -888,7 +920,7 @@ generate-fips-e2e-pipeline:
     - qa_dca
     - qa_dogstatsd
     - qa_agent
-    - qa_agent_ot
+    - qa_agent_full
     - tests_windows_sysprobe_x64
   tags: ["arch:amd64"]
   script:

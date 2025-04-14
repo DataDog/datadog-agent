@@ -138,11 +138,6 @@ func (m *testPackageManager) UninstrumentAPMInjector(ctx context.Context, method
 	return args.Error(0)
 }
 
-func (m *testPackageManager) Postinst(ctx context.Context, pkg string, version string) error {
-	args := m.Called(ctx, pkg, version)
-	return args.Error(0)
-}
-
 func (m *testPackageManager) Close() error {
 	args := m.Called()
 	return args.Error(0)

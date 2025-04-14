@@ -861,14 +861,20 @@ def compare_to_itself(ctx):
     max_attempts = 6
     compare_to_pipeline = None
     for attempt in range(max_attempts):
-        print(f"[{datetime.now()}] Waiting 30s for the pipelines to be created")
+        print(f"[{datetime.now()}] Waiting 30s for the pipelines to be created {attempt + 1}/{max_attempts}")
         time.sleep(30)
         pipelines = agent.pipelines.list(ref=new_branch, get_all=True)
         for pipeline in pipelines:
             commit = agent.commits.get(pipeline.sha)
-            if commit.author_name == BOT_NAME:
-                compare_to_pipeline = pipeline
-                print(f"Test pipeline found: {pipeline.web_url}")
+            if commit.author_name == BOT_NAME and commit.title == "Commit to compare to itself":
+                if pipeline.status == "skipped":
+                    # DDCI: we need to trigger the pipeline
+                    print(f"Triggering the CI execution for {new_branch}")
+                    trigger_agent_pipeline(repo=agent, ref=new_branch)
+                    continue
+                else:
+                    compare_to_pipeline = pipeline
+                    print(f"Test pipeline found: {pipeline.web_url}")
         if compare_to_pipeline:
             break
         if attempt == max_attempts - 1:
