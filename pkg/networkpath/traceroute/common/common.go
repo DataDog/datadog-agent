@@ -21,11 +21,13 @@ type (
 	// Results encapsulates a response from the
 	// traceroute
 	Results struct {
-		Source     net.IP
-		SourcePort uint16
-		Target     net.IP
-		DstPort    uint16
-		Hops       []*Hop
+		Source        net.IP
+		SourcePort    uint16
+		Target        net.IP
+		DstPort       uint16
+		Hops          []*Hop
+		E2EPacketLoss float32
+		E2ERTT        time.Duration
 	}
 
 	// Hop encapsulates information about a single
