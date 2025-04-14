@@ -232,7 +232,8 @@ func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, 
 		}
 		traceroutePath.Hops = append(traceroutePath.Hops, npHop)
 	}
-	traceroutePath.PacketLoss = res.PacketLoss
+	traceroutePath.E2EPacketLoss = res.E2EPacketLoss
+	traceroutePath.E2ERTT = res.E2ELatency.Seconds()
 	return traceroutePath, nil
 }
 

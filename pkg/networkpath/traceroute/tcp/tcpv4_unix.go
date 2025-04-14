@@ -112,9 +112,10 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 		}
 	}
 
-	nbProbes := 50
+	nbProbes := 10
 	reachableCount := 0
-	for i := 0; i <= nbProbes; i++ {
+	var totalRTT time.Duration
+	for i := 0; i < nbProbes; i++ {
 		seqNumber := rand.Uint32()
 		ttl := 60 // high enough to reach all destinations
 		hop, err := t.sendAndReceive(rawIcmpConn, rawTCPConn, ttl, seqNumber, t.Timeout)
@@ -123,17 +124,20 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 		}
 		if !hop.IP.Equal(net.IP{}) {
 			reachableCount++
+			totalRTT += hop.RTT
 		}
 	}
 	packetLoss := float32(reachableCount) / float32(nbProbes)
+	e2eRTTAvg := totalRTT / time.Duration(reachableCount)
 
 	return &common.Results{
-		Source:     t.srcIP,
-		SourcePort: t.srcPort,
-		Target:     t.Target,
-		DstPort:    t.DestPort,
-		Hops:       hops,
-		PacketLoss: packetLoss,
+		Source:        t.srcIP,
+		SourcePort:    t.srcPort,
+		Target:        t.Target,
+		DstPort:       t.DestPort,
+		Hops:          hops,
+		E2EPacketLoss: packetLoss,
+		E2ELatency:    e2eRTTAvg,
 	}, nil
 }
 

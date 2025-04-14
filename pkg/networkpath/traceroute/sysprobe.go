@@ -20,8 +20,8 @@ import (
 )
 
 func getTraceroute(client *http.Client, clientID string, host string, port uint16, protocol payload.Protocol, maxTTL uint8, timeout time.Duration) ([]byte, error) {
-	httpTimeout := timeout*time.Duration(maxTTL) + 10*time.Second // allow extra time for the system probe communication overhead, calculate full timeout for TCP traceroute
-	log.Tracef("Network Path traceroute HTTP request timeout: %s", httpTimeout)
+	httpTimeout := timeout*time.Duration(maxTTL) + 120*time.Second // allow extra time for the system probe communication overhead, calculate full timeout for TCP traceroute
+	log.Tracef("Network Path traceroute HTTP request timeout=%s, : httpTimeout=%s", timeout, httpTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
