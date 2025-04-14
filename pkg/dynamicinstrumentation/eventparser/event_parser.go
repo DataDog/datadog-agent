@@ -276,7 +276,6 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 			goto stackCheck
 		}
 	}
-	return nil
 }
 
 // countBufferUsedByTypeDefinition is used to determine that amount of bytes

@@ -279,5 +279,4 @@ func correctPointersWithoutPieces(params []*ditypes.Parameter) {
 			}
 		}
 	}
-	return
 }
