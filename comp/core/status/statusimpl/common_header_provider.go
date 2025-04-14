@@ -95,8 +95,8 @@ func newCommonHeaderProvider(params status.Params, config config.Component) stat
 	return &headerProvider{
 		constdata:              data,
 		name:                   fmt.Sprintf("%s (v%s)", flavor.GetHumanReadableFlavor(), data["version"]),
-		textTemplatesFunctions: textTemplate.FuncMap(status.TextFmap()),
-		htmlTemplatesFunctions: htmlTemplate.FuncMap(status.HTMLFmap()),
+		textTemplatesFunctions: status.TextFmap(),
+		htmlTemplatesFunctions: status.HTMLFmap(),
 		config:                 config,
 		params:                 params,
 	}

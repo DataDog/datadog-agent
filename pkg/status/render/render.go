@@ -18,7 +18,7 @@ import (
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
-var fmap = template.FuncMap(status.TextFmap())
+var fmap = status.TextFmap()
 
 // FormatHPAStatus takes a json bytestring and prints out the formatted statuspage
 func FormatHPAStatus(data []byte) (string, error) {

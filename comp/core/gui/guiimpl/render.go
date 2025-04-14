@@ -18,7 +18,7 @@ import (
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
 )
 
-var fmap = template.FuncMap(status.HTMLFmap())
+var fmap = status.HTMLFmap()
 
 // Data is a struct used for filling templates
 type Data struct {

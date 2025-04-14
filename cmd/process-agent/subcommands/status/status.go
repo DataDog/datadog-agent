@@ -98,7 +98,7 @@ func writeNotRunning(log log.Component, w io.Writer) {
 }
 
 func writeError(log log.Component, w io.Writer, e error) {
-	tpl, err := template.New("").Funcs(template.FuncMap(compStatus.TextFmap())).Parse(errorMessage)
+	tpl, err := template.New("").Funcs(compStatus.TextFmap()).Parse(errorMessage)
 	if err != nil {
 		_ = log.Error(err)
 	}
