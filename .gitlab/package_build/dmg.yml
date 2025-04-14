@@ -174,7 +174,7 @@ include:
       unset LATEST_DMG
 
       # Find latest .dmg file in $GOPATH/src/github.com/Datadog/datadog-agent/omnibus/pkg
-      for file in "$GOPATH/src/github.com/Datadog/datadog-agent/omnibus/pkg"/*.dmg; do
+      for file in "$PWD/omnibus/pkg"/*.dmg; do
         if [[ -z "$LATEST_DMG" || "$file" -nt "$LATEST_DMG" ]]; then LATEST_DMG="$file"; fi
       done
 
