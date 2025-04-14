@@ -35,16 +35,15 @@ type streamLimits struct {
 // StreamHandler is responsible for receiving events from a single CUDA stream and generating
 // kernel spans and memory allocations from them.
 type StreamHandler struct {
-	metadata             streamMetadata
-	kernelLaunches       []enrichedKernelLaunch
-	memAllocEvents       *lru.LRU[uint64, gpuebpf.CudaMemEvent] // holds the memory allocations for the stream, will evict the oldest allocation if the cache is full
-	kernelSpans          []*kernelSpan
-	allocations          []*memoryAllocation
-	processEnded         bool // A marker to indicate that the process has ended, and this handler should be flushed
-	sysCtx               *systemContext
-	limits               streamLimits
-	telemetry            *streamTelemetry // shared telemetry objects for stream-specific telemetry
-	suspendEvictCallback bool             // stops the eviction callback from creating memory allocations when we are manually removing items from the cache (see onEvictedAlloc for more details))
+	metadata       streamMetadata
+	kernelLaunches []enrichedKernelLaunch
+	memAllocEvents *lru.LRU[uint64, gpuebpf.CudaMemEvent] // holds the memory allocations for the stream, will evict the oldest allocation if the cache is full
+	kernelSpans    []*kernelSpan
+	allocations    []*memoryAllocation
+	processEnded   bool // A marker to indicate that the process has ended, and this handler should be flushed
+	sysCtx         *systemContext
+	limits         streamLimits
+	telemetry      *streamTelemetry // shared telemetry objects for stream-specific telemetry
 }
 
 // streamMetadata contains metadata about a CUDA stream
@@ -166,7 +165,7 @@ func newStreamHandler(metadata streamMetadata, sysCtx *systemContext, limits str
 	}
 
 	var err error
-	sh.memAllocEvents, err = lru.NewLRU(limits.maxAllocEvents, sh.onEvictedAlloc)
+	sh.memAllocEvents, err = lru.NewLRU[uint64, gpuebpf.CudaMemEvent](limits.maxAllocEvents, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create memAllocEvents cache: %w", err)
 	}
@@ -200,7 +199,10 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 
 func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 	if event.Type == gpuebpf.CudaMemAlloc {
-		_ = sh.memAllocEvents.Add(event.Addr, *event)
+		evicted := sh.memAllocEvents.Add(event.Addr, *event)
+		if evicted {
+			sh.telemetry.allocEvicted.Inc()
+		}
 		return
 	}
 
@@ -214,48 +216,16 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 		return
 	}
 
-	sh.createMemoryAllocation(event.Header.Ktime_ns, &alloc, false)
-
-	sh.suspendEvictCallback = true
-	defer func() {
-		sh.suspendEvictCallback = false
-	}()
-	sh.memAllocEvents.Remove(event.Addr)
-}
-
-func (sh *StreamHandler) createMemoryAllocation(freeKtimeNs uint64, alloc *gpuebpf.CudaMemEvent, isLeaked bool) {
 	data := memoryAllocation{
 		startKtime: alloc.Header.Ktime_ns,
-		endKtime:   freeKtimeNs,
+		endKtime:   event.Header.Ktime_ns,
 		size:       alloc.Size,
 		allocType:  globalMemAlloc,
-		isLeaked:   isLeaked,
+		isLeaked:   false,
 	}
 
 	sh.allocations = append(sh.allocations, &data)
-}
-
-func (sh *StreamHandler) onEvictedAlloc(_ uint64, value gpuebpf.CudaMemEvent) {
-	// If we are suspending the evict callback, don't create memory allocations.
-	// The reason is that the LRU cache calls the eviction callback whenever an item is removed for
-	// any cause (full cache or manual removal). In handleMemEvent, we manually remove items from the cache,
-	// so we don't want to create another memory allocation in that case.
-	if sh.suspendEvictCallback {
-		return
-	}
-
-	nowTs, err := ddebpf.NowNanoseconds()
-	if err != nil {
-		if logLimitStreams.ShouldLog() {
-			log.Warnf("Error getting current time: %v", err)
-		}
-		return
-	}
-
-	// This is probably a leak, it's an allocation that was never freed and it got to the point
-	// where our cache was full. But we don't know for sure, so don't mark it as a leak.
-	sh.createMemoryAllocation(uint64(nowTs), &value, false)
-	sh.telemetry.allocEvicted.Inc()
+	sh.memAllocEvents.Remove(event.Addr)
 }
 
 func (sh *StreamHandler) markSynchronization(ts uint64) {
