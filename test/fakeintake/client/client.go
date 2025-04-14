@@ -201,6 +201,11 @@ func (c *Client) getLogs() error {
 	if err != nil {
 		return err
 	}
+	for _, payload := range payloads {
+		if bytes.Equal(payload.Data, []byte("{}")) {
+			fmt.Println("ANDREWQIAN EMPTY PAYLOAD")
+		}
+	}
 
 	return c.logAggregator.UnmarshallPayloads(payloads)
 }
@@ -407,6 +412,7 @@ func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, er
 		return nil, err
 	}
 	fmt.Println("ANDREWQIAN getFakePayloads", response.Payloads, err)
+	fmt.Println("ANDREWQIAN getFakePayloads WACKTEST???? .data?", response.Payloads[0].Data, err)
 	return response.Payloads, nil
 }
 
