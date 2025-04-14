@@ -17,6 +17,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"syscall"
 	"time"
 
 	"github.com/google/gopacket/layers"
@@ -52,7 +53,16 @@ func newHandle(conn *ipv4.RawConn) *handle {
 }
 
 func newSackDriver(ctx context.Context, params Params, localAddr netip.Addr) (*sackDriver, error) {
-	tcpConn, err := filter.MakeRawConn(ctx, &net.ListenConfig{}, "ip:tcp", localAddr)
+	synackFilter, err := filter.GenerateSynack4Filter()
+	if err != nil {
+		return nil, fmt.Errorf("newSackDriver failed to make synack filter: %w", err)
+	}
+	tcpConn, err := filter.MakeRawConn(ctx, &net.ListenConfig{
+		Control: func(_network, _address string, c syscall.RawConn) error {
+			// we only need SYNACK packets in the first stage, so filter out everything else
+			return filter.SetBPFAndDrain(c, synackFilter)
+		},
+	}, "ip:tcp", localAddr)
 	if err != nil {
 		return nil, fmt.Errorf("newSackDriver failed to make TCP raw conn: %w", err)
 	}
@@ -273,12 +283,13 @@ var _ common.TracerouteDriver = &sackDriver{}
 
 // FakeHandshake is sometimes used when debugging locally, to force the sackDriver to send packets
 // even if SACK negotiation would fail
-func (s *sackDriver) FakeHandshake() {
+func (s *sackDriver) FakeHandshake() error {
 	s.localPort = 1234
 	s.state = &sackTCPState{
 		localInitSeq: 5678,
 		localInitAck: 3333,
 	}
+	return s.activateTupleFilter()
 }
 
 // ReadHandshake polls for a synack from the target and populates the localInitSeq and localInitAck fields.
@@ -305,6 +316,11 @@ func (s *sackDriver) ReadHandshake(localPort uint16) error {
 		if err != nil {
 			return fmt.Errorf("sackDriver failed to handleHandshakeLayers: %w", err)
 		}
+	}
+
+	err = s.activateTupleFilter()
+	if err != nil {
+		return fmt.Errorf("sackDriver failed to activateTupleFilter: %w", err)
 	}
 	return nil
 }
@@ -366,6 +382,25 @@ func (s *sackDriver) handleHandshake() error {
 	state.localInitAck = parser.TCP.Seq + 1
 	s.state = &state
 	return nil
+}
+
+// activateTupleFilter switches the tcpConn to look for packets with a matching tuple, not SYNACK packets
+func (s *sackDriver) activateTupleFilter() error {
+	rawConn, err := s.tcpHandle.conn.IPConn.SyscallConn()
+	if err != nil {
+		return fmt.Errorf("switchToTupleFilter failed to get RawConn: %w", err)
+	}
+
+	filterCfg := filter.TCP4FilterConfig{
+		Src: s.params.Target,
+		Dst: netip.AddrPortFrom(s.localAddr, s.localPort),
+	}
+	filterProg, err := filterCfg.GenerateTCP4Filter()
+	if err != nil {
+		return fmt.Errorf("failed to generate TCP4 filter: %w", err)
+	}
+
+	return filter.SetBPFAndDrain(rawConn, filterProg)
 }
 
 func (s *sackDriver) readAndParse(handle *handle) error {
