@@ -72,3 +72,35 @@ func (c TCP4FilterConfig) GenerateTCP4Filter() ([]bpf.RawInstruction, error) {
 		bpf.RetConstant{Val: 0},
 	})
 }
+
+// GenerateSynack4Filter creates a classic BPF filter for TCP SOCK_RAW sockets.
+// It will only allow SYNACK packets.
+func GenerateSynack4Filter() ([]bpf.RawInstruction, error) {
+	// Process to derive the following program:
+	// 1. Generate the BPF program with placeholder values:
+	//    tcpdump -i eth0 -d 'ip and tcp[tcpflags] & tcp-syn != 0 and tcp[tcpflags] & tcp-ack != 0'
+	// 2. Remove the first two instructions that check the ethernet header, since tcpdump uses AF_PACKET and we do not
+	// 3. Subtract the ethernet header size from all LoadAbsolutes
+	return bpf.Assemble([]bpf.Instruction{
+		// (002) ldb      [23] -- load Protocol
+		bpf.LoadAbsolute{Size: 1, Off: 23 - ethHeaderSize},
+		// (003) jeq      #0x6             jt 4	jf 11 -- if TCP, continue, else drop
+		bpf.JumpIf{Cond: bpf.JumpEqual, Val: 0x6, SkipTrue: 0, SkipFalse: 7},
+		// (004) ldh      [20]
+		bpf.LoadAbsolute{Size: 2, Off: 20 - ethHeaderSize},
+		// (005) jset     #0x1fff          jt 11	jf 6 -- if fragmented, drop, else continue
+		bpf.JumpIf{Cond: bpf.JumpBitsSet, Val: 0x1fff, SkipTrue: 5, SkipFalse: 0},
+		// (006) ldxb     4*([14]&0xf) -- x = IP header length
+		bpf.LoadMemShift{Off: 14 - ethHeaderSize},
+		// (007) ldb      [x + 27] -- load TCP flags
+		bpf.LoadIndirect{Size: 1, Off: 27 - ethHeaderSize},
+		// (008) jset     #0x2            jt 9	jf 11 -- if SYN, continue, else drop
+		bpf.JumpIf{Cond: bpf.JumpBitsSet, Val: 0x2, SkipTrue: 0, SkipFalse: 2},
+		// (009) jset     #0x10            jt 10	jf 11 -- if ACK, continue, else drop
+		bpf.JumpIf{Cond: bpf.JumpBitsSet, Val: 0x10, SkipTrue: 0, SkipFalse: 1},
+		// (010) ret      #262144 -- accept packet
+		bpf.RetConstant{Val: 262144},
+		// (011) ret      #0 -- drop packet
+		bpf.RetConstant{Val: 0},
+	})
+}
