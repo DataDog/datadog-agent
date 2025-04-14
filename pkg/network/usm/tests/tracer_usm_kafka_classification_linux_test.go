@@ -252,6 +252,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		},
 	}
 
+	// Generate tests for all support Produce versions
 	for produceVersion := kafka.ClassificationMinSupportedProduceRequestApiVersion; produceVersion <= kafka.ClassificationMaxSupportedProduceRequestApiVersion; produceVersion++ {
 		expectedProtocol := protocols.Kafka
 		if produceVersion < kafka.ClassificationMinSupportedProduceRequestApiVersion || produceVersion > kafka.ClassificationMaxSupportedProduceRequestApiVersion {
@@ -281,6 +282,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		tests = append(tests, currentTest)
 	}
 
+	// Generate tests for all support Fetch versions
 	for fetchVersion := kafka.ClassificationMinSupportedFetchRequestApiVersion; fetchVersion <= kafka.ClassificationMaxSupportedFetchRequestApiVersion; fetchVersion++ {
 		expectedProtocol := protocols.Kafka
 		if fetchVersion < kafka.ClassificationMinSupportedFetchRequestApiVersion || fetchVersion > kafka.ClassificationMaxSupportedFetchRequestApiVersion {
