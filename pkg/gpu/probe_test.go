@@ -27,8 +27,6 @@ import (
 
 type probeTestSuite struct {
 	suite.Suite
-
-	telemetryMock telemetry.Mock
 }
 
 func TestProbe(t *testing.T) {
