@@ -104,7 +104,9 @@ bool Three::init()
     PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
 
     // Initialize Python with our configuration
-    if (!checkConfigStatus(Py_InitializeFromConfig(&_config), "Failed to initialize Python")) {
+    status = Py_InitializeFromConfig(&_config);
+    if (PyStatus_Exception(status)) {
+        setError("Failed to initialize Python" + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
         PyConfig_Clear(&_config);
         return false;
     }
