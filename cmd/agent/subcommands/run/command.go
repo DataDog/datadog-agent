@@ -486,7 +486,7 @@ func getSharedFxOption() fx.Option {
 					"multi_region_failover.failover_logs":    internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_logs", "Enable/disable redirection of logs to failover region."),
 					"multi_region_failover.failover_apm":     internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_apm", "Enable/disable redirection of APM to failover region."),
 					"internal_profiling":                     commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"),
-					"dogstatsd_blocklist":                    internalsettings.NewDsdBlocklistRuntimeSetting(dsdServer),
+					"dogstatsd_blocklist":                    internalsettings.NewDsdMetricNameBlocklist(dsdServer),
 				},
 				Config: config,
 			}

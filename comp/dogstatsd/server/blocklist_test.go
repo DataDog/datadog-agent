@@ -77,17 +77,17 @@ func BenchmarkBlocklist(b *testing.B) {
 			for range i {
 				values = append(values, randomString(50))
 			}
-			benchmarkBlocklist(b, i, words, values)
+			benchmarkBlocklist(b, words, values)
 		})
 	}
 }
 
-func benchmarkBlocklist(b *testing.B, i int, words, values []string) {
+func benchmarkBlocklist(b *testing.B, words, values []string) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	// first and last will match
-	words[0] = values[10]
+	words[0] = values[0]
 	words[3] = values[100]
 
 	blocklist := newBlocklist(values, false)

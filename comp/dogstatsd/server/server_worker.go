@@ -35,11 +35,11 @@ type worker struct {
 
 	packetsTelemetry *packets.TelemetryStore
 
-	blocklistUpdate chan blocklist
+	BlocklistUpdate chan blocklist
 	blocklist
 }
 
-func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry, blist blocklist) *worker {
+func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry) *worker {
 	var batcher *batcher
 	if s.ServerlessMode {
 		batcher = newServerlessBatcher(s.demultiplexer, s.tlmChannel)
@@ -53,8 +53,7 @@ func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Compon
 		parser:           newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
 		samples:          make(metrics.MetricSampleBatch, 0, defaultSampleSize),
 		packetsTelemetry: packetsTelemetry,
-		blocklistUpdate:  make(chan blocklist),
-		blocklist:        blist,
+		BlocklistUpdate:  make(chan blocklist),
 	}
 }
 
@@ -66,7 +65,7 @@ func (w *worker) run() {
 		case <-w.server.health.C:
 		case <-w.server.serverlessFlushChan:
 			w.batcher.flush()
-		case blocklist := <-w.blocklistUpdate:
+		case blocklist := <-w.BlocklistUpdate:
 			w.blocklist = blocklist
 		case ps := <-w.server.packetsIn:
 			w.packetsTelemetry.TelemetryUntrackPackets(ps)

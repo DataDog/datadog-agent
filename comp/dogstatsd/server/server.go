@@ -219,10 +219,6 @@ func newServerCompat(cfg model.Reader, log log.Component, capture replay.Compone
 	}
 
 	metricPrefixBlacklist := cfg.GetStringSlice("statsd_metric_namespace_blacklist")
-	metricBlocklist := newBlocklist(
-		cfg.GetStringSlice("statsd_metric_blocklist"),
-		cfg.GetBool("statsd_metric_blocklist_match_prefix"),
-	)
 
 	defaultHostname, err := hostname.Get(context.TODO())
 	if err != nil {
@@ -295,7 +291,6 @@ func newServerCompat(cfg model.Reader, log log.Component, capture replay.Compone
 		enrichConfig: enrichConfig{
 			metricPrefix:              metricPrefix,
 			metricPrefixBlacklist:     metricPrefixBlacklist,
-			metricBlocklist:           metricBlocklist,
 			entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
@@ -497,12 +492,21 @@ func (s *server) SetExtraTags(tags []string) {
 	s.extraTags = tags
 }
 
-func (s *server) SetBlocklist(metrics []string) {
-	// TODO
+// SetBlocklist updates the metric names blocklist on all running worker.
+func (s *server) SetBlocklist(metricsName []string) {
+	// store one to be able to return something with `GetBlocklist()`.
+	blocklist := newBlocklist(metricsName, s.config.GetBool("statsd_metric_blocklist_match_prefix"))
+	s.enrichConfig.metricBlocklist = blocklist
+
+	// each worker receives its own copy
+	for _, worker := range s.workers {
+		blocklist := newBlocklist(metricsName, s.config.GetBool("statsd_metric_blocklist_match_prefix"))
+		worker.BlocklistUpdate <- blocklist
+	}
 }
 
+// GetBlocklist returns the currently configured blocklist.
 func (s *server) GetBlocklist() []string {
-	// TODO
 	return s.enrichConfig.metricBlocklist.data
 }
 
@@ -512,9 +516,15 @@ func (s *server) handleMessages() {
 		go s.Statistics.Update(&dogstatsdPacketsLastSec)
 	}
 
+	// start the listeners
+	// -------------------
+
 	for _, l := range s.listeners {
 		l.Listen()
 	}
+
+	// create and start all the workers
+	// ----------------------
 
 	workersCount, _ := aggregator.GetDogStatsDWorkerAndPipelineCount()
 
@@ -528,10 +538,15 @@ func (s *server) handleMessages() {
 	s.log.Debug("DogStatsD will run", workersCount, "workers")
 
 	for i := 0; i < workersCount; i++ {
-		worker := newWorker(s, i, s.wmeta, s.packetsTelemetry, s.stringInternerTelemetry, s.enrichConfig.metricBlocklist)
+		worker := newWorker(s, i, s.wmeta, s.packetsTelemetry, s.stringInternerTelemetry)
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}
+
+	// create the metrics name blocklist, one per worker
+	// -----------
+
+	s.SetBlocklist(s.config.GetStringSlice("statsd_metric_blocklist"))
 }
 
 func (s *server) UDPLocalAddr() string {
