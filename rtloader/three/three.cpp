@@ -34,19 +34,34 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
 
 Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb)
     : RtLoader(memtrack_cb)
-    , _pythonHome(NULL)
-    , _pythonExe(NULL)
     , _baseClass(NULL)
     , _pythonPaths()
     , _pymallocPrev{ 0 }
     , _pymemInuse(0)
     , _pymemAlloc(0)
 {
-    initPythonHome(python_home);
+    PyStatus status;
+    // Initialize the configuration with default values
+    PyConfig_InitPythonConfig(&_config);
+    _config.install_signal_handlers = 1;
 
-    // If not empty, set our Python interpreter path
+    // Configure Python home
+    const auto home_path = (python_home && strlen(python_home) > 0) ? python_home : _defaultPythonHome;
+    status = PyConfig_SetBytesString(&_config, &_config.home, home_path);
+    if (PyStatus_Exception(status)) {
+        setError("Failed to set python home: " + std::string(status.err_msg));
+        PyConfig_Clear(&_config);
+        return;
+    }
+
+    // Configure Python executable
     if (python_exe && strlen(python_exe) > 0) {
-        initPythonExe(python_exe);
+        status = PyConfig_SetBytesString(&_config, &_config.executable, python_exe);
+        if (PyStatus_Exception(status)) {
+            setError("Failed to set program name: " + std::string(status.err_msg));
+            PyConfig_Clear(&_config);
+            return;
+        }
     }
 }
 
@@ -58,50 +73,21 @@ Three::~Three()
     Py_XDECREF(_baseClass);
 }
 
-void Three::initPythonHome(const char *pythonHome)
-{
-    // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
-    wchar_t *oldPythonHome = _pythonHome;
-    if (pythonHome == NULL || strlen(pythonHome) == 0) {
-        _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
-    } else {
-        _pythonHome = Py_DecodeLocale(pythonHome, NULL);
-    }
-
-    Py_SetPythonHome(_pythonHome);
-    PyMem_RawFree((void *)oldPythonHome);
-}
-
-void Three::initPythonExe(const char *python_exe)
-{
-    // Py_SetProgramName stores a pointer to the string we pass to it, so we must keep it in memory
-    wchar_t *oldPythonExe = _pythonExe;
-    _pythonExe = Py_DecodeLocale(python_exe, NULL);
-
-    Py_SetProgramName(_pythonExe);
-
-    // HACK: This extra internal API invocation is due to the workaround for an upstream bug on
-    // Windows (https://bugs.python.org/issue34725) where just using `Py_SetProgramName` is
-    // ineffective. The workaround API call will be removed at some point in the future (Python
-    // 3.12+) so we should convert this initialization to the new`PyConfig API`
-    // (https://docs.python.org/3.11/c-api/init_config.html#c.PyConfig) before then.
-    _Py_SetProgramFullPath(_pythonExe);
-
-    PyMem_RawFree((void *)oldPythonExe);
-}
-
 bool Three::init()
 {
-    // we want the checks to be runned with the standard encoding utf-8
-    // setting this var to 1 forces the UTF8 mode for CPython >= 3.7
-    // See:
-    //	- PEP UTF8 mode https://www.python.org/dev/peps/pep-0540/
-    //	- about this var https://github.com/python/cpython/pull/12589
-    // This has to be set before the Py_Initialize() call.
-    Py_UTF8Mode = 1;
+    PyStatus status;
+    PyPreConfig preconfig;
+    PyPreConfig_InitPythonConfig(&preconfig);
+
+    preconfig.utf8_mode = 1;
+
+    status = Py_PreInitialize(&preconfig);
+    if (PyStatus_Exception(status)) {
+        Py_ExitStatusException(status);
+    }
 
     // add custom builtins init funcs to Python inittab, one by one
-    // Unlinke its py2 counterpart, these need to be called before Py_Initialize
+    // Unlike its py2 counterpart, these need to be called before Py_Initialize
     PyImport_AppendInittab(AGGREGATOR_MODULE_NAME, PyInit_aggregator);
     PyImport_AppendInittab(DATADOG_AGENT_MODULE_NAME, PyInit_datadog_agent);
     PyImport_AppendInittab(UTIL_MODULE_NAME, PyInit_util);
@@ -110,15 +96,13 @@ bool Three::init()
     PyImport_AppendInittab(KUBEUTIL_MODULE_NAME, PyInit_kubeutil);
     PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
 
-    // force initialize siginterrupt with signal in python so it can be overwritten by the agent
-    // This only effects the windows builds as linux already has the sigint handler initialized
-    // and thus python will ignore it
-    Py_InitializeEx(1);
-
-    if (!Py_IsInitialized()) {
-        setError("Python not initialized");
-        return false;
+    // Initialize Python with our configuration
+    status = Py_InitializeFromConfig(&_config);
+    if (PyStatus_Exception(status)) {
+        setError("Failed to initialize Python: " + std::string(status.err_msg));
     }
+    // Clean up the configuration
+    PyConfig_Clear(&_config);
 
     // Set PYTHONPATH
     if (!_pythonPaths.empty()) {
