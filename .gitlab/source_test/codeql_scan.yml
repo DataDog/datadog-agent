@@ -3,7 +3,7 @@
 # Contains CodeQL scan job to perform security static analysis
 
 run_codeql_scan:
-  image: registry.ddbuild.io/code-scanning:v62020832-3a416de-datadog-agent
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:v50263243-1a30c934
   tags: ["arch:amd64"]
   stage: source_test
   rules:
@@ -32,6 +32,7 @@ run_codeql_scan:
     - !reference [.retrieve_linux_go_tools_deps]
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - git clone https://github.com/DataDog/codescanning.git --depth 1 --single-branch --branch=main /tmp/codescanning
+    - curl -L $CODEQL_BUNDLE_URL -o /tmp/codeql.tar.gz && tar -zxf /tmp/codeql.tar.gz -C /usr/local && rm /tmp/codeql.tar.gz
     # - rm -rf pkg
     # - rm -rf test
     # - echo "CGO_LDFLAGS=${CGO_LDFLAGS}"
