@@ -5,12 +5,29 @@
 
 package packages
 
-import "github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+import (
+	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+)
 
 var (
 	// packagesHooks is a map of package names to their hooks
-	packagesHooks = map[string]Hooks{}
+	packagesHooks = map[string]hooks{}
 
-	// AsyncPreRemoveHooks is a map of package names to their async pre-remove hooks
+	// AsyncPreRemoveHooks is called before a package is removed from the disk.
+	// It can block the removal of the package files until a condition is met without blocking
+	// the rest of the uninstall or upgrade process.
+	// Today this is only useful for the dotnet tracer on windows and generally *SHOULD BE AVOIDED*.
 	AsyncPreRemoveHooks = map[string]repository.PreRemoveHook{}
 )
+
+// InstrumentAPMInjector instruments the APM injector
+func InstrumentAPMInjector(_ context.Context, _ string) (err error) {
+	return nil
+}
+
+// UninstrumentAPMInjector uninstruments the APM injector
+func UninstrumentAPMInjector(_ context.Context, _ string) (err error) {
+	return nil
+}

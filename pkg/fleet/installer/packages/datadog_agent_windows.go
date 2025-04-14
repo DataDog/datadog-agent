@@ -26,7 +26,7 @@ import (
 )
 
 // datadogAgentPackage is the package for the Datadog Agent
-var datadogAgentPackage = &hooks{
+var datadogAgentPackage = hooks{
 	name:                  "datadog-agent",
 	postInstall:           postInstallDatadogAgent,
 	preRemove:             preRemoveDatadogAgent,

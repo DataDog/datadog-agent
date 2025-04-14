@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var apmLibraryDotnetPackage = &hooks{
+var apmLibraryDotnetPackage = hooks{
 	name:                "datadog-apm-library-dotnet",
 	postInstall:         postInstallAPMLibraryDotnet,
 	preRemove:           preRemoveAPMLibraryDotnet,

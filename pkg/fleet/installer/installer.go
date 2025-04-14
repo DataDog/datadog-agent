@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
-	iexec "github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -277,12 +276,7 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if !shouldInstallPredicate(dbPkg, pkg) {
 		return nil
 	}
-	pkgPath := i.packages.Get(pkg.Name).StablePath()
-	hooks, err := i.getHooks(pkg.Name, pkgPath)
-	if err != nil {
-		return fmt.Errorf("could not prepare package: %w", err)
-	}
-	err = hooks.PreInstall(ctx, packages.PackageTypeOCI, pkgPath, false)
+	err = packages.PreInstall(ctx, pkg.Name, packages.PackageTypeOCI, false)
 	if err != nil {
 		return fmt.Errorf("could not prepare package: %w", err)
 	}
@@ -316,7 +310,7 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not configure package: %w", err)
 	}
-	err = hooks.PostInstall(ctx, packages.PackageTypeOCI, pkgPath, false, args)
+	err = packages.PostInstall(ctx, pkg.Name, packages.PackageTypeOCI, false, args)
 	if err != nil {
 		return fmt.Errorf("could not setup package: %w", err)
 	}
@@ -373,12 +367,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 		)
 	}
 
-	stablePkgPath := i.packages.Get(pkg.Name).StablePath()
-	stableHooks, err := i.getHooks(pkg.Name, stablePkgPath)
-	if err != nil {
-		return fmt.Errorf("could not get hooks: %w", err)
-	}
-	err = stableHooks.PreStartExperiment(ctx, stablePkgPath)
+	err = packages.PreStartExperiment(ctx, pkg.Name)
 	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
@@ -390,12 +379,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 			fmt.Errorf("could not set experiment: %w", err),
 		)
 	}
-	experimentPkgPath := i.packages.Get(pkg.Name).ExperimentPath()
-	experimentHooks, err := i.getHooks(pkg.Name, experimentPkgPath)
-	if err != nil {
-		return fmt.Errorf("could not get hooks: %w", err)
-	}
-	err = experimentHooks.PostStartExperiment(ctx, experimentPkgPath)
+	err = packages.PostStartExperiment(ctx, pkg.Name)
 	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
@@ -417,11 +401,6 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 		return nil
 	}
 
-	experimentPkgPath := i.packages.Get(pkg).ExperimentPath()
-	experimentHooks, err := i.getHooks(pkg, experimentPkgPath)
-	if err != nil {
-		return fmt.Errorf("could not get hooks: %w", err)
-	}
 	if runtime.GOOS != "windows" && pkg == packageDatadogInstaller {
 		// Special case for the Linux installer since `preStopExperiment`
 		// will kill the current process, delete the experiment first.
@@ -432,12 +411,12 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 				fmt.Errorf("could not delete experiment: %w", err),
 			)
 		}
-		err = experimentHooks.PreStopExperiment(ctx, experimentPkgPath)
+		err = packages.PreStopExperiment(ctx, pkg)
 		if err != nil {
 			return fmt.Errorf("could not stop experiment: %w", err)
 		}
 	} else {
-		err = experimentHooks.PreStopExperiment(ctx, experimentPkgPath)
+		err = packages.PreStopExperiment(ctx, pkg)
 		if err != nil {
 			return fmt.Errorf("could not stop experiment: %w", err)
 		}
@@ -449,12 +428,7 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 			)
 		}
 	}
-	stablePkgPath := i.packages.Get(pkg).StablePath()
-	stableHooks, err := i.getHooks(pkg, stablePkgPath)
-	if err != nil {
-		return fmt.Errorf("could not get hooks: %w", err)
-	}
-	err = stableHooks.PostStopExperiment(ctx, stablePkgPath)
+	err = packages.PostStopExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
@@ -476,7 +450,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 		return fmt.Errorf("no experiment to promote")
 	}
 
-	err = i.prePromoteExperiment(ctx, pkg)
+	err = packages.PrePromoteExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
@@ -486,7 +460,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
 
-	err = i.postPromoteExperiment(ctx, pkg)
+	err = packages.PostPromoteExperiment(ctx, pkg)
 	if err != nil {
 		return err
 	}
@@ -538,7 +512,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	case "windows":
 		return nil // TODO: start config experiment for Windows
 	default:
-		return i.postStartExperiment(ctx, pkg)
+		return packages.PostStartExperiment(ctx, pkg)
 	}
 }
 
@@ -547,7 +521,7 @@ func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) 
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	err := i.preStopExperiment(ctx, pkg)
+	err := packages.PreStopExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
@@ -579,7 +553,7 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 	if err != nil {
 		log.Warnf("could not write user-facing config symlinks: %v", err)
 	}
-	return i.postPromoteExperiment(ctx, pkg)
+	return packages.PostPromoteExperiment(ctx, pkg)
 }
 
 // Purge removes all packages.
@@ -587,20 +561,20 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	packages, err := i.db.ListPackages()
+	dbPackages, err := i.db.ListPackages()
 	if err != nil {
 		// if we can't list packages we'll only remove the installer
-		packages = nil
+		dbPackages = nil
 		log.Warnf("could not list packages: %v", err)
 	}
-	for _, pkg := range packages {
+	for _, pkg := range dbPackages {
 		if pkg.Name == packageDatadogInstaller {
 			continue
 		}
 		if pkg.Name == packageDatadogAgent {
 			continue
 		}
-		err := i.removePackage(ctx, pkg.Name)
+		err := packages.PreRemove(ctx, pkg.Name, packages.PackageTypeOCI, false)
 		if err != nil {
 			log.Warnf("could not remove package %s: %v", pkg.Name, err)
 		}
@@ -613,14 +587,14 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	//         failing the uninstall.
 	//       We can't workaround this by moving removePackage to the end of purge,
 	//       as the daemon may be running and holding locks on files that need to be removed.
-	err = i.removePackage(ctx, packageDatadogAgent)
+	err = packages.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false)
 	if err != nil {
 		log.Warnf("could not remove agent: %v", err)
 	}
 	// TODO: wont need this when Linux packages are merged
 	if runtime.GOOS != "windows" {
 		// on windows the installer package has been merged with the agent package
-		err = i.removePackage(ctx, packageDatadogInstaller)
+		err = packages.PreRemove(ctx, packageDatadogInstaller, packages.PackageTypeOCI, false)
 		if err != nil {
 			log.Warnf("could not remove installer: %v", err)
 		}
@@ -659,12 +633,7 @@ func (i *installerImpl) Purge(ctx context.Context) {
 func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	pkgPath := i.packages.Get(pkg).StablePath()
-	hooks, err := i.getHooks(pkg, pkgPath)
-	if err != nil {
-		return fmt.Errorf("could not get hooks: %w", err)
-	}
-	err = hooks.PreRemove(ctx, packages.PackageTypeOCI, pkgPath, false)
+	err := packages.PreRemove(ctx, pkg, packages.PackageTypeOCI, false)
 	if err != nil {
 		return fmt.Errorf("could not remove package: %w", err)
 	}
@@ -756,18 +725,6 @@ func (i *installerImpl) Close() error {
 	i.m.Lock()
 	defer i.m.Unlock()
 	return i.close()
-}
-
-func (i *installerImpl) getHooks(pkg string, pkgPath string) (packages.Hooks, error) {
-	hooksPath := filepath.Join(pkgPath, "embedded", "bin", "installer")
-	_, err := os.Stat(hooksPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return packages.Hooks[pkg], nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("could not stat hooks path %s: %w", hooksPath, err)
-	}
-	return iexec.NewInstallerExec(i.env, hooksPath), nil
 }
 
 func (i *installerImpl) ensurePackagesAreConfigured(ctx context.Context) (err error) {

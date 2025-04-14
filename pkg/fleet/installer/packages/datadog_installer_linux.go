@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var datadogInstallerPackage = &hooks{
+var datadogInstallerPackage = hooks{
 	name:                  "datadog-installer",
 	preInstall:            preInstallDatadogInstaller,
 	postInstall:           postInstallDatadogInstaller,
