@@ -219,13 +219,12 @@ new-agent_dmg-x64-a7:
     # TODO
     OMNIBUS_RUBY_VERSION: celian/macos-build
     # TODO
-    # SIGN: true
+    SIGN: true
     KEYCHAIN_NAME: "build.keychain"
     INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
     INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD: true
     S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
     S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS: true
-    OMNIBUS_GIT_CACHE_DIR: null
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
   before_script:
@@ -252,6 +251,7 @@ new-agent_dmg-x64-a7:
         echo "Signing disabled"
       fi
     - |
+      unset OMNIBUS_GIT_CACHE_DIR
       export RELEASE_VERSION=$RELEASE_VERSION_7
       export INSTALL_DIR="$PWD/datadog-agent-build/bin"
       export CONFIG_DIR="$PWD/datadog-agent-build/config"
