@@ -9,7 +9,6 @@ package servicediscovery
 
 import (
 	"cmp"
-	"net/http"
 	"testing"
 	"time"
 
@@ -23,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 )
 
 type testProc struct {
@@ -416,7 +416,7 @@ func Test_linuxImpl(t *testing.T) {
 				mTimer.EXPECT().Now().Return(cr.time).AnyTimes()
 
 				// set mocks
-				check.os.(*linuxImpl).getDiscoveryServices = func(_ *http.Client) (*model.ServicesResponse, error) {
+				check.os.(*linuxImpl).getDiscoveryServices = func(_ *sysprobeclient.CheckClient) (*model.ServicesResponse, error) {
 					return makeServiceResponseWithTime(cr.time, cr.servicesResp), nil
 				}
 				check.sender.hostname = mHostname
