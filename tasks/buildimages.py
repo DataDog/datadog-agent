@@ -3,7 +3,6 @@ from __future__ import annotations
 import yaml
 from invoke import Context, Exit, task
 
-from tasks.libs.ciproviders.circleci import update_circleci_config
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag, update_gitlab_config, update_test_infra_def
 from tasks.libs.common.color import color_message
 
@@ -25,13 +24,9 @@ def update(_: Context, tag: str = "", images: str = "", test: bool = True, list_
     if list_images:
         print("List of available images:")
         modified = update_gitlab_config(".gitlab-ci.yml", "", update=False)
-        modified.append("CIRCLECI_RUNNER")
     else:
         print("Updating images:")
         modified = update_gitlab_config(".gitlab-ci.yml", tag, images, test=test)
-        if images == "" or "circle" in images:
-            update_circleci_config(".circleci/config.yml", tag, test=test)
-            modified.append("CIRCLECI_RUNNER")
     print(f"  {', '.join(modified)}")
 
 
