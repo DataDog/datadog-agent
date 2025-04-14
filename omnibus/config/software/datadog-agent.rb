@@ -248,6 +248,14 @@ build do
         mode: 0644,
         vars: { install_dir: install_dir }
 
+    erb source: "launchd.sysprobe.plist.example.erb",
+        dest: "#{conf_dir}/com.datadoghq.sysprobe.plist.example",
+        mode: 0644,
+        vars: {
+          install_dir: install_dir,
+          conf_dir: conf_dir,
+        }
+
     erb source: "gui.launchd.plist.erb",
         dest: "#{conf_dir}/com.datadoghq.gui.plist.example",
         mode: 0644
