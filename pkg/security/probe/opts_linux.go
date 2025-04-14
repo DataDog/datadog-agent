@@ -31,6 +31,8 @@ type Opts struct {
 	TTYFallbackEnabled bool
 	// EBPFLessEnabled use ebpfless source
 	EBPFLessEnabled bool
+	// DNSPort allows to change the DNS port where the events are captured from
+	DNSPort int32
 }
 
 func (o *Opts) normalize() {

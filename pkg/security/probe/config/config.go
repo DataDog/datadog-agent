@@ -164,6 +164,9 @@ type Config struct {
 
 	// SpanTrackingCacheSize is the size of the span tracking cache
 	SpanTrackingCacheSize int
+
+	// The DNS Port
+	DNSPort int32
 }
 
 // NewConfig returns a new Config object
@@ -219,6 +222,9 @@ func NewConfig() (*Config, error) {
 		// span tracking
 		SpanTrackingEnabled:   getBool("span_tracking.enabled"),
 		SpanTrackingCacheSize: getInt("span_tracking.cache_size"),
+
+		// dns
+		DNSPort: 53,
 	}
 
 	if err := c.sanitize(); err != nil {

@@ -1308,6 +1308,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 
 	case model.FullDNSResponseEventType:
+		fmt.Println("Received Full DNS event")
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode Network Context")
 			return
@@ -2205,6 +2206,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.IMDSIPv4),
 		},
 		manager.ConstantEditor{
+			Name:  "dns_port",
+			Value: uint64(p.probe.Opts.DNSPort),
+		},
+		manager.ConstantEditor{
 			Name:  "use_ring_buffer",
 			Value: utils.BoolTouint64(p.useRingBuffers),
 		},
@@ -2361,6 +2366,10 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	onDemandRate := rate.Limit(math.Inf(1))
 	if config.RuntimeSecurity.OnDemandRateLimiterEnabled {
 		onDemandRate = MaxOnDemandEventsPerSecond
+	}
+
+	if probe.Opts.DNSPort == 0 {
+		probe.Opts.DNSPort = 53
 	}
 
 	processKiller, err := NewProcessKiller(config)

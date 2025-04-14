@@ -75,6 +75,7 @@ type testOpts struct {
 	discardRuntime                             bool
 	enableSelfTests                            bool
 	networkFlowMonitorEnabled                  bool
+	dnsPort                                    int32
 }
 
 type dynamicTestOpts struct {
