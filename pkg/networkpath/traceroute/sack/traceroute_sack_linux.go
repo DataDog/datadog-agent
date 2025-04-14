@@ -87,7 +87,7 @@ func runSackTraceroute(ctx context.Context, p Params) (*sackResult, error) {
 	defer driver.Close()
 
 	log.Debugf("sack traceroute dialing %s", p.Target)
-	// now that the sackDgiriver is listening, dial the target. this is necessary
+	// now that the sackDriver is listening, dial the target. this is necessary
 	// because sackDriver needs to watch the SYNACK to see if SACK is supported
 	conn, err := dialSackTCP(ctx, p)
 	if err != nil {
