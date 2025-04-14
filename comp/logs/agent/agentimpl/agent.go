@@ -30,13 +30,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
+	"github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -87,6 +87,7 @@ type dependencies struct {
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 	Tagger             tagger.Component
 	Compression        logscompression.Component
+	Auditor            auditor.Component
 }
 
 type provides struct {
@@ -115,7 +116,7 @@ type logAgent struct {
 	endpoints                 *config.Endpoints
 	tracker                   *tailers.TailerTracker
 	schedulers                *schedulers.Schedulers
-	auditor                   auditor.Auditor
+	auditor                   auditor.Component
 	destinationsCtx           *client.DestinationsContext
 	pipelineProvider          pipeline.Provider
 	launchers                 *launchers.Launchers
@@ -148,6 +149,7 @@ func newLogsAgent(deps dependencies) provides {
 			inventoryAgent: deps.InventoryAgent,
 			hostname:       deps.Hostname,
 			started:        atomic.NewUint32(status.StatusNotStarted),
+			auditor:        deps.Auditor,
 
 			sources:            sources.NewLogSources(),
 			services:           service.NewServices(),

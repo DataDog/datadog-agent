@@ -8,6 +8,7 @@ package aggregator
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -57,22 +58,30 @@ func (l *Log) GetCollectedTime() time.Time {
 
 // ParseLogPayload return the parsed logs from payload
 func ParseLogPayload(payload api.Payload) (logs []*Log, err error) {
+	fmt.Println("ANDREWQIAN ParseLogPayload", payload)
 	if len(payload.Data) == 0 || bytes.Equal(payload.Data, []byte("{}")) {
+		fmt.Println("ANDREWQIAN ParseLogPayload ERROR???", len(payload.Data), bytes.Equal(payload.Data, []byte("{}")))
 		// logs can submit with empty data or empty JSON object
 		return []*Log{}, nil
 	}
+	fmt.Println("ANDREWQIAN ParseLogPayload 2")
 	inflated, err := inflate(payload.Data, payload.Encoding)
+	fmt.Println("ANDREWQIAN ParseLogPayload 3", inflated, err)
 	if err != nil {
+		fmt.Println("ANDREWQIAN ParseLogPayload ERROR 2", err)
 		return nil, err
 	}
 	logs = []*Log{}
 	err = json.Unmarshal(inflated, &logs)
+	fmt.Println("ANDREWQIAN ParseLogPayload 4", logs, err)
 	if err != nil {
+		fmt.Println("ANDREWQIAN ParseLogPayload ERROR 3", err)
 		return nil, err
 	}
 	for _, l := range logs {
 		l.collectedTime = payload.Timestamp
 	}
+	fmt.Println("ANDREWQIAN ParseLogPayload 5", logs, err)
 	return logs, err
 }
 

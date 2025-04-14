@@ -195,10 +195,19 @@ func (c *Client) getEvents() error {
 }
 
 func (c *Client) getLogs() error {
+	fmt.Println("ANDREWQIAN getLogs")
+	// logsEndpoint = "/api/v2/logs"
 	payloads, err := c.getFakePayloads(logsEndpoint)
+	fmt.Println("ANDREWQIAN getLogs", payloads)
 	if err != nil {
 		return err
 	}
+	for _, payload := range payloads {
+		if bytes.Equal(payload.Data, []byte("{}")) {
+			fmt.Println("ANDREWQIAN EMPTY PAYLOAD")
+		}
+	}
+
 	return c.logAggregator.UnmarshallPayloads(payloads)
 }
 
@@ -347,7 +356,9 @@ func (c *Client) FilterEvents(name string, options ...MatchOpt[*aggregator.Event
 // FilterLogs fetches fakeintake on `/api/v2/logs` endpoint, unpackage payloads and returns
 // logs matching `service` and any [MatchOpt](#MatchOpt) options
 func (c *Client) FilterLogs(service string, options ...MatchOpt[*aggregator.Log]) ([]*aggregator.Log, error) {
+	fmt.Println("ANDREWQIAN FilterLogs", service)
 	logs, err := c.getLog(service)
+	fmt.Println("ANDREWQIAN FilterLogs", logs)
 	if err != nil {
 		return nil, err
 	}
@@ -391,14 +402,20 @@ func (c *Client) GetLatestFlare() (flare.Flare, error) {
 
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {
 	body, err := c.get(fmt.Sprintf("fakeintake/payloads?endpoint=%s", endpoint))
+	fmt.Println("ANDREWQIAN getFakePayloads", body, err)
+	//ANDREWQIAN getFakePayloads [123 34 112 97 121 108 111 97 100 115 34 58 91 93 125] <nil>
 	if err != nil {
 		return nil, err
 	}
 	var response api.APIFakeIntakePayloadsRawGETResponse
 	err = json.Unmarshal(body, &response)
+	fmt.Println("ANDREWQIAN getFakePayloads", response, err)
+	//ANDREWQIAN getFakePayloads {[]} <nil>
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("ANDREWQIAN getFakePayloads", response.Payloads, err)
+	//ANDREWQIAN getFakePayloads [] <nil>
 	return response.Payloads, nil
 }
 
@@ -563,6 +580,7 @@ func WithAlertType(alertType event.AlertType) MatchOpt[*aggregator.Event] {
 
 func (c *Client) getLog(service string) ([]*aggregator.Log, error) {
 	err := c.getLogs()
+	fmt.Println("ANDREWQIAN getLog", err)
 	if err != nil {
 		return nil, err
 	}
@@ -630,15 +648,22 @@ func (c *Client) GetCheckRun(name string) ([]*aggregator.CheckRun, error) {
 // Call this in between tests to reset the fakeintake status on both client and server side
 func (c *Client) FlushServerAndResetAggregators() error {
 	err := c.flushPayloads()
+	fmt.Println("ANDREWQIAN flushPayloads", err)
 	if err != nil {
 		return err
 	}
 	c.checkRunAggregator.Reset()
+	fmt.Println("ANDREWQIAN checkRunAggregator reset")
 	c.connectionAggregator.Reset()
+	fmt.Println("ANDREWQIAN connectionAggregator reset")
 	c.metricAggregator.Reset()
+	fmt.Println("ANDREWQIAN metricAggregator reset")
 	c.logAggregator.Reset()
+	fmt.Println("ANDREWQIAN logAggregator reset")
 	c.apmStatsAggregator.Reset()
+	fmt.Println("ANDREWQIAN apmStatsAggregator reset")
 	c.traceAggregator.Reset()
+	fmt.Println("ANDREWQIAN traceAggregator reset")
 	return nil
 }
 

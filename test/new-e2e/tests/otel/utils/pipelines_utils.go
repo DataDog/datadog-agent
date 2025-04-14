@@ -593,14 +593,18 @@ func TestLoadBalancing(s OTelTestSuite) {
 func TestCalendarApp(s OTelTestSuite, ust bool, service string) {
 	ctx := context.Background()
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	fmt.Println("ANDREWQIAN TestCalendarApp flushServerAndResetAggregators", err)
 	require.NoError(s.T(), err)
 
 	s.T().Log("Starting calendar app:", service)
 	createCalendarApp(ctx, s, ust, service)
+	fmt.Println("ANDREWQIAN TestCalendarApp createCalendarApp")
 
 	// Wait for calendar app to start
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		logs, err := s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(log2Body))
+		fmt.Println("ANDREWQIAN TestCalendarApp FilterLogs", err)
+		fmt.Println("ANDREWQIAN TestCalendarApp FilterLogs", logs)
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
 	}, 30*time.Minute, 10*time.Second)
@@ -609,8 +613,9 @@ func TestCalendarApp(s OTelTestSuite, ust bool, service string) {
 func createCalendarApp(ctx context.Context, s OTelTestSuite, ust bool, service string) {
 	var replicas int32 = 1
 	name := fmt.Sprintf("%v-%v", service, strings.ReplaceAll(strings.ToLower(s.T().Name()), "/", "-"))
-
+	fmt.Println("ANDREWQIAN createCalendarApp name", name)
 	otlpEndpoint := fmt.Sprintf("http://%v:4317", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
+	fmt.Println("ANDREWQIAN createCalendarApp otlpEndpoint", otlpEndpoint)
 	serviceSpec := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -707,11 +712,12 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite, ust bool, service s
 			},
 		},
 	}
-
+	fmt.Println("ANDREWQIAN HEHEXD createCalendarApp BEFORE CHECKS?")
 	_, err := s.Env().KubernetesCluster.Client().CoreV1().Services("datadog").Create(ctx, serviceSpec, metav1.CreateOptions{})
 	require.NoError(s.T(), err, "Could not properly start service")
 	_, err = s.Env().KubernetesCluster.Client().AppsV1().Deployments("datadog").Create(ctx, deploymentSpec, metav1.CreateOptions{})
 	require.NoError(s.T(), err, "Could not properly start deployment")
+	fmt.Println("ANDREWQIAN HEHEXD createCalendarApp PASSS ISUES", deploymentSpec)
 }
 
 func getCalendarAppEnvVars(name string, otlpEndpoint string, ust bool, service string) []corev1.EnvVar {
