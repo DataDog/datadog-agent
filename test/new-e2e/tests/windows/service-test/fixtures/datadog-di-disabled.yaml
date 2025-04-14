@@ -8,7 +8,6 @@ process_config:
     enabled: true
 
 # disable the datadog-installer, needs an API KEY
-remote_upgrades: false
-api_key: aaaaaaaaa
+remote_updates: false
 
 # trace-agent is running by default
