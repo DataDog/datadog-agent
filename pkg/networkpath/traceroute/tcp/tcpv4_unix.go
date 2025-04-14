@@ -127,7 +127,7 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 			totalRTT += hop.RTT
 		}
 	}
-	packetLoss := float32(reachableCount) / float32(nbProbes)
+	packetLoss := float32(nbProbes-reachableCount) / float32(nbProbes)
 	e2eRTTAvg := totalRTT / time.Duration(reachableCount)
 
 	return &common.Results{
