@@ -39,4 +39,8 @@ func (o *Opts) normalize() {
 	if o.StatsdClient == nil {
 		o.StatsdClient = &statsd.NoOpClient{}
 	}
+
+	if o.DNSPort == 0 {
+		o.DNSPort = 53
+	}
 }

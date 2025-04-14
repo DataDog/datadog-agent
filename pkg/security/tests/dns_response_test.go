@@ -17,14 +17,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"net"
 	"os"
+	"strconv"
 	"testing"
 	"time"
+)
+
+const (
+	OK       = uint8(0)
+	NXDOMAIN = uint8(3)
+	DNSPort  = 5553
 )
 
 // We need to bind to an address in order to tell that the netflow is related to this IP address so that
 // the process context can be resolved correctly
 func justBind() *net.UDPConn {
-	addr := ":5553"
+	addr := ":" + strconv.Itoa(DNSPort)
 
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
@@ -66,7 +73,7 @@ func TestDNSResponse(t *testing.T) {
 	}
 
 	test, err := newTestModule(t, nil, ruleDefsRcodeOK, withStaticOpts(testOpts{
-		dnsPort: 5553,
+		dnsPort: DNSPort,
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -86,13 +93,15 @@ func TestDNSResponse(t *testing.T) {
 			assertTriggeredRule(t, rule, "dns_response_ok")
 			assert.Equal(t, "dns_response", event.GetType(), "wrong event type")
 			assert.Equal(t, "www.datadoghq.eu", event.DNSResponse.Question.Name, "wrong domain name")
-			//test.validateDNSSchema(t, event)
+			assert.Equal(t, OK, event.DNSResponse.ResponseCode, "wrong response code")
+
+			test.validateDNSResponseSchema(t, event)
 		})
 	})
 	test.Close()
 
 	test, err = newTestModule(t, nil, ruleDefsRcodeNXDomain, withStaticOpts(testOpts{
-		dnsPort: 5553,
+		dnsPort: DNSPort,
 	}))
 
 	if err != nil {
@@ -110,7 +119,8 @@ func TestDNSResponse(t *testing.T) {
 			assertTriggeredRule(t, rule, "dns_response_nok")
 			assert.Equal(t, "dns_response", event.GetType(), "wrong event type")
 			assert.Equal(t, "www.datadawg.eu", event.DNSResponse.Question.Name, "wrong domain name")
-			//test.validateDNSSchema(t, event)
+			assert.Equal(t, NXDOMAIN, event.DNSResponse.ResponseCode, "wrong response code")
+			test.validateDNSResponseSchema(t, event)
 		})
 	})
 	test.Close()

@@ -2367,10 +2367,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		onDemandRate = MaxOnDemandEventsPerSecond
 	}
 
-	if probe.Opts.DNSPort == 0 {
-		probe.Opts.DNSPort = 53
-	}
-
 	processKiller, err := NewProcessKiller(config)
 	if err != nil {
 		return nil, err

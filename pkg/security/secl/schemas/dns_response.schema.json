@@ -22,11 +22,12 @@
         },
         {
             "properties": {
-                "dns": {
+                "dns_response": {
                     "type": "object",
                     "required": [
                         "id",
-                        "question"
+                        "question",
+                        "response_code"
                     ],
                     "properties": {
                         "id": {

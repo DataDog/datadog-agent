@@ -226,6 +226,12 @@ func (tm *testModule) validateDNSSchema(t *testing.T, event *model.Event) bool {
 }
 
 //nolint:deadcode,unused
+func (tm *testModule) validateDNSResponseSchema(t *testing.T, event *model.Event) bool {
+	t.Helper()
+	return tm.validateEventSchema(t, event, "file:///dns_response.schema.json")
+}
+
+//nolint:deadcode,unused
 func (tm *testModule) validateIMDSSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///imds.schema.json")
