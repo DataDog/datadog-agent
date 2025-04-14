@@ -61,3 +61,32 @@ func TestPacketToString(t *testing.T) {
 		})
 	}
 }
+
+func TestIsStringPrintable(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    []byte
+		expected bool
+	}{
+		{
+			name:     "string",
+			value:    []byte("test"),
+			expected: true,
+		},
+		{
+			name:     "with trailing null",
+			value:    append([]byte("test"), 00),
+			expected: true,
+		},
+		{
+			name:     "not printable",
+			value:    []byte{01, 02, 03},
+			expected: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, IsStringPrintable(tt.value))
+		})
+	}
+}
