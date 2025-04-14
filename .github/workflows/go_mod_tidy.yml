@@ -3,6 +3,7 @@ on:
   pull_request:
     types:
       - labeled
+      - synchronize # As the commit is ignored by dependabot we need to recreate it if we rebase.
 
 permissions: {}
 jobs:
