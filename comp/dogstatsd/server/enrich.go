@@ -28,8 +28,16 @@ var (
 // enrichConfig contains static parameters used in various enrichment
 // procedures for metrics, events and service checks.
 type enrichConfig struct {
-	metricPrefix              string
-	metricPrefixBlacklist     []string
+	// TODO(remy): this metric prefix / prefix blocklist
+	// is independent from the metric name blocklist, that's
+	// confusing and should be merged in the same implemnetation instead.
+	metricPrefix          string
+	metricPrefixBlacklist []string
+	// not used by the processing anymore since each worker have their own
+	// copy to work with
+	// we still maintain this copy for the runtime settings which need to
+	// return a copy on a "get" call, and we can't reuse one from the workers
+	// since that would create a sync mess (and slowdowns).
 	metricBlocklist           blocklist
 	defaultHostname           string
 	entityIDPrecedenceEnabled bool
