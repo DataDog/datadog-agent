@@ -112,7 +112,7 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 		}
 	}
 
-	nbProbes := 20
+	nbProbes := 10
 	reachableCount := 0
 	var totalRTT time.Duration
 	for i := 0; i < nbProbes; i++ {
