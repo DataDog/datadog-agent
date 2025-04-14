@@ -79,7 +79,7 @@ func newStreamCollection(sysCtx *systemContext, telemetry telemetry.Component, c
 		telemetry:           newStreamTelemetry(telemetry),
 		streamLimits:        getStreamLimits(config),
 		maxStreams:          config.MaxStreams,
-		maxStreamInactivity: time.Duration(config.MaxStreamInactivitySeconds) * time.Second,
+		maxStreamInactivity: config.MaxStreamInactivity,
 	}
 }
 

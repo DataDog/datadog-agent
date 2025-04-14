@@ -299,7 +299,7 @@ func TestCleanupInactiveAggregators(t *testing.T) {
 	// Add a stream and get stats to create an aggregator
 	pid := uint32(1)
 	streamID := uint64(120)
-	stream := addStream(streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
+	stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
 	stream.kernelLaunches = []enrichedKernelLaunch{
 		{
 			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
