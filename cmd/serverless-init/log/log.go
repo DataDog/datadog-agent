@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
+	log "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -89,6 +90,7 @@ func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags
 		for i, filePath := range paths {
 			// Skip the default log path if instance tailing is already enabled
 			if appServiceDefaultLoggingEnabled && filePath == "/home/LogFiles/*.log" {
+				log.Debugf("Skipping default log path for AAS instance tailing")
 				continue
 			}
 			name := fmt.Sprintf("serverless-file-tail-%d", i)
