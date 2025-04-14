@@ -421,13 +421,8 @@ func (a *InjectorInstaller) addLocalStableConfig(ctx context.Context) (err error
 				hasChanged = true
 				cfg.Default.AppsecScaEnabled = a.Env.InstallScript.AppsecScaEnabled
 			}
-			if a.Env.InstallScript.ProfilingEnabled != nil {
-				hasChanged = true
-				profEnabled := "false"
-				if *a.Env.InstallScript.ProfilingEnabled {
-					profEnabled = "auto"
-				}
-				cfg.Default.ProfilingEnabled = &profEnabled
+			if a.Env.InstallScript.ProfilingEnabled != "" {
+				cfg.Default.ProfilingEnabled = &a.Env.InstallScript.ProfilingEnabled
 			}
 
 			// Avoid creating a .backup file and overwriting the existing file if no changes were made

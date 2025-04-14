@@ -24,9 +24,10 @@ const (
 )
 
 var (
-	jobNameRegex     = regexp.MustCompile(`[,\']`)
-	clusterNameRegex = regexp.MustCompile(`[^a-zA-Z0-9_:.-]`)
-	driverLogs       = []config.IntegrationConfigLogs{
+	jobNameRegex       = regexp.MustCompile(`[,\']+`)
+	clusterNameRegex   = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
+	workspaceNameRegex = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
+	driverLogs         = []config.IntegrationConfigLogs{
 		{
 			Type:                   "file",
 			Path:                   "/databricks/driver/logs/*.log",
@@ -135,7 +136,9 @@ func setupCommonHostTags(s *common.Setup) {
 
 	setIfExists(s, "DATABRICKS_WORKSPACE", "databricks_workspace", nil)
 	setClearIfExists(s, "DATABRICKS_WORKSPACE", "workspace", func(v string) string {
-		return strings.Trim(v, "\"'")
+		v = strings.ToLower(v)
+		v = strings.Trim(v, "\"'")
+		return workspaceNameRegex.ReplaceAllString(v, "_")
 	})
 
 	setClearIfExists(s, "DB_CLUSTER_ID", "cluster_id", nil)

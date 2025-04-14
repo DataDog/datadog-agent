@@ -122,7 +122,7 @@ func translatorFromConfig(
 	}
 
 	if cfg.ExporterConfig.InstrumentationScopeMetadataAsTags {
-		options = append(options, metrics.WithInstrumentationLibraryMetadataAsTags())
+		options = append(options, metrics.WithInstrumentationScopeMetadataAsTags())
 	}
 
 	var numberMode metrics.NumberMode

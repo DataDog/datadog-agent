@@ -8,7 +8,6 @@
 package gpu
 
 import (
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -23,12 +22,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+func getTestSystemContext(t *testing.T, extraOpts ...systemContextOption) *systemContext {
+	opts := []systemContextOption{
+		withProcRoot(kernel.ProcFSRoot()),
+		withWorkloadMeta(testutil.GetWorkloadMetaMock(t)),
+		withTelemetry(testutil.GetTelemetryMock(t)),
+	}
+
+	opts = append(opts, extraOpts...) // Allow overriding the default options
+
+	sysCtx, err := getSystemContext(opts...)
+	require.NoError(t, err)
+	require.NotNil(t, sysCtx)
+	return sysCtx
+}
+
 func TestFilterDevicesForContainer(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	sysCtx, err := getSystemContext(kernel.ProcFSRoot(), wmetaMock, testutil.GetTelemetryMock(t))
-	require.NotNil(t, sysCtx)
-	require.NoError(t, err)
+	sysCtx := getTestSystemContext(t, withWorkloadMeta(wmetaMock))
 
 	// Create a container with a single GPU and add it to the store
 	containerID := "abcdef"
@@ -127,9 +139,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	sysCtx, err := getSystemContext(procFs, wmetaMock, testutil.GetTelemetryMock(t))
-	require.NotNil(t, sysCtx)
-	require.NoError(t, err)
+	sysCtx := getTestSystemContext(t, withProcRoot(procFs), withWorkloadMeta(wmetaMock))
 
 	// Create a container with a single GPU and add it to the store
 	containerID := "abcdef"
@@ -208,51 +218,4 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestBuildSymbolFileIdentifier(t *testing.T) {
-	// Create a file, then a symlink to it
-	// and check that the identifier is the same
-	// for both files.
-	dir := t.TempDir()
-	filePath := dir + "/file"
-	copyPath := dir + "/copy"
-	differentPath := dir + "/different"
-	symlinkPath := dir + "/symlink"
-
-	data := []byte("hello")
-	// create the original file
-	err := os.WriteFile(filePath, data, 0644)
-	require.NoError(t, err)
-
-	// create a symlink to the original file, which should have the same identifier
-	err = os.Symlink(filePath, symlinkPath)
-	require.NoError(t, err)
-
-	// a copy is a different inode, so it should have a different identifier
-	// even with the same size
-	err = os.WriteFile(copyPath, data, 0644)
-	require.NoError(t, err)
-
-	// a different file with different content should have a different identifier
-	// as it's different content and different inode
-	err = os.WriteFile(differentPath, []byte("different"), 0644)
-	require.NoError(t, err)
-
-	origIdentifier, err := buildSymbolFileIdentifier(filePath)
-	require.NoError(t, err)
-
-	symlinkIdentifier, err := buildSymbolFileIdentifier(symlinkPath)
-	require.NoError(t, err)
-
-	copyIdentifier, err := buildSymbolFileIdentifier(copyPath)
-	require.NoError(t, err)
-
-	differentIdentifier, err := buildSymbolFileIdentifier(differentPath)
-	require.NoError(t, err)
-
-	require.Equal(t, origIdentifier, symlinkIdentifier)
-	require.NotEqual(t, origIdentifier, copyIdentifier)
-	require.NotEqual(t, origIdentifier, differentIdentifier)
-	require.NotEqual(t, copyIdentifier, differentIdentifier)
 }
