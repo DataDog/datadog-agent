@@ -38,6 +38,7 @@ func Test_injectionMode(t *testing.T) {
 	tests := []struct {
 		name       string
 		pod        *corev1.Pod
+		csiEnabled bool
 		globalMode string
 		want       string
 	}{
@@ -48,15 +49,29 @@ func Test_injectionMode(t *testing.T) {
 			want:       "hostip",
 		},
 		{
-			name:       "custom mode #1",
+			name:       "custom mode #1: service",
 			pod:        mutatecommon.FakePodWithLabel("admission.datadoghq.com/config.mode", "service"),
 			globalMode: "hostip",
 			want:       "service",
 		},
 		{
-			name:       "custom mode #2",
+			name:       "custom mode #2: socket",
 			pod:        mutatecommon.FakePodWithLabel("admission.datadoghq.com/config.mode", "socket"),
 			globalMode: "hostip",
+			want:       "socket",
+		},
+		{
+			name:       "custom mode #3: csi",
+			pod:        mutatecommon.FakePodWithLabel("admission.datadoghq.com/config.mode", "csi"),
+			csiEnabled: true,
+			globalMode: "hostip",
+			want:       "csi",
+		},
+		{
+			name:       "custom mode #4: csi but csi.enabled=false, should default to socket",
+			pod:        mutatecommon.FakePodWithLabel("admission.datadoghq.com/config.mode", "csi"),
+			csiEnabled: false,
+			globalMode: "csi",
 			want:       "socket",
 		},
 		{
@@ -68,7 +83,7 @@ func Test_injectionMode(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, injectionMode(tt.pod, tt.globalMode))
+			assert.Equal(t, tt.want, injectionMode(tt.pod, tt.globalMode, tt.csiEnabled))
 		})
 	}
 }
@@ -347,13 +362,13 @@ func TestInjectSocket(t *testing.T) {
 			expectedVolumes: []corev1.Volume{
 				{
 					Name: "datadog",
+
 					VolumeSource: corev1.VolumeSource{
 						CSI: &corev1.CSIVolumeSource{
-							Driver:   "k8s.csi.datadoghq.com",
 							ReadOnly: pointer.Ptr(true),
+							Driver:   "k8s.csi.datadoghq.com",
 							VolumeAttributes: map[string]string{
-								"path": "/var/run/datadog",
-								"mode": "local",
+								"type": string(csiDatadogSocketsDirectory),
 							},
 						},
 					},
@@ -372,13 +387,16 @@ func TestInjectSocket(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
-			pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "socket"})
+			mode := "socket"
+			if test.withCSIDriver {
+				mode = "csi"
+			}
+
+			pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": mode})
 			wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle(), fx.Replace(config.MockParams{
-				Overrides: map[string]interface{}{
-					"csi.enabled":                                    test.withCSIDriver,
-					"admission_controller.csi.enabled":               test.withCSIDriver,
-					"admission_controller.inject_config.csi.enabled": test.withCSIDriver,
+				Overrides: map[string]any{
+					"csi.enabled": test.withCSIDriver,
 				},
 			}))
 			filter, err := NewFilter(datadogConfig)
@@ -456,8 +474,7 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 							Driver:   "k8s.csi.datadoghq.com",
 							ReadOnly: pointer.Ptr(true),
 							VolumeAttributes: map[string]string{
-								"path": "/var/run/datadog/dsd.socket",
-								"mode": "socket",
+								"type": string(csiDSDSocket),
 							},
 						},
 					},
@@ -469,8 +486,7 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 							Driver:   "k8s.csi.datadoghq.com",
 							ReadOnly: pointer.Ptr(true),
 							VolumeAttributes: map[string]string{
-								"path": "/var/run/datadog/apm.socket",
-								"mode": "socket",
+								"type": string(csiAPMSocket),
 							},
 						},
 					},
@@ -493,8 +509,12 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			mode := "socket"
+			if test.withCSIDriver {
+				mode = "csi"
+			}
 			pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
-			pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "socket"})
+			pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": mode})
 			wmeta := fxutil.Test[workloadmeta.Component](
 				t,
 				core.MockBundle(),

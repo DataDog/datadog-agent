@@ -8,6 +8,7 @@ package haagentimpl
 import (
 	"context"
 	"encoding/json"
+	"sync"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
@@ -20,6 +21,8 @@ type haAgentImpl struct {
 	log            log.Component
 	haAgentConfigs *haAgentConfigs
 	state          *atomic.String
+
+	logMissingConfigIDOnce sync.Once
 }
 
 func newHaAgentImpl(log log.Component, haAgentConfigs *haAgentConfigs) *haAgentImpl {
@@ -31,6 +34,12 @@ func newHaAgentImpl(log log.Component, haAgentConfigs *haAgentConfigs) *haAgentI
 }
 
 func (h *haAgentImpl) Enabled() bool {
+	if h.haAgentConfigs.enabled && h.GetConfigID() == "" {
+		h.logMissingConfigIDOnce.Do(func() {
+			h.log.Error("HA Agent feature requires config_id to be set")
+		})
+		return false
+	}
 	return h.haAgentConfigs.enabled
 }
 

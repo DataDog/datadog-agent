@@ -95,7 +95,7 @@ func TestActionKill(t *testing.T) {
 				"set-signal-handler", ";",
 				"open", testFile, ";",
 				"sleep", "1", ";",
-				"open", testFile, ";",
+				"open", syscallTester, ";",
 				"wait-signal", ";",
 				"signal", "sigusr1", strconv.Itoa(int(os.Getpid())), ";",
 				"sleep", "1",
@@ -151,7 +151,7 @@ func TestActionKill(t *testing.T) {
 				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 
-				cmd := exec.CommandContext(timeoutCtx, syscallTester, "open", testFile, ";", "sleep", "1", ";", "open", testFile, ";", "sleep", "5")
+				cmd := exec.CommandContext(timeoutCtx, syscallTester, "open", testFile, ";", "sleep", "1", ";", "open", syscallTester, ";", "sleep", "5")
 				_ = cmd.Run()
 
 				ch <- true
@@ -303,7 +303,7 @@ func TestActionKillRuleSpecific(t *testing.T) {
 			timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			cmd := exec.CommandContext(timeoutCtx, syscallTester, "open", testFile, ";", "sleep", "1", ";", "open", testFile, ";", "sleep", "5")
+			cmd := exec.CommandContext(timeoutCtx, syscallTester, "open", testFile, ";", "sleep", "1", ";", "open", syscallTester, ";", "sleep", "5")
 			_ = cmd.Run()
 
 			ch <- true

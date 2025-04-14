@@ -273,6 +273,12 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[st
 		typeHeader.ID = randomLabel()
 	}
 
+	for k := range seenTypes {
+		if seenTypes[k].count > 0 {
+			seenTypes[k].count--
+		}
+	}
+
 	return &typeHeader, nil
 }
 
