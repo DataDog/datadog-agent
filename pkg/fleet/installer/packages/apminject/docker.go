@@ -237,6 +237,18 @@ func isDockerInstalled(ctx context.Context) bool {
 
 // isDockerActive checks if docker is started on the system
 func isDockerActive(ctx context.Context) bool {
-	cmd := exec.CommandContext(ctx, "pidof", "dockerd")
-	return cmd.Run() == nil
+	processes, err := process.Processes()
+	if err != nil {
+		return false // Don't pollute with warning logs
+	}
+	for _, process := range processes {
+		name, err := process.NameWithContext(ctx)
+		if err != nil {
+			continue // Don't pollute with warning logs
+		}
+		if name == "dockerd" {
+			return true
+		}
+	}
+	return false
 }

@@ -7,7 +7,7 @@
 package listeners
 
 const (
-	cloudFoundryBBSListenerName = "cloudfoundry_bbs"
+	cloudFoundryBBSListenerName = "cloudfoundry-bbs"
 	containerListenerName       = "container"
 	environmentListenerName     = "environment"
 	kubeEndpointsListenerName   = "kube_endpoints"
