@@ -20,6 +20,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -130,9 +131,9 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 				runnerimpl.Module(),
 				hostinfoimpl.MockModule(),
 				submitterimpl.MockModule(),
-				taggerfxmock.MockModule(),
 				statsd.MockModule(),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				configComp.MockModule(),
 				sysprobeconfigimpl.MockModule(),
 				Module(),
@@ -196,7 +197,6 @@ func TestStatusProvider(t *testing.T) {
 				runnerimpl.Module(),
 				hostinfoimpl.MockModule(),
 				submitterimpl.MockModule(),
-				taggerfxmock.MockModule(),
 				statsd.MockModule(),
 				Module(),
 				fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
@@ -204,6 +204,7 @@ func TestStatusProvider(t *testing.T) {
 				}}),
 				processcheckimpl.MockModule(),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				configComp.MockModule(),
 				sysprobeconfigimpl.MockModule(),
 				fx.Provide(func() func(c *checkMocks.Check) {
@@ -243,7 +244,6 @@ func TestTelemetryCoreAgent(t *testing.T) {
 		runnerimpl.Module(),
 		hostinfoimpl.MockModule(),
 		submitterimpl.MockModule(),
-		taggerfxmock.MockModule(),
 		statsd.MockModule(),
 		Module(),
 		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
@@ -252,6 +252,7 @@ func TestTelemetryCoreAgent(t *testing.T) {
 		}}),
 		processcheckimpl.MockModule(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		configComp.MockModule(),
 		sysprobeconfigimpl.MockModule(),
 		fx.Provide(func() func(c *checkMocks.Check) {

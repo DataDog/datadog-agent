@@ -490,6 +490,39 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 	}
 }
 
+func TestMutatorCoreNewInjector(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("apm_config.instrumentation.version", "v2")
+	wmeta := fxutil.Test[workloadmeta.Component](t,
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
+	config, err := NewConfig(mockConfig)
+	require.NoError(t, err)
+	m, err := NewNamespaceMutator(config, wmeta)
+	require.NoError(t, err)
+	core := m.core
+
+	// common vars
+	startTime := time.Now()
+	pod := &corev1.Pod{}
+
+	i := core.newInjector(pod, startTime, libRequirementOptions{})
+	require.Equal(t, &injector{
+		injectTime: startTime,
+		registry:   core.config.containerRegistry,
+		image:      core.config.containerRegistry + "/apm-inject:0",
+	}, i)
+
+	core.config.Instrumentation.InjectorImageTag = "banana"
+	i = core.newInjector(pod, startTime, libRequirementOptions{})
+	require.Equal(t, &injector{
+		injectTime: startTime,
+		registry:   core.config.containerRegistry,
+		image:      core.config.containerRegistry + "/apm-inject:banana",
+	}, i)
+}
+
 func TestExtractLibInfo(t *testing.T) {
 	// TODO: Add new entry when a new language is supported
 	allLatestDefaultLibs := []libInfo{
@@ -1685,7 +1718,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			if tt.wantSkipInjection {
 				return
 			}
-			c.Mutators = mutator.core.newContainerMutators(requirements)
+			c.Mutators = mutator.core.newInitContainerMutators(requirements)
 			initalInitContainerCount := len(tt.pod.Spec.InitContainers)
 			err = c.mutatePod(tt.pod)
 			if (err != nil) != tt.wantErr {
