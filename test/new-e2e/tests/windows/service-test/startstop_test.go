@@ -8,7 +8,6 @@ package servicetest
 
 import (
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -477,40 +476,7 @@ func (s *baseStartStopSuite) SetupSuite() {
 	}
 
 	// TODO(WINA-1320): log the system memory to help debug
-	cmdline := `Get-CimInstance win32_ComputerSystem | foreach {[math]::round($_.TotalPhysicalMemory /1GB)}`
-	out, err := host.Execute(cmdline)
-	if err != nil {
-		s.T().Logf("Failed to get system memory: %v", err)
-	} else {
-		s.T().Logf("Total system memory: %s GB", strings.TrimSpace(out))
-	}
-	// write our command to a file so the code doesn't clutter the log file/screen every time it's run
-	host.WriteFile(`C:\logmemory.ps1`, []byte(`
-function ConvertTo-RoundMB {
-		param (
-				$bytes
-		)
-		$val = [int64][math]::Round($bytes/1Mb)
-		Write-Output $val
-}
-
-function Get-ProcessMemoryUsage {
-	# https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.process?view=net-8.0
-	# TODO: This might be wrongly including shared memory via the PagedMemorySize64 property
-	Get-Process |
-		Sort -Property {$_.PagedMemorySize64-$_.WorkingSet64} -Desc |
-		Select Name, PagedMemorySize64, WorkingSet64 -First 10  |
-		foreach-object {[PSCustomObject]@{
-				Name=$_.Name;
-				PagedMemorySize64=$_.PagedMemorySize64;
-				WorkingSet64=$_.WorkingSet64;
-				Diff=ConvertTo-RoundMB($_.PagedMemorySize64-$_.WorkingSet64);
-		}}
-}
-
-Get-ProcessMemoryUsage | ConvertTo-JSON
-`))
-	s.logMemory(host)
+	s.sendHostMemoryMetrics(host)
 }
 
 func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
@@ -643,7 +609,7 @@ func (s *baseStartStopSuite) assertServiceState(expected string, serviceName str
 	host := s.Env().RemoteHost
 	s.Assert().EventuallyWithT(func(c *assert.CollectT) {
 		// TODO(WINA-1320): log the system memory to help debug
-		s.logMemory(host)
+		s.sendHostMemoryMetrics(host)
 		status, err := windowsCommon.GetServiceStatus(host, serviceName)
 		if !assert.NoError(c, err) {
 			return
@@ -667,7 +633,7 @@ func (s *baseStartStopSuite) stopAllServices() {
 	for _, serviceName := range s.getInstalledServices() {
 		s.Assert().EventuallyWithT(func(c *assert.CollectT) {
 			// TODO(WINA-1320): log the system memory to help debug
-			s.logMemory(host)
+			s.sendHostMemoryMetrics(host)
 			status, err := windowsCommon.GetServiceStatus(host, serviceName)
 			if !assert.NoError(c, err) {
 				return
@@ -713,89 +679,19 @@ func (s *baseStartStopSuite) getAgentEventLogErrorsAndWarnings() ([]windowsCommo
 	return windowsCommon.GetEventLogEntriesWithFilterHashTable(host, filter)
 }
 
-func (s *baseStartStopSuite) getSystemMemoryMetrics(host *components.RemoteHost) ([]datadog.Metric, error) {
-	// Run agent check to get system memory usage
-	out, err := host.Execute(`& "C:/Program Files/Datadog/Datadog Agent/bin/agent.exe" check memory --json`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get system memory usage: %s", err)
-	}
-
-	// remove first 4 lines that contain a note
-	out = strings.Join(strings.Split(out, "\n")[4:], "\n")
-
-	// convert from JSON
-	type aggregatorValues struct {
-		Metrics []datadog.Metric `json:"metrics,omitempty"`
-	}
-	type checkOutput struct {
-		Aggregator aggregatorValues `json:"aggregator,omitempty"`
-	}
-	var checkruns []checkOutput
-	err = json.Unmarshal([]byte(out), &checkruns)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal system memory usage: %s", err)
-	}
-	return checkruns[0].Aggregator.Metrics, nil
-}
-
-func (s *baseStartStopSuite) getTopProcessMemoryMetrics(host *components.RemoteHost) ([]datadog.Metric, error) {
+// sendHostMemoryMetrics sends the host memory metrics to Datadog
+//
+// TODO(WINA-1320): collect metrics to help debug a crash
+func (s *baseStartStopSuite) sendHostMemoryMetrics(host *components.RemoteHost) {
 	metrics := []datadog.Metric{}
 
-	// add a metric for each process memory usage
-	timestamp := (float64)(time.Now().Unix())
-	out, err := host.Execute(`C:\logmemory.ps1`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get process memory usage: %s", err)
-	}
-
-	// unmarshal JSON
-	type processMemory struct {
-		Name              string  `json:"Name"`
-		PagedMemorySize64 float64 `json:"PagedMemorySize64"`
-		WorkingSet64      float64 `json:"WorkingSet64"`
-	}
-	var memoryInfo []processMemory
-	err = json.Unmarshal([]byte(out), &memoryInfo)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal process memory usage: %s", err)
-	}
-
-	for _, proc := range memoryInfo {
-		proctags := []string{fmt.Sprintf("process_name:%s", proc.Name)}
-		metrics = append(metrics, datadog.Metric{
-			Metric: datadog.String("system.processes.mem.rss"),
-			Points: []datadog.DataPoint{
-				{&timestamp, datadog.Float64(proc.WorkingSet64)},
-			},
-			Type: datadog.String("gauge"),
-			Tags: proctags,
-			Host: datadog.String(host.Address),
-		})
-		metrics = append(metrics, datadog.Metric{
-			Metric: datadog.String("system.processes.mem.vms"),
-			Points: []datadog.DataPoint{
-				{&timestamp, datadog.Float64(proc.PagedMemorySize64)},
-			},
-			Type: datadog.String("gauge"),
-			Tags: proctags,
-			Host: datadog.String(host.Address),
-		})
-	}
-
-	return metrics, nil
-}
-
-func (s *baseStartStopSuite) logMemory(host *components.RemoteHost) {
-	// TODO(WINA-1320): log the system memory to help debug
-	metrics := []datadog.Metric{}
-
-	systemMetrics, err := s.getSystemMemoryMetrics(host)
+	systemMetrics, err := getSystemMemoryMetrics(host)
 	if err != nil {
 		s.T().Logf("failed to get system memory metrics: %s", err)
 	} else {
 		metrics = append(metrics, systemMetrics...)
 	}
-	processMetrics, err := s.getTopProcessMemoryMetrics(host)
+	processMetrics, err := getTopProcessMemoryMetrics(host)
 	if err != nil {
 		s.T().Logf("failed to get process memory metrics: %s", err)
 	} else {
