@@ -976,6 +976,9 @@ func TestConnectionStatesMap(t *testing.T) {
 		})
 	}
 }
+
+// markEncryptedConnectionProtocol marks the connection and its reverse connection with a given protocol in the
+// connection_protocol map, and marks the connection as encrypted.
 func markEncryptedConnectionProtocol(protocol protocols.ProtocolType) func(*testing.T, *Monitor, net.Conn) {
 	return markConnectionProtocolHelper(netebpf.ProtocolStack{
 		Application: protocols.FromProtocolType(protocol),
@@ -983,12 +986,16 @@ func markEncryptedConnectionProtocol(protocol protocols.ProtocolType) func(*test
 	})
 }
 
+// markConnectionProtocol marks the connection and its reverse connection with a given protocol in the
+// connection_protocol map. Assuming the connection is not encrypted.
 func markConnectionProtocol(protocol protocols.ProtocolType) func(*testing.T, *Monitor, net.Conn) {
 	return markConnectionProtocolHelper(netebpf.ProtocolStack{
 		Application: protocols.FromProtocolType(protocol),
 	})
 }
 
+// markConnectionProtocolHelper marks the connection and its reverse connection with a given protocol in the
+// connection_protocol map.
 func markConnectionProtocolHelper(protocolStack netebpf.ProtocolStack) func(*testing.T, *Monitor, net.Conn) {
 	return func(t *testing.T, monitor *Monitor, conn net.Conn) {
 		connProtocolMap, _, err := monitor.ebpfProgram.GetMap(probes.ConnectionProtocolMap)
@@ -1109,7 +1116,7 @@ func testConnectionStatesMap(t *testing.T, testParams connectionStatesMapTestCas
 		sendAndReadBuffer(randomBuffer)(t, clientConn)
 	}
 
-	m, _, err := monitor.ebpfProgram.GetMap("connection_states")
+	m, _, err := monitor.ebpfProgram.GetMap(connectionStatesMap)
 	require.NoError(t, err)
 
 	checkConnExistenceInConnectionStatesMap(t, m, clientConn, testParams.expectedResult)
