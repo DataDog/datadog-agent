@@ -294,7 +294,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			name: "all-lib.config",
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
-					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+					"admission.datadoghq.com/all-lib.config.v1": `{"version":"1","runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				},
 			}.Create(),
 			libInfo: extractedPodLibInfo{
@@ -313,8 +313,8 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			name: "app-container.config",
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
-					"admission.datadoghq.com/python-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
-					"admission.datadoghq.com/java-lib.config.v1":   `{"version":1,"runtime_metrics_enabled":false,"tracing_rate_limit":60,"tracing_sampling_rate":0.3}`,
+					"admission.datadoghq.com/python-lib.config.v1": `{"version":"1","runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+					"admission.datadoghq.com/java-lib.config.v1":   `{"version":"1","runtime_metrics_enabled":false,"tracing_rate_limit":60,"tracing_sampling_rate":0.3}`,
 				},
 			}.Create(),
 			libInfo: extractedPodLibInfo{
@@ -1011,7 +1011,7 @@ func TestInjectLibConfig(t *testing.T) {
 	}{
 		{
 			name:    "nominal case",
-			pod:     common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.config.v1", `{"version":1,"service_language":"java","runtime_metrics_enabled":true,"tracing_rate_limit":50}`),
+			pod:     common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.config.v1", `{"version":"1","service_language":"java","runtime_metrics_enabled":true,"tracing_rate_limit":50}`),
 			lang:    java,
 			wantErr: false,
 			expectedEnvs: []corev1.EnvVar{
@@ -1027,7 +1027,7 @@ func TestInjectLibConfig(t *testing.T) {
 		},
 		{
 			name:    "inject all case",
-			pod:     common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.config.v1", `{"version":1,"service_language":"all","runtime_metrics_enabled":true,"tracing_rate_limit":50}`),
+			pod:     common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.config.v1", `{"version":"1","service_language":"all","runtime_metrics_enabled":true,"tracing_rate_limit":50}`),
 			lang:    "all",
 			wantErr: false,
 			expectedEnvs: []corev1.EnvVar{
@@ -1868,7 +1868,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
-					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+					"admission.datadoghq.com/all-lib.config.v1": `{"version":"1","runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				},
 				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
@@ -1877,6 +1877,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				ParentName: "deployment-1234",
 			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_VERSION",
+					Value: "1",
+				},
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_lib_injection",
@@ -1948,7 +1952,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
-					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+					"admission.datadoghq.com/all-lib.config.v1": `{"version":"1","runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				},
 				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
@@ -1957,6 +1961,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				ParentKind: "deployment-1234",
 			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_VERSION",
+					Value: "1",
+				},
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_lib_injection",
@@ -2028,15 +2036,19 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
-					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+					"admission.datadoghq.com/all-lib.config.v1": `{"version":"1","runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 					"admission.datadoghq.com/js-lib.version":    "v1.10",
-					"admission.datadoghq.com/js-lib.config.v1":  `{"version":1,"tracing_sampling_rate":0.4}`,
+					"admission.datadoghq.com/js-lib.config.v1":  `{"version":"1","tracing_sampling_rate":0.4}`,
 				},
 				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
 			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_VERSION",
+					Value: "1",
+				},
 				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
 					Value: "true",
@@ -2076,14 +2088,18 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
-					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
-					"admission.datadoghq.com/js-lib.config.v1":  `{"version":1,"tracing_sampling_rate":0.4}`,
+					"admission.datadoghq.com/all-lib.config.v1": `{"version":"1","runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+					"admission.datadoghq.com/js-lib.config.v1":  `{"version":"1","tracing_sampling_rate":0.4}`,
 				},
 				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
 			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_VERSION",
+					Value: "1",
+				},
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_lib_injection",
@@ -2156,7 +2172,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				Annotations: map[string]string{
 					// TODO: we might not want to be injecting the libraries if the config is malformed
 					"admission.datadoghq.com/all-lib.version":   "latest",
-					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
+					"admission.datadoghq.com/all-lib.config.v1": `{"version":"1","runtime_metrics_enabled":true,`,
 				},
 				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
@@ -2222,13 +2238,17 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
 					"admission.datadoghq.com/java-lib.version":   "latest",
-					"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
+					"admission.datadoghq.com/java-lib.config.v1": `{"version":"1","tracing_sampling_rate":0.3}`,
 				},
 				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
 			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_VERSION",
+					Value: "1",
+				},
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_lib_injection",
@@ -2260,13 +2280,17 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
 					"admission.datadoghq.com/python-lib.version":   "latest",
-					"admission.datadoghq.com/python-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
+					"admission.datadoghq.com/python-lib.config.v1": `{"version":"1","tracing_sampling_rate":0.3}`,
 				},
 				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
 			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_VERSION",
+					Value: "1",
+				},
 				{
 					Name:  "DD_TRACE_SAMPLE_RATE",
 					Value: "0.30",
@@ -2298,13 +2322,17 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
 					"admission.datadoghq.com/js-lib.version":   "latest",
-					"admission.datadoghq.com/js-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
+					"admission.datadoghq.com/js-lib.config.v1": `{"version":"1","tracing_sampling_rate":0.3}`,
 				},
 				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
 			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_VERSION",
+					Value: "1",
+				},
 				{
 					Name:  "DD_TRACE_SAMPLE_RATE",
 					Value: "0.30",
@@ -2336,7 +2364,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
 					"admission.datadoghq.com/java-lib.version":   "latest",
-					"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
+					"admission.datadoghq.com/java-lib.config.v1": `{"version":"1","runtime_metrics_enabled":true,`,
 				},
 				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
@@ -2370,7 +2398,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
 					"admission.datadoghq.com/java-lib.version":   "latest",
-					"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
+					"admission.datadoghq.com/java-lib.config.v1": `{"version":"1","runtime_metrics_enabled":true,`,
 				},
 				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "false",
@@ -2607,10 +2635,14 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
 					"admission.datadoghq.com/js-lib.version":   "v1.10",
-					"admission.datadoghq.com/js-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.4}`,
+					"admission.datadoghq.com/js-lib.config.v1": `{"version":"1","tracing_sampling_rate":0.4}`,
 				},
 			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_VERSION",
+					Value: "1",
+				},
 				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
 					Value: "true",
@@ -3036,13 +3068,17 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
-					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+					"admission.datadoghq.com/all-lib.config.v1": `{"version":"1","runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				},
 				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
 			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_VERSION",
+					Value: "1",
+				},
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_lib_injection",
@@ -3145,13 +3181,17 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
-					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+					"admission.datadoghq.com/all-lib.config.v1": `{"version":"1","runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				},
 				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
 			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_VERSION",
+					Value: "1",
+				},
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_lib_injection",
@@ -3236,13 +3276,17 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
-					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+					"admission.datadoghq.com/all-lib.config.v1": `{"version":"1","runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				},
 				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
 			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_VERSION",
+					Value: "1",
+				},
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_lib_injection",
@@ -3317,7 +3361,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
-					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+					"admission.datadoghq.com/all-lib.config.v1": `{"version":"1","runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				},
 				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
@@ -3334,7 +3378,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
-					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+					"admission.datadoghq.com/all-lib.config.v1": `{"version":"1","runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				},
 				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
