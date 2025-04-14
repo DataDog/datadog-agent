@@ -277,11 +277,10 @@ install_method:
 			defer os.Remove(vh.Name())
 			versionHistoryFilePath := vh.Name()
 
-			var installInfoFilePath string
 			f, _ := os.CreateTemp("", "install_info")
 			f.WriteString(tt.installInfoFile)
 			defer os.Remove(f.Name())
-			installInfoFilePath = f.Name()
+			installInfoFilePath := f.Name()
 			logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, tt.version, tt.timestamp)
 			b, _ := os.ReadFile(versionHistoryFilePath)
 			assert.Equal(t, tt.want, string(b))
