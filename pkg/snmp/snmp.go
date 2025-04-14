@@ -18,6 +18,7 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
@@ -116,6 +117,7 @@ var ErrNoConfigGiven = errors.New("no config given for snmp_listener")
 
 // NewListenerConfig parses configuration and returns a built ListenerConfig
 func NewListenerConfig() (ListenerConfig, error) {
+	log.Debug("NewListenerConfig called")
 	var snmpConfig ListenerConfig
 	// Set defaults before unmarshalling
 	snmpConfig.CollectDeviceMetadata = true
@@ -123,10 +125,13 @@ func NewListenerConfig() (ListenerConfig, error) {
 
 	ddcfg := pkgconfigsetup.Datadog()
 	if ddcfg.IsSet("network_devices.autodiscovery") {
+		log.Debug("About to unmarshal config")
 		err := structure.UnmarshalKey(ddcfg, "network_devices.autodiscovery", &snmpConfig, structure.ImplicitlyConvertArrayToMapSet)
 		if err != nil {
+			log.Debugf("Error unmarshaling config: %v", err)
 			return snmpConfig, err
 		}
+		log.Debugf("Successfully unmarshaled config: %+v", snmpConfig)
 	} else if ddcfg.IsSet("snmp_listener") {
 		err := structure.UnmarshalKey(ddcfg, "snmp_listener", &snmpConfig, structure.ImplicitlyConvertArrayToMapSet)
 		if err != nil {
