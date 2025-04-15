@@ -14,7 +14,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"time"
 
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -69,10 +68,6 @@ func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, dpa mo
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling request: %w", err)
 	}
-
-	// TODO: We might want to make the timeout configurable later.
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
 
 	client := r.getClient()
 
