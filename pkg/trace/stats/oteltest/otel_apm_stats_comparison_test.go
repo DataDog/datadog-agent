@@ -34,10 +34,12 @@ import (
 // Comparison test to ensure APM stats generated from 2 different OTel ingestion paths are consistent.
 func TestOTelAPMStatsMatch(t *testing.T) {
 	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		t.Parallel()
 		testOTelAPMStatsMatch(false, t)
 	})
 
 	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		t.Parallel()
 		testOTelAPMStatsMatch(true, t)
 	})
 }
