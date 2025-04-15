@@ -12,7 +12,6 @@ package installinfo
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"time"
