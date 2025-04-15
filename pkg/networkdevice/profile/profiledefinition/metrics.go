@@ -214,6 +214,24 @@ func (m *MetricsConfig) IsScalar() bool {
 	return m.Symbol.OID != "" && m.Symbol.Name != ""
 }
 
+func (m *MetricsConfig) IsPythonLegacyConfig() bool {
+	if m.OID == "" && m.Name != "" {
+		return true
+	}
+
+	if m.Symbol.OID == "" && m.Symbol.Name != "" {
+		return true
+	}
+
+	for _, symbol := range m.Symbols {
+		if symbol.OID == "" && symbol.Name != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
 // NormalizeMetrics converts legacy syntax to new syntax
 // 1/ converts old symbol syntax to new symbol syntax
 // metric.Name and metric.OID info are moved to metric.Symbol.Name and metric.Symbol.OID
