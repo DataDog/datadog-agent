@@ -16,10 +16,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
-
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
-	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/nvml/testutil"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
