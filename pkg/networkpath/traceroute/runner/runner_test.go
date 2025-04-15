@@ -6,12 +6,14 @@
 package runner
 
 import (
+	"fmt"
 	"net"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/sack"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/golang/mock/gomock"
 	"github.com/google/go-cmp/cmp"
@@ -301,4 +303,99 @@ func TestProcessResults(t *testing.T) {
 			assert.Empty(t, diff)
 		})
 	}
+}
+
+func neverCalled(t *testing.T) tracerouteImpl {
+	return func() (*common.Results, error) {
+		t.Fatal("should not call this")
+		return nil, fmt.Errorf("should not call this")
+	}
+}
+
+func TestTCPFallback(t *testing.T) {
+	dummySyn := &common.Results{}
+	dummySack := &common.Results{}
+	dummyErr := fmt.Errorf("test error")
+	dummySackUnsupportedErr := &sack.NotSupportedError{
+		Err: fmt.Errorf("dummy sack unsupported"),
+	}
+
+	t.Run("force SYN", func(t *testing.T) {
+		doSyn := func() (*common.Results, error) {
+			return dummySyn, nil
+		}
+		doSack := neverCalled(t)
+		// success case
+		results, err := performTCPFallback(payload.TCPConfigSYN, doSyn, doSack)
+		require.NoError(t, err)
+		require.Equal(t, dummySyn, results)
+
+		doSyn = func() (*common.Results, error) {
+			return nil, dummyErr
+		}
+		// error case
+		results, err = performTCPFallback(payload.TCPConfigSYN, doSyn, doSack)
+		require.Equal(t, dummyErr, err)
+		require.Nil(t, results)
+	})
+
+	t.Run("force SACK", func(t *testing.T) {
+		doSyn := neverCalled(t)
+		doSack := func() (*common.Results, error) {
+			return dummySack, nil
+		}
+		// success case
+		results, err := performTCPFallback(payload.TCPConfigSACK, doSyn, doSack)
+		require.NoError(t, err)
+		require.Equal(t, dummySack, results)
+
+		doSack = func() (*common.Results, error) {
+			return nil, dummyErr
+		}
+		// error case
+		results, err = performTCPFallback(payload.TCPConfigSACK, doSyn, doSack)
+		require.Equal(t, dummyErr, err)
+		require.Nil(t, results)
+	})
+
+	t.Run("prefer SACK - only running sack", func(t *testing.T) {
+		doSyn := neverCalled(t)
+		doSack := func() (*common.Results, error) {
+			return dummySack, nil
+		}
+		// success case
+		results, err := performTCPFallback(payload.TCPConfigPreferSACK, doSyn, doSack)
+		require.NoError(t, err)
+		require.Equal(t, dummySack, results)
+
+		doSack = func() (*common.Results, error) {
+			return nil, dummyErr
+		}
+		// error case (sack encounters a fatal error and does not fall back to SYN)
+		results, err = performTCPFallback(payload.TCPConfigPreferSACK, doSyn, doSack)
+		require.ErrorIs(t, err, dummyErr)
+		require.Nil(t, results)
+	})
+
+	t.Run("prefer SACK - fallback case", func(t *testing.T) {
+		doSyn := func() (*common.Results, error) {
+			return dummySyn, nil
+		}
+		doSack := func() (*common.Results, error) {
+			// cause a fallback because the target doesn't support SACK
+			return nil, dummySackUnsupportedErr
+		}
+		// success case
+		results, err := performTCPFallback(payload.TCPConfigPreferSACK, doSyn, doSack)
+		require.NoError(t, err)
+		require.Equal(t, dummySyn, results)
+
+		doSyn = func() (*common.Results, error) {
+			return nil, dummyErr
+		}
+		// error case
+		results, err = performTCPFallback(payload.TCPConfigPreferSACK, doSyn, doSack)
+		require.Equal(t, dummyErr, err)
+		require.Nil(t, results)
+	})
 }

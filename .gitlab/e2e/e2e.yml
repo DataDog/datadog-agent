@@ -565,12 +565,12 @@ new-e2e-installer-windows:
     - CURRENT_AGENT_VERSION_PACKAGE=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_VERSION_PACKAGE
     # TODO: temp override of version until we have a stable version
     # - export STABLE_AGENT_VERSION_PACKAGE=$(curl --retry 10 --retry-all-errors -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
-    - export STABLE_AGENT_VERSION_PACKAGE="7.65.0-devel.git.579.0000ac2.pipeline.59404687-1"
+    - export STABLE_AGENT_VERSION_PACKAGE="7.66.0-devel.git.379.6304b11.pipeline.61881042-1"
     # NOTE: pkg/version.GetNumberAndPre doesn't work on url-safe versions, it looks for the `+` character
-    - export STABLE_AGENT_VERSION=7.65.0-devel
-    - export STABLE_AGENT_MSI_URL=https://s3.amazonaws.com/dd-agent-mstesting/builds/dev/ddagent-cli-7.65.0-devel.git.579.0000ac2.pipeline.59404687.msi
+    - export STABLE_AGENT_VERSION=7.66.0-devel
+    - export STABLE_AGENT_MSI_URL=https://s3.amazonaws.com/dd-agent-mstesting/builds/dev/ddagent-cli-7.66.0-devel.git.379.6304b11.pipeline.61881042.msi
     - export STABLE_AGENT_OCI_REGISTRY=install.datad0g.com
-    - export STABLE_AGENT_OCI_VERSION=7.65.0-devel.git.579.0000ac2.pipeline.59404687-1
+    - export STABLE_AGENT_OCI_VERSION=7.66.0-devel.git.379.6304b11.pipeline.61881042-1
     - !reference [.new_e2e_template, before_script]
   variables:
     TARGETS: ./tests/installer/windows
@@ -580,17 +580,19 @@ new-e2e-installer-windows:
   parallel:
     matrix:
       # agent-package
-      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestUpgradeMSI$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestUpgradeAgentPackage$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestDowngradeAgentPackage$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestStopExperiment$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestExperimentForNonExistingPackageFails$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestExperimentCurrentVersionFails$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestStopWithoutExperiment$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestRevertsExperimentWhenServiceDies$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestRevertsExperimentWhenTimeout$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestRunAgentMSIAfterExperiment$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestUpgradeWithAgentUser$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeMSI$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestDowngradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestStopExperiment$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentForNonExistingPackageFails$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentCurrentVersionFails$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestStopWithoutExperiment$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenServiceDies$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenTimeout$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRunAgentMSIAfterExperiment$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeWithAgentUser$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeMSI$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeAgentPackage$"
       # install-script
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallAgentPackage$"
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallFromOldInstaller$"
@@ -750,7 +752,7 @@ new-e2e-otel-eks:
     - !reference [.needs_new_e2e_template]
     - qa_dca
     - qa_agent
-    - qa_agent_ot
+    - qa_agent_full
     - new-e2e-otel-eks-init
   variables:
     TARGETS: ./tests/otel
@@ -767,7 +769,7 @@ new-e2e-otel:
     - !reference [.needs_new_e2e_template]
     - qa_dca
     - qa_agent
-    - qa_agent_ot
+    - qa_agent_full
   variables:
     TARGETS: ./tests/otel
     EXTRA_PARAMS: --skip "TestOTelAgentIA(EKS|USTEKS)"
@@ -864,7 +866,7 @@ generate-flakes-finder-pipeline:
     - qa_dca
     - qa_dogstatsd
     - qa_agent
-    - qa_agent_ot
+    - qa_agent_full
     - tests_windows_sysprobe_x64
   tags: ["arch:amd64"]
   script:
@@ -920,7 +922,7 @@ generate-fips-e2e-pipeline:
     - qa_dca
     - qa_dogstatsd
     - qa_agent
-    - qa_agent_ot
+    - qa_agent_full
     - tests_windows_sysprobe_x64
   tags: ["arch:amd64"]
   script:
