@@ -25,4 +25,5 @@ jobs:
         with:
           features: legacy-tasks
       - name: Test
-        run: echo Hello world
+        run: |
+          ls -la ~/.cache
