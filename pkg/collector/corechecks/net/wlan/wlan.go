@@ -96,17 +96,17 @@ func (c *WLANCheck) Run() error {
 		sender.Gauge("wlan.receive_rate", float64(wifiInfo.receiveRate), "", tags)
 	}
 
+	// Roaming and channel swap events could happen only if we are still on the same network.
+	// Edge cases:
+	//   * SSID could be empty if it is not "advertised" by the AP and in this case
+	//     the "sameness" of the network is determined by the matching BSSID.
+	//   * BSSID could not be empty (it is an error condition) and it would not
+	//     contribute to the "sameness" of the network. If current or previous sample of BSSID
+	//     is empty, we still cannot determine if we are roaming or have changed the channel.
 	roamingEvent := 0.0
 	channelSwapEvent := 0.0
-
-	// Roaming and channel swap events could happen only if we are still on the same network (and warmed up).
-	// Notes:
-	//   * SSID could be empty if it is not "advertised" by the AP and in this case
-	//     the sameness of the network is determined by the matching BSSID.
-	//   * BSSID could not be empty (it is an error condition) and it would not
-	//     contribute to the sameness of the network. If current or previous sample of BSSID
-	//     is empty, we still cannot determine if we are roaming or have changed the channel.
-	if c.isWarmedUp && c.lastSSID == wifiInfo.ssid && len(c.lastBSSID) > 0 && len(wifiInfo.bssid) > 0 {
+	bothBSSIDNonEmpty := len(c.lastBSSID) > 0 && len(wifiInfo.bssid) > 0
+	if c.isWarmedUp && c.lastSSID == wifiInfo.ssid && bothBSSIDNonEmpty {
 		if len(c.lastSSID) > 0 {
 			// The same non-empty SSID
 			if c.lastBSSID != wifiInfo.bssid {
