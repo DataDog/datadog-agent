@@ -338,10 +338,6 @@ func (i *InstallerExec) Hook(ctx context.Context, hookContext string) (err error
 func (i *InstallerExec) HookVersion(ctx context.Context) (version string, err error) {
 	cmd := i.newInstallerCmd(ctx, "hook-version")
 	defer func() { cmd.span.Finish(err) }()
-	err = cmd.Run()
-	if err != nil {
-		return "", err
-	}
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
 	err = cmd.Run()
