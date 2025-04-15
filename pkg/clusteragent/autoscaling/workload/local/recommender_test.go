@@ -33,7 +33,8 @@ func TestProcessScaleUp(t *testing.T) {
 
 	// setup store
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
-	store.Set("default/autoscaler1", newAutoscaler(), "")
+	store.Set("default/autoscaler1", newAutoscaler(true), "")
+	store.Set("default/autoscaler2", newAutoscaler(false), "")
 
 	// setup loadstore
 	lStore := loadstore.GetWorkloadMetricStore(ctx)
@@ -62,6 +63,11 @@ func TestProcessScaleUp(t *testing.T) {
 	assert.Equal(t, int32(2), pai.FallbackScalingValues().Horizontal.Replicas) // currently 1 replica, recommending scale up to 2
 	assert.Equal(t, (testTime - 30), pai.FallbackScalingValues().Horizontal.Timestamp.Unix())
 
+	// check that autoscalers without fallback enabled are not processed
+	pai2, found := store.Get("default/autoscaler2")
+	assert.True(t, found)
+	assert.Nil(t, pai2.FallbackScalingValues().Horizontal)
+
 	resetWorkloadMetricStore()
 }
 
@@ -78,7 +84,8 @@ func TestProcessScaleDown(t *testing.T) {
 
 	// setup store
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
-	store.Set("default/autoscaler1", newAutoscaler(), "")
+	store.Set("default/autoscaler1", newAutoscaler(true), "")
+	store.Set("default/autoscaler2", newAutoscaler(false), "")
 
 	// setup loadstore
 	lStore := loadstore.GetWorkloadMetricStore(ctx)
@@ -119,6 +126,11 @@ func TestProcessScaleDown(t *testing.T) {
 	assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerLocalValueSource, pai.FallbackScalingValues().Horizontal.Source)
 	assert.Equal(t, int32(2), pai.FallbackScalingValues().Horizontal.Replicas) // currently 3 replicas, recommending scale down to 2
 	assert.Equal(t, (testTime - 30), pai.FallbackScalingValues().Horizontal.Timestamp.Unix())
+
+	// check that autoscalers without fallback enabled are not processed
+	pai2, found := store.Get("default/autoscaler2")
+	assert.True(t, found)
+	assert.Nil(t, pai2.FallbackScalingValues().Horizontal)
 
 	// cleanup
 	resetWorkloadMetricStore()
