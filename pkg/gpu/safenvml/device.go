@@ -81,13 +81,12 @@ type Device struct {
 	SafeDevice
 
 	// Cached fields for quick access
-	SMVersion  uint32
-	UUID       string
-	CoreCount  int
-	Index      int
-	Memory     uint64
-	Name       string
-	NVMLDevice nvml.Device
+	SMVersion uint32
+	UUID      string
+	CoreCount int
+	Index     int
+	Memory    uint64
+	Name      string
 }
 
 // safeDeviceImpl implements the SafeDevice interface
