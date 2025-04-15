@@ -64,7 +64,7 @@ notify_github:
       changes:
         paths:
           - '**/*.go'
-        compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+        compare_to: $COMPARE_TO_BRANCH
       when: on_success
     - when: never
   needs:
@@ -98,7 +98,7 @@ notify_gitlab_ci_changes:
         paths:
           - .gitlab-ci.yml
           - .gitlab/**/*.yml
-        compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+        compare_to: $COMPARE_TO_BRANCH
   script:
     # Python 3.12 changes default behavior how packages are installed.
     # In particular, --break-system-packages command line option is

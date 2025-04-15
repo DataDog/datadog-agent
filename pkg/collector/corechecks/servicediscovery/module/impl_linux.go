@@ -46,7 +46,7 @@ import (
 )
 
 const (
-	pathServices = "/services"
+	pathCheck = "/check"
 
 	// Use a low cache validity to ensure that we refresh information every time
 	// the check is run if needed. This is the same as cacheValidityNoRT in
@@ -192,6 +192,8 @@ type discovery struct {
 
 	timeProvider timeProvider
 	network      networkCollector
+
+	networkErrorLimit *log.Limit
 }
 
 type networkCollectorFactory func(cfg *discoveryConfig) (networkCollector, error)
@@ -226,6 +228,7 @@ func newDiscoveryWithNetwork(wmeta workloadmeta.Component, tagger tagger.Compone
 		tagger:             tagger,
 		timeProvider:       tp,
 		network:            network,
+		networkErrorLimit:  log.NewLogLimit(10, 10*time.Minute),
 	}
 }
 
@@ -246,7 +249,7 @@ func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
 	httpMux.HandleFunc("/state", s.handleStateEndpoint)
 	httpMux.HandleFunc("/debug", s.handleDebugEndpoint)
-	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))
+	httpMux.HandleFunc(pathCheck, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleCheck))
 	return nil
 }
 
@@ -359,19 +362,19 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 	utils.WriteAsJSON(w, services)
 }
 
-// handleServers is the handler for the /services endpoint.
-// Returns the list of currently running services.
-func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
+// handleCheck is the handler for the /check endpoint.
+// Returns the list of service discovery events.
+func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
 	params, err := parseParams(req.URL.Query())
 	if err != nil {
-		_ = log.Errorf("invalid params to /discovery%s: %v", pathServices, err)
+		_ = log.Errorf("invalid params to /discovery%s: %v", pathCheck, err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	services, err := s.getServices(params)
 	if err != nil {
-		_ = log.Errorf("failed to handle /discovery%s: %v", pathServices, err)
+		_ = log.Errorf("failed to handle /discovery%s: %v", pathCheck, err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -540,14 +543,15 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 		log.Debugf("couldn't snapshot UDP sockets: %v", err)
 	}
 	tcpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/tcp6", pid)), tcpListen, noIgnore)
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		// The file won't exist if IPv6 is disabled.
 		log.Debugf("couldn't snapshot TCP6 sockets: %v", err)
 	}
 	udpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/udp6", pid)), udpListen,
 		func(port uint16) bool {
 			return network.IsPortInEphemeralRange(network.AFINET6, network.UDP, port) == network.EphemeralTrue
 		})
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		log.Debugf("couldn't snapshot UDP6 sockets: %v", err)
 	}
 
@@ -815,7 +819,9 @@ func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.Ser
 			err := s.network.addPid(uint32(pid))
 			if err == nil {
 				info.addedToMap = true
-			} else {
+			} else if s.networkErrorLimit.ShouldLog() {
+				// This error can occur if the eBPF map used by the network
+				// collector is full.
 				log.Warnf("unable to add to network collector %v: %v", pid, err)
 			}
 			continue

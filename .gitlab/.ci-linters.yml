@@ -46,6 +46,10 @@ needs-rules:
     - trigger_auto_staging_release_on_failure
     - trigger_manual_prod_release
     - trigger_manual_prod_release_on_failure
+    - installer_trigger_auto_staging_release
+    - installer_trigger_auto_staging_release_on_failure
+    - installer_trigger_manual_prod_release
+    - installer_trigger_manual_prod_release_on_failure
 
 # Lists jobs that are allowed to not be within JOBOWNERS
 job-owners:
@@ -61,6 +65,7 @@ job-owners:
     - build_otel_agent_binary_arm64
     - build_otel_agent_binary_x64
     - cancel-prev-pipelines
+    - clone
     - close_failing_tests_stale_issues
     - compute_gitlab_ci_config
     - deploy_cluster_agent_cloudfoundry
