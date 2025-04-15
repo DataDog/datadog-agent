@@ -84,6 +84,7 @@ type Device struct {
 	// Cached fields for quick access
 	SMVersion uint32
 	UUID      string
+	Name      string
 	CoreCount int
 	Index     int
 	Memory    uint64
