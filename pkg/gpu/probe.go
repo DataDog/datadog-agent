@@ -234,7 +234,12 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error getting current time: %w", err)
 	}
-	stats := p.statsGenerator.getStats(now)
+
+	stats, err := p.statsGenerator.getStats(now)
+	if err != nil {
+		return nil, err
+	}
+
 	p.telemetry.sentEntries.Add(float64(len(stats.Metrics)))
 	p.cleanupFinished(now)
 
