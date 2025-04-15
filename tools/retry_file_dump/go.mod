@@ -10,7 +10,6 @@ go 1.23.0
 require github.com/golang/protobuf v1.5.4
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.145-0.20250407142337-6308826e0018 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 )
