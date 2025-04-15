@@ -53,6 +53,7 @@ func postinstCommand() *cobra.Command {
 			}
 			hookContext := packages.HookContext{
 				Context:     i.ctx,
+				Hook:        "postinst",
 				Package:     pkg,
 				PackagePath: "/opt/datadog-agent",
 				PackageType: packageType,
