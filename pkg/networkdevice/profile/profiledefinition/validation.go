@@ -47,6 +47,15 @@ const (
 	MetadataSymbol
 )
 
+func AreMetricsLegacy(metrics []MetricsConfig) bool {
+	for i := range metrics {
+		if metrics[i].IsLegacy() {
+			return true
+		}
+	}
+	return false
+}
+
 // ValidateEnrichProfile validates a profile and normalizes it.
 func ValidateEnrichProfile(profile *ProfileDefinition) []string {
 	NormalizeMetrics(profile.Metrics)

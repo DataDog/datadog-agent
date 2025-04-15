@@ -204,17 +204,8 @@ func (m *MetricsConfig) GetSymbolTags() []string {
 	return symbolTags
 }
 
-// IsColumn returns true if the metrics config define columns metrics
-func (m *MetricsConfig) IsColumn() bool {
-	return len(m.Symbols) > 0
-}
-
-// IsScalar returns true if the metrics config define scalar metrics
-func (m *MetricsConfig) IsScalar() bool {
-	return m.Symbol.OID != "" && m.Symbol.Name != ""
-}
-
-func (m *MetricsConfig) IsPythonLegacyConfig() bool {
+// IsLegacy returns true if the metrics config is written in the legacy Python syntax
+func (m *MetricsConfig) IsLegacy() bool {
 	if m.OID == "" && m.Name != "" {
 		return true
 	}
@@ -230,6 +221,16 @@ func (m *MetricsConfig) IsPythonLegacyConfig() bool {
 	}
 
 	return false
+}
+
+// IsColumn returns true if the metrics config define columns metrics
+func (m *MetricsConfig) IsColumn() bool {
+	return len(m.Symbols) > 0
+}
+
+// IsScalar returns true if the metrics config define scalar metrics
+func (m *MetricsConfig) IsScalar() bool {
+	return m.Symbol.OID != "" && m.Symbol.Name != ""
 }
 
 // NormalizeMetrics converts legacy syntax to new syntax
