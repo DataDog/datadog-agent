@@ -38,7 +38,7 @@ type SafeDevice interface {
 	// GetFieldValues returns the values for the specified fields
 	GetFieldValues(values []nvml.FieldValue) error
 	// GetGpuInstanceId returns the GPU instance ID for MIG devices
-	//nolint:revive (Maintaining consistency with go-nvml API naming)
+	//nolint:revive // Maintaining consistency with go-nvml API naming
 	GetGpuInstanceId() (int, error)
 	// GetIndex returns the index of the device
 	GetIndex() (int, error)
