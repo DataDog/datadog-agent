@@ -88,7 +88,6 @@ type Device struct {
 	CoreCount int
 	Index     int
 	Memory    uint64
-	Name      string
 }
 
 // safeDeviceImpl implements the SafeDevice interface
