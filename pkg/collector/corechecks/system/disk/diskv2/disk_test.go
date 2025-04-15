@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/diskv2"
-	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 	"github.com/stretchr/testify/assert"
@@ -1188,31 +1187,6 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenUsageMetricsAreNotRe
 	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/shm", "device_name:shm"})
 }
 
-func TestGivenADiskCheckWithUseMountConfigured_WhenCheckRuns_ThenUsageMetricsAreReportedWithMountPointTags(t *testing.T) {
-	setupDefaultMocks()
-	diskCheck := createCheck()
-	m := mocksender.NewMockSender(diskCheck.ID())
-	m.SetupAcceptAll()
-	config := integration.Data([]byte("use_mount: true"))
-
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
-	err := diskCheck.Run()
-
-	assert.Nil(t, err)
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/", "device_name:sda1"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/", "device_name:sda1"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/", "device_name:sda1"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/home", "device_name:sda2"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/home", "device_name:sda2"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/home", "device_name:sda2"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/run", "device_name:tmpfs"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/run", "device_name:tmpfs"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/run", "device_name:tmpfs"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/shm", "device_name:shm"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/shm", "device_name:shm"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/shm", "device_name:shm"})
-}
-
 func TestGivenADiskCheckWithDeviceTagReIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createCheck()
@@ -1272,23 +1246,4 @@ service_check_rw: false
 
 	assert.Nil(t, err)
 	m.AssertNotCalled(t, "ServiceCheck", "disk.read_write", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
-}
-
-func TestGivenADiskCheckWithServiceCheckRwTrueConfigured_WhenCheckRuns_ThenReadWriteServiceCheckReported(t *testing.T) {
-	setupDefaultMocks()
-	diskCheck := createCheck()
-	m := mocksender.NewMockSender(diskCheck.ID())
-	m.SetupAcceptAll()
-	config := integration.Data([]byte(`
-service_check_rw: true
-`))
-
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
-	err := diskCheck.Run()
-
-	assert.Nil(t, err)
-	m.AssertServiceCheck(t, "disk.read_write", servicecheck.ServiceCheckOK, "", []string{"device:/dev/sda1", "device_name:sda1"}, "")
-	m.AssertServiceCheck(t, "disk.read_write", servicecheck.ServiceCheckOK, "", []string{"device:/dev/sda2", "device_name:sda2"}, "")
-	m.AssertServiceCheck(t, "disk.read_write", servicecheck.ServiceCheckUnknown, "", []string{"device:tmpfs", "device_name:tmpfs"}, "")
-	m.AssertServiceCheck(t, "disk.read_write", servicecheck.ServiceCheckCritical, "", []string{"device:shm", "device_name:shm"}, "")
 }
