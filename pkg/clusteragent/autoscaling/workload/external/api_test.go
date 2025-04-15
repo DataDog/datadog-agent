@@ -391,7 +391,6 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 					}
 				}
 
-				// Write response using protojson
 				payload, err := protojson.Marshal(tt.serverResponse)
 				if err != nil {
 					t.Errorf("Failed to marshal response: %v", err)
