@@ -183,16 +183,22 @@ include:
       # Send package for notarization; retrieve REQUEST_UUID
       echo "Sending notarization request."
 
-      RESULT=$(xcrun notarytool submit --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait) || EXIT_CODE=$?
-      echo "Results: $RESULT"
-      SUBMISSION_ID=$(echo "$RESULT" | awk '$1 == "id:"{print $2; exit}')
-      echo "Submission ID: $SUBMISSION_ID"
-      echo "Submission logs:"
-      xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID"
-      if [ -n "$EXIT_CODE" ]; then
-        # Once we have some logs, propagate potential failures
-        exit $EXIT_CODE
-      fi
+      # Apply timeout / retry
+      for attempt in $(seq 1 $NOTARIZATION_ATTEMPTS); do
+        RESULT=$(timeout "$NOTARIZATION_TIMEOUT" xcrun notarytool submit --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait) || EXIT_CODE=$?
+        echo "Results: $RESULT"
+        SUBMISSION_ID=$(echo "$RESULT" | awk '$1 == "id:"{print $2; exit}')
+        echo "Submission ID: $SUBMISSION_ID"
+        echo "Submission logs:"
+        xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID"
+        if [ -n "$EXIT_CODE" ]; then
+          echo "Notarization attempt #$attempt/$NOTARIZATION_ATTEMPTS failed, retrying in $NOTARIZATION_WAIT_TIME"
+          sleep "$NOTARIZATION_WAIT_TIME"
+        else
+          echo "Successfully notarized the package"
+          break
+        fi
+      done
     fi
 
 new-agent_dmg-x64-a7:
@@ -225,6 +231,9 @@ new-agent_dmg-x64-a7:
     INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD: true
     S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
     S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS: true
+    NOTARIZATION_TIMEOUT: 30m
+    NOTARIZATION_ATTEMPTS: 3
+    NOTARIZATION_WAIT_TIME: 15s
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
   before_script:
