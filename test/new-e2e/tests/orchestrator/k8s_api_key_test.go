@@ -95,6 +95,7 @@ func (suite *k8sSuite) eventuallyHasExpectedAPIKey(apiKey string) {
 			return false
 		}
 
+		fmt.Println("KEYS", keys)
 		for _, key := range keys {
 			if key == apiKey {
 				return true
@@ -103,5 +104,6 @@ func (suite *k8sSuite) eventuallyHasExpectedAPIKey(apiKey string) {
 		return false
 	}
 
-	assert.Eventually(suite.T(), hasKey, 10*time.Minute, 10*time.Second)
+	//assert.Eventually(suite.T(), hasKey, 10*time.Minute, 10*time.Second)
+	assert.Eventually(suite.T(), hasKey, time.Minute, time.Second)
 }

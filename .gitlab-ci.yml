@@ -952,6 +952,7 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - comp/forwarder/defaultforwarder/**/*
         - pkg/collector/corechecks/cluster/orchestrator/**/*
         - pkg/collector/corechecks/orchestrator/**/*
         - test/new-e2e/tests/orchestrator/**/*
