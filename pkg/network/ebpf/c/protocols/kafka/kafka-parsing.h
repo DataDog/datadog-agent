@@ -1117,6 +1117,7 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
         } else {
             index = PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V0;
         }
+        log_debug("GUY kafka_call_response_parser PARSER_LEVEL_RECORD_BATCH invalid api key %u", api_key);
         break;
     case PARSER_LEVEL_PARTITION: // Can be fetch or produce
     default:
@@ -1137,6 +1138,7 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
             break;
         default:
             // Shouldn't happen
+            log_debug("GUY kafka_call_response_parser invalid api key %u", api_key);
             return;
         }
     }
@@ -1501,7 +1503,8 @@ static __always_inline bool kafka_process_new_response(void *ctx, conn_tuple_t *
 
     PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, correlation_id, pkt, offset);
 
-    extra_debug("pktlen %u correlation_id: %d", pktlen, correlation_id);
+//    extra_debug("pktlen %u correlation_id: %d", pktlen, correlation_id);
+    log_debug("GUY pktlen %u correlation_id: %d", pktlen, correlation_id);
 
     kafka_transaction_key_t key = {};
     key.correlation_id = correlation_id;
@@ -1532,7 +1535,9 @@ static __always_inline bool kafka_process_new_response(void *ctx, conn_tuple_t *
         kafka->response.state = KAFKA_FETCH_RESPONSE_START;
     } else if (request->request_api_key == KAFKA_PRODUCE) {
         kafka->response.state = KAFKA_PRODUCE_RESPONSE_START;
-    } else {
+    } else if (request->request_api_key == KAFKA_METADATA) {
+          log_debug("GUY procssing METADATA response! pktlen %u correlation_id: %d", pktlen, correlation_id);
+      } else {
         return false;
     }
     kafka->response.carry_over_offset = offset - orig_offset;
@@ -1640,6 +1645,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
                 return false;
             }
             break;
+        // TODO break on METADATA
     }
 
     kafka_transaction->request_started = bpf_ktime_get_ns();
@@ -1661,6 +1667,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     }
 
     bool flexible = false;
+    bool topic_id_instead_of_name = false;
 
     s16 produce_required_acks = 0;
     switch (kafka_header.api_key) {
@@ -1678,7 +1685,11 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
             return false;
         }
         flexible = kafka_header.api_version >= 12;
+        topic_id_instead_of_name = kafka_header.api_version >= 13;
         break;
+    case KAFKA_METADATA:
+        // TODO
+        log_debug("GUY Kafka decoding: Metadata request");
     default:
         return false;
     }
@@ -1692,19 +1703,36 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         offset += sizeof(s32);
     }
 
-    s16 topic_name_size = read_nullable_string_size(pkt, flexible, &offset);
-    if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+    // Parsing the topic name
+    if (topic_id_instead_of_name) {
+        // The topic id is a UUID, which is 16 bytes long.
+        u8 topic_id[16] = {};
+
+        if (offset + sizeof(topic_id) > pktbuf_data_end(pkt)) {
+            return false;
+        }
+
+        pktbuf_load_bytes(pkt, offset, topic_id, sizeof(topic_id));
+        offset += sizeof(topic_id);
+
+        log_debug("GUY got topic id: %02x%02x%02x skipping", topic_id[0], topic_id[1], topic_id[2]);
         return false;
+    } else {
+        s16 topic_name_size = read_nullable_string_size(pkt, flexible, &offset);
+        if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+            return false;
+        }
+
+        extra_debug("topic_name_size: %u", topic_name_size);
+        update_topic_name_size_telemetry(kafka_tel, topic_name_size);
+        kafka_transaction->topic_name_size = topic_name_size;
+
+        bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
+        pktbuf_read_into_buffer_topic_name_parser((char *)kafka_transaction->topic_name, pkt, offset);
+
+        offset += topic_name_size;
+        CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->topic_name);
     }
-
-    extra_debug("topic_name_size: %u", topic_name_size);
-    update_topic_name_size_telemetry(kafka_tel, topic_name_size);
-    bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
-    pktbuf_read_into_buffer_topic_name_parser((char *)kafka_transaction->topic_name, pkt, offset);
-    offset += topic_name_size;
-    kafka_transaction->topic_name_size = topic_name_size;
-
-    CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->topic_name);
 
     log_debug("kafka: topic name is %s", kafka_transaction->topic_name);
 
@@ -1772,6 +1800,11 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         break;
     }
     case KAFKA_FETCH:
+        // Filled in when the response is parsed.
+        kafka_transaction->records_count = 0;
+        break;
+    case KAFKA_METADATA:
+        // TODO
         // Filled in when the response is parsed.
         kafka_transaction->records_count = 0;
         break;

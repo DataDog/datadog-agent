@@ -149,10 +149,15 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 	var versions []*kversion.Versions
 	versions = append(versions, kversion.V2_5_0())
 
-	produce12fetch12 := kversion.V4_0_0()
-	produce12fetch12.SetMaxKeyVersion(kafka.ProduceAPIKey, 12)
-	produce12fetch12.SetMaxKeyVersion(kafka.FetchAPIKey, 12)
-	versions = append(versions, produce12fetch12)
+	produce11fetch12 := kversion.V4_0_0()
+	produce11fetch12.SetMaxKeyVersion(kafka.ProduceAPIKey, 11)
+	produce11fetch12.SetMaxKeyVersion(kafka.FetchAPIKey, 12)
+	versions = append(versions, produce11fetch12)
+
+	produce12fetch16 := kversion.V4_0_0()
+	produce12fetch16.SetMaxKeyVersion(kafka.ProduceAPIKey, 12)
+	produce12fetch16.SetMaxKeyVersion(kafka.FetchAPIKey, 17)
+	versions = append(versions, produce12fetch16)
 
 	versionName := func(version *kversion.Versions) string {
 		produce, found := version.LookupMaxKeyVersion(kafka.ProduceAPIKey)
