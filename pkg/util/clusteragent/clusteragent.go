@@ -10,11 +10,12 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	nativeerrors "errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"strings"
+	"net/url"
 	"sync"
 	"time"
 
@@ -361,12 +362,13 @@ func (c *DCAClient) GetNamespaceMetadata(nsName string) (*Metadata, error) {
 func (c *DCAClient) GetNodeAnnotations(nodeName string, filter ...string) (map[string]string, error) {
 	var result map[string]string
 
-	path := fmt.Sprintf("api/v1/annotations/node/%s", nodeName)
-	if len(filter) > 0 {
-		path = path + fmt.Sprintf("?filter=%s", strings.Join(filter, ","))
+	base := fmt.Sprintf("api/v1/annotations/node/%s", nodeName)
+	path, err := buildQueryList(base, "filter", filter)
+	if err != nil {
+		return result, err
 	}
 
-	err := c.doJSONQuery(context.TODO(), path, "GET", nil, &result, false)
+	err = c.doJSONQuery(context.TODO(), path, "GET", nil, &result, false)
 	return result, err
 }
 
@@ -451,4 +453,22 @@ func (c *DCAClient) PostLanguageMetadata(ctx context.Context, data *pbgo.ParentL
 func (c *DCAClient) SupportsNamespaceMetadataCollection() bool {
 	dcaVersion := c.Version(false)
 	return dcaVersion.Major >= 7 && dcaVersion.Minor >= 55
+}
+
+func buildQueryList(path string, key string, list []string) (string, error) {
+	if key == "" {
+		return "", nativeerrors.New("URL query parameter list must not have an empty key")
+	}
+
+	encodedKey := url.QueryEscape(key)
+
+	for i, val := range list {
+		encodedVal := url.QueryEscape(val)
+		if i == 0 {
+			path = path + fmt.Sprintf("?%s=%s", encodedKey, encodedVal) // first parameter starts with a ?
+		} else {
+			path = path + fmt.Sprintf("&%s=%s", encodedKey, encodedVal) // the rest start with &
+		}
+	}
+	return path, nil
 }

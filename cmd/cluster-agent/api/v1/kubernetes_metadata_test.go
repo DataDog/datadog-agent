@@ -57,34 +57,39 @@ func TestGetNodeAnnotations(t *testing.T) {
 	})
 
 	tests := []struct {
-		name     string
-		path     string
-		muxVars  map[string]string
-		expected map[string]string
+		name    string
+		path    string
+		muxVars map[string]string
+		body    map[string]string
+		status  int
 	}{
 		{
-			name:     "no filters passed only host aliases annotations returned",
-			path:     fmt.Sprintf("/annotations/node/%s", testNode),
-			muxVars:  map[string]string{"nodeName": testNode},
-			expected: map[string]string{"annotation1": "abc"}, // hardcoded above in workloadmeta mock
+			name:    "no filters passed only host aliases annotations returned",
+			path:    fmt.Sprintf("/annotations/node/%s", testNode),
+			muxVars: map[string]string{"nodeName": testNode},
+			body:    map[string]string{"annotation1": "abc"}, // hardcoded above in workloadmeta mock
+			status:  http.StatusOK,
 		},
 		{
-			name:     "only the filtered annotation is returned",
-			path:     fmt.Sprintf("/annotations/node/%s?filter=annotation2", testNode),
-			muxVars:  map[string]string{"nodeName": testNode},
-			expected: map[string]string{"annotation2": "def"}, // hardcoded above in workloadmeta mock
+			name:    "only the filtered annotation is returned",
+			path:    fmt.Sprintf("/annotations/node/%s?filter=annotation2", testNode),
+			muxVars: map[string]string{"nodeName": testNode},
+			body:    map[string]string{"annotation2": "def"}, // hardcoded above in workloadmeta mock
+			status:  http.StatusOK,
 		},
 		{
-			name:     "filter query parameters are sanitized",
-			path:     fmt.Sprintf("/annotations/node/%s?filter= annotation1, annotation2", testNode),
-			muxVars:  map[string]string{"nodeName": testNode},
-			expected: map[string]string{"annotation1": "abc", "annotation2": "def"}, // hardcoded above in workloadmeta mock
+			name:    "filter query parameters are sanitized",
+			path:    fmt.Sprintf("/annotations/node/%s?filter= annotation1&filter= annotation2", testNode),
+			muxVars: map[string]string{"nodeName": testNode},
+			body:    map[string]string{"annotation1": "abc", "annotation2": "def"}, // hardcoded above in workloadmeta mock
+			status:  http.StatusOK,
 		},
 		{
-			name:     "invalid node returns nothing",
-			path:     "/annotations/node/NOT_A_REAL_NODE?filter= annotation1",
-			muxVars:  map[string]string{"nodeName": "NOT_A_REAL_NODE"},
-			expected: map[string]string{},
+			name:    "invalid node returns nothing",
+			path:    "/annotations/node/NOT_A_REAL_NODE?filter=annotation1",
+			muxVars: map[string]string{"nodeName": "NOT_A_REAL_NODE"},
+			body:    nil,
+			status:  http.StatusInternalServerError,
 		},
 	}
 
@@ -102,13 +107,19 @@ func TestGetNodeAnnotations(t *testing.T) {
 
 			handler.ServeHTTP(respw, req)
 
-			var resp map[string]string
-			err := json.Unmarshal(respw.Body.Bytes(), &resp)
-			if err != nil {
-				t.Fatal(err)
+			require.Equal(t, tt.status, respw.Code)
+
+			// if expected body is not nil, try to unmarshal it and check whether it
+			// matches the expected
+			if tt.body != nil {
+				var resp map[string]string
+				err := json.Unmarshal(respw.Body.Bytes(), &resp)
+				if err != nil {
+					t.Fatal(err)
+				}
+				require.Equal(t, tt.body, resp)
 			}
 
-			require.Equal(t, tt.expected, resp)
 		})
 	}
 }

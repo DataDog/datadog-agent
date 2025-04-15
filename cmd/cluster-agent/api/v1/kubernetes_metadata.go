@@ -10,11 +10,10 @@ package v1
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"strings"
-
 	"github.com/gorilla/mux"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"net/http"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -110,19 +109,24 @@ func getNodeLabels(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Co
 
 func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
 	// default filter includes host aliases
-	filter := pkgconfigsetup.Datadog().GetStringSlice("kubernetes_node_annotations_as_host_aliases")
+	defaultFilter := pkgconfigsetup.Datadog().GetStringSlice("kubernetes_node_annotations_as_host_aliases")
 
 	// client can override filter by passing a comma delimited list query paramter
-	rawAnnotationsFilter := r.URL.Query().Get("filter")
-	if rawAnnotationsFilter != "" {
-		// sanitize input
-		filter = strings.Split(rawAnnotationsFilter, ",")
-		for i := range filter {
-			filter[i] = strings.TrimSpace(filter[i])
+	filters := r.URL.Query()["filter"]
+	var clientFilter []string
+	if len(filters) > 0 {
+		for _, f := range filters {
+			clientFilter = append(clientFilter, strings.TrimSpace(f))
 		}
 	}
 
-	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string { return km.Annotations }, "annotations", filter)
+	// check whether to apply the default filter or the client supplied filter
+	finalFilter := defaultFilter
+	if len(clientFilter) > 0 {
+		finalFilter = clientFilter
+	}
+
+	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string { return km.Annotations }, "annotations", finalFilter)
 }
 
 // getNamespaceMetadataWithTransformerFunc is used when the node agent hits the DCA for some (or all) metadata of a specific namespace
