@@ -9,7 +9,6 @@
 #include <linux/filter.h>
 #include <uapi/asm-generic/mman-common.h>
 #include <linux/pipe_fs_i.h>
-#include <linux/nsproxy.h>
 #include <linux/module.h>
 #include <linux/tty.h>
 #include <linux/sched.h>
