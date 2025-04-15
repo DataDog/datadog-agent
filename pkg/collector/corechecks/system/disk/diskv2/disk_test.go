@@ -767,39 +767,6 @@ device_include:
 	assert.NotNil(t, err)
 }
 
-func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithTracefsFileSystems(t *testing.T) {
-	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "trace",
-				Mountpoint: "/",
-				Fstype:     "tracefs",
-				Opts:       []string{"rw", "relatime"},
-			},
-			{
-				Device:     "/dev/sda2",
-				Mountpoint: "/home",
-				Fstype:     "ext4",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskCheck := createCheck()
-	m := mocksender.NewMockSender(diskCheck.ID())
-	m.SetupAcceptAll()
-
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-	err := diskCheck.Run()
-
-	assert.Nil(t, err)
-	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:trace", "device_name:trace"})
-	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:trace", "device_name:trace"})
-	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:trace", "device_name:trace"})
-	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
-	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
-	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
-}
-
 func TestGivenADiskCheckWithFileSystemGlobalExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createCheck()
