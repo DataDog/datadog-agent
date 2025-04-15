@@ -5,7 +5,7 @@ on:
   push
 
 jobs:
-  release-note-check:
+  celian-test-incident-37312:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
@@ -24,7 +24,10 @@ jobs:
         uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
-      - name: Test
+      - name: CELIAN
         run: |
-          ls -la ~/.cache
+          ls -la ~/.cache/pip
+          echo
+          ls -la ~/.cache/pyapp
+          echo
           python3 -m site
