@@ -22,7 +22,7 @@ func hooksCommand() *cobra.Command {
 		DisableFlagParsing: true,
 		Args:               cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i := newCmd(fmt.Sprintf("hooks"))
+			i := newCmd("hooks")
 			defer i.stop(err)
 			var hookContext packages.HookContext
 			err = json.Unmarshal([]byte(args[0]), &hookContext)

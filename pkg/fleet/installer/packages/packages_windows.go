@@ -14,6 +14,7 @@ import (
 var (
 	// packagesHooks is a map of package names to their hooks
 	packagesHooks = map[string]hooks{
+		"datadog-agent":              datadogAgentPackage,
 		"datadog-apm-library-dotnet": apmLibraryDotnetPackage,
 	}
 
