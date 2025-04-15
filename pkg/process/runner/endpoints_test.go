@@ -37,9 +37,8 @@ func TestGetAPIEndpoints(t *testing.T) {
 			apiKey: "test",
 			expected: []apicfg.Endpoint{
 				{
-					APIKey:            "test",
-					Endpoint:          mkurl(pkgconfigsetup.DefaultProcessEndpoint),
-					ConfigSettingPath: "api_key",
+					APIKey:   "test",
+					Endpoint: mkurl(pkgconfigsetup.DefaultProcessEndpoint),
 				},
 			},
 		},
@@ -64,29 +63,24 @@ func TestGetAPIEndpoints(t *testing.T) {
 			},
 			expected: []apicfg.Endpoint{
 				{
-					Endpoint:          mkurl(pkgconfigsetup.DefaultProcessEndpoint),
-					APIKey:            "test",
-					ConfigSettingPath: "api_key",
+					Endpoint: mkurl(pkgconfigsetup.DefaultProcessEndpoint),
+					APIKey:   "test",
 				},
 				{
-					Endpoint:          mkurl("https://mock.datadoghq.com"),
-					APIKey:            "key1",
-					ConfigSettingPath: "process_config.additional_endpoints",
+					Endpoint: mkurl("https://mock.datadoghq.com"),
+					APIKey:   "key1",
 				},
 				{
-					Endpoint:          mkurl("https://mock.datadoghq.com"),
-					APIKey:            "key2",
-					ConfigSettingPath: "process_config.additional_endpoints",
+					Endpoint: mkurl("https://mock.datadoghq.com"),
+					APIKey:   "key2",
 				},
 				{
-					Endpoint:          mkurl("https://mock2.datadoghq.com"),
-					APIKey:            "key1",
-					ConfigSettingPath: "process_config.additional_endpoints",
+					Endpoint: mkurl("https://mock2.datadoghq.com"),
+					APIKey:   "key1",
 				},
 				{
-					Endpoint:          mkurl("https://mock2.datadoghq.com"),
-					APIKey:            "key3",
-					ConfigSettingPath: "process_config.additional_endpoints",
+					Endpoint: mkurl("https://mock2.datadoghq.com"),
+					APIKey:   "key3",
 				},
 			},
 		},
@@ -188,16 +182,14 @@ func TestGetConcurrentAPIEndpoints(t *testing.T) {
 			apiKey: "test",
 			expectedEndpoints: []apicfg.Endpoint{
 				{
-					APIKey:            "test",
-					Endpoint:          mkurl(pkgconfigsetup.DefaultProcessEndpoint),
-					ConfigSettingPath: "api_key",
+					APIKey:   "test",
+					Endpoint: mkurl(pkgconfigsetup.DefaultProcessEndpoint),
 				},
 			},
 			expectedEventsEndpoints: []apicfg.Endpoint{
 				{
-					APIKey:            "test",
-					Endpoint:          mkurl(pkgconfigsetup.DefaultProcessEventsEndpoint),
-					ConfigSettingPath: "api_key",
+					APIKey:   "test",
+					Endpoint: mkurl(pkgconfigsetup.DefaultProcessEventsEndpoint),
 				},
 			},
 		},
@@ -207,16 +199,14 @@ func TestGetConcurrentAPIEndpoints(t *testing.T) {
 			apiKey: "test",
 			expectedEndpoints: []apicfg.Endpoint{
 				{
-					APIKey:            "test",
-					Endpoint:          mkurl("https://process.datadoghq.eu"),
-					ConfigSettingPath: "api_key",
+					APIKey:   "test",
+					Endpoint: mkurl("https://process.datadoghq.eu"),
 				},
 			},
 			expectedEventsEndpoints: []apicfg.Endpoint{
 				{
-					APIKey:            "test",
-					Endpoint:          mkurl(pkgconfigsetup.DefaultProcessEventsEndpoint),
-					ConfigSettingPath: "api_key",
+					APIKey:   "test",
+					Endpoint: mkurl(pkgconfigsetup.DefaultProcessEventsEndpoint),
 				},
 			},
 		},
@@ -226,16 +216,14 @@ func TestGetConcurrentAPIEndpoints(t *testing.T) {
 			apiKey:      "test",
 			expectedEndpoints: []apicfg.Endpoint{
 				{
-					APIKey:            "test",
-					Endpoint:          mkurl(pkgconfigsetup.DefaultProcessEndpoint),
-					ConfigSettingPath: "api_key",
+					APIKey:   "test",
+					Endpoint: mkurl(pkgconfigsetup.DefaultProcessEndpoint),
 				},
 			},
 			expectedEventsEndpoints: []apicfg.Endpoint{
 				{
-					APIKey:            "test",
-					Endpoint:          mkurl("https://process-events.datadoghq.eu"),
-					ConfigSettingPath: "api_key",
+					APIKey:   "test",
+					Endpoint: mkurl("https://process-events.datadoghq.eu"),
 				},
 			},
 		},
@@ -261,41 +249,34 @@ func TestGetConcurrentAPIEndpoints(t *testing.T) {
 			},
 			expectedEndpoints: []apicfg.Endpoint{
 				{
-					Endpoint:          mkurl(pkgconfigsetup.DefaultProcessEndpoint),
-					APIKey:            "test",
-					ConfigSettingPath: "api_key",
+					Endpoint: mkurl(pkgconfigsetup.DefaultProcessEndpoint),
+					APIKey:   "test",
 				},
 				{
-					Endpoint:          mkurl("https://mock.datadoghq.com"),
-					APIKey:            "key1",
-					ConfigSettingPath: "process_config.additional_endpoints",
+					Endpoint: mkurl("https://mock.datadoghq.com"),
+					APIKey:   "key1",
 				},
 				{
-					Endpoint:          mkurl("https://mock.datadoghq.com"),
-					APIKey:            "key2",
-					ConfigSettingPath: "process_config.additional_endpoints",
+					Endpoint: mkurl("https://mock.datadoghq.com"),
+					APIKey:   "key2",
 				},
 				{
-					Endpoint:          mkurl("https://mock2.datadoghq.com"),
-					APIKey:            "key3",
-					ConfigSettingPath: "process_config.additional_endpoints",
+					Endpoint: mkurl("https://mock2.datadoghq.com"),
+					APIKey:   "key3",
 				},
 			},
 			expectedEventsEndpoints: []apicfg.Endpoint{
 				{
-					Endpoint:          mkurl(pkgconfigsetup.DefaultProcessEventsEndpoint),
-					APIKey:            "test",
-					ConfigSettingPath: "api_key",
+					Endpoint: mkurl(pkgconfigsetup.DefaultProcessEventsEndpoint),
+					APIKey:   "test",
 				},
 				{
-					Endpoint:          mkurl("https://mock-events.datadoghq.com"),
-					APIKey:            "key2",
-					ConfigSettingPath: "process_config.events_additional_endpoints",
+					Endpoint: mkurl("https://mock-events.datadoghq.com"),
+					APIKey:   "key2",
 				},
 				{
-					Endpoint:          mkurl("https://mock2-events.datadoghq.com"),
-					APIKey:            "key3",
-					ConfigSettingPath: "process_config.events_additional_endpoints",
+					Endpoint: mkurl("https://mock2-events.datadoghq.com"),
+					APIKey:   "key3",
 				},
 			},
 		},
