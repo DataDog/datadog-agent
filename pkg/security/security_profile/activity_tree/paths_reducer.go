@@ -165,7 +165,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			PreCheck: func(path string, _ *model.FileEvent) bool {
 				var count int
 				for _, c := range []byte(path) {
-					if isHexChar(c) {
+					if isHexChar(c) || c == '-' {
 						count++
 						if count >= 28 { // 28 is the minimal length of a container ID
 							return true
@@ -206,6 +206,5 @@ func getPathsReducerPatterns() []PatternReducer {
 func isHexChar(c byte) bool {
 	return ('0' <= c && c <= '9') ||
 		('a' <= c && c <= 'f') ||
-		('A' <= c && c <= 'F') ||
-		c == '-'
+		('A' <= c && c <= 'F')
 }
