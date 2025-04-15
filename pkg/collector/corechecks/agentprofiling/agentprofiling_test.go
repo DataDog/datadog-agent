@@ -61,7 +61,17 @@ func TestMemThreshold(t *testing.T) {
 	check := createTestCheck(t)
 	check.instance.MemoryThreshold = "1B" // 1 byte to force trigger
 
-	err := check.Run()
+	config := []byte(`
+memory_threshold: "1B"
+`)
+	initConfig := []byte("")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := check.Configure(senderManager, integration.FakeConfigHash, config, initConfig, "test")
+	require.NoError(t, err)
+
+	check.memoryThreshold = 1 // Set to 1 byte
+
+	err = check.Run()
 	require.NoError(t, err)
 	assert.True(t, check.profileCaptured)
 }
@@ -71,7 +81,15 @@ func TestCPUThreshold(t *testing.T) {
 	check := createTestCheck(t)
 	check.instance.CPUThreshold = 1 // 1 percent to force trigger
 
-	err := check.Run()
+	config := []byte(`
+cpu_threshold: 1
+`)
+	initConfig := []byte("")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := check.Configure(senderManager, integration.FakeConfigHash, config, initConfig, "test")
+	require.NoError(t, err)
+
+	err = check.Run()
 	require.NoError(t, err)
 	assert.True(t, check.profileCaptured)
 }
@@ -79,13 +97,22 @@ func TestCPUThreshold(t *testing.T) {
 // TestBelowThresholds tests that the flare is not generated when both memory and CPU usage are below thresholds
 func TestBelowThresholds(t *testing.T) {
 	check := createTestCheck(t)
-	// Set reasonably high thresholds that won't be exceeded during test
 	check.instance.MemoryThreshold = "1000GB" // Very high memory threshold
-	check.instance.CPUThreshold = 1000        // 1000% CPU threshold (impossible to reach)
+	check.instance.CPUThreshold = 1000        // 1000% CPU threshold
 
-	err := check.Run()
+	config := []byte(`
+memory_threshold: "1000GB"
+cpu_threshold: 1000
+`)
+	initConfig := []byte("")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := check.Configure(senderManager, integration.FakeConfigHash, config, initConfig, "test")
 	require.NoError(t, err)
-	// Verify that no profile was captured since we're below thresholds
+
+	check.memoryThreshold = 1000 * 1024 * 1024 * 1024 // Set to 1000GB in bytes
+
+	err = check.Run()
+	require.NoError(t, err)
 	assert.False(t, check.profileCaptured)
 }
 
@@ -97,7 +124,6 @@ func TestGenerateFlareLocal(t *testing.T) {
 
 	err := check.generateFlare()
 	require.NoError(t, err)
-
 	assert.True(t, check.profileCaptured)
 }
 
@@ -109,6 +135,5 @@ func TestGenerateFlareZendesk(t *testing.T) {
 
 	err := check.generateFlare()
 	require.NoError(t, err)
-
 	assert.True(t, check.profileCaptured)
 }
