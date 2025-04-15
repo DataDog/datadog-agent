@@ -48,7 +48,7 @@ func TestAgentUpgradesOnDC(t *testing.T) {
 func (s *testAgentUpgradeOnDCSuite) TestUpgradeMSI() {
 	s.setAgentConfig()
 
-	// Install the upgrade MSI artifact
+	// Install the stable MSI artifact
 	s.installPreviousAgentVersion(
 		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_NAME=%s", TestUser)),
 		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_PASSWORD=%s", TestPassword)),
@@ -60,8 +60,23 @@ func (s *testAgentUpgradeOnDCSuite) TestUpgradeMSI() {
 		HasARunningDatadogInstallerService().
 		HasARunningDatadogAgentService()
 
+	// Upgrade the Agent using the MSI package
+	// User and password properties are not set on command line, they
+	// should be read from the registry and LSA, respectively.
 	s.installCurrentAgentVersion()
+
+	// Assert
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedUser", TestUser)
+	identity, err := windowscommon.GetIdentityForUser(s.Env().RemoteHost, TestUser)
+	s.Require().NoError(err)
+	s.Require().Host(s.Env().RemoteHost).
+		HasAService("datadogagent").
+		WithIdentity(identity)
+
 }
 
 // TestUpgradeAgentPackage tests that the daemon can upgrade the Agent
@@ -70,7 +85,7 @@ func (s *testAgentUpgradeOnDCSuite) TestUpgradeAgentPackage() {
 	// Arrange
 	s.setAgentConfig()
 
-	// Install the upgrade MSI artifact
+	// Install the stable MSI artifact
 	s.installPreviousAgentVersion(
 		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_NAME=%s", TestUser)),
 		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_PASSWORD=%s", TestPassword)),

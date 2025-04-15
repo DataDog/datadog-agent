@@ -785,6 +785,7 @@ namespace Datadog.CustomActions.Native
         /// </remarks>
         public void RemoveSecret(string keyName)
         {
+            // Passing null deletes the key
             StorePrivateData(keyName, null);
         }
 

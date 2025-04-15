@@ -562,7 +562,7 @@ namespace Datadog.CustomActions
                 {
                     // Don't fail if we fail to remove the secret.
                     // ProcessDDAgentUserCredentials will appropriately clear the password property for service accounts
-                    // so it being left behind shouldn't affect anything.
+                    // so it being left behind shouldn't affect future installs and may be removed then.
                     _session.Log($"Failed to remove agent secret: {e}");
                 }
             }
@@ -781,7 +781,7 @@ namespace Datadog.CustomActions
                     {
                         // Don't fail if we fail to remove the secret.
                         // ProcessDDAgentUserCredentials will appropriately clear the password property for service accounts
-                        // so it being left behind shouldn't affect anything.
+                        // so it being left behind shouldn't affect future installs and may be removed then.
                         _session.Log($"Failed to remove agent secret: {e}");
                     }
                 }
