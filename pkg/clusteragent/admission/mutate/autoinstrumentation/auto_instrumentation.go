@@ -130,26 +130,6 @@ func initContainerName(lang language) string {
 	return fmt.Sprintf("datadog-lib-%s-init", lang)
 }
 
-func injectApmTelemetryConfig(pod *corev1.Pod) {
-	// inject DD_INSTRUMENTATION_INSTALL_TIME with current Unix time
-	instrumentationInstallTime := os.Getenv(instrumentationInstallTimeEnvVarName)
-	if instrumentationInstallTime == "" {
-		instrumentationInstallTime = common.ClusterAgentStartTime
-	}
-	instrumentationInstallTimeEnvVar := corev1.EnvVar{
-		Name:  instrumentationInstallTimeEnvVarName,
-		Value: instrumentationInstallTime,
-	}
-	_ = mutatecommon.InjectEnv(pod, instrumentationInstallTimeEnvVar)
-
-	// inject DD_INSTRUMENTATION_INSTALL_ID with UUID created during the Agent install time
-	instrumentationInstallIDEnvVar := corev1.EnvVar{
-		Name:  instrumentationInstallIDEnvVarName,
-		Value: os.Getenv(instrumentationInstallIDEnvVarName),
-	}
-	_ = mutatecommon.InjectEnv(pod, instrumentationInstallIDEnvVar)
-}
-
 type libInfoLanguageDetection struct {
 	libs             []libInfo
 	injectionEnabled bool
@@ -242,15 +222,38 @@ func (s libInfoSource) isFromLanguageDetection() bool {
 	return s == libInfoSourceSingleStepLangaugeDetection
 }
 
-func (s libInfoSource) mutatePod(pod *corev1.Pod) error {
-	_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
-		Name:  instrumentationInstallTypeEnvVarName,
-		Value: s.injectionType(),
-	})
+func (s libInfoSource) instrumentationInstallTime() string {
+	instrumentationInstallTime := os.Getenv(instrumentationInstallTimeEnvVarName)
+	if instrumentationInstallTime == "" {
+		instrumentationInstallTime = common.ClusterAgentStartTime
+	}
 
-	injectApmTelemetryConfig(pod)
+	return instrumentationInstallTime
+}
 
-	return nil
+// containerMutator creates a containerMutator for
+// telemetry environment variables pertaining to:
+//
+// - installation_time
+// - install_id
+// - injection_type
+func (s libInfoSource) containerMutator() containerMutator {
+	return containerMutators{
+		// inject DD_INSTRUMENTATION_INSTALL_TIME with current Unix time
+		envVarMutator(corev1.EnvVar{
+			Name:  instrumentationInstallTimeEnvVarName,
+			Value: s.instrumentationInstallTime(),
+		}),
+		// inject DD_INSTRUMENTATION_INSTALL_ID with UUID created during the Agent install time
+		envVarMutator(corev1.EnvVar{
+			Name:  instrumentationInstallIDEnvVarName,
+			Value: os.Getenv(instrumentationInstallIDEnvVarName),
+		}),
+		envVarMutator(corev1.EnvVar{
+			Name:  instrumentationInstallTypeEnvVarName,
+			Value: s.injectionType(),
+		}),
+	}
 }
 
 type extractedPodLibInfo struct {
@@ -293,6 +296,8 @@ func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 
 	for _, k := range [2]corev1.ResourceName{corev1.ResourceMemory, corev1.ResourceCPU} {
 		// Take max(initContainer ressource)
+		maxInitContainerLimit := resource.Quantity{}
+		maxInitContainerRequest := resource.Quantity{}
 		for i := range pod.Spec.InitContainers {
 			c := &pod.Spec.InitContainers[i]
 			if initContainerIsSidecar(c) {
@@ -301,19 +306,18 @@ func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 				continue
 			}
 			if limit, ok := c.Resources.Limits[k]; ok {
-				existing := ressourceRequirement.Limits[k]
-				if limit.Cmp(existing) == 1 {
-					ressourceRequirement.Limits[k] = limit
+				if limit.Cmp(maxInitContainerLimit) == 1 {
+					maxInitContainerLimit = limit
 				}
 			}
 			if request, ok := c.Resources.Requests[k]; ok {
-				existing := ressourceRequirement.Requests[k]
-				if request.Cmp(existing) == 1 {
-					ressourceRequirement.Requests[k] = request
+				if request.Cmp(maxInitContainerRequest) == 1 {
+					maxInitContainerRequest = request
 				}
 			}
 		}
 
+		// Take sum(container resources) + sum(sidecar containers)
 		limitSum := resource.Quantity{}
 		reqSum := resource.Quantity{}
 		for i := range pod.Spec.Containers {
@@ -338,15 +342,24 @@ func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 			}
 		}
 
-		// Take max(sum(container resources) + sum(sidecar container resources))
-		existingLimit := ressourceRequirement.Limits[k]
-		if limitSum.Cmp(existingLimit) == 1 {
-			ressourceRequirement.Limits[k] = limitSum
+		// Take max(max(initContainer resources), sum(container resources) + sum(sidecar containers))
+		if limitSum.Cmp(maxInitContainerLimit) == 1 {
+			maxInitContainerLimit = limitSum
+		}
+		if reqSum.Cmp(maxInitContainerRequest) == 1 {
+			maxInitContainerRequest = reqSum
 		}
 
-		existingReq := ressourceRequirement.Requests[k]
-		if reqSum.Cmp(existingReq) == 1 {
-			ressourceRequirement.Requests[k] = reqSum
+		// Ensure that the limit is greater or equal to the request
+		if maxInitContainerRequest.Cmp(maxInitContainerLimit) == 1 {
+			maxInitContainerLimit = maxInitContainerRequest
+		}
+
+		if maxInitContainerLimit.CmpInt64(0) == 1 {
+			ressourceRequirement.Limits[k] = maxInitContainerLimit
+		}
+		if maxInitContainerRequest.CmpInt64(0) == 1 {
+			ressourceRequirement.Requests[k] = maxInitContainerRequest
 		}
 	}
 

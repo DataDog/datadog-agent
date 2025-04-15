@@ -9,12 +9,10 @@
 package testutil
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -62,6 +60,9 @@ var DefaultGPUComputeCapMajor = 7
 // DefaultGPUComputeCapMinor is the minor number for the compute capabilities for the default device returned by the mock
 var DefaultGPUComputeCapMinor = 5
 
+// DefaultSMVersion is the SM version for the default device returned by the mock
+var DefaultSMVersion = uint32(DefaultGPUComputeCapMajor*10 + DefaultGPUComputeCapMinor)
+
 // DefaultGPUArch is the architecture for the default device returned by the mock
 var DefaultGPUArch = nvml.DeviceArchitecture(nvml.DEVICE_ARCH_HOPPER)
 
@@ -103,6 +104,10 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 		GetAttributesFunc: func() (nvml.DeviceAttributes, nvml.Return) {
 			return DefaultGPUAttributes, nvml.SUCCESS
 		},
+		GetMigModeFunc: func() (int, int, nvml.Return) {
+			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
+		},
+
 		GetComputeRunningProcessesFunc: func() ([]nvml.ProcessInfo, nvml.Return) {
 			return DefaultProcessInfo, nvml.SUCCESS
 		},
@@ -121,6 +126,9 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 			default:
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
+		},
+		GetIndexFunc: func() (int, nvml.Return) {
+			return deviceIdx, nvml.SUCCESS
 		},
 	}
 }
@@ -161,6 +169,68 @@ func GetBasicNvmlMock() *nvmlmock.Interface {
 	}
 }
 
+// GetBasicNvmlMockWithOptions returns a mock of the nvml.Interface with a single device with 10 cores,
+// allowing additional configuration through functional options.
+// It's ideal for tests that need custom NVML behavior beyond the defaults.
+func GetBasicNvmlMockWithOptions(options ...func(*nvmlmock.Interface)) *nvmlmock.Interface {
+	if len(GPUUUIDs) != len(GPUCores) {
+		// Make it really easy to spot errors if we change any of the arrays.
+		panic("GPUUUIDs and GPUCores must have the same length, please fix it")
+	}
+
+	mockNvml := &nvmlmock.Interface{
+		DeviceGetCountFunc: func() (int, nvml.Return) {
+			return len(GPUUUIDs), nvml.SUCCESS
+		},
+		DeviceGetHandleByIndexFunc: func(index int) (nvml.Device, nvml.Return) {
+			return GetDeviceMock(index), nvml.SUCCESS
+		},
+		DeviceGetCudaComputeCapabilityFunc: func(nvml.Device) (int, int, nvml.Return) {
+			return 7, 5, nvml.SUCCESS
+		},
+		DeviceGetIndexFunc: func(nvml.Device) (int, nvml.Return) {
+			return 0, nvml.SUCCESS
+		},
+		DeviceGetMigModeFunc: func(nvml.Device) (int, int, nvml.Return) {
+			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
+		},
+		DeviceGetComputeRunningProcessesFunc: func(nvml.Device) ([]nvml.ProcessInfo, nvml.Return) {
+			return DefaultProcessInfo, nvml.SUCCESS
+		},
+		DeviceGetMemoryInfoFunc: func(nvml.Device) (nvml.Memory, nvml.Return) {
+			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
+		},
+		SystemGetDriverVersionFunc: func() (string, nvml.Return) {
+			return DefaultNvidiaDriverVersion, nvml.SUCCESS
+		},
+	}
+
+	// Apply all provided options
+	for _, opt := range options {
+		opt(mockNvml)
+	}
+
+	return mockNvml
+}
+
+// WithSymbolsMock returns an option that configures the mock NVML interface with the given symbols available.
+// It takes a map of symbols that should be considered available in the mock.
+// Any symbol not in the map will return an error when looked up.
+func WithSymbolsMock(availableSymbols map[string]struct{}) func(*nvmlmock.Interface) {
+	return func(mockNvml *nvmlmock.Interface) {
+		mockNvml.ExtensionsFunc = func() nvml.ExtendedInterface {
+			return &nvmlmock.ExtendedInterface{
+				LookupSymbolFunc: func(symbol string) error {
+					if _, ok := availableSymbols[symbol]; ok {
+						return nil
+					}
+					return nvml.ERROR_NOT_FOUND
+				},
+			}
+		}
+	}
+}
+
 // GetWorkloadMetaMock returns a mock of the workloadmeta.Component.
 func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -170,44 +240,6 @@ func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
 }
 
 // GetTelemetryMock returns a mock of the telemetry.Component.
-func GetTelemetryMock(t testing.TB) telemetry.Component {
-	return fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-}
-
-// RequireDevicesEqual checks that the two devices are equal by comparing their UUIDs, which gives a better
-// output than using require.Equal on the devices themselves
-func RequireDevicesEqual(t *testing.T, expected, actual nvml.Device, msgAndArgs ...interface{}) {
-	extraFmt := ""
-	if len(msgAndArgs) > 0 {
-		extraFmt = fmt.Sprintf(msgAndArgs[0].(string), msgAndArgs[1:]...) + ": "
-	}
-
-	expectedUUID, ret := expected.GetUUID()
-	require.Equal(t, ret, nvml.SUCCESS, "%s%scannot retrieve UUID for expected device %v%s", extraFmt, expected)
-
-	actualUUID, ret := actual.GetUUID()
-	require.Equal(t, ret, nvml.SUCCESS, "%scannot retrieve UUID for actual device %v%s", extraFmt, actual)
-
-	require.Equal(t, expectedUUID, actualUUID, "%sUUIDs do not match", extraFmt)
-}
-
-// RequireDeviceListsEqual checks that the two device lists are equal by comparing their UUIDs, which gives a better
-// output than using require.ElementsMatch on the lists themselves
-func RequireDeviceListsEqual(t *testing.T, expected, actual []nvml.Device, msgAndArgs ...interface{}) {
-	extraFmt := ""
-	if len(msgAndArgs) > 0 {
-		extraFmt = fmt.Sprintf(msgAndArgs[0].(string), msgAndArgs[1:]...) + ": "
-	}
-
-	require.Len(t, actual, len(expected), "%sdevice lists have different lengths", extraFmt)
-
-	for i := range expected {
-		expectedUUID, ret := expected[i].GetUUID()
-		require.Equal(t, ret, nvml.SUCCESS, "%scannot retrieve UUID for expected device index %d", extraFmt, i)
-
-		actualUUID, ret := actual[i].GetUUID()
-		require.Equal(t, ret, nvml.SUCCESS, "%scannot retrieve UUID for actual device index %d", extraFmt, i)
-
-		require.Equal(t, expectedUUID, actualUUID, "%sUUIDs do not match for element %d", extraFmt, i)
-	}
+func GetTelemetryMock(t testing.TB) telemetry.Mock {
+	return fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 }

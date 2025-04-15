@@ -168,7 +168,8 @@ type CoreAgentService struct {
 	// Used to report metrics on cache bypass requests
 	telemetryReporter RcTelemetryReporter
 
-	lastUpdateErr error
+	lastUpdateTimestamp time.Time
+	lastUpdateErr       error
 
 	// Used to rate limit the 4XX error logs
 	fetchErrorCount    uint64
@@ -185,6 +186,9 @@ type CoreAgentService struct {
 	agentVersion string
 
 	disableConfigPollLoop bool
+
+	// set the interval for which we will poll the org status
+	orgStatusRefreshInterval time.Duration
 }
 
 // uptaneClient provides functions to get TUF/uptane repo data.
@@ -246,6 +250,7 @@ type options struct {
 	maxBackoff                     time.Duration
 	clientTTL                      time.Duration
 	disableConfigPollLoop          bool
+	orgStatusRefreshInterval       time.Duration
 }
 
 var defaultOptions = options{
@@ -263,6 +268,7 @@ var defaultOptions = options{
 	maxBackoff:                     minimalMaxBackoffTime,
 	clientTTL:                      defaultClientsTTL,
 	disableConfigPollLoop:          false,
+	orgStatusRefreshInterval:       defaultRefreshInterval,
 }
 
 // Option is a service option
@@ -311,6 +317,21 @@ func WithRefreshInterval(interval time.Duration, cfgPath string) func(s *options
 	return func(s *options) {
 		s.refresh = interval
 		s.refreshIntervalOverrideAllowed = false
+	}
+}
+
+// WithOrgStatusRefreshInterval validates and sets the service org status refresh interval
+func WithOrgStatusRefreshInterval(interval time.Duration, cfgPath string) func(s *options) {
+	if interval < minimalRefreshInterval {
+		log.Warnf("%s is set to %v which is below the minimum of %v - using default org status refresh interval %v",
+			cfgPath, interval, minimalRefreshInterval, defaultRefreshInterval)
+		return func(s *options) {
+			s.orgStatusRefreshInterval = defaultRefreshInterval
+		}
+	}
+
+	return func(s *options) {
+		s.orgStatusRefreshInterval = interval
 	}
 }
 
@@ -484,11 +505,12 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 			capacity:       options.clientCacheBypassLimit,
 			allowance:      options.clientCacheBypassLimit,
 		},
-		telemetryReporter:     telemetryReporter,
-		agentVersion:          agentVersion,
-		stopOrgPoller:         make(chan struct{}),
-		stopConfigPoller:      make(chan struct{}),
-		disableConfigPollLoop: options.disableConfigPollLoop,
+		telemetryReporter:        telemetryReporter,
+		agentVersion:             agentVersion,
+		stopOrgPoller:            make(chan struct{}),
+		stopConfigPoller:         make(chan struct{}),
+		disableConfigPollLoop:    options.disableConfigPollLoop,
+		orgStatusRefreshInterval: options.orgStatusRefreshInterval,
 	}
 
 	cfg.OnUpdate(cas.apiKeyUpdateCallback())
@@ -510,7 +532,7 @@ func (s *CoreAgentService) Start() {
 		s.pollOrgStatus()
 		for {
 			select {
-			case <-s.clock.After(orgStatusPollInterval):
+			case <-s.clock.After(s.orgStatusRefreshInterval):
 				s.pollOrgStatus()
 			case <-s.stopOrgPoller:
 				log.Infof("[%s] Stopping Remote Config org status poller", s.rcType)
@@ -611,8 +633,11 @@ func (s *CoreAgentService) Stop() error {
 func (s *CoreAgentService) pollOrgStatus() {
 	response, err := s.api.FetchOrgStatus(context.Background())
 	if err != nil {
-		// Unauthorized and proxy error are caught by the main loop requesting the latest config,
-		// and it limits the error log.
+		// Unauthorized and proxy error are caught by the main loop requesting the latest config
+		if errors.Is(err, api.ErrUnauthorized) || errors.Is(err, api.ErrProxy) {
+			return
+		}
+
 		if errors.Is(err, api.ErrGatewayTimeout) || errors.Is(err, api.ErrServiceUnavailable) {
 			s.fetchOrgStatus503And504ErrCount++
 		}
@@ -661,6 +686,16 @@ func (s *CoreAgentService) calculateRefreshInterval() time.Duration {
 
 func (s *CoreAgentService) refresh() error {
 	s.Lock()
+
+	// We can't let the backend process an update twice in the same second due to the fact that we
+	// use the epoch with seconds resolution as the version for the TUF Director Targets. If this happens,
+	// the update will appear to TUF as being identical to the previous update and it will be dropped.
+	timeSinceUpdate := time.Since(s.lastUpdateTimestamp)
+	if timeSinceUpdate < time.Second {
+		log.Debugf("Requests too frequent, delaying by %v", time.Second-timeSinceUpdate)
+		time.Sleep(time.Second - timeSinceUpdate)
+	}
+
 	activeClients := s.clients.activeClients()
 	s.refreshProducts(activeClients)
 	previousState, err := s.uptane.TUFVersionState()
@@ -730,6 +765,8 @@ func (s *CoreAgentService) refresh() error {
 			log.Infof("[%s] Overriding agent's base refresh interval to %v due to backend recommendation", s.rcType, ri)
 		}
 	}
+
+	s.lastUpdateTimestamp = time.Now()
 
 	s.firstUpdate = false
 	for product := range s.newProducts {

@@ -12,6 +12,8 @@ import (
 
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/hostmetadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 )
@@ -44,7 +46,16 @@ func (f *ddExtensionFactory) Create(_ context.Context, set extension.Settings, c
 	if !ok {
 		return nil, errors.New("invalid ddprofiling extension config")
 	}
-	return NewExtension(config, set.BuildInfo, f.traceAgent, f.log)
+	var sourceProvider source.Provider
+	if f.traceAgent == nil {
+		var err error
+		sourceProvider, err = hostmetadata.GetSourceProvider(set.TelemetrySettings, "", 0)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return NewExtension(config, set.BuildInfo, f.traceAgent, f.log, sourceProvider)
 }
 
 // Stability returns the stability level of the component

@@ -63,7 +63,7 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 
 	// get orchestrator endpoints
 	endpoints := map[string][]string{}
-	orchestratorCfg := orchcfg.NewDefaultOrchestratorConfig()
+	orchestratorCfg := orchcfg.NewDefaultOrchestratorConfig(nil)
 	err = orchestratorCfg.Load()
 	if err == nil {
 		// obfuscate the api keys

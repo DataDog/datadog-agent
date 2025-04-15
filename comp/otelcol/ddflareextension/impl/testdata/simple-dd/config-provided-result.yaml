@@ -68,6 +68,7 @@ receivers:
       grpc: null
       http: null
   prometheus:
+    api_server: null
     config:
       global:
         evaluation_interval: 1m
