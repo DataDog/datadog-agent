@@ -8,6 +8,8 @@
 package gpu
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -52,7 +54,7 @@ func newStatsGeneratorTelemetry(tm telemetry.Component) *statsGeneratorTelemetry
 // getStats takes data from all active stream handlers, aggregates them and returns the per-process GPU stats.
 // This function gets called by the Probe when it receives a data request in the GetAndFlush method
 // TODO: consider removing this parameter and encapsulate it inside the function (will affect UTs as they rely on precise time intervals)
-func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
+func (g *statsGenerator) getStats(nowKtime int64) (*model.GPUStats, error) {
 	g.currGenerationKTime = nowKtime
 
 	for handler := range g.streamHandlers.allStreams() {
@@ -78,17 +80,39 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 		}
 	}
 
-	normFactors := g.getNormalizationFactors()
-
-	stats := &model.GPUStats{
-		Metrics: make([]model.StatsTuple, 0, len(g.aggregators)),
-	}
+	// Compute unnormalized stats first for each aggregator
+	rawStats := make([]model.StatsTuple, 0, len(g.aggregators))
 
 	for aggKey, aggr := range g.aggregators {
 		entry := model.StatsTuple{
 			Key:                aggKey,
-			UtilizationMetrics: aggr.getStats(normFactors[aggKey.DeviceUUID]),
+			UtilizationMetrics: aggr.getRawStats(),
 		}
+		rawStats = append(rawStats, entry)
+	}
+
+	// Now get the normalization factors for each device
+	normFactors, err := g.getNormalizationFactors(rawStats)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply normalization to each stats entry
+	stats := &model.GPUStats{
+		Metrics: make([]model.StatsTuple, 0, len(rawStats)),
+	}
+	for _, entry := range rawStats {
+		factors, ok := normFactors[entry.Key.DeviceUUID]
+		if !ok {
+			// Shouldn't happen, as the normalization factors are computed based
+			// on the device UUIDs present in rawStats.
+			return nil, fmt.Errorf("cannot find normalization factors for device %s", entry.Key.DeviceUUID)
+		}
+
+		entry.UtilizationMetrics.UsedCores /= factors.cores
+		entry.UtilizationMetrics.Memory.CurrentBytes = uint64(float64(entry.UtilizationMetrics.Memory.CurrentBytes) / factors.memory)
+		entry.UtilizationMetrics.Memory.MaxBytes = uint64(float64(entry.UtilizationMetrics.Memory.MaxBytes) / factors.memory)
+
 		stats.Metrics = append(stats.Metrics, entry)
 	}
 
@@ -96,7 +120,7 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 
 	g.lastGenerationKTime = g.currGenerationKTime
 
-	return stats
+	return stats, nil
 }
 
 func (g *statsGenerator) getOrCreateAggregator(sKey streamMetadata) (*aggregator, error) {
@@ -121,6 +145,11 @@ func (g *statsGenerator) getOrCreateAggregator(sKey streamMetadata) (*aggregator
 	return g.aggregators[aggKey], nil
 }
 
+type normalizationFactors struct {
+	cores  float64
+	memory float64
+}
+
 // getNormalizationFactors returns the factor to use for utilization
 // normalization per GPU device. Because we compute the utilization based on the
 // number of threads launched by the kernel, we need to normalize the
@@ -129,24 +158,46 @@ func (g *statsGenerator) getOrCreateAggregator(sKey streamMetadata) (*aggregator
 // same GPU adding up to more than 100%, so we need to scale all of them back.
 // It is guaranteed that the normalization factors are always equal to or
 // greater than 1
-func (g *statsGenerator) getNormalizationFactors() map[string]float64 {
-	usages := make(map[string]float64)
+func (g *statsGenerator) getNormalizationFactors(stats []model.StatsTuple) (map[string]normalizationFactors, error) {
+	usages := make(map[string]*normalizationFactors) // reuse the normalizationFactors struct to keep track of the total usage
 
-	for key, aggr := range g.aggregators {
-		usages[key.DeviceUUID] += aggr.getAverageCoreUsage()
-	}
-
-	normFactors := make(map[string]float64)
-	for _, device := range g.sysCtx.deviceCache.All() {
-		// This factor guarantees that usage[uuid] / normFactor <= maxThreads
-		if usages[device.UUID] > float64(device.CoreCount) {
-			normFactors[device.UUID] = usages[device.UUID] / float64(device.CoreCount)
-		} else {
-			normFactors[device.UUID] = 1
+	for _, entry := range stats {
+		usage := usages[entry.Key.DeviceUUID]
+		if usage == nil {
+			usage = &normalizationFactors{}
+			usages[entry.Key.DeviceUUID] = usage
 		}
+
+		usage.cores += entry.UtilizationMetrics.UsedCores
+		usage.memory += float64(entry.UtilizationMetrics.Memory.MaxBytes)
 	}
 
-	return normFactors
+	normFactors := make(map[string]normalizationFactors)
+	for uuid, usage := range usages {
+		device, ok := g.sysCtx.deviceCache.GetByUUID(uuid)
+		if !ok {
+			return nil, fmt.Errorf("cannot find device for UUID %s", uuid)
+		}
+
+		var deviceFactors normalizationFactors
+
+		// This factor guarantees that usage[uuid] / normFactor <= maxThreads
+		if usage.cores > float64(device.CoreCount) {
+			deviceFactors.cores = usage.cores / float64(device.CoreCount)
+		} else {
+			deviceFactors.cores = 1
+		}
+
+		if usage.memory > float64(device.Memory) {
+			deviceFactors.memory = usage.memory / float64(device.Memory)
+		} else {
+			deviceFactors.memory = 1
+		}
+
+		normFactors[device.UUID] = deviceFactors
+	}
+
+	return normFactors, nil
 }
 
 func (g *statsGenerator) cleanupFinishedAggregators() {
