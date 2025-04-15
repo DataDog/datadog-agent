@@ -8,22 +8,22 @@ require (
 	github.com/DataDog/datadog-agent/pkg/serializer v0.59.0
 	github.com/DataDog/datadog-agent/pkg/tagset v0.60.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.27.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.26.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.26.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.122.0
 	github.com/stretchr/testify v1.10.0
 	github.com/tinylib/msgp v1.2.5
-	go.opentelemetry.io/collector/component v1.28.1
+	go.opentelemetry.io/collector/component v1.29.0
 	go.opentelemetry.io/collector/config/confignet v1.28.1 // indirect
 	go.opentelemetry.io/collector/confmap v1.28.1
 	go.opentelemetry.io/collector/consumer v1.28.1
 	go.opentelemetry.io/collector/exporter v0.122.1
 	go.opentelemetry.io/collector/extension v1.28.1 // indirect
-	go.opentelemetry.io/collector/pdata v1.28.1
+	go.opentelemetry.io/collector/pdata v1.29.0
 	go.opentelemetry.io/collector/receiver v1.28.1 // indirect
-	go.opentelemetry.io/collector/semconv v0.122.1 // indirect
+	go.opentelemetry.io/collector/semconv v0.123.0 // indirect
 	go.uber.org/multierr v1.11.0
 )
 
@@ -136,7 +136,7 @@ require (
 	go.opentelemetry.io/collector/config/configretry v1.28.1 // indirect
 	go.opentelemetry.io/collector/consumer/consumertest v0.122.1 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.122.1 // indirect
-	go.opentelemetry.io/collector/pipeline v0.122.1 // indirect
+	go.opentelemetry.io/collector/pipeline v0.123.0 // indirect
 	go.opentelemetry.io/otel v1.35.0 // indirect
 	go.opentelemetry.io/otel/metric v1.35.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.35.0 // indirect
@@ -165,7 +165,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.26.0
 	github.com/google/go-cmp v0.7.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.122.0
-	go.opentelemetry.io/collector/component/componenttest v0.122.1
+	go.opentelemetry.io/collector/component/componenttest v0.123.0
 	go.opentelemetry.io/collector/exporter/exportertest v0.122.1
 )
 
@@ -183,7 +183,7 @@ require (
 
 require (
 	github.com/hashicorp/go-version v1.7.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.28.1
+	go.opentelemetry.io/collector/featuregate v1.29.0
 )
 
 require (
@@ -206,8 +206,11 @@ require (
 	go.opentelemetry.io/collector/config/configopaque v1.28.1 // indirect
 	go.opentelemetry.io/collector/config/configtls v1.28.1 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.122.1 // indirect
+	go.opentelemetry.io/collector/internal/telemetry v0.123.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.122.1 // indirect
+	go.opentelemetry.io/contrib/bridges/otelzap v0.10.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 // indirect
+	go.opentelemetry.io/otel/log v0.11.0 // indirect
 	golang.org/x/sync v0.13.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 )
