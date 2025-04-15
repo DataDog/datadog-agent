@@ -26,7 +26,7 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     ("./devenv/scripts/Install-DevEnv.ps1", '$go_version = "', '"', True),
     ("./docs/dev/agent_dev_env.md", "[install Golang](https://golang.org/doc/install) version `", "`", True),
     ("./tasks/go.py", '"go version go', ' linux/amd64"', True),
-    ("./README.md", "[Go](https://golang.org/doc/install) ", " or later", False),
+    ("./README.md", "[Go](https://golang.org/doc/install) ", ".", False),
     ("./test/fakeintake/docs/README.md", "[Golang ", "]", False),
     ("./cmd/process-agent/README.md", "`go >= ", "`", False),
     ("./pkg/logs/launchers/windowsevent/README.md", "install go ", "+,", False),
