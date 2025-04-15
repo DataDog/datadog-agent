@@ -3,31 +3,38 @@
 
 # if the TRACE_AGENT_VERSION environment variable isn't set, default to 0.99.0
 TRACE_AGENT_VERSION := $(if $(TRACE_AGENT_VERSION),$(TRACE_AGENT_VERSION), 0.99.0)
+TRACE_DIR := cmd/trace-agent
 
 # break up the version
 SPLAT = $(subst ., ,$(TRACE_AGENT_VERSION))
-VERSION_MAJOR = $(shell echo $(word 1, $(SPLAT)) | sed 's/[^0-9]*//g')
-VERSION_MINOR = $(shell echo $(word 2, $(SPLAT)) | sed 's/[^0-9]*//g')
-VERSION_PATCH = $(shell echo $(word 3, $(SPLAT)) | sed 's/[^0-9]*//g')
+GET_VERSION_PART = $(shell echo $(word $1, $(SPLAT)) | sed 's/[^0-9]*//g')
+VERSION_MAJOR = $(call GET_VERSION_PART,1)
+VERSION_MINOR = $(call GET_VERSION_PART,2)
+VERSION_PATCH = $(call GET_VERSION_PART,3)
 
 # account for some defaults
 VERSION_MAJOR := $(if $(VERSION_MAJOR),$(VERSION_MAJOR), 0)
 VERSION_MINOR := $(if $(VERSION_MINOR),$(VERSION_MINOR), 0)
 VERSION_PATCH := $(if $(VERSION_PATCH),$(VERSION_PATCH), 0)
 
+# windows flags
+WINUTIL_DIR := pkg/util/winutil/messagestrings
+DEFS := --define MAJ_VER=$(VERSION_MAJOR) --define MIN_VER=$(VERSION_MINOR) --define PATCH_VER=$(VERSION_PATCH)
+TARGET := pe-x86-64
+
 install:
 	# generate versioning information and installing the binary.
 	go generate ./pkg/trace/info
-	go install ./cmd/trace-agent
+	go install ./$(TRACE_DIR)
 
 ci:
 	# task used by CI
-	go install ./cmd/trace-agent
+	go install ./$(TRACE_DIR)
 	go test -v -race ./...
 
 windows:
 	# pre-packages resources needed for the windows release
-	windmc --target pe-x86-64 -r pkg/util/winutil/messagestrings -h pkg/util/winutil/messagestrings pkg/util/winutil/messagestrings/messagestrings.mc
-	windres -i pkg/util/winutil/messagestrings/messagestrings.rc --target=pe-x86-64 -O coff -o pkg/util/winutil/messagestrings/rsrc.syso
-	windres --define MAJ_VER=$(VERSION_MAJOR) --define MIN_VER=$(VERSION_MINOR) --define PATCH_VER=$(VERSION_PATCH) -i cmd/trace-agent/windows/resources/trace-agent.rc --target=pe-x86-64 -O coff -o cmd/trace-agent/rsrc.syso
+	windmc --target $(TARGET) -r $(WINUTIL_DIR) -h $(WINUTIL_DIR) $(WINUTIL_DIR)/messagestrings.mc
+	windres -i $(WINUTIL_DIR)/messagestrings.rc --target=$(TARGET) -O coff -o $(WINUTIL_DIR)/rsrc.syso
+	windres $(DEFS) -i $(TRACE_DIR)/windows/resources/trace-agent.rc --target=$(TARGET) -O coff -o $(TRACE_DIR)/rsrc.syso
 
