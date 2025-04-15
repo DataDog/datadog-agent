@@ -87,6 +87,8 @@ func (p autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Worklo
 		return fmt.Errorf("failed to parse scaling values for PodAutoscaler %s: %w", id, err)
 	}
 
+	podAutoscaler.UpdateFromMainValues(scalingValues)
+
 	// Emit telemetry for received values
 	// Target name cannot normally be empty, but we handle it just in case
 	var targetName string
