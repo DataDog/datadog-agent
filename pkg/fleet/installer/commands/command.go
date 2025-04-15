@@ -153,7 +153,8 @@ func RootCommands() []*cobra.Command {
 		getStateCommand(),
 		statusCommand(),
 		postinstCommand(),
-		hooksCommand(),
+		hookCommand(),
+		hookVersionCommand(),
 	}
 }
 
