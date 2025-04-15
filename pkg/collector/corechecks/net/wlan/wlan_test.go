@@ -389,7 +389,7 @@ func TestWLANRoamingEvents(t *testing.T) {
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
 
-	// 1st run: initial bssid set to bssid-1
+	// 1st run: initial bssid set to test-bssid-1
 	wlanCheck.Run()
 	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
 
