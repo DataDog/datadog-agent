@@ -1893,7 +1893,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 		setupConfig               funcs
 	}{
 		{
-			name: "inject all with dotnet-profiler",
+			name: "inject all with dotnet-profiler no service name when SSI disabled",
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
