@@ -270,6 +270,7 @@ func (c *CheckConfig) ToString() string {
 // NewCheckConfig builds a new check config
 func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data, rcClient rcclient.Component) (*CheckConfig,
 	error) {
+	fmt.Println("CALLED NewCheckConfig")
 	instance := InstanceConfig{}
 	initConfig := InitConfig{}
 

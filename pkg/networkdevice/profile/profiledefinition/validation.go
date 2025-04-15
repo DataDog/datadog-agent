@@ -87,19 +87,43 @@ func ValidateEnrichMetricTags(metricTags []MetricTagConfig) []string {
 // Example of enrichment:
 // - storage of compiled regex pattern
 func ValidateEnrichMetrics(metrics []MetricsConfig) []string {
+	//fmt.Println("CALLED ValidateEnrichMetrics")
 	var errors []string
 	for i := range metrics {
 		metricConfig := &metrics[i]
+
+		//if metricConfig.MIB == "CISCO-TEST-MIB" {
+		//	fmt.Println("CISCO-TEST-MIB Name:", metricConfig.Name)
+		//	continue
+		//}
+
+		doPrint := false
+		//if metricConfig.MIB == "CISCO-SLB-MIB" {
+		//	doPrint = true
+		//}
+
 		if !metricConfig.IsScalar() && !metricConfig.IsColumn() {
+			if doPrint {
+				fmt.Println("Metric is not scalar or column")
+			}
 			errors = append(errors, fmt.Sprintf("either a table symbol or a scalar symbol must be provided: %#v", metricConfig))
 		}
 		if metricConfig.IsScalar() && metricConfig.IsColumn() {
+			if doPrint {
+				fmt.Println("Metric is scalar and column")
+			}
 			errors = append(errors, fmt.Sprintf("table symbol and scalar symbol cannot be both provided: %#v", metricConfig))
 		}
 		if metricConfig.IsScalar() {
+			if doPrint {
+				fmt.Println("Metric is scalar")
+			}
 			errors = append(errors, validateEnrichSymbol(&metricConfig.Symbol, ScalarSymbol)...)
 		}
 		if metricConfig.IsColumn() {
+			if doPrint {
+				fmt.Println("Metric is column")
+			}
 			for j := range metricConfig.Symbols {
 				errors = append(errors, validateEnrichSymbol(&metricConfig.Symbols[j], ColumnSymbol)...)
 			}

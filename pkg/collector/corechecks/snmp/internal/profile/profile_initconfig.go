@@ -5,9 +5,13 @@
 
 package profile
 
-import "github.com/DataDog/datadog-agent/pkg/util/log"
+import (
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
 
 func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
+	fmt.Println("CALLED loadInitConfigProfiles")
 	initConfigProfiles := make(ProfileConfigMap, len(rawInitConfigProfiles))
 
 	for name, profConfig := range rawInitConfigProfiles {

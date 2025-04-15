@@ -17,6 +17,7 @@ import (
 
 // GetProfileProvider returns a Provider that knows the on-disk profiles as well as any overrides from the initConfig.
 func GetProfileProvider(initConfigProfiles ProfileConfigMap) (Provider, error) {
+	fmt.Println("CALLED GetProfileProvider")
 	profiles, err := loadProfiles(initConfigProfiles)
 	if err != nil {
 		return nil, err
@@ -25,6 +26,7 @@ func GetProfileProvider(initConfigProfiles ProfileConfigMap) (Provider, error) {
 }
 
 func loadProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
+	fmt.Println("CALLED loadProfiles")
 	var profiles ProfileConfigMap
 	if len(initConfigProfiles) > 0 {
 		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations

@@ -21,6 +21,7 @@ var (
 )
 
 func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) ProfileConfigMap {
+	fmt.Println("CALLED resolveProfiles")
 	rawProfiles := mergeProfiles(defaultProfiles, userProfiles)
 	userExpandedProfiles := normalizeProfiles(rawProfiles, defaultProfiles)
 	return userExpandedProfiles
@@ -28,8 +29,10 @@ func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) ProfileConf
 
 // normalizeProfiles returns a copy of pConfig with all profiles normalized, validated, and fully expanded (i.e. values from their .extend attributes will be baked into the profile itself).
 func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMap) ProfileConfigMap {
+	fmt.Println("CALLED normalizeProfiles")
 	profiles := make(ProfileConfigMap, len(pConfig))
 
+	fmt.Println("Number of pConfig in normalizeProfiles:", len(pConfig))
 	for name := range pConfig {
 		// No need to resolve abstract profile
 		if strings.HasPrefix(name, "_") {
@@ -47,6 +50,7 @@ func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMa
 		errors = append(errors, profiledefinition.ValidateEnrichMetrics(newProfileConfig.Definition.Metrics)...)
 		errors = append(errors, profiledefinition.ValidateEnrichMetricTags(newProfileConfig.Definition.MetricTags)...)
 		if len(errors) > 0 {
+			fmt.Println("HELLO?")
 			log.Warnf("validation errors in profile %q: %s", name, strings.Join(errors, "\n"))
 			profileExpVar.Set(name, expvar.Func(func() interface{} {
 				return strings.Join(errors, "\n")
