@@ -6,7 +6,7 @@ static_quality_gate_agent_deb_amd64_fips:
   max_on_wire_size: 190.72 MiB
 static_quality_gate_agent_heroku_amd64:
   max_on_disk_size: 434.99 MiB
-  max_on_wire_size: 114.36 MiB
+  max_on_wire_size: 114.34 MiB
 static_quality_gate_agent_msi:
   max_on_disk_size: 978.45 MiB
   max_on_wire_size: 151.65 MiB
