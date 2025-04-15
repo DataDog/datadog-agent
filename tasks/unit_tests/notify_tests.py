@@ -397,7 +397,7 @@ class TestSendStats(unittest.TestCase):
 
         trace_mock.assert_called()
         pipeline_mock.assert_called()
-        self.assertEqual(pipeline_mock.call_count, 2)
+        self.assertEqual(pipeline_mock.call_count, 1)
 
 
 class TestJobOwners(unittest.TestCase):

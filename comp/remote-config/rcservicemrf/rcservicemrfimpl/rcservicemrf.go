@@ -81,6 +81,9 @@ func newMrfRemoteConfigService(deps dependencies) (rcservicemrf.Component, error
 	if deps.Cfg.IsSet("multi_region_failover.remote_configuration.refresh_interval") {
 		options = append(options, remoteconfig.WithRefreshInterval(deps.Cfg.GetDuration("multi_region_failover.remote_configuration.refresh_interval"), "multi_region_failover.remote_configuration.refresh_interval"))
 	}
+	if deps.Cfg.IsSet("multi_region_failover.remote_configuration.org_status_refresh_interval") {
+		options = append(options, remoteconfig.WithOrgStatusRefreshInterval(deps.Cfg.GetDuration("multi_region_failover.remote_configuration.org_status_refresh_interval"), "multi_region_failover.remote_configuration.org_status_refresh_interval"))
+	}
 	if deps.Cfg.IsSet("multi_region_failover.remote_configuration.max_backoff_interval") {
 		options = append(options, remoteconfig.WithMaxBackoffInterval(deps.Cfg.GetDuration("multi_region_failover.remote_configuration.max_backoff_interval"), "remote_configuration.max_backoff_time"))
 	}

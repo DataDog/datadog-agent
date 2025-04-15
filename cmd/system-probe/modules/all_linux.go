@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !arm64
+//go:build linux
 
 // Package modules is all the module definitions for system-probe
 package modules
@@ -11,7 +11,7 @@ package modules
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 )
 
 // All System Probe modules should register their factories here
@@ -30,7 +30,7 @@ var All = []module.Factory{
 	Pinger,
 	Traceroute,
 	DiscoveryModule,
-	GPUMonitoring, // GPU monitoring needs to be initialized afer EventMonitor, so that we have the event consumer ready
+	GPUMonitoring, // GPU monitoring needs to be initialized after EventMonitor, so that we have the event consumer ready
 }
 
 func inactivityEventLog(_ time.Duration) {

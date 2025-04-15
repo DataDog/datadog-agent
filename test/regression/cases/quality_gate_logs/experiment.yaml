@@ -28,7 +28,7 @@ checks:
     description: "Memory usage"
     bounds:
       series: total_pss_bytes
-      upper_bound: "260.00 MiB"
+      upper_bound: "254 MiB"
 
   - name: lost_bytes
     description: "Allowable bytes not polled by log Agent"
@@ -41,3 +41,7 @@ checks:
     bounds:
       series: "connection.current"
       upper_bound: 6
+
+report_links:
+  - text: "bounds checks dashboard"
+    link: "https://app.datadoghq.com/dashboard/vz3-jd5-bdi?fromUser=true&refresh_mode=paused&tpl_var_experiment%5B0%5D={{ experiment }}&tpl_var_job_id%5B0%5D={{ job_id }}&view=spans&from_ts={{ start_time_ms }}&to_ts={{ end_time_ms }}&live=false"
