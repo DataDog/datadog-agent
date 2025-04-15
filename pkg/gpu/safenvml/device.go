@@ -36,7 +36,7 @@ type SafeDevice interface {
 	// GetFieldValues returns the values for the specified fields
 	GetFieldValues(values []nvml.FieldValue) error
 	// GetGpuInstanceId returns the GPU instance ID for MIG devices
-	//nolint:revive (Maintaining consistency with go-nvml API naming)
+	//nolint:revive // Maintaining consistency with go-nvml API naming
 	GetGpuInstanceId() (int, error)
 	// GetIndex returns the index of the device
 	GetIndex() (int, error)
@@ -338,7 +338,7 @@ func (d *safeDeviceImpl) GetNvLinkState(link int) (nvml.EnableState, error) {
 	return state, nil
 }
 
-//nolint:revive (Maintaining consistency with go-nvml API naming)
+//nolint:revive // Maintaining consistency with go-nvml API naming
 func (d *safeDeviceImpl) GetGpuInstanceId() (int, error) {
 	if err := d.lib.lookup(toNativeName("GetGpuInstanceId")); err != nil {
 		return 0, err
