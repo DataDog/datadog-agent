@@ -175,6 +175,7 @@ func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, na
 	hookCtx := HookContext{
 		Context:     ctx,
 		Package:     pkg,
+		PackagePath: pkgPath,
 		PackageType: packageType,
 		Upgrade:     upgrade,
 		WindowsArgs: windowsArgs,

@@ -38,7 +38,7 @@ func hooksCommand() *cobra.Command {
 func postinstCommand() *cobra.Command {
 	return &cobra.Command{
 		Hidden:  true,
-		Use:     "postinst <package> <type:deb|rpm|oci>",
+		Use:     "postinst <package> <type:deb|rpm>",
 		Short:   "Run post-install scripts for a package",
 		GroupID: "installer",
 		Args:    cobra.MinimumNArgs(2),
@@ -54,6 +54,7 @@ func postinstCommand() *cobra.Command {
 			hookContext := packages.HookContext{
 				Context:     i.ctx,
 				Package:     pkg,
+				PackagePath: "/opt/datadog-agent",
 				PackageType: packageType,
 				Upgrade:     false,
 				WindowsArgs: nil,
@@ -69,8 +70,6 @@ func parsePackageType(rawPackageType string) (packages.PackageType, error) {
 		return packages.PackageTypeDEB, nil
 	case string(packages.PackageTypeRPM):
 		return packages.PackageTypeRPM, nil
-	case string(packages.PackageTypeOCI):
-		return packages.PackageTypeOCI, nil
 	default:
 		return "", fmt.Errorf("unknown package type: %s", rawPackageType)
 	}
