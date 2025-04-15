@@ -1,0 +1,96 @@
+diff --git a/pkg/template/html/content.go b/pkg/template/html/content.go
+index 6a9eb4e3cb7..901fa9d7bc2 100644
+--- a/pkg/template/html/content.go
++++ b/pkg/template/html/content.go
+@@ -6,6 +6,7 @@ package template
+ 
+ import (
+ 	"fmt"
++	stdtemplate "html/template"
+ 	"reflect"
+ )
+ 
+@@ -22,7 +23,7 @@ type (
+ 	// Use of this type presents a security risk:
+ 	// the encapsulated content should come from a trusted source,
+ 	// as it will be included verbatim in the template output.
+-	CSS string
++	CSS = stdtemplate.CSS
+ 
+ 	// HTML encapsulates a known safe HTML document fragment.
+ 	// It should not be used for HTML from a third-party, or HTML with
+@@ -32,7 +33,7 @@ type (
+ 	// Use of this type presents a security risk:
+ 	// the encapsulated content should come from a trusted source,
+ 	// as it will be included verbatim in the template output.
+-	HTML string
++	HTML = stdtemplate.HTML
+ 
+ 	// HTMLAttr encapsulates an HTML attribute from a trusted source,
+ 	// for example, ` dir="ltr"`.
+@@ -40,7 +41,7 @@ type (
+ 	// Use of this type presents a security risk:
+ 	// the encapsulated content should come from a trusted source,
+ 	// as it will be included verbatim in the template output.
+-	HTMLAttr string
++	HTMLAttr = stdtemplate.HTMLAttr
+ 
+ 	// JS encapsulates a known safe EcmaScript5 Expression, for example,
+ 	// `(x + y * z())`.
+@@ -58,7 +59,7 @@ type (
+ 	// A safe alternative is to parse the JSON with json.Unmarshal and then
+ 	// pass the resultant object into the template, where it will be
+ 	// converted to sanitized JSON when presented in a JavaScript context.
+-	JS string
++	JS = stdtemplate.JS
+ 
+ 	// JSStr encapsulates a sequence of characters meant to be embedded
+ 	// between quotes in a JavaScript expression.
+@@ -71,7 +72,7 @@ type (
+ 	// Use of this type presents a security risk:
+ 	// the encapsulated content should come from a trusted source,
+ 	// as it will be included verbatim in the template output.
+-	JSStr string
++	JSStr = stdtemplate.JSStr
+ 
+ 	// URL encapsulates a known safe URL or URL substring (see RFC 3986).
+ 	// A URL like `javascript:checkThatFormNotEditedBeforeLeavingPage()`
+@@ -82,7 +83,7 @@ type (
+ 	// Use of this type presents a security risk:
+ 	// the encapsulated content should come from a trusted source,
+ 	// as it will be included verbatim in the template output.
+-	URL string
++	URL = stdtemplate.URL
+ 
+ 	// Srcset encapsulates a known safe srcset attribute
+ 	// (see https://w3c.github.io/html/semantics-embedded-content.html#element-attrdef-img-srcset).
+@@ -90,7 +91,7 @@ type (
+ 	// Use of this type presents a security risk:
+ 	// the encapsulated content should come from a trusted source,
+ 	// as it will be included verbatim in the template output.
+-	Srcset string
++	Srcset = stdtemplate.Srcset
+ )
+ 
+ type contentType uint8
+diff --git a/pkg/template/text/funcs.go b/pkg/template/text/funcs.go
+index 7d63cf8b7bb..f387efa87d9 100644
+--- a/pkg/template/text/funcs.go
++++ b/pkg/template/text/funcs.go
+@@ -7,6 +7,7 @@ package template
+ import (
+ 	"errors"
+ 	"fmt"
++	stdtemplate "html/template"
+ 	"io"
+ 	"net/url"
+ 	"reflect"
+@@ -30,7 +31,7 @@ import (
+ // apply to arguments of arbitrary type can use parameters of type interface{} or
+ // of type [reflect.Value]. Similarly, functions meant to return a result of arbitrary
+ // type can return interface{} or [reflect.Value].
+-type FuncMap map[string]any
++type FuncMap = stdtemplate.FuncMap
+ 
+ // builtins returns the FuncMap.
+ // It is not a global variable so the linker can dead code eliminate

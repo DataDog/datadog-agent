@@ -37,7 +37,8 @@ include:
   - .gitlab/post_rc_build/post_rc_tasks.yml
   - .gitlab/setup/setup.yml
   - .gitlab/source_test/include.yml
-  - .gitlab/trigger_release/trigger_release.yml
+  - .gitlab/trigger_release/agent.yml
+  - .gitlab/trigger_release/installer.yml
 
 default:
   retry:
@@ -168,45 +169,45 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v61255107-8d593c89
+  DATADOG_AGENT_BUILDIMAGES: v62029117-1ba50f31
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v61255107-8d593c89
+  DATADOG_AGENT_WINBUILDIMAGES: v62029117-1ba50f31
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v61255107-8d593c89
+  DATADOG_AGENT_ARMBUILDIMAGES: v62029117-1ba50f31
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v61255107-8d593c89
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v62029117-1ba50f31
   # New images to enable different version per image - not used yet
-  CI_IMAGE_BTF_GEN: v61255107-8d593c89
+  CI_IMAGE_BTF_GEN: v62029117-1ba50f31
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DEB_X64: v61255107-8d593c89
+  CI_IMAGE_DEB_X64: v62029117-1ba50f31
   CI_IMAGE_DEB_X64_SUFFIX: ""
-  CI_IMAGE_DEB_ARM64: v61255107-8d593c89
+  CI_IMAGE_DEB_ARM64: v62029117-1ba50f31
   CI_IMAGE_DEB_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v61255107-8d593c89
+  CI_IMAGE_DEB_ARMHF: v62029117-1ba50f31
   CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_DD_AGENT_TESTING: v61255107-8d593c89
+  CI_IMAGE_DD_AGENT_TESTING: v62029117-1ba50f31
   CI_IMAGE_DD_AGENT_TESTING_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v61255107-8d593c89
+  CI_IMAGE_DOCKER_X64: v62029117-1ba50f31
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v61255107-8d593c89
+  CI_IMAGE_DOCKER_ARM64: v62029117-1ba50f31
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v61255107-8d593c89
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v62029117-1ba50f31
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_17_X64: v61255107-8d593c89
+  CI_IMAGE_LINUX_GLIBC_2_17_X64: v62029117-1ba50f31
   CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v61255107-8d593c89
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v62029117-1ba50f31
   CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_X64: v61255107-8d593c89
+  CI_IMAGE_SYSTEM_PROBE_X64: v62029117-1ba50f31
   CI_IMAGE_SYSTEM_PROBE_X64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_ARM64: v61255107-8d593c89
+  CI_IMAGE_SYSTEM_PROBE_ARM64: v62029117-1ba50f31
   CI_IMAGE_SYSTEM_PROBE_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v61255107-8d593c89
+  CI_IMAGE_RPM_X64: v62029117-1ba50f31
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v61255107-8d593c89
+  CI_IMAGE_RPM_ARM64: v62029117-1ba50f31
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v61255107-8d593c89
+  CI_IMAGE_RPM_ARMHF: v62029117-1ba50f31
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v61255107-8d593c89
+  CI_IMAGE_WIN_LTSC2022_X64: v62029117-1ba50f31
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -263,6 +264,9 @@ variables:
   DD_PKG_VERSION: "latest"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
+  # Job cloning strategy
+  OVERRIDE_GIT_STRATEGY: "s3"
+
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
   ARTIFACT_DOWNLOAD_ATTEMPTS: 2
   EXECUTOR_JOB_SECTION_ATTEMPTS: 2
@@ -272,6 +276,7 @@ variables:
   FF_SCRIPT_SECTIONS: 1 # Prevent multiline scripts log collapsing, see https://gitlab.com/gitlab-org/gitlab-runner/-/issues/3392
   FF_KUBERNETES_HONOR_ENTRYPOINT: true # Honor the entrypoint in the Docker image when running Kubernetes jobs
   FF_TIMESTAMPS: true
+  FF_USE_FASTZIP: true
 
 #
 # Condition mixins for simplification of rules
@@ -296,6 +301,12 @@ variables:
 
 .if_deploy_installer: &if_deploy_installer
   if: $DEPLOY_INSTALLER == "true" || $DDR_WORKFLOW_ID != null
+
+.if_deploy_installer_stable: &if_deploy_installer_stable
+  if: ($DEPLOY_INSTALLER == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "stable"
+
+.if_not_deploy_installer: &if_not_deploy_installer
+  if: $DEPLOY_INSTALLER != "true" && $DDR_WORKFLOW_ID == null
 
 .if_tagged_commit: &if_tagged_commit
   if: $CI_COMMIT_TAG != null
@@ -440,6 +451,10 @@ workflow:
   - <<: *if_deploy
     when: on_failure
 
+.on_deploy_installer_failure:
+  - <<: *if_deploy_installer
+    when: on_failure
+
 .on_deploy_rc:
   - <<: *if_not_deploy
     when: never
@@ -580,6 +595,25 @@ workflow:
 # for stable branches in case of failure in any previous job
 .on_deploy_stable_on_failure:
   - <<: *if_deploy_stable
+    when: on_failure
+
+# This rule will add the job as manual when running on beta deploy branch
+# and will add it as a regular automatically running job when running
+# on stable deploy branch.
+.on_deploy_installer_stable_or_beta_manual_auto_on_stable:
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_not_deploy_installer
+    when: never
+  - <<: *if_not_stable_repo_branch
+    when: manual
+    allow_failure: true
+  - when: on_success
+
+# Alternative of the above to have an agent-release-management trigger
+# for stable branches in case of failure in any previous job
+.on_deploy_installer_stable_on_failure:
+  - <<: *if_deploy_installer_stable
     when: on_failure
 
 .except_deploy:
@@ -741,6 +775,7 @@ workflow:
         - test/new-e2e/pkg/**/*
         - test/new-e2e/go.mod
         - flakes.yaml
+        - release.json
       compare_to: $COMPARE_TO_BRANCH
 
 .on_e2e_or_windows_installer_changes:

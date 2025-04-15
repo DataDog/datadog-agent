@@ -1,0 +1,75 @@
+---
+# trigger_release stage
+# Contains jobs related to triggering the release of the Datadog Installer.
+
+# TODO: This is currently separate from the base agent release management trigger as we want to ensure the Agent is not impacted
+# as we adopt the `dd-pkg` tooling for the Installer. We should deduplicate the code between the two files in the future.
+.installer_release_management_trigger:
+  stage: trigger_release
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  # We don't directly depend/need the package deploy jobs, because
+  # that would make us deploy even when there are e2e tests failures etc
+  # We only want to allow automatically triggering agent-release-manangement
+  # pipelines when everything goes well
+  variables:
+    ACTION: promote
+    BUILD_PIPELINE_ID: $CI_PIPELINE_ID
+    RELEASE_PRODUCT: datadog-installer
+    TARGET_REPO_BRANCH: $BUCKET_BRANCH
+  script:
+    - RELEASE_VERSION="$(dda inv agent.version --url-safe --omnibus-format)-1" || exit $?; export RELEASE_VERSION
+    - GITLAB_TOKEN="$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api)" || exit $?; export GITLAB_TOKEN
+    - 'dda inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-release-management" --git-ref "main" --timeout 9000
+      --variable ACTION
+      --variable AUTO_RELEASE
+      --variable BUILD_PIPELINE_ID
+      --variable RELEASE_PRODUCT
+      --variable RELEASE_VERSION
+      --variable TARGET_REPO
+      --variable TARGET_REPO_BRANCH
+      $NO_FOLLOW'
+  dependencies: []
+
+installer_trigger_auto_staging_release:
+  extends: .installer_release_management_trigger
+  timeout: 2h 30m
+  variables:
+    AUTO_RELEASE: "true"
+    TARGET_REPO: staging
+  rules:
+    - !reference [.on_deploy_installer]
+
+installer_trigger_auto_staging_release_on_failure:
+  extends: .installer_release_management_trigger
+  timeout: 2h 30m
+  variables:
+    AUTO_RELEASE: "false"
+    TARGET_REPO: staging
+    # The jobs in the downstream pipeline will all be manual, so following
+    # the created pipeline would likely cause this job to timeout
+    NO_FOLLOW: "--no-follow"
+  rules:
+    - !reference [.on_deploy_installer_failure]
+
+installer_trigger_manual_prod_release:
+  extends: .installer_release_management_trigger
+  variables:
+    AUTO_RELEASE: "false"
+    TARGET_REPO: prod
+    # The jobs in the downstream pipeline will all be manual, so following
+    # the created pipeline would likely cause this job to timeout
+    NO_FOLLOW: "--no-follow"
+  rules:
+    - !reference [.on_deploy_installer_stable_or_beta_manual_auto_on_stable]
+
+installer_trigger_manual_prod_release_on_failure:
+  extends: .installer_release_management_trigger
+  variables:
+    AUTO_RELEASE: "false"
+    TARGET_REPO: prod
+    # The jobs in the downstream pipeline will all be manual, so following
+    # the created pipeline would likely cause this job to timeout
+    NO_FOLLOW: "--no-follow"
+  rules:
+    - !reference [.on_deploy_installer_stable_on_failure]

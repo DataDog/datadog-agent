@@ -46,6 +46,7 @@ var (
 	infoConnectionsQueueBytes atomic.Int64
 	infoEventQueueBytes       atomic.Int64
 	infoPodQueueBytes         atomic.Int64
+	infoSubmissionErrorCount  atomic.Int64
 	infoEnabledChecks         []string
 	infoDropCheckPayloads     []string
 
@@ -92,6 +93,10 @@ func UpdateLastCollectTime(t time.Time) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
 	infoLastCollectTime = t.Format("2006-01-02 15:04:05")
+}
+
+func AddSubmissionErrorCount(errors int64) {
+	infoSubmissionErrorCount.Add(errors)
 }
 
 func publishInt(i *atomic.Int64) expvar.Func {
@@ -285,5 +290,6 @@ func InitExpvars(config config.Component, hostname string, processModuleEnabled,
 		processExpvars.Set("workloadmeta_extractor_cache_size", publishInt(&infoWlmExtractorCacheSize))
 		processExpvars.Set("workloadmeta_extractor_stale_diffs", publishInt(&infoWlmExtractorStaleDiffs))
 		processExpvars.Set("workloadmeta_extractor_diffs_dropped", publishInt(&infoWlmExtractorDiffsDropped))
+		processExpvars.Set("submission_error_count", publishInt(&infoSubmissionErrorCount))
 	})
 }
