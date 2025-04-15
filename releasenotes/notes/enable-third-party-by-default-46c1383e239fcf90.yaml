@@ -1,0 +1,12 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Adds support for persisting of non-core integrations during Agent upgrades on Windows platforms. To disable,
+    set the INSTALL_PYTHON_THIRD_PARTY_DEPS="0" property during the installation of the MSI.

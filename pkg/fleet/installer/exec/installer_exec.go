@@ -327,9 +327,62 @@ func (iCmd *installerCmd) Run() error {
 	return fmt.Errorf("run failed: %w \n%s", installerError, err.Error())
 }
 
-// Postinst runs post install scripts for a given package.
-func (i *InstallerExec) Postinst(ctx context.Context, pkg string, caller string) (err error) {
+// PostInstall runs post install scripts for a given package.
+func (i *InstallerExec) PostInstall(ctx context.Context, pkg string, caller string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "postinst", pkg, caller)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// PreRemove runs pre remove scripts for a given package.
+func (i *InstallerExec) PreRemove(ctx context.Context, pkg string, caller string, update bool) (err error) {
+	args := []string{pkg, caller}
+	if update {
+		args = append(args, "--update")
+	}
+	cmd := i.newInstallerCmd(ctx, "prerm", args...)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// PreStartExperiment runs pre-start-experiment scripts for a given package.
+func (i *InstallerExec) PreStartExperiment(ctx context.Context, pkg string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "pre-start-experiment", pkg)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// PostStartExperiment runs post-start-experiment scripts for a given package.
+func (i *InstallerExec) PostStartExperiment(ctx context.Context, pkg string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "post-start-experiment", pkg)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// PreStopExperiment runs pre-stop-experiment scripts for a given package.
+func (i *InstallerExec) PreStopExperiment(ctx context.Context, pkg string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "pre-stop-experiment", pkg)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// PostStopExperiment runs post-stop-experiment scripts for a given package.
+func (i *InstallerExec) PostStopExperiment(ctx context.Context, pkg string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "post-stop-experiment", pkg)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// PrePromoteExperiment runs pre-promote-experiment scripts for a given package.
+func (i *InstallerExec) PrePromoteExperiment(ctx context.Context, pkg string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "pre-promote-experiment", pkg)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// PostPromoteExperiment runs post-promote-experiment scripts for a given package.
+func (i *InstallerExec) PostPromoteExperiment(ctx context.Context, pkg string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "post-promote-experiment", pkg)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
