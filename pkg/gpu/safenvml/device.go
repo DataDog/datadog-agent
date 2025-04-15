@@ -41,10 +41,18 @@ type SafeDevice interface {
 	GetIndex() (int, error)
 	// GetMaxClockInfo returns the maximum clock speed for the given clock type
 	GetMaxClockInfo(clockType nvml.ClockType) (uint32, error)
+	// GetMaxMigDeviceCount returns the maximum number of MIG devices that can be created
+	GetMaxMigDeviceCount() (int, error)
 	// GetMemoryBusWidth returns the memory bus width
 	GetMemoryBusWidth() (uint32, error)
 	// GetMemoryInfo returns memory information of the device
 	GetMemoryInfo() (nvml.Memory, error)
+	// GetMigDeviceHandleByIndex returns the MIG device handle at the given index
+	GetMigDeviceHandleByIndex(index int) (SafeDevice, error)
+	// GetMigMode returns the MIG mode of the device
+	GetMigMode() (int, int, error)
+	// GetName returns the name of the device
+	GetName() (string, error)
 	// GetNumGpuCores returns the number of GPU cores in the device
 	GetNumGpuCores() (int, error)
 	// GetNvLinkState returns the state of the specified NVLink
@@ -73,12 +81,13 @@ type Device struct {
 	SafeDevice
 
 	// Cached fields for quick access
-	SMVersion uint32
-	UUID      string
-	Name      string
-	CoreCount int
-	Index     int
-	Memory    uint64
+	SMVersion  uint32
+	UUID       string
+	CoreCount  int
+	Index      int
+	Memory     uint64
+	Name       string
+	NVMLDevice nvml.Device
 }
 
 // safeDeviceImpl implements the SafeDevice interface
@@ -361,6 +370,42 @@ func (d *safeDeviceImpl) GetComputeRunningProcesses() ([]nvml.ProcessInfo, error
 		return nil, fmt.Errorf("error getting compute running processes: %s", nvml.ErrorString(ret))
 	}
 	return processes, nil
+}
+
+// GetMaxMigDeviceCount returns the maximum number of MIG devices that can be created
+func (d *safeDeviceImpl) GetMaxMigDeviceCount() (int, error) {
+	if err := d.lib.lookup(toNativeName("GetMaxMigDeviceCount")); err != nil {
+		return 0, err
+	}
+	count, ret := d.nvmlDevice.GetMaxMigDeviceCount()
+	if ret != nvml.SUCCESS {
+		return 0, fmt.Errorf("error getting max MIG device count: %s", nvml.ErrorString(ret))
+	}
+	return count, nil
+}
+
+// GetMigDeviceHandleByIndex returns the MIG device handle at the given index
+func (d *safeDeviceImpl) GetMigDeviceHandleByIndex(index int) (SafeDevice, error) {
+	if err := d.lib.lookup(toNativeName("GetMigDeviceHandleByIndex")); err != nil {
+		return nil, err
+	}
+	device, ret := d.nvmlDevice.GetMigDeviceHandleByIndex(index)
+	if ret != nvml.SUCCESS {
+		return nil, fmt.Errorf("error getting MIG device handle at index %d: %s", index, nvml.ErrorString(ret))
+	}
+	return NewDevice(device)
+}
+
+// GetMigMode returns the MIG mode of the device
+func (d *safeDeviceImpl) GetMigMode() (int, int, error) {
+	if err := d.lib.lookup(toNativeName("GetMigMode")); err != nil {
+		return 0, 0, err
+	}
+	mode, pendingMode, ret := d.nvmlDevice.GetMigMode()
+	if ret != nvml.SUCCESS {
+		return 0, 0, fmt.Errorf("error getting MIG mode: %s", nvml.ErrorString(ret))
+	}
+	return mode, pendingMode, nil
 }
 
 // NewDevice creates a new Device from the nvml.Device and caches some properties
