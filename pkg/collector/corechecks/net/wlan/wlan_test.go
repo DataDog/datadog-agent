@@ -431,7 +431,7 @@ func TestWLANRoamingEvents(t *testing.T) {
 
 	expectedTags = []string{"ssid:ssid", "bssid:test-bssid-1", "mac_address:hardware-address"}
 
-	// 3rd run: changing the bssid-2 back to bssid-1
+	// 3rd run: changing the test-bssid-2 back to test-bssid-1
 	wlanCheck.Run()
 	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 1.0, "", expectedTags)
 	// despite channel change, and due to roaming event the channel swap event is not changed
