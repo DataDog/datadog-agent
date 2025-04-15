@@ -25,4 +25,3 @@ lint_macos_gitlab_arm64:
     - !reference [.on_main]
     - !reference [.manual]
   tags: ["macos:ventura-arm64-test", "specific:true"]
-  parallel: 4
