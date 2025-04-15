@@ -396,6 +396,20 @@ func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_T
 				Opts:       []string{"rw", "relatime"},
 			}}, nil
 	}
+	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:              "D:\\",
+			Fstype:            "NTFS",
+			Total:             100000000000, // 100 GB
+			Free:              30000000000,  // 30 GB
+			Used:              70000000000,  // 70 GB
+			UsedPercent:       70.0,
+			InodesTotal:       1000000,
+			InodesUsed:        500000,
+			InodesFree:        500000,
+			InodesUsedPercent: 50.0,
+		}, nil
+	}
 	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
