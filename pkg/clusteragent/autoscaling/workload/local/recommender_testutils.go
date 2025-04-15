@@ -82,6 +82,14 @@ func newAutoscaler() model.PodAutoscalerInternal {
 					},
 				},
 			},
+			Fallback: &datadoghq.DatadogFallbackPolicy{
+				Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+					Enabled: true,
+					Triggers: datadoghq.HorizontalFallbackTriggers{
+						StaleRecommendationThresholdSeconds: 60,
+					},
+				},
+			},
 		},
 	}.Build()
 }

@@ -67,8 +67,14 @@ func (r *Recommender) process(ctx context.Context) {
 		return
 	}
 
-	// TODO: filter this list to only retrieve autoscalers where local fallback is enabled
-	podAutoscalers := r.store.GetAll()
+	localFallbackFilter := func(podAutoscaler model.PodAutoscalerInternal) bool {
+		// Only return false if Fallback exists and Horizontal.Enabled is explicitly set to false
+		if podAutoscaler.Spec().Fallback != nil && podAutoscaler.Spec().Fallback.Horizontal.Enabled == false {
+			return false
+		}
+		return true
+	}
+	podAutoscalers := r.store.GetFiltered(localFallbackFilter)
 
 	for _, podAutoscaler := range podAutoscalers {
 		// Generate local recommendations
