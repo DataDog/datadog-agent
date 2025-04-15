@@ -23,7 +23,7 @@ const (
 
 var getWiFiInfo = GetWiFiInfo
 
-// WiFiInfo contains information about the WiFi connection (defined in Mac wlan_darwin.h and Windows wlan.h)
+// wifiInfo contains information about the WiFi connection (defined in Mac wlan_darwin.h and Windows wlan.h)
 type wifiInfo struct {
 	rssi             int
 	ssid             string

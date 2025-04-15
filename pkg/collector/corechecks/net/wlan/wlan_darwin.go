@@ -52,7 +52,7 @@ func (phy phyMode) String() string {
 	}
 }
 
-func GetWiFiInfo() (WiFiInfo, error) {
+func GetWiFiInfo() (wifiInfo, error) {
 	info := C.GetWiFiInformation()
 
 	ssid := C.GoString(info.ssid)

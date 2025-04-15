@@ -679,7 +679,7 @@ func GetWiFiInfo() (wifiInfo, error) {
 		return wifiInfo{}, err
 	}
 
-	// If no connected WiFi interface found, return empty WiFiInfo
+	// If no connected WiFi interface found, return empty wifiInfo
 	if wi == nil {
 		return wifiInfo{phyMode: "None"}, nil
 	}
