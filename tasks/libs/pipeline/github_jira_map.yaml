@@ -6,6 +6,7 @@
 '@datadog/container-integrations': CONTINT
 '@datadog/container-platform': CONTP
 '@datadog/container-ecosystems': CECO
+'@datadog/container-autoscaling': CASCL
 '@datadog/agent-security': CWS
 '@datadog/agent-apm': APMSP
 '@datadog/network-device-monitoring': NDMII
