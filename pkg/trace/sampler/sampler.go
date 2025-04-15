@@ -40,6 +40,9 @@ const (
 
 	// KeySpanSamplingMechanism is the metric key holding a span sampling rule that a span was kept on.
 	KeySpanSamplingMechanism = "_dd.span_sampling.mechanism"
+
+	// KeyOtelSampleRate is a metric key for OTLP sample rate
+	KeyOtelSampleRate = "_dd.otlp_sr"
 )
 
 // SamplingPriority is the type encoding a priority sampling decision.

@@ -508,7 +508,7 @@ func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesBy
 		}
 		rate := strconv.FormatFloat(o.samplingRate(), 'f', 2, 64)
 		chunk := &pb.TraceChunk{
-			Tags:  map[string]string{"_dd.otlp_sr": rate},
+			Tags:  map[string]string{sampler.KeyOtelSampleRate: rate},
 			Spans: spans,
 		}
 		if o.conf.ProbabilisticSamplerEnabled {

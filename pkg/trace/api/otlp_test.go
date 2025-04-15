@@ -760,7 +760,7 @@ func TestCreateChunks(t *testing.T) {
 				} else {
 					id := c.Spans[0].TraceID
 					require.ElementsMatch(t, c.Spans, traces[id])
-					require.Equal(t, "0.50", c.Tags["_dd.otlp_sr"])
+					require.Equal(t, "0.50", c.Tags[sampler.KeyOtelSampleRate])
 					switch id {
 					case traceID1:
 						require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"], "traceID1: dm must be -9")
