@@ -127,11 +127,12 @@ func (s *safeNvml) DeviceGetHandleByIndex(idx int) (SafeDevice, error) {
 func (s *safeNvml) populateCapabilities() error {
 	s.capabilities = make(map[string]struct{})
 
-	// Critical capabilities from nvml.Interface
+	// Critical API from libnvidia-ml.so that are required for basic functionality
 	criticalAPI := []string{
 		toNativeName("GetCount"),
 		toNativeName("GetHandleByIndex"),
 		toNativeName("GetUUID"),
+		toNativeName("GetName"),
 		toNativeName("GetIndex"),
 		toNativeName("GetCudaComputeCapability"),
 		toNativeName("GetMemoryInfo"),
@@ -139,7 +140,7 @@ func (s *safeNvml) populateCapabilities() error {
 	}
 
 	// All other capabilities that are nice to have but not critical
-	// These are methods from SafeDevice interface that are not in criticalAPI
+	// These are methods from SafeNvml and SafeDevice interfaces that are not in criticalAPI
 	allOtherAPI := []string{
 		"nvmlShutdown",
 		"nvmlSystemGetDriverVersion",

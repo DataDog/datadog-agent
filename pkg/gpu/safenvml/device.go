@@ -73,6 +73,7 @@ type Device struct {
 	// Cached fields for quick access
 	SMVersion uint32
 	UUID      string
+	Name      string
 	CoreCount int
 	Index     int
 	Memory    uint64
@@ -104,6 +105,17 @@ func (d *safeDeviceImpl) GetUUID() (string, error) {
 		return "", fmt.Errorf("error getting UUID: %s", nvml.ErrorString(ret))
 	}
 	return uuid, nil
+}
+
+func (d *safeDeviceImpl) GetName() (string, error) {
+	if err := d.lib.lookup(toNativeName("GetName")); err != nil {
+		return "", err
+	}
+	name, ret := d.nvmlDevice.GetName()
+	if ret != nvml.SUCCESS {
+		return "", fmt.Errorf("error getting device name: %s", nvml.ErrorString(ret))
+	}
+	return name, nil
 }
 
 func (d *safeDeviceImpl) GetNumGpuCores() (int, error) {
@@ -373,6 +385,12 @@ func NewDevice(dev nvml.Device) (*Device, error) {
 		return nil, err
 	}
 	device.CoreCount = cores
+
+	name, err := safeDev.GetName()
+	if err != nil {
+		return nil, err
+	}
+	device.Name = name
 
 	index, err := safeDev.GetIndex()
 	if err != nil {
