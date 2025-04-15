@@ -36,6 +36,20 @@ func NewErrSymbolNotFound(symbol string) error {
 	return &ErrSymbolNotFound{Symbol: symbol}
 }
 
+// ErrNotSupported represents an error when an NVML function returns ERROR_NOT_SUPPORTED
+type ErrNotSupported struct {
+	APIName string
+}
+
+func (e *ErrNotSupported) Error() string {
+	return fmt.Sprintf("%s is not supported by the GPU or driver", e.APIName)
+}
+
+// NewErrNotSupported creates a new ErrNotSupported error
+func NewErrNotSupported(apiName string) error {
+	return &ErrNotSupported{APIName: apiName}
+}
+
 // symbolLookup is an internal interface for checking symbol availability
 type symbolLookup interface {
 	lookup(string) error
@@ -80,7 +94,9 @@ func (s *safeNvml) SystemGetDriverVersion() (string, error) {
 		return "", err
 	}
 	driverVersion, ret := s.lib.SystemGetDriverVersion()
-	if ret != nvml.SUCCESS {
+	if ret == nvml.ERROR_NOT_SUPPORTED {
+		return "", NewErrNotSupported("SystemGetDriverVersion")
+	} else if ret != nvml.SUCCESS {
 		return "", fmt.Errorf("error getting driver version: %s", nvml.ErrorString(ret))
 	}
 	return driverVersion, nil
@@ -92,7 +108,9 @@ func (s *safeNvml) Shutdown() error {
 		return err
 	}
 	ret := s.lib.Shutdown()
-	if ret != nvml.SUCCESS {
+	if ret == nvml.ERROR_NOT_SUPPORTED {
+		return NewErrNotSupported("Shutdown")
+	} else if ret != nvml.SUCCESS {
 		return fmt.Errorf("error shutting down NVML: %s", nvml.ErrorString(ret))
 	}
 	return nil
@@ -104,7 +122,9 @@ func (s *safeNvml) DeviceGetCount() (int, error) {
 		return 0, err
 	}
 	count, ret := s.lib.DeviceGetCount()
-	if ret != nvml.SUCCESS {
+	if ret == nvml.ERROR_NOT_SUPPORTED {
+		return 0, NewErrNotSupported("GetDeviceCount")
+	} else if ret != nvml.SUCCESS {
 		return 0, fmt.Errorf("error getting device count: %s", nvml.ErrorString(ret))
 	}
 	return count, nil
@@ -116,7 +136,9 @@ func (s *safeNvml) DeviceGetHandleByIndex(idx int) (SafeDevice, error) {
 		return nil, err
 	}
 	dev, ret := s.lib.DeviceGetHandleByIndex(idx)
-	if ret != nvml.SUCCESS {
+	if ret == nvml.ERROR_NOT_SUPPORTED {
+		return nil, NewErrNotSupported("DeviceGetHandleByIndex")
+	} else if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("error getting device handle by index %d: %s", idx, nvml.ErrorString(ret))
 	}
 	return NewDevice(dev)
@@ -148,6 +170,7 @@ func (s *safeNvml) populateCapabilities() error {
 		toNativeName("GetAttributes"),
 		toNativeName("GetClockInfo"),
 		toNativeName("GetComputeRunningProcesses"),
+		toNativeName("GetCurrentClocksThrottleReasons"),
 		toNativeName("GetDecoderUtilization"),
 		toNativeName("GetEncoderUtilization"),
 		toNativeName("GetFanSpeed"),
@@ -163,6 +186,8 @@ func (s *safeNvml) populateCapabilities() error {
 		toNativeName("GetPerformanceState"),
 		toNativeName("GetPowerManagementLimit"),
 		toNativeName("GetPowerUsage"),
+		toNativeName("GetRemappedRows"),
+		toNativeName("GetSamples"),
 		toNativeName("GetTemperature"),
 		toNativeName("GetTotalEnergyConsumption"),
 		toNativeName("GetUtilizationRates"),
