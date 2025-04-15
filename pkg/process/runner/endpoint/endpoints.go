@@ -33,9 +33,8 @@ func getAPIEndpointsWithKeys(config pkgconfigmodel.Reader, prefix, defaultEpKey,
 		return nil, fmt.Errorf("error parsing %s: %s", defaultEpKey, err)
 	}
 	eps = append(eps, apicfg.Endpoint{
-		APIKey:            utils.SanitizeAPIKey(config.GetString("api_key")),
-		Endpoint:          mainEndpointURL,
-		ConfigSettingPath: "api_key",
+		APIKey:   utils.SanitizeAPIKey(config.GetString("api_key")),
+		Endpoint: mainEndpointURL,
 	})
 
 	// Optional additional pairs of endpoint_url => []apiKeys to submit to other locations.
@@ -46,9 +45,8 @@ func getAPIEndpointsWithKeys(config pkgconfigmodel.Reader, prefix, defaultEpKey,
 		}
 		for _, k := range apiKeys {
 			eps = append(eps, apicfg.Endpoint{
-				APIKey:            utils.SanitizeAPIKey(k),
-				Endpoint:          u,
-				ConfigSettingPath: additionalEpsKey,
+				APIKey:   utils.SanitizeAPIKey(k),
+				Endpoint: u,
 			})
 		}
 	}
