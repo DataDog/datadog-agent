@@ -162,6 +162,7 @@ func (s *safeNvml) populateCapabilities() error {
 		toNativeName("GetNvLinkState"),
 		toNativeName("GetGpuInstanceId"),
 		toNativeName("GetAttributes"),
+		toNativeName("GetComputeRunningProcesses"),
 	}
 
 	// Check each critical API symbol and fail if any are missing

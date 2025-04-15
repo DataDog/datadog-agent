@@ -17,52 +17,54 @@ import (
 // It ensures that operations are only performed when the corresponding
 // symbols are available in the loaded library.
 type SafeDevice interface {
-	// GetCudaComputeCapability returns the CUDA compute capability of the device
-	GetCudaComputeCapability() (int, int, error)
-	// GetUUID returns the universally unique identifier of the device
-	GetUUID() (string, error)
-	// GetNumGpuCores returns the number of GPU cores in the device
-	GetNumGpuCores() (int, error)
-	// GetIndex returns the index of the device
-	GetIndex() (int, error)
-	// GetMemoryInfo returns memory information of the device
-	GetMemoryInfo() (nvml.Memory, error)
 	// GetArchitecture returns the architecture of the device
 	GetArchitecture() (nvml.DeviceArchitecture, error)
-	// GetMemoryBusWidth returns the memory bus width
-	GetMemoryBusWidth() (uint32, error)
-	// GetMaxClockInfo returns the maximum clock speed for the given clock type
-	GetMaxClockInfo(clockType nvml.ClockType) (uint32, error)
-	// GetPcieThroughput returns the PCIe throughput in bytes/sec
-	GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32, error)
+	// GetAttributes returns the attributes of the device
+	GetAttributes() (nvml.DeviceAttributes, error)
+	// GetClockInfo returns the current clock speed for the given clock type
+	GetClockInfo(clockType nvml.ClockType) (uint32, error)
+	// GetComputeRunningProcesses returns the list of compute processes running on the device
+	GetComputeRunningProcesses() ([]nvml.ProcessInfo, error)
+	// GetCudaComputeCapability returns the CUDA compute capability of the device
+	GetCudaComputeCapability() (int, int, error)
 	// GetDecoderUtilization returns the decoder utilization
 	GetDecoderUtilization() (uint32, uint32, error)
-	// GetUtilizationRates returns the utilization rates for the device
-	GetUtilizationRates() (nvml.Utilization, error)
 	// GetEncoderUtilization returns the encoder utilization
 	GetEncoderUtilization() (uint32, uint32, error)
 	// GetFanSpeed returns the fan speed percentage
 	GetFanSpeed() (uint32, error)
+	// GetFieldValues returns the values for the specified fields
+	GetFieldValues(values []nvml.FieldValue) error
+	// GetGpuInstanceId returns the GPU instance ID for MIG devices
+	GetGpuInstanceId() (int, error)
+	// GetIndex returns the index of the device
+	GetIndex() (int, error)
+	// GetMaxClockInfo returns the maximum clock speed for the given clock type
+	GetMaxClockInfo(clockType nvml.ClockType) (uint32, error)
+	// GetMemoryBusWidth returns the memory bus width
+	GetMemoryBusWidth() (uint32, error)
+	// GetMemoryInfo returns memory information of the device
+	GetMemoryInfo() (nvml.Memory, error)
+	// GetNumGpuCores returns the number of GPU cores in the device
+	GetNumGpuCores() (int, error)
+	// GetNvLinkState returns the state of the specified NVLink
+	GetNvLinkState(link int) (nvml.EnableState, error)
+	// GetPcieThroughput returns the PCIe throughput in bytes/sec
+	GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32, error)
+	// GetPerformanceState returns the current performance state
+	GetPerformanceState() (nvml.Pstates, error)
 	// GetPowerManagementLimit returns the power management limit in milliwatts
 	GetPowerManagementLimit() (uint32, error)
 	// GetPowerUsage returns the power usage in milliwatts
 	GetPowerUsage() (uint32, error)
-	// GetPerformanceState returns the current performance state
-	GetPerformanceState() (nvml.Pstates, error)
-	// GetClockInfo returns the current clock speed for the given clock type
-	GetClockInfo(clockType nvml.ClockType) (uint32, error)
 	// GetTemperature returns the current temperature
 	GetTemperature(sensorType nvml.TemperatureSensors) (uint32, error)
 	// GetTotalEnergyConsumption returns the total energy consumption in millijoules
 	GetTotalEnergyConsumption() (uint64, error)
-	// GetFieldValues returns the values for the specified fields
-	GetFieldValues(values []nvml.FieldValue) error
-	// GetNvLinkState returns the state of the specified NVLink
-	GetNvLinkState(link int) (nvml.EnableState, error)
-	// GetGpuInstanceId returns the GPU instance ID for MIG devices
-	GetGpuInstanceId() (int, error)
-	// GetAttributes returns the attributes of the device
-	GetAttributes() (nvml.DeviceAttributes, error)
+	// GetUUID returns the universally unique identifier of the device
+	GetUUID() (string, error)
+	// GetUtilizationRates returns the utilization rates for the device
+	GetUtilizationRates() (nvml.Utilization, error)
 }
 
 // Device represents a GPU device with some properties already computed.
@@ -347,6 +349,18 @@ func (d *safeDeviceImpl) GetAttributes() (nvml.DeviceAttributes, error) {
 		return nvml.DeviceAttributes{}, fmt.Errorf("error getting device attributes: %s", nvml.ErrorString(ret))
 	}
 	return attrs, nil
+}
+
+// GetComputeRunningProcesses returns the list of compute processes running on the device
+func (d *safeDeviceImpl) GetComputeRunningProcesses() ([]nvml.ProcessInfo, error) {
+	if err := d.lib.lookup(toNativeName("GetComputeRunningProcesses")); err != nil {
+		return nil, err
+	}
+	processes, ret := d.nvmlDevice.GetComputeRunningProcesses()
+	if ret != nvml.SUCCESS {
+		return nil, fmt.Errorf("error getting compute running processes: %s", nvml.ErrorString(ret))
+	}
+	return processes, nil
 }
 
 // NewDevice creates a new Device from the nvml.Device and caches some properties
