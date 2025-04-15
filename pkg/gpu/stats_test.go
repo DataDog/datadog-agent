@@ -313,7 +313,7 @@ func TestGetStatsNormalization(t *testing.T) {
 	// Add kernels and memory allocations for both processes
 	for _, pid := range []uint32{pid1, pid2} {
 		streamID := uint64(pid)
-		stream := addStream(streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
+		stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
 		stream.processEnded = false
 		stream.kernelSpans = []*kernelSpan{
 			{
@@ -325,7 +325,7 @@ func TestGetStatsNormalization(t *testing.T) {
 		}
 
 		// Add memory allocations
-		globalStream := addGlobalStream(streamHandlers, pid, testutil.DefaultGpuUUID, "")
+		globalStream := addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
 		globalStream.processEnded = false
 		globalStream.allocations = []*memoryAllocation{
 			{
