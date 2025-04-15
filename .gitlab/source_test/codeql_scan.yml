@@ -43,7 +43,7 @@ run_codeql_scan:
     - GOPRIVATE=github.com/DataDog GOBIN=/usr/local/go/bin go install github.com/DataDog/codescanning@main
     - CODEQL_SARIF="/tmp/go.sarif" codescanning $UPLOAD_CONFIGS -scan_started_time="$CI_JOB_STARTED_AT"
     - CODEQL_SARIF="/tmp/javascript.sarif" codescanning $UPLOAD_CONFIGS -scan_started_time="$CI_JOB_STARTED_AT"
-    - CODEQL_SARIF="/tmp/python.sarif" codescanning $UPLOAD_CONFIGS -scan_started_time="$CI_JOB_STARTED_AT
+    - CODEQL_SARIF="/tmp/python.sarif" codescanning $UPLOAD_CONFIGS -scan_started_time="$CI_JOB_STARTED_AT"
     - CODEQL_SARIF="/tmp/cpp.sarif" codescanning $UPLOAD_CONFIGS -scan_started_time="$CI_JOB_STARTED_AT"
     - mv /tmp/go.sarif .
     - mv /tmp/javascript.sarif .
