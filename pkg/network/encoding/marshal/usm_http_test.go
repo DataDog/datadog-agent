@@ -310,56 +310,57 @@ func TestLocalhostScenario(t *testing.T) {
 	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(103)].Count)
 }
 
-// TestKubernetesNATScenario tests how USMConnectionIndex handles Kubernetes-style NAT connections
+// TestKubernetesLocalNATScenario tests how USMConnectionIndex handles Kubernetes-style local NAT connections
 // with both pre-NAT and post-NAT connections as seen in Kubernetes environments
-func TestKubernetesNATScenario(t *testing.T) {
+func TestKubernetesLocalNATScenario(t *testing.T) {
 	if runtime.GOOS == "windows" || os.Getenv("CI") == "true" {
 		t.Skip("Skipping test on Windows or CI")
 	}
 	assert := assert.New(t)
 
-	// Create IP addresses and ports exactly as seen in the logs
-	clientIP := util.AddressFromString("172.29.161.37")   // Client IP from logs
-	serviceIP := util.AddressFromString("10.100.103.122") // Service IP (ClusterIP) from logs
-	serverIP := util.AddressFromString("172.29.191.94")   // Server IP from logs
-	clientPort := uint16(53792)                           // Client port from logs
-	servicePort := uint16(7778)                           // Service port from logs
-	serverPort := uint16(7777)                            // Server port from logs
+	// Create IP addresses and ports
+	clientIP := util.AddressFromString("172.29.161.37")
+	k8sServiceIP := util.AddressFromString("10.100.103.122") // K8s Service IP (ClusterIP)
+	serverIP := util.AddressFromString("172.29.191.94")
+	clientPort := uint16(53792)
+	servicePort := uint16(7778)
+	serverPort := uint16(7777)
 
-	// Create both connections exactly as seen in the logs
+	// Create both connections exactly as seen from SUSM-94 reproduction environment
 	connections := []network.ConnectionStats{
-		{ // Pre-NAT connection: client -> service
+		{ // Pre-NAT connection: client -> k8s service (this is from the client's perspective, pid is the client pid)
 			ConnectionTuple: network.ConnectionTuple{
 				Source:    clientIP,
 				SPort:     clientPort,
-				Dest:      serviceIP,
+				Dest:      k8sServiceIP,
 				DPort:     servicePort,
-				Pid:       1784258, // PID from logs
+				Pid:       1784258,
 				Type:      network.TCP,
 				Direction: network.OUTGOING,
 			},
 			ProtocolStack: protocols.Stack{Application: protocols.HTTP},
+			// Post-NAT translation, coming from the conntrack module
 			IPTranslation: &network.IPTranslation{
-				// Values from logs - NOTE: this is flipped compared to what one might expect
+				// NOTE: this is flipped compared to what one might expect
 				// The ReplSrc fields contain the server endpoint, and ReplDst contains the client
-				ReplSrcIP:   serverIP,   // Server IP in ReplSrcIP (from logs)
-				ReplSrcPort: serverPort, // Server port in ReplSrcPort (from logs)
-				ReplDstIP:   clientIP,   // Client IP in ReplDstIP (from logs)
-				ReplDstPort: clientPort, // Client port in ReplDstPort (from logs)
+				ReplSrcIP:   serverIP,
+				ReplSrcPort: serverPort,
+				ReplDstIP:   clientIP,
+				ReplDstPort: clientPort,
 			},
 		},
-		{ // Post-NAT connection: server -> client (from server's perspective)
+		{ // client -> server (from server's perspective, pid is the server pid)
 			ConnectionTuple: network.ConnectionTuple{
-				Source:    serverIP,   // Server is the source in this connection
-				SPort:     serverPort, // Server port
-				Dest:      clientIP,   // Client is the destination
-				DPort:     clientPort, // Client port
-				Pid:       334392,     // PID from logs
+				Source:    serverIP,
+				SPort:     serverPort,
+				Dest:      clientIP,
+				DPort:     clientPort,
+				Pid:       334392,
 				Type:      network.TCP,
 				Direction: network.INCOMING,
 			},
 			ProtocolStack: protocols.Stack{Application: protocols.HTTP},
-			// No IPTranslation for this connection as seen in logs
+			// No IPTranslation for this connection
 		},
 	}
 
@@ -370,10 +371,10 @@ func TestKubernetesNATScenario(t *testing.T) {
 	httpStats.AddRequest(200, 15.0, 0, nil)
 	httpStats.AddRequest(200, 15.0, 0, nil)
 
-	// Create pre-NAT HTTP key (client → service) with path from logs
+	// Create pre-NAT HTTP key (client → k8s service)
 	preNATKey := http.NewKey(
 		clientIP,
-		serviceIP,
+		k8sServiceIP,
 		clientPort,
 		servicePort,
 		[]byte("/delay/5"),
@@ -381,8 +382,9 @@ func TestKubernetesNATScenario(t *testing.T) {
 		http.MethodGet,
 	)
 
-	// Create post-NAT HTTP key (client → server) with path from logs
-	// Note: According to the logs, even post-NAT HTTP key has client as source and server as destination
+	// Create post-NAT HTTP key (client -> server)
+	// This is assuming that USM normalize the connection key, meaning that the clientIP
+	// will always be in the saddr field (this is what we've seen when reproducing SUSM-94)
 	postNATKey := http.NewKey(
 		clientIP,   // Client is still the source in the HTTP key (172.29.161.37)
 		serverIP,   // Server is the destination (172.29.191.94)
@@ -411,14 +413,14 @@ func TestKubernetesNATScenario(t *testing.T) {
 		// Create HTTP encoder
 		httpEncoder := newHTTPEncoder(payload.HTTP)
 
-		// Test pre-NAT connection (client → service)
+		// Test pre-NAT connection
 		aggregations, _, _ := getHTTPAggregations(t, httpEncoder, payload.Conns[0])
 		assert.NotNil(aggregations)
 		assert.Equal("/delay/5", aggregations.EndpointAggregations[0].Path)
 		assert.Equal(model.HTTPMethod_Get, aggregations.EndpointAggregations[0].Method)
 		assert.Equal(uint32(4), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(200)].Count)
 
-		// Test post-NAT connection (server → client)
+		// Test post-NAT connection
 		aggregations, _, _ = getHTTPAggregations(t, httpEncoder, payload.Conns[1])
 		assert.NotNil(aggregations)
 		assert.Equal("/delay/5", aggregations.EndpointAggregations[0].Path)
@@ -468,9 +470,6 @@ func TestKubernetesNATScenario(t *testing.T) {
 		var conn model.Connection
 		streamer.Unwrap(t, &conn)
 		assert.Empty(conn.HttpAggregations, "Post-NAT connection (server → client) should not have HTTP data with only pre-NAT in the index")
-
-		// Test manual lookup with the generated index
-		t.Log("In a real K8s environment, we would need NAT enrichment to find data for the post-NAT connection")
 	})
 
 	// Test scenario 3: Only post-NAT key in the HTTP data
@@ -503,9 +502,6 @@ func TestKubernetesNATScenario(t *testing.T) {
 		var conn model.Connection
 		streamer.Unwrap(t, &conn)
 		assert.Empty(conn.HttpAggregations, "Pre-NAT connection (client → service) should not have HTTP data with only post-NAT in the index")
-
-		// Test manual lookup with the generated index
-		t.Log("In a real K8s environment, we would need NAT enrichment to find data for the pre-NAT connection")
 	})
 }
 
