@@ -16,7 +16,6 @@
 #include <linux/binfmts.h>
 #include <linux/dcache.h>
 #include <linux/mount.h>
-#include <linux/fs.h>
 #include <linux/magic.h>
 
 #include <net/sock.h>
