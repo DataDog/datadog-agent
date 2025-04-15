@@ -14,6 +14,7 @@ import (
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/nvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -22,7 +23,7 @@ import (
 func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	ctx := getTestSystemContext(t)
-	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
+	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), config.New())
 
 	pid := uint32(1)
 	pidTgid := uint64(pid)<<32 + uint64(pid)

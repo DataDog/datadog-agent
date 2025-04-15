@@ -47,8 +47,6 @@
 # if go.work changes then either .go-version or modules.yml changed too, so ASC might as well own it
 /go.work                                @DataDog/agent-runtimes
 
-/.circleci/                             @DataDog/agent-devx-infra
-
 /.github/CODEOWNERS                                  # do not notify anyone
 /.github/*_TEMPLATE.md                               @DataDog/agent-devx-loops
 /.github/dependabot.yaml                             @DataDog/agent-devx-infra
@@ -386,6 +384,7 @@
 /pkg/telemetry/                         @DataDog/agent-runtimes
 /pkg/telemetry/stat_gauge_wrapper.go    @DataDog/ebpf-platform
 /pkg/telemetry/stat_counter_wrapper.go  @DataDog/ebpf-platform
+/pkg/template/                          @DataDog/agent-runtimes
 /pkg/version/                           @DataDog/agent-runtimes
 /pkg/obfuscate/                         @DataDog/agent-apm
 /pkg/trace/                             @DataDog/agent-apm
@@ -603,6 +602,7 @@
 /tasks/dogstatsd.py                     @DataDog/agent-metric-pipelines
 /tasks/update_go.py                     @DataDog/agent-runtimes
 /tasks/unit_tests/update_go_tests.py    @DataDog/agent-runtimes
+/tasks/pkg_template.py                  @DataDog/agent-runtimes
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/agent-integrations
 /tasks/devcontainer.py                  @DataDog/agent-devx-infra @DataDog/agent-devx-loops @DataDog/container-platform
 /tasks/skaffold.py                      @DataDog/agent-devx-infra @DataDog/agent-devx-loops @DataDog/container-platform

@@ -120,6 +120,7 @@ use (
 	pkg/tagger/types
 	pkg/tagset
 	pkg/telemetry
+	pkg/template
 	pkg/trace
 	pkg/trace/stats/oteltest
 	pkg/util/backoff

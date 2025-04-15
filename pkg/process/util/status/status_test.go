@@ -71,6 +71,7 @@ func TestGetStatus(t *testing.T) {
 			WlmExtractorCacheSize:           36,
 			WlmExtractorStaleDiffs:          1,
 			WlmExtractorDiffsDropped:        2,
+			SubmissionErrorCount:            1,
 		},
 	}
 

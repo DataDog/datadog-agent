@@ -262,8 +262,9 @@ func (f *factory) consumeStatsPayload(ctx context.Context, wg *sync.WaitGroup, s
 func (f *factory) createLogsExporter(
 	ctx context.Context,
 	set exporter.Settings,
-	_ component.Config,
+	c component.Config,
 ) (exporter.Logs, error) {
+	cfg := checkAndCastConfig(c, set.Logger)
 	var logch chan *message.Message
 	if provider := f.logsAgent.GetPipelineProvider(); provider != nil {
 		logch = provider.NextPipelineChan()
@@ -272,6 +273,7 @@ func (f *factory) createLogsExporter(
 	lc := &logsagentexporter.Config{
 		OtelSource:    "otel_agent",
 		LogSourceName: logsagentexporter.LogSourceName,
+		QueueSettings: cfg.QueueSettings,
 	}
 	return lf.CreateLogs(ctx, set, lc)
 }
