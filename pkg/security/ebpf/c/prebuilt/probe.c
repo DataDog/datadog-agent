@@ -5,13 +5,9 @@
 #include <linux/ptrace.h>
 #include <linux/types.h>
 #include <linux/version.h>
-#include <linux/bpf.h>
 #include <linux/filter.h>
 #include <uapi/asm-generic/mman-common.h>
 #include <linux/pipe_fs_i.h>
-#include <linux/tty.h>
-#include <linux/sched.h>
-#include <linux/mount.h>
 #include <linux/magic.h>
 
 #include <net/sock.h>
