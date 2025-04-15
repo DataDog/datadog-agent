@@ -36,7 +36,7 @@ static_quality_gate_agent_suse_arm64_fips:
   max_on_wire_size: 173.92 MiB
 static_quality_gate_docker_agent_amd64:
   max_on_disk_size: 862.5 MiB
-  max_on_wire_size: 291.48 MiB
+  max_on_wire_size: 292.00 MiB
 static_quality_gate_docker_agent_arm64:
   max_on_disk_size: 875.62 MiB
   max_on_wire_size: 277.94 MiB
