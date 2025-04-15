@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -64,7 +65,7 @@ func newCudaEventConsumer(sysCtx *systemContext, streamHandlers *streamCollectio
 }
 
 func newCudaEventConsumerTelemetry(tm telemetry.Component) *cudaEventConsumerTelemetry {
-	subsystem := gpuTelemetryModule + "__consumer"
+	subsystem := consts.GpuTelemetryModule + "__consumer"
 
 	events := tm.NewCounter(subsystem, "events", []string{"event_type"}, "Number of processed CUDA events received by the consumer")
 	eventCounterByType := make(map[gpuebpf.CudaEventType]telemetry.SimpleCounter)
@@ -126,7 +127,7 @@ func (c *cudaEventConsumer) Start() {
 			case <-health.C:
 			case <-processSync.C:
 				c.checkClosedProcesses()
-				c.sysCtx.cleanupOldEntries()
+				c.sysCtx.cleanOld()
 			case batchData, ok := <-dataChannel:
 				if !ok {
 					return
