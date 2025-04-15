@@ -23,6 +23,7 @@ import (
 const (
 	installerUnit    = "datadog-installer.service"
 	installerUnitExp = "datadog-installer-exp.service"
+	installerSymlink = "/usr/bin/datadog-installer"
 )
 
 var installerUnits = []string{installerUnit, installerUnitExp}
@@ -31,6 +32,11 @@ var (
 	installerDirectories = file.Directories{
 		{Path: "/opt/datadog-packages/run", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/opt/datadog-packages/tmp", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
+	}
+	// agentDirectories are the directories that the agent needs to function
+	agentDirectories = file.Directories{
+		{Path: "/etc/datadog-agent", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
+		{Path: "/var/log/datadog", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 	}
 )
 

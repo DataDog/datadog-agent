@@ -46,12 +46,13 @@ type BucketsAggregationKey struct {
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
 type PayloadAggregationKey struct {
-	Env          string
-	Hostname     string
-	Version      string
-	ContainerID  string
-	GitCommitSha string
-	ImageTag     string
+	Env             string
+	Hostname        string
+	Version         string
+	ContainerID     string
+	GitCommitSha    string
+	ImageTag        string
+	ProcessTagsHash uint64
 }
 
 func getStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
@@ -93,13 +94,20 @@ func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregatio
 			Synthetics:     synthetics,
 			IsTraceRoot:    isTraceRoot,
 			GRPCStatusCode: s.grpcStatusCode,
-			PeerTagsHash:   peerTagsHash(s.matchingPeerTags),
+			PeerTagsHash:   tagsFnvHash(s.matchingPeerTags),
 		},
 	}
 	return agg
 }
 
-func peerTagsHash(tags []string) uint64 {
+func processTagsHash(processTags string) uint64 {
+	if processTags == "" {
+		return 0
+	}
+	return tagsFnvHash(strings.Split(processTags, ","))
+}
+
+func tagsFnvHash(tags []string) uint64 {
 	if len(tags) == 0 {
 		return 0
 	}
@@ -126,7 +134,7 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 			SpanKind:       g.SpanKind,
 			StatusCode:     g.HTTPStatusCode,
 			Synthetics:     g.Synthetics,
-			PeerTagsHash:   peerTagsHash(g.PeerTags),
+			PeerTagsHash:   tagsFnvHash(g.PeerTags),
 			IsTraceRoot:    g.IsTraceRoot,
 			GRPCStatusCode: g.GRPCStatusCode,
 		},

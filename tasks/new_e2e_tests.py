@@ -122,6 +122,7 @@ def run(
                 code=1,
             )
         parsed_params[parts[0]] = parts[1]
+
     if local_package:
         parsed_params["ddagent:localPackage"] = local_package
 

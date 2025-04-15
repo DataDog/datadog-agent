@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,12 +60,23 @@ func Detect(lang language.Language, ctx usm.DetectionContext) Instrumentation {
 		return Injected
 	}
 
+	// if the process has valid tracer's metadata, then the
+	// instrumentation is provided
+	if isTracerMetadataValid(ctx) {
+		return Provided
+	}
+
 	// different detection for provided instrumentation for each
 	if detect, ok := detectorMap[lang]; ok {
 		return detect(ctx)
 	}
 
 	return None
+}
+
+func isTracerMetadataValid(ctx usm.DetectionContext) bool {
+	_, err := tracermetadata.GetTracerMetadata(ctx.Pid, kernel.ProcFSRoot())
+	return err == nil
 }
 
 func isInjected(envs envs.Variables) bool {
