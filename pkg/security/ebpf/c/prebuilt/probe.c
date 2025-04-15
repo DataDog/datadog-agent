@@ -14,7 +14,6 @@
 #include <linux/tty.h>
 #include <linux/sched.h>
 #include <linux/binfmts.h>
-#include <linux/dcache.h>
 #include <linux/mount.h>
 #include <linux/magic.h>
 
