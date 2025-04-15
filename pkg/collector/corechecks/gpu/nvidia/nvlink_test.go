@@ -10,45 +10,51 @@ package nvidia
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
+
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestNewNVLinkCollector(t *testing.T) {
 	tests := []struct {
 		name      string
-		mockSetup func() *nvmlmock.Device
+		mockSetup func() ddnvml.SafeDevice
 		wantError bool
 		wantLinks int
 	}{
 		{
 			name: "Unsupported device",
-			mockSetup: func() *nvmlmock.Device {
-				return &nvmlmock.Device{
+			mockSetup: func() ddnvml.SafeDevice {
+				dev, err := ddnvml.NewDevice(&nvmlmock.Device{
 					GetFieldValuesFunc: func(_ []nvml.FieldValue) nvml.Return {
 						return nvml.ERROR_NOT_SUPPORTED
 					},
-				}
+				})
+				require.NoError(t, err)
+				return dev
 			},
 			wantError: true,
 		},
 		{
 			name: "Unknown error",
-			mockSetup: func() *nvmlmock.Device {
-				return &nvmlmock.Device{
+			mockSetup: func() ddnvml.SafeDevice {
+				dev, err := ddnvml.NewDevice(&nvmlmock.Device{
 					GetFieldValuesFunc: func(_ []nvml.FieldValue) nvml.Return {
 						return nvml.ERROR_UNKNOWN
 					},
-				}
+				})
+				require.NoError(t, err)
+				return dev
 			},
 			wantError: true,
 		},
 		{
 			name: "Success with 4 links",
-			mockSetup: func() *nvmlmock.Device {
-				return &nvmlmock.Device{
+			mockSetup: func() ddnvml.SafeDevice {
+				dev, err := ddnvml.NewDevice(&nvmlmock.Device{
 					GetFieldValuesFunc: func(values []nvml.FieldValue) nvml.Return {
 						require.Len(t, values, 1, "Expected one field value for total number of links, got %d", len(values))
 						require.Equal(t, values[0].FieldId, uint32(nvml.FI_DEV_NVLINK_LINK_COUNT), "Expected field ID to be FI_DEV_NVLINK_LINK_COUNT, got %d", values[0].FieldId)
@@ -60,7 +66,9 @@ func TestNewNVLinkCollector(t *testing.T) {
 					GetUUIDFunc: func() (string, nvml.Return) {
 						return "GPU-123", nvml.SUCCESS
 					},
-				}
+				})
+				require.NoError(t, err)
+				return dev
 			},
 			wantError: false,
 			wantLinks: 4,
@@ -137,7 +145,7 @@ func TestNVLinkCollector_Collect(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a mock device
-			mockDevice := &nvmlmock.Device{
+			mockDevice, err := ddnvml.NewDevice(&nvmlmock.Device{
 				GetFieldValuesFunc: func(values []nvml.FieldValue) nvml.Return {
 					values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
 					values[0].Value = [8]byte{byte(len(tt.nvlinkStates)), 0, 0, 0, 0, 0, 0, 0}
@@ -149,7 +157,8 @@ func TestNVLinkCollector_Collect(t *testing.T) {
 				GetUUIDFunc: func() (string, nvml.Return) {
 					return "GPU-123", nvml.SUCCESS
 				},
-			}
+			})
+			require.NoError(t, err)
 
 			// Create collector
 			collector, err := newNVLinkCollector(mockDevice)
