@@ -69,11 +69,24 @@ func TestMemThreshold(t *testing.T) {
 // TestCPUThreshold tests that the flare is generated when CPU threshold is exceeded
 func TestCPUThreshold(t *testing.T) {
 	check := createTestCheck(t)
-	check.instance.CPUThreshold = 1 // 1 byte to force trigger
+	check.instance.CPUThreshold = 1 // 1 percent to force trigger
 
 	err := check.Run()
 	require.NoError(t, err)
 	assert.True(t, check.profileCaptured)
+}
+
+// TestBelowThresholds tests that the flare is not generated when both memory and CPU usage are below thresholds
+func TestBelowThresholds(t *testing.T) {
+	check := createTestCheck(t)
+	// Set reasonably high thresholds that won't be exceeded during test
+	check.instance.MemoryThreshold = "1000GB" // Very high memory threshold
+	check.instance.CPUThreshold = 1000        // 1000% CPU threshold (impossible to reach)
+
+	err := check.Run()
+	require.NoError(t, err)
+	// Verify that no profile was captured since we're below thresholds
+	assert.False(t, check.profileCaptured)
 }
 
 // TestGenerateFlareLocal tests that the flare is generated correctly when ticket ID and user email are not provided

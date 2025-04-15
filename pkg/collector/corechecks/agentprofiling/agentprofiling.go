@@ -138,14 +138,14 @@ func (m *AgentProfilingCheck) Run() error {
 	}
 
 	// Exit early if both thresholds are disabled
-	if m.instance.MemoryThreshold == "0" && m.instance.CPUThreshold <= 0 {
+	if m.memoryThreshold == 0 && m.instance.CPUThreshold <= 0 {
 		log.Debugf("Memory and CPU profile thresholds are disabled, skipping check.")
 		return nil
 	}
 
 	// Get Agent memory usage
 	var processMemoryMB float64
-	if m.instance.MemoryThreshold != "0" {
+	if m.memoryThreshold > 0 {
 		// Get the current process (agent)
 		p, err := process.NewProcess(int32(os.Getpid()))
 		if err != nil {
