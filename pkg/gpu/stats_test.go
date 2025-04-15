@@ -318,7 +318,8 @@ func TestCleanupInactiveAggregators(t *testing.T) {
 	}
 
 	// First getStats call should create an aggregator
-	stats := statsGen.getStats(ktime + int64(10*time.Second))
+	stats, err := statsGen.getStats(ktime + int64(10*time.Second))
+	require.NoError(t, err)
 	require.NotNil(t, stats)
 	require.Len(t, statsGen.aggregators, 1)
 
@@ -328,7 +329,8 @@ func TestCleanupInactiveAggregators(t *testing.T) {
 
 	// If we remove the stream, the aggregator should be marked as inactive in the next getStats call
 	streamHandlers.streams = make(map[streamKey]*StreamHandler)
-	stats = statsGen.getStats(ktime + int64(20*time.Second))
+	stats, err = statsGen.getStats(ktime + int64(20*time.Second))
+	require.NoError(t, err)
 	require.NotNil(t, stats)
 	require.Len(t, statsGen.aggregators, 1) // no cleanup done yet, here we just mark the aggregator as inactive
 
