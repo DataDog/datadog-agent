@@ -78,12 +78,13 @@ func (c *Check) init() error {
 	c.cdbName = d.Name
 	tags = append(tags, fmt.Sprintf("cdb:%s", c.cdbName))
 
+	if c.config.ReportedHostname != "" {
+		c.dbResolvedHostname = c.config.ReportedHostname
+	} else if i.HostName.Valid {
+		c.dbResolvedHostname = i.HostName.String
+	}
 	if !c.config.EmptyDefaultHostname {
-		if c.config.ReportedHostname != "" {
-			c.dbHostname = c.config.ReportedHostname
-		} else if i.HostName.Valid {
-			c.dbHostname = i.HostName.String
-		}
+		c.dbHostname = c.dbResolvedHostname
 	}
 	if c.dbHostname == "" {
 		log.Errorf("%s failed to determine hostname, consider setting reported_hostname", c.logPrompt)
@@ -180,7 +181,7 @@ func (c *Check) createDatabaseIdentifier() string {
 			}
 		}
 	}
-	tags["resolved_hostname"] = c.dbHostname
+	tags["resolved_hostname"] = c.dbResolvedHostname
 	tags["server"] = c.config.Server
 	tags["port"] = fmt.Sprintf("%d", c.config.Port)
 	tags["cdb_name"] = c.cdbName

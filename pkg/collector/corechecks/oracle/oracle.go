@@ -90,6 +90,7 @@ type Check struct {
 	cdbName                                 string
 	statementMetricsMonotonicCountsPrevious map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB
 	dbHostname                              string
+	dbResolvedHostname                      string
 	dbInstanceIdentifier                    string
 	dbVersion                               string
 	driver                                  string
