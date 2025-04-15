@@ -23,16 +23,19 @@ const (
 
 var getWiFiInfo = GetWiFiInfo
 
-// WiFiInfo contains information about the WiFi connection as defined in wlan_darwin.h
-type WiFiInfo struct {
-	Rssi         int
-	Ssid         string
-	Bssid        string
-	Channel      int
-	Noise        int
-	TransmitRate float64 // in Mbps
-	MacAddress   string
-	PHYMode      string
+// WiFiInfo contains information about the WiFi connection (defined in Mac wlan_darwin.h and Windows wlan.h)
+type wifiInfo struct {
+	rssi             int
+	ssid             string
+	bssid            string
+	channel          int
+	noise            int
+	noiseValid       bool
+	transmitRate     float64 // in Mbps
+	receiveRate      float64 // in Mbps
+	receiveRateValid bool
+	macAddress       string
+	phyMode          string
 }
 
 // WLANCheck monitors the status of the WLAN interface
@@ -60,21 +63,21 @@ func (c *WLANCheck) Run() error {
 		return err
 	}
 
-	if wifiInfo.PHYMode == "None" {
+	if wifiInfo.phyMode == "None" {
 		log.Warn("No active Wi-Fi interface detected: PHYMode is none.")
 		return nil
 	}
 
-	ssid := wifiInfo.Ssid
+	ssid := wifiInfo.ssid
 	if ssid == "" {
 		ssid = "unknown"
 	}
-	bssid := wifiInfo.Bssid
+	bssid := wifiInfo.bssid
 	if bssid == "" {
 		bssid = "unknown"
 	}
 
-	macAddress := strings.ToLower(strings.Replace(wifiInfo.MacAddress, " ", "_", -1))
+	macAddress := strings.ToLower(strings.Replace(wifiInfo.macAddress, " ", "_", -1))
 	if macAddress == "" {
 		macAddress = "unknown"
 	}
@@ -84,28 +87,34 @@ func (c *WLANCheck) Run() error {
 	tags = append(tags, "bssid:"+bssid)
 	tags = append(tags, "mac_address:"+macAddress)
 
-	sender.Gauge("wlan.rssi", float64(wifiInfo.Rssi), "", tags)
-	sender.Gauge("wlan.noise", float64(wifiInfo.Noise), "", tags)
-	sender.Gauge("wlan.transmit_rate", float64(wifiInfo.TransmitRate), "", tags)
-
-	// channel swap events
-	if c.isWarmedUp && c.lastChannelID != wifiInfo.Channel {
-		sender.Count("wlan.channel_swap_events", 1.0, "", tags)
-	} else {
-		sender.Count("wlan.channel_swap_events", 0.0, "", tags)
+	sender.Gauge("wlan.rssi", float64(wifiInfo.rssi), "", tags)
+	if wifiInfo.noiseValid {
+		sender.Gauge("wlan.noise", float64(wifiInfo.noise), "", tags)
+	}
+	sender.Gauge("wlan.transmit_rate", float64(wifiInfo.transmitRate), "", tags)
+	if wifiInfo.receiveRateValid {
+		sender.Gauge("wlan.receive_rate", float64(wifiInfo.receiveRate), "", tags)
 	}
 
-	// roaming events / ssid swap events
-	if c.isWarmedUp && c.lastBSSID != "" && c.lastSSID != "" && c.lastBSSID == wifiInfo.Bssid && c.lastSSID != wifiInfo.Ssid {
-		sender.Count("wlan.roaming_events", 1.0, "", tags)
-	} else {
-		sender.Count("wlan.roaming_events", 0.0, "", tags)
+	roamingEvent := 0.0
+	channelSwapEvent := 0.0
+	if c.isWarmedUp {
+		// Check if the BSSID or channel has changed since the last run
+		if c.lastBSSID != wifiInfo.bssid {
+			// BSSID has changed
+			roamingEvent = 1.0
+		} else if c.lastChannelID != wifiInfo.channel {
+			// Channel has changed (if the BSSID is changed it is roaming and not channel swap)
+			channelSwapEvent = 1.0
+		}
 	}
+	sender.Count("wlan.roaming_events", roamingEvent, "", tags)
+	sender.Count("wlan.channel_swap_events", channelSwapEvent, "", tags)
 
 	// update last values
-	c.lastChannelID = wifiInfo.Channel
-	c.lastBSSID = wifiInfo.Bssid
-	c.lastSSID = wifiInfo.Ssid
+	c.lastChannelID = wifiInfo.channel
+	c.lastBSSID = wifiInfo.bssid
+	c.lastSSID = wifiInfo.ssid
 	c.isWarmedUp = true
 
 	sender.Commit()
