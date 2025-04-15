@@ -41,7 +41,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -85,7 +85,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -129,7 +129,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -173,7 +173,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -217,7 +217,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -261,7 +261,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -305,7 +305,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -349,7 +349,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -393,7 +393,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -437,7 +437,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -481,7 +481,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -525,7 +525,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -569,7 +569,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -613,7 +613,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -657,7 +657,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -701,7 +701,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -745,7 +745,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -789,7 +789,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -833,7 +833,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -877,7 +877,7 @@ generator:
             set: 9
             histogram: 1
       bytes_per_second: "1 MiB"
-      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_prebuild_cache_size_bytes: "16 MiB"
       maximum_block_size: 8192
 
 blackhole:
