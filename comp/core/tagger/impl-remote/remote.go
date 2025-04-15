@@ -568,7 +568,7 @@ func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
 	for {
 		select {
 		case <-t.ctx.Done():
-			return &backoff.PermanentError{Err: errTaggerStreamNotStarted}
+			return errTaggerStreamNotStarted
 		case <-timer.C:
 			// Check the auth token
 			if t.token == "" {
