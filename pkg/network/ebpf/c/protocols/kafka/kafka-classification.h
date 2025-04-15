@@ -96,6 +96,9 @@ static __always_inline bool is_valid_kafka_request_header(const kafka_header_t *
             return false;
         }
         break;
+    case KAFKA_METADATA:
+        // TODO
+        return true;
     default:
         // We are only interested in fetch and produce requests
         return false;
@@ -269,7 +272,6 @@ static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexibl
 // verifies if it is a valid UUID version 4
 static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible, u32 offset) {
     // The topic id is a UUID, which is 16 bytes long.
-    // It is in network byte order (big-endian)
     u8 topic_id[16] = {};
 
     // Skipping number of entries for now
@@ -421,6 +423,9 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
         flexible = kafka_header->api_version >= 12;
         topic_id_instead_of_name = kafka_header->api_version >= 13;
         break;
+    case KAFKA_METADATA:
+        // TODO
+        return true;
     default:
         return false;
     }
