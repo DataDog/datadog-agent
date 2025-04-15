@@ -27,3 +27,4 @@ jobs:
       - name: Test
         run: |
           ls -la ~/.cache
+          python3 -m site
