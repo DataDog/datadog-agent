@@ -30,7 +30,7 @@ SUCCESS_CHAR = "✅"
 body_pattern = """### {}
 
 |Result|Quality gate|Relative disk size|On disk size|On disk size limit|Relative wire size|On wire size|On wire size limit|
-|----|----|----|----|----|----|
+|----|----|----|----|----|----|----|----|
 """
 
 body_error_footer_pattern = """<details>
