@@ -27,9 +27,9 @@ The following is valid for `deb`, `rpm`, and `oci` packages.
 ![Upgrade Hooks](https://gist.githubusercontent.com/arbll/13866f7e466706275274380b79a2bba4/raw/440e3cbc04d9762ee0f1864333ec1a004ec50159/upgrade.svg)
 [Source](https://docs.google.com/drawings/d/17RHy35YWuriaeCXTQ5eQciC3goYgle2_Qwe2nhRzzho/edit)
 
-1. v1's `PreRemove` hook is executed.
+1. v1's `PreRemove` hook is executed. Note that we inform the hook that the package is being upgraded.
 2. v2's files are written to disk and v1's files are removed.
-3. v2's `PostInstall` hook is executed.
+3. v2's `PostInstall` hook is executed. Note that we inform the hook that the package is being upgraded.
 
 ## Experiment upgrades
 
