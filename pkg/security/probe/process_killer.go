@@ -32,7 +32,7 @@ import (
 
 // ProcessKillerOS interface defines an os specific process killer
 type ProcessKillerOS interface {
-	KillFromUserspace(sig uint32, pc *killContext) error
+	Kill(sig uint32, pc *killContext) error
 	getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]killContext, error)
 }
 
@@ -76,9 +76,10 @@ type processKillerStats struct {
 	killQueuedDiscardedByDisarm int64
 }
 
-func newProcessKiller(cfg *config.Config, pkos ProcessKillerOS) (*ProcessKiller, error) {
+// NewProcessKiller returns a new ProcessKiller
+func NewProcessKiller(cfg *config.Config, pkos ProcessKillerOS) (*ProcessKiller, error) {
 	if pkos == nil {
-		pkos = NewProcessKillerOS()
+		pkos = NewProcessKillerOS(nil)
 	}
 	p := &ProcessKiller{
 		cfg:             cfg,
@@ -103,11 +104,6 @@ func newProcessKiller(cfg *config.Config, pkos ProcessKillerOS) (*ProcessKiller,
 	}
 
 	return p, nil
-}
-
-// NewProcessKiller returns a new ProcessKiller
-func NewProcessKiller(cfg *config.Config) (*ProcessKiller, error) {
-	return newProcessKiller(cfg, nil)
 }
 
 // lock perRuleStatsLock should be acquire first
@@ -429,7 +425,7 @@ func (p *ProcessKiller) KillProcesses(killDirectly bool, ruleID string, sig int,
 	for _, pc := range kcs {
 		log.Debugf("requesting signal %d to be sent to %d", sig, pc.pid)
 
-		if err := p.os.KillFromUserspace(uint32(sig), &pc); err != nil {
+		if err := p.os.Kill(uint32(sig), &pc); err != nil {
 			seclog.Debugf("failed to kill process %d: %s", pc.pid, err)
 		} else {
 			processesKilled++

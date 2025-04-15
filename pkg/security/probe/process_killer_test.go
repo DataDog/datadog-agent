@@ -24,7 +24,7 @@ import (
 
 type FakeProcessKillerOS struct{}
 
-func (fpk *FakeProcessKillerOS) KillFromUserspace(_ uint32, _ *killContext) error {
+func (fpk *FakeProcessKillerOS) Kill(_ uint32, _ *killContext) error {
 	return nil // fake kill
 }
 
@@ -103,7 +103,7 @@ func TestProcessKillerExclusion(t *testing.T) {
 			EnforcementBinaryExcluded: []string{"excluded"},
 		},
 	}
-	pk, err := NewProcessKiller(cfg)
+	pk, err := NewProcessKiller(cfg, nil)
 	assert.NoError(t, err)
 
 	allowed, err := pk.isKillAllowed([]killContext{{path: "excluded", pid: 123}})
@@ -196,7 +196,7 @@ func TestProcessKillerDisarmers(t *testing.T) {
 		},
 	}
 
-	pk, err := newProcessKiller(cfg, &FakeProcessKillerOS{})
+	pk, err := NewProcessKiller(cfg, &FakeProcessKillerOS{})
 	assert.NoError(t, err)
 	rule := craftKillRule("test-rule", "process")
 	ruleSet := rules.NewFakeRuleSet(rule)
@@ -314,7 +314,7 @@ func TestProcessKillerNoDisarmers(t *testing.T) {
 		},
 	}
 
-	pk, err := newProcessKiller(cfg, &FakeProcessKillerOS{})
+	pk, err := NewProcessKiller(cfg, &FakeProcessKillerOS{})
 	assert.NoError(t, err)
 	rule := craftKillRule("test-rule", "process")
 	ruleSet := rules.NewFakeRuleSet(rule)
@@ -468,7 +468,7 @@ func TestProcessKillerNoEnforcement(t *testing.T) {
 		},
 	}
 
-	pk, err := newProcessKiller(cfg, &FakeProcessKillerOS{})
+	pk, err := NewProcessKiller(cfg, &FakeProcessKillerOS{})
 	assert.NoError(t, err)
 	rule := craftKillRule("test-rule", "process")
 	ruleSet := rules.NewFakeRuleSet(rule)
@@ -544,7 +544,7 @@ func TestProcessKillerRuleNoDisarmers(t *testing.T) {
 		},
 	}
 
-	pk, err := newProcessKiller(cfg, &FakeProcessKillerOS{})
+	pk, err := NewProcessKiller(cfg, &FakeProcessKillerOS{})
 	assert.NoError(t, err)
 	rule := craftKillRule("test-rule", "process")
 	rule.PolicyRule.Def.Actions[0].Kill.DisableExecutableDisarmer = true
@@ -699,7 +699,7 @@ func TestProcessKillerRuleScopeContainer(t *testing.T) {
 		},
 	}
 
-	pk, err := newProcessKiller(cfg, &FakeProcessKillerOS{})
+	pk, err := NewProcessKiller(cfg, &FakeProcessKillerOS{})
 	assert.NoError(t, err)
 	rule := craftKillRule("test-rule", "container")
 	ruleSet := rules.NewFakeRuleSet(rule)
@@ -807,7 +807,7 @@ func TestIsKillAllowed(t *testing.T) {
 					EnforcementRuleSourceAllowed: []string{"test"},
 				},
 			}
-			pk, err := NewProcessKiller(cfg)
+			pk, err := NewProcessKiller(cfg, nil)
 			assert.NoError(t, err)
 
 			// Set enabled state

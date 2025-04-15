@@ -27,12 +27,12 @@ type killContext struct {
 type ProcessKillerWindows struct{}
 
 // NewProcessKillerOS returns a ProcessKillerOS
-func NewProcessKillerOS() ProcessKillerOS {
+func NewProcessKillerOS(_ func(pid, sig uint32) error) ProcessKillerOS {
 	return &ProcessKillerWindows{}
 }
 
-// KillFromUserspace tries to kill from userspace
-func (p *ProcessKillerWindows) KillFromUserspace(sig uint32, pc *killContext) error {
+// Kill tries to kill from userspace
+func (p *ProcessKillerWindows) Kill(sig uint32, pc *killContext) error {
 	if sig != model.SIGKILL {
 		return nil
 	}

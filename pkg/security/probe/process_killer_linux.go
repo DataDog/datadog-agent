@@ -53,15 +53,19 @@ const (
 )
 
 // ProcessKillerLinux defines the process kill linux implementation
-type ProcessKillerLinux struct{}
-
-// NewProcessKillerOS returns a ProcessKillerOS
-func NewProcessKillerOS() ProcessKillerOS {
-	return &ProcessKillerLinux{}
+type ProcessKillerLinux struct {
+	killFunc func(pid, sig uint32) error
 }
 
-// KillFromUserspace tries to kill from userspace
-func (p *ProcessKillerLinux) KillFromUserspace(sig uint32, pc *killContext) error {
+// NewProcessKillerOS returns a ProcessKillerOS
+func NewProcessKillerOS(f func(pid, sig uint32) error) ProcessKillerOS {
+	return &ProcessKillerLinux{
+		killFunc: f,
+	}
+}
+
+// Kill tries to kill from userspace
+func (p *ProcessKillerLinux) Kill(sig uint32, pc *killContext) error {
 
 	// check path
 	exePathLink := utils.ProcExePath(uint32(pc.pid))

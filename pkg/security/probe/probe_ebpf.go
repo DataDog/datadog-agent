@@ -151,7 +151,9 @@ type EBPFProbe struct {
 	discarderRateLimiter         *rate.Limiter
 
 	// kill action
-	processKiller *ProcessKiller
+	killListMap           *lib.Map
+	supportsBPFSendSignal bool
+	processKiller         *ProcessKiller
 
 	isRuntimeDiscarded bool
 	constantOffsets    map[string]uint64
@@ -471,6 +473,11 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	p.eventStream.SetMonitor(p.monitors.eventStreamMonitor)
+
+	p.killListMap, err = managerhelper.Map(p.Manager, "kill_list")
+	if err != nil {
+		return err
+	}
 
 	p.processKiller.Start(p.ctx, &p.wg)
 
@@ -2184,6 +2191,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.Probe.NetworkFlowMonitorEnabled),
 		},
 		manager.ConstantEditor{
+			Name:  "send_signal",
+			Value: utils.BoolTouint64(p.kernelVersion.SupportBPFSendSignal()),
+		},
+		manager.ConstantEditor{
 			Name:  "anomaly_syscalls",
 			Value: utils.BoolTouint64(slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)),
 		},
@@ -2358,11 +2369,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		onDemandRate = MaxOnDemandEventsPerSecond
 	}
 
-	processKiller, err := NewProcessKiller(config)
-	if err != nil {
-		return nil, err
-	}
-
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &EBPFProbe{
@@ -2378,7 +2384,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		ctx:                  ctx,
 		cancelFnc:            cancelFnc,
 		newTCNetDevices:      make(chan model.NetDevice, 16),
-		processKiller:        processKiller,
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, 1),
 		playSnapShotState:    atomic.NewBool(false),
 	}
@@ -2407,6 +2412,23 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	p.useMmapableMaps = p.kernelVersion.HaveMmapableMaps()
 
 	p.Manager = ebpf.NewRuntimeSecurityManager(p.useRingBuffers)
+
+	p.supportsBPFSendSignal = p.kernelVersion.SupportBPFSendSignal()
+	pkos := NewProcessKillerOS(func(sig, pid uint32) error {
+		if p.supportsBPFSendSignal {
+			err := p.killListMap.Put(uint32(pid), uint32(sig))
+			if err != nil {
+				seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)
+				return err
+			}
+		}
+		return nil
+	})
+	processKiller, err := NewProcessKiller(config, pkos)
+	if err != nil {
+		return nil, err
+	}
+	p.processKiller = processKiller
 
 	p.monitors = NewEBPFMonitors(p)
 

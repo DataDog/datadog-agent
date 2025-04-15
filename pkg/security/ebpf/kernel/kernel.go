@@ -334,3 +334,8 @@ func (k *Version) HavePIDLinkStruct() bool {
 func (k *Version) HaveLegacyPipeInodeInfoStruct() bool {
 	return k.Code != 0 && k.Code < Kernel5_5
 }
+
+// SupportBPFSendSignal returns true if the eBPF function bpf_send_signal is available
+func (k *Version) SupportBPFSendSignal() bool {
+	return k.Code != 0 && k.Code >= Kernel5_3
+}
