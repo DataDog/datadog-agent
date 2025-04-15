@@ -100,12 +100,12 @@ func (h *hooksCLI) PostStopExperiment(ctx context.Context, pkg string) error {
 
 // PrePromoteExperiment calls the pre-promote-experiment hook for the package.
 func (h *hooksCLI) PrePromoteExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, true, pkg, "prePromoteExperiment", PackageTypeOCI, false, nil)
+	return h.callHook(ctx, false, pkg, "prePromoteExperiment", PackageTypeOCI, false, nil)
 }
 
 // PostPromoteExperiment calls the post-promote-experiment hook for the package.
 func (h *hooksCLI) PostPromoteExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, false, pkg, "postPromoteExperiment", PackageTypeOCI, false, nil)
+	return h.callHook(ctx, true, pkg, "postPromoteExperiment", PackageTypeOCI, false, nil)
 }
 
 // PackageType is the type of package.
