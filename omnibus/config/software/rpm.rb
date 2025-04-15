@@ -29,7 +29,6 @@ dependency "libgcrypt"
 dependency "popt"
 dependency "zstd"
 dependency "libsqlite3"
-dependency "libdb"
 dependency "lua"
 
 ship_source_offer true
