@@ -96,7 +96,6 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		defer cleanup()
 
-		// Trace log detailed connection information for debugging
 		if log.ShouldLog(log.TraceLvl) {
 			traceLogConnections(id, cs)
 		}
