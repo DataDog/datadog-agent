@@ -13,7 +13,6 @@
 #include <linux/module.h>
 #include <linux/tty.h>
 #include <linux/sched.h>
-#include <linux/binfmts.h>
 #include <linux/mount.h>
 #include <linux/magic.h>
 
