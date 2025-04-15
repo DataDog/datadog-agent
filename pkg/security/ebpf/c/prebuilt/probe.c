@@ -10,8 +10,6 @@
 #include <linux/wait.h>
 #include <linux/pipe_fs_i.h>
 
-#include <linux/magic.h>
-
 #include <net/sock.h>
 #include <net/netfilter/nf_conntrack.h>
 #include <net/netfilter/nf_nat.h>
