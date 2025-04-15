@@ -522,8 +522,12 @@ func (c *Check) excludePartition(partition gopsutil_disk.PartitionStat) bool {
 	if index != -1 {
 		mountPoint = mountPoint[:index]
 	}
-	exclude := c.excludeDevice(device) || c.excludeFileSystem(partition.Fstype) || c.excludeMountPoint(mountPoint) || !c.includeDevice(device) || !c.includeFileSystem(partition.Fstype) || !c.includeMountPoint(mountPoint)
-	return exclude
+	excludePartition := c.excludeDevice(device) || c.excludeFileSystem(partition.Fstype) || c.excludeMountPoint(mountPoint)
+	if excludePartition {
+		return true
+	}
+	includePartition := c.includeDevice(device) && c.includeFileSystem(partition.Fstype) && c.includeMountPoint(mountPoint)
+	return !includePartition
 }
 
 func (c *Check) excludeDevice(device string) bool {
