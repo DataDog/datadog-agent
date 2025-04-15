@@ -5,9 +5,11 @@
 
 package redis
 
+// CommandType defines supported redis commands.
 type CommandType uint8
 
 var (
+	// UnknownCommand is the default CommandType value.
 	UnknownCommand = CommandType(0x0)
 	GetCommand     = CommandType(0x1)
 	SetCommand     = CommandType(0x2)

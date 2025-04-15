@@ -26,6 +26,7 @@ type key struct {
 	Server address
 }
 
+// Stats consolidates request count and latency information for a certain RequestSummary ErrorToStats entry.
 type Stats struct {
 	Count              int
 	FirstLatencySample float64
@@ -45,7 +46,7 @@ type RequestSummary struct {
 func Redis(stats map[redis.Key]*redis.RequestStats) []RequestSummary {
 	var requestCount int
 	for k := range stats {
-		requestCount += len(stats[k].ErrorsToStats)
+		requestCount += len(stats[k].ErrorToStats)
 	}
 	all := make([]RequestSummary, 0, requestCount)
 
@@ -67,10 +68,10 @@ func Redis(stats map[redis.Key]*redis.RequestStats) []RequestSummary {
 					Port: k.DstPort,
 				},
 			},
-			ErrorToStats: make(map[string]Stats, len(stats[k].ErrorsToStats)),
+			ErrorToStats: make(map[string]Stats, len(stats[k].ErrorToStats)),
 		}
 
-		for err, stat := range stats[k].ErrorsToStats {
+		for err, stat := range stats[k].ErrorToStats {
 			requestSummary.ErrorToStats[strconv.FormatBool(err)] = Stats{
 				Count:              stat.Count,
 				FirstLatencySample: stat.FirstLatencySample,

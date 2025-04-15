@@ -22,8 +22,8 @@ func TestAddRequest(t *testing.T) {
 	stats.AddRequest(false, 20, 3, 20.0)
 
 	// Check we don't have stats for error: true
-	assert.Nil(t, stats.ErrorsToStats[true])
-	s := stats.ErrorsToStats[false]
+	assert.Nil(t, stats.ErrorToStats[true])
+	s := stats.ErrorToStats[false]
 
 	if assert.NotNil(t, s) {
 		assert.Equal(t, 45, s.Count)
@@ -52,8 +52,8 @@ func TestCombineWith(t *testing.T) {
 	stats.CombineWith(stats4)
 
 	// Check we don't have stats for error: true
-	assert.Nil(t, stats.ErrorsToStats[true])
-	s := stats.ErrorsToStats[false]
+	assert.Nil(t, stats.ErrorToStats[true])
+	s := stats.ErrorToStats[false]
 
 	if assert.NotNil(t, s) {
 		assert.Equal(t, 45, s.Count)

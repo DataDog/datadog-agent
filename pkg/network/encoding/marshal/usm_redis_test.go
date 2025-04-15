@@ -63,7 +63,7 @@ func (s *RedisSuite) TestFormatRedisStats() {
 			},
 		},
 		Redis: map[redis.Key]*redis.RequestStats{
-			dummyKey: {map[bool]*redis.RequestStat{
+			dummyKey: {ErrorToStats: map[bool]*redis.RequestStat{
 				false: {
 					FirstLatencySample: 1,
 					Count:              2,
@@ -86,12 +86,12 @@ func (s *RedisSuite) TestFormatRedisStats() {
 						Truncated: dummyKey.Truncated,
 						ErrorToStats: map[bool]*model.RedisStats{
 							false: {
-								FirstLatencySample: in.Redis[dummyKey].ErrorsToStats[false].FirstLatencySample,
-								Count:              uint32(in.Redis[dummyKey].ErrorsToStats[false].Count),
+								FirstLatencySample: in.Redis[dummyKey].ErrorToStats[false].FirstLatencySample,
+								Count:              uint32(in.Redis[dummyKey].ErrorToStats[false].Count),
 							},
 							true: {
-								FirstLatencySample: in.Redis[dummyKey].ErrorsToStats[false].FirstLatencySample,
-								Count:              uint32(in.Redis[dummyKey].ErrorsToStats[false].Count),
+								FirstLatencySample: in.Redis[dummyKey].ErrorToStats[false].FirstLatencySample,
+								Count:              uint32(in.Redis[dummyKey].ErrorToStats[false].Count),
 							},
 						},
 					},
@@ -145,7 +145,7 @@ func (s *RedisSuite) TestRedisIDCollisionRegression() {
 		},
 		Redis: map[redis.Key]*redis.RequestStats{
 			redisKey: {
-				ErrorsToStats: map[bool]*redis.RequestStat{false: {Count: 10}},
+				ErrorToStats: map[bool]*redis.RequestStat{false: {Count: 10}},
 			},
 		},
 	}
@@ -202,7 +202,7 @@ func (s *RedisSuite) TestRedisLocalhostScenario() {
 		},
 		Redis: map[redis.Key]*redis.RequestStats{
 			redisKey: {
-				ErrorsToStats: map[bool]*redis.RequestStat{false: {Count: 10}},
+				ErrorToStats: map[bool]*redis.RequestStat{false: {Count: 10}},
 			},
 		},
 	}
@@ -268,7 +268,7 @@ func generateBenchMarkPayloadRedis(sourcePortsMax, destPortsMax uint16) network.
 				redis.GetCommand,
 				"dummyKey",
 				false,
-			)] = &redis.RequestStats{ErrorsToStats: map[bool]*redis.RequestStat{false: {Count: 10}}}
+			)] = &redis.RequestStats{ErrorToStats: map[bool]*redis.RequestStat{false: {Count: 10}}}
 		}
 	}
 

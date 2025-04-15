@@ -57,7 +57,7 @@ func (e *redisEncoder) encodeData(connectionData *USMConnectionData[redis.Key, *
 
 	for _, kv := range connectionData.Data {
 		key := kv.Key
-		errorsToStats := kv.Value
+		errorToStats := kv.Value
 		e.redisAggregationsBuilder.AddAggregations(func(builder *model.DatabaseStatsBuilder) {
 			builder.SetRedis(func(aggregationBuilder *model.RedisAggregationBuilder) {
 				switch key.Command {
@@ -71,7 +71,7 @@ func (e *redisEncoder) encodeData(connectionData *USMConnectionData[redis.Key, *
 				aggregationBuilder.SetTruncated(key.Truncated)
 				aggregationBuilder.SetKeyName(key.KeyName)
 
-				for isErr, stats := range errorsToStats.ErrorsToStats {
+				for isErr, stats := range errorToStats.ErrorToStats {
 					if stats.Count == 0 {
 						continue
 					}
