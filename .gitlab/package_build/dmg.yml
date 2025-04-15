@@ -204,7 +204,7 @@ include:
 new-agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64-test", "specific:true"]
-  # parallel: 2
+  parallel: 8
   # TODO
   needs: []
   # needs:
@@ -224,7 +224,6 @@ new-agent_dmg-x64-a7:
     PYTHON_VERSION: 3.12.6
     # TODO
     OMNIBUS_RUBY_VERSION: celian/macos-build
-    # TODO
     SIGN: true
     KEYCHAIN_NAME: "build.keychain"
     INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
