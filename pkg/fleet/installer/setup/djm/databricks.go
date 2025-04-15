@@ -18,14 +18,15 @@ import (
 
 const (
 	databricksInjectorVersion   = "0.35.0-1"
-	databricksJavaTracerVersion = "1.46.1-1"
+	databricksJavaTracerVersion = "1.48.0-1"
 	databricksAgentVersion      = "7.63.3-1"
 )
 
 var (
-	jobNameRegex     = regexp.MustCompile(`[,\']`)
-	clusterNameRegex = regexp.MustCompile(`[^a-zA-Z0-9_:.-]`)
-	driverLogs       = []common.IntegrationConfigLogs{
+	jobNameRegex       = regexp.MustCompile(`[,\']+`)
+	clusterNameRegex   = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
+	workspaceNameRegex = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
+	driverLogs         = []common.IntegrationConfigLogs{
 		{
 			Type:                   "file",
 			Path:                   "/databricks/driver/logs/*.log",
@@ -142,7 +143,9 @@ func setupCommonHostTags(s *common.Setup) {
 
 	setIfExists(s, "DATABRICKS_WORKSPACE", "databricks_workspace", nil)
 	setClearIfExists(s, "DATABRICKS_WORKSPACE", "workspace", func(v string) string {
-		return strings.Trim(v, "\"'")
+		v = strings.ToLower(v)
+		v = strings.Trim(v, "\"'")
+		return workspaceNameRegex.ReplaceAllString(v, "_")
 	})
 
 	setClearIfExists(s, "DB_CLUSTER_ID", "cluster_id", nil)
@@ -217,6 +220,7 @@ func setupDatabricksDriver(s *common.Setup) {
 	if os.Getenv("DRIVER_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = driverLogs
+		s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" {
 		sparkIntegration.Instances = []any{
@@ -240,6 +244,7 @@ func setupDatabricksWorker(s *common.Setup) {
 	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = workerLogs
+		s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
 	}
 	s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 }

@@ -10,8 +10,6 @@ package modules
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -20,6 +18,8 @@ import (
 	procconsumer "github.com/DataDog/datadog-agent/pkg/process/events/consumer"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
