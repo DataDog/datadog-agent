@@ -21,6 +21,7 @@ var allSymbols = map[string]struct{}{
 	toNativeName("GetCount"):                 {},
 	toNativeName("GetHandleByIndex"):         {},
 	toNativeName("GetUUID"):                  {},
+	toNativeName("GetName"):                  {},
 	toNativeName("GetIndex"):                 {},
 	toNativeName("GetCudaComputeCapability"): {},
 	toNativeName("GetMemoryInfo"):            {},
