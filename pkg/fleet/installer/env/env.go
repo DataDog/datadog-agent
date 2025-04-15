@@ -86,7 +86,7 @@ var defaultEnv = Env{
 		RuntimeMetricsEnabled:     nil,
 		LogsInjection:             nil,
 		APMTracingEnabled:         nil,
-		ProfilingEnabled:          nil,
+		ProfilingEnabled:          "",
 		DataStreamsEnabled:        nil,
 		AppsecEnabled:             nil,
 		IastEnabled:               nil,
@@ -121,7 +121,7 @@ type InstallScriptEnv struct {
 	RuntimeMetricsEnabled *bool
 	LogsInjection         *bool
 	APMTracingEnabled     *bool
-	ProfilingEnabled      *bool
+	ProfilingEnabled      string
 	DataStreamsEnabled    *bool
 	AppsecEnabled         *bool
 	IastEnabled           *bool
@@ -229,7 +229,7 @@ func FromEnv() *Env {
 			RuntimeMetricsEnabled:     getBoolEnv(envRuntimeMetricsEnabled),
 			LogsInjection:             getBoolEnv(envLogsInjection),
 			APMTracingEnabled:         getBoolEnv(envAPMTracingEnabled),
-			ProfilingEnabled:          getBoolEnv(envProfilingEnabled),
+			ProfilingEnabled:          getEnvOrDefault(envProfilingEnabled, ""),
 			DataStreamsEnabled:        getBoolEnv(envDataStreamsEnabled),
 			AppsecEnabled:             getBoolEnv(envAppsecEnabled),
 			IastEnabled:               getBoolEnv(envIastEnabled),
@@ -272,7 +272,7 @@ func (e *InstallScriptEnv) ToEnv(env []string) []string {
 	env = appendBoolEnv(env, envRuntimeMetricsEnabled, e.RuntimeMetricsEnabled)
 	env = appendBoolEnv(env, envLogsInjection, e.LogsInjection)
 	env = appendBoolEnv(env, envAPMTracingEnabled, e.APMTracingEnabled)
-	env = appendBoolEnv(env, envProfilingEnabled, e.ProfilingEnabled)
+	env = appendStringEnv(env, envProfilingEnabled, e.ProfilingEnabled, "")
 	env = appendBoolEnv(env, envDataStreamsEnabled, e.DataStreamsEnabled)
 	env = appendBoolEnv(env, envAppsecEnabled, e.AppsecEnabled)
 	env = appendBoolEnv(env, envIastEnabled, e.IastEnabled)
@@ -407,8 +407,8 @@ func overridesByNameToEnv[T any](envPrefix string, overridesByPackage map[string
 }
 
 func getEnvOrDefault(env string, defaultValue string) string {
-	value := os.Getenv(env)
-	if value == "" {
+	value, set := os.LookupEnv(env)
+	if !set {
 		return defaultValue
 	}
 	return value

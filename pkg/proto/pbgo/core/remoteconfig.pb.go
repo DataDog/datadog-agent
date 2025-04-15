@@ -877,6 +877,8 @@ type ClientTracer struct {
 	Env           string                 `protobuf:"bytes,5,opt,name=env,proto3" json:"env,omitempty"`
 	AppVersion    string                 `protobuf:"bytes,6,opt,name=app_version,json=appVersion,proto3" json:"app_version,omitempty"`
 	Tags          []string               `protobuf:"bytes,7,rep,name=tags,proto3" json:"tags,omitempty"`
+	ProcessTags   []string               `protobuf:"bytes,9,rep,name=process_tags,json=processTags,proto3" json:"process_tags,omitempty"`
+	ContainerTags []string               `protobuf:"bytes,10,rep,name=container_tags,json=containerTags,proto3" json:"container_tags,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -963,6 +965,20 @@ func (x *ClientTracer) GetAppVersion() string {
 func (x *ClientTracer) GetTags() []string {
 	if x != nil {
 		return x.Tags
+	}
+	return nil
+}
+
+func (x *ClientTracer) GetProcessTags() []string {
+	if x != nil {
+		return x.ProcessTags
+	}
+	return nil
+}
+
+func (x *ClientTracer) GetContainerTags() []string {
+	if x != nil {
+		return x.ContainerTags
 	}
 	return nil
 }
@@ -2025,7 +2041,7 @@ const file_datadog_remoteconfig_remoteconfig_proto_rawDesc = "" +
 	"\fcapabilities\x18\v \x01(\fR\fcapabilities\x12\x1d\n" +
 	"\n" +
 	"is_updater\x18\x0e \x01(\bR\tisUpdater\x12D\n" +
-	"\x0eclient_updater\x18\x0f \x01(\v2\x1d.datadog.config.ClientUpdaterR\rclientUpdaterJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06J\x04\b\f\x10\rJ\x04\b\r\x10\x0e\"\xf8\x01\n" +
+	"\x0eclient_updater\x18\x0f \x01(\v2\x1d.datadog.config.ClientUpdaterR\rclientUpdaterJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06J\x04\b\f\x10\rJ\x04\b\r\x10\x0e\"\xc2\x02\n" +
 	"\fClientTracer\x12\x1d\n" +
 	"\n" +
 	"runtime_id\x18\x01 \x01(\tR\truntimeId\x12\x1a\n" +
@@ -2036,7 +2052,10 @@ const file_datadog_remoteconfig_remoteconfig_proto_rawDesc = "" +
 	"\x03env\x18\x05 \x01(\tR\x03env\x12\x1f\n" +
 	"\vapp_version\x18\x06 \x01(\tR\n" +
 	"appVersion\x12\x12\n" +
-	"\x04tags\x18\a \x03(\tR\x04tags\"\xa2\x01\n" +
+	"\x04tags\x18\a \x03(\tR\x04tags\x12!\n" +
+	"\fprocess_tags\x18\t \x03(\tR\vprocessTags\x12%\n" +
+	"\x0econtainer_tags\x18\n" +
+	" \x03(\tR\rcontainerTags\"\xa2\x01\n" +
 	"\vClientAgent\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12!\n" +

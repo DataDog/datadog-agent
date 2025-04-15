@@ -114,7 +114,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 		ebpf.CudaEventTypeKernelLaunch.String(): 1,
 		ebpf.CudaEventTypeSetDevice.String():    1,
 		ebpf.CudaEventTypeMemory.String():       2,
-		ebpf.CudaEventTypeSync.String():         3, // cudaStreamSynchronize, cudaEventQuery and cudaEventSynchronize
+		ebpf.CudaEventTypeSync.String():         4, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize and cudaMemcpy
 	}
 
 	for evName, value := range expectedEvents {
@@ -151,8 +151,6 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	cmd, err := testutil.RunSample(t, testutil.CudaSample)
 	require.NoError(t, err)
 
-	//TODO: change this check to  count telemetry counter of the consumer (once added).
-	// we are expecting 2 different streamhandlers because cudasample generates 3 events in total for 2 different streams (stream 0 and stream 30)
 	require.Eventually(t, func() bool {
 		return probe.streamHandlers.streamCount() == 2
 	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", probe.streamHandlers.streamCount())
@@ -165,6 +163,31 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	metricKey := model.StatsKey{PID: uint32(cmd.Process.Pid), DeviceUUID: testutil.DefaultGpuUUID}
 	metrics := getMetricsEntry(metricKey, stats)
 	require.NotNil(t, metrics)
+
+	telemetryMock, ok := probe.deps.Telemetry.(telemetry.Mock)
+	require.True(t, ok)
+
+	eventMetrics, err := telemetryMock.GetCountMetric("gpu__consumer", "events")
+	require.NoError(t, err)
+
+	expectedEvents := map[string]int{
+		ebpf.CudaEventTypeKernelLaunch.String(): 1,
+		ebpf.CudaEventTypeSetDevice.String():    1,
+		ebpf.CudaEventTypeMemory.String():       2,
+		ebpf.CudaEventTypeSync.String():         4, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize and cudaMemcpy
+	}
+
+	actualEvents := make(map[string]int)
+	for _, m := range eventMetrics {
+		if evType, ok := m.Tags()["event_type"]; ok {
+			actualEvents[evType] = int(m.Value())
+		}
+	}
+
+	require.ElementsMatch(t, maps.Keys(expectedEvents), maps.Keys(actualEvents))
+	for evName, value := range expectedEvents {
+		require.Equal(t, value, actualEvents[evName], "event %s count mismatch", evName)
+	}
 
 	require.Greater(t, metrics.UsedCores, 0.0) // core usage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, metrics.Memory.MaxBytes, uint64(110))

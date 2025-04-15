@@ -54,7 +54,7 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	handlers := newStreamCollection(ctx, telemetryMock)
+	handlers := newStreamCollection(ctx, telemetryMock, config.New())
 	consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, telemetryMock)
 	require.NotNil(t, consumer)
 
@@ -133,7 +133,8 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	statsGen.currGenerationKTime = int64(startTs - 1)
 
 	// And get the stats for the full interval
-	stats := statsGen.getStats(int64(endTs + 1))
+	stats, err := statsGen.getStats(int64(endTs + 1))
+	require.NoError(t, err)
 	require.NotNil(t, stats)
 	require.Len(t, stats.Metrics, 1)
 
