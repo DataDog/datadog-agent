@@ -80,16 +80,12 @@ func (m *NamespaceMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Inter
 		return false, nil
 	}
 
-	for _, mutator := range m.config.securityClientLibraryPodMutators {
-		if err := mutator.mutatePod(pod); err != nil {
-			return false, fmt.Errorf("error mutating pod for security client: %w", err)
-		}
+	if err := m.core.mutatePodContainers(pod, m.config.securityClientLibraryMutator); err != nil {
+		return false, fmt.Errorf("error mutating pod for security client: %w", err)
 	}
 
-	for _, mutator := range m.config.profilingClientLibraryPodMutators {
-		if err := mutator.mutatePod(pod); err != nil {
-			return false, fmt.Errorf("error mutating pod for profiling client: %w", err)
-		}
+	if err := m.core.mutatePodContainers(pod, m.config.profilingClientLibraryMutator); err != nil {
+		return false, fmt.Errorf("error mutating pod for profiling client: %w", err)
 	}
 
 	if err := m.core.injectTracers(pod, extractedLibInfo); err != nil {
@@ -130,6 +126,10 @@ func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatec
 	}
 }
 
+func (m *mutatorCore) mutatePodContainers(pod *corev1.Pod, cm containerMutator) error {
+	return mutatePodContainers(pod, filteredContainerMutator(m.config.containerFilter, cm))
+}
+
 func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo) error {
 	if len(config.libs) == 0 {
 		return nil
@@ -151,8 +151,11 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		injectionType  = config.source.injectionType()
 		autoDetected   = config.source.isFromLanguageDetection()
 
+		// initContainerMutators are resource and security constraints
+		// to all the init containers the init containers that we create.
 		initContainerMutators = m.newInitContainerMutators(requirements)
 		injectorOptions       = libRequirementOptions{
+			containerFilter:       m.config.containerFilter,
 			initContainerMutators: initContainerMutators,
 		}
 
@@ -165,7 +168,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 	// Inject env variables used for Onboarding KPIs propagation...
 	// if Single Step Instrumentation is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_single_step
 	// if local library injection is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_lib_injection
-	if err := config.source.mutatePod(pod); err != nil {
+	if err := m.mutatePodContainers(pod, config.source.containerMutator()); err != nil {
 		return err
 	}
 
@@ -184,6 +187,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		}()
 
 		if err := lib.podMutator(m.config.version, libRequirementOptions{
+			containerFilter:       m.config.containerFilter,
 			containerMutators:     containerMutators,
 			initContainerMutators: initContainerMutators,
 			podMutators:           []podMutator{configInjector.podMutator(lib.lang)},
@@ -390,23 +394,25 @@ func (m *mutatorCore) getAutoDetectedLibraries(pod *corev1.Pod) []libInfo {
 // * <unset> - product disactivated but can be activated remotely
 // * true - product activated, not overridable remotely
 // * false - product disactivated, not overridable remotely
-func securityClientLibraryConfigMutators(datadogConfig config.Component) []podMutator {
+func securityClientLibraryConfigMutators(datadogConfig config.Component) containerMutators {
 	asmEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm.enabled")
 	iastEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.iast.enabled")
 	asmScaEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm_sca.enabled")
 
-	var podMutators []podMutator
+	var mutators []containerMutator
 	if asmEnabled != nil {
-		podMutators = append(podMutators, newConfigEnvVarFromBoolMutator("DD_APPSEC_ENABLED", asmEnabled))
-	}
-	if iastEnabled != nil {
-		podMutators = append(podMutators, newConfigEnvVarFromBoolMutator("DD_IAST_ENABLED", iastEnabled))
-	}
-	if asmScaEnabled != nil {
-		podMutators = append(podMutators, newConfigEnvVarFromBoolMutator("DD_APPSEC_SCA_ENABLED", asmScaEnabled))
+		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_APPSEC_ENABLED", asmEnabled))
 	}
 
-	return podMutators
+	if iastEnabled != nil {
+		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_IAST_ENABLED", iastEnabled))
+	}
+
+	if asmScaEnabled != nil {
+		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_APPSEC_SCA_ENABLED", asmScaEnabled))
+	}
+
+	return mutators
 }
 
 // The config for profiling has four states: <unset> | "auto" | "true" | "false".
@@ -414,13 +420,13 @@ func securityClientLibraryConfigMutators(datadogConfig config.Component) []podMu
 // * "true" - profiling activated unconditionally, not overridable remotely
 // * "false" - profiling deactivated, not overridable remotely
 // * "auto" - profiling activates per-process heuristically, not overridable remotely
-func profilingClientLibraryConfigMutators(datadogConfig config.Component) []podMutator {
+func profilingClientLibraryConfigMutators(datadogConfig config.Component) containerMutators {
 	profilingEnabled := getOptionalStringValue(datadogConfig, "admission_controller.auto_instrumentation.profiling.enabled")
 
-	var podMutators []podMutator
+	var mutators []containerMutator
 	if profilingEnabled != nil {
-		podMutators = append(podMutators, newConfigEnvVarFromStringlMutator("DD_PROFILING_ENABLED", profilingEnabled))
+		mutators = append(mutators, newConfigEnvVarFromStringMutator("DD_PROFILING_ENABLED", profilingEnabled))
 	}
 
-	return podMutators
+	return mutators
 }
