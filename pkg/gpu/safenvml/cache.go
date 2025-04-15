@@ -53,7 +53,7 @@ func NewDeviceCacheWithOptions(lib SafeNVML) (DeviceCache, error) {
 		smVersionSet: make(map[uint32]struct{}),
 	}
 
-	count, err := lib.GetDeviceCount()
+	count, err := lib.DeviceGetCount()
 	if err != nil {
 		return nil, err
 	}

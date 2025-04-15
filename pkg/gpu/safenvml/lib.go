@@ -48,8 +48,8 @@ type SafeNVML interface {
 	symbolLookup
 	// Shutdown shuts down the NVML library
 	Shutdown() error
-	// GetDeviceCount returns the number of NVIDIA devices in the system
-	GetDeviceCount() (int, error)
+	// DeviceGetCount returns the number of NVIDIA devices in the system
+	DeviceGetCount() (int, error)
 	// DeviceGetHandleByIndex returns a SafeDevice for the device at the given index
 	DeviceGetHandleByIndex(idx int) (SafeDevice, error)
 	// SystemGetDriverVersion returns the version of the system's graphics driver
@@ -98,8 +98,8 @@ func (s *safeNvml) Shutdown() error {
 	return nil
 }
 
-// GetDeviceCount returns the number of NVIDIA devices in the system
-func (s *safeNvml) GetDeviceCount() (int, error) {
+// DeviceGetCount returns the number of NVIDIA devices in the system
+func (s *safeNvml) DeviceGetCount() (int, error) {
 	if err := s.lookup(toNativeName("GetCount")); err != nil {
 		return 0, err
 	}
