@@ -22,20 +22,20 @@ import (
 	"strings"
 	"time"
 
-	languagedetection "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1/languagedetection"
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v2/series"
-	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
 	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1/languagedetection"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v2/series"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -125,14 +125,20 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	})
 
 	timeout := pkgconfigsetup.Datadog().GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second
+	errorLog := stdLog.New(logWriter, "Error from the agent http API server: ", 0) // log errors to seelog
 	srv := helpers.NewMuxedGRPCServer(
 		listener.Addr().String(),
 		tlsConfig,
 		grpcSrv,
-		router,
+		// Use a recovery handler to log panics if they happen.
+		// The client will receive a 500 error.
+		handlers.RecoveryHandler(
+			handlers.PrintRecoveryStack(true),
+			handlers.RecoveryLogger(errorLog),
+		)(router),
 		timeout,
 	)
-	srv.ErrorLog = stdLog.New(logWriter, "Error from the agent http API server: ", 0) // log errors to seelog
+	srv.ErrorLog = errorLog
 
 	tlsListener := tls.NewListener(listener, srv.TLSConfig)
 
