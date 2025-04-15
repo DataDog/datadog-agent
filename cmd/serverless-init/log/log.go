@@ -112,6 +112,6 @@ func isEnabled(envValue string) bool {
 
 // enabled by default
 func isInstanceTailingEnabled() bool {
-	val := os.Getenv(aasInstanceTailing)
+	val := strings.ToLower(os.Getenv(aasInstanceTailing))
 	return val == "" || val == "true"
 }
