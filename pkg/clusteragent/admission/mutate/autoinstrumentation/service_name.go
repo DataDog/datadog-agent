@@ -74,8 +74,9 @@ func newServiceNameMutator(pod *corev1.Pod) *serviceNameMutator {
 		}
 	}
 
+	log.Debug("no service env vars found in pod, checking owner name")
 	name, err := getServiceNameFromPodOwnerName(pod)
-	if err != nil {
+	if err != nil || name == "" {
 		log.Debugf("error getting owner name for pod: %v", err)
 		return &serviceNameMutator{noop: true}
 	}
@@ -123,36 +124,6 @@ func findServiceNameEnvVarsInPod(pod *corev1.Pod) []corev1.EnvVar {
 	}
 
 	return found
-}
-
-func findServiceNameInPod(pod *corev1.Pod) (corev1.EnvVar, bool) {
-	found := findServiceNameEnvVarsInPod(pod)
-
-	var ok bool
-	var env corev1.EnvVar
-	if len(found) > 0 {
-		env = found[0]
-		ok = true
-		if len(found) > 1 {
-			log.Debug("more than one unique definition of service name found, choosing the first one")
-		}
-	}
-
-	if !ok {
-		log.Debug("no service env vars found in pod, checking owner name")
-		name, err := getServiceNameFromPodOwnerName(pod)
-		if err != nil {
-			log.Debugf("could not get service name from fallback: %v", err)
-		} else if name == "" {
-			log.Debugf("fallback provided no error but empty service name")
-		} else {
-			env.Name = kubernetes.ServiceTagEnvVar
-			env.Value = name
-			ok = true
-		}
-	}
-
-	return env, ok
 }
 
 // Returns the name of Kubernetes resource that owns the pod
