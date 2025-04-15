@@ -140,7 +140,7 @@ class GateMetricHandler:
         if ancestor:
             out = ctx.run(
                 f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/{ancestor}/{filename} {filename}",
-                hide="stdout",
+                hide=True,
                 warn=True,
             )
             if out.exited == 0:
@@ -156,7 +156,7 @@ class GateMetricHandler:
             else:
                 print(
                     color_message(
-                        f"[WARN] Unable to fetch quality gates {filename} from {ancestor} !",
+                        f"[WARN] Unable to fetch quality gates {filename} from {ancestor} !\nstdout:\n{out.stdout}\nstderr:\n{out.stderr}",
                         "orange",
                     )
                 )
