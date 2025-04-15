@@ -62,7 +62,7 @@ func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, dpa mo
 
 	req, err := r.buildWorkloadRecommendationRequest(dpa, recommenderConfig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error building workload recommendation request: %w", err)
 	}
 
 	payload, err := protojson.Marshal(req)
