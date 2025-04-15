@@ -39,16 +39,14 @@ const metricCompareMargin = 0.001
 func TestLinuxDiskSuite(t *testing.T) {
 	agentOptions := []agentparams.Option{}
 	suiteOptions := []e2e.SuiteOption{}
-	//TODO: remove once the test is ready for CI
+	//TODO: remove once the PR is ready
 	if os.Getenv("CI_PIPELINE_ID") == "" {
-		// if running locally, use the hardcoded pipeline id
+		// if running locally, use the hardcoded pipeline id + devmode
 		agentOptions = append(agentOptions,
 			// update pipeline id when you push changes to the disk check or the agent itself
-			agentparams.WithPipeline("61736511"),
+			agentparams.WithPipeline("62195633"),
 		)
-		// helpful for local runs
 		suiteOptions = append(suiteOptions, e2e.WithDevMode())
-		suiteOptions = append(suiteOptions, e2e.WithStackName("disk-check-test"))
 	}
 
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
