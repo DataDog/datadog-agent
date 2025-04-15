@@ -46,10 +46,6 @@ type Store struct {
 	// tagger events.
 	ClientStreamErrors telemetry.Counter
 
-	// ServerStreamErrors tracks how many errors happened when streaming
-	// out tagger events.
-	ServerStreamErrors telemetry.Counter
-
 	// Subscribers tracks how many subscribers the tagger has.
 	Subscribers telemetry.Gauge
 	// Events tracks the number of tagger events being sent out.
@@ -100,12 +96,6 @@ func NewStore(telemetryComp telemetry.Component) *Store {
 			// Remote
 			PrunedEntities: telemetryComp.NewGaugeWithOpts(subsystem, "pruned_entities",
 				[]string{}, "Number of pruned tagger entities.",
-				commonOpts),
-
-			// ServerStreamErrors tracks how many errors happened when streaming
-			// out tagger events.
-			ServerStreamErrors: telemetryComp.NewCounterWithOpts(subsystem, "server_stream_errors",
-				[]string{}, "Errors when streaming out tagger events",
 				commonOpts),
 
 			// ClientStreamErrors tracks how many errors were received when streaming
