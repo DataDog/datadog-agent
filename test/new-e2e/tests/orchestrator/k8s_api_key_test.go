@@ -104,6 +104,5 @@ func (suite *k8sSuite) eventuallyHasExpectedAPIKey(apiKey string) {
 		return false
 	}
 
-	//assert.Eventually(suite.T(), hasKey, 10*time.Minute, 10*time.Second)
-	assert.Eventually(suite.T(), hasKey, time.Minute, time.Second)
+	assert.Eventually(suite.T(), hasKey, 10*time.Minute, 10*time.Second)
 }

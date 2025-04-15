@@ -10,7 +10,7 @@ package resolver
 
 import (
 	"slices"
-	//"strings"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -70,42 +70,39 @@ type SingleDomainResolver struct {
 // of the resolver.
 func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Component) {
 	config.OnUpdate(func(setting string, oldValue, newValue any) {
+		found := false
 
-		/*
-				found := false
+		for _, endpoint := range resolver.GetAPIKeysInfo() {
+			if endpoint.ConfigSettingPath == setting {
+				found = true
+				break
+			}
+		}
 
-				for _, endpoint := range resolver.GetAPIKeysInfo() {
-					if endpoint.ConfigSettingPath == setting {
-						found = true
-						break
-					}
-				}
+		if !found {
+			return
+		}
 
-				if !found {
-					return
-				}
-
-			if strings.Contains(setting, "additional_endpoints") {
-				// Updating additional endpoints don't give us the exact key that has been updated so we reload the whole config section.
-				additionalEndpoints := utils.MakeEndpoints(config.GetStringMapStringSlice(setting), setting)
-				endpoints, ok := additionalEndpoints[resolver.GetBaseDomain()]
-				if !ok {
-					log.Errorf("error: the domain in additional_endpoints changed at runtime for '%s', discarding update.", resolver.GetBaseDomain())
-					return
-				}
-				keys := utils.DedupAPIKeys(endpoints)
-				removed, added := resolver.SetAPIKeys(keys)
-
-				// Not all calls here will involve changes to the api keys since we are just reloading every time something with
-				// `additional_endpoints` contains a key that changes, there are potentially multiple resolvers for different
-				// `additional_endpoints` configurations (eg, `process_config.additional_endpoints` and `additional_endpoints`)
-				if len(removed) > 0 && len(added) > 0 {
-					log.Infof("rotating API key for '%s': %s -> %s", setting, strings.Join(removed, ","), strings.Join(added, ","))
-				}
-
+		if strings.Contains(setting, "additional_endpoints") {
+			// Updating additional endpoints don't give us the exact key that has been updated so we reload the whole config section.
+			additionalEndpoints := utils.MakeEndpoints(config.GetStringMapStringSlice(setting), setting)
+			endpoints, ok := additionalEndpoints[resolver.GetBaseDomain()]
+			if !ok {
+				log.Errorf("error: the domain in additional_endpoints changed at runtime for '%s', discarding update.", resolver.GetBaseDomain())
 				return
 			}
-		*/
+			keys := utils.DedupAPIKeys(endpoints)
+			removed, added := resolver.SetAPIKeys(keys)
+
+			// Not all calls here will involve changes to the api keys since we are just reloading every time something with
+			// `additional_endpoints` contains a key that changes, there are potentially multiple resolvers for different
+			// `additional_endpoints` configurations (eg, `process_config.additional_endpoints` and `additional_endpoints`)
+			if len(removed) > 0 && len(added) > 0 {
+				log.Infof("rotating API key for '%s': %s -> %s", setting, strings.Join(removed, ","), strings.Join(added, ","))
+			}
+
+			return
+		}
 
 		oldAPIKey, ok1 := oldValue.(string)
 		newAPIKey, ok2 := newValue.(string)
