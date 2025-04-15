@@ -10,7 +10,6 @@ package network
 import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // this file is here because Windows has its own ConnectionKeysFromConnectionStats.
@@ -58,8 +57,6 @@ func WithKey(connectionStats ConnectionStats, f func(key types.ConnectionKey) (s
 		clientPort, serverPort, clientPortNAT, serverPortNAT uint16
 	)
 
-	shouldTraceLog := connectionStats.DPort == 7777 || connectionStats.SPort == 7777 || connectionStats.DPort == 7778 || connectionStats.SPort == 7778
-
 	clientIP, clientPort = connectionStats.Source, connectionStats.SPort
 	serverIP, serverPort = connectionStats.Dest, connectionStats.DPort
 
@@ -69,18 +66,10 @@ func WithKey(connectionStats ConnectionStats, f func(key types.ConnectionKey) (s
 		serverIPNAT, serverPortNAT = GetNATRemoteAddress(connectionStats)
 	}
 
-	if shouldTraceLog {
-		log.Tracef("WithKey - clientIP: %s, clientPort: %d, serverIP: %s, serverPort: %d", clientIP, clientPort, serverIP, serverPort)
-		log.Tracef("WithKey - hasNAT: %t, clientIPNAT: %s, clientPortNAT: %d, serverIPNAT: %s, serverPortNAT: %d", hasNAT, clientIPNAT, clientPortNAT, serverIPNAT, serverPortNAT)
-	}
-
 	// USM data is generally indexed as (client, server), so we do a
 	// *best-effort* to determine the key tuple most likely to be the one
 	// correct and minimize the numer of `f` calls
 	if IsPortInEphemeralRange(connectionStats.Family, connectionStats.Type, clientPort) != EphemeralTrue {
-		if shouldTraceLog {
-			log.Tracef("WithKey - clientPort is not ephemeral, flipping IPs and ports")
-		}
 		// Flip IPs and ports
 		clientIP, clientPort, serverIP, serverPort = serverIP, serverPort, clientIP, clientPort
 		clientIPNAT, clientPortNAT, serverIPNAT, serverPortNAT = serverIPNAT, serverPortNAT, clientIPNAT, clientPortNAT
@@ -88,31 +77,19 @@ func WithKey(connectionStats ConnectionStats, f func(key types.ConnectionKey) (s
 
 	// Callback 1: (client, server)
 	if f(types.NewConnectionKey(clientIP, serverIP, clientPort, serverPort)) {
-		if shouldTraceLog {
-			log.Tracef("WithKey - callback 1: (client, server) returned true")
-		}
 		return
 	}
 
 	// Callback 2: NATed (client, server)
 	if hasNAT && f(types.NewConnectionKey(clientIPNAT, serverIPNAT, clientPortNAT, serverPortNAT)) {
-		if shouldTraceLog {
-			log.Tracef("WithKey - callback 2: NATed (client, server) returned true")
-		}
 		return
 	}
 
 	// Callback 3: NATed (server, client)
 	if hasNAT && f(types.NewConnectionKey(serverIPNAT, clientIPNAT, serverPortNAT, clientPortNAT)) {
-		if shouldTraceLog {
-			log.Tracef("WithKey - callback 3: NATed (server, client) returned true")
-		}
 		return
 	}
 
-	if shouldTraceLog {
-		log.Tracef("WithKey - callback 4: (server, client)")
-	}
 	// Callback 4: (server, client)
 	f(types.NewConnectionKey(serverIP, clientIP, serverPort, clientPort))
 }
