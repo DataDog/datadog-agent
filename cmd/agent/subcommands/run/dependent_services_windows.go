@@ -9,6 +9,7 @@ package run
 import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -102,6 +103,14 @@ func installerInit() error {
 
 // Start starts the service
 func (s *Servicedef) Start() error {
+	// Initialize the service if it has an init function
+	if s.serviceInit != nil {
+		err := s.serviceInit()
+		if err != nil {
+			log.Warnf("Failed to initialize %s service: %s", s.name, err.Error())
+			return err
+		}
+	}
 	// we use the winutil StartService because it opens the service
 	// with the correct permissions for us and not the default of SC_MANAGER_ALL
 	// that the svc package uses

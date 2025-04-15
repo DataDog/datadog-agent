@@ -23,7 +23,15 @@ func (s *Servicedef) IsEnabled() bool {
 
 // ShouldStop checks to see if a service should be stopped
 func (s *Servicedef) ShouldStop() bool {
-	return s.shouldShutdown
+	if !s.IsEnabled() {
+		log.Infof("Service %s is disabled, not stopping", s.name)
+		return false
+	}
+	if !s.shouldShutdown {
+		log.Infof("Service %s is not configured to stop, not stopping", s.name)
+		return false
+	}
+	return true
 }
 
 func startDependentServices() {
@@ -44,7 +52,7 @@ func startDependentServices() {
 
 func stopDependentServices() {
 	for _, svc := range subservices {
-		if svc.IsEnabled() && svc.ShouldStop() {
+		if svc.ShouldStop() {
 			log.Debugf("Attempting to stop service: %s", svc.name)
 			err := svc.Stop()
 			if err != nil {
@@ -52,10 +60,8 @@ func stopDependentServices() {
 			} else {
 				log.Debugf("Stopped service %s", svc.name)
 			}
-		} else if svc.IsEnabled() {
-			log.Infof("Service %s is enabled and doesn't need to be stopped", svc.name)
 		} else {
-			log.Infof("Service %s is disabled, not stopping", svc.name)
+			log.Infof("Service %s is not configured to stop, not stopping", svc.name)
 		}
 	}
 }
