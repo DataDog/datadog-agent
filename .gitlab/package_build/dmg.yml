@@ -94,7 +94,7 @@ include:
       # TODO: Verify export is necessary
       export NOTARIZATION_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_NOTARIZATION password) || exit $?; export NOTARIZATION_PWD
       export TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT team-id) || exit $?; export TEAM_ID
-      export APPLE_ACCOUNT=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT password) || exit $?; export APPLE_ACCOUNT
+      export APPLE_ACCOUNT=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT user) || exit $?; export APPLE_ACCOUNT
 
       # Create temporary build keychain
       security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
@@ -198,7 +198,7 @@ include:
 new-agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64-test", "specific:true"]
-  parallel: 16
+  # parallel: 2
   # TODO
   needs: []
   # needs:
@@ -219,7 +219,7 @@ new-agent_dmg-x64-a7:
     # TODO
     OMNIBUS_RUBY_VERSION: celian/macos-build
     # TODO
-    # SIGN: true
+    SIGN: true
     KEYCHAIN_NAME: "build.keychain"
     INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
     INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD: true
