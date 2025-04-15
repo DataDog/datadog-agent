@@ -338,7 +338,7 @@ func (d *safeDeviceImpl) GetNvLinkState(link int) (nvml.EnableState, error) {
 	return state, nil
 }
 
-//nolint:stylecheck,revive // Maintaining consistency with go-nvml API naming
+//nolint:revive (Maintaining consistency with go-nvml API naming)
 func (d *safeDeviceImpl) GetGpuInstanceId() (int, error) {
 	if err := d.lib.lookup(toNativeName("GetGpuInstanceId")); err != nil {
 		return 0, err
