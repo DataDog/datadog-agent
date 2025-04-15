@@ -16,6 +16,8 @@ branches:
   /^6\.[0-9]+\.x$/:
     github_teams_restrictions:
       - "agent-supply-chain"
+checks_to_ignore:
+  - "CircleCI Pipeline"
 ---
 schema-version: v1
 kind: buildimpactanalysis
