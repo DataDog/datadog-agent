@@ -4,7 +4,6 @@
 #include "kconfig.h"
 #include <linux/types.h>
 #include <linux/version.h>
-#include <uapi/asm-generic/mman-common.h>
 // required for splice
 #include <linux/mutex.h>
 #include <linux/wait.h>
