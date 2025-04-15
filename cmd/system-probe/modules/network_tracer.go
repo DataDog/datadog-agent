@@ -98,50 +98,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 
 		// Trace log detailed connection information for debugging
 		if log.ShouldLog(log.TraceLvl) {
-			log.Tracef("NETTRACER_DEBUG: Connections for client %s - Total connections: %d", id, len(cs.Conns))
-
-			// Log HTTP data from connections if available
-			if len(cs.HTTP) > 0 {
-				log.Tracef("NETTRACER_DEBUG: Found %d HTTP entries in connections", len(cs.HTTP))
-				for key, requestStats := range cs.HTTP {
-					log.Tracef("NETTRACER_DEBUG:   HTTP Key: %+v", key)
-					log.Tracef("NETTRACER_DEBUG:   HTTP RequestStats: %+v", requestStats)
-
-					// Print detailed HTTP stats by status code
-					log.Tracef("NETTRACER_DEBUG:   Status codes tracked: %d", len(requestStats.Data))
-					for statusCode, stat := range requestStats.Data {
-						log.Tracef("NETTRACER_DEBUG:     Status Code: %d", statusCode)
-						log.Tracef("NETTRACER_DEBUG:     Count: %d", stat.Count)
-						if stat.StaticTags != 0 {
-							log.Tracef("NETTRACER_DEBUG:     Static Tags: %d", stat.StaticTags)
-						}
-						if len(stat.DynamicTags) > 0 {
-							log.Tracef("NETTRACER_DEBUG:     Dynamic Tags: %v", stat.DynamicTags)
-						}
-					}
-				}
-			} else {
-				log.Tracef("NETTRACER_DEBUG: No HTTP data found in connections")
-			}
-
-			// Log all connections for debugging
-			log.Tracef("NETTRACER_DEBUG: Found %d total connections", len(cs.Conns))
-			for i, conn := range cs.Conns {
-				log.Tracef("NETTRACER_DEBUG: Connection %d:", i)
-				log.Tracef("NETTRACER_DEBUG:   Source: %s:%d", conn.Source.String(), conn.SPort)
-				log.Tracef("NETTRACER_DEBUG:   Destination: %s:%d", conn.Dest.String(), conn.DPort)
-				log.Tracef("NETTRACER_DEBUG:   Protocol Stack: %+v", conn.ProtocolStack)
-				if conn.IPTranslation != nil {
-					log.Tracef("NETTRACER_DEBUG:   IP Translation:")
-					log.Tracef("NETTRACER_DEBUG:     ReplSrcIP: %s, ReplSrcPort: %d", conn.IPTranslation.ReplSrcIP.String(), conn.IPTranslation.ReplSrcPort)
-					log.Tracef("NETTRACER_DEBUG:     ReplDstIP: %s, ReplDstPort: %d", conn.IPTranslation.ReplDstIP.String(), conn.IPTranslation.ReplDstPort)
-				} else {
-					log.Tracef("NETTRACER_DEBUG:   No IP Translation")
-				}
-				log.Tracef("NETTRACER_DEBUG:   Direction: %s", conn.Direction)
-				log.Tracef("NETTRACER_DEBUG:   Type: %s", conn.Type)
-				log.Tracef("NETTRACER_DEBUG:   PID: %d", conn.Pid)
-			}
+			traceLogConnections(id, cs)
 		}
 
 		contentType := req.Header.Get("Accept")
@@ -425,5 +382,53 @@ func writeConntrackTable(table *tracer.DebugConntrackTable, w http.ResponseWrite
 	if err != nil {
 		log.Errorf("unable to dump conntrack: %s", err)
 		w.WriteHeader(500)
+	}
+}
+
+// traceLogConnections logs detailed connection information for debugging
+func traceLogConnections(id string, cs *network.Connections) {
+	log.Tracef("NETTRACER_DEBUG: Connections for client %s - Total connections: %d", id, len(cs.Conns))
+
+	// Log HTTP data from connections if available
+	if len(cs.HTTP) > 0 {
+		log.Tracef("NETTRACER_DEBUG: Found %d HTTP entries in connections", len(cs.HTTP))
+		for key, requestStats := range cs.HTTP {
+			log.Tracef("NETTRACER_DEBUG:   HTTP Key: %+v", key)
+			log.Tracef("NETTRACER_DEBUG:   HTTP RequestStats: %+v", requestStats)
+
+			// Print detailed HTTP stats by status code
+			log.Tracef("NETTRACER_DEBUG:   Status codes tracked: %d", len(requestStats.Data))
+			for statusCode, stat := range requestStats.Data {
+				log.Tracef("NETTRACER_DEBUG:     Status Code: %d", statusCode)
+				log.Tracef("NETTRACER_DEBUG:     Count: %d", stat.Count)
+				if stat.StaticTags != 0 {
+					log.Tracef("NETTRACER_DEBUG:     Static Tags: %d", stat.StaticTags)
+				}
+				if len(stat.DynamicTags) > 0 {
+					log.Tracef("NETTRACER_DEBUG:     Dynamic Tags: %v", stat.DynamicTags)
+				}
+			}
+		}
+	} else {
+		log.Tracef("NETTRACER_DEBUG: No HTTP data found in connections")
+	}
+
+	// Log all connections for debugging
+	log.Tracef("NETTRACER_DEBUG: Found %d total connections", len(cs.Conns))
+	for i, conn := range cs.Conns {
+		log.Tracef("NETTRACER_DEBUG: Connection %d:", i)
+		log.Tracef("NETTRACER_DEBUG:   Source: %s:%d", conn.Source.String(), conn.SPort)
+		log.Tracef("NETTRACER_DEBUG:   Destination: %s:%d", conn.Dest.String(), conn.DPort)
+		log.Tracef("NETTRACER_DEBUG:   Protocol Stack: %+v", conn.ProtocolStack)
+		if conn.IPTranslation != nil {
+			log.Tracef("NETTRACER_DEBUG:   IP Translation:")
+			log.Tracef("NETTRACER_DEBUG:     ReplSrcIP: %s, ReplSrcPort: %d", conn.IPTranslation.ReplSrcIP.String(), conn.IPTranslation.ReplSrcPort)
+			log.Tracef("NETTRACER_DEBUG:     ReplDstIP: %s, ReplDstPort: %d", conn.IPTranslation.ReplDstIP.String(), conn.IPTranslation.ReplDstPort)
+		} else {
+			log.Tracef("NETTRACER_DEBUG:   No IP Translation")
+		}
+		log.Tracef("NETTRACER_DEBUG:   Direction: %s", conn.Direction)
+		log.Tracef("NETTRACER_DEBUG:   Type: %s", conn.Type)
+		log.Tracef("NETTRACER_DEBUG:   PID: %d", conn.Pid)
 	}
 }
