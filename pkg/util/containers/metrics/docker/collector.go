@@ -89,7 +89,7 @@ func (d *dockerCollector) GetContainerStats(_, containerID string, _ time.Durati
 	if err != nil {
 		return nil, err
 	}
-	outStats := convertContainerStats(&stats.Stats)
+	outStats := convertContainerStats(stats)
 
 	contSpec, err := d.spec(containerID)
 	if err == nil {
