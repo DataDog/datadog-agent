@@ -11,8 +11,10 @@ type CommandType uint8
 var (
 	// UnknownCommand is the default CommandType value.
 	UnknownCommand = CommandType(0x0)
-	GetCommand     = CommandType(0x1)
-	SetCommand     = CommandType(0x2)
+	// GetCommand represents a GET redis command.
+	GetCommand = CommandType(0x1)
+	// SetCommand represents a SET redis command.
+	SetCommand = CommandType(0x2)
 )
 
 // String returns a string representation of Command
