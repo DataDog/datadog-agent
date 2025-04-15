@@ -1746,6 +1746,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			if tt.wantSkipInjection {
 				return
 			}
+
 			c.Mutators = mutator.core.newInitContainerMutators(requirements)
 			initalInitContainerCount := len(tt.pod.Spec.InitContainers)
 			err = c.mutatePod(tt.pod)
@@ -2965,6 +2966,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 					Value: "test-app",
 				},
 				corev1.EnvVar{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-app",
+				},
+				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
 					Value: installTime,
 				},
@@ -3002,6 +3007,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 					Value: "test-app",
 				},
 				corev1.EnvVar{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-app",
+				},
+				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
 					Value: installTime,
 				},
@@ -3037,6 +3046,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				corev1.EnvVar{
 					Name:  "DD_SERVICE",
 					Value: "test-app",
+				},
+				corev1.EnvVar{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-app",
 				},
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
@@ -3412,7 +3425,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 					}
 				}
 				if !found {
-					require.Failf(t, "Unexpected env var injected in container", contEnv.Name)
+					require.Failf(t, "Unexpected env var injected in container", "env=%+v", contEnv)
 				}
 			}
 

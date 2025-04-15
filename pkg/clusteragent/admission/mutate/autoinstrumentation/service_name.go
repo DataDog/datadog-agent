@@ -17,17 +17,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// serviceNameSource is used to denote where the service name
+// is coming from when we inject it into a container using serviceNameMutator.
 type serviceNameSource string
 
 const (
-	serviceNameSourceExistingEnv serviceNameSource = "existing"
-	serviceNameSourceOwnerName                     = "owner"
+	// serviceNameSourceExisting helps us know if we pulled the DD_SERVICE
+	// from ane existing env var on the pod.
+	serviceNameSourceExisting serviceNameSource = "existing"
+	// serviceNameSourceOwnerName will tell us if we pulled the DD_SERVICE
+	// from the pod owner name.
+	serviceNameSourceOwnerName = "owner"
 )
 
 type serviceNameMutator struct {
 	noop   bool
-	envVar corev1.EnvVar
-	source serviceNameSource
+	EnvVar corev1.EnvVar     `json:"env"`
+	Source serviceNameSource `json:"source"`
 }
 
 func (s *serviceNameMutator) mutateContainer(c *corev1.Container) error {
@@ -42,12 +48,12 @@ func (s *serviceNameMutator) mutateContainer(c *corev1.Container) error {
 	}
 
 	var envs []corev1.EnvVar
-	envs = append(envs, s.envVar)
+	envs = append(envs, s.EnvVar)
 
-	if s.source != "" {
+	if s.Source != "" && s.EnvVar.Value != "" {
 		envs = append(envs, corev1.EnvVar{
-			Name:  "DD_UST_K8S_ENV_SOURCE",
-			Value: fmt.Sprintf("%s:%s", kubernetes.ServiceTagEnvVar, s.source),
+			Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+			Value: fmt.Sprintf("%s=%s", s.Source, s.EnvVar.Value),
 		})
 	}
 
@@ -63,8 +69,8 @@ func newServiceNameMutator(pod *corev1.Pod) *serviceNameMutator {
 
 	if len(vars) > 0 {
 		return &serviceNameMutator{
-			envVar: vars[0],
-			source: serviceNameSourceExistingEnv,
+			EnvVar: vars[0],
+			Source: serviceNameSourceExisting,
 		}
 	}
 
@@ -79,11 +85,8 @@ func newServiceNameMutator(pod *corev1.Pod) *serviceNameMutator {
 	}
 
 	return &serviceNameMutator{
-		envVar: corev1.EnvVar{
-			Name:  kubernetes.ServiceTagEnvVar,
-			Value: name,
-		},
-		source: serviceNameSourceOwnerName,
+		EnvVar: corev1.EnvVar{Name: kubernetes.ServiceTagEnvVar, Value: name},
+		Source: serviceNameSourceOwnerName,
 	}
 }
 

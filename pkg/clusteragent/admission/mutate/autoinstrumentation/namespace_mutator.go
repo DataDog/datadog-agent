@@ -151,10 +151,36 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		injectionType  = config.source.injectionType()
 		autoDetected   = config.source.isFromLanguageDetection()
 
+		// N.B.
+		//
+		// This is kind of gross, and would ideally not happen more than in
+		// one place but we made a decision to infer DD_SERVICE in the auto-instrumentation
+		// webhook a while ago and customers might be relying on this behavior.
+		//
+		// We have another webhook that does something really similar: tagsFromLabels and
+		// it this is where the responsibility should generally.
+		//
+		// The big difference between the two is that tagsFromLabels looks at the label
+		// metadata and we might override it and this one will look for the _name_ of the
+		// owner resource.
+		//
+		// The intention is to have this always run last so that we fallback to the owner
+		// name in cases of missing labels coming from the resource or its owner.
+		//
+		// mutatecommon.InjectEnv will _only_ change an env var if it is present so this code
+		// will add `DD_SERVICE` to all containers on the pod if it wasn't already set.
+		//
+		// We want to get rid of the behavior when we are triggering the fallback _and_
+		// it applies: https://datadoghq.atlassian.net/browse/INPLAT-458
+		serviceNameMutator = newServiceNameMutator(pod)
+
 		// initContainerMutators are resource and security constraints
 		// to all the init containers the init containers that we create.
-		initContainerMutators = m.newInitContainerMutators(requirements)
-		injectorOptions       = libRequirementOptions{
+		initContainerMutators = append(
+			m.newInitContainerMutators(requirements),
+			serviceNameMutator,
+		)
+		injectorOptions = libRequirementOptions{
 			containerFilter:       m.config.containerFilter,
 			initContainerMutators: initContainerMutators,
 		}
@@ -162,6 +188,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		injector          = m.newInjector(pod, startTime, injectorOptions)
 		containerMutators = containerMutators{
 			config.languageDetection.containerMutator(m.config.version),
+			serviceNameMutator,
 		}
 	)
 
@@ -208,32 +235,6 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 
 	if m.filter.IsNamespaceEligible(pod.Namespace) {
 		_ = basicLibConfigInjector{}.mutatePod(pod)
-
-		// N.B.
-		//
-		// This is kind of gross, and would ideally not happen more than in
-		// one place but we made a decision to infer DD_SERVICE in the auto-instrumentation
-		// webhook a while ago and customers might be relying on this behavior.
-		//
-		// We have another webhook that does something really similar: tagsFromLabels and
-		// it this is where the responsibility should generally.
-		//
-		// The big difference between the two is that tagsFromLabels looks at the label
-		// metadata and we might override it and this one will look for the _name_ of the
-		// owner resource.
-		//
-		// The intention is to have this always run last so that we fallback to the owner
-		// name in cases of missing labels coming from the resource or its owner.
-		//
-		// mutatecommon.InjectEnv will _only_ change an env var if it is present so this code
-		// will add `DD_SERVICE` to all containers on the pod if it wasn't already set.
-		//
-		// We want to get rid of the behavior when we are triggering the fallback _and_
-		// it applies: https://datadoghq.atlassian.net/browse/INPLAT-458
-		serviceNameEnv, found := findServiceNameInPod(pod)
-		if found {
-			_ = mutatecommon.InjectEnv(pod, serviceNameEnv)
-		}
 	}
 
 	return lastError
