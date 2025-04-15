@@ -20,10 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )
 
-func createTestCheck(t *testing.T) *AgentProfilingCheck {
+func createTestCheck(t *testing.T) *Check {
 	flare := flaremock.NewMock().Comp
 	cfg := configmock.NewMock(t)
-	return newCheck(flare, cfg).(*AgentProfilingCheck)
+	return newCheck(flare, cfg).(*Check)
 }
 
 // TestConfigParse tests that the configuration is parsed correctly

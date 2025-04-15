@@ -36,18 +36,18 @@ const (
 	MB        = 1024 * 1024
 )
 
-// AgentProfilingConfig is the configuration for the agentprofiling check
-type AgentProfilingConfig struct {
+// Config is the configuration for the agentprofiling check
+type Config struct {
 	MemoryThreshold string `yaml:"memory_threshold"`
 	CPUThreshold    int    `yaml:"cpu_threshold"`
 	TicketID        string `yaml:"ticket_id"`
 	UserEmail       string `yaml:"user_email"`
 }
 
-// AgentProfilingCheck is the check that captures a memory profile of the core agent
-type AgentProfilingCheck struct {
+// Check is the check that captures a memory profile of the core agent
+type Check struct {
 	core.CheckBase
-	instance        *AgentProfilingConfig
+	instance        *Config
 	profileCaptured bool
 	flareComponent  flare.Component
 	agentConfig     config.Component
@@ -65,16 +65,16 @@ func Factory(flareComponent flare.Component, agentConfig config.Component) optio
 
 // newCheck creates a new instance of the agentprofiling check
 func newCheck(flareComponent flare.Component, agentConfig config.Component) check.Check {
-	return &AgentProfilingCheck{
+	return &Check{
 		CheckBase:      core.NewCheckBase(CheckName),
-		instance:       &AgentProfilingConfig{},
+		instance:       &Config{},
 		flareComponent: flareComponent,
 		agentConfig:    agentConfig,
 	}
 }
 
 // Parse parses the configuration for the agentprofiling check
-func (c *AgentProfilingConfig) Parse(data []byte) error {
+func (c *Config) Parse(data []byte) error {
 	// default values
 	c.MemoryThreshold = "0"
 	c.CPUThreshold = 0
@@ -84,7 +84,7 @@ func (c *AgentProfilingConfig) Parse(data []byte) error {
 }
 
 // Configure configures the agentprofiling check
-func (m *AgentProfilingCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
 	err := m.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
@@ -101,7 +101,7 @@ func (m *AgentProfilingCheck) Configure(senderManager sender.SenderManager, _ ui
 }
 
 // calculateCPUPercentage calculates the CPU percentage since the last check
-func (m *AgentProfilingCheck) calculateCPUPercentage(currentTimes *cpu.TimesStat) float64 {
+func (m *Check) calculateCPUPercentage(currentTimes *cpu.TimesStat) float64 {
 	if m.lastCPUTimes == nil {
 		m.lastCPUTimes = currentTimes
 		m.lastCheckTime = time.Now()
@@ -129,8 +129,8 @@ func (m *AgentProfilingCheck) calculateCPUPercentage(currentTimes *cpu.TimesStat
 	return cpuPercent
 }
 
-// Run runs the agentprofiling check
-func (m *AgentProfilingCheck) Run() error {
+// Run executes the agent profiling check, capturing a memory profile if thresholds are exceeded
+func (m *Check) Run() error {
 	// Don't run again if the profile has already been captured
 	if m.profileCaptured {
 		log.Debugf("Memory profile already captured, skipping further checks.")
@@ -149,7 +149,7 @@ func (m *AgentProfilingCheck) Run() error {
 		// Get the current process (agent)
 		p, err := process.NewProcess(int32(os.Getpid()))
 		if err != nil {
-			return fmt.Errorf("Failed to get agent process: %s", err)
+			return fmt.Errorf("Failed to get agent process: %w", err)
 		}
 
 		// Get process memory info
@@ -202,7 +202,7 @@ func (m *AgentProfilingCheck) Run() error {
 }
 
 // generateFlare generates a flare and sends it to Zendesk if ticketID is specified, otherwise generates it locally
-func (m *AgentProfilingCheck) generateFlare() error {
+func (m *Check) generateFlare() error {
 	// Skip flare generation if flareComponent is not available
 	if m.flareComponent == nil {
 		log.Info("Skipping flare generation: flare component not available")
