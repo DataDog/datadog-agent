@@ -174,6 +174,7 @@ func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, na
 	}
 	hookCtx := HookContext{
 		Context:     ctx,
+		Hook:        name,
 		Package:     pkg,
 		PackagePath: pkgPath,
 		PackageType: packageType,
@@ -196,6 +197,10 @@ func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, na
 func RunHook(ctx HookContext) (err error) {
 	hook := getHook(ctx.Package, ctx.Hook)
 	if hook == nil {
+		span, ok := telemetry.SpanFromContext(ctx)
+		if ok {
+			span.SetTag("unknown_hook", true)
+		}
 		return nil
 	}
 	span, hookCtx := ctx.StartSpan(fmt.Sprintf("package.%s.%s", ctx.Package, ctx.Hook))

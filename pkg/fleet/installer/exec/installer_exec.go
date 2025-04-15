@@ -50,7 +50,7 @@ func (i *InstallerExec) newInstallerCmdCustomPath(ctx context.Context, command s
 	// Enforce the use of the installer when it is bundled with the agent.
 	env = append(env, "DD_BUNDLED_AGENT=installer")
 	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
-	span.SetTag("args", args)
+	span.SetTag("args", strings.Join(args, " "))
 	cmd := exec.CommandContext(ctx, path, append([]string{command}, args...)...)
 	env = append(os.Environ(), env...)
 	env = append(env, telemetry.EnvFromContext(ctx)...)
