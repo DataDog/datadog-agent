@@ -78,7 +78,7 @@ func (f *FakeDCAClient) GetNodeLabels(_ string) (map[string]string, error) {
 	return f.NodeLabels, f.NodeLabelsErr
 }
 
-func (f *FakeDCAClient) GetNodeAnnotations(_ string) (map[string]string, error) {
+func (f *FakeDCAClient) GetNodeAnnotations(_ string, _ ...string) (map[string]string, error) {
 	return f.NodeAnnotations, f.NodeLabelsErr
 }
 
