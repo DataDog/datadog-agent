@@ -35,20 +35,24 @@ import (
 func TestOTelAPMStatsMatch(t *testing.T) {
 	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
 		t.Run("OperationNameV1", func(t *testing.T) {
+			t.Parallel()
 			testOTelAPMStatsMatch(false, false, t)
 		})
 
-		t.Run("OperationNameV1", func(t *testing.T) {
+		t.Run("OperationNameV2", func(t *testing.T) {
+			t.Parallel()
 			testOTelAPMStatsMatch(false, true, t)
 		})
 	})
 
 	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
 		t.Run("OperationNameV1", func(t *testing.T) {
+			t.Parallel()
 			testOTelAPMStatsMatch(true, false, t)
 		})
 
-		t.Run("OperationNameV1", func(t *testing.T) {
+		t.Run("OperationNameV2", func(t *testing.T) {
+			t.Parallel()
 			testOTelAPMStatsMatch(true, true, t)
 		})
 	})
