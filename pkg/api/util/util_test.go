@@ -162,6 +162,7 @@ func TestDeadline(t *testing.T) {
 
 	// Create a new config
 	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("auth_init_timeout", 1*time.Second)
 
 	// Create a lock file to simulate contention on ipc_cert_file
 	tmpDir, err := os.MkdirTemp("", "")
