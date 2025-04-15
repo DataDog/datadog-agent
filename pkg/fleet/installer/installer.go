@@ -97,12 +97,15 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
+	pkgs := repository.NewRepositories(paths.PackagesPath, packages.AsyncPreRemoveHooks)
+	configs := repository.NewRepositories(paths.ConfigsPath, nil)
 	i := &installerImpl{
 		env:        env,
 		db:         db,
 		downloader: oci.NewDownloader(env, env.HTTPClient()),
-		packages:   repository.NewRepositories(paths.PackagesPath, packages.AsyncPreRemoveHooks),
-		configs:    repository.NewRepositories(paths.ConfigsPath, nil),
+		packages:   pkgs,
+		configs:    configs,
+		hooks:      packages.NewHooks(env, pkgs),
 
 		userConfigsDir: paths.DefaultUserConfigsDir,
 		packagesDir:    paths.PackagesPath,
