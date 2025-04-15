@@ -77,7 +77,7 @@ func TestPopulateCapabilities(t *testing.T) {
 			mockNvml := testutil.GetBasicNvmlMockWithOptions(
 				testutil.WithSymbolsMock(availableSymbols),
 			)
-			WithMockNVML(t, mockNvml, availableSymbols)
+			WithPartialMockNVML(t, mockNvml, availableSymbols)
 
 			// Set the library instance directly to bypass initialization
 			safenvml.lib = mockNvml

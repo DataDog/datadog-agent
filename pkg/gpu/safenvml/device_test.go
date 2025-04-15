@@ -25,7 +25,7 @@ func TestNewDevice(t *testing.T) {
 	)
 
 	// Use WithMockNVML to set the mock
-	WithMockNVML(t, mockNvml, allSymbols)
+	WithMockNVML(t, mockNvml)
 
 	// Test device creation
 	mockDevice := testutil.GetDeviceMock(0)
@@ -48,7 +48,7 @@ func TestNewDeviceUUIDFailure(t *testing.T) {
 	)
 
 	// Use WithMockNVML to set the mock
-	WithMockNVML(t, mockNvml, allSymbols)
+	WithMockNVML(t, mockNvml)
 
 	// Create a mock device that fails when getting UUID
 	failingMockDevice := &nvmlmock.Device{
@@ -88,7 +88,7 @@ func TestDeviceWithMissingSymbol(t *testing.T) {
 	)
 
 	// Use WithMockNVML to set the mock
-	WithMockNVML(t, mockNvml, symbols)
+	WithPartialMockNVML(t, mockNvml, symbols)
 
 	// Create device
 	mockDevice := testutil.GetDeviceMock(0)
@@ -113,7 +113,7 @@ func TestDeviceSafeMethodSuccess(t *testing.T) {
 	)
 
 	// Use WithMockNVML to set the mock
-	WithMockNVML(t, mockNvml, allSymbols)
+	WithMockNVML(t, mockNvml)
 
 	// Create device
 	mockDevice := testutil.GetDeviceMock(0)

@@ -54,10 +54,15 @@ var allSymbols = map[string]struct{}{
 	toNativeName("GetUtilizationRates"):        {},
 }
 
-// WithMockNVML sets the singleton SafeNVML library for testing purposes.
+// WithMockNVML calls the WithPartialMockNVML with all symbols available
+func WithMockNVML(tb testing.TB, lib nvml.Interface) {
+	WithPartialMockNVML(tb, lib, allSymbols)
+}
+
+// WithPartialMockNVML sets the singleton SafeNVML library for testing purposes.
 // This is useful to test the NVML library without having to initialize it
 // manually. It automatically restores the original NVML library on test cleanup
-func WithMockNVML(tb testing.TB, lib nvml.Interface, capabilities map[string]struct{}) {
+func WithPartialMockNVML(tb testing.TB, lib nvml.Interface, capabilities map[string]struct{}) {
 	singleton.mu.Lock()
 	defer singleton.mu.Unlock()
 

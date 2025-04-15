@@ -23,7 +23,7 @@ func TestDeviceCache(t *testing.T) {
 	)
 
 	// Use WithMockNVML to set the mock
-	WithMockNVML(t, mockNvml, allSymbols)
+	WithMockNVML(t, mockNvml)
 
 	// Create device cache
 	cache, err := NewDeviceCache()
@@ -55,7 +55,7 @@ func TestDeviceCachePartialFailure(t *testing.T) {
 	mockNvml.DeviceGetHandleByIndexFunc = baseDeviceGetHandleByIndexFunc
 
 	// Use WithMockNVML to set the mock
-	WithMockNVML(t, mockNvml, allSymbols)
+	WithMockNVML(t, mockNvml)
 
 	// Create device cache
 	cache, err := NewDeviceCache()
@@ -84,7 +84,7 @@ func TestDeviceCacheGetByIndex(t *testing.T) {
 	)
 
 	// Use WithMockNVML to set the mock
-	WithMockNVML(t, mockNvml, allSymbols)
+	WithMockNVML(t, mockNvml)
 
 	// Create device cache
 	cache, err := NewDeviceCache()
@@ -114,7 +114,7 @@ func TestDeviceCacheSMVersionSet(t *testing.T) {
 	)
 
 	// Use WithMockNVML to set the mock
-	WithMockNVML(t, mockNvml, allSymbols)
+	WithMockNVML(t, mockNvml)
 
 	// Create device cache
 	cache, err := NewDeviceCache()
@@ -135,7 +135,7 @@ func TestDeviceCacheAll(t *testing.T) {
 	)
 
 	// Use WithMockNVML to set the mock
-	WithMockNVML(t, mockNvml, allSymbols)
+	WithMockNVML(t, mockNvml)
 
 	// Create device cache
 	cache, err := NewDeviceCache()
@@ -160,7 +160,7 @@ func TestDeviceCacheCores(t *testing.T) {
 	)
 
 	// Use WithMockNVML to set the mock
-	WithMockNVML(t, mockNvml, allSymbols)
+	WithMockNVML(t, mockNvml)
 
 	// Create device cache
 	cache, err := NewDeviceCache()
