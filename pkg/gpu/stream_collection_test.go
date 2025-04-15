@@ -12,11 +12,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
-
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/nvml/testutil"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
