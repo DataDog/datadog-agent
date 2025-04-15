@@ -98,14 +98,27 @@ func (c *WLANCheck) Run() error {
 
 	roamingEvent := 0.0
 	channelSwapEvent := 0.0
-	if c.isWarmedUp {
-		// Check if the BSSID or channel has changed since the last run
-		if c.lastBSSID != wifiInfo.bssid {
-			// BSSID has changed
-			roamingEvent = 1.0
-		} else if c.lastChannelID != wifiInfo.channel {
-			// Channel has changed (if the BSSID is changed it is roaming and not channel swap)
-			channelSwapEvent = 1.0
+
+	// Roaming and channel swap events could happen only if we are still on the same network (and warmed up).
+	// Notes:
+	//   * SSID could be empty if it is not "advertised" by the AP and in this case
+	//     the sameness of the network is determined by the matching BSSID.
+	//   * BSSID could not be empty (it is an error condition) and it would not
+	//     contribute to the sameness of the network. If current or previous sample of BSSID
+	//     is empty, we still cannot determine if we are roaming or have changed the channel.
+	if c.isWarmedUp && c.lastSSID == wifiInfo.ssid && len(c.lastBSSID) > 0 && len(wifiInfo.bssid) > 0 {
+		if len(c.lastSSID) > 0 {
+			// The same non-empty SSID
+			if c.lastBSSID != wifiInfo.bssid {
+				roamingEvent = 1.0
+			} else if c.lastChannelID != wifiInfo.channel {
+				channelSwapEvent = 1.0
+			}
+		} else {
+			// Empty SSID, roaming detection is not possible but channel swapping is
+			if c.lastBSSID == wifiInfo.bssid && c.lastChannelID != wifiInfo.channel {
+				channelSwapEvent = 1.0
+			}
 		}
 	}
 	sender.Count("wlan.roaming_events", roamingEvent, "", tags)
