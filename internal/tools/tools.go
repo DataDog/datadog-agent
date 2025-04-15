@@ -16,6 +16,7 @@ import (
 	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
 	_ "github.com/goware/modvendor"
 	_ "github.com/stormcat24/protodep"
+	_ "github.com/uber-go/gopatch"
 	_ "github.com/vektra/mockery/v2"
 	_ "github.com/wadey/gocovmerge"
 	_ "golang.org/x/mobile/cmd/gobind"

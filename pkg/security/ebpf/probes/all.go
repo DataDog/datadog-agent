@@ -184,6 +184,7 @@ type MapSpecEditorOpts struct {
 	ReducedProcPidCacheSize   bool
 	NetworkFlowMonitorEnabled bool
 	NetworkSkStorageEnabled   bool
+	SpanTrackMaxCount         int
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -217,11 +218,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"rate_limiters": {
+		"pid_rate_limiters": {
 			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
-
 		"active_flows": {
 			MaxEntries: activeFlowsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
@@ -256,6 +256,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		},
 		"secprofs_syscalls": {
 			MaxEntries: uint32(opts.SecurityProfileMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"span_tls": {
+			MaxEntries: uint32(opts.SpanTrackMaxCount),
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}

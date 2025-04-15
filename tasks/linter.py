@@ -346,7 +346,7 @@ def ssm_parameters(ctx, mode="all", folders=None):
     if mode not in modes:
         raise Exit(f"Invalid mode: {mode}. Must be one of {modes}")
     if folders is None:
-        lint_folders = [".circleci", ".github", ".gitlab", "test"]
+        lint_folders = [".github", ".gitlab", "test"]
     else:
         lint_folders = folders.split(",")
     repo_files = ctx.run("git ls-files", hide="both")
