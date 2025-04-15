@@ -19,12 +19,12 @@ const (
 var (
 	commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
 
-	// telemetryHorizontalLocalRecommendations tracks the local horizontal scaling recommendation values
+	// telemetryHorizontalExternalRecommendations tracks external horizontal scaling recommendation values
 	telemetryHorizontalExternalRecommendations = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"horizontal_scaling_recommended_replicas",
 		[]string{"namespace", "target_name", "autoscaler_name", "source", le.JoinLeaderLabel},
-		"Tracks the value of replicas recommended by the local recommender",
+		"Tracks the value of replicas recommended by an external recommender",
 		commonOpts,
 	)
 )

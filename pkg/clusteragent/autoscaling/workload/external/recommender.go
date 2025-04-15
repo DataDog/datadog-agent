@@ -39,9 +39,9 @@ func NewRecommender(podWatcher workload.PodWatcher, store *autoscaling.Store[mod
 	}
 }
 
-// Run starts the Recommender interface to generate local recommendations
+// Run starts the Recommender interface to generate external recommendations
 func (r *Recommender) Run(ctx context.Context) {
-	log.Infof("Starting external autoscaling recommender")
+	log.Debugf("Starting external autoscaling recommender")
 	ticker := time.NewTicker(pollingInterval)
 
 	go func() {
@@ -52,7 +52,7 @@ func (r *Recommender) Run(ctx context.Context) {
 			case <-ticker.C:
 				r.process(ctx)
 			case <-ctx.Done():
-				log.Infof("Stopping external autoscaling recommender")
+				log.Debugf("Stopping external autoscaling recommender")
 				return
 			}
 		}
