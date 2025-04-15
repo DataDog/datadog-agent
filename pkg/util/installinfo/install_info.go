@@ -71,7 +71,7 @@ func getFromEnvVars() (*InstallInfo, bool) {
 
 	if !okTool || !okToolVersion || !okInstallerVersion {
 		if okTool || okToolVersion || okInstallerVersion {
-			log.Warn(fmt.Sprintf("install info partially set through environment, ignoring: tool %t, version %t, installer %t", okTool, okToolVersion, okInstallerVersion))
+			log.Warnf("install info partially set through environment, ignoring: tool %t, version %t, installer %t", okTool, okToolVersion, okInstallerVersion)
 		}
 		return nil, false
 	}
