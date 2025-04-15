@@ -30,7 +30,6 @@
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#pragma clang diagnostic ignored "-Wunused-function"
 
 #include "bpf_tracing.h"
 #include "hooks/all.h"
