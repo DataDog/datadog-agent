@@ -232,14 +232,14 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 	}
 
 	p.telemetry.sentEntries.Add(float64(len(stats.Metrics)))
-	p.cleanupFinished()
+	p.cleanupFinished(now)
 
 	return stats, nil
 }
 
-func (p *Probe) cleanupFinished() {
+func (p *Probe) cleanupFinished(nowKtime int64) {
 	p.statsGenerator.cleanupFinishedAggregators()
-	p.streamHandlers.clean()
+	p.streamHandlers.clean(nowKtime)
 }
 
 func (p *Probe) initRCGPU(cfg *config.Config) error {
