@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && linux_bpf
 
 package modules
 
@@ -18,9 +18,11 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
+func init() { registerModule(DynamicInstrumentation) }
+
 // DynamicInstrumentation is a system probe module which allows you to add instrumentation into
 // running Go services without restarts.
-var DynamicInstrumentation = module.Factory{
+var DynamicInstrumentation = &module.Factory{
 	Name:             config.DynamicInstrumentationModule,
 	ConfigNamespaces: []string{},
 	Fn: func(agentConfiguration *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {

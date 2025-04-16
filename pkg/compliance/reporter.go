@@ -44,7 +44,21 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 	auditor.Start()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(4, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext, &common.NoopStatusProvider{}, hostnameimpl.NewHostnameService(), pkgconfigsetup.Datadog(), compression)
+	cfg := pkgconfigsetup.Datadog()
+	pipelineProvider := pipeline.NewProvider(
+		4,
+		auditor,
+		&diagnostic.NoopMessageReceiver{},
+		nil, // processingRules
+		endpoints,
+		dstcontext,
+		&common.NoopStatusProvider{},
+		hostnameimpl.NewHostnameService(),
+		cfg,
+		compression,
+		cfg.GetBool("logs_config.disable_distributed_senders"),
+		false, // serverless
+	)
 	pipelineProvider.Start()
 
 	logSource := sources.NewLogSource(

@@ -188,10 +188,9 @@
 /cmd/                                   @DataDog/agent-configuration
 /cmd/trace-agent/                       @DataDog/agent-apm
 /cmd/agent/subcommands/controlsvc       @DataDog/windows-agent
-/cmd/agent/subcommands/check            @DataDog/agent-runtimes @DataDog/agent-metric-pipelines @DataDog/agent-integrations
+/cmd/agent/subcommands/check            @DataDog/agent-runtimes @DataDog/agent-integrations
 /cmd/agent/subcommands/dogstatsd*       @DataDog/agent-metric-pipelines
 /cmd/agent/subcommands/integrations     @DataDog/agent-integrations @DataDog/agent-runtimes
-/cmd/agent/subcommands/dogstatsd*       @DataDog/agent-metric-pipelines
 /cmd/agent/subcommands/hostname         @DataDog/agent-runtimes
 /cmd/agent/subcommands/version          @DataDog/agent-runtimes
 /cmd/agent/subcommands/remoteconfig     @Datadog/remote-config
@@ -256,7 +255,7 @@
 /Dockerfiles/agent/bouncycastle-fips     @DataDog/agent-metric-pipelines
 
 /docs/                                  @DataDog/agent-devx-loops
-/docs/dev/checks/                       @DataDog/agent-metric-pipelines
+/docs/dev/checks/                       @DataDog/agent-runtimes
 /docs/cloud-workload-security/          @DataDog/documentation @DataDog/agent-security
 
 /docs/public/components/                                     @DataDog/agent-runtimes
@@ -296,8 +295,8 @@
 /comp/agent @DataDog/agent-runtimes
 /comp/aggregator @DataDog/agent-metric-pipelines
 /comp/api @DataDog/agent-runtimes
-/comp/checks @DataDog/agent-metric-pipelines
-/comp/collector @DataDog/agent-metric-pipelines
+/comp/checks @DataDog/agent-runtimes
+/comp/collector @DataDog/agent-runtimes
 /comp/core @DataDog/agent-runtimes
 /comp/dogstatsd @DataDog/agent-metric-pipelines
 /comp/forwarder @DataDog/agent-metric-pipelines
@@ -359,10 +358,10 @@
 /pkg/                                   @DataDog/agent-runtimes
 /pkg/api/                               @DataDog/agent-runtimes
 /pkg/aggregator/                        @DataDog/agent-metric-pipelines
-/pkg/collector/                         @DataDog/agent-metric-pipelines
-/pkg/commonchecks/                      @DataDog/agent-metric-pipelines
+/pkg/collector/                         @DataDog/agent-runtimes
+/pkg/commonchecks/                      @DataDog/agent-runtimes
 /pkg/cli/                               @DataDog/agent-configuration
-/pkg/cli/subcommands/check              @DataDog/agent-runtimes @DataDog/agent-metric-pipelines @DataDog/agent-integrations
+/pkg/cli/subcommands/check              @DataDog/agent-runtimes @DataDog/agent-integrations
 /pkg/cli/subcommands/version            @DataDog/agent-runtimes
 /pkg/cli/subcommands/clusterchecks      @DataDog/container-platform
 /pkg/discovery/                         @DataDog/agent-discovery
@@ -379,7 +378,7 @@
 /pkg/serverless/appsec/                 @DataDog/asm-go
 /pkg/status/                            @DataDog/agent-configuration
 /pkg/status/health                      @DataDog/agent-runtimes
-/pkg/status/collector                   @DataDog/agent-metric-pipelines
+/pkg/status/collector                   @DataDog/agent-runtimes
 /pkg/status/clusteragent                @DataDog/container-platform
 /pkg/telemetry/                         @DataDog/agent-runtimes
 /pkg/telemetry/stat_gauge_wrapper.go    @DataDog/ebpf-platform
@@ -409,7 +408,7 @@
 /pkg/clusteragent/admission/mutate/cwsinstrumentation    @Datadog/agent-security
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
 /pkg/clusteragent/telemetry/            @DataDog/apm-trace-storage
-/pkg/collector/                         @DataDog/agent-metric-pipelines
+/pkg/collector/                         @DataDog/agent-runtimes
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/collector/corechecks/cluster/orchestrator  @DataDog/container-app
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
@@ -466,7 +465,7 @@
 /pkg/fleet/                             @DataDog/fleet @DataDog/windows-agent
 /pkg/fleet/installer/setup/djm/         @DataDog/fleet @DataDog/data-jobs-monitoring
 /pkg/pidfile/                           @DataDog/agent-runtimes
-/pkg/persistentcache/                   @DataDog/agent-metric-pipelines
+/pkg/persistentcache/                   @DataDog/agent-runtimes
 /pkg/proto/                             @DataDog/agent-runtimes
 /pkg/proto/datadog/languagedetection    @DataDog/container-intake
 /pkg/proto/datadog/process              @DataDog/container-intake
@@ -593,7 +592,7 @@
 /releasenotes/                          @DataDog/documentation
 /releasenotes-dca/                      @DataDog/documentation
 
-/rtloader/                              @DataDog/agent-metric-pipelines
+/rtloader/                              @DataDog/agent-runtimes
 
 /tasks/                                 @DataDog/agent-devx-loops @DataDog/agent-devx-infra
 /tasks/msi.py                           @DataDog/windows-agent
@@ -616,7 +615,7 @@
 /tasks/trace_agent.py                   @DataDog/agent-apm
 /tasks/quality_gates.py                 @DataDog/agent-delivery
 /tasks/static_quality_gates/            @DataDog/agent-delivery
-/tasks/rtloader.py                      @DataDog/agent-metric-pipelines
+/tasks/rtloader.py                      @DataDog/agent-runtimes
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/sbomgen.py                       @DataDog/agent-security
 /tasks/sds.py                           @DataDog/agent-log-pipelines
@@ -661,7 +660,7 @@
 /test/new-e2e/tests/agent-configuration       @DataDog/agent-configuration
 /test/new-e2e/tests/agent-metric-pipelines    @DataDog/agent-metric-pipelines
 /test/new-e2e/tests/agent-subcommands         @DataDog/agent-configuration
-/test/new-e2e/tests/agent-subcommands/check   @DataDog/agent-metric-pipelines
+/test/new-e2e/tests/agent-subcommands/check   @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-subcommands/health  @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-subcommands/hostname  @DataDog/agent-runtimes
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
@@ -703,7 +702,7 @@
 /tools/retry_file_dump/                 @DataDog/agent-metric-pipelines
 /tools/windows/                         @DataDog/windows-agent
 /tools/windows/DatadogAgentInstaller/WixSetup/localization-en-us.wxl @DataDog/windows-agent @DataDog/documentation
-/tools/agent_QA/                        @DataDog/agent-metric-pipelines @DataDog/agent-log-pipelines
+/tools/agent_QA/                        @DataDog/agent-devx-loops
 
 /internal/tools/                        @DataDog/agent-devx-loops @DataDog/agent-devx-infra
 /internal/third_party/client-go         @DataDog/container-platform
