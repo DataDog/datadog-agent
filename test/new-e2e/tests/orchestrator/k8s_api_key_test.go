@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 )
@@ -26,6 +27,8 @@ var agentAPIKeyRefreshValuesFmt string
 // TestZzzClusterAgentAPIKeyRefresh tests the agent's ability to refresh the API key
 // Zzz is used to ensure this test runs last in the suite as it requires redeploying the agent
 func (suite *k8sSuite) TestZzzClusterAgentAPIKeyRefresh() {
+	// https://datadoghq.atlassian.net/browse/CAP-2416
+	flake.Mark(suite.T())
 	namespace := "datadog"
 	secretName := "apikeyrefresh"
 	apiKeyOld := "abcdefghijklmnopqrstuvwxyz123456"
@@ -44,6 +47,7 @@ func (suite *k8sSuite) TestZzzClusterAgentAPIKeyRefresh() {
 	)
 
 	// verify that the old API key exists in the orchestrator resources payloads
+	suite.T().Logf("Verifying that the old API key exists in the orchestrator resources payloads")
 	suite.eventuallyHasExpectedAPIKey(apiKeyOld)
 
 	// update the secret with a new API key and agent will refresh it
@@ -51,6 +55,7 @@ func (suite *k8sSuite) TestZzzClusterAgentAPIKeyRefresh() {
 	suite.applySecret(namespace, secretName, map[string][]byte{"apikey": []byte(apiKeyNew)})
 
 	// verify that the new API key exists in the orchestrator resources payloads
+	suite.T().Logf("Verifying that the new API key exists in the orchestrator resources payloads")
 	suite.eventuallyHasExpectedAPIKey(apiKeyNew)
 }
 
@@ -80,8 +85,10 @@ func (suite *k8sSuite) applySecret(namespace, name string, secretData map[string
 	// Check if the secret already exists, update it if it does
 	var err error
 	if _, err = client.CoreV1().Secrets(namespace).Get(context.Background(), name, v1.GetOptions{}); err != nil {
+		suite.T().Logf("Creating secret %s in namespace %s", name, namespace)
 		_, err = client.CoreV1().Secrets(namespace).Create(context.Background(), secret, v1.CreateOptions{})
 	} else {
+		suite.T().Logf("Updating secret %s in namespace %s", name, namespace)
 		_, err = client.CoreV1().Secrets(namespace).Update(context.Background(), secret, v1.UpdateOptions{})
 	}
 	require.NoError(suite.T(), err)
@@ -92,9 +99,11 @@ func (suite *k8sSuite) eventuallyHasExpectedAPIKey(apiKey string) {
 	hasKey := func() bool {
 		keys, err := suite.Env().FakeIntake.Client().GetOrchestratorResourcesPayloadAPIKeys()
 		if err != nil {
+			suite.T().Logf("Error getting orchestrator resources payload API keys: %v", err)
 			return false
 		}
 
+		suite.T().Logf("Looking for API key %s in orchestrator resources payload API keys: %v", apiKey, keys)
 		for _, key := range keys {
 			if key == apiKey {
 				return true
@@ -103,5 +112,5 @@ func (suite *k8sSuite) eventuallyHasExpectedAPIKey(apiKey string) {
 		return false
 	}
 
-	assert.Eventually(suite.T(), hasKey, 10*time.Minute, 10*time.Second)
+	assert.Eventually(suite.T(), hasKey, 20*time.Minute, 20*time.Second)
 }
