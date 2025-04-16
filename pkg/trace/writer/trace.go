@@ -12,6 +12,7 @@ import (
 	"time"
 
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -265,6 +266,11 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 		TracerPayloads:     payloads,
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
+
+	if pkgconfigsetup.Datadog().GetBool("iot_host") {
+		p.Tags = map[string]string{"_dd.iot": ""}
+		log.Info("ALL SET")
+	}
 
 	w.serialize(&p)
 }
