@@ -928,6 +928,17 @@ func (rs *RuleSet) newFakeEvent() eval.Event {
 	return model.NewFakeEvent()
 }
 
+// CleanupExpiredVariables cleans up all epxired variables in the ruleset
+func (rs *RuleSet) CleanupExpiredVariables() {
+	if rs.globalVariables != nil {
+		rs.globalVariables.CleanupExpiredVariables()
+	}
+
+	for _, variableProvider := range rs.scopedVariables {
+		variableProvider.CleanupExpiredVariables()
+	}
+}
+
 // NewRuleSet returns a new ruleset for the specified data model
 func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalOpts *eval.Opts) *RuleSet {
 	logger := log.OrNullLogger(opts.Logger)
@@ -953,4 +964,11 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		scopedVariables:  make(map[Scope]VariableProvider),
 		globalVariables:  eval.NewVariables(),
 	}
+}
+
+// NewFakeRuleSet returns a fake and empty ruleset
+func NewFakeRuleSet(rule *Rule) *RuleSet {
+	rs := NewRuleSet(nil, nil, &Opts{}, &eval.Opts{})
+	rs.rules[rule.Rule.ID] = rule
+	return rs
 }
