@@ -22,32 +22,37 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-// ErrSymbolNotFound represents an error when a required NVML symbol is not found in the library
-type ErrSymbolNotFound struct {
-	Symbol string
-}
-
-func (e *ErrSymbolNotFound) Error() string {
-	return fmt.Sprintf("%s symbol not found in NVML library", e.Symbol)
-}
-
-// NewErrSymbolNotFound creates a new ErrSymbolNotFound error
-func NewErrSymbolNotFound(symbol string) error {
-	return &ErrSymbolNotFound{Symbol: symbol}
-}
-
-// ErrNotSupported represents an error when an NVML function returns ERROR_NOT_SUPPORTED
-type ErrNotSupported struct {
+// NvmlAPIError represents an error when interacting with the NVML API.
+// It wraps nvml.Return values to provide idiomatic error handling in Go.
+type NvmlAPIError struct {
+	// APIName is the name of the API that failed
 	APIName string
+	// NvmlErrorCode is the NVML error code
+	NvmlErrorCode nvml.Return
 }
 
-func (e *ErrNotSupported) Error() string {
-	return fmt.Sprintf("%s is not supported by the GPU or driver", e.APIName)
+// Error implements the error interface
+func (e *NvmlAPIError) Error() string {
+	switch e.NvmlErrorCode {
+	case nvml.ERROR_FUNCTION_NOT_FOUND:
+		return fmt.Sprintf("%s symbol not found in NVML library", e.APIName)
+	case nvml.ERROR_NOT_SUPPORTED:
+		return fmt.Sprintf("%s is not supported by the GPU or driver", e.APIName)
+	default:
+		return fmt.Sprintf("NVML API error for %s: %s", e.APIName, nvml.ErrorString(e.NvmlErrorCode))
+	}
 }
 
-// NewErrNotSupported creates a new ErrNotSupported error
-func NewErrNotSupported(apiName string) error {
-	return &ErrNotSupported{APIName: apiName}
+// NewNvmlAPIErrorOrNil creates a new NvmlAPIError with the given API name and error code,
+// or returns nil if the error code is nvml.SUCCESS
+func NewNvmlAPIErrorOrNil(apiName string, errorCode nvml.Return) error {
+	if errorCode == nvml.SUCCESS {
+		return nil
+	}
+	return &NvmlAPIError{
+		APIName:       apiName,
+		NvmlErrorCode: errorCode,
+	}
 }
 
 // symbolLookup is an internal interface for checking symbol availability
@@ -82,7 +87,7 @@ func toNativeName(symbol string) string {
 
 func (s *safeNvml) lookup(symbol string) error {
 	if _, ok := s.capabilities[symbol]; !ok {
-		return NewErrSymbolNotFound(symbol)
+		return NewNvmlAPIErrorOrNil(symbol, nvml.ERROR_FUNCTION_NOT_FOUND)
 	}
 
 	return nil
@@ -94,12 +99,7 @@ func (s *safeNvml) SystemGetDriverVersion() (string, error) {
 		return "", err
 	}
 	driverVersion, ret := s.lib.SystemGetDriverVersion()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return "", NewErrNotSupported("SystemGetDriverVersion")
-	} else if ret != nvml.SUCCESS {
-		return "", fmt.Errorf("error getting driver version: %s", nvml.ErrorString(ret))
-	}
-	return driverVersion, nil
+	return driverVersion, NewNvmlAPIErrorOrNil("SystemGetDriverVersion", ret)
 }
 
 // Shutdown shuts down the NVML library
@@ -108,12 +108,7 @@ func (s *safeNvml) Shutdown() error {
 		return err
 	}
 	ret := s.lib.Shutdown()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return NewErrNotSupported("Shutdown")
-	} else if ret != nvml.SUCCESS {
-		return fmt.Errorf("error shutting down NVML: %s", nvml.ErrorString(ret))
-	}
-	return nil
+	return NewNvmlAPIErrorOrNil("Shutdown", ret)
 }
 
 // DeviceGetCount returns the number of NVIDIA devices in the system
@@ -122,12 +117,7 @@ func (s *safeNvml) DeviceGetCount() (int, error) {
 		return 0, err
 	}
 	count, ret := s.lib.DeviceGetCount()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, NewErrNotSupported("GetDeviceCount")
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting device count: %s", nvml.ErrorString(ret))
-	}
-	return count, nil
+	return count, NewNvmlAPIErrorOrNil("GetDeviceCount", ret)
 }
 
 // DeviceGetHandleByIndex returns a SafeDevice for the device at the given index
@@ -136,10 +126,8 @@ func (s *safeNvml) DeviceGetHandleByIndex(idx int) (SafeDevice, error) {
 		return nil, err
 	}
 	dev, ret := s.lib.DeviceGetHandleByIndex(idx)
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return nil, NewErrNotSupported("DeviceGetHandleByIndex")
-	} else if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("error getting device handle by index %d: %s", idx, nvml.ErrorString(ret))
+	if err := NewNvmlAPIErrorOrNil("DeviceGetHandleByIndex", ret); err != nil {
+		return nil, err
 	}
 	return NewDevice(dev)
 }

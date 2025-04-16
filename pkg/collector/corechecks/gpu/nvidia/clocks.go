@@ -28,9 +28,14 @@ type clocksCollector struct {
 func newClocksCollector(device ddnvml.SafeDevice) (Collector, error) {
 	// Check first if the device supports clock throttle reasons
 	_, err := device.GetCurrentClocksThrottleReasons()
-	unsupportedErr := &ddnvml.ErrNotSupported{}
-	if errors.As(err, &unsupportedErr) {
-		return nil, errUnsupportedDevice
+
+	if err != nil {
+		var nvmlErr *ddnvml.NvmlAPIError
+		if errors.As(err, &nvmlErr) && (nvmlErr.NvmlErrorCode == nvml.ERROR_NOT_SUPPORTED ||
+			nvmlErr.NvmlErrorCode == nvml.ERROR_FUNCTION_NOT_FOUND) {
+			// Only return unsupported device if the API is not supported or symbol not found
+			return nil, fmt.Errorf("%w: %w", errUnsupportedDevice, err)
+		}
 	}
 
 	return &clocksCollector{

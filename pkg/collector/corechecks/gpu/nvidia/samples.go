@@ -59,11 +59,17 @@ func (c *samplesCollector) DeviceUUID() string {
 
 func (c *samplesCollector) removeUnsupportedSamples() {
 	metricsToRemove := common.StringSet{}
-	unsupportedErr := &ddnvml.ErrNotSupported{}
+
 	for _, metric := range c.samplesToCollect {
 		_, _, err := c.device.GetSamples(metric.samplingType, 0)
-		if errors.As(err, &unsupportedErr) {
-			metricsToRemove.Add(metric.name)
+		if err != nil {
+			var nvmlErr *ddnvml.NvmlAPIError
+			if errors.As(err, &nvmlErr) && (nvmlErr.NvmlErrorCode == nvml.ERROR_NOT_SUPPORTED ||
+				nvmlErr.NvmlErrorCode == nvml.ERROR_FUNCTION_NOT_FOUND) {
+				// Only remove metrics if the API is not supported or symbol not found
+				// For other errors (like temporary failures), keep the metric
+				metricsToRemove.Add(metric.name)
+			}
 		}
 	}
 
