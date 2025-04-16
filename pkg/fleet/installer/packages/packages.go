@@ -20,11 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
-const (
-	// HooksVersion is the version of the hooks interface.
-	HooksVersion = "v1"
-)
-
 type packageHook func(ctx HookContext) error
 
 // hooks represents the hooks for a package.
@@ -191,15 +186,7 @@ func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, na
 		return fmt.Errorf("failed to serialize hook context: %w", err)
 	}
 	i := exec.NewInstallerExec(h.env, hooksCLIPath)
-	_, err = i.HookVersion(ctx)
-	if err != nil {
-		span, ok := telemetry.SpanFromContext(ctx)
-		if ok {
-			span.SetTag("unsupported_hook", true)
-		}
-		return nil
-	}
-	err = i.Hook(ctx, string(serializedHookCtx))
+	err = i.RunHook(ctx, string(serializedHookCtx))
 	if err != nil {
 		return fmt.Errorf("failed to run hook (%s): %w", name, err)
 	}

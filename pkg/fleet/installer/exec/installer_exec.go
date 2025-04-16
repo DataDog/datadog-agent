@@ -327,22 +327,9 @@ func (iCmd *installerCmd) Run() error {
 	return fmt.Errorf("run failed: %w \n%s", installerError, err.Error())
 }
 
-// Hook runs a hook for a given package.
-func (i *InstallerExec) Hook(ctx context.Context, hookContext string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "hook", hookContext)
+// RunHook runs a hook for a given package.
+func (i *InstallerExec) RunHook(ctx context.Context, hookContext string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "hooks", hookContext)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
-}
-
-// HookVersion runs the hook version command.
-func (i *InstallerExec) HookVersion(ctx context.Context) (version string, err error) {
-	cmd := i.newInstallerCmd(ctx, "hook-version")
-	defer func() { cmd.span.Finish(err) }()
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
-	err = cmd.Run()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(stdout.String()), nil
 }

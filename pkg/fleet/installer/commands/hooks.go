@@ -13,16 +13,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func hookCommand() *cobra.Command {
+func hooksCommand() *cobra.Command {
 	return &cobra.Command{
 		Hidden:             true,
-		Use:                "hook <hookContext>",
-		Short:              "Run a hook for a package",
+		Use:                "hooks <hookContext>",
+		Short:              "Run hooks for a package",
 		GroupID:            "installer",
 		DisableFlagParsing: true,
 		Args:               cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i := newCmd("hook")
+			i := newCmd("hooks")
 			defer i.stop(err)
 			var hookContext packages.HookContext
 			err = json.Unmarshal([]byte(args[0]), &hookContext)
@@ -31,21 +31,6 @@ func hookCommand() *cobra.Command {
 			}
 			hookContext.Context = i.ctx
 			return packages.RunHook(hookContext)
-		},
-	}
-}
-
-// hookVersionCommand returns the version of the hook interface.
-func hookVersionCommand() *cobra.Command {
-	return &cobra.Command{
-		Hidden:             true,
-		Use:                "hook-version",
-		Short:              "Get the version of the hook interface",
-		GroupID:            "installer",
-		DisableFlagParsing: true,
-		Args:               cobra.ExactArgs(0),
-		Run: func(_ *cobra.Command, _ []string) {
-			fmt.Println(packages.HooksVersion)
 		},
 	}
 }
