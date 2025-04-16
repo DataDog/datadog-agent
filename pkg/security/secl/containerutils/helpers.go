@@ -21,6 +21,9 @@ var containerIDPattern *regexp.Regexp
 var containerIDCoreChars = "0123456789abcdefABCDEF"
 
 func init() {
+	// when changing this pattern, make sure to also update the pre-check
+	// in pkg/security/security_profile/activity_tree/paths_reducer.go
+
 	ContainerIDPatternStr = "([0-9a-fA-F]{64})|([0-9a-fA-F]{32}-\\d+)|([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4})"
 	containerIDPattern = regexp.MustCompile(ContainerIDPatternStr)
 }
