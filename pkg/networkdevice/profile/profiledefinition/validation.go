@@ -47,7 +47,7 @@ const (
 	MetadataSymbol
 )
 
-func IsLegacyProfile(metrics []MetricsConfig) bool {
+func IsLegacyMetrics(metrics []MetricsConfig) bool {
 	for i := range metrics {
 		if metrics[i].IsLegacy() {
 			return true

@@ -44,8 +44,7 @@ func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMa
 			continue
 		}
 
-		isLegacyProfile := profiledefinition.IsLegacyProfile(newProfileConfig.Definition.Metrics)
-		if isLegacyProfile {
+		if profiledefinition.IsLegacyMetrics(newProfileConfig.Definition.Metrics) {
 			haveLegacyProfile = true
 		}
 
