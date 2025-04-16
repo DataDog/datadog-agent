@@ -1,0 +1,21 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    New LabelSelector Admission Controller settings have been introduced
+    to improve the usability of the LabelSelector Admission Controller
+    for both ValidatingAdmissionWebhook and MutatingAdmissionWebhook.
+    The new settings are:
+    - `admission_controller.validation.unlabelled` to allow
+      unlabelled resources to be admitted for all webhooks.
+    - `admission_controller.kubernetes_admission_events.unlabelled` to
+      allow unlabelled resources to be admitted specifically for the
+      Kubernetes Admission Events webhook.
+    Precedence is given to the webhook-specific settings over the
+    global settings.

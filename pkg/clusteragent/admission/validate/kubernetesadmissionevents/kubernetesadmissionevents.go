@@ -38,6 +38,7 @@ type Webhook struct {
 	resources               map[string][]string
 	operations              []admissionregistrationv1.OperationType
 	matchConditions         []admissionregistrationv1.MatchCondition
+	datadogConfig           config.Component
 	demultiplexer           aggregator.Demultiplexer
 	supportsMatchConditions bool
 	checkid                 checkid.ID
@@ -66,6 +67,7 @@ func NewWebhook(datadogConfig config.Component, demultiplexer aggregator.Demulti
 				Expression: "!(request.userInfo.username.startsWith('system:'))",
 			},
 		},
+		datadogConfig:           datadogConfig,
 		demultiplexer:           demultiplexer,
 		supportsMatchConditions: supportsMatchConditions,
 		checkid:                 "kubernetes_admission_events",
@@ -107,7 +109,7 @@ func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 // LabelSelectors returns the label selectors that specify when the webhook
 // should be invoked
 func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
-	return common.DefaultLabelSelectors(useNamespaceSelector)
+	return common.DefaultValidatingLabelSelectors(useNamespaceSelector, w.datadogConfig, "admission_controller.kubernetes_admission_events.unlabelled")
 }
 
 // MatchConditions returns the Match Conditions used for fine-grained
