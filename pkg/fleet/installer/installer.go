@@ -383,6 +383,10 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 			fmt.Errorf("could not set experiment: %w", err),
 		)
 	}
+	// HACK: close so package can be updated as watchdog runs
+	if pkg.Name == packageDatadogAgent && runtime.GOOS == "windows" {
+		i.db.Close()
+	}
 	err = i.hooks.PostStartExperiment(ctx, pkg.Name)
 	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
