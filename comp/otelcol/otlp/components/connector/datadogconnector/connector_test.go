@@ -106,10 +106,8 @@ func generateTrace(extraAttributes map[string]string) ptrace.Traces {
 	res.Attributes().PutStr("cloud.region", "my-region")
 	// add a custom Resource attribute
 	res.Attributes().PutStr("az", "my-az")
-	if extraAttributes != nil {
-		for k, v := range extraAttributes {
-			res.Attributes().PutStr(k, v)
-		}
+	for k, v := range extraAttributes {
+		res.Attributes().PutStr(k, v)
 	}
 
 	ss := td.ResourceSpans().At(0).ScopeSpans().AppendEmpty().Spans()
