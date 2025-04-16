@@ -260,10 +260,10 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		version := kversion.V4_0_0()
 		targetPort := kafkaPort
 
-		// on older versions of kafka, test against old kafka server on port 8082
+		// on older versions of kafka, test against old kafka server
 		if produceVersion < 8 {
 			version = kversion.V3_8_0()
-			targetPort = "8082"
+			targetPort = kafka.KafkaOldPort
 		}
 		require.LessOrEqual(t, int16(produceVersion), lo.Must(version.LookupMaxKeyVersion(produceAPIKey)), "fetch version unsupported by kafka lib")
 		version.SetMaxKeyVersion(produceAPIKey, int16(produceVersion))
@@ -289,11 +289,11 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		version := kversion.V4_0_0()
 		targetPort := kafkaPort
 
-		// on older versions of kafka, test against old kafka server on port 8082
+		// on older versions of kafka, test against old kafka server
 		if fetchVersion < 8 {
 			// The lib version has to be rolled-back from 4.0 because they dropped support for old versions of produce and fetch
 			version = kversion.V3_8_0()
-			targetPort = "8082"
+			targetPort = kafka.KafkaOldPort
 		}
 		require.LessOrEqual(t, int16(fetchVersion), lo.Must(version.LookupMaxKeyVersion(fetchAPIKey)), "fetch version unsupported by kafka lib")
 		version.SetMaxKeyVersion(fetchAPIKey, int16(fetchVersion))
