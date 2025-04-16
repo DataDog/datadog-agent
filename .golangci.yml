@@ -14,6 +14,7 @@ issues:
   exclude-dirs:
     - pkg/proto/patches
     - pkg/security/utils/lru
+    - pkg/template
     - tasks/unit_tests/testdata/components_src
 
   exclude:

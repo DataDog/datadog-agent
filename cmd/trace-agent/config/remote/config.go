@@ -69,10 +69,7 @@ func ConfigHandler(r *api.HTTPReceiver, cf rcclient.ConfigFetcher, cfg *config.A
 		}
 		if configsRequest.GetClient().GetClientTracer() != nil {
 			normalize(&configsRequest)
-			if configsRequest.Client.ClientTracer.Tags == nil {
-				configsRequest.Client.ClientTracer.Tags = make([]string, 0)
-			}
-			configsRequest.Client.ClientTracer.Tags = append(configsRequest.Client.ClientTracer.Tags, getContainerTags(req, cfg, cidProvider)...)
+			configsRequest.Client.ClientTracer.ContainerTags = getContainerTags(req, cfg, cidProvider)
 		}
 		cfgResponse, err := cf.ClientGetConfigs(req.Context(), &configsRequest)
 		if err != nil {

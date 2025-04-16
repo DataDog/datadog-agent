@@ -35,6 +35,10 @@ func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dmesg.log"), priviledged.GetLinuxDmesg)
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "selinux_sestatus.log"), getSystemProbeSelinuxSestatus)
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "selinux_semodule_list.log"), getSystemProbeSelinuxSemoduleList)
+
+		if pkgconfigsetup.SystemProbe().GetBool("discovery.enabled") {
+			_ = fb.AddFileFromFunc(filepath.Join("system-probe", "discovery.log"), getSystemProbeDiscoveryState)
+		}
 	}
 }
 
@@ -65,5 +69,11 @@ func getSystemProbeSelinuxSestatus() ([]byte, error) {
 func getSystemProbeSelinuxSemoduleList() ([]byte, error) {
 	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
 	url := sysprobeclient.DebugURL("/selinux_semodule_list")
+	return priviledged.GetHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeDiscoveryState() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
+	url := sysprobeclient.ModuleURL(sysconfig.DiscoveryModule, "/state")
 	return priviledged.GetHTTPData(sysProbeClient, url)
 }

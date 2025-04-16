@@ -9,6 +9,7 @@ package servicetest
 import (
 	_ "embed"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
+	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"testing"
 
@@ -39,6 +41,9 @@ var agentConfigPADisabled string
 
 //go:embed fixtures/datadog-ta-disabled.yaml
 var agentConfigTADisabled string
+
+//go:embed fixtures/datadog-di-disabled.yaml
+var agentConfigDIDisabled string
 
 //go:embed fixtures/system-probe.yaml
 var systemProbeConfig string
@@ -286,6 +291,18 @@ type agentServiceDisabledTraceAgentSuite struct {
 	agentServiceDisabledSuite
 }
 
+func TestServiceBehaviorWhenDisabledInstaller(t *testing.T) {
+	s := &agentServiceDisabledInstallerSuite{}
+	s.disabledServices = []string{
+		"Datadog Installer",
+	}
+	run(t, s, systemProbeConfig, agentConfigDIDisabled, securityAgentConfig)
+}
+
+type agentServiceDisabledInstallerSuite struct {
+	agentServiceDisabledSuite
+}
+
 func (s *agentServiceDisabledSuite) SetupSuite() {
 	s.baseStartStopSuite.SetupSuite()
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
@@ -415,6 +432,10 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 	// check event log for N sets of start and stop messages from each service
 	for _, serviceName := range s.runningUserServices() {
 		providerName := serviceName
+		// skip the installer since it doesn't have a registered provider
+		if providerName == "Datadog Installer" {
+			continue
+		}
 		entries, err := windowsCommon.GetEventLogEntriesFromProvider(host, "Application", providerName)
 		s.Require().NoError(err, "should get event log entries from %s", providerName)
 		// message IDs from pkg/util/winutil/messagestrings
@@ -473,6 +494,8 @@ func (s *baseStartStopSuite) SetupSuite() {
 		return s.getInstalledServices()
 	}
 
+	// TODO(WINA-1320): log the system memory to help debug
+	s.sendHostMemoryMetrics(host)
 }
 
 func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
@@ -604,6 +627,8 @@ func (s *baseStartStopSuite) assertAllServicesState(expected string) {
 func (s *baseStartStopSuite) assertServiceState(expected string, serviceName string) {
 	host := s.Env().RemoteHost
 	s.Assert().EventuallyWithT(func(c *assert.CollectT) {
+		// TODO(WINA-1320): log the system memory to help debug
+		s.sendHostMemoryMetrics(host)
 		status, err := windowsCommon.GetServiceStatus(host, serviceName)
 		if !assert.NoError(c, err) {
 			return
@@ -626,6 +651,8 @@ func (s *baseStartStopSuite) stopAllServices() {
 	// ensure all services are stopped
 	for _, serviceName := range s.getInstalledServices() {
 		s.Assert().EventuallyWithT(func(c *assert.CollectT) {
+			// TODO(WINA-1320): log the system memory to help debug
+			s.sendHostMemoryMetrics(host)
 			status, err := windowsCommon.GetServiceStatus(host, serviceName)
 			if !assert.NoError(c, err) {
 				return
@@ -645,6 +672,7 @@ func (s *baseStartStopSuite) getInstalledUserServices() []string {
 		"datadog-process-agent",
 		"datadog-security-agent",
 		"datadog-system-probe",
+		"Datadog Installer",
 	}
 }
 
@@ -666,7 +694,53 @@ func (s *baseStartStopSuite) getInstalledServices() []string {
 func (s *baseStartStopSuite) getAgentEventLogErrorsAndWarnings() ([]windowsCommon.EventLogEntry, error) {
 	host := s.Env().RemoteHost
 	providerNames := s.getInstalledUserServices()
+	// remove the Datadog Installer service from the list of provider names
+	// we do not have an event log for it
+	providerNames = slices.DeleteFunc(providerNames, func(s string) bool {
+		return s == "Datadog Installer"
+	})
 	providerNamesFilter := fmt.Sprintf(`"%s"`, strings.Join(providerNames, `","`))
 	filter := fmt.Sprintf(`@{ LogName='Application'; ProviderName=%s; Level=1,2,3 }`, providerNamesFilter)
 	return windowsCommon.GetEventLogEntriesWithFilterHashTable(host, filter)
+}
+
+// sendHostMemoryMetrics sends the host memory metrics to Datadog
+//
+// TODO(WINA-1320): collect metrics to help debug a crash
+func (s *baseStartStopSuite) sendHostMemoryMetrics(host *components.RemoteHost) {
+	metrics := []datadog.Metric{}
+
+	systemMetrics, err := getSystemMemoryMetrics(host)
+	if err != nil {
+		s.T().Logf("failed to get system memory metrics: %s", err)
+	} else {
+		metrics = append(metrics, systemMetrics...)
+	}
+	processMetrics, err := getTopProcessMemoryMetrics(host)
+	if err != nil {
+		s.T().Logf("failed to get process memory metrics: %s", err)
+	} else {
+		metrics = append(metrics, processMetrics...)
+	}
+	tags := []string{
+		// test info
+		"testname:" + s.T().Name(),
+		// pipeline info
+		"project:datadog-agent",
+		"job:" + os.Getenv("CI_JOB_ID"),
+		"pipeline:" + s.Env().Environment.PipelineID(),
+	}
+	// update Host and Tags in each metric
+	for i := range metrics {
+		metrics[i].Host = datadog.String(host.Address)
+		metrics[i].Tags = append(metrics[i].Tags, tags...)
+	}
+
+	// submit the metrics to dddev
+	err = s.DatadogClient().PostMetrics(metrics)
+	if err != nil {
+		s.T().Logf("failed to post memory metrics: %s", err)
+	} else {
+		s.T().Logf("posted memory metrics")
+	}
 }

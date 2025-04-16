@@ -73,9 +73,7 @@ def get_gitlab_bot_token():
             except subprocess.CalledProcessError:
                 print("GITLAB_BOT_TOKEN not found in keychain...")
                 pass
-        print(
-            "Please make sure that the GITLAB_BOT_TOKEN is set or that " "the GITLAB_BOT_TOKEN keychain entry is set."
-        )
+        print("Please make sure that the GITLAB_BOT_TOKEN is set or that the GITLAB_BOT_TOKEN keychain entry is set.")
         raise Exit(code=1)
     return os.environ["GITLAB_BOT_TOKEN"]
 
@@ -1076,6 +1074,17 @@ def get_preset_contexts(required_tests):
         ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
         ("DDR_WORKFLOW_ID", ["true"]),
     ]
+    installer_contexts = [
+        ("BUCKET_BRANCH", ["nightly"]),
+        ("CI_COMMIT_BRANCH", ["main"]),
+        ("CI_PIPELINE_SOURCE", ["push", "api"]),
+        ("DEPLOY_AGENT", ["false"]),
+        ("DEPLOY_INSTALLER", ["true"]),
+        ("RUN_ALL_BUILDS", ["true"]),
+        ("RUN_E2E_TESTS", ["auto"]),
+        ("RUN_KMT_TESTS", ["on"]),
+        ("RUN_UNIT_TESTS", ["on"]),
+    ]
     integrations_core_contexts = [
         ("RELEASE_VERSION", ["nightly"]),
         ("BUCKET_BRANCH", ["dev"]),
@@ -1095,6 +1104,8 @@ def get_preset_contexts(required_tests):
             generate_contexts(mq_contexts, [], all_contexts)
         if test in ["all", "conductor"]:
             generate_contexts(conductor_contexts, [], all_contexts)
+        if test in ["all", "installer"]:
+            generate_contexts(installer_contexts, [], all_contexts)
         if test in ["all", "integrations"]:
             generate_contexts(integrations_core_contexts, [], all_contexts)
     return all_contexts

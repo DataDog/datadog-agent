@@ -1,0 +1,44 @@
+# https://github.com/uber-go/gopatch/blob/main/docs/PatchesInDepth.md#changing-imports
+# It's a known limitation in gopatch right now that there must be something after the import. You cannot currently write patches that only match and change imports.
+# Meanwhile, you can work around this by writing a patch which matches but does not change an arbitrary identifier in the imported package.
+#
+# https://github.com/uber-go/gopatch/issues/5
+@@
+var x identifier
+@@
+-import "text/template"
++import template "github.com/DataDog/datadog-agent/pkg/template/text"
+
+template.x
+
+@@
+var x identifier
+@@
+-import . "text/template"
++import . "github.com/DataDog/datadog-agent/pkg/template/text"
+
+x
+
+@@
+var x identifier
+@@
+-import "html/template"
++import template "github.com/DataDog/datadog-agent/pkg/template/html"
+
+template.x
+
+@@
+var x identifier
+@@
+-import . "html/template"
++import . "github.com/DataDog/datadog-agent/pkg/template/html"
+
+x
+
+@@
+var x identifier
+@@
+-import "internal/fmtsort"
++import "github.com/DataDog/datadog-agent/pkg/template/internal/fmtsort"
+
+fmtsort.x

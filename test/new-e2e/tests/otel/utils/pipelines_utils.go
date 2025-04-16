@@ -678,7 +678,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite, ust bool, service s
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name:            name,
-						Image:           "ghcr.io/datadog/apps-calendar-go:main@sha256:5334a3b5940aa2a213a5c8970cc8d91899deafddf32e8df27cb0441dd9d4bc0f",
+						Image:           "ghcr.io/datadog/apps-calendar-go:main@sha256:2ec37a7660b67967f62503bbb59582b8e18b744485dd2840fb901094e84ab6b8",
 						ImagePullPolicy: "IfNotPresent",
 						Ports: []corev1.ContainerPort{{
 							Name:          "http",

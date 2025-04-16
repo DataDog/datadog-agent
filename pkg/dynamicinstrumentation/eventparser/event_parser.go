@@ -79,7 +79,6 @@ func readParams(indicies []uint64, values []byte) []*ditypes.Param {
 // from the byte buffer. It returns the resulting parameter and an indication of
 // how many bytes were read from the buffer
 func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, int) {
-
 	if definition == nil {
 		return nil, 0
 	}
@@ -143,6 +142,7 @@ func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, 
 			if nextIndex > len(buffer) {
 				break
 			}
+
 			// This is a regular value (no sub-fields).
 			// We parse the value of it from the buffer and push it to the value stack
 			paramDefinition.ValueStr = parseIndividualValue(paramDefinition.Kind, buffer[bufferIndex:nextIndex])
@@ -226,7 +226,7 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 			Type: parseKindToString(kind),
 		}
 		if newParam.Kind == 0 {
-			break
+			goto stackCheck
 		}
 		i += sizeOfKindAndSize
 		if newParam.Size == 0 {
@@ -276,7 +276,6 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 			goto stackCheck
 		}
 	}
-	return nil
 }
 
 // countBufferUsedByTypeDefinition is used to determine that amount of bytes

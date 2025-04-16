@@ -130,26 +130,6 @@ func initContainerName(lang language) string {
 	return fmt.Sprintf("datadog-lib-%s-init", lang)
 }
 
-func injectApmTelemetryConfig(pod *corev1.Pod) {
-	// inject DD_INSTRUMENTATION_INSTALL_TIME with current Unix time
-	instrumentationInstallTime := os.Getenv(instrumentationInstallTimeEnvVarName)
-	if instrumentationInstallTime == "" {
-		instrumentationInstallTime = common.ClusterAgentStartTime
-	}
-	instrumentationInstallTimeEnvVar := corev1.EnvVar{
-		Name:  instrumentationInstallTimeEnvVarName,
-		Value: instrumentationInstallTime,
-	}
-	_ = mutatecommon.InjectEnv(pod, instrumentationInstallTimeEnvVar)
-
-	// inject DD_INSTRUMENTATION_INSTALL_ID with UUID created during the Agent install time
-	instrumentationInstallIDEnvVar := corev1.EnvVar{
-		Name:  instrumentationInstallIDEnvVarName,
-		Value: os.Getenv(instrumentationInstallIDEnvVarName),
-	}
-	_ = mutatecommon.InjectEnv(pod, instrumentationInstallIDEnvVar)
-}
-
 type libInfoLanguageDetection struct {
 	libs             []libInfo
 	injectionEnabled bool
@@ -242,15 +222,38 @@ func (s libInfoSource) isFromLanguageDetection() bool {
 	return s == libInfoSourceSingleStepLangaugeDetection
 }
 
-func (s libInfoSource) mutatePod(pod *corev1.Pod) error {
-	_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
-		Name:  instrumentationInstallTypeEnvVarName,
-		Value: s.injectionType(),
-	})
+func (s libInfoSource) instrumentationInstallTime() string {
+	instrumentationInstallTime := os.Getenv(instrumentationInstallTimeEnvVarName)
+	if instrumentationInstallTime == "" {
+		instrumentationInstallTime = common.ClusterAgentStartTime
+	}
 
-	injectApmTelemetryConfig(pod)
+	return instrumentationInstallTime
+}
 
-	return nil
+// containerMutator creates a containerMutator for
+// telemetry environment variables pertaining to:
+//
+// - installation_time
+// - install_id
+// - injection_type
+func (s libInfoSource) containerMutator() containerMutator {
+	return containerMutators{
+		// inject DD_INSTRUMENTATION_INSTALL_TIME with current Unix time
+		envVarMutator(corev1.EnvVar{
+			Name:  instrumentationInstallTimeEnvVarName,
+			Value: s.instrumentationInstallTime(),
+		}),
+		// inject DD_INSTRUMENTATION_INSTALL_ID with UUID created during the Agent install time
+		envVarMutator(corev1.EnvVar{
+			Name:  instrumentationInstallIDEnvVarName,
+			Value: os.Getenv(instrumentationInstallIDEnvVarName),
+		}),
+		envVarMutator(corev1.EnvVar{
+			Name:  instrumentationInstallTypeEnvVarName,
+			Value: s.injectionType(),
+		}),
+	}
 }
 
 type extractedPodLibInfo struct {

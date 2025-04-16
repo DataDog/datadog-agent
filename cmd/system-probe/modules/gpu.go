@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && linux_bpf && nvml
 
 package modules
 
@@ -15,9 +15,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"sync/atomic"
 	"time"
-
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
@@ -35,6 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+func init() { registerModule(GPUMonitoring) }
+
 var _ module.Module = &GPUMonitoringModule{}
 var gpuMonitoringConfigNamespaces = []string{gpuconfigconsts.GPUNS}
 
@@ -51,13 +52,12 @@ const maxCollectedDebugEvents = 1000000
 var processConsumerEventTypes = []consumers.ProcessConsumerEventTypes{consumers.ExecEventType, consumers.ExitEventType}
 
 // GPUMonitoring Factory
-var GPUMonitoring = module.Factory{
+var GPUMonitoring = &module.Factory{
 	Name:             config.GPUMonitoringModule,
 	ConfigNamespaces: gpuMonitoringConfigNamespaces,
 	Fn: func(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
-
 		if processEventConsumer == nil {
-			return nil, fmt.Errorf("process event consumer not initialized")
+			return nil, errors.New("process event consumer not initialized")
 		}
 
 		c := gpuconfig.New()
@@ -66,19 +66,18 @@ var GPUMonitoring = module.Factory{
 			configureCgroupPermissions()
 		}
 
-		probeDeps, err := gpu.NewProbeDependencies(deps.Telemetry, processEventConsumer, deps.WMeta)
-		if err != nil {
-			return nil, fmt.Errorf("unable to create probe dependencies: %w", err)
+		probeDeps := gpu.ProbeDependencies{
+			Telemetry:      deps.Telemetry,
+			ProcessMonitor: processEventConsumer,
+			WorkloadMeta:   deps.WMeta,
 		}
-
 		p, err := gpu.NewProbe(c, probeDeps)
 		if err != nil {
 			return nil, fmt.Errorf("unable to start %s: %w", config.GPUMonitoringModule, err)
 		}
 
 		return &GPUMonitoringModule{
-			Probe:     p,
-			lastCheck: atomic.NewInt64(0),
+			Probe: p,
 		}, nil
 	},
 	NeedsEBPF: func() bool {
@@ -89,7 +88,7 @@ var GPUMonitoring = module.Factory{
 // GPUMonitoringModule is a module for GPU monitoring
 type GPUMonitoringModule struct {
 	*gpu.Probe
-	lastCheck *atomic.Int64
+	lastCheck atomic.Int64
 }
 
 // Register registers the GPU monitoring module
@@ -156,7 +155,7 @@ func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *htt
 	log.Info("Collection finished, writing response...")
 
 	for _, row := range data {
-		w.Write([]byte(row))
+		w.Write(row)
 		w.Write([]byte("\n"))
 	}
 

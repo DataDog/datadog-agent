@@ -115,7 +115,7 @@ func (h *Host) GetDockerRuntimePath(runtime string) string {
 
 	var cmd string
 	switch h.os.Flavor {
-	case e2eos.AmazonLinux:
+	case e2eos.AmazonLinux, e2eos.Suse:
 		cmd = "sudo docker system info --format '{{ (index .Runtimes \"%s\").Path }}'"
 	default:
 		cmd = "sudo docker system info --format '{{ (index .Runtimes \"%s\").Runtime.Path }}'"
@@ -202,7 +202,7 @@ func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
 // This is because of a race condition where the trace agent is not ready to receive traces and we send them
 // meaning that the traces are lost
 func (h *Host) WaitForTraceAgentSocketReady() {
-	_, err := h.remote.Execute("timeout=30; while ! grep -q 'Listening for traces at unix://' <(journalctl _PID=`systemctl show -p MainPID datadog-agent-trace | cut -d\"=\" -f2`); do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]")
+	_, err := h.remote.Execute("timeout=30; while ! grep -q 'Listening for traces at unix://' <(sudo journalctl _PID=`systemctl show -p MainPID datadog-agent-trace | cut -d\"=\" -f2`); do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]")
 	require.NoError(h.t(), err, "trace agent did not become ready")
 }
 

@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -145,7 +145,7 @@ func (c *Check) ensureInitCollectors() error {
 
 // Cancel stops the check
 func (c *Check) Cancel() {
-	if lib, err := ddnvml.GetNvmlLib(); err == nil {
+	if lib, err := ddnvml.GetSafeNvmlLib(); err == nil {
 		_ = lib.Shutdown()
 	}
 

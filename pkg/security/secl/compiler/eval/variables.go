@@ -12,6 +12,7 @@ import (
 	"net"
 	"reflect"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/jellydator/ttlcache/v3"
@@ -49,6 +50,10 @@ type MutableVariable interface {
 // settableVariable describes a SECL variable
 type settableVariable struct {
 	setFnc func(ctx *Context, value interface{}) error
+}
+
+type expirableVariable interface {
+	CleanupExpired()
 }
 
 // Set the variable with the specified value
@@ -558,6 +563,13 @@ func (m *StringArrayVariable) GetEvaluator() interface{} {
 	}
 }
 
+// CleanupExpired cleans up expired values from the variable
+// note that this method in only used to free up memory
+// as expired entries are already not returned by the LRU.Keys() method
+func (m *StringArrayVariable) CleanupExpired() {
+	m.LRU.DeleteExpired()
+}
+
 // NewStringArrayVariable returns a new mutable string array variable
 func NewStringArrayVariable(value []string, size int, ttl time.Duration) *StringArrayVariable {
 	if size == 0 {
@@ -565,7 +577,6 @@ func NewStringArrayVariable(value []string, size int, ttl time.Duration) *String
 	}
 
 	lru := ttlcache.New(ttlcache.WithCapacity[string, bool](uint64(size)), ttlcache.WithTTL[string, bool](ttl))
-	go lru.Start()
 
 	v := &StringArrayVariable{
 		LRU: lru,
@@ -632,6 +643,13 @@ func (m *IntArrayVariable) GetEvaluator() interface{} {
 	}
 }
 
+// CleanupExpired cleans up expired values from the variable
+// note that this method in only used to free up memory
+// as expired entries are already not returned by the LRU.Keys() method
+func (m *IntArrayVariable) CleanupExpired() {
+	m.LRU.DeleteExpired()
+}
+
 // NewIntArrayVariable returns a new mutable integer array variable
 func NewIntArrayVariable(value []int, size int, ttl time.Duration) *IntArrayVariable {
 	if size == 0 {
@@ -639,7 +657,6 @@ func NewIntArrayVariable(value []int, size int, ttl time.Duration) *IntArrayVari
 	}
 
 	lru := ttlcache.New(ttlcache.WithCapacity[int, bool](uint64(size)), ttlcache.WithTTL[int, bool](ttl))
-	go lru.Start()
 
 	v := &IntArrayVariable{
 		LRU: lru,
@@ -720,6 +737,13 @@ func (m *IPArrayVariable) GetEvaluator() interface{} {
 	}
 }
 
+// CleanupExpired cleans up expired values from the variable
+// note that this method in only used to free up memory
+// as expired entries are already not returned by the LRU.Keys() method
+func (m *IPArrayVariable) CleanupExpired() {
+	m.LRU.DeleteExpired()
+}
+
 // NewIPArrayVariable returns a new mutable IP array variable
 func NewIPArrayVariable(value []net.IPNet, size int, ttl time.Duration) *IPArrayVariable {
 	if size == 0 {
@@ -727,7 +751,6 @@ func NewIPArrayVariable(value []net.IPNet, size int, ttl time.Duration) *IPArray
 	}
 
 	lru := ttlcache.New(ttlcache.WithCapacity[string, bool](uint64(size)), ttlcache.WithTTL[string, bool](ttl))
-	go lru.Start()
 
 	v := &IPArrayVariable{
 		LRU: lru,
@@ -746,7 +769,10 @@ type VariableScope interface {
 type Scoper func(ctx *Context) VariableScope
 
 // Variables holds a set of variables
-type Variables struct{}
+type Variables struct {
+	expirablesLock sync.RWMutex
+	expirables     []expirableVariable
+}
 
 // VariableOpts holds the options of a variable set
 type VariableOpts struct {
@@ -786,7 +812,23 @@ func (v *Variables) NewSECLVariable(_ string, value interface{}, opts VariableOp
 	if err != nil {
 		return nil, err
 	}
+
+	if expirable, ok := seclVariable.(expirableVariable); ok && opts.TTL > 0 {
+		v.expirablesLock.Lock()
+		v.expirables = append(v.expirables, expirable)
+		v.expirablesLock.Unlock()
+	}
+
 	return seclVariable.(SECLVariable), nil
+}
+
+// CleanupExpiredVariables cleans up expired variables
+func (v *Variables) CleanupExpiredVariables() {
+	v.expirablesLock.RLock()
+	defer v.expirablesLock.RUnlock()
+	for _, expirable := range v.expirables {
+		expirable.CleanupExpired()
+	}
 }
 
 // MutableSECLVariable describes the interface implemented by mutable SECL variable
@@ -797,8 +839,10 @@ type MutableSECLVariable interface {
 
 // ScopedVariables holds a set of scoped variables
 type ScopedVariables struct {
-	scoper Scoper
-	vars   map[string]map[string]MutableSECLVariable
+	scoper         Scoper
+	vars           map[string]map[string]MutableSECLVariable
+	expirablesLock sync.RWMutex
+	expirables     map[string][]expirableVariable
 }
 
 // Len returns the length of the variable map
@@ -840,6 +884,11 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 				return err
 			}
 			v.vars[key][name] = seclVariable
+			if expirable, ok := seclVariable.(expirableVariable); ok && opts.TTL > 0 {
+				v.expirablesLock.Lock()
+				v.expirables[key] = append(v.expirables[key], expirable)
+				v.expirablesLock.Unlock()
+			}
 		}
 
 		return v.vars[key][name].Set(ctx, value)
@@ -908,15 +957,30 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 	}
 }
 
+// CleanupExpiredVariables cleans up expired variables
+func (v *ScopedVariables) CleanupExpiredVariables() {
+	v.expirablesLock.RLock()
+	defer v.expirablesLock.RUnlock()
+	for _, expirables := range v.expirables {
+		for _, expirable := range expirables {
+			expirable.CleanupExpired()
+		}
+	}
+}
+
 // ReleaseVariable releases a scoped variable
 func (v *ScopedVariables) ReleaseVariable(key string) {
 	delete(v.vars, key)
+	v.expirablesLock.Lock()
+	delete(v.expirables, key)
+	v.expirablesLock.Unlock()
 }
 
 // NewScopedVariables returns a new set of scope variables
 func NewScopedVariables(scoper Scoper) *ScopedVariables {
 	return &ScopedVariables{
-		scoper: scoper,
-		vars:   make(map[string]map[string]MutableSECLVariable),
+		scoper:     scoper,
+		vars:       make(map[string]map[string]MutableSECLVariable),
+		expirables: make(map[string][]expirableVariable),
 	}
 }

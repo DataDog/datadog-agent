@@ -244,8 +244,9 @@ func (bs *BaseSuite[Env]) CleanupOnSetupFailure() {
 	if err := recover(); err != nil || bs.T().Failed() {
 		bs.firstFailTest = "Initial provisioning SetupSuite" // This is required to handle skipDeleteOnFailure
 		defer func() {
+			bs.T().Logf("Calling TearDownSuite after SetupSuite failed with the following error: %v", err)
 			bs.TearDownSuite()
-			bs.T().Fatal("SetupSuite failed, aborted test suite and called TearDownSuite")
+			bs.T().Fatal("TearDownSuite called after SetupSuite failed")
 		}()
 
 		// run environment diagnose

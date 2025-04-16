@@ -1191,6 +1191,7 @@ core,github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/oauth1,
 core,github.com/gophercloud/gophercloud/openstack/identity/v3/tokens,Apache-2.0,"Copyright 2012-2013 Rackspace, Inc | Copyright Gophercloud authors"
 core,github.com/gophercloud/gophercloud/openstack/utils,Apache-2.0,"Copyright 2012-2013 Rackspace, Inc | Copyright Gophercloud authors"
 core,github.com/gophercloud/gophercloud/pagination,Apache-2.0,"Copyright 2012-2013 Rackspace, Inc | Copyright Gophercloud authors"
+core,github.com/gorilla/handlers,BSD-3-Clause,Copyright (c) 2023 The Gorilla Authors. All rights reserved
 core,github.com/gorilla/mux,BSD-3-Clause,Copyright (c) 2023 The Gorilla Authors. All rights reserved
 core,github.com/gorilla/websocket,BSD-3-Clause,Copyright (c) 2023 The Gorilla Authors. All rights reserved
 core,github.com/gosnmp/gosnmp,BSD-2-Clause,Copyright 2012-2020 The GoSNMP Authors. All rights reserved.

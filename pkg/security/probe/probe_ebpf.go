@@ -920,7 +920,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	}
 
-	p.monitors.eventStreamMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, eventstream.EventStreamMap, CPU)
+	p.monitors.eventStreamMonitor.CountEvent(eventType, event, dataLen, CPU, !p.useRingBuffers)
 
 	// no need to dispatch events
 	switch eventType {
@@ -2714,7 +2714,9 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	}
 
 	// splice event
+	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfPipeBuffer, "struct pipe_buffer")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructBufs, "struct pipe_inode_info", "bufs")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeBufferStructFlags, "struct pipe_buffer", "flags")
 	if kv.HaveLegacyPipeInodeInfoStruct() {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructNrbufs, "struct pipe_inode_info", "nrbufs")
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructCurbuf, "struct pipe_inode_info", "curbuf")

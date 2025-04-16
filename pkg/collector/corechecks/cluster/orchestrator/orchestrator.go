@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -89,9 +90,14 @@ type OrchestratorCheck struct {
 }
 
 func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, cfg configcomp.Component, wlmStore workloadmeta.Component, tagger tagger.Component) *OrchestratorCheck {
+	extraTags, err := tagger.GlobalTags(types.LowCardinality)
+	if err != nil {
+		log.Debugf("Failed to get global tags: %s", err)
+	}
+
 	return &OrchestratorCheck{
 		CheckBase:          base,
-		orchestratorConfig: orchcfg.NewDefaultOrchestratorConfig(),
+		orchestratorConfig: orchcfg.NewDefaultOrchestratorConfig(extraTags),
 		instance:           instance,
 		wlmStore:           wlmStore,
 		tagger:             tagger,

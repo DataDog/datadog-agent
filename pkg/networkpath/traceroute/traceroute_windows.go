@@ -44,7 +44,7 @@ func New(cfg config.Config, _ telemetry.Component) (*WindowsTraceroute, error) {
 
 // Run executes a traceroute
 func (w *WindowsTraceroute) Run(_ context.Context) (payload.NetworkPath, error) {
-	resp, err := getTraceroute(w.sysprobeClient, clientID, w.cfg.DestHostname, w.cfg.DestPort, w.cfg.Protocol, w.cfg.MaxTTL, w.cfg.Timeout)
+	resp, err := getTraceroute(w.sysprobeClient, clientID, w.cfg.DestHostname, w.cfg.DestPort, w.cfg.Protocol, w.cfg.TCPMethod, w.cfg.MaxTTL, w.cfg.Timeout)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}

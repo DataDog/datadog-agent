@@ -7,7 +7,7 @@ single-machine-performance-regression_detector:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
-    - job: single_machine_performance-amd64-a7
+    - job: single_machine_performance-full-amd64-a7
       artifacts: false
   artifacts:
     expire_in: 1 weeks
@@ -76,7 +76,7 @@ single-machine-performance-regression_detector:
     - echo "Commit ${BASELINE_SHA} is recent enough"
     - echo "Checking if image exists for commit ${BASELINE_SHA}..."
     - |
-      while [[ ! $(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-amd64") ]]
+      while [[ ! $(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-full-amd64") ]]
       do
           echo "No image exists for ${BASELINE_SHA} - checking predecessor of ${BASELINE_SHA} next"
           BASELINE_SHA=$(git rev-parse ${BASELINE_SHA}^)
@@ -96,9 +96,9 @@ single-machine-performance-regression_detector:
     - echo -n "${BASELINE_SHA}" > "${CI_COMMIT_SHA}-baseline_sha"
     # Copy the baseline SHA to SMP for debugging purposes later
     - aws s3 cp --profile single-machine-performance --only-show-errors "${CI_COMMIT_SHA}-baseline_sha" "s3://${SMP_AGENT_TEAM_ID}-smp-artifacts/information/"
-    - BASELINE_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${BASELINE_SHA}-7-amd64
+    - BASELINE_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${BASELINE_SHA}-7-full-amd64
     - echo "${BASELINE_SHA} | ${BASELINE_IMAGE}"
-    - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-amd64
+    - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-full-amd64
     - echo "${CI_COMMIT_SHA} | ${COMPARISON_IMAGE}"
     - SMP_TAGS="ci_pipeline_id=${CI_PIPELINE_ID},ci_job_id=${CI_JOB_ID},ci_commit_branch=${CI_COMMIT_BRANCH},purpose=agent_ci"
     - echo "Tags passed through SMP are ${SMP_TAGS}"

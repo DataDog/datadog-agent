@@ -53,6 +53,10 @@ cudaError_t cudaEventDestroy(cudaEvent_t event) {
     return 0;
 }
 
+cudaError_t cudaMemcpy(void *dst, const void *src, size_t count, int kind) {
+    return 0;
+}
+
 int main(int argc, char **argv) {
     cudaStream_t stream = 30;
     cudaEvent_t event = 42;
@@ -80,6 +84,8 @@ int main(int argc, char **argv) {
     cudaMalloc(&ptr, 100);
     cudaFree(ptr);
     cudaStreamSynchronize(stream);
+
+    cudaMemcpy((void *)0x1234, (void *)0x5678, 100, 0); // kind 0 is cudaMemcpyHostToDevice
 
     cudaEventRecord(event, stream);
     cudaEventQuery(event);

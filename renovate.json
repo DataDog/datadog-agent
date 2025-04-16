@@ -16,11 +16,10 @@
     "customManagers" : [
       {
         "customType": "regex",
-        "fileMatch": [".gitlab-ci.yml", ".circleci/config.yml"],
+        "fileMatch": [".gitlab-ci.yml"],
         "matchStrings": [
           "  DATADOG_AGENT_[^:]*: (?<currentValue>v.*)",
-          "  CI_IMAGE_[^:]*: (?<currentValue>v.*)",
-          "      - image: gcr.io/datadoghq/agent-circleci-runner:(?<currentValue>v.*)"
+          "  CI_IMAGE_[^:]*: (?<currentValue>v.*)"
         ],
         "depNameTemplate": "buildimages",
         "versioningTemplate": "loose",

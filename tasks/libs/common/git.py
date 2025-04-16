@@ -313,21 +313,5 @@ def get_last_release_tag(ctx, repo, pattern):
     return last_tag_commit, last_tag_name
 
 
-def get_git_config(ctx, key):
-    try:
-        result = ctx.run(f'git config --get {key}')
-    except Exit:
-        return None
-    return result.stdout.strip() if result.return_code == 0 else None
-
-
 def set_git_config(ctx, key, value):
     ctx.run(f'git config {key} {value}')
-
-
-def revert_git_config(ctx, original_config):
-    for key, value in original_config.items():
-        if value is None:
-            ctx.run(f'git config --unset {key}', hide=True)
-        else:
-            ctx.run(f'git config {key} {value}', hide=True)
