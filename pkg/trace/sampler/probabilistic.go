@@ -7,9 +7,7 @@ package sampler
 
 import (
 	"encoding/binary"
-	"encoding/hex"
 	"hash/fnv"
-	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -68,7 +66,7 @@ func (ps *ProbabilisticSampler) Sample(root *trace.Span) bool {
 	if !ps.fullTraceIDMode {
 		binary.BigEndian.PutUint64(tid, root.TraceID)
 	} else {
-		tid, err = get128BitTraceID(root)
+		tid, err = root.Get128BitTraceID()
 	}
 	if err != nil {
 		log.Errorf("Unable to probabilistically sample, failed to determine 128-bit trace ID from incoming span: %v", err)
@@ -84,27 +82,4 @@ func (ps *ProbabilisticSampler) Sample(root *trace.Span) bool {
 		setMetric(root, probRateKey, ps.samplingPercentage)
 	}
 	return keep
-}
-
-func get128BitTraceID(span *trace.Span) ([]byte, error) {
-	// If it's an otel span the whole trace ID is in otel.trace
-	if tid, ok := span.Meta["otel.trace_id"]; ok {
-		bs, err := hex.DecodeString(tid)
-		if err != nil {
-			return nil, err
-		}
-		return bs, nil
-	}
-	tid := make([]byte, 16)
-	binary.BigEndian.PutUint64(tid[8:], span.TraceID)
-	// Get hex encoded upper bits for datadog spans
-	// If no value is found we can use the default `0` value as that's what will have been propagated
-	if upper, ok := span.Meta["_dd.p.tid"]; ok {
-		u, err := strconv.ParseUint(upper, 16, 64)
-		if err != nil {
-			return nil, err
-		}
-		binary.BigEndian.PutUint64(tid[:8], u)
-	}
-	return tid, nil
 }

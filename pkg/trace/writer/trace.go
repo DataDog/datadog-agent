@@ -13,6 +13,7 @@ import (
 
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -82,6 +83,8 @@ type TraceWriter struct {
 	timing     timing.Reporter
 	mu         sync.Mutex
 	compressor compression.Component
+
+	minConvertPayloads int // minimum number of payloads to convert to IDX format
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
@@ -254,6 +257,14 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 
 	defer w.timing.Since("datadog.trace_agent.trace_writer.encode_ms", time.Now())
 
+	// Convert some of the tracer payloads to IDX format to test intake implementation
+	numToConvert := min(w.minConvertPayloads, len(payloads))
+	idxPayloads := make([]*idx.TracerPayload, numToConvert)
+	for i := 0; i < numToConvert; i++ {
+		idxPayloads[i] = convertToIdx(payloads[i])
+	}
+	payloads = payloads[numToConvert:]
+
 	log.Debugf("Serializing %d tracer payloads.", len(payloads))
 	p := pb.AgentPayload{
 		AgentVersion:       w.agentVersion,
@@ -263,6 +274,7 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
 		TracerPayloads:     payloads,
+		IdxTracerPayloads:  idxPayloads,
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 
