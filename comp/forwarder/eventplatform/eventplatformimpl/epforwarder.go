@@ -205,7 +205,11 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+
+		// on every periodic refresh, we re-send all the SBOMs for all the
+		// container images in the workloadmeta store. This can be a lot of
+		// payloads at once, so we need a large input channel size to avoid dropping
+		defaultInputChanSize: 1000,
 	},
 	{
 		eventType:                     eventplatform.EventTypeServiceDiscovery,
