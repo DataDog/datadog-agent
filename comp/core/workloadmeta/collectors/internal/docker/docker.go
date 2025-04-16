@@ -490,7 +490,7 @@ func extractNetworkIPs(networks map[string]*network.EndpointSettings) map[string
 	return networkIPs
 }
 
-func extractStatus(containerState *types.ContainerState) workloadmeta.ContainerStatus {
+func extractStatus(containerState *container.State) workloadmeta.ContainerStatus {
 	if containerState == nil {
 		return workloadmeta.ContainerStatusUnknown
 	}
@@ -511,7 +511,7 @@ func extractStatus(containerState *types.ContainerState) workloadmeta.ContainerS
 	return workloadmeta.ContainerStatusUnknown
 }
 
-func extractHealth(containerLabels map[string]string, containerHealth *types.Health) workloadmeta.ContainerHealth {
+func extractHealth(containerLabels map[string]string, containerHealth *container.Health) workloadmeta.ContainerHealth {
 	// When we're running in Kubernetes, do not report health from Docker but from Kubelet readiness
 	if _, ok := containerLabels[kubernetes.CriContainerNamespaceLabel]; ok {
 		return ""
@@ -524,7 +524,7 @@ func extractHealth(containerLabels map[string]string, containerHealth *types.Hea
 	switch containerHealth.Status {
 	case types.NoHealthcheck, types.Starting:
 		return workloadmeta.ContainerHealthUnknown
-	case types.Healthy:
+	case container.Healthy:
 		return workloadmeta.ContainerHealthHealthy
 	case types.Unhealthy:
 		return workloadmeta.ContainerHealthUnhealthy

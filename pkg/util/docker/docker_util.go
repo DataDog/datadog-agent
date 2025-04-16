@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	dcontainer "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
@@ -133,14 +133,14 @@ func (d *DockerUtil) RawClient() *client.Client {
 
 // RawContainerList wraps around the docker client's ContainerList method.
 // Value validation and error handling are the caller's responsibility.
-func (d *DockerUtil) RawContainerList(ctx context.Context, options dcontainer.ListOptions) ([]types.Container, error) {
+func (d *DockerUtil) RawContainerList(ctx context.Context, options dcontainer.ListOptions) ([]container.Summary, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
 	return d.cli.ContainerList(ctx, options)
 }
 
 // RawContainerListWithFilter is like RawContainerList but with a container filter.
-func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options dcontainer.ListOptions, filter *containers.Filter, wmeta workloadmeta.Component) ([]types.Container, error) {
+func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options dcontainer.ListOptions, filter *containers.Filter, wmeta workloadmeta.Component) ([]container.Summary, error) {
 	containers, err := d.RawContainerList(ctx, options)
 	if err != nil {
 		return nil, err
@@ -150,7 +150,7 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options dco
 		return containers, nil
 	}
 
-	isExcluded := func(container types.Container) bool {
+	isExcluded := func(container container.Summary) bool {
 		var annotations map[string]string
 		if pod, err := wmeta.GetKubernetesPodForContainer(container.ID); err == nil {
 			annotations = pod.Annotations
@@ -165,7 +165,7 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options dco
 		return false
 	}
 
-	filtered := []types.Container{}
+	filtered := []container.Summary{}
 	for _, container := range containers {
 		if !isExcluded(container) {
 			filtered = append(filtered, container)
@@ -217,7 +217,7 @@ func (d *DockerUtil) ResolveImageName(ctx context.Context, image string) (string
 
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	r, _, err := d.cli.ImageInspectWithRaw(ctx, image)
+	r, err := d.cli.ImageInspect(ctx, image)
 	if err != nil {
 		// Only log errors that aren't "not found" because some images may
 		// just not be available in docker inspect.
@@ -264,7 +264,7 @@ func (d *DockerUtil) ImageInspect(ctx context.Context, imageID string) (image.In
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
 
-	imageInspect, _, err := d.cli.ImageInspectWithRaw(ctx, imageID)
+	imageInspect, err := d.cli.ImageInspect(ctx, imageID)
 	if err != nil {
 		return imageInspect, fmt.Errorf("error inspecting image: %w", err)
 	}

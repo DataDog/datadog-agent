@@ -26,7 +26,6 @@ import (
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/errdefs"
 	refdocker "github.com/distribution/reference"
-	api "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	dimage "github.com/docker/docker/api/types/image"
 	dclient "github.com/docker/docker/client"
@@ -182,7 +181,7 @@ func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, 
 		},
 		Architecture: imgConfig.Architecture,
 		Os:           imgConfig.OS,
-		RootFS: api.RootFS{
+		RootFS: dimage.RootFS{
 			Type: imgConfig.RootFS.Type,
 			Layers: lo.Map(imgConfig.RootFS.DiffIDs, func(d digest.Digest, _ int) string {
 				return d.String()
