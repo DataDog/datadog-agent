@@ -175,11 +175,13 @@ func (c *Check) fetchAllDeviceLabelsFromBlkid() error {
 }
 
 func (c *Check) sendInodesMetrics(sender sender.Sender, usage *gopsutil_disk.UsageStat, tags []string) {
-	// Inodes metrics
-	sender.Gauge(fmt.Sprintf(inodeMetric, "total"), float64(usage.InodesTotal), "", tags)
-	sender.Gauge(fmt.Sprintf(inodeMetric, "used"), float64(usage.InodesUsed), "", tags)
-	sender.Gauge(fmt.Sprintf(inodeMetric, "free"), float64(usage.InodesFree), "", tags)
-	sender.Gauge(fmt.Sprintf(inodeMetric, "utilized"), usage.InodesUsedPercent, "", tags)
-	// FIXME(8.x): use percent, a lot more logical than in_use
-	sender.Gauge(fmt.Sprintf(inodeMetric, "in_use"), usage.InodesUsedPercent/100, "", tags)
+	if usage.InodesTotal != 0 {
+		// Inodes metrics
+		sender.Gauge(fmt.Sprintf(inodeMetric, "total"), float64(usage.InodesTotal), "", tags)
+		sender.Gauge(fmt.Sprintf(inodeMetric, "used"), float64(usage.InodesUsed), "", tags)
+		sender.Gauge(fmt.Sprintf(inodeMetric, "free"), float64(usage.InodesFree), "", tags)
+		sender.Gauge(fmt.Sprintf(inodeMetric, "utilized"), usage.InodesUsedPercent, "", tags)
+		// FIXME(8.x): use percent, a lot more logical than in_use
+		sender.Gauge(fmt.Sprintf(inodeMetric, "in_use"), usage.InodesUsedPercent/100, "", tags)
+	}
 }
