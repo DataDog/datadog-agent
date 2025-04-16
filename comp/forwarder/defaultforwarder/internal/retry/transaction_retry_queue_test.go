@@ -180,7 +180,8 @@ func newOnDiskRetryQueueTest(t *testing.T, a *assert.Assertions) *onDiskRetryQue
 		}}
 	diskUsageLimit := NewDiskUsageLimit("", disk, 1000, 1)
 	log := logmock.New(t)
-	r, _ := resolver.NewSingleDomainResolver("", nil)
+	r, err := resolver.NewSingleDomainResolver("", nil)
+	require.NoError(t, err)
 	q, err := newOnDiskRetryQueue(
 		log,
 		NewHTTPTransactionsSerializer(log, r),

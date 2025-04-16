@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -44,7 +45,8 @@ func TestCheckValidAPIKey(t *testing.T) {
 	}
 	log := logmock.New(t)
 	cfg := config.NewMock(t)
-	r, _ := resolver.NewSingleDomainResolvers(keysPerDomains)
+	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
+	require.NoError(t, err)
 	fh := forwarderHealth{log: log, config: cfg, domainResolvers: r}
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey())
@@ -85,7 +87,8 @@ func TestComputeDomainsURL(t *testing.T) {
 		sort.Strings(keys)
 	}
 	log := logmock.New(t)
-	r, _ := resolver.NewSingleDomainResolvers(keysPerDomains)
+	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
+	require.NoError(t, err)
 	fh := forwarderHealth{log: log, domainResolvers: r}
 	fh.init()
 
@@ -175,7 +178,8 @@ func TestUpdateAPIKey(t *testing.T) {
 	log := logmock.New(t)
 	cfg := config.NewMock(t)
 
-	r, _ := resolver.NewSingleDomainResolvers(keysPerDomains)
+	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
+	require.NoError(t, err)
 	fh := forwarderHealth{log: log, config: cfg, domainResolvers: r}
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey())
