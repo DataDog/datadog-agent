@@ -35,8 +35,9 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				LibVersions: map[string]string{
 					"python": "default",
 				},
-				Version:          "v2",
-				InjectorImageTag: "foo",
+				Version:                          "v2",
+				InjectorImageTag:                 "foo",
+				UseOwnerNameAsDefaultServiceName: true,
 			},
 		},
 		{
@@ -56,8 +57,9 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				LibVersions: map[string]string{
 					"python": "default",
 				},
-				Version:          "v2",
-				InjectorImageTag: "foo",
+				Version:                          "v2",
+				InjectorImageTag:                 "foo",
+				UseOwnerNameAsDefaultServiceName: true,
 			},
 		},
 		{
@@ -73,6 +75,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				DisabledNamespaces: []string{
 					"hacks",
 				},
+				UseOwnerNameAsDefaultServiceName: true,
 				Targets: []Target{
 					{
 						Name: "Billing Service",
@@ -113,11 +116,12 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			configPath: "testdata/targets_namespace_labels.yaml",
 			shouldErr:  false,
 			expected: &InstrumentationConfig{
-				Enabled:           true,
-				EnabledNamespaces: []string{},
-				InjectorImageTag:  "0",
-				LibVersions:       map[string]string{},
-				Version:           "v2",
+				Enabled:                          true,
+				EnabledNamespaces:                []string{},
+				InjectorImageTag:                 "0",
+				LibVersions:                      map[string]string{},
+				Version:                          "v2",
+				UseOwnerNameAsDefaultServiceName: true,
 				DisabledNamespaces: []string{
 					"hacks",
 				},
@@ -169,12 +173,13 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			name:       "can provide DD_SERVICE from arbitrary label",
 			configPath: "testdata/filter_service_env_var_from.yaml",
 			expected: &InstrumentationConfig{
-				Enabled:            true,
-				EnabledNamespaces:  []string{},
-				DisabledNamespaces: []string{},
-				InjectorImageTag:   "0",
-				Version:            "v2",
-				LibVersions:        map[string]string{},
+				Enabled:                          true,
+				EnabledNamespaces:                []string{},
+				DisabledNamespaces:               []string{},
+				InjectorImageTag:                 "0",
+				Version:                          "v2",
+				LibVersions:                      map[string]string{},
+				UseOwnerNameAsDefaultServiceName: true,
 				Targets: []Target{
 					{
 						Name: "name-services",
