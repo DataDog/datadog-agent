@@ -40,11 +40,12 @@ func (suite *k8sSuite) TestZzzClusterAgentAPIKeyRefresh() {
 	)
 
 	// install the agent with old API key
+	url := suite.Env().FakeIntake.URL
 	suite.UpdateEnv(
 		awskubernetes.KindProvisioner(
 			awskubernetes.WithAgentOptions(
 				kubernetesagentparams.WithNamespace(namespace),
-				kubernetesagentparams.WithHelmValues(fmt.Sprintf(agentAPIKeyRefreshValuesFmt, suite.Env().FakeIntake.URL)),
+				kubernetesagentparams.WithHelmValues(fmt.Sprintf(agentAPIKeyRefreshValuesFmt, url, url)),
 			),
 		),
 	)
