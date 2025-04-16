@@ -17,7 +17,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
@@ -115,7 +115,8 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 
 	checkDuration := 10 * time.Second
 	checkKtime := ktime + int64(checkDuration)
-	stats := statsGen.getStats(checkKtime)
+	stats, err := statsGen.getStats(checkKtime)
+	require.NoError(t, err)
 	require.NotNil(t, stats)
 
 	metricsKey := model.StatsKey{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
@@ -164,7 +165,8 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 
 	checkDuration := 10 * time.Second
 	checkKtime := ktime + int64(checkDuration)
-	stats := statsGen.getStats(checkKtime)
+	stats, err := statsGen.getStats(checkKtime)
+	require.NoError(t, err)
 	require.NotNil(t, stats)
 
 	metricsKey := model.StatsKey{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
@@ -235,7 +237,8 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 
 	checkDuration := 10 * time.Second
 	checkKtime := ktime + int64(checkDuration)
-	stats := statsGen.getStats(checkKtime)
+	stats, err := statsGen.getStats(checkKtime)
+	require.NoError(t, err)
 	require.NotNil(t, stats)
 
 	metricsKey := model.StatsKey{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
@@ -277,7 +280,8 @@ func TestGetStatsMultiGPU(t *testing.T) {
 
 	checkDuration := 10 * time.Second
 	checkKtime := ktime + int64(checkDuration)
-	stats := statsGen.getStats(checkKtime)
+	stats, err := statsGen.getStats(checkKtime)
+	require.NoError(t, err)
 	require.NotNil(t, stats)
 
 	// Check the metrics for each device
@@ -290,5 +294,61 @@ func TestGetStatsMultiGPU(t *testing.T) {
 		expectedCores := threadSecondsUsed / checkDuration.Seconds()
 
 		require.InDelta(t, expectedCores, metrics.UsedCores, 0.001, "invalid utilization for device %d (uuid=%s)", i, uuid)
+	}
+}
+
+func TestGetStatsNormalization(t *testing.T) {
+	statsGen, streamHandlers, ktime := getStatsGeneratorForTest(t)
+
+	checkDuration := 10 * time.Second
+	startKtime := ktime
+	endKtime := startKtime + int64(checkDuration)
+
+	// Create two processes that each use 80% of GPU cores and 60% of memory
+	pid1 := uint32(1)
+	pid2 := uint32(2)
+	numThreads := uint64(testutil.DefaultGpuCores * 0.8)
+	memSize := uint64(float64(testutil.DefaultTotalMemory) * 0.6)
+
+	// Add kernels and memory allocations for both processes
+	for _, pid := range []uint32{pid1, pid2} {
+		streamID := uint64(pid)
+		stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
+		stream.processEnded = false
+		stream.kernelSpans = []*kernelSpan{
+			{
+				startKtime:     uint64(startKtime),
+				endKtime:       uint64(endKtime),
+				avgThreadCount: numThreads,
+				numKernels:     10,
+			},
+		}
+
+		// Add memory allocations
+		globalStream := addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
+		globalStream.processEnded = false
+		globalStream.allocations = []*memoryAllocation{
+			{
+				startKtime: uint64(startKtime),
+				endKtime:   uint64(endKtime),
+				size:       memSize,
+				isLeaked:   false,
+				allocType:  globalMemAlloc,
+			},
+		}
+	}
+
+	checkKtime := endKtime + 1
+	stats, err := statsGen.getStats(checkKtime)
+	require.NoError(t, err)
+	require.NotNil(t, stats)
+
+	for _, pid := range []uint32{pid1, pid2} {
+		metricsKey := model.StatsKey{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
+		metrics := getMetricsEntry(metricsKey, stats)
+		require.NotNil(t, metrics, "cannot find metrics for pid %d", pid)
+
+		require.InDelta(t, testutil.DefaultGpuCores/2, metrics.UsedCores, 0.001, "incorrect utilization for pid %d", pid)
+		require.InDelta(t, testutil.DefaultTotalMemory/2, metrics.Memory.MaxBytes, 0.001, "incorrect normalized max memory for pid %d", pid)
 	}
 }
