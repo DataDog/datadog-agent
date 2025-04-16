@@ -9,6 +9,7 @@
 package probe
 
 import (
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -31,6 +32,8 @@ type Opts struct {
 	TTYFallbackEnabled bool
 	// EBPFLessEnabled use ebpfless source
 	EBPFLessEnabled bool
+	// WorkloadMeta is the workload meta client
+	WorkloadMeta workloadmeta.Component
 }
 
 func (o *Opts) normalize() {

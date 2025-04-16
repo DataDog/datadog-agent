@@ -24,7 +24,7 @@ func FuzzConvertBOM(f *testing.F) {
 		f.Fuzz(&bom)
 		bom.SpecVersion = cyclonedx.SpecVersion1_6
 
-		pb := convertBOM(&bom)
+		pb := ConvertBOM(&bom)
 		_, err := proto.Marshal(pb)
 
 		assert.Nil(t, err)
