@@ -15,8 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
-	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/nvml/testutil"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
