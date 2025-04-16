@@ -136,7 +136,7 @@ func setupDiscoveryModule(t *testing.T) *testDiscoveryModule {
 }
 
 func getServicesWithParams(t require.TestingT, url string, params *params) *model.ServicesResponse {
-	location := url + "/" + string(config.DiscoveryModule) + pathServices
+	location := url + "/" + string(config.DiscoveryModule) + pathCheck
 	req, err := http.NewRequest(http.MethodGet, location, nil)
 	require.NoError(t, err)
 
@@ -985,7 +985,7 @@ func TestDocker(t *testing.T) {
 	require.Equal(t, startEvent.LastHeartbeat, mockedTime.Unix())
 }
 
-func newDiscovery(t testing.TB, tp timeProvider) *discovery {
+func newDiscoveryNetwork(t testing.TB, tp timeProvider, getNetworkCollector networkCollectorFactory) *discovery {
 	mockWmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(context.Background()),
@@ -993,7 +993,11 @@ func newDiscovery(t testing.TB, tp timeProvider) *discovery {
 	))
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 
-	return newDiscoveryWithNetwork(mockWmeta, mockTagger, tp, func(_ *discoveryConfig) (networkCollector, error) {
+	return newDiscoveryWithNetwork(mockWmeta, mockTagger, tp, getNetworkCollector)
+}
+
+func newDiscovery(t testing.TB, tp timeProvider) *discovery {
+	return newDiscoveryNetwork(t, tp, func(_ *discoveryConfig) (networkCollector, error) {
 		return nil, nil
 	})
 }
@@ -1002,7 +1006,9 @@ func newDiscovery(t testing.TB, tp timeProvider) *discovery {
 func TestCache(t *testing.T) {
 	var err error
 
-	discovery := newDiscovery(t, realTime{})
+	discovery := newDiscoveryNetwork(t, realTime{}, newNetworkCollector)
+	// Reduce update time to make sure we exercise network stats code paths.
+	discovery.config.networkStatsPeriod = 1 * time.Millisecond
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
@@ -1063,6 +1069,14 @@ func TestCache(t *testing.T) {
 	discovery.Close()
 	require.Empty(t, discovery.cache)
 	require.Empty(t, discovery.noPortTries)
+	require.Empty(t, discovery.runningServices)
+
+	// Calling getServices after Close is weird but it can happen in practice
+	// due to the way system-probe shuts down, so make sure it doesn't panic.
+	_, err = discovery.getServices(defaultParams())
+	require.NoError(t, err)
+	_, err = discovery.getServices(defaultParams())
+	require.NoError(t, err)
 }
 
 func TestMaxPortCheck(t *testing.T) {

@@ -375,7 +375,7 @@ func validateDockerCuda(e *aws.Environment, vm *componentsremote.Host, dependsOn
 }
 
 func makeRetryCommand(cmd string, maxRetries int) string {
-	return fmt.Sprintf("counter=0; while ! %s && [ $counter -lt %d ]; do echo failed to pull, retrying ; sleep 1; counter=$((counter+1)); done", cmd, maxRetries)
+	return fmt.Sprintf("counter=0; while [ \\$counter -lt %d ] && ! %s ; do echo failed to pull, retrying ; sleep 1; counter=\\$((counter+1)); done ; if [ \\$counter -eq %d ]; then echo 'cannot pull image, maximum number of retries reached'; exit 1; fi", maxRetries, cmd, maxRetries)
 }
 
 func downloadContainerdImagesInKindNodes(e *aws.Environment, vm *componentsremote.Host, kindCluster *nvidia.KindCluster, images []string, dependsOn ...pulumi.Resource) ([]pulumi.Resource, error) {

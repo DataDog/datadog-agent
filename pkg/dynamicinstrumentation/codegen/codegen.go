@@ -32,6 +32,7 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 		fieldCountLimit := ditypes.MaxFieldCount
 		setDepthLimit(preChange, depthLimit)
 		setFieldLimit(preChange, fieldCountLimit)
+		dontCaptureInterfaces(preChange)
 
 		// We make a copy of the parameter tree to avoid modifying the original
 		// for the sake of event translation when uploading to backend
@@ -39,6 +40,8 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 		copyTree(&params, &preChange)
 
 		params = applyExclusions(params)
+		correctPointersWithoutPieces(params)
+
 		for i := range params {
 			if params[i].DoNotCapture {
 				log.Tracef("Not capturing parameter %d %s: %s", i, params[i].Name, params[i].NotCaptureReason.String())
@@ -229,6 +232,10 @@ func resolveLocationExpressionTemplate(locationExpression ditypes.LocationExpres
 		return template.New("comment").Parse(commentText)
 	case ditypes.OpSetParameterIndex:
 		return template.New("set_parameter_index").Parse(setParameterIndexText)
+	case ditypes.OpCompilerError:
+		return template.New("compiler_error").Parse(compilerErrorText)
+	case ditypes.OpVerifierError:
+		return template.New("verifier_error").Parse(verifierErrorText)
 	default:
 		return nil, errors.New("invalid location expression opcode")
 	}

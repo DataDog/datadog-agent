@@ -476,12 +476,26 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor2(
 			} else {
 				out.Value = in.Interface()
 			}
+		case "default_value":
+			if m, ok := out.DefaultValue.(easyjson.Unmarshaler); ok {
+				m.UnmarshalEasyJSON(in)
+			} else if m, ok := out.DefaultValue.(json.Unmarshaler); ok {
+				_ = m.UnmarshalJSON(in.Raw())
+			} else {
+				out.DefaultValue = in.Interface()
+			}
 		case "field":
 			out.Field = string(in.String())
+		case "expression":
+			out.Expression = string(in.String())
 		case "append":
 			out.Append = bool(in.Bool())
 		case "scope":
 			out.Scope = string(in.String())
+		case "size":
+			out.Size = int(in.Int())
+		case "ttl":
+			out.TTL = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -518,6 +532,22 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor2(
 			out.Raw(json.Marshal(in.Value))
 		}
 	}
+	if in.DefaultValue != nil {
+		const prefix string = ",\"default_value\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		if m, ok := in.DefaultValue.(easyjson.Marshaler); ok {
+			m.MarshalEasyJSON(out)
+		} else if m, ok := in.DefaultValue.(json.Marshaler); ok {
+			out.Raw(m.MarshalJSON())
+		} else {
+			out.Raw(json.Marshal(in.DefaultValue))
+		}
+	}
 	if in.Field != "" {
 		const prefix string = ",\"field\":"
 		if first {
@@ -527,6 +557,16 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor2(
 			out.RawString(prefix)
 		}
 		out.String(string(in.Field))
+	}
+	if in.Expression != "" {
+		const prefix string = ",\"expression\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Expression))
 	}
 	if in.Append {
 		const prefix string = ",\"append\":"
@@ -547,6 +587,26 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor2(
 			out.RawString(prefix)
 		}
 		out.String(string(in.Scope))
+	}
+	if in.Size != 0 {
+		const prefix string = ",\"size\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Int(int(in.Size))
+	}
+	if in.TTL != "" {
+		const prefix string = ",\"ttl\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.TTL))
 	}
 	out.RawByte('}')
 }

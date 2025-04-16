@@ -18,7 +18,7 @@ import (
 
 const (
 	databricksInjectorVersion   = "0.35.0-1"
-	databricksJavaTracerVersion = "1.46.1-1"
+	databricksJavaTracerVersion = "1.48.0-1"
 	databricksAgentVersion      = "7.63.3-1"
 )
 
@@ -220,6 +220,7 @@ func setupDatabricksDriver(s *common.Setup) {
 	if os.Getenv("DRIVER_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = driverLogs
+		s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" {
 		sparkIntegration.Instances = []any{
@@ -239,12 +240,14 @@ func setupDatabricksDriver(s *common.Setup) {
 func setupDatabricksWorker(s *common.Setup) {
 	setClearHostTag(s, "spark_node", "worker")
 
-	var sparkIntegration common.IntegrationConfig
 	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
+		var sparkIntegration common.IntegrationConfig
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = workerLogs
+		s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
+		s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 	}
-	s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
+
 }
 
 func addCustomHostTags(s *common.Setup) {

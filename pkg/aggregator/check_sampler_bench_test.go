@@ -26,6 +26,7 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -49,7 +50,9 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	mockConfig := configmock.New(b)
 	deps := fxutil.Test[benchmarkDeps](b, core.MockBundle())
 	taggerComponent := taggerfxmock.SetupFakeTagger(b)
-	forwarderOpts := forwarder.NewOptionsWithResolvers(mockConfig, deps.Log, resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
+	forwarderOpts := forwarder.NewOptionsWithResolvers(mockConfig, deps.Log,
+		resolver.NewSingleDomainResolvers(map[string][]utils.APIKeys{"hello": {utils.NewAPIKeys("", "world")}}),
+	)
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
 	sharedForwarder := forwarder.NewDefaultForwarder(mockConfig, deps.Log, forwarderOpts)

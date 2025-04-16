@@ -394,6 +394,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.ingress.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_packet.enabled"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_packet.limiter_rate"), 10)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.private_ip_ranges"), DefaultPrivateIPCIDRs)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.extra_private_ip_ranges"), []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.polling_interval"), 20)
@@ -442,6 +443,10 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(gpuNS, "enable_fatbin_parsing"), false)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "fatbin_request_queue_size"), 100)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "ring_buffer_pages_per_device"), 32) // 32 pages = 128KB by default per device
+	cfg.BindEnvAndSetDefault(join(gpuNS, "max_kernel_launches_per_stream"), 1000)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "max_mem_alloc_events_per_stream"), 1000)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "max_streams"), 100)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "max_stream_inactivity_seconds"), 30) // 30 seconds by default, includes two checks at the default interval of 15 seconds
 
 	initCWSSystemProbeConfig(cfg)
 }

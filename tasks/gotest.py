@@ -309,6 +309,7 @@ def test(
     # atomic is quite expensive but it's the only way to run both the coverage and the race detector at the same time without getting false positives from the cover counter
     covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
     build_cpus_opt = f"-p {cpus}" if cpus else ""
+    test_cpus_opt = f"-parallel {cpus}" if cpus else ""
 
     nocache = '-count=1' if not cache else ''
 
@@ -335,7 +336,7 @@ def test(
         '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt}'
     )
     govet_flags = '-vet=off'
-    gotest_flags = '{verbose} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache}'
+    gotest_flags = '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache}'
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     args = {
         "go_mod": go_mod,
@@ -343,6 +344,7 @@ def test(
         "ldflags": ldflags,
         "race_opt": race_opt,
         "build_cpus": build_cpus_opt,
+        "test_cpus": test_cpus_opt,
         "covermode_opt": covermode_opt,
         "test_run_arg": test_run_arg,
         "timeout": int(timeout),
@@ -835,7 +837,8 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
 
     # We need to make sure the CLI length is not too long
     packages = compute_gotestsum_cli_args(modules_to_test.values())
-    if sys.platform == "win32" and len(packages) > WINDOWS_MAX_CLI_LENGTH:
+    # -1000 because there are ~1000 extra characters in the gotestsum command
+    if sys.platform == "win32" and len(packages) > WINDOWS_MAX_CLI_LENGTH - 1000:
         print("CLI length is too long, skipping fast tests")
         return get_default_modules().values()
 

@@ -6,6 +6,7 @@
 package apm
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -74,4 +75,29 @@ func tracegenTCPCommands(service string, peerTags string, enableClientSideStats 
 		" ghcr.io/datadog/apps-tracegen:main"
 	rm := "docker rm -f " + service
 	return run, rm
+}
+
+func traceWithProcessTagsWithHeader(h *components.RemoteHost, processTags, service string) {
+	// TODO: once go tracer support process tags, use tracegen instead!
+	h.MustExecute(fmt.Sprintf(`curl -X POST http://localhost:8126/v0.4/traces \
+-H 'X-Datadog-Process-Tags: %s' \
+-H 'X-Datadog-Trace-Count: 1' \
+-H 'Content-Type: application/json' \
+-H 'User-Agent: Go-http-client/1.1' \
+-H 'Datadog-Meta-Lang: go' \
+--data-binary @- <<EOF
+[[{"trace_id":1234567890123456789,"span_id":9876543210987654321,"parent_id":0,"name":"http.request","resource":"GET /api/users","service":"%s","type":"web","start":0,"duration":200000000,"meta":{"http.method":"GET","http.url":"/api/users","http.status_code":"200","env":"dev","version":"1.0.0"},"metrics":{"_sampling_priority_v1":1}}]]
+EOF`, processTags, service))
+}
+
+func traceWithProcessTags(h *components.RemoteHost, processTags, service string) {
+	// TODO: once go tracer support process tags, use tracegen instead!
+	h.MustExecute(fmt.Sprintf(`curl -X POST http://localhost:8126/v0.4/traces \
+-H 'X-Datadog-Trace-Count: 1' \
+-H 'Content-Type: application/json' \
+-H 'User-Agent: Go-http-client/1.1' \
+-H 'Datadog-Meta-Lang: go' \
+--data-binary @- <<EOF
+[[{"trace_id":1234567890123456789,"span_id":9876543210987654321,"parent_id":0,"name":"http.request","resource":"GET /api/users","service":"%s","type":"web","start":0,"duration":200000000,"meta":{"_dd.tags.process":"%s","http.method":"GET","http.url":"/api/users","http.status_code":"200","env":"dev","version":"1.0.0"},"metrics":{"_sampling_priority_v1":1}}]]
+EOF`, service, processTags))
 }

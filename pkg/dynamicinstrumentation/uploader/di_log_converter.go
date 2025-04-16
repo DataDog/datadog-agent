@@ -115,8 +115,14 @@ func convertArgs(definitions []*ditypes.Parameter, captures []*ditypes.Param) ma
 	// We keep track of the number of definitions read, and the number of missing captures to do so.
 	for i := range captures {
 	top:
+		if len(definitions) <= definitionCounter {
+			break
+		}
 		definition := definitions[definitionCounter]
-		if definition.Kind != uint(captures[i].Kind) {
+		if definition == nil || captures[i] == nil {
+			continue
+		}
+		if definition.Kind != uint(captures[i].Kind) || definition.DoNotCapture {
 			// definition is not present in captures, put it in the map and move on
 			args[definition.Name] = &ditypes.CapturedValue{
 				Type:              definition.Type,
@@ -167,8 +173,10 @@ func convertArgs(definitions []*ditypes.Parameter, captures []*ditypes.Param) ma
 	}
 
 	definitionsCaptureDifference := len(definitions) - len(captures) - missingCounter
+	if (len(definitions) - definitionsCaptureDifference) >= len(definitions) {
+		return args
+	}
 	remainingDefinitions := definitions[len(definitions)-definitionsCaptureDifference:]
-
 	for i := range remainingDefinitions {
 		args[remainingDefinitions[i].Name] = &ditypes.CapturedValue{
 			Type:              remainingDefinitions[i].Type,

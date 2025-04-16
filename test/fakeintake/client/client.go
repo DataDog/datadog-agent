@@ -100,12 +100,30 @@ func WithoutStrictFakeintakeIDCheck() Option {
 	}
 }
 
+// WithGetBackoffDelay sets the delay between two retries in get
+func WithGetBackoffDelay(delay time.Duration) Option {
+	return func(c *Client) {
+		c.getBackoffDelay = delay
+	}
+}
+
+// WithGetBackoffRetries sets the number of retries in get
+func WithGetBackoffRetries(retries uint64) Option {
+	return func(c *Client) {
+		c.getBackoffRetries = retries
+	}
+}
+
 // Client is a fake intake client
 type Client struct {
 	fakeintakeID            string
 	fakeIntakeURL           string
 	strictFakeintakeIDCheck bool
 	fakeintakeIDMutex       sync.RWMutex
+
+	// Get retry parameters
+	getBackoffRetries uint64
+	getBackoffDelay   time.Duration
 
 	metricAggregator               aggregator.MetricAggregator
 	checkRunAggregator             aggregator.CheckRunAggregator
@@ -135,6 +153,8 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 	client := &Client{
 		strictFakeintakeIDCheck:        true,
 		fakeintakeIDMutex:              sync.RWMutex{},
+		getBackoffRetries:              4,
+		getBackoffDelay:                5 * time.Second,
 		fakeIntakeURL:                  strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:               aggregator.NewMetricAggregator(),
 		checkRunAggregator:             aggregator.NewCheckRunAggregator(),
@@ -852,6 +872,25 @@ func (c *Client) GetOrchestratorResources(filter *PayloadFilter) ([]*aggregator.
 	return orchs, nil
 }
 
+// GetOrchestratorResourcesPayloadAPIKeys fetches fakeintake on `/api/v2/orch` endpoint and returns
+// the API keys of the received orchestrator payloads
+func (c *Client) GetOrchestratorResourcesPayloadAPIKeys() ([]string, error) {
+	payloads, err := c.getFakePayloads(orchestratorEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	keys := make([]string, 0, len(payloads))
+	uniqueKeys := make(map[string]struct{}, len(payloads))
+	for _, payload := range payloads {
+		if _, ok := uniqueKeys[payload.APIKey]; !ok {
+			keys = append(keys, payload.APIKey)
+			uniqueKeys[payload.APIKey] = struct{}{}
+		}
+	}
+	return keys, nil
+}
+
 // GetOrchestratorManifests fetches fakeintake on `/api/v2/orchmanif` endpoint and returns
 // all received process payloads
 func (c *Client) GetOrchestratorManifests() ([]*aggregator.OrchestratorManifestPayload, error) {
@@ -905,7 +944,7 @@ func (c *Client) get(route string) ([]byte, error) {
 
 		body, err = io.ReadAll(tmpResp.Body)
 		return err
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(c.getBackoffDelay), c.getBackoffRetries))
 	if err, ok := err.(net.Error); ok && err.Timeout() {
 		panic(fmt.Sprintf("fakeintake call timed out: %v", err))
 	}
