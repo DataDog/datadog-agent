@@ -267,26 +267,6 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 			},
 			err: nil,
 		},
-		{
-			name: "Custom fallback setting - fallback disabled",
-			objective: datadoghqcommon.DatadogPodAutoscalerObjective{
-				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
-				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
-					Name: "cpu",
-					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
-						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
-						Utilization: pointer.Ptr(int32(80)),
-					},
-				},
-			},
-			fallbackPolicy: &datadoghq.DatadogFallbackPolicy{
-				Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
-					Enabled: false,
-				},
-			},
-			want: nil,
-			err:  fmt.Errorf("fallback is disabled"),
-		},
 	}
 
 	for _, tt := range tests {

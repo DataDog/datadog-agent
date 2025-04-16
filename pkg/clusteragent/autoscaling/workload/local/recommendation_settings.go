@@ -133,11 +133,6 @@ func getOptionsFromFallback(recSettings *resourceRecommenderSettings, fallbackSe
 		return recSettings, nil
 	}
 
-	// This should not happen - we should only reach this point if fallback was enabled for this autoscaler
-	if fallbackSettings.Horizontal.Enabled == false {
-		return nil, fmt.Errorf("fallback is disabled")
-	}
-
 	// Override with custom threshold if provided
 	if fallbackSettings.Horizontal.Triggers.StaleRecommendationThresholdSeconds > 0 {
 		recSettings.fallbackStaleDataThreshold = int64(fallbackSettings.Horizontal.Triggers.StaleRecommendationThresholdSeconds)
