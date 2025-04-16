@@ -75,10 +75,10 @@ func convertToIdx(payload *pb.TracerPayload) *idx.TracerPayload {
 					Attributes: convertSpanEventAttributes(event.Attributes, internedStrings),
 				}
 			}
-			env, _ := span.Meta["env"]
-			version, _ := span.Meta["version"]
-			component, _ := span.Meta["component"]
-			kindStr, _ := span.Meta["kind"]
+			env := span.Meta["env"]
+			version := span.Meta["version"]
+			component := span.Meta["component"]
+			kindStr := span.Meta["kind"]
 			var kind idx.SpanKind
 			switch kindStr {
 			case "server":
@@ -113,7 +113,7 @@ func convertToIdx(payload *pb.TracerPayload) *idx.TracerPayload {
 				SpanEvents:   spanEvents,
 			}
 		}
-		decisionMaker, _ := chunk.Tags["_dd.p.dm"]
+		decisionMaker := chunk.Tags["_dd.p.dm"]
 		idxChunks[chunkIndex] = &idx.TraceChunk{
 			Priority:         int32(chunk.Priority),
 			OriginRef:        internedStrings.addString(chunk.Origin),
@@ -257,13 +257,12 @@ func newInternedStrings() *internedstrings {
 func (is *internedstrings) addString(s string) uint32 {
 	if i, ok := is.strMap[s]; ok {
 		return i.idx
-	} else {
-		is.strMap[s] = &istring{
-			idx:           uint32(len(is.strMap)),
-			serializedIdx: 0,
-		}
-		return is.strMap[s].idx
 	}
+	is.strMap[s] = &istring{
+		idx:           uint32(len(is.strMap)),
+		serializedIdx: 0,
+	}
+	return is.strMap[s].idx
 }
 
 // strings returns the list of strings interned at their appropriate location
