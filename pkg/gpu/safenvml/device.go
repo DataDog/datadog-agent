@@ -8,8 +8,6 @@
 package safenvml
 
 import (
-	"fmt"
-
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
@@ -107,12 +105,7 @@ func (d *safeDeviceImpl) GetArchitecture() (nvml.DeviceArchitecture, error) {
 		return 0, err
 	}
 	arch, ret := d.nvmlDevice.GetArchitecture()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, &ErrNotSupported{APIName: "GetArchitecture"}
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting device architecture: %s", nvml.ErrorString(ret))
-	}
-	return arch, nil
+	return arch, NewNvmlAPIErrorOrNil("GetArchitecture", ret)
 }
 
 func (d *safeDeviceImpl) GetAttributes() (nvml.DeviceAttributes, error) {
@@ -120,12 +113,7 @@ func (d *safeDeviceImpl) GetAttributes() (nvml.DeviceAttributes, error) {
 		return nvml.DeviceAttributes{}, err
 	}
 	attrs, ret := d.nvmlDevice.GetAttributes()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return nvml.DeviceAttributes{}, &ErrNotSupported{APIName: "GetAttributes"}
-	} else if ret != nvml.SUCCESS {
-		return nvml.DeviceAttributes{}, fmt.Errorf("error getting device attributes: %s", nvml.ErrorString(ret))
-	}
-	return attrs, nil
+	return attrs, NewNvmlAPIErrorOrNil("GetAttributes", ret)
 }
 
 func (d *safeDeviceImpl) GetClockInfo(clockType nvml.ClockType) (uint32, error) {
@@ -133,12 +121,7 @@ func (d *safeDeviceImpl) GetClockInfo(clockType nvml.ClockType) (uint32, error) 
 		return 0, err
 	}
 	clock, ret := d.nvmlDevice.GetClockInfo(clockType)
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, &ErrNotSupported{APIName: "GetClockInfo"}
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting clock info for type %d: %s", clockType, nvml.ErrorString(ret))
-	}
-	return clock, nil
+	return clock, NewNvmlAPIErrorOrNil("GetClockInfo", ret)
 }
 
 // GetComputeRunningProcesses returns the list of compute processes running on the device
@@ -147,12 +130,7 @@ func (d *safeDeviceImpl) GetComputeRunningProcesses() ([]nvml.ProcessInfo, error
 		return nil, err
 	}
 	processes, ret := d.nvmlDevice.GetComputeRunningProcesses()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return nil, &ErrNotSupported{APIName: "GetComputeRunningProcesses"}
-	} else if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("error getting compute running processes: %s", nvml.ErrorString(ret))
-	}
-	return processes, nil
+	return processes, NewNvmlAPIErrorOrNil("GetComputeRunningProcesses", ret)
 }
 
 func (d *safeDeviceImpl) GetCudaComputeCapability() (int, int, error) {
@@ -160,12 +138,7 @@ func (d *safeDeviceImpl) GetCudaComputeCapability() (int, int, error) {
 		return 0, 0, err
 	}
 	major, minor, ret := d.nvmlDevice.GetCudaComputeCapability()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, 0, &ErrNotSupported{APIName: "GetCudaComputeCapability"}
-	} else if ret != nvml.SUCCESS {
-		return 0, 0, fmt.Errorf("error getting CUDA compute capability: %s", nvml.ErrorString(ret))
-	}
-	return major, minor, nil
+	return major, minor, NewNvmlAPIErrorOrNil("GetCudaComputeCapability", ret)
 }
 
 func (d *safeDeviceImpl) GetCurrentClocksThrottleReasons() (uint64, error) {
@@ -173,12 +146,7 @@ func (d *safeDeviceImpl) GetCurrentClocksThrottleReasons() (uint64, error) {
 		return 0, err
 	}
 	reasons, ret := d.nvmlDevice.GetCurrentClocksThrottleReasons()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, &ErrNotSupported{APIName: "GetCurrentClocksThrottleReasons"}
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting current clocks throttle reasons: %s", nvml.ErrorString(ret))
-	}
-	return reasons, nil
+	return reasons, NewNvmlAPIErrorOrNil("GetCurrentClocksThrottleReasons", ret)
 }
 
 func (d *safeDeviceImpl) GetDecoderUtilization() (uint32, uint32, error) {
@@ -186,12 +154,7 @@ func (d *safeDeviceImpl) GetDecoderUtilization() (uint32, uint32, error) {
 		return 0, 0, err
 	}
 	utilization, samplingPeriod, ret := d.nvmlDevice.GetDecoderUtilization()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, 0, &ErrNotSupported{APIName: "GetDecoderUtilization"}
-	} else if ret != nvml.SUCCESS {
-		return 0, 0, fmt.Errorf("error getting decoder utilization: %s", nvml.ErrorString(ret))
-	}
-	return utilization, samplingPeriod, nil
+	return utilization, samplingPeriod, NewNvmlAPIErrorOrNil("GetDecoderUtilization", ret)
 }
 
 func (d *safeDeviceImpl) GetEncoderUtilization() (uint32, uint32, error) {
@@ -199,12 +162,7 @@ func (d *safeDeviceImpl) GetEncoderUtilization() (uint32, uint32, error) {
 		return 0, 0, err
 	}
 	utilization, samplingPeriod, ret := d.nvmlDevice.GetEncoderUtilization()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, 0, &ErrNotSupported{APIName: "GetEncoderUtilization"}
-	} else if ret != nvml.SUCCESS {
-		return 0, 0, fmt.Errorf("error getting encoder utilization: %s", nvml.ErrorString(ret))
-	}
-	return utilization, samplingPeriod, nil
+	return utilization, samplingPeriod, NewNvmlAPIErrorOrNil("GetEncoderUtilization", ret)
 }
 
 func (d *safeDeviceImpl) GetFanSpeed() (uint32, error) {
@@ -212,12 +170,7 @@ func (d *safeDeviceImpl) GetFanSpeed() (uint32, error) {
 		return 0, err
 	}
 	speed, ret := d.nvmlDevice.GetFanSpeed()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, &ErrNotSupported{APIName: "GetFanSpeed"}
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting fan speed: %s", nvml.ErrorString(ret))
-	}
-	return speed, nil
+	return speed, NewNvmlAPIErrorOrNil("GetFanSpeed", ret)
 }
 
 func (d *safeDeviceImpl) GetFieldValues(values []nvml.FieldValue) error {
@@ -225,12 +178,7 @@ func (d *safeDeviceImpl) GetFieldValues(values []nvml.FieldValue) error {
 		return err
 	}
 	ret := d.nvmlDevice.GetFieldValues(values)
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return &ErrNotSupported{APIName: "GetFieldValues"}
-	} else if ret != nvml.SUCCESS {
-		return fmt.Errorf("error getting field values: %s", nvml.ErrorString(ret))
-	}
-	return nil
+	return NewNvmlAPIErrorOrNil("GetFieldValues", ret)
 }
 
 //nolint:revive // Maintaining consistency with go-nvml API naming
@@ -239,12 +187,7 @@ func (d *safeDeviceImpl) GetGpuInstanceId() (int, error) {
 		return 0, err
 	}
 	id, ret := d.nvmlDevice.GetGpuInstanceId()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, &ErrNotSupported{APIName: "GetGpuInstanceId"}
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting GPU instance ID: %s", nvml.ErrorString(ret))
-	}
-	return id, nil
+	return id, NewNvmlAPIErrorOrNil("GetGpuInstanceId", ret)
 }
 
 func (d *safeDeviceImpl) GetIndex() (int, error) {
@@ -252,12 +195,7 @@ func (d *safeDeviceImpl) GetIndex() (int, error) {
 		return 0, err
 	}
 	index, ret := d.nvmlDevice.GetIndex()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, &ErrNotSupported{APIName: "GetIndex"}
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting device index: %s", nvml.ErrorString(ret))
-	}
-	return index, nil
+	return index, NewNvmlAPIErrorOrNil("GetIndex", ret)
 }
 
 func (d *safeDeviceImpl) GetMaxClockInfo(clockType nvml.ClockType) (uint32, error) {
@@ -265,12 +203,7 @@ func (d *safeDeviceImpl) GetMaxClockInfo(clockType nvml.ClockType) (uint32, erro
 		return 0, err
 	}
 	clock, ret := d.nvmlDevice.GetMaxClockInfo(clockType)
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, &ErrNotSupported{APIName: "GetMaxClockInfo"}
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting max clock info for type %d: %s", clockType, nvml.ErrorString(ret))
-	}
-	return clock, nil
+	return clock, NewNvmlAPIErrorOrNil("GetMaxClockInfo", ret)
 }
 
 // GetMaxMigDeviceCount returns the maximum number of MIG devices that can be created
@@ -279,12 +212,7 @@ func (d *safeDeviceImpl) GetMaxMigDeviceCount() (int, error) {
 		return 0, err
 	}
 	count, ret := d.nvmlDevice.GetMaxMigDeviceCount()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, &ErrNotSupported{APIName: "GetMaxMigDeviceCount"}
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting max MIG device count: %s", nvml.ErrorString(ret))
-	}
-	return count, nil
+	return count, NewNvmlAPIErrorOrNil("GetMaxMigDeviceCount", ret)
 }
 
 func (d *safeDeviceImpl) GetMemoryBusWidth() (uint32, error) {
@@ -292,12 +220,7 @@ func (d *safeDeviceImpl) GetMemoryBusWidth() (uint32, error) {
 		return 0, err
 	}
 	width, ret := d.nvmlDevice.GetMemoryBusWidth()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, &ErrNotSupported{APIName: "GetMemoryBusWidth"}
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting memory bus width: %s", nvml.ErrorString(ret))
-	}
-	return width, nil
+	return width, NewNvmlAPIErrorOrNil("GetMemoryBusWidth", ret)
 }
 
 func (d *safeDeviceImpl) GetMemoryInfo() (nvml.Memory, error) {
@@ -305,12 +228,7 @@ func (d *safeDeviceImpl) GetMemoryInfo() (nvml.Memory, error) {
 		return nvml.Memory{}, err
 	}
 	memInfo, ret := d.nvmlDevice.GetMemoryInfo()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return nvml.Memory{}, &ErrNotSupported{APIName: "GetMemoryInfo"}
-	} else if ret != nvml.SUCCESS {
-		return nvml.Memory{}, fmt.Errorf("error getting memory info: %s", nvml.ErrorString(ret))
-	}
-	return memInfo, nil
+	return memInfo, NewNvmlAPIErrorOrNil("GetMemoryInfo", ret)
 }
 
 // GetMigDeviceHandleByIndex returns the MIG device handle at the given index
@@ -319,10 +237,8 @@ func (d *safeDeviceImpl) GetMigDeviceHandleByIndex(index int) (SafeDevice, error
 		return nil, err
 	}
 	device, ret := d.nvmlDevice.GetMigDeviceHandleByIndex(index)
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return nil, &ErrNotSupported{APIName: "GetMigDeviceHandleByIndex"}
-	} else if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("error getting MIG device handle at index %d: %s", index, nvml.ErrorString(ret))
+	if err := NewNvmlAPIErrorOrNil("GetMigDeviceHandleByIndex", ret); err != nil {
+		return nil, err
 	}
 	return NewDevice(device)
 }
@@ -333,12 +249,7 @@ func (d *safeDeviceImpl) GetMigMode() (int, int, error) {
 		return 0, 0, err
 	}
 	mode, pendingMode, ret := d.nvmlDevice.GetMigMode()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, 0, &ErrNotSupported{APIName: "GetMigMode"}
-	} else if ret != nvml.SUCCESS {
-		return 0, 0, fmt.Errorf("error getting MIG mode: %s", nvml.ErrorString(ret))
-	}
-	return mode, pendingMode, nil
+	return mode, pendingMode, NewNvmlAPIErrorOrNil("GetMigMode", ret)
 }
 
 func (d *safeDeviceImpl) GetName() (string, error) {
@@ -346,12 +257,7 @@ func (d *safeDeviceImpl) GetName() (string, error) {
 		return "", err
 	}
 	name, ret := d.nvmlDevice.GetName()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return "", &ErrNotSupported{APIName: "GetName"}
-	} else if ret != nvml.SUCCESS {
-		return "", fmt.Errorf("error getting device name: %s", nvml.ErrorString(ret))
-	}
-	return name, nil
+	return name, NewNvmlAPIErrorOrNil("GetName", ret)
 }
 
 func (d *safeDeviceImpl) GetNumGpuCores() (int, error) {
@@ -359,12 +265,7 @@ func (d *safeDeviceImpl) GetNumGpuCores() (int, error) {
 		return 0, err
 	}
 	cores, ret := d.nvmlDevice.GetNumGpuCores()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, &ErrNotSupported{APIName: "GetNumGpuCores"}
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting GPU core count: %s", nvml.ErrorString(ret))
-	}
-	return cores, nil
+	return cores, NewNvmlAPIErrorOrNil("GetNumGpuCores", ret)
 }
 
 func (d *safeDeviceImpl) GetNvLinkState(link int) (nvml.EnableState, error) {
@@ -372,12 +273,7 @@ func (d *safeDeviceImpl) GetNvLinkState(link int) (nvml.EnableState, error) {
 		return 0, err
 	}
 	state, ret := d.nvmlDevice.GetNvLinkState(link)
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, &ErrNotSupported{APIName: "GetNvLinkState"}
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting NVLink state for link %d: %s", link, nvml.ErrorString(ret))
-	}
-	return state, nil
+	return state, NewNvmlAPIErrorOrNil("GetNvLinkState", ret)
 }
 
 func (d *safeDeviceImpl) GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32, error) {
@@ -385,12 +281,7 @@ func (d *safeDeviceImpl) GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32
 		return 0, err
 	}
 	throughput, ret := d.nvmlDevice.GetPcieThroughput(counter)
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, &ErrNotSupported{APIName: "GetPcieThroughput"}
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting PCIe throughput for counter %d: %s", counter, nvml.ErrorString(ret))
-	}
-	return throughput, nil
+	return throughput, NewNvmlAPIErrorOrNil("GetPcieThroughput", ret)
 }
 
 func (d *safeDeviceImpl) GetPerformanceState() (nvml.Pstates, error) {
@@ -398,12 +289,7 @@ func (d *safeDeviceImpl) GetPerformanceState() (nvml.Pstates, error) {
 		return 0, err
 	}
 	state, ret := d.nvmlDevice.GetPerformanceState()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, &ErrNotSupported{APIName: "GetPerformanceState"}
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting performance state: %s", nvml.ErrorString(ret))
-	}
-	return state, nil
+	return state, NewNvmlAPIErrorOrNil("GetPerformanceState", ret)
 }
 
 func (d *safeDeviceImpl) GetPowerManagementLimit() (uint32, error) {
@@ -411,12 +297,7 @@ func (d *safeDeviceImpl) GetPowerManagementLimit() (uint32, error) {
 		return 0, err
 	}
 	limit, ret := d.nvmlDevice.GetPowerManagementLimit()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, &ErrNotSupported{APIName: "GetPowerManagementLimit"}
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting power management limit: %s", nvml.ErrorString(ret))
-	}
-	return limit, nil
+	return limit, NewNvmlAPIErrorOrNil("GetPowerManagementLimit", ret)
 }
 
 func (d *safeDeviceImpl) GetPowerUsage() (uint32, error) {
@@ -424,12 +305,7 @@ func (d *safeDeviceImpl) GetPowerUsage() (uint32, error) {
 		return 0, err
 	}
 	usage, ret := d.nvmlDevice.GetPowerUsage()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, &ErrNotSupported{APIName: "GetPowerUsage"}
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting power usage: %s", nvml.ErrorString(ret))
-	}
-	return usage, nil
+	return usage, NewNvmlAPIErrorOrNil("GetPowerUsage", ret)
 }
 
 func (d *safeDeviceImpl) GetRemappedRows() (int, int, bool, bool, error) {
@@ -437,12 +313,7 @@ func (d *safeDeviceImpl) GetRemappedRows() (int, int, bool, bool, error) {
 		return 0, 0, false, false, err
 	}
 	corrRows, uncorrRows, isPending, failureOccurred, ret := d.nvmlDevice.GetRemappedRows()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, 0, false, false, &ErrNotSupported{APIName: "GetRemappedRows"}
-	} else if ret != nvml.SUCCESS {
-		return 0, 0, false, false, fmt.Errorf("error getting remapped rows: %s", nvml.ErrorString(ret))
-	}
-	return corrRows, uncorrRows, isPending, failureOccurred, nil
+	return corrRows, uncorrRows, isPending, failureOccurred, NewNvmlAPIErrorOrNil("GetRemappedRows", ret)
 }
 
 func (d *safeDeviceImpl) GetSamples(samplingType nvml.SamplingType, lastSeenTimestamp uint64) (nvml.ValueType, []nvml.Sample, error) {
@@ -450,12 +321,7 @@ func (d *safeDeviceImpl) GetSamples(samplingType nvml.SamplingType, lastSeenTime
 		return 0, nil, err
 	}
 	valueType, samples, ret := d.nvmlDevice.GetSamples(samplingType, lastSeenTimestamp)
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, nil, &ErrNotSupported{APIName: "GetSamples"}
-	} else if ret != nvml.SUCCESS {
-		return 0, nil, fmt.Errorf("error getting samples: %s", nvml.ErrorString(ret))
-	}
-	return valueType, samples, nil
+	return valueType, samples, NewNvmlAPIErrorOrNil("GetSamples", ret)
 }
 
 func (d *safeDeviceImpl) GetTemperature(sensorType nvml.TemperatureSensors) (uint32, error) {
@@ -463,12 +329,7 @@ func (d *safeDeviceImpl) GetTemperature(sensorType nvml.TemperatureSensors) (uin
 		return 0, err
 	}
 	temp, ret := d.nvmlDevice.GetTemperature(sensorType)
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, &ErrNotSupported{APIName: "GetTemperature"}
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting temperature for sensor %d: %s", sensorType, nvml.ErrorString(ret))
-	}
-	return temp, nil
+	return temp, NewNvmlAPIErrorOrNil("GetTemperature", ret)
 }
 
 func (d *safeDeviceImpl) GetTotalEnergyConsumption() (uint64, error) {
@@ -476,12 +337,7 @@ func (d *safeDeviceImpl) GetTotalEnergyConsumption() (uint64, error) {
 		return 0, err
 	}
 	energy, ret := d.nvmlDevice.GetTotalEnergyConsumption()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, &ErrNotSupported{APIName: "GetTotalEnergyConsumption"}
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting total energy consumption: %s", nvml.ErrorString(ret))
-	}
-	return energy, nil
+	return energy, NewNvmlAPIErrorOrNil("GetTotalEnergyConsumption", ret)
 }
 
 func (d *safeDeviceImpl) GetUUID() (string, error) {
@@ -489,12 +345,7 @@ func (d *safeDeviceImpl) GetUUID() (string, error) {
 		return "", err
 	}
 	uuid, ret := d.nvmlDevice.GetUUID()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return "", &ErrNotSupported{APIName: "GetUUID"}
-	} else if ret != nvml.SUCCESS {
-		return "", fmt.Errorf("error getting UUID: %s", nvml.ErrorString(ret))
-	}
-	return uuid, nil
+	return uuid, NewNvmlAPIErrorOrNil("GetUUID", ret)
 }
 
 func (d *safeDeviceImpl) GetUtilizationRates() (nvml.Utilization, error) {
@@ -502,12 +353,7 @@ func (d *safeDeviceImpl) GetUtilizationRates() (nvml.Utilization, error) {
 		return nvml.Utilization{}, err
 	}
 	utilization, ret := d.nvmlDevice.GetUtilizationRates()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return nvml.Utilization{}, &ErrNotSupported{APIName: "GetUtilizationRates"}
-	} else if ret != nvml.SUCCESS {
-		return nvml.Utilization{}, fmt.Errorf("error getting utilization rates: %s", nvml.ErrorString(ret))
-	}
-	return utilization, nil
+	return utilization, NewNvmlAPIErrorOrNil("GetUtilizationRates", ret)
 }
 
 // NewDevice creates a new Device from the nvml.Device and caches some properties
