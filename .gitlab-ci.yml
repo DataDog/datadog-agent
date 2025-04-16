@@ -229,10 +229,10 @@ variables:
 
   # Start aws ssm variables
   # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
-  API_KEY_ORG2: ci.datadog-agent.datadog_api_key_org2  # agent-devx-infra
-  CHANGELOG_COMMIT_SHA: ci.datadog-agent.gitlab_changelog_commit_sha  # agent-devx-infra
+  API_KEY_ORG2: ci.datadog-agent.datadog_api_key_org2  # agent-devx
+  CHANGELOG_COMMIT_SHA: ci.datadog-agent.gitlab_changelog_commit_sha  # agent-devx
   CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key  # windows-agent
-  CODECOV_TOKEN: ci.datadog-agent.codecov_token  # agent-devx-infra
+  CODECOV_TOKEN: ci.datadog-agent.codecov_token  # agent-devx
   DEB_GPG_KEY: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}  # agent-delivery
   DEB_SIGNING_PASSPHRASE: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}  # agent-delivery
   DOCKER_REGISTRY_LOGIN: ci.datadog-agent.docker_hub_login  # container-integrations
@@ -244,20 +244,20 @@ variables:
   # End aws ssm variables
 
   # Start vault variables
-  AGENT_API_KEY_ORG2: agent-api-key-org-2  # agent-devx-infra
-  AGENT_APP_KEY_ORG2: agent-ci-app-key-org-2  # agent-devx-infra
-  AGENT_GITHUB_APP: agent-github-app  # agent-devx-infra
-  AGENT_QA_E2E: agent-qa-e2e  # agent-devx-loops
-  ATLASSIAN_WRITE: atlassian-write  # agent-devx-infra
-  CODECOV: codecov  # agent-devx-infra
+  AGENT_API_KEY_ORG2: agent-api-key-org-2  # agent-devx
+  AGENT_APP_KEY_ORG2: agent-ci-app-key-org-2  # agent-devx
+  AGENT_GITHUB_APP: agent-github-app  # agent-devx
+  AGENT_QA_E2E: agent-qa-e2e  # agent-devx
+  ATLASSIAN_WRITE: atlassian-write  # agent-devx
+  CODECOV: codecov  # agent-devx
   DOCKER_REGISTRY_RO: dockerhub-readonly  # agent-delivery
-  E2E_AZURE: e2e-azure  # agent-devx-loops
-  E2E_GCP: e2e-gcp  # agent-devx-loops
-  GITLAB_TOKEN: gitlab-token  # agent-devx-infra
-  INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx-infra
-  MACOS_GITHUB_APP_1: macos-github-app-one  # agent-devx-infra
-  MACOS_GITHUB_APP_2: macos-github-app-two  # agent-devx-infra
-  SLACK_AGENT: slack-agent-ci  # agent-devx-infra
+  E2E_AZURE: e2e-azure  # agent-devx
+  E2E_GCP: e2e-gcp  # agent-devx
+  GITLAB_TOKEN: gitlab-token  # agent-devx
+  INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx
+  MACOS_GITHUB_APP_1: macos-github-app-one  # agent-devx
+  MACOS_GITHUB_APP_2: macos-github-app-two  # agent-devx
+  SLACK_AGENT: slack-agent-ci  # agent-devx
   SMP_ACCOUNT: smp  # single-machine-performance
   # End vault variables
 
