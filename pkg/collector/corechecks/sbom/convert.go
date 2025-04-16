@@ -124,7 +124,8 @@ func convertAttachedText(in *cyclonedx.AttachedText) *cyclonedx_v1_4.AttachedTex
 	}
 }
 
-func convertBOM(in *cyclonedx.BOM) *cyclonedx_v1_4.Bom {
+// ConvertBOM converts a CycloneDX BOM to the v1.4 format
+func ConvertBOM(in *cyclonedx.BOM) *cyclonedx_v1_4.Bom {
 	if in == nil {
 		return nil
 	}
