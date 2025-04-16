@@ -18,10 +18,10 @@ import (
 )
 
 const (
-	watermarkTolerance             = 5
-	staleDataThresholdSeconds      = 60 // maximum time window to look for valid metrics
-	containerCPUUsageMetricName    = "container.cpu.usage"
-	containerMemoryUsageMetricName = "container.memory.usage"
+	watermarkTolerance               = 5
+	defaultStaleDataThresholdSeconds = 60 // default time window to look for valid metrics
+	containerCPUUsageMetricName      = "container.cpu.usage"
+	containerMemoryUsageMetricName   = "container.memory.usage"
 )
 
 var resourceToMetric = map[corev1.ResourceName]string{
@@ -127,7 +127,7 @@ func validateUtilizationValue(value datadoghqcommon.DatadogPodAutoscalerObjectiv
 
 func getOptionsFromFallback(recSettings *resourceRecommenderSettings, fallbackSettings *datadoghq.DatadogFallbackPolicy) (*resourceRecommenderSettings, error) {
 	// If no values are provided, we want to use the default value
-	recSettings.fallbackStaleDataThreshold = staleDataThresholdSeconds
+	recSettings.fallbackStaleDataThreshold = defaultStaleDataThresholdSeconds
 
 	if fallbackSettings == nil {
 		return recSettings, nil
