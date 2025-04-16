@@ -7,7 +7,7 @@ package profile
 
 import "github.com/DataDog/datadog-agent/pkg/util/log"
 
-func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
+func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConfigMap, bool, error) {
 	initConfigProfiles := make(ProfileConfigMap, len(rawInitConfigProfiles))
 
 	for name, profConfig := range rawInitConfigProfiles {
@@ -26,7 +26,7 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 	}
 
 	userProfiles := mergeProfiles(getYamlUserProfiles(), initConfigProfiles)
-	resolvedProfiles := resolveProfiles(userProfiles, getYamlDefaultProfiles())
+	resolvedProfiles, haveLegacyProfile := resolveProfiles(userProfiles, getYamlDefaultProfiles())
 
 	// When user profiles are from initConfigProfiles
 	// only profiles listed in initConfigProfiles are returned
@@ -37,5 +37,5 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 		}
 		filteredResolvedProfiles[key] = val
 	}
-	return filteredResolvedProfiles, nil
+	return filteredResolvedProfiles, haveLegacyProfile, nil
 }

@@ -20,15 +20,17 @@ var (
 	profileExpVar = expvar.NewMap("snmpProfileErrors")
 )
 
-func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) ProfileConfigMap {
+// TODO: PROFILE
+func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileConfigMap, bool) {
 	rawProfiles := mergeProfiles(defaultProfiles, userProfiles)
-	userExpandedProfiles := normalizeProfiles(rawProfiles, defaultProfiles)
-	return userExpandedProfiles
+	userExpandedProfiles, haveLegacyProfile := normalizeProfiles(rawProfiles, defaultProfiles)
+	return userExpandedProfiles, haveLegacyProfile
 }
 
 // normalizeProfiles returns a copy of pConfig with all profiles normalized, validated, and fully expanded (i.e. values from their .extend attributes will be baked into the profile itself).
-func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMap) ProfileConfigMap {
+func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMap) (ProfileConfigMap, bool) {
 	profiles := make(ProfileConfigMap, len(pConfig))
+	var haveLegacyProfile bool
 
 	for name := range pConfig {
 		// No need to resolve abstract profile
@@ -43,9 +45,9 @@ func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMa
 			continue
 		}
 
-		areMetricsLegacy := profiledefinition.AreMetricsLegacy(newProfileConfig.Definition.Metrics)
-		if areMetricsLegacy {
-			// TODO:
+		isLegacyProfile := profiledefinition.IsLegacyProfile(newProfileConfig.Definition.Metrics)
+		if isLegacyProfile {
+			haveLegacyProfile = true
 		}
 
 		profiledefinition.NormalizeMetrics(newProfileConfig.Definition.Metrics)
@@ -62,7 +64,7 @@ func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMa
 		profiles[name] = newProfileConfig
 	}
 
-	return profiles
+	return profiles, haveLegacyProfile
 }
 
 func recursivelyExpandBaseProfiles(parentExtend string, definition *profiledefinition.ProfileDefinition, extends []string, extendsHistory []string, profiles ProfileConfigMap, defaultProfiles ProfileConfigMap) error {

@@ -30,21 +30,21 @@ var defaultProfilesMu = &sync.Mutex{}
 // in globalProfileConfigMap. The subsequent call to it will return profiles stored in
 // globalProfileConfigMap. The mutex will help loading once when `loadYamlProfiles`
 // is called by multiple check instances.
-func loadYamlProfiles() (ProfileConfigMap, error) {
+func loadYamlProfiles() (ProfileConfigMap, bool, error) {
 	defaultProfilesMu.Lock()
 	defer defaultProfilesMu.Unlock()
 
 	profileConfigMap := GetGlobalProfileConfigMap()
 	if profileConfigMap != nil {
 		log.Debugf("load yaml profiles from cache")
-		return profileConfigMap, nil
+		return profileConfigMap, false, nil
 	}
 	log.Debugf("build yaml profiles")
 
-	profiles := resolveProfiles(getYamlUserProfiles(), getYamlDefaultProfiles())
+	profiles, haveLegacyProfile := resolveProfiles(getYamlUserProfiles(), getYamlDefaultProfiles())
 
 	SetGlobalProfileConfigMap(profiles)
-	return profiles, nil
+	return profiles, haveLegacyProfile, nil
 }
 
 func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileConfigMap, error) {

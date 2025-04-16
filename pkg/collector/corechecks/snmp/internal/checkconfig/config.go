@@ -447,7 +447,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		}
 		c.ProfileProvider, err = profile.NewRCProvider(rcClient)
 	} else {
-		c.ProfileProvider, err = profile.GetProfileProvider(initConfig.Profiles)
+		var haveLegacyProfile bool
+		c.ProfileProvider, haveLegacyProfile, err = profile.GetProfileProvider(initConfig.Profiles)
+		// TODO: PROFILE
 	}
 	if err != nil {
 		return nil, err
