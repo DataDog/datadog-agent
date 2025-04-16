@@ -260,6 +260,7 @@ func parseAaData(data [][]interface{}) ([]SLAMetrics, error) {
 	return rows, nil
 }
 
+// GetSLAMetrics retrieves SLA metrics from the Versa Analytics API
 func (client *Client) GetSLAMetrics() ([]SLAMetrics, error) {
 	// TODO: clean up params for values with multiple of the same key so a map cannot be used
 	params := url.Values{}
@@ -282,5 +283,8 @@ func (client *Client) GetSLAMetrics() ([]SLAMetrics, error) {
 	}
 	aaData := resp.AaData
 	metrics, err := parseAaData(aaData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse SLA metrics: %v", err)
+	}
 	return metrics, nil
 }

@@ -9,9 +9,9 @@ package client
 // Content encapsulates the content types of the Versa API
 type Content interface {
 	ApplianceLiteResponse |
-		ControllerResponse |
-		DirectorStatus |
-		SLAMetricsResponse
+	ControllerResponse |
+	DirectorStatus |
+	SLAMetricsResponse
 }
 
 // ApplianceLiteResponse /versa/ncs-services/vnms/appliance/appliance/lite
@@ -183,8 +183,9 @@ type SLAMetricsResponse struct {
 	AaData               [][]interface{} `json:"aaData"`
 }
 
-// TODO: utilize this ordered list of fields for AaData
+// SLAMetrics represents the columns to parse from the SLAMetricsResponse interface/API call
 type SLAMetrics struct {
+	// TODO: utilize this ordered list of fields for AaData
 	DrillKey            string
 	LocalSite           string
 	RemoteSite          string

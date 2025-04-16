@@ -10,10 +10,10 @@ import (
 
 // TODO: add more tests
 func TestGetSLAMetrics(t *testing.T) {
-	mux, handler := setupCommonServerMuxWithFixture(SLA_METRICS_URL, fixtures.GetSLAMetrics)
+	mux, handler := setupCommonServerMuxWithFixture(SLAMetricsURL, fixtures.GetSLAMetrics)
 
 	// TODO: move this to always include to help debugging
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", func(_ http.ResponseWriter, r *http.Request) {
 		t.Fatalf("Unexpected request to: %s", r.URL.Path)
 	})
 	server := httptest.NewServer(mux)
@@ -23,6 +23,7 @@ func TestGetSLAMetrics(t *testing.T) {
 	require.NoError(t, err)
 
 	slaMetrics, err := client.GetSLAMetrics()
+	require.NoError(t, err)
 
 	// TODO: after actual parsing logic is better, check the contents more thoroughly
 	require.Equal(t, len(slaMetrics), 1)

@@ -6,18 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"time"
 )
 
 // TODO: taken a lot from cisco_sdwan, need to refactor or move to a common package
-
-// mockTimeNow mocks time.Now
-var mockTimeNow = func() time.Time {
-	layout := "2006-01-02 15:04:05"
-	str := "2000-01-01 00:00:00"
-	t, _ := time.Parse(layout, str)
-	return t
-}
 
 func emptyHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
@@ -87,12 +78,14 @@ func setupCommonServerMuxWithFixture(path string, payload string) (*http.ServeMu
 
 // TODO: move to a better location for shared usage
 // TODO: figure out how to cleanly handle fixtures that use the same base URL but different params
-var SLA_METRICS_URL = "/versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN" //?ds=aggregate&metrics=delay&metrics=fwdDelayVar&metrics=revDelayVar&metrics=fwdLossRatio&metrics=revLossRatio&metrics=pduLossRatio&q=slam%28localsite%2Cremotesite%2Clocalaccckt%2Cremoteaccckt%2Cfc%29&qt=tableData&start-date=15minutesAgo"
+
+// SLAMetricsURL holds the API endpoint for Versa Analytics SLA metrics
+var SLAMetricsURL = "/versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN"
 
 // SetupMockAPIServer starts a mock API server
 func SetupMockAPIServer() *httptest.Server {
 	mux := setupCommonServerMux()
 
-	mux.HandleFunc(SLA_METRICS_URL, fixtureHandler(fixtures.GetSLAMetrics))
+	mux.HandleFunc(SLAMetricsURL, fixtureHandler(fixtures.GetSLAMetrics))
 	return httptest.NewServer(mux)
 }
