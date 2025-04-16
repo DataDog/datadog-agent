@@ -112,6 +112,7 @@ single-machine-performance-regression_detector:
       --baseline-sha ${BASELINE_SHA} \
       --comparison-sha ${CI_COMMIT_SHA} \
       --target-config-dir test/regression/ \
+      --replicas 250 \
       --submission-metadata submission_metadata \
       --tags ${SMP_TAGS} || {
         exit_code=$?
