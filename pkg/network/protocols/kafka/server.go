@@ -20,6 +20,11 @@ import (
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
+const (
+	// KafkaOldPort is the port of the old kafka instance (v3.8), hard coded in docker-compose.yml for simplicity
+	KafkaOldPort = "9082"
+)
+
 // RunServer runs a kafka server in a docker container
 func RunServer(t testing.TB, serverAddr, serverPort string) error {
 	env := []string{
