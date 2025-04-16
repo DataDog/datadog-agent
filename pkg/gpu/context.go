@@ -189,6 +189,14 @@ func (ctx *systemContext) filterDevicesForContainer(devices []*ddnvml.Device, co
 				filteredDevices = append(filteredDevices, device)
 				break
 			}
+
+			// If the device has MIG children, check if any of them matches the resource ID
+			for _, migChild := range device.MIGChildren {
+				if resource.ID == migChild.UUID {
+					filteredDevices = append(filteredDevices, migChild)
+					break
+				}
+			}
 		}
 	}
 
@@ -235,7 +243,7 @@ func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerI
 		// filter on the devices that are available to the process, not on the
 		// devices available on the host system.
 		var err error // avoid shadowing visibleDevices, declare error before so we can use = instead of :=
-		visibleDevices, err = ctx.filterDevicesForContainer(ctx.deviceCache.All(), containerID)
+		visibleDevices, err = ctx.filterDevicesForContainer(ctx.deviceCache.AllRootDevices(), containerID)
 		if err != nil {
 			return nil, fmt.Errorf("error filtering devices for container %s: %w", containerID, err)
 		}

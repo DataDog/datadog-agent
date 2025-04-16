@@ -25,15 +25,18 @@ type DeviceCache interface {
 	SMVersionSet() map[uint32]struct{}
 	// All returns all devices in the cache
 	All() []*Device
+	// AllRootDevices returns all root devices in the cache
+	AllRootDevices() []*Device
 	// Cores returns the number of cores for a device with a given UUID. Returns an error if the device is not found.
 	Cores(uuid string) (uint64, error)
 }
 
 // deviceCache is an implementation of DeviceCache
 type deviceCache struct {
-	allDevices   []*Device
-	uuidToDevice map[string]*Device
-	smVersionSet map[uint32]struct{}
+	allDevices     []*Device
+	allRootDevices []*Device
+	uuidToDevice   map[string]*Device
+	smVersionSet   map[uint32]struct{}
 }
 
 // NewDeviceCache creates a new DeviceCache
@@ -75,7 +78,14 @@ func NewDeviceCacheWithOptions(lib SafeNVML) (DeviceCache, error) {
 
 		cache.uuidToDevice[dev.UUID] = dev
 		cache.allDevices = append(cache.allDevices, dev)
+		cache.allRootDevices = append(cache.allRootDevices, dev)
 		cache.smVersionSet[dev.SMVersion] = struct{}{}
+
+		// Add also the MIG children to the cache by UUID, but not to the list of all devices because I'm not really sure why yet but i don't want to
+		for _, migChild := range dev.MIGChildren {
+			cache.uuidToDevice[migChild.UUID] = migChild
+			cache.allDevices = append(cache.allDevices, migChild)
+		}
 	}
 
 	return cache, nil
@@ -109,6 +119,11 @@ func (c *deviceCache) SMVersionSet() map[uint32]struct{} {
 // All returns all devices in the cache
 func (c *deviceCache) All() []*Device {
 	return c.allDevices
+}
+
+// AllRootDevices returns all root devices in the cache
+func (c *deviceCache) AllRootDevices() []*Device {
+	return c.allRootDevices
 }
 
 // Cores returns the number of cores for a device with a given UUID. Returns an error if the device is not found.

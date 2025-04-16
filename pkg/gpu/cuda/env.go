@@ -48,8 +48,13 @@ func GetVisibleDevicesForProcess(systemDevices []*ddnvml.Device, pid int, procfs
 // getVisibleDevices processes the list of GPU devices according to the value of
 // the CUDA_VISIBLE_DEVICES environment variable
 func getVisibleDevices(systemDevices []*ddnvml.Device, cudaVisibleDevices string) ([]*ddnvml.Device, error) {
+	// First, we adjust the list of devices to take into account how CUDA presents MIG devices in order. This
+	// list will not be used when searching by prefix, but it will be used when filtering by index or when
+	// CUDA_VISIBLE_DEVICES is not set.
+	migAdjustedDevices := adjustVisibleDevicesForMigDevices(systemDevices)
+
 	if cudaVisibleDevices == "" {
-		return systemDevices, nil
+		return keepEitherFirstMIGOrAllDevices(migAdjustedDevices), nil
 	}
 
 	var filteredDevices []*ddnvml.Device
@@ -64,12 +69,13 @@ func getVisibleDevices(systemDevices []*ddnvml.Device, cudaVisibleDevices string
 			if err != nil {
 				return filteredDevices, err
 			}
-		case strings.HasPrefix(visibleDevice, "MIG-GPU"):
-			// MIG (Multi Instance GPUs) devices require extra parsing and data
-			// about the MIG instance assignment, which is not supported yet.
-			return filteredDevices, fmt.Errorf("MIG devices are not supported")
+		case strings.HasPrefix(visibleDevice, "MIG-"):
+			matchingDevice, err = getMigDeviceWithMatchingUUIDPrefix(systemDevices, visibleDevice)
+			if err != nil {
+				return filteredDevices, err
+			}
 		default:
-			matchingDevice, err = getDeviceWithIndex(systemDevices, visibleDevice)
+			matchingDevice, err = getDeviceWithIndex(migAdjustedDevices, visibleDevice)
 			if err != nil {
 				return filteredDevices, err
 			}
@@ -78,7 +84,42 @@ func getVisibleDevices(systemDevices []*ddnvml.Device, cudaVisibleDevices string
 		filteredDevices = append(filteredDevices, matchingDevice)
 	}
 
-	return filteredDevices, nil
+	return keepEitherFirstMIGOrAllDevices(filteredDevices), nil
+}
+
+// adjustVisibleDevicesForMigDevices adjusts the list of visible devices taking into account how CUDA
+// presents MIG devices in order
+func adjustVisibleDevicesForMigDevices(visibleDevices []*ddnvml.Device) []*ddnvml.Device {
+	var adjustedList []*ddnvml.Device
+
+	// First, we add only the non-MIG enabled devices to the adjusted list, as those are seen first
+	for _, device := range visibleDevices {
+		if !device.HasMIGFeatureEnabled {
+			adjustedList = append(adjustedList, device)
+		}
+	}
+
+	// Then, for every MIG-enabled device, we add only the first MIG child to the adjusted list.
+	for _, device := range visibleDevices {
+		if device.HasMIGFeatureEnabled && len(device.MIGChildren) > 0 {
+			adjustedList = append(adjustedList, device.MIGChildren[0])
+		}
+	}
+
+	return adjustedList
+}
+
+// keepEitherFirstMIGOrAllDevices returns the list of devices with only the first MIG child if it is present,
+// or the list of all devices if it is not. This replicates the behavior of CUDA with MIG devices, where
+// if any MIG device is present, only the first MIG child is visible and all other devices are hidden.
+func keepEitherFirstMIGOrAllDevices(devices []*ddnvml.Device) []*ddnvml.Device {
+	for _, device := range devices {
+		if device.IsMIG {
+			return []*ddnvml.Device{device}
+		}
+	}
+
+	return devices
 }
 
 // getDeviceWithMatchingUUIDPrefix returns the first device with a UUID that
@@ -95,6 +136,29 @@ func getDeviceWithMatchingUUIDPrefix(systemDevices []*ddnvml.Device, uuidPrefix 
 			}
 			matchingDevice = device
 			matchingDeviceUUID = device.UUID
+		}
+	}
+
+	if matchingDevice == nil {
+		return nil, fmt.Errorf("device with UUID prefix %s not found", uuidPrefix)
+	}
+
+	return matchingDevice, nil
+}
+
+func getMigDeviceWithMatchingUUIDPrefix(systemDevices []*ddnvml.Device, uuidPrefix string) (*ddnvml.Device, error) {
+	var matchingDevice *ddnvml.Device
+	var matchingDeviceUUID string
+
+	for _, device := range systemDevices {
+		for _, migChild := range device.MIGChildren {
+			if strings.HasPrefix(migChild.UUID, uuidPrefix) {
+				if matchingDevice != nil {
+					return nil, fmt.Errorf("non-unique UUID prefix %s, found UUIDs %s and %s", uuidPrefix, matchingDeviceUUID, migChild.UUID)
+				}
+				matchingDevice = migChild
+				matchingDeviceUUID = migChild.UUID
+			}
 		}
 	}
 
