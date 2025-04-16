@@ -18,8 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -35,7 +35,7 @@ func makeDeps(t *testing.T) dependencies {
 		fx.Supply(log.Params{}),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		telemetryimpl.MockModule(),
-		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+		fx.Provide(func(t testing.TB) ipc.Component { return ipcmock.Mock(t) }),
 		fx.Supply(NewParams(0, false, 0)),
 	))
 }
@@ -48,12 +48,12 @@ func makeConfigSync(t *testing.T) *configSync {
 		Path:   "/config/v1",
 	}
 	cs := &configSync{
-		Config:    deps.Config,
-		Log:       deps.Log,
-		Authtoken: deps.Authtoken,
-		url:       defaultURL,
-		client:    http.DefaultClient,
-		ctx:       context.Background(),
+		Config: deps.Config,
+		Log:    deps.Log,
+		IPC:    deps.IPC,
+		url:    defaultURL,
+		client: http.DefaultClient,
+		ctx:    context.Background(),
 	}
 	return cs
 }

@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -35,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -112,7 +112,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		params := core.BundleParams{
 			ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 			SecretParams: secrets.NewEnabledParams(),
-			LogParams:    log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false)}
+			LogParams:    log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false),
+			IPCParams:    ipc.ForDaemon(),
+		}
 		if cliParams.logFile != "" {
 			params.LogParams.LogToFile(cliParams.logFile)
 		}
@@ -130,7 +132,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			workloadmetafx.Module(defaults.DefaultParams()),
 			apiimpl.Module(),
 			grpcNonefx.Module(),
-			authtokenimpl.Module(),
 			fx.Supply(option.None[collector.Component]()),
 			fx.Supply(option.None[integrations.Component]()),
 			dualTaggerfx.Module(common.DualTaggerParams()),

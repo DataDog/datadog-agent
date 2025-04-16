@@ -23,11 +23,10 @@ import (
 
 	procmodel "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -100,7 +99,6 @@ func setupProcessAPIServer(t *testing.T, port int) {
 		taggerfx.Module(),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
-		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 		secretsimpl.MockModule(),
 	))
 }
@@ -312,7 +310,7 @@ func TestProcessAgentChecks(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		at := authtokenmock.New(t)
+		at := ipcmock.Mock(t)
 
 		srv := at.NewMockServer(http.HandlerFunc(handler))
 		setupIPCAddress(t, configmock.New(t), srv.URL)

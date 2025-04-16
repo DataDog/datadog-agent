@@ -13,9 +13,9 @@ import (
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -28,7 +28,7 @@ func Module() fxutil.Module {
 
 type apiServer struct {
 	cfg               config.Component
-	authToken         authtoken.Component
+	ipc               ipc.Component
 	cmdListener       net.Listener
 	ipcListener       net.Listener
 	telemetry         telemetry.Component
@@ -40,7 +40,7 @@ type dependencies struct {
 	fx.In
 
 	Lc                fx.Lifecycle
-	AuthToken         authtoken.Component
+	IPC               ipc.Component
 	Cfg               config.Component
 	Telemetry         telemetry.Component
 	EndpointProviders []api.EndpointProvider `group:"agent_endpoint"`
@@ -52,7 +52,7 @@ var _ api.Component = (*apiServer)(nil)
 func newAPIServer(deps dependencies) api.Component {
 
 	server := apiServer{
-		authToken:         deps.AuthToken,
+		ipc:               deps.IPC,
 		cfg:               deps.Cfg,
 		telemetry:         deps.Telemetry,
 		endpointProviders: fxutil.GetAndFilterGroup(deps.EndpointProviders),

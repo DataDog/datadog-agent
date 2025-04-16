@@ -9,12 +9,15 @@ godebug tlskyber=0
 use (
 	.
 	comp/api/api/def
-	comp/api/authtoken
 	comp/core/config
 	comp/core/configsync
 	comp/core/flare/builder
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface
+	comp/core/ipc/def
+	comp/core/ipc/http
+	comp/core/ipc/impl
+	comp/core/ipc/mock
 	comp/core/log/def
 	comp/core/log/fx
 	comp/core/log/impl

@@ -22,9 +22,9 @@ import (
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
@@ -75,7 +75,7 @@ type inventoryotel struct {
 	m          sync.Mutex
 	data       otelMetadata
 	hostname   string
-	authToken  authtoken.Component
+	ipc        ipc.Component
 	f          *freshConfig
 	httpClient *http.Client
 }
@@ -86,7 +86,7 @@ type dependencies struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
-	AuthToken  authtoken.Component
+	IPC        ipc.Component
 }
 
 type provides struct {
@@ -107,11 +107,11 @@ func newInventoryOtelProvider(deps dependencies) (provides, error) {
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	i := &inventoryotel{
-		conf:      deps.Config,
-		log:       deps.Log,
-		hostname:  hname,
-		data:      make(otelMetadata),
-		authToken: deps.AuthToken,
+		conf:     deps.Config,
+		log:      deps.Log,
+		hostname: hname,
+		data:     make(otelMetadata),
+		ipc:      deps.IPC,
 		httpClient: &http.Client{
 			Transport: tr,
 			Timeout:   httpTO,
@@ -169,10 +169,7 @@ func (i *inventoryotel) parseResponseFromJSON(body []byte) (otelMetadata, error)
 }
 
 func (i *inventoryotel) fetchRemoteOtelConfig(u *url.URL) (otelMetadata, error) {
-	authToken, err := i.authToken.Get()
-	if err != nil {
-		return nil, err
-	}
+	authToken := i.ipc.GetAuthToken()
 
 	// Create a Bearer string by appending string access token
 	bearer := "Bearer " + authToken

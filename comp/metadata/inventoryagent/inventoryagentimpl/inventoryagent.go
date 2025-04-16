@@ -22,9 +22,9 @@ import (
 	"gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -98,7 +98,7 @@ type inventoryagent struct {
 	m            sync.Mutex
 	data         agentMetadata
 	hostname     string
-	authToken    authtoken.Component
+	ipc          ipc.Component
 }
 
 type dependencies struct {
@@ -108,7 +108,7 @@ type dependencies struct {
 	Config         config.Component
 	SysProbeConfig option.Option[sysprobeconfig.Component]
 	Serializer     serializer.MetricSerializer
-	AuthToken      authtoken.Component
+	IPC            ipc.Component
 }
 
 type provides struct {
@@ -129,7 +129,7 @@ func newInventoryAgentProvider(deps dependencies) provides {
 		log:          deps.Log,
 		hostname:     hname,
 		data:         make(agentMetadata),
-		authToken:    deps.AuthToken,
+		ipc:          deps.IPC,
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 

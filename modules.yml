@@ -14,7 +14,6 @@ modules:
     - ./comp
   comp/api/api/def:
     used_by_otel: true
-  comp/api/authtoken: default
   comp/core/config:
     used_by_otel: true
   comp/core/configsync: default
@@ -23,6 +22,14 @@ modules:
   comp/core/flare/types:
     used_by_otel: true
   comp/core/hostname/hostnameinterface:
+    used_by_otel: true
+  comp/core/ipc/def:
+    used_by_otel: true
+  comp/core/ipc/http:
+    used_by_otel: true
+  comp/core/ipc/impl:
+    used_by_otel: true
+  comp/core/ipc/mock:
     used_by_otel: true
   comp/core/log/def:
     used_by_otel: true

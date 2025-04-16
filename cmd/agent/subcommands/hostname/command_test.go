@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -84,7 +84,7 @@ func TestGetHostname(t *testing.T) {
 				forceLocal:   tc.forceLocal,
 			}
 
-			authComp := authtokenmock.New(t)
+			authComp := ipcmock.Mock(t)
 			server := authComp.NewMockServer(hostnameHandler(tc.remoteHostname))
 
 			serverURL, err := url.Parse(server.URL)
