@@ -90,6 +90,7 @@ func (c *Check) init() error {
 		log.Errorf("%s failed to determine hostname, consider setting reported_hostname", c.logPrompt)
 	}
 	c.dbInstanceIdentifier = c.createDatabaseIdentifier()
+	tags = append(tags, "database_instance:"+c.dbInstanceIdentifier)
 
 	tags = append(tags, fmt.Sprintf("dd.internal.resource:database_instance:%s", c.dbHostname))
 	isMultitenant := true
