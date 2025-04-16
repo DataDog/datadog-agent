@@ -215,7 +215,7 @@ func (m *MetricsConfig) IsLegacy() bool {
 	}
 
 	for _, symbol := range m.Symbols {
-		if symbol.OID == "" && symbol.Name != "" {
+		if symbol.OID == "" && symbol.Name != "" && !symbol.ConstantValueOne {
 			return true
 		}
 	}

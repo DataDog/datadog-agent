@@ -45,6 +45,7 @@ func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMa
 		}
 
 		if profiledefinition.IsLegacyMetrics(newProfileConfig.Definition.Metrics) {
+			log.Warnf("found legacy metrics definition in profile %q", name)
 			haveLegacyProfile = true
 		}
 
