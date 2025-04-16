@@ -117,7 +117,7 @@ func TestCreateDatabaseIdentifier(t *testing.T) {
 				c.config.Port = 1521
 				c.config.ServiceName = "test-service"
 				c.config.DatabaseIdentifier.Template = "$resolved_hostname:$server:$port:$cdb_name:$service_name"
-				c.dbHostname = "test-hostname"
+				c.dbResolvedHostname = "test-hostname"
 				c.cdbName = "test-cdb"
 			},
 			expectedResult: "test-hostname:test-server:1521:test-cdb:test-service",
@@ -129,10 +129,10 @@ func TestCreateDatabaseIdentifier(t *testing.T) {
 				c.config.Port = 1521
 				c.config.ServiceName = "test-service"
 				c.config.DatabaseIdentifier.Template = "$resolved_hostname:$server:$port:$cdb_name:$service_name"
-				c.dbHostname = ""
+				c.dbResolvedHostname = ""
 				c.cdbName = "test-cdb"
 			},
-			expectedResult: ":test-server:1521:test-cdb:test-service",
+			expectedResult: "$resolved_hostname:test-server:1521:test-cdb:test-service",
 		},
 		{
 			name: "Custom template",
@@ -141,7 +141,7 @@ func TestCreateDatabaseIdentifier(t *testing.T) {
 				c.config.Port = 3306
 				c.config.ServiceName = "custom-service"
 				c.config.DatabaseIdentifier.Template = "$server-$port-$service_name"
-				c.dbHostname = "custom-hostname"
+				c.dbResolvedHostname = "custom-hostname"
 				c.cdbName = "custom-cdb"
 			},
 			expectedResult: "custom-server-3306-custom-service",
@@ -153,7 +153,7 @@ func TestCreateDatabaseIdentifier(t *testing.T) {
 				c.config.Port = 5432
 				c.config.ServiceName = "empty-service"
 				c.config.DatabaseIdentifier.Template = ""
-				c.dbHostname = "empty-hostname"
+				c.dbResolvedHostname = "empty-hostname"
 				c.cdbName = "empty-cdb"
 			},
 			expectedResult: "",
@@ -165,7 +165,7 @@ func TestCreateDatabaseIdentifier(t *testing.T) {
 				c.config.Port = 1521
 				c.config.ServiceName = "partial-service"
 				c.config.DatabaseIdentifier.Template = "$server:$port:$missing_variable"
-				c.dbHostname = "partial-hostname"
+				c.dbResolvedHostname = "partial-hostname"
 				c.cdbName = "partial-cdb"
 			},
 			expectedResult: "partial-server:1521:$missing_variable",

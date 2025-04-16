@@ -193,7 +193,7 @@ func (c *Check) createDatabaseIdentifier() string {
 	matches := re.FindAllString(identifier, -1)
 	for _, match := range matches {
 		key := strings.TrimPrefix(match, "$")
-		if value, ok := tags[key]; ok {
+		if value, ok := tags[key]; ok && value != "" {
 			identifier = strings.ReplaceAll(identifier, match, value)
 		} else {
 			log.Warnf("%s failed to replace %s in database identifier template", c.logPrompt, match)
