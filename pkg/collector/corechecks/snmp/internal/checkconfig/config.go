@@ -271,6 +271,17 @@ func (c *CheckConfig) ToString() string {
 func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data, rcClient rcclient.Component) (*CheckConfig,
 	error) {
 	fmt.Println("CALLED NewCheckConfig")
+	fmt.Println("#####")
+	fmt.Println("RAW INSTANCE")
+	fmt.Println(rawInstance)
+	fmt.Println("#####")
+	fmt.Println("RAW INIT CONFIG")
+	fmt.Println(rawInitConfig)
+	fmt.Println("#####")
+	fmt.Println("RC CLIENT")
+	fmt.Println(rcClient)
+	fmt.Println("#####")
+
 	instance := InstanceConfig{}
 	initConfig := InitConfig{}
 
