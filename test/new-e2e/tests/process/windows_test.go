@@ -83,7 +83,8 @@ func (s *windowsTestSuite) TestAPIKeyRefresh() {
 	)
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertAPIKey(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().Agent.Client, s.Env().FakeIntake.Client(), false)
+		assertAPIKeyStatus(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().Agent.Client, false)
+		assertLastPayloadAPIKey(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().FakeIntake.Client())
 	}, 2*time.Minute, 10*time.Second)
 
 	// API key refresh
@@ -92,7 +93,8 @@ func (s *windowsTestSuite) TestAPIKeyRefresh() {
 	require.Contains(t, secretRefreshOutput, "api_key")
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertAPIKey(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().Agent.Client, s.Env().FakeIntake.Client(), false)
+		assertAPIKeyStatus(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().Agent.Client, false)
+		assertLastPayloadAPIKey(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().FakeIntake.Client())
 	}, 2*time.Minute, 10*time.Second)
 }
 

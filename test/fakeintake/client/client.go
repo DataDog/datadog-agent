@@ -725,6 +725,22 @@ func (c *Client) GetLastProcessPayloadAPIKey() (string, error) {
 	return payloads[len(payloads)-1].APIKey, nil
 }
 
+// GetAllProcessPayloadAPIKey fetches fakeintake on `/api/v1/collector` endpoint and returns
+// a list of unique API keys of the received process payloads
+func (c *Client) GetAllProcessPayloadAPIKeys() (map[string]struct{}, error) {
+	payloads, err := c.getFakePayloads(processesEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	keys := make(map[string]struct{}, 0)
+	for _, payload := range payloads {
+		keys[payload.APIKey] = struct{}{}
+	}
+
+	return keys, nil
+}
+
 // GetContainers fetches fakeintake on `/api/v1/container` endpoint and returns
 // all received container payloads
 func (c *Client) GetContainers() ([]*aggregator.ContainerPayload, error) {

@@ -70,6 +70,10 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 	config.OnUpdate(func(setting string, oldValue, newValue any) {
 		found := false
 
+		if setting == "process_config.additional_endpoints" {
+			log.Infof("process_config.additional_endpoints refresh oldValue: %v, newValue: %v", scrubber.HideKeyExceptLastFiveChars(oldValue.(string)), scrubber.HideKeyExceptLastFiveChars(newValue.(string)))
+		}
+
 		for _, endpoint := range resolver.GetAPIKeysInfo() {
 			if endpoint.ConfigSettingPath == setting {
 				found = true
