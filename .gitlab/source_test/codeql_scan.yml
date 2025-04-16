@@ -7,8 +7,8 @@ run_codeql_scan:
   tags: ["arch:amd64"]
   stage: source_test
   rules:
-  - if: $CODE_SCANNING_PIPELINE == "true"
-    when: on_success
+  - !reference [.except_mergequeue]
+  - !reference [.on_scheduled_main]
   needs: ["go_deps", "go_tools_deps"]
   allow_failure: true # This job should not impact the overall status of the pipeline
   variables:
