@@ -8,10 +8,7 @@
 package nvidia
 
 import (
-	"errors"
 	"fmt"
-
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -28,13 +25,9 @@ func newRemappedRowsCollector(device ddnvml.SafeDevice) (Collector, error) {
 	// Do a first check to see if the device supports remapped rows metrics
 	_, _, _, _, err := device.GetRemappedRows()
 
-	if err != nil {
-		var nvmlErr *ddnvml.NvmlAPIError
-		if errors.As(err, &nvmlErr) && (nvmlErr.NvmlErrorCode == nvml.ERROR_NOT_SUPPORTED ||
-			nvmlErr.NvmlErrorCode == nvml.ERROR_FUNCTION_NOT_FOUND) {
-			// Only return unsupported device if the API is not supported or symbol not found
-			return nil, fmt.Errorf("%w: %w", errUnsupportedDevice, err)
-		}
+	if err != nil && ddnvml.IsUnsupported(err) {
+		// Only return unsupported device if the API is not supported or symbol not found
+		return nil, fmt.Errorf("%w: %w", errUnsupportedDevice, err)
 	}
 
 	return &remappedRowsCollector{

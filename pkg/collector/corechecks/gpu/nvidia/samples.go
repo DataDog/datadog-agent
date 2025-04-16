@@ -8,7 +8,6 @@
 package nvidia
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 
@@ -62,14 +61,9 @@ func (c *samplesCollector) removeUnsupportedSamples() {
 
 	for _, metric := range c.samplesToCollect {
 		_, _, err := c.device.GetSamples(metric.samplingType, 0)
-		if err != nil {
-			var nvmlErr *ddnvml.NvmlAPIError
-			if errors.As(err, &nvmlErr) && (nvmlErr.NvmlErrorCode == nvml.ERROR_NOT_SUPPORTED ||
-				nvmlErr.NvmlErrorCode == nvml.ERROR_FUNCTION_NOT_FOUND) {
-				// Only remove metrics if the API is not supported or symbol not found
-				// For other errors (like temporary failures), keep the metric
-				metricsToRemove.Add(metric.name)
-			}
+		if err != nil && ddnvml.IsUnsupported(err) {
+			// Only remove metrics if the API is not supported or symbol not found
+			metricsToRemove.Add(metric.name)
 		}
 	}
 
