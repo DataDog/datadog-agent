@@ -22,8 +22,8 @@ var (
 	// telemetryHorizontalExternalRecommendations tracks external horizontal scaling recommendation values
 	telemetryHorizontalExternalRecommendations = telemetry.NewGaugeWithOpts(
 		subsystem,
-		"horizontal_scaling_recommended_replicas",
-		[]string{"namespace", "target_name", "autoscaler_name", "source", le.JoinLeaderLabel},
+		"recommended_replicas",
+		[]string{"namespace", "target_name", "autoscaler_name", "source", "recommender_host", le.JoinLeaderLabel},
 		"Tracks the value of replicas recommended by an external recommender",
 		commonOpts,
 	)

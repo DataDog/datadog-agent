@@ -70,14 +70,17 @@ func (r *Recommender) process(ctx context.Context) {
 	for _, podAutoscaler := range podAutoscalers {
 		// Fetch external recommendations
 		recommendation, err := r.recommenderClient.GetReplicaRecommendation(ctx, podAutoscaler)
-		telemetryHorizontalExternalRecommendations.Set(
-			float64(recommendation.Replicas),
-			podAutoscaler.Namespace(),
-			podAutoscaler.Spec().TargetRef.Name,
-			podAutoscaler.Name(),
-			string(recommendation.Source),
-			le.JoinLeaderValue,
-		)
+		if err == nil && recommendation != nil {
+			telemetryHorizontalExternalRecommendations.Set(
+				float64(recommendation.Replicas),
+				podAutoscaler.Namespace(),
+				podAutoscaler.Spec().TargetRef.Name,
+				podAutoscaler.Name(),
+				string(recommendation.Source),
+				string(podAutoscaler.CustomRecommenderConfiguration().Endpoint),
+				le.JoinLeaderValue,
+			)
+		}
 		r.updateAutoscaler(podAutoscaler.ID(), recommendation, err)
 		if err != nil {
 			log.Debugf("Got error fetching external recommendation for pod autoscaler %s: %v", podAutoscaler.ID(), err)
