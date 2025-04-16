@@ -10,4 +10,4 @@ enhancements:
   - |
     Added an option for the Oracle integration to template the database instance identifier.
   - |
-    The Oracle integration now supports the `empty_default_hostname` option to omit `host`` from metrics
+    The Oracle integration now supports the `empty_default_hostname` option to omit `host` from metrics
