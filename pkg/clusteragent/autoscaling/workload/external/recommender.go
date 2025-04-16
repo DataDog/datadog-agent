@@ -61,10 +61,9 @@ func (r *Recommender) Run(ctx context.Context) {
 
 func (r *Recommender) process(ctx context.Context) {
 	// Filter pod autoscalers to only retrieve autoscalers where external recommender is enabled
-	externalRecommendationFilter := func(dpa model.PodAutoscalerInternal) bool {
+	podAutoscalers := r.store.GetFiltered(func(dpa model.PodAutoscalerInternal) bool {
 		return dpa.CustomRecommenderConfiguration() != nil
-	}
-	podAutoscalers := r.store.GetFiltered(externalRecommendationFilter)
+	})
 
 	log.Debugf("Found %d pod autoscalers with external recommender enabled", len(podAutoscalers))
 
