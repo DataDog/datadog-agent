@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-func convertContainerStats(stats *container.Stats) *provider.ContainerStats {
+func convertContainerStats(stats *container.StatsResponse) *provider.ContainerStats {
 	return &provider.ContainerStats{
 		Timestamp: stats.Read,
 		CPU:       convertCPUStats(&stats.CPUStats),
