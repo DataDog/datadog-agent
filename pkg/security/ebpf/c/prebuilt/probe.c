@@ -1,4 +1,3 @@
-#include <linux/compiler.h>
 #include "bpf_metadata.h"
 
 #include "kconfig.h"
