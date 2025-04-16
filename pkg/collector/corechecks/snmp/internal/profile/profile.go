@@ -27,8 +27,10 @@ func GetProfileProvider(initConfigProfiles ProfileConfigMap) (Provider, error) {
 
 func loadProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
 	fmt.Println("CALLED loadProfiles")
+	fmt.Println("LEN OF initConfigProfiles:", len(initConfigProfiles))
 	var profiles ProfileConfigMap
 	if len(initConfigProfiles) > 0 {
+		fmt.Println("INITCONFIG PROFILES VS DEFAULT PROFILES IF CONDITION ENTERED IN INITCONFIG")
 		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
 		//   There are possibly multiple init configs
 		customProfiles, err := loadInitConfigProfiles(initConfigProfiles)
@@ -37,6 +39,7 @@ func loadProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error)
 		}
 		profiles = customProfiles
 	} else {
+		fmt.Println("INITCONFIG PROFILES VS DEFAULT PROFILES IF CONDITION ENTERED IN DEFAULT")
 		defaultProfiles, err := loadYamlProfiles()
 		if err != nil {
 			return nil, fmt.Errorf("failed to load yaml profiles: %w", err)
