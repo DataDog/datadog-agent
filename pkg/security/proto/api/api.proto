@@ -4,6 +4,8 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "pkg/security/proto/api";
 
+import "google/protobuf/any.proto";
+
 package api;
 
 message GetEventParams {}
@@ -317,6 +319,16 @@ message SecurityProfileSaveMessage {
     string File = 2;
 }
 
+message SBOMStreamParams {
+}
+
+message SBOMMessage {
+    google.protobuf.Any Sbom = 1;
+    string Kind = 2;
+    // ID is the ID for this entity, in a format specific to the entity Kind.
+    string ID = 3;
+}
+
 service SecurityModule {
     rpc GetEvents(GetEventParams) returns (stream SecurityEventMessage) {}
     rpc DumpProcessCache(DumpProcessCacheParams) returns (SecurityDumpProcessCacheMessage) {}
@@ -338,4 +350,7 @@ service SecurityModule {
     // Security Profiles
     rpc ListSecurityProfiles(SecurityProfileListParams) returns (SecurityProfileListMessage) {}
     rpc SaveSecurityProfile(SecurityProfileSaveParams) returns (SecurityProfileSaveMessage) {}
+
+    // SBOM
+    rpc GetSBOMStream(SBOMStreamParams) returns (stream SBOMMessage) {}
 }

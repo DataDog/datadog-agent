@@ -146,6 +146,10 @@ func (s *streamHandler) Port() int {
 	return s.port
 }
 
+func (s *streamHandler) Address() string {
+	return fmt.Sprintf(":%d", s.Port())
+}
+
 func (s *streamHandler) IsEnabled() bool {
 	if flavor.GetFlavor() != flavor.DefaultAgent {
 		return false

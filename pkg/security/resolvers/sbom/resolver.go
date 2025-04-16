@@ -17,12 +17,17 @@ import (
 	"sync"
 	"time"
 
+	sbomModel "github.com/DataDog/agent-payload/v5/sbom"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/avast/retry-go/v4"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/skydive-project/go-debouncer"
 	"go.uber.org/atomic"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	sbomConvert "github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
@@ -49,6 +54,14 @@ const (
 )
 
 var errNoProcessForContainerID = errors.New("found no running process matching the given container ID")
+
+// Event defines the SBOM event type
+type Event int
+
+const (
+	// SBOMComputed is used to notify that a SBOM was computed
+	SBOMComputed Event = iota + 1
+)
 
 // Data use the keep the result of a scan of a same workload across multiple
 // container
@@ -114,6 +127,8 @@ func NewSBOM(id containerutils.ContainerID, cgroup *cgroupModel.CacheEntry, work
 
 // Resolver is the Software Bill-Of-material resolver
 type Resolver struct {
+	*utils.Notifier[Event, *sbomModel.SBOMEntity]
+
 	cfg *config.RuntimeSecurityConfig
 
 	sbomsLock sync.RWMutex
@@ -137,10 +152,12 @@ type Resolver struct {
 	failedSBOMGenerations *atomic.Uint64
 	sbomsCacheHit         *atomic.Uint64
 	sbomsCacheMiss        *atomic.Uint64
+
+	wmeta workloadmeta.Component
 }
 
-// NewSBOMResolver returns a new instance of Resolver
-func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
+// NewResolver returns a new instance of the SBOM resolver
+func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface, wmeta workloadmeta.Component) (*Resolver, error) {
 	opts := sbom.ScanOptions{
 		Analyzers: c.SBOMResolverAnalyzers,
 	}
@@ -161,6 +178,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 	}
 
 	resolver := &Resolver{
+		Notifier:              utils.NewNotifier[Event, *sbomModel.SBOMEntity](),
 		cfg:                   c,
 		statsdClient:          statsdClient,
 		dataCache:             dataCache,
@@ -171,9 +189,10 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		sbomsCacheHit:         atomic.NewUint64(0),
 		sbomsCacheMiss:        atomic.NewUint64(0),
 		failedSBOMGenerations: atomic.NewUint64(0),
+		wmeta:                 wmeta,
 	}
 
-	sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](maxSBOMEntries, func(_ containerutils.ContainerID, sbom *SBOM) {
+	sboms, err := simplelru.NewLRU(maxSBOMEntries, func(_ containerutils.ContainerID, sbom *SBOM) {
 		// should be trigger from a function already locking the sbom, see Add, Delete
 		sbom.stop()
 		resolver.removePendingScan(sbom.ContainerID)
@@ -394,10 +413,28 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 	}
 	r.dataCacheLock.RUnlock()
 
-	report, err := r.doScan(sbom)
+	scanTime := time.Now()
+	report, scanErr := r.doScan(sbom)
+	if scanErr != nil {
+		return scanErr
+	}
+	scanDuration := time.Since(scanTime)
+
+	bom, err := report.ToCycloneDX()
 	if err != nil {
 		return err
 	}
+
+	entity := &sbomModel.SBOMEntity{
+		Id:                 string(sbom.ContainerID),
+		GenerationDuration: durationpb.New(scanDuration),
+		GeneratedAt:        timestamppb.New(report.CreatedAt),
+		Sbom: &sbomModel.SBOMEntity_Cyclonedx{
+			Cyclonedx: sbomConvert.ConvertBOM(bom),
+		},
+	}
+
+	r.NotifyListeners(SBOMComputed, entity)
 
 	data := &Data{
 		files: newFileQuerier(report),

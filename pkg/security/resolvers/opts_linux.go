@@ -6,7 +6,10 @@
 // Package resolvers holds resolvers related files
 package resolvers
 
-import "github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+import (
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+)
 
 // Opts defines common options
 type Opts struct {
@@ -15,4 +18,5 @@ type Opts struct {
 	Tagger                   tags.Tagger
 	UseRingBuffer            bool
 	TTYFallbackEnabled       bool
+	WorkloadMeta             workloadmeta.Component
 }

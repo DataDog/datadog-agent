@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/process"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/processlanguage"
 	remoteprocesscollector "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector"
+	remotesbomcollector "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/sbomcollector"
 )
 
 func getCollectorOptions() []fx.Option {
@@ -40,6 +41,7 @@ func getCollectorOptions() []fx.Option {
 		podman.GetFxOptions(),
 		remoteprocesscollector.GetFxOptions(),
 		processlanguage.GetFxOptions(),
+		remotesbomcollector.GetFxOptions(),
 		nvml.GetFxOptions(),
 		process.GetFxOptions(),
 	}

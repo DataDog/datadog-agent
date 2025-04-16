@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	sbomModel "github.com/DataDog/agent-payload/v5/sbom"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
@@ -128,6 +129,7 @@ type APIServer struct {
 	api.UnimplementedSecurityModuleServer
 	msgs               chan *api.SecurityEventMessage
 	activityDumps      chan *api.ActivityDumpStreamMessage
+	sboms              chan *sbomModel.SBOMEntity
 	expiredEventsLock  sync.RWMutex
 	expiredEvents      map[rules.RuleID]*atomic.Int64
 	expiredDumps       *atomic.Int64
@@ -657,6 +659,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	as := &APIServer{
 		msgs:            make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
 		activityDumps:   make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
+		sboms:           make(chan *sbomModel.SBOMEntity, 100),
 		expiredEvents:   make(map[rules.RuleID]*atomic.Int64),
 		expiredDumps:    atomic.NewInt64(0),
 		statsdClient:    client,
@@ -672,6 +675,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	}
 
 	as.collectOSReleaseData()
+	as.collectSBOMS()
 
 	if as.msgSender == nil {
 		if cfg.SendEventFromSystemProbe {

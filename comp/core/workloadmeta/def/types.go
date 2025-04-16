@@ -17,6 +17,7 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/DataDog/agent-payload/v5/sbom"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -82,9 +83,13 @@ const (
 	// workloadmeta.
 	SourceRemoteWorkloadmeta Source = "remote_workloadmeta"
 
-	// SourceRemoteProcessCollector reprents processes entities detected
+	// SourceRemoteProcessCollector represents processes entities detected
 	// by the RemoteProcessCollector.
 	SourceRemoteProcessCollector Source = "remote_process_collector"
+
+	// SourceRemoteSBOMCollector represents SBOM entities computed
+	// by the RemoteSBOMCollector.
+	SourceRemoteSBOMCollector Source = "remote_sbom_collector"
 
 	// SourceLanguageDetectionServer represents container languages
 	// detected by node agents
@@ -328,6 +333,7 @@ type ContainerState struct {
 	StartedAt  time.Time
 	FinishedAt time.Time
 	ExitCode   *int64
+	SBOM       *SBOM
 }
 
 // String returns a string representation of ContainerState.
@@ -573,6 +579,8 @@ type Container struct {
 	// Linux only.
 	CgroupPath   string
 	RestartCount int
+
+	SBOM *sbom.SBOMEntity
 }
 
 // GetID implements Entity#GetID.
@@ -617,6 +625,22 @@ func (c Container) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Runtime:", c.Runtime)
 	_, _ = fmt.Fprintln(&sb, "RuntimeFlavor:", c.RuntimeFlavor)
 	_, _ = fmt.Fprint(&sb, c.State.String(verbose))
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "----------- SBOM -----------")
+		if c.SBOM != nil {
+			_, _ = fmt.Fprintln(&sb, "Status:", c.SBOM.Status)
+			switch SBOMStatus(c.SBOM.Status) {
+			case Success:
+				_, _ = fmt.Fprintf(&sb, "Generated in: %d seconds\n", c.SBOM.GenerationDuration.Seconds)
+			case Failed:
+				_, _ = fmt.Fprintf(&sb, "Error: %s\n", c.SBOM.GetError())
+			default:
+			}
+		} else {
+			fmt.Fprintln(&sb, "SBOM is nil")
+		}
+	}
 
 	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
 	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
