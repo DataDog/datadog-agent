@@ -4,10 +4,6 @@
 #include "kconfig.h"
 #include <linux/types.h>
 #include <linux/version.h>
-// required for splice
-#include <linux/mutex.h>
-#include <linux/wait.h>
-#include <linux/pipe_fs_i.h>
 
 #include <net/sock.h>
 #include <net/netfilter/nf_conntrack.h>
