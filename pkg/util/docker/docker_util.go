@@ -19,7 +19,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
 	dcontainer "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
@@ -133,14 +132,14 @@ func (d *DockerUtil) RawClient() *client.Client {
 
 // RawContainerList wraps around the docker client's ContainerList method.
 // Value validation and error handling are the caller's responsibility.
-func (d *DockerUtil) RawContainerList(ctx context.Context, options dcontainer.ListOptions) ([]container.Summary, error) {
+func (d *DockerUtil) RawContainerList(ctx context.Context, options dcontainer.ListOptions) ([]dcontainer.Summary, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
 	return d.cli.ContainerList(ctx, options)
 }
 
 // RawContainerListWithFilter is like RawContainerList but with a container filter.
-func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options dcontainer.ListOptions, filter *containers.Filter, wmeta workloadmeta.Component) ([]container.Summary, error) {
+func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options dcontainer.ListOptions, filter *containers.Filter, wmeta workloadmeta.Component) ([]dcontainer.Summary, error) {
 	containers, err := d.RawContainerList(ctx, options)
 	if err != nil {
 		return nil, err
@@ -150,7 +149,7 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options dco
 		return containers, nil
 	}
 
-	isExcluded := func(container container.Summary) bool {
+	isExcluded := func(container dcontainer.Summary) bool {
 		var annotations map[string]string
 		if pod, err := wmeta.GetKubernetesPodForContainer(container.ID); err == nil {
 			annotations = pod.Annotations
@@ -165,7 +164,7 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options dco
 		return false
 	}
 
-	filtered := []container.Summary{}
+	filtered := []dcontainer.Summary{}
 	for _, container := range containers {
 		if !isExcluded(container) {
 			filtered = append(filtered, container)
