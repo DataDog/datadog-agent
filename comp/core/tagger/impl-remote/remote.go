@@ -572,7 +572,13 @@ func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
 		case <-timer.C:
 			// Check the auth token
 			if t.token == "" {
-				return errors.New("RemoteTagger initialization failed: auth token is unset")
+				t.log.Debug("RemoteTagger initialization failed: auth token is unset")
+				nextBackoff := expBackoff.NextBackOff()
+				if nextBackoff == backoff.Stop {
+					return err
+				}
+				timer.Reset(nextBackoff)
+				continue
 			}
 
 			// Cancel any existing stream context before creating a new one
