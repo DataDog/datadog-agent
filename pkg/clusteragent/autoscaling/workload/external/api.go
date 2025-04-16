@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
@@ -216,16 +217,7 @@ func (r *recommenderClient) getReadyReplicas(dpa model.PodAutoscalerInternal) *i
 		Name:      dpa.Spec().TargetRef.Name,
 		Kind:      dpa.Spec().TargetRef.Kind,
 	}
-	pods := r.podWatcher.GetPodsForOwner(podOwner)
-
-	// Count ready pods
-	readyReplicas := int32(0)
-	for _, pod := range pods {
-		if pod.Ready {
-			readyReplicas++
-		}
-	}
-	return &readyReplicas
+	return pointer.Ptr(r.podWatcher.GetReadyPodsForOwner(podOwner))
 }
 
 func (r *recommenderClient) getClient() *http.Client {
