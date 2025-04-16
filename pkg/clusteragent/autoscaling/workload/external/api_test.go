@@ -150,6 +150,63 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 			},
 		},
 		{
+			name: "successful recommendation with multiple objectives",
+			dpa: model.FakePodAutoscalerInternal{
+				Namespace: "default",
+				Name:      "test-dpa",
+				Spec: &datadoghq.DatadogPodAutoscalerSpec{
+					TargetRef: autoscalingv2.CrossVersionObjectReference{
+						Kind:       "Deployment",
+						Name:       "test-deployment",
+						APIVersion: "apps/v1",
+					},
+					Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+						{
+							Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+							PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
+								Name: corev1.ResourceCPU,
+								Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+									Utilization: pointer.Ptr[int32](80),
+								},
+							},
+						},
+						{
+							Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
+							ContainerResource: &datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective{
+								Name: corev1.ResourceMemory,
+								Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+									Utilization: pointer.Ptr[int32](75),
+								},
+							},
+						},
+					},
+				},
+				CustomRecommenderConfiguration: &model.RecommenderConfiguration{
+					Endpoint: "",
+				},
+			},
+			expectedRequest: &kubeAutoscaling.WorkloadRecommendationRequest{
+				Targets: []*kubeAutoscaling.WorkloadRecommendationTarget{
+					{
+						Type:        "cpu",
+						TargetValue: 0,
+						LowerBound:  0.75, // 80 - 5
+						UpperBound:  0.85, // 80 + 5
+					},
+					{
+						Type:        "memory",
+						TargetValue: 0,
+						LowerBound:  0.70, // 75 - 5
+						UpperBound:  0.80, // 75 + 5
+					},
+				},
+			},
+			serverResponse: &kubeAutoscaling.WorkloadRecommendationReply{
+				TargetReplicas: 5,
+				Timestamp:      timestamppb.New(time.Now()),
+			},
+		},
+		{
 			name: "missing recommender config",
 			dpa: model.FakePodAutoscalerInternal{
 				Namespace: "default",

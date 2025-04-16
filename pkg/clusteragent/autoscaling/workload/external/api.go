@@ -121,35 +121,37 @@ func (r *recommenderClient) buildWorkloadRecommendationRequest(dpa model.PodAuto
 	if len(objectives) == 0 {
 		return nil, fmt.Errorf("no objectives found")
 	}
-	// Only one objective is supported for now
-	objective := objectives[0]
 
-	targetType := ""
-	utilization := int32(0)
-	switch objective.Type {
-	case common.DatadogPodAutoscalerPodResourceObjectiveType:
-		targetType = objective.PodResource.Name.String()
-		if u := objective.PodResource.Value.Utilization; u != nil {
-			utilization = *u
+	// Loop through all objectives and build a target for each one
+	targets := []*kubeAutoscaling.WorkloadRecommendationTarget{}
+	for _, objective := range objectives {
+		targetType := ""
+		utilization := int32(0)
+		switch objective.Type {
+		case common.DatadogPodAutoscalerPodResourceObjectiveType:
+			targetType = objective.PodResource.Name.String()
+			if u := objective.PodResource.Value.Utilization; u != nil {
+				utilization = *u
+			}
+		case common.DatadogPodAutoscalerContainerResourceObjectiveType:
+			targetType = objective.ContainerResource.Name.String()
+			if u := objective.ContainerResource.Value.Utilization; u != nil {
+				utilization = *u
+			}
 		}
-	case common.DatadogPodAutoscalerContainerResourceObjectiveType:
-		targetType = objective.ContainerResource.Name.String()
-		if u := objective.ContainerResource.Value.Utilization; u != nil {
-			utilization = *u
+
+		upperBound, lowerBound := float64(0), float64(0)
+		if utilization > 0 {
+			upperBound = float64((utilization + watermarkTolerance)) / 100.0
+			lowerBound = float64((utilization - watermarkTolerance)) / 100.0
 		}
-	}
 
-	upperBound, lowerBound := float64(0), float64(0)
-	if utilization > 0 {
-		upperBound = float64((utilization + watermarkTolerance)) / 100.0
-		lowerBound = float64((utilization - watermarkTolerance)) / 100.0
-	}
-
-	target := &kubeAutoscaling.WorkloadRecommendationTarget{
-		Type:        targetType,
-		TargetValue: 0.,
-		UpperBound:  upperBound,
-		LowerBound:  lowerBound,
+		targets = append(targets, &kubeAutoscaling.WorkloadRecommendationTarget{
+			Type:        targetType,
+			TargetValue: 0.,
+			UpperBound:  upperBound,
+			LowerBound:  lowerBound,
+		})
 	}
 
 	hname, _ := hostname.Get(context.TODO())
@@ -167,7 +169,7 @@ func (r *recommenderClient) buildWorkloadRecommendationRequest(dpa model.PodAuto
 			Namespace:  dpa.Namespace(),
 			Cluster:    clusterName,
 		},
-		Targets: []*kubeAutoscaling.WorkloadRecommendationTarget{target},
+		Targets: targets,
 	}
 
 	if dpa.Spec().Constraints != nil {
