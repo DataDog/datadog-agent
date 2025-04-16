@@ -303,12 +303,13 @@ def exception_threshold_bump(ctx):
                 )
                 print(repr(e))
                 return
-        ctx.run("unzip gate_archive.zip", hide=True)
-        if os.path.isfile(f"{extract_dir}/static_gate_report.json"):
+        ctx.run(f"unzip gate_archive.zip -d {extract_dir}", hide=True)
+        static_gate_report_path = f"{extract_dir}/static_gate_report.json"
+        if os.path.isfile(static_gate_report_path):
             metric_handler = GateMetricHandler(
-                git_ref=current_branch_name, bucket_branch="dev", filename=f"{extract_dir}/static_gate_report.json"
+                git_ref=current_branch_name, bucket_branch="dev", filename=static_gate_report_path
             )
-            metric_handler.generate_relative_size(ctx, ancestor=ancestor_commit)
+            metric_handler.generate_relative_size(ctx, ancestor=ancestor_commit, filename=static_gate_report_path)
             with open("test/static/static_quality_gates.yml") as f:
                 file_content, total_size_saved = generate_new_quality_gate_config(f, metric_handler, True)
 
