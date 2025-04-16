@@ -476,7 +476,7 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 			client := newRecommenderClient(pw)
 			client.client = server.Client()
 
-			result, err := client.GetReplicaRecommendation(context.Background(), tt.dpa.Build())
+			result, err := client.GetReplicaRecommendation(context.Background(), "test-cluster", tt.dpa.Build())
 
 			if tt.expectedError != "" {
 				assert.EqualError(t, err, tt.expectedError)

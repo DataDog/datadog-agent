@@ -33,6 +33,7 @@ const maxDatadogPodAutoscalerObjects int = 100
 func StartWorkloadAutoscaling(
 	ctx context.Context,
 	clusterID string,
+	clusterName string,
 	isLeaderFunc func() bool,
 	apiCl *apiserver.APIClient,
 	rcClient workload.RcClient,
@@ -84,7 +85,7 @@ func StartWorkloadAutoscaling(
 		go localRecommender.Run(ctx)
 	}
 
-	externalRecommender := external.NewRecommender(podWatcher, store)
+	externalRecommender := external.NewRecommender(podWatcher, store, clusterName)
 	go externalRecommender.Run(ctx)
 
 	return podPatcher, nil

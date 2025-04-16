@@ -27,15 +27,17 @@ const (
 type Recommender struct {
 	recommenderClient *recommenderClient
 	store             *autoscaling.Store[model.PodAutoscalerInternal]
+	clusterName       string
 }
 
 // NewRecommender creates a new Recommender to start fetching external recommendations
-func NewRecommender(podWatcher workload.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) *Recommender {
+func NewRecommender(podWatcher workload.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal], clusterName string) *Recommender {
 	recommenderClient := newRecommenderClient(podWatcher)
 
 	return &Recommender{
 		recommenderClient: recommenderClient,
 		store:             store,
+		clusterName:       clusterName,
 	}
 }
 
@@ -69,7 +71,7 @@ func (r *Recommender) process(ctx context.Context) {
 
 	for _, podAutoscaler := range podAutoscalers {
 		// Fetch external recommendations
-		recommendation, err := r.recommenderClient.GetReplicaRecommendation(ctx, podAutoscaler)
+		recommendation, err := r.recommenderClient.GetReplicaRecommendation(ctx, r.clusterName, podAutoscaler)
 		if err == nil && recommendation != nil {
 			telemetryHorizontalExternalRecommendations.Set(
 				float64(recommendation.Replicas),

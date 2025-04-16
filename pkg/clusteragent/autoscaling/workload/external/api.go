@@ -24,8 +24,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -46,7 +44,7 @@ func newRecommenderClient(podWatcher workload.PodWatcher) *recommenderClient {
 	}
 }
 
-func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, dpa model.PodAutoscalerInternal) (*model.HorizontalScalingValues, error) {
+func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, clusterName string, dpa model.PodAutoscalerInternal) (*model.HorizontalScalingValues, error) {
 	recommenderConfig := dpa.CustomRecommenderConfiguration()
 	if recommenderConfig == nil { // should not happen; we should not process autoscalers without recommender config
 		return nil, fmt.Errorf("external recommender spec is required")
@@ -61,7 +59,7 @@ func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, dpa mo
 		return nil, fmt.Errorf("only http and https schemes are supported")
 	}
 
-	req, err := r.buildWorkloadRecommendationRequest(dpa, recommenderConfig)
+	req, err := r.buildWorkloadRecommendationRequest(clusterName, dpa, recommenderConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error building workload recommendation request: %w", err)
 	}
@@ -115,7 +113,7 @@ func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, dpa mo
 }
 
 // buildWorkloadRecommendationRequest builds a WorkloadRecommendationRequest from DPA and recommender config
-func (r *recommenderClient) buildWorkloadRecommendationRequest(dpa model.PodAutoscalerInternal, recommenderConfig *model.RecommenderConfiguration) (*kubeAutoscaling.WorkloadRecommendationRequest, error) {
+func (r *recommenderClient) buildWorkloadRecommendationRequest(clusterName string, dpa model.PodAutoscalerInternal, recommenderConfig *model.RecommenderConfiguration) (*kubeAutoscaling.WorkloadRecommendationRequest, error) {
 	log.Debugf("Building workload recommendation request for pod autoscaler %s", dpa.ID())
 	objectives := dpa.Spec().Objectives
 	if len(objectives) == 0 {
@@ -153,9 +151,6 @@ func (r *recommenderClient) buildWorkloadRecommendationRequest(dpa model.PodAuto
 			LowerBound:  lowerBound,
 		})
 	}
-
-	hname, _ := hostname.Get(context.TODO())
-	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
 
 	req := &kubeAutoscaling.WorkloadRecommendationRequest{
 		State: &kubeAutoscaling.WorkloadState{

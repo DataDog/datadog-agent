@@ -461,7 +461,7 @@ func start(log log.Component,
 			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
 		}
 
-		if adapter, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, le.IsLeader, apiCl, rcClient, wmeta, demultiplexer); err == nil {
+		if adapter, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, demultiplexer); err == nil {
 			pa = adapter
 		} else {
 			return fmt.Errorf("Error while starting workload autoscaling: %v", err)
