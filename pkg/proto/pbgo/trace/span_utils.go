@@ -60,6 +60,7 @@ func (s *Span) ShallowCopy() *Span {
 	}
 }
 
+// Get128BitTraceID returns the 128-bit trace ID for the span.
 func (s *Span) Get128BitTraceID() ([]byte, error) {
 	// If it's an otel span the whole trace ID is in otel.trace
 	if tid, ok := s.Meta["otel.trace_id"]; ok {
