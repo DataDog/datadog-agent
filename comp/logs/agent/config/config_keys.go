@@ -7,6 +7,7 @@ package config
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -118,14 +119,6 @@ func (l *LogsConfigKeys) devModeUseProto() bool {
 }
 
 func (l *LogsConfigKeys) compressionKind() string {
-	configKey := l.getConfigKey("compression_kind")
-	compressionKind := l.getConfig().GetString(configKey)
-
-	if l.prefix != "logs_config." {
-		pipelineCompressionKind := l.getConfig().GetString(l.prefix + "compression_kind")
-		log.Debugf("Pipeline %s compression settings - configured: %s", l.prefix, pipelineCompressionKind)
-	}
-
 	// Check if additional endpoints are configured
 	endpoints, _ := l.getAdditionalEndpoints()
 	if len(endpoints) > 0 {
@@ -133,8 +126,15 @@ func (l *LogsConfigKeys) compressionKind() string {
 		return GzipCompressionKind
 	}
 
+	configKey := l.getConfigKey("compression_kind")
+	compressionKind := l.getConfig().GetString(configKey)
+
 	if compressionKind == ZstdCompressionKind || compressionKind == GzipCompressionKind {
-		log.Debugf("Agent is using configured compression: %s", compressionKind)
+		pipelineName := "Main logs agent pipeline"
+		if !strings.Contains(l.prefix, "logs_config") {
+			pipelineName = "Pipeline " + l.prefix
+		}
+		log.Debugf("%s is using compression: %s", pipelineName, compressionKind)
 		return compressionKind
 	}
 
@@ -143,11 +143,15 @@ func (l *LogsConfigKeys) compressionKind() string {
 }
 
 func (l *LogsConfigKeys) compressionLevel() int {
-	if l.compressionKind() == "zstd" {
-		return l.getConfig().GetInt(l.getConfigKey("zstd_compression_level"))
+	if l.compressionKind() == ZstdCompressionKind {
+		level := l.getConfig().GetInt(l.getConfigKey("zstd_compression_level"))
+		log.Debugf("Pipeline %s is using zstd compression level: %d", l.prefix, level)
+		return level
 	}
 
-	return l.getConfig().GetInt(l.getConfigKey("compression_level"))
+	level := l.getConfig().GetInt(l.getConfigKey("compression_level"))
+	log.Debugf("Pipeline %s is using compression level: %d", l.prefix, level)
+	return level
 }
 
 func (l *LogsConfigKeys) useCompression() bool {
