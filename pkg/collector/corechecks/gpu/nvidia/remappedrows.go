@@ -8,27 +8,26 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 const remappedRowsMetricPrefix = "remapped_rows"
 
 type remappedRowsCollector struct {
-	device nvml.Device
+	device ddnvml.SafeDevice
 }
 
 // newRemappedRowsCollector creates a new remappedRowsMetricsCollector for the given NVML device.
-func newRemappedRowsCollector(device nvml.Device) (Collector, error) {
+func newRemappedRowsCollector(device ddnvml.SafeDevice) (Collector, error) {
 	// Do a first check to see if the device supports remapped rows metrics
-	_, _, _, _, ret := device.GetRemappedRows()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
+	_, _, _, _, err := device.GetRemappedRows()
+	unsupportedErr := &ddnvml.ErrNotSupported{}
+	if errors.As(err, &unsupportedErr) {
 		return nil, errUnsupportedDevice
-	} else if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("cannot check remapped rows support: %s", nvml.ErrorString(ret))
 	}
 
 	return &remappedRowsCollector{
@@ -44,9 +43,9 @@ func (c *remappedRowsCollector) DeviceUUID() string {
 // Collect collects remapped rows metrics from the NVML device.
 func (c *remappedRowsCollector) Collect() ([]Metric, error) {
 	// Collect remapped rows metrics from the NVML device
-	correctable, uncorrectable, pending, failed, ret := c.device.GetRemappedRows()
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("cannot get remapped rows: %s", nvml.ErrorString(ret))
+	correctable, uncorrectable, pending, failed, err := c.device.GetRemappedRows()
+	if err != nil {
+		return nil, err
 	}
 
 	return []Metric{
