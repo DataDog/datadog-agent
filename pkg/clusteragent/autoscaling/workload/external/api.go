@@ -31,6 +31,7 @@ import (
 
 const (
 	watermarkTolerance = 5
+	apiTimeoutSeconds  = 10
 )
 
 type recommenderClient struct {
@@ -71,7 +72,7 @@ func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, dpa mo
 	}
 
 	// TODO: We might want to make the timeout configurable later.
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, apiTimeoutSeconds*time.Second)
 	defer cancel()
 
 	client := r.getClient()
