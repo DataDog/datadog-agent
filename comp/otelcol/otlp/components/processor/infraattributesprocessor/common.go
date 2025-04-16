@@ -8,7 +8,6 @@ package infraattributesprocessor
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"strings"
 
 	"go.uber.org/zap"
@@ -29,13 +28,13 @@ var unifiedServiceTagMap = map[string][]string{
 }
 
 type infraTagsProcessor struct {
-	tagger   testutil.TaggerClient
+	tagger   types.TaggerClient
 	hostname option.Option[string]
 }
 
 // newInfraTagsProcessor creates a new infraTagsProcessor instance
 func newInfraTagsProcessor(
-	tagger testutil.TaggerClient,
+	tagger types.TaggerClient,
 	hostGetterOpt option.Option[SourceProviderFunc],
 ) infraTagsProcessor {
 	infraTagsProcessor := infraTagsProcessor{

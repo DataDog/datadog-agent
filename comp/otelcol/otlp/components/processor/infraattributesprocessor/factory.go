@@ -8,7 +8,6 @@ package infraattributesprocessor
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -48,7 +47,7 @@ func (f *factory) getOrCreateData() (*data, error) {
 		return f.data, nil
 	}
 	f.data = &data{}
-	var client testutil.TaggerClient
+	var client taggerTypes.TaggerClient
 	app := fx.New(
 		fx.Provide(func() config.Component {
 			return pkgconfigsetup.Datadog()
@@ -70,7 +69,7 @@ func (f *factory) getOrCreateData() (*data, error) {
 			},
 			RemoteFilter: taggerTypes.NewMatchAllFilter(),
 		}),
-		fx.Provide(func(t tagger.Component) testutil.TaggerClient {
+		fx.Provide(func(t tagger.Component) taggerTypes.TaggerClient {
 			return t
 		}),
 		fx.Populate(&client),
@@ -91,7 +90,7 @@ func NewFactory() processor.Factory {
 type SourceProviderFunc func(context.Context) (string, error)
 
 // NewFactoryForAgent returns a new factory for the InfraAttributes processor.
-func NewFactoryForAgent(tagger testutil.TaggerClient, hostGetter SourceProviderFunc) processor.Factory {
+func NewFactoryForAgent(tagger taggerTypes.TaggerClient, hostGetter SourceProviderFunc) processor.Factory {
 	return newFactoryForAgent(&data{
 		infraTags: newInfraTagsProcessor(tagger, option.New(hostGetter)),
 	})

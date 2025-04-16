@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
@@ -65,7 +64,7 @@ type traceToMetricConnector struct {
 	isStarted bool
 }
 
-func getTraceAgentCfg(logger *zap.Logger, cfg datadogconfig.TracesConnectorConfig, attributesTranslator *attributes.Translator, tagger testutil.TaggerClient, hostnameOpt option.Option[string]) *config.AgentConfig {
+func getTraceAgentCfg(logger *zap.Logger, cfg datadogconfig.TracesConnectorConfig, attributesTranslator *attributes.Translator, tagger types.TaggerClient, hostnameOpt option.Option[string]) *config.AgentConfig {
 	acfg := config.New()
 	acfg.OTLPReceiver.AttributesTranslator = attributesTranslator
 	acfg.OTLPReceiver.SpanNameRemappings = cfg.SpanNameRemappings
@@ -110,7 +109,7 @@ func getTraceAgentCfg(logger *zap.Logger, cfg datadogconfig.TracesConnectorConfi
 var _ component.Component = (*traceToMetricConnector)(nil) // testing that the connectorImp properly implements the type Component interface
 
 // newTraceToMetricConnector creates a new connector with native OTel span ingestion
-func newTraceToMetricConnector(set component.TelemetrySettings, cfg component.Config, metricsConsumer consumer.Metrics, metricsClient statsd.ClientInterface, tagger testutil.TaggerClient, hostnameOpt option.Option[string]) (*traceToMetricConnector, error) {
+func newTraceToMetricConnector(set component.TelemetrySettings, cfg component.Config, metricsConsumer consumer.Metrics, metricsClient statsd.ClientInterface, tagger types.TaggerClient, hostnameOpt option.Option[string]) (*traceToMetricConnector, error) {
 	set.Logger.Info("Building datadog connector for traces to metrics")
 	statsout := make(chan *pb.StatsPayload, 100)
 	statsWriter := statsprocessor.NewOtelStatsWriter(statsout)

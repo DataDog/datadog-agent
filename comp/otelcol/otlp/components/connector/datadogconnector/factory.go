@@ -7,7 +7,7 @@ package datadogconnector // import "github.com/DataDog/datadog-agent/comp/otelco
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"time"
 
@@ -19,7 +19,7 @@ import (
 )
 
 type factory struct {
-	tagger   testutil.TaggerClient
+	tagger   types.TaggerClient
 	hostname option.Option[string]
 }
 
@@ -27,7 +27,7 @@ type factory struct {
 type SourceProviderFunc func(context.Context) (string, error)
 
 // NewFactoryForAgent creates a factory for datadog connector for use in OTel agent
-func NewFactoryForAgent(tagger testutil.TaggerClient, hostGetter SourceProviderFunc) connector.Factory {
+func NewFactoryForAgent(tagger types.TaggerClient, hostGetter SourceProviderFunc) connector.Factory {
 	f := &factory{
 		tagger: tagger,
 	}
