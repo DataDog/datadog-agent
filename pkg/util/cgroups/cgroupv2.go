@@ -12,13 +12,19 @@ import (
 )
 
 type cgroupV2 struct {
+	// 8-byte aligned fields first
+	controllers map[string]struct{}
+	pidMapper   pidMapper
+	fr          fileReader
+	inode       uint64
+
+	// string fields (16 bytes each on 64-bit systems)
 	identifier   string
 	cgroupRoot   string
 	relativePath string
-	controllers  map[string]struct{}
-	fr           fileReader
-	pidMapper    pidMapper
-	inode        uint64
+
+	// bool field last
+	markedForDeletion bool
 }
 
 func newCgroupV2(identifier, cgroupRoot, relativePath string, controllers map[string]struct{}, pidMapper pidMapper) *cgroupV2 {

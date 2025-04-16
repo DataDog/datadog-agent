@@ -43,7 +43,7 @@ type Reader struct {
 }
 
 type readerImpl interface {
-	parseCgroups() (map[string]Cgroup, error)
+	parseCgroups(res map[string]Cgroup) (map[string]Cgroup, error)
 }
 
 // ReaderFilter allows to filter cgroups based on their path + folder name
@@ -146,6 +146,10 @@ func (r *Reader) init() error {
 		r.readerFilter = DefaultFilter
 	}
 
+	// Initialize maps
+	r.cgroups = make(map[string]Cgroup)
+	r.cgroupByInode = make(map[uint64]Cgroup)
+
 	if isCgroup1(cgroupMounts) {
 		r.cgroupVersion = 1
 
@@ -211,7 +215,7 @@ func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
 		return nil
 	}
 
-	newCgroups, err := r.impl.parseCgroups()
+	newCgroups, err := r.impl.parseCgroups(r.cgroups)
 	if err != nil {
 		return err
 	}
