@@ -95,7 +95,6 @@ func (suite *k8sSuite) eventuallyHasExpectedAPIKey(apiKey string) {
 			return false
 		}
 
-		fmt.Println("KEYS", keys)
 		for _, key := range keys {
 			if key == apiKey {
 				return true
