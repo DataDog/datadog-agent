@@ -34,7 +34,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 	tests := []struct {
 		name     string
 		history  []image.HistoryResponseItem
-		inspect  types.ImageInspect
+		inspect  image.InspectResponse
 		expected []workloadmeta.ContainerImageLayer
 	}{
 		{
@@ -46,7 +46,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 					Created:   baseTimeUnix,
 				},
 			},
-			inspect: types.ImageInspect{
+			inspect: image.InspectResponse{
 				RootFS: types.RootFS{
 					Layers: []string{layerID},
 				},
@@ -71,7 +71,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 					Created: baseTimeUnix,
 				},
 			},
-			inspect: types.ImageInspect{
+			inspect: image.InspectResponse{
 				RootFS: types.RootFS{
 					Layers: []string{layerID},
 				},
@@ -96,7 +96,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 					Created:   baseTimeUnix,
 				},
 			},
-			inspect: types.ImageInspect{
+			inspect: image.InspectResponse{
 				RootFS: types.RootFS{
 					Layers: []string{layerID},
 				},
@@ -130,7 +130,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 					Created: baseTimeUnix,
 				},
 			},
-			inspect: types.ImageInspect{
+			inspect: image.InspectResponse{
 				RootFS: types.RootFS{
 					Layers: []string{"1", "2"},
 				},
@@ -178,7 +178,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 					ID:        "abc",
 				},
 			},
-			inspect: types.ImageInspect{
+			inspect: image.InspectResponse{
 				RootFS: types.RootFS{
 					Layers: []string{"1"},
 				},

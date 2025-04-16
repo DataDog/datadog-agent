@@ -28,6 +28,7 @@ import (
 	refdocker "github.com/distribution/reference"
 	api "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	dimage "github.com/docker/docker/api/types/image"
 	dclient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -129,12 +130,12 @@ func readImageConfig(ctx context.Context, img containerd.Image) (ocispec.Image, 
 }
 
 // ported from https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/containerd.go
-func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (api.ImageInspect, []v1.History, refdocker.Reference, error) {
+func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (dimage.InspectResponse, []v1.History, refdocker.Reference, error) {
 	ref := familiarNamed(img.Name())
 
 	imgConfig, imgConfigDesc, err := readImageConfig(ctx, img)
 	if err != nil {
-		return api.ImageInspect{}, nil, nil, err
+		return dimage.InspectResponse{}, nil, nil, err
 	}
 
 	var lastHistory ocispec.History
@@ -162,7 +163,7 @@ func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, 
 		created = lastHistory.Created.Format(time.RFC3339Nano)
 	}
 
-	return api.ImageInspect{
+	return dimage.InspectResponse{
 		ID:          imgConfigDesc.Digest.String(),
 		RepoTags:    imgMeta.RepoTags,
 		RepoDigests: imgMeta.RepoDigests,

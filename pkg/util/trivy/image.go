@@ -18,7 +18,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	dimage "github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
@@ -69,7 +68,7 @@ type image struct {
 	v1.Image
 	name    string
 	opener  opener
-	inspect types.ImageInspect
+	inspect dimage.InspectResponse
 	history []v1.History
 }
 
