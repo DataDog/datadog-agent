@@ -67,8 +67,12 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 		} else if strings.HasPrefix(tag, CardinalityTagPrefix) && origin.Cardinality == "" {
 			origin.Cardinality = tag[len(CardinalityTagPrefix):]
 			continue
-		} else if newSource := getMetricSourceFromTag(metricSource, tag); newSource != metricSource {
-			metricSource = newSource
+		} else if strings.HasPrefix(tag, jmxCheckNamePrefix) {
+			checkName := tag[len(jmxCheckNamePrefix):]
+			metricSource = metrics.JMXCheckNameToMetricSource(checkName)
+			continue
+		} else if source := getServerlessSourceFromTag(tag); source != 0 {
+			metricSource = source
 			continue
 		}
 		tags[n] = tag
@@ -80,13 +84,10 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 	return tags, host, origin, metricSource
 }
 
-// getMetricSourceFromTag returns the metric source from a tag.
-// If the tag does not match any known metric source, the original metric source is returned.
-func getMetricSourceFromTag(metricSource metrics.MetricSource, tag string) metrics.MetricSource {
-	if strings.HasPrefix(tag, jmxCheckNamePrefix) {
-		checkName := tag[len(jmxCheckNamePrefix):]
-		metricSource = metrics.JMXCheckNameToMetricSource(checkName)
-	} else if strings.HasPrefix(tag, functionArnTagPrefix) {
+// getServerlessSourceFromTag returns the metric source from a tag.
+func getServerlessSourceFromTag(tag string) metrics.MetricSource {
+	var metricSource metrics.MetricSource
+	if strings.HasPrefix(tag, functionArnTagPrefix) {
 		metricSource = metrics.MetricSourceAwsLambda
 	} else if tag == appServiceTag {
 		metricSource = metrics.MetricSourceAzureAppService
