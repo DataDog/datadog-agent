@@ -239,7 +239,7 @@ func setupDatabricksDriver(s *common.Setup) {
 
 func setupDatabricksWorker(s *common.Setup) {
 	setClearHostTag(s, "spark_node", "worker")
-	
+
 	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
 		var sparkIntegration common.IntegrationConfig
 		s.Config.DatadogYAML.LogsEnabled = true
