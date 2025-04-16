@@ -134,7 +134,7 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage)
 	}
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, hostname.Get)
-	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactoryForAgent(reqs.Tagger)
+	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactoryForAgent(reqs.Tagger, hostname.Get)
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
 	factories.Extensions[ddprofilingextension.Type] = ddprofilingextension.NewFactoryForAgent(reqs.TraceAgent, reqs.Log)
 }
