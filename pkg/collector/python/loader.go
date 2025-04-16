@@ -18,7 +18,6 @@ import (
 	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -66,8 +65,8 @@ const (
 const PythonCheckLoaderName string = "python"
 
 func init() {
-	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, agentTelemetry option.Option[agenttelemetry.Component]) (check.Loader, error) {
-		return NewPythonCheckLoader(senderManager, logReceiver, tagger, agentTelemetry)
+	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, error) {
+		return NewPythonCheckLoader(senderManager, logReceiver, tagger)
 	}
 	loaders.RegisterLoader(20, factory)
 
@@ -92,16 +91,14 @@ func init() {
 //
 //nolint:revive // TODO(AML) Fix revive linter
 type PythonCheckLoader struct {
-	logReceiver    option.Option[integrations.Component]
-	agentTelemetry option.Option[agenttelemetry.Component]
+	logReceiver option.Option[integrations.Component]
 }
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
-func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, agentTelemetry option.Option[agenttelemetry.Component]) (*PythonCheckLoader, error) {
+func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (*PythonCheckLoader, error) {
 	initializeCheckContext(senderManager, logReceiver, tagger)
 	return &PythonCheckLoader{
-		logReceiver:    logReceiver,
-		agentTelemetry: agentTelemetry,
+		logReceiver: logReceiver,
 	}, nil
 }
 
@@ -232,7 +229,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		}
 	}
 
-	c, err := NewPythonCheck(senderManager, moduleName, checkClass, goHASupported, cl.agentTelemetry)
+	c, err := NewPythonCheck(senderManager, moduleName, checkClass, goHASupported)
 	if err != nil {
 		return c, err
 	}

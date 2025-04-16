@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -116,7 +115,7 @@ func getLocalIntegrationConfigs(senderManager diagnosesendermanager.Component,
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to AutoDiscovery.
-	pkgcollector.InitCheckScheduler(option.None[collector.Component](), senderManagerInstance, option.None[integrations.Component](), tagger, option.None[agenttelemetry.Component]())
+	pkgcollector.InitCheckScheduler(option.None[collector.Component](), senderManagerInstance, option.None[integrations.Component](), tagger)
 
 	// Load matching configurations (should we use common.AC.GetAllConfigs())
 	waitCtx, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(5*time.Second))

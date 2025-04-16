@@ -17,14 +17,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 /*
@@ -669,7 +667,7 @@ func testGetDiagnoses(t *testing.T) {
 
 // NewPythonFakeCheck create a fake PythonCheck
 func NewPythonFakeCheck(senderManager sender.SenderManager) (*PythonCheck, error) {
-	c, err := NewPythonCheck(senderManager, "fake_check", nil, false, option.None[agenttelemetry.Component]())
+	c, err := NewPythonCheck(senderManager, "fake_check", nil, false)
 
 	// Remove check finalizer that may trigger race condition while testing
 	if err == nil {

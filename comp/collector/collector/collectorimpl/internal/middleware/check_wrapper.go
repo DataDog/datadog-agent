@@ -7,22 +7,26 @@
 package middleware
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // CheckWrapper cleans up the check sender after a check was
 // descheduled, taking care that Run is not executing during or after
 // that.
 type CheckWrapper struct {
-	senderManager sender.SenderManager
+	senderManager  sender.SenderManager
+	agentTelemetry option.Option[agenttelemetry.Component]
 
 	inner check.Check
 	// done is true when the check was cancelled and must not run.
@@ -32,20 +36,29 @@ type CheckWrapper struct {
 }
 
 // NewCheckWrapper returns a wrapped check.
-func NewCheckWrapper(inner check.Check, senderManager sender.SenderManager) *CheckWrapper {
+func NewCheckWrapper(inner check.Check, senderManager sender.SenderManager, agentTelemetry option.Option[agenttelemetry.Component]) *CheckWrapper {
 	return &CheckWrapper{
-		inner:         inner,
-		senderManager: senderManager,
+		inner:          inner,
+		senderManager:  senderManager,
+		agentTelemetry: agentTelemetry,
 	}
 }
 
 // Run implements Check#Run
-func (c *CheckWrapper) Run() error {
+func (c *CheckWrapper) Run() (err error) {
 	c.runM.Lock()
 	defer c.runM.Unlock()
 	if c.done {
 		return nil
 	}
+
+	// Start telemetry span if telemetry is enabled
+	if telemetry, isSet := c.agentTelemetry.Get(); isSet {
+		span, _ := telemetry.StartStartupSpan(fmt.Sprintf("check.%s", c.inner.String()))
+		defer span.Finish(err)
+	}
+
+	// Run the check
 	return c.inner.Run()
 }
 

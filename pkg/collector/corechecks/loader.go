@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 
-	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -87,7 +86,7 @@ func (gl *GoCheckLoader) String() string {
 }
 
 func init() {
-	factory := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component, option.Option[agenttelemetry.Component]) (check.Loader, error) {
+	factory := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, error) {
 		return NewGoCheckLoader()
 	}
 

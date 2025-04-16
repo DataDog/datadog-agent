@@ -20,7 +20,6 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -30,9 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 /*
@@ -67,11 +64,10 @@ type PythonCheck struct {
 	initConfig     string
 	instanceConfig string
 	haSupported    bool
-	agentTelemetry option.Option[agenttelemetry.Component]
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
-func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rtloader_pyobject_t, haSupported bool, agentTelemetry option.Option[agenttelemetry.Component]) (*PythonCheck, error) {
+func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rtloader_pyobject_t, haSupported bool) (*PythonCheck, error) {
 	glock, err := newStickyLock()
 	if err != nil {
 		return nil, err
@@ -81,14 +77,13 @@ func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rt
 	glock.unlock()
 
 	pyCheck := &PythonCheck{
-		senderManager:  senderManager,
-		ModuleName:     name,
-		class:          class,
-		interval:       defaults.DefaultCheckInterval,
-		lastWarnings:   []error{},
-		telemetry:      utils.IsCheckTelemetryEnabled(name, pkgconfigsetup.Datadog()),
-		haSupported:    haSupported,
-		agentTelemetry: agentTelemetry,
+		senderManager: senderManager,
+		ModuleName:    name,
+		class:         class,
+		interval:      defaults.DefaultCheckInterval,
+		lastWarnings:  []error{},
+		telemetry:     utils.IsCheckTelemetryEnabled(name, pkgconfigsetup.Datadog()),
+		haSupported:   haSupported,
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 
@@ -106,20 +101,6 @@ func (c *PythonCheck) runCheckImpl(commitMetrics bool) (checkErr error) {
 	log.Debugf("Running python check %s (version: '%s', id: '%s')", c.ModuleName, c.version, c.id)
 
 	instance := c.instance
-	var span *installertelemetry.Span
-	defer func() {
-		if span != nil {
-			span.Finish(checkErr)
-		}
-	}()
-	if c.telemetry {
-		agentTelemetry, ok := c.agentTelemetry.Get()
-		if ok {
-			// Get trace ID and span ID from agent telemetry
-			span, _ = agentTelemetry.StartStartupSpan(fmt.Sprintf("python.check.%s", c.ModuleName))
-			defer span.Finish(checkErr)
-		}
-	}
 
 	cResult := C.run_check(rtloader, instance)
 	if cResult == nil {
