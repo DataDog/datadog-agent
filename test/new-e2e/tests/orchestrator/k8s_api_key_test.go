@@ -29,9 +29,15 @@ func (suite *k8sSuite) TestZzzClusterAgentAPIKeyRefresh() {
 	namespace := "datadog"
 	secretName := "apikeyrefresh"
 	apiKeyOld := "abcdefghijklmnopqrstuvwxyz123456"
+	additionalApiKeyOld := "654321zyxwvutsrqponmlkjihgfedcba"
 
 	// apply secret containing the old API key which is used by the agent
-	suite.applySecret(namespace, secretName, map[string][]byte{"apikey": []byte(apiKeyOld)})
+	suite.applySecret(namespace, secretName,
+		map[string][]byte{
+			"apikey":           []byte(apiKeyOld),
+			"additionalapikey": []byte(additionalApiKeyOld),
+		},
+	)
 
 	// install the agent with old API key
 	suite.UpdateEnv(
@@ -48,10 +54,15 @@ func (suite *k8sSuite) TestZzzClusterAgentAPIKeyRefresh() {
 
 	// update the secret with a new API key and agent will refresh it
 	apiKeyNew := "123456abcdefghijklmnopqrstuvwxyz"
+	additionalApiKeyNew := "zyxwvutsrqponmlkjihgfedcba654321"
 	suite.applySecret(namespace, secretName, map[string][]byte{"apikey": []byte(apiKeyNew)})
+	suite.applySecret(namespace, secretName, map[string][]byte{"additionalapikey": []byte(additionalApiKeyNew)})
 
 	// verify that the new API key exists in the orchestrator resources payloads
 	suite.eventuallyHasExpectedAPIKey(apiKeyNew)
+
+	// verify that the additional API also exists
+	suite.eventuallyHasExpectedAPIKey(additionalApiKeyNew)
 }
 
 // applySecret creates or updates a secret in the given namespace with the provided data.
