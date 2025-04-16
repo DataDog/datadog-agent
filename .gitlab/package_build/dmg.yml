@@ -169,7 +169,7 @@ include:
 .macos_do_notarization:
   - |
     if [ "$SIGN" = true ]; then
-      echo Doing notarization
+      echo -e "\e[0Ksection_start:`date +%s`:notarization\r\e[0KDoing notarization"
       export RELEASE_VERSION=${RELEASE_VERSION:-$VERSION}
       unset LATEST_DMG
 
@@ -199,29 +199,43 @@ include:
           break
         fi
       done
+      echo -e "\e[0Ksection_end:`date +%s`:notarization\r\e[0K"
     fi
 
 new-agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64-test", "specific:true"]
+  needs: ["go_mod_tidy_check"]
   allow_failure: true
-  # needs:
-  #   - setup_agent_version
+
+  # TODO: Possible clashes except version manifest?
+
+  # TODO(celian): Temporary rules.
+  # This is used to avoid conflicts with the current build job on main / release branches with s3. This will run on dev branches
+  rules:
+     - !reference [.on_main_or_release_branch_or_deploy_manual]
+
+  # TODO(celian): Replace by the following after testing new builds.
+  # rules:
+  #    - !reference [.on_macos_gui_change]
+  #    - !reference [.on_packaging_change]
+  #    - !reference [.on_main_or_release_branch]
+  #    - !reference [.on_all_builds]
+  #    - !reference [.manual]
+  # allow_failure: false  # (remove)
   timeout: 3h # MacOS builds can take 1h~2h, increase the timeout to avoid timeout flakes
   artifacts:
     expire_in: 2 weeks
     paths:
       - omnibus/pkg/*.dmg
       - omnibus/pkg/version-manifest.json
-    # TODO
-    when: always
   variables:
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: 3
     # Which python version to use when building the agent
     PYTHON_VERSION: 3.12.6
     # TODO
-    OMNIBUS_RUBY_VERSION: celian/macos-build
+    # OMNIBUS_RUBY_VERSION: celian/macos-build
     SIGN: true
     KEYCHAIN_NAME: "build.keychain"
     INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
@@ -243,7 +257,6 @@ new-agent_dmg-x64-a7:
       fi
     - sudo umount /Volumes/Agent
   script:
-    - which zsh && exit
     - set -eo pipefail
 
     - brew uses gettext --installed || true

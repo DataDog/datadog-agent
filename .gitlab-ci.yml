@@ -651,6 +651,14 @@ workflow:
   - <<: *if_release_branch
     when: always
 
+.on_main_or_release_branch_or_deploy_manual:
+  - <<: *if_deploy
+    when: manual
+  - <<: *if_main_branch
+    when: manual
+  - <<: *if_release_branch
+    when: manual
+
 .on_all_builds:
   - <<: *if_run_all_builds
 
