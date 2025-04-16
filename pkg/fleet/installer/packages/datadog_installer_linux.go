@@ -152,10 +152,10 @@ func postStartExperimentDatadogInstaller(ctx HookContext) error {
 
 // preStopExperimentDatadogInstaller stops the stable systemd units for the installer
 func preStopExperimentDatadogInstaller(ctx HookContext) error {
-	return systemd.StopUnit(ctx, installerUnit)
+	return systemd.StartUnit(ctx, installerUnit)
 }
 
 // postPromoteExperimentDatadogInstaller promotes the installer experiment
 func postPromoteExperimentDatadogInstaller(ctx HookContext) error {
-	return systemd.StartUnit(ctx, installerUnitExp, "--no-block")
+	return systemd.StartUnit(ctx, installerUnit)
 }
