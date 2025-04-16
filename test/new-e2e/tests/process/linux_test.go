@@ -120,7 +120,7 @@ func (s *linuxTestSuite) TestAPIKeyRefreshAdditionalEndpoints() {
 	fakeIntakeURL := s.Env().FakeIntake.Client().URL()
 
 	additionalEndpoint := fmt.Sprintf(`  additional_endpoints:
-    %s:
+    "%s":
       - ENC[api_key_additional]`, fakeIntakeURL)
 	config := coreAgentRefreshStr + additionalEndpoint
 
@@ -160,6 +160,7 @@ func (s *linuxTestSuite) TestAPIKeyRefreshAdditionalEndpoints() {
 	secretRefreshOutput := s.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
 	require.Contains(t, secretRefreshOutput, "api_key")
 	require.Contains(t, secretRefreshOutput, "api_key_additional")
+	t.Logf("secretRefreshOutput: %s", secretRefreshOutput)
 
 	fakeIntakeClient.FlushServerAndResetAggregators()
 
