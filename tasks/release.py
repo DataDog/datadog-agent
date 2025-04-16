@@ -463,8 +463,7 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
 
         print(color_message(f"Branching out to {update_branch}", "bold"))
         ctx.run(f"git checkout -b {update_branch}")
-        ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
-
+        ctx.run(f"git push --set-upstream {upstream} {update_branch}")
         print(color_message("Committing release.json and Go modules updates", "bold"))
         print(
             color_message(
