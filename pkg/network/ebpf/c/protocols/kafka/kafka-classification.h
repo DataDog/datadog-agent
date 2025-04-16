@@ -96,6 +96,14 @@ static __always_inline bool is_valid_kafka_request_header(const kafka_header_t *
             return false;
         }
         break;
+    case KAFKA_METADATA:
+        if (kafka_header->api_version < KAFKA_CLASSIFICATION_MIN_SUPPORTED_METADATA_REQUEST_API_VERSION) {
+            return false;
+        }
+        if (kafka_header->api_version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_METADATA_REQUEST_API_VERSION) {
+            return false;
+        }
+        break;
     default:
         // We are only interested in fetch and produce requests
         return false;
@@ -269,7 +277,6 @@ static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexibl
 // verifies if it is a valid UUID version 4
 static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible, u32 offset) {
     // The topic id is a UUID, which is 16 bytes long.
-    // It is in network byte order (big-endian)
     u8 topic_id[16] = {};
 
     // Skipping number of entries for now
@@ -400,6 +407,20 @@ static __always_inline bool get_topic_offset_from_fetch_request(const kafka_head
     return true;
 }
 
+// Getting the offset the topic name in the fetch request.
+static __always_inline bool get_topic_offset_from_metadata_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 *offset) {
+    u32 api_version = kafka_header->api_version;
+
+    // we only support v10+ but just to be safe
+    if (api_version >= 9) {
+        if (!skip_request_tagged_fields(pkt, offset)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 // Calls the relevant function, according to the api_key.
 static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 offset) {
     // Due to old-verifiers limitations, if the request is fetch or produce, we are calculating the offset of the topic
@@ -421,6 +442,12 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
         flexible = kafka_header->api_version >= 12;
         topic_id_instead_of_name = kafka_header->api_version >= 13;
         break;
+    case KAFKA_METADATA:
+        if (!get_topic_offset_from_metadata_request(kafka_header, pkt, &offset)) {
+            return false;
+        }
+        flexible = kafka_header->api_version >= 12;
+        return true;
     default:
         return false;
     }
