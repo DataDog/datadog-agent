@@ -486,7 +486,6 @@ func TestNewMetricFilterFromConfig(t *testing.T) {
 
 func TestNewAutodiscoveryFilter(t *testing.T) {
 	cfg := mock.New(t)
-	resetConfig(cfg)
 
 	// Global - legacy config
 	cfg.SetWithoutSource("ac_include", []string{"image:apache.*"})
@@ -580,7 +579,6 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	}
 	assert.Equal(t, fe, GetFilterErrors())
 	ResetSharedFilter()
-	resetConfig(cfg)
 }
 
 func TestValidateFilter(t *testing.T) {

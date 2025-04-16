@@ -31,9 +31,7 @@ func TestReportClusterQuotas(t *testing.T) {
 	require.Len(t, list.Items, 1)
 
 	mockConfig := configmock.New(t)
-	prevClusterName := mockConfig.GetString("cluster_name")
 	mockConfig.SetWithoutSource("cluster_name", "test-cluster-name")
-	defer mockConfig.SetWithoutSource("cluster_name", prevClusterName)
 
 	tagger := taggerfxmock.SetupFakeTagger(t)
 
