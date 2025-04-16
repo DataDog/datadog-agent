@@ -33,7 +33,7 @@ var mu sync.Mutex
 
 type opener func() (v1.Image, error)
 
-type imageSave func(ctx context.Context, images []string, _ ...client.ImageSaveOption) (io.ReadCloser, error)
+type imageSave func(context.Context, []string, ...client.ImageSaveOption) (io.ReadCloser, error)
 
 func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSave imageSave) opener {
 	return func() (v1.Image, error) {

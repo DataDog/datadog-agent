@@ -28,6 +28,7 @@ import (
 	refdocker "github.com/distribution/reference"
 	api "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	dclient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/opencontainers/go-digest"
@@ -65,7 +66,7 @@ func (n familiarNamed) String() string {
 
 // Code ported from https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/containerd.go
 func imageWriter(client *containerd.Client, img containerd.Image) imageSave {
-	return func(ctx context.Context, ref []string) (io.ReadCloser, error) {
+	return func(ctx context.Context, ref []string, _ ...dclient.ImageSaveOption) (io.ReadCloser, error) {
 		if len(ref) < 1 {
 			return nil, errors.New("no image reference")
 		}
