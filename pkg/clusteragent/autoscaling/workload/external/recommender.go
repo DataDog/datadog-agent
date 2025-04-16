@@ -78,7 +78,7 @@ func (r *Recommender) process(ctx context.Context) {
 			string(recommendation.Source),
 			le.JoinLeaderValue,
 		)
-		r.updateAutoscalerAndUnlock(podAutoscaler.ID(), recommendation, err)
+		r.updateAutoscaler(podAutoscaler.ID(), recommendation, err)
 		if err != nil {
 			log.Debugf("Got error fetching external recommendation for pod autoscaler %s: %v", podAutoscaler.ID(), err)
 		} else {
@@ -87,7 +87,7 @@ func (r *Recommender) process(ctx context.Context) {
 	}
 }
 
-func (r *Recommender) updateAutoscalerAndUnlock(key string, horizontalRecommendation *model.HorizontalScalingValues, err error) {
+func (r *Recommender) updateAutoscaler(key string, horizontalRecommendation *model.HorizontalScalingValues, err error) {
 	recommendation := model.ScalingValues{}
 	if err != nil {
 		recommendation.HorizontalError = err
