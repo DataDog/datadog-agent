@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-// languageNameToLanguageMap translates the constants rom the
+// languageNameToLanguageMap translates the constants from the
 // languagedetection package to the constants used in this file. The latter
 // are shared with the backend, and at least java/jvm differs in the name
 // from the languagedetection package.
