@@ -27,6 +27,7 @@ var languageNameToLanguageMap = map[languagemodels.LanguageName]Language{
 	languagemodels.Python: Python,
 	languagemodels.Java:   Java,
 	languagemodels.Ruby:   Ruby,
+	languagemodels.CPP:    CPlusPlus,
 }
 
 // ProcessInfo holds information about a process.
