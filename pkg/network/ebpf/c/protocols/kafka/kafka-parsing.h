@@ -1117,7 +1117,6 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
         } else {
             index = PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V0;
         }
-        log_debug("GUY kafka_call_response_parser PARSER_LEVEL_RECORD_BATCH invalid api key %u", api_key);
         break;
     case PARSER_LEVEL_PARTITION: // Can be fetch or produce
     default:
@@ -1503,8 +1502,7 @@ static __always_inline bool kafka_process_new_response(void *ctx, conn_tuple_t *
 
     PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, correlation_id, pkt, offset);
 
-//    extra_debug("pktlen %u correlation_id: %d", pktlen, correlation_id);
-    log_debug("GUY pktlen %u correlation_id: %d", pktlen, correlation_id);
+    extra_debug("pktlen %u correlation_id: %d", pktlen, correlation_id);
 
     kafka_transaction_key_t key = {};
     key.correlation_id = correlation_id;
@@ -1645,7 +1643,11 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
                 return false;
             }
             break;
-        // TODO break on METADATA
+        case KAFKA_METADATA:
+//            if (kafka_header.api_version < KAFKA_DECODING_MIN) {
+//                return false;
+//            }
+            break;
     }
 
     kafka_transaction->request_started = bpf_ktime_get_ns();
@@ -1690,6 +1692,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     case KAFKA_METADATA:
         // TODO
         log_debug("GUY Kafka decoding: Metadata request");
+        break
     default:
         return false;
     }
@@ -1804,8 +1807,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         kafka_transaction->records_count = 0;
         break;
     case KAFKA_METADATA:
-        // TODO
-        // Filled in when the response is parsed.
+        // TODO how should we handle this?
         kafka_transaction->records_count = 0;
         break;
     default:
