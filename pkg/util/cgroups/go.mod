@@ -8,6 +8,7 @@ require (
 	github.com/containerd/cgroups/v3 v3.0.5
 	github.com/google/go-cmp v0.7.0
 	github.com/stretchr/testify v1.10.0
+	golang.org/x/sys v0.32.0
 )
 
 require (
@@ -22,7 +23,6 @@ require (
 	github.com/opencontainers/runtime-spec v1.2.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
