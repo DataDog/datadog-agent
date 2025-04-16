@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
@@ -24,8 +25,8 @@ import (
 type Resolver struct {
 }
 
-// NewSBOMResolver returns a new instance of Resolver
-func NewSBOMResolver(_ *config.RuntimeSecurityConfig, _ statsd.ClientInterface) (*Resolver, error) {
+// NewResolver returns a new instance of a SBOM resolver
+func NewResolver(_ *config.RuntimeSecurityConfig, _ statsd.ClientInterface, _ workloadmeta.Component) (*Resolver, error) {
 	return &Resolver{}, nil
 }
 

@@ -35,6 +35,7 @@ const (
 	SecurityModule_GetActivityDumpStream_FullMethodName = "/api.SecurityModule/GetActivityDumpStream"
 	SecurityModule_ListSecurityProfiles_FullMethodName  = "/api.SecurityModule/ListSecurityProfiles"
 	SecurityModule_SaveSecurityProfile_FullMethodName   = "/api.SecurityModule/SaveSecurityProfile"
+	SecurityModule_GetSBOMStream_FullMethodName         = "/api.SecurityModule/GetSBOMStream"
 )
 
 // SecurityModuleClient is the client API for SecurityModule service.
@@ -59,6 +60,8 @@ type SecurityModuleClient interface {
 	// Security Profiles
 	ListSecurityProfiles(ctx context.Context, in *SecurityProfileListParams, opts ...grpc.CallOption) (*SecurityProfileListMessage, error)
 	SaveSecurityProfile(ctx context.Context, in *SecurityProfileSaveParams, opts ...grpc.CallOption) (*SecurityProfileSaveMessage, error)
+	// SBOM
+	GetSBOMStream(ctx context.Context, in *SBOMStreamParams, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SBOMMessage], error)
 }
 
 type securityModuleClient struct {
@@ -247,6 +250,25 @@ func (c *securityModuleClient) SaveSecurityProfile(ctx context.Context, in *Secu
 	return out, nil
 }
 
+func (c *securityModuleClient) GetSBOMStream(ctx context.Context, in *SBOMStreamParams, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SBOMMessage], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &SecurityModule_ServiceDesc.Streams[2], SecurityModule_GetSBOMStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[SBOMStreamParams, SBOMMessage]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SecurityModule_GetSBOMStreamClient = grpc.ServerStreamingClient[SBOMMessage]
+
 // SecurityModuleServer is the server API for SecurityModule service.
 // All implementations must embed UnimplementedSecurityModuleServer
 // for forward compatibility.
@@ -269,6 +291,8 @@ type SecurityModuleServer interface {
 	// Security Profiles
 	ListSecurityProfiles(context.Context, *SecurityProfileListParams) (*SecurityProfileListMessage, error)
 	SaveSecurityProfile(context.Context, *SecurityProfileSaveParams) (*SecurityProfileSaveMessage, error)
+	// SBOM
+	GetSBOMStream(*SBOMStreamParams, grpc.ServerStreamingServer[SBOMMessage]) error
 	mustEmbedUnimplementedSecurityModuleServer()
 }
 
@@ -326,6 +350,9 @@ func (UnimplementedSecurityModuleServer) ListSecurityProfiles(context.Context, *
 }
 func (UnimplementedSecurityModuleServer) SaveSecurityProfile(context.Context, *SecurityProfileSaveParams) (*SecurityProfileSaveMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SaveSecurityProfile not implemented")
+}
+func (UnimplementedSecurityModuleServer) GetSBOMStream(*SBOMStreamParams, grpc.ServerStreamingServer[SBOMMessage]) error {
+	return status.Errorf(codes.Unimplemented, "method GetSBOMStream not implemented")
 }
 func (UnimplementedSecurityModuleServer) mustEmbedUnimplementedSecurityModuleServer() {}
 func (UnimplementedSecurityModuleServer) testEmbeddedByValue()                        {}
@@ -622,6 +649,17 @@ func _SecurityModule_SaveSecurityProfile_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SecurityModule_GetSBOMStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SBOMStreamParams)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(SecurityModuleServer).GetSBOMStream(m, &grpc.GenericServerStream[SBOMStreamParams, SBOMMessage]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SecurityModule_GetSBOMStreamServer = grpc.ServerStreamingServer[SBOMMessage]
+
 // SecurityModule_ServiceDesc is the grpc.ServiceDesc for SecurityModule service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -695,6 +733,11 @@ var SecurityModule_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GetActivityDumpStream",
 			Handler:       _SecurityModule_GetActivityDumpStream_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetSBOMStream",
+			Handler:       _SecurityModule_GetSBOMStream_Handler,
 			ServerStreams: true,
 		},
 	},

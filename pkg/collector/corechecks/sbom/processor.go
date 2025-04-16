@@ -145,6 +145,10 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 					p.triggerProcfsScan(container)
 				}
 			}
+
+			if container.SBOM != nil {
+				p.queue <- container.SBOM
+			}
 		case workloadmeta.EventTypeUnset:
 			p.unregisterContainer(event.Entity.(*workloadmeta.Container))
 		}
@@ -242,7 +246,7 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 				sbom.Status = model.SBOMStatus_FAILED
 			} else {
 				sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-					Cyclonedx: convertBOM(report),
+					Cyclonedx: ConvertBOM(report),
 				}
 			}
 
@@ -313,7 +317,7 @@ func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 				sbom.Status = model.SBOMStatus_FAILED
 			} else {
 				sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-					Cyclonedx: convertBOM(report),
+					Cyclonedx: ConvertBOM(report),
 				}
 			}
 		}
@@ -426,7 +430,7 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 			sbom.GeneratedAt = timestamppb.New(img.SBOM.GenerationTime)
 			sbom.GenerationDuration = convertDuration(img.SBOM.GenerationDuration)
 			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-				Cyclonedx: convertBOM(img.SBOM.CycloneDXBOM),
+				Cyclonedx: ConvertBOM(img.SBOM.CycloneDXBOM),
 			}
 		}
 		p.queue <- sbom
