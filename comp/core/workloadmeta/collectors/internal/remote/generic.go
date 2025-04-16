@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -49,8 +50,8 @@ type Stream interface {
 
 // StreamHandler is an interface that defines a gRPC stream handler.
 type StreamHandler interface {
-	// Port returns the targeted port
-	Port() int
+	// Address returns the targeted address of the gRPC server.
+	Address() string
 	// IsEnabled returns if the feature is enabled
 	IsEnabled() bool
 	// NewClient returns a client to connect to a remote gRPC server.
@@ -92,16 +93,23 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 
 	c.ctx, c.cancel = context.WithCancel(ctx)
 
-	opts := []grpc.DialOption{grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
-		return net.Dial("tcp", url)
-	})}
+	address := c.StreamHandler.Address()
+	var opts []grpc.DialOption
 
 	creds := credentials.NewTLS(c.IPC.GetTLSClientConfig())
 	opts = append(opts, grpc.WithTransportCredentials(creds))
 
+	opts = append(opts, grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
+		if strings.HasPrefix(url, "/") {
+			return net.Dial("unix", url)
+		}
+
+		return net.Dial("tcp", url)
+	}))
+
 	conn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		c.ctx,
-		fmt.Sprintf(":%v", c.StreamHandler.Port()),
+		address,
 		opts...,
 	)
 	if err != nil {

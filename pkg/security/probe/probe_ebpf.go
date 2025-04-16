@@ -2592,6 +2592,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		Tagger:                   probe.Opts.Tagger,
 		UseRingBuffer:            p.useRingBuffers,
 		TTYFallbackEnabled:       probe.Opts.TTYFallbackEnabled,
+		WorkloadMeta:             opts.WorkloadMeta,
 	}
 
 	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts)

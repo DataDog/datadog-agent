@@ -13,10 +13,16 @@ import (
 	"fmt"
 	"os"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+
+	model "github.com/DataDog/agent-payload/v5/sbom"
+
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // DumpDiscarders handles discarder dump requests
@@ -283,4 +289,45 @@ func (a *APIServer) collectOSReleaseData() {
 
 	a.kernelVersion = kv.Code.String()
 	a.distribution = fmt.Sprintf("%s - %s", kv.OsRelease["ID"], kv.OsRelease["VERSION_ID"])
+}
+
+func (a *APIServer) collectSBOMS() {
+	if sbomResolver := a.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.SBOMResolver; sbomResolver != nil {
+		if err := sbomResolver.RegisterListener(sbom.SBOMComputed, func(sbom *model.SBOMEntity) {
+			select {
+			case a.sboms <- sbom:
+			default:
+				seclog.Warnf("dropping SBOM event")
+			}
+		}); err != nil {
+			seclog.Errorf("failed to register SBOM listener: %s", err)
+		}
+	}
+}
+
+// GetSBOMStream handles SBOM stream requests
+func (a *APIServer) GetSBOMStream(_ *api.SBOMStreamParams, stream api.SecurityModule_GetSBOMStreamServer) error {
+	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-a.stopChan:
+			return nil
+		case sbom := <-a.sboms:
+			anyMsg, err := anypb.New(sbom)
+			if err != nil {
+				seclog.Errorf("failed to convert SBOM: %s", err)
+			}
+
+			msg := &api.SBOMMessage{
+				Sbom: anyMsg,
+				Kind: string(workloadmeta.KindContainer),
+				ID:   sbom.Id,
+			}
+
+			if err := stream.Send(msg); err != nil {
+				return fmt.Errorf("failed to send SBOM: %s", err)
+			}
+		}
+	}
 }
