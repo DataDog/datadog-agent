@@ -41,14 +41,67 @@ type wifiInfo struct {
 // WLANCheck monitors the status of the WLAN interface
 type WLANCheck struct {
 	core.CheckBase
-	lastChannelID int
-	lastBSSID     string
-	lastSSID      string
-	isWarmedUp    bool
+	lastChannel int
+	lastBSSID   string
+	lastSSID    string
+	isWarmedUp  bool
 }
 
 func (c *WLANCheck) String() string {
 	return "wlan"
+}
+
+func (c *WLANCheck) isRoaming(wi *wifiInfo) bool {
+	// cannot determine roaming without a previous state <SSID,BSSID>
+	if !c.isWarmedUp {
+		return false
+	}
+
+	// current and previous BSSIDs should not be empty, otherwise we cannot
+	// actually determine if we are roaming or not
+	if len(c.lastBSSID) == 0 || len(wi.bssid) == 0 {
+		return false
+	}
+
+	// current and previous SSIDs should not be empty, otherwise we cannot
+	// actually determine if are on the same network
+	if len(c.lastSSID) == 0 || len(wi.ssid) == 0 {
+		return false
+	}
+
+	// current and previous sample has to be in the same network (SSID)
+	if c.lastSSID != wi.ssid {
+		return false
+	}
+
+	// has to be in the same network (SSID) but in a different AP (BSSID)
+	return c.lastBSSID != wi.bssid
+}
+
+func (c *WLANCheck) isChannelSwap(wi *wifiInfo) bool {
+	// cannot determine roaming without a previous state <SSID,BSSID>
+	if !c.isWarmedUp {
+		return false
+	}
+
+	// current and previous BSSIDs should not be empty, otherwise we cannot
+	// actually determine if we are channel swapping or not
+	if len(c.lastBSSID) == 0 || len(wi.bssid) == 0 {
+		return false
+	}
+
+	// current and previous SSIDs should be equal (empty SSID is valid if the AP does not advertise it)
+	if c.lastSSID != wi.ssid {
+		return false
+	}
+
+	// has to be in the same network (SSID) and on the same AP (BSSID)
+	if c.lastBSSID != wi.bssid {
+		return false
+	}
+
+	// has to be in the same network (SSID) and the same AP (BSSID) but in a different channel
+	return c.lastChannel != wi.channel
 }
 
 // Run runs the check
@@ -57,27 +110,27 @@ func (c *WLANCheck) Run() error {
 	if err != nil {
 		return err
 	}
-	wifiInfo, err := getWiFiInfo()
+	wi, err := getWiFiInfo()
 	if err != nil {
 		log.Error(err)
 		return err
 	}
 
-	if wifiInfo.phyMode == "None" {
+	if wi.phyMode == "None" {
 		log.Warn("No active Wi-Fi interface detected: PHYMode is none.")
 		return nil
 	}
 
-	ssid := wifiInfo.ssid
+	ssid := wi.ssid
 	if ssid == "" {
 		ssid = "unknown"
 	}
-	bssid := wifiInfo.bssid
+	bssid := wi.bssid
 	if bssid == "" {
 		bssid = "unknown"
 	}
 
-	macAddress := strings.ToLower(strings.Replace(wifiInfo.macAddress, " ", "_", -1))
+	macAddress := strings.ToLower(strings.Replace(wi.macAddress, " ", "_", -1))
 	if macAddress == "" {
 		macAddress = "unknown"
 	}
@@ -87,47 +140,30 @@ func (c *WLANCheck) Run() error {
 	tags = append(tags, "bssid:"+bssid)
 	tags = append(tags, "mac_address:"+macAddress)
 
-	sender.Gauge("wlan.rssi", float64(wifiInfo.rssi), "", tags)
-	if wifiInfo.noiseValid {
-		sender.Gauge("wlan.noise", float64(wifiInfo.noise), "", tags)
+	sender.Gauge("wlan.rssi", float64(wi.rssi), "", tags)
+	if wi.noiseValid {
+		sender.Gauge("wlan.noise", float64(wi.noise), "", tags)
 	}
-	sender.Gauge("wlan.transmit_rate", float64(wifiInfo.transmitRate), "", tags)
-	if wifiInfo.receiveRateValid {
-		sender.Gauge("wlan.receive_rate", float64(wifiInfo.receiveRate), "", tags)
+	sender.Gauge("wlan.transmit_rate", float64(wi.transmitRate), "", tags)
+	if wi.receiveRateValid {
+		sender.Gauge("wlan.receive_rate", float64(wi.receiveRate), "", tags)
 	}
 
-	// Roaming and channel swap events could happen only if we are still on the same network.
-	// Edge cases:
-	//   * SSID could be empty if it is not "advertised" by the AP and in this case
-	//     the "sameness" of the network is determined by the matching BSSID.
-	//   * BSSID could not be empty (it is an error condition) and it would not
-	//     contribute to the "sameness" of the network. If current or previous sample of BSSID
-	//     is empty, we still cannot determine if we are roaming or have changed the channel.
-	roamingEvent := 0.0
-	channelSwapEvent := 0.0
-	bothBSSIDNonEmpty := len(c.lastBSSID) > 0 && len(wifiInfo.bssid) > 0
-	if c.isWarmedUp && c.lastSSID == wifiInfo.ssid && bothBSSIDNonEmpty {
-		if len(c.lastSSID) > 0 {
-			// The same non-empty SSID
-			if c.lastBSSID != wifiInfo.bssid {
-				roamingEvent = 1.0
-			} else if c.lastChannelID != wifiInfo.channel {
-				channelSwapEvent = 1.0
-			}
-		} else {
-			// Empty SSID, roaming detection is not possible but channel swapping is
-			if c.lastBSSID == wifiInfo.bssid && c.lastChannelID != wifiInfo.channel {
-				channelSwapEvent = 1.0
-			}
-		}
+	if c.isRoaming(&wi) {
+		sender.Count("wlan.roaming_events", 1.0, "", tags)
+		sender.Count("wlan.channel_swap_events", 0.0, "", tags)
+	} else if c.isChannelSwap(&wi) {
+		sender.Count("wlan.roaming_events", 0.0, "", tags)
+		sender.Count("wlan.channel_swap_events", 1.0, "", tags)
+	} else {
+		sender.Count("wlan.roaming_events", 0.0, "", tags)
+		sender.Count("wlan.channel_swap_events", 0.0, "", tags)
 	}
-	sender.Count("wlan.roaming_events", roamingEvent, "", tags)
-	sender.Count("wlan.channel_swap_events", channelSwapEvent, "", tags)
 
 	// update last values
-	c.lastChannelID = wifiInfo.channel
-	c.lastBSSID = wifiInfo.bssid
-	c.lastSSID = wifiInfo.ssid
+	c.lastChannel = wi.channel
+	c.lastBSSID = wi.bssid
+	c.lastSSID = wi.ssid
 	c.isWarmedUp = true
 
 	sender.Commit()
