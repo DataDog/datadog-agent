@@ -160,6 +160,8 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
 
     metric_handler.send_metrics_to_datadog()
 
+    metric_handler.generate_metric_reports(ctx, branch=branch)
+
     github = GithubAPI()
     if github.get_pr_for_branch(branch).totalCount > 0:
         display_pr_comment(ctx, final_state == "success", gate_states, metric_handler)

@@ -261,10 +261,13 @@ func (s *discovery) Close() {
 	s.cleanCache(pidSet{})
 	if s.network != nil {
 		s.network.close()
+		s.network = nil
 	}
 	clear(s.cache)
 	clear(s.noPortTries)
 	clear(s.ignorePids)
+	clear(s.potentialServices)
+	clear(s.runningServices)
 }
 
 // handleStatusEndpoint is the handler for the /status endpoint.
