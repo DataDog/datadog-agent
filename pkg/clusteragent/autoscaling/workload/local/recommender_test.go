@@ -29,7 +29,7 @@ func TestProcessScaleUp(t *testing.T) {
 
 	// setup podwatcher
 	pw := workload.NewPodWatcher(nil, nil)
-	pw.HandleEvent(newPodEvent("default", "test-deployment", "pod1", []string{"container-name1", "container-name2"}))
+	pw.HandleEvent(newFakeWLMPodEvent("default", "test-deployment", "pod1", []string{"container-name1", "container-name2"}))
 
 	// setup store
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
@@ -78,9 +78,9 @@ func TestProcessScaleDown(t *testing.T) {
 
 	// setup podwatcher
 	pw := workload.NewPodWatcher(nil, nil)
-	pw.HandleEvent(newPodEvent("default", "test-deployment", "pod1", []string{"container-name1", "container-name2"}))
-	pw.HandleEvent(newPodEvent("default", "test-deployment", "pod2", []string{"container-name1"}))
-	pw.HandleEvent(newPodEvent("default", "test-deployment", "pod3", []string{"container-name1"}))
+	pw.HandleEvent(newFakeWLMPodEvent("default", "test-deployment", "pod1", []string{"container-name1", "container-name2"}))
+	pw.HandleEvent(newFakeWLMPodEvent("default", "test-deployment", "pod2", []string{"container-name1"}))
+	pw.HandleEvent(newFakeWLMPodEvent("default", "test-deployment", "pod3", []string{"container-name1"}))
 
 	// setup store
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()

@@ -79,7 +79,7 @@ func (r *Recommender) process(ctx context.Context) {
 	for _, podAutoscaler := range podAutoscalers {
 		// Generate local recommendations
 		horizontalRecommendation, err := r.replicaCalculator.calculateHorizontalRecommendations(podAutoscaler, lStore)
-		r.updateAutoscalerAndUnlock(podAutoscaler.ID(), horizontalRecommendation, err)
+		r.updateAutoscaler(podAutoscaler.ID(), horizontalRecommendation, err)
 		if err != nil {
 			log.Debugf("Got error calculating horizontal recommendation for pod autoscaler %s: %v", podAutoscaler.ID(), err)
 		} else {
@@ -88,7 +88,7 @@ func (r *Recommender) process(ctx context.Context) {
 	}
 }
 
-func (r *Recommender) updateAutoscalerAndUnlock(key string, horizontalRecommendation *model.HorizontalScalingValues, err error) {
+func (r *Recommender) updateAutoscaler(key string, horizontalRecommendation *model.HorizontalScalingValues, err error) {
 	recommendation := model.ScalingValues{}
 
 	if err != nil {

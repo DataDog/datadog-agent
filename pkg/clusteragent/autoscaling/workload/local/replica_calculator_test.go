@@ -1549,7 +1549,7 @@ func TestCalculateHorizontalRecommendationsScaleUp(t *testing.T) {
 
 	// Setup podwatcher
 	pw := workload.NewPodWatcher(nil, nil)
-	pw.HandleEvent(newPodEvent(ns, deploymentName, "pod1", []string{"container-name1"}))
+	pw.HandleEvent(newFakeWLMPodEvent(ns, deploymentName, "pod1", []string{"container-name1"}))
 
 	expectedOwner := workload.NamespacedPodOwner{
 		Namespace: ns,
