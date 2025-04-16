@@ -40,7 +40,8 @@ type InstanceConfig struct {
 
 	DestPort uint16 `yaml:"port"`
 
-	Protocol string `yaml:"protocol"`
+	Protocol  string `yaml:"protocol"`
+	TCPMethod string `yaml:"tcp_method"`
 
 	SourceService      string `yaml:"source_service"`
 	DestinationService string `yaml:"destination_service"`
@@ -63,6 +64,7 @@ type CheckConfig struct {
 	DestinationService    string
 	MaxTTL                uint8
 	Protocol              payload.Protocol
+	TCPMethod             payload.TCPMethod
 	Timeout               time.Duration
 	MinCollectionInterval time.Duration
 	Tags                  []string
@@ -91,6 +93,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.SourceService = instance.SourceService
 	c.DestinationService = instance.DestinationService
 	c.Protocol = payload.Protocol(strings.ToUpper(instance.Protocol))
+	c.TCPMethod = payload.MakeTCPMethod(instance.TCPMethod)
 
 	c.MinCollectionInterval = firstNonZero(
 		time.Duration(instance.MinCollectionInterval)*time.Second,
