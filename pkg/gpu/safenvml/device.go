@@ -160,24 +160,28 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 
 	migEnabled, _, err := safeDev.GetMigMode()
 	if err == nil && migEnabled == nvml.DEVICE_MIG_ENABLE {
+		device.HasMIGFeatureEnabled = true
+
 		if err := device.fillMigChildren(); err != nil {
 			return nil, err
 		}
 
+		// If the device is MIG enabled, we need to sum the memory and core count of all its children
+		// because the corresponding APIs we use below return "UNKNOWN_ERROR"
 		for _, migChild := range device.MIGChildren {
 			device.Memory += migChild.Memory
 			device.CoreCount += migChild.CoreCount
 		}
 	} else {
-		cores, ret := dev.GetNumGpuCores()
-		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("error getting core count: %s", nvml.ErrorString(ret))
+		cores, err := device.SafeDevice.GetNumGpuCores()
+		if err != nil {
+			return nil, err
 		}
 		device.CoreCount = int(cores)
 
-		memInfo, ret := dev.GetMemoryInfo()
-		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("error getting memory info: %s", nvml.ErrorString(ret))
+		memInfo, err := device.SafeDevice.GetMemoryInfo()
+		if err != nil {
+			return nil, err
 		}
 		device.Memory = memInfo.Total
 	}
@@ -205,8 +209,13 @@ func (d *PhysicalDevice) fillMigChildren() error {
 
 		migChildDevice, err := NewMIGDevice(migChild)
 		if err != nil {
-			return fmt.Errorf("error creating MIG device: %s", err)
+			return fmt.Errorf("error creating MIG device %d: %w", i, err)
 		}
+
+		// The SM version of a MIG device is the same as the parent device, and the API doesn't work
+		// for MIG devices.
+		migChildDevice.SMVersion = d.SMVersion
+		migChildDevice.Parent = d
 
 		d.MIGChildren = append(d.MIGChildren, migChildDevice)
 	}
