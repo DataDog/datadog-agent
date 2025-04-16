@@ -39,6 +39,9 @@ var agentConfigPADisabled string
 //go:embed fixtures/datadog-ta-disabled.yaml
 var agentConfigTADisabled string
 
+//go:embed fixtures/datadog-di-disabled.yaml
+var agentConfigDIDisabled string
+
 //go:embed fixtures/system-probe.yaml
 var systemProbeConfig string
 
@@ -281,6 +284,18 @@ type agentServiceDisabledTraceAgentSuite struct {
 	agentServiceDisabledSuite
 }
 
+func TestServiceBehaviorWhenDisabledInstaller(t *testing.T) {
+	s := &agentServiceDisabledInstallerSuite{}
+	s.disabledServices = []string{
+		"Datadog Installer",
+	}
+	run(t, s, systemProbeConfig, agentConfigDIDisabled, securityAgentConfig)
+}
+
+type agentServiceDisabledInstallerSuite struct {
+	agentServiceDisabledSuite
+}
+
 func (s *agentServiceDisabledSuite) SetupSuite() {
 	s.baseStartStopSuite.SetupSuite()
 
@@ -408,6 +423,10 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 	// check event log for N sets of start and stop messages from each service
 	for _, serviceName := range s.runningUserServices() {
 		providerName := serviceName
+		// skip the installer since it doesn't have a registered provider
+		if providerName == "Datadog Installer" {
+			continue
+		}
 		entries, err := windowsCommon.GetEventLogEntriesFromProvider(host, "Application", providerName)
 		s.Require().NoError(err, "should get event log entries from %s", providerName)
 		// message IDs from pkg/util/winutil/messagestrings
@@ -633,6 +652,7 @@ func (s *baseStartStopSuite) getInstalledUserServices() []string {
 		"datadog-process-agent",
 		"datadog-security-agent",
 		"datadog-system-probe",
+		"Datadog Installer",
 	}
 }
 
@@ -654,6 +674,11 @@ func (s *baseStartStopSuite) getInstalledServices() []string {
 func (s *baseStartStopSuite) getAgentEventLogErrorsAndWarnings() ([]windowsCommon.EventLogEntry, error) {
 	host := s.Env().RemoteHost
 	providerNames := s.getInstalledUserServices()
+	// remove the Datadog Installer service from the list of provider names
+	// we do not have an event log for it
+	providerNames = slices.DeleteFunc(providerNames, func(s string) bool {
+		return s == "Datadog Installer"
+	})
 	providerNamesFilter := fmt.Sprintf(`"%s"`, strings.Join(providerNames, `","`))
 	filter := fmt.Sprintf(`@{ LogName='Application'; ProviderName=%s; Level=1,2,3 }`, providerNamesFilter)
 	return windowsCommon.GetEventLogEntriesWithFilterHashTable(host, filter)
