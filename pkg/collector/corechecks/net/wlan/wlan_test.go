@@ -19,16 +19,17 @@ import (
 
 func TestWLANOK(t *testing.T) {
 	// setup mocks
-	getWiFiInfo = func() (WiFiInfo, error) {
-		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "test-ssid",
-			Bssid:        "test-bssid",
-			Channel:      1,
-			Noise:        20,
-			TransmitRate: 4.0,
-			MacAddress:   "hardware-address",
-			PHYMode:      "802.11ac",
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "test-ssid",
+			bssid:        "test-bssid",
+			channel:      1,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
 		}, nil
 	}
 
@@ -55,8 +56,8 @@ func TestWLANOK(t *testing.T) {
 
 func TestWLANGetInfoError(t *testing.T) {
 	// setup mocks
-	getWiFiInfo = func() (WiFiInfo, error) {
-		return WiFiInfo{}, errors.New("some error message")
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{}, errors.New("some error message")
 	}
 
 	defer func() {
@@ -78,8 +79,8 @@ func TestWLANGetInfoError(t *testing.T) {
 
 func TestWLANErrorStoppedSender(t *testing.T) {
 	// setup mocks
-	getWiFiInfo = func() (WiFiInfo, error) {
-		return WiFiInfo{}, nil
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{}, nil
 	}
 
 	defer func() {
@@ -102,16 +103,17 @@ func TestWLANErrorStoppedSender(t *testing.T) {
 
 func TestWLANEmptySSIDisUnknown(t *testing.T) {
 	// setup mocks
-	getWiFiInfo = func() (WiFiInfo, error) {
-		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "",
-			Bssid:        "test-bssid",
-			Channel:      1,
-			Noise:        20,
-			TransmitRate: 4.0,
-			MacAddress:   "hardware-address",
-			PHYMode:      "802.11ac",
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "",
+			bssid:        "test-bssid",
+			channel:      1,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
 		}, nil
 	}
 
@@ -138,16 +140,17 @@ func TestWLANEmptySSIDisUnknown(t *testing.T) {
 
 func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
 	// setup mocks
-	getWiFiInfo = func() (WiFiInfo, error) {
-		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "test-ssid",
-			Bssid:        "",
-			Channel:      1,
-			Noise:        20,
-			TransmitRate: 4.0,
-			MacAddress:   "hardware-address",
-			PHYMode:      "802.11ac",
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "test-ssid",
+			bssid:        "",
+			channel:      1,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
 		}, nil
 	}
 
@@ -174,16 +177,17 @@ func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
 
 func TestWLANEmptyHardwareAddress(t *testing.T) {
 	// setup mocks
-	getWiFiInfo = func() (WiFiInfo, error) {
-		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "test-ssid",
-			Bssid:        "test-bssid",
-			Channel:      1,
-			Noise:        20,
-			TransmitRate: 4.0,
-			MacAddress:   "",
-			PHYMode:      "802.11ac",
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "test-ssid",
+			bssid:        "test-bssid",
+			channel:      1,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "",
+			phyMode:      "802.11ac",
 		}, nil
 	}
 
@@ -208,18 +212,19 @@ func TestWLANEmptyHardwareAddress(t *testing.T) {
 	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
 }
 
-func TestWLANChannelSwapEvents(t *testing.T) {
+func TestWLANChannelSwapEventsBasic(t *testing.T) {
 	// setup mocks
-	getWiFiInfo = func() (WiFiInfo, error) {
-		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "test-ssid",
-			Bssid:        "test-bssid",
-			Channel:      1,
-			Noise:        20,
-			TransmitRate: 4.0,
-			MacAddress:   "hardware-address",
-			PHYMode:      "802.11ac",
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "test-ssid",
+			bssid:        "test-bssid",
+			channel:      1,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
 		}, nil
 	}
 
@@ -242,16 +247,17 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	// change channel number from 1 to 2
-	getWiFiInfo = func() (WiFiInfo, error) {
-		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "test-ssid",
-			Bssid:        "test-bssid",
-			Channel:      2,
-			Noise:        20,
-			TransmitRate: 4.0,
-			MacAddress:   "hardware-address",
-			PHYMode:      "802.11ac",
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "test-ssid",
+			bssid:        "test-bssid",
+			channel:      2,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
 		}, nil
 	}
 
@@ -259,16 +265,17 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 	wlanCheck.Run()
 	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 1.0, "", expectedTags)
 
-	getWiFiInfo = func() (WiFiInfo, error) {
-		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "test-ssid",
-			Bssid:        "test-bssid",
-			Channel:      1,
-			Noise:        20,
-			TransmitRate: 4.0,
-			MacAddress:   "hardware-address",
-			PHYMode:      "802.11ac",
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "test-ssid",
+			bssid:        "test-bssid",
+			channel:      1,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
 		}, nil
 	}
 
@@ -281,18 +288,19 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
 }
 
-func TestWLANChannelSwapEventsChannelZero(t *testing.T) {
+func TestWLANChannelSwapEventsFromZeroToZeroAndOne(t *testing.T) {
 	// setup mocks
-	getWiFiInfo = func() (WiFiInfo, error) {
-		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "test-ssid",
-			Bssid:        "test-bssid",
-			Channel:      0,
-			Noise:        20,
-			TransmitRate: 4.0,
-			MacAddress:   "hardware-address",
-			PHYMode:      "802.11ac",
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "test-ssid",
+			bssid:        "test-bssid",
+			channel:      0,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
 		}, nil
 	}
 
@@ -314,16 +322,17 @@ func TestWLANChannelSwapEventsChannelZero(t *testing.T) {
 	wlanCheck.Run()
 	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
 
-	getWiFiInfo = func() (WiFiInfo, error) {
-		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "test-ssid",
-			Bssid:        "test-bssid",
-			Channel:      0,
-			Noise:        20,
-			TransmitRate: 4.0,
-			MacAddress:   "hardware-address",
-			PHYMode:      "802.11ac",
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "test-ssid",
+			bssid:        "test-bssid",
+			channel:      0,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
 		}, nil
 	}
 
@@ -331,16 +340,17 @@ func TestWLANChannelSwapEventsChannelZero(t *testing.T) {
 	wlanCheck.Run()
 	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
 
-	getWiFiInfo = func() (WiFiInfo, error) {
-		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "test-ssid",
-			Bssid:        "test-bssid",
-			Channel:      1,
-			Noise:        20,
-			TransmitRate: 4.0,
-			MacAddress:   "hardware-address",
-			PHYMode:      "802.11ac",
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "test-ssid",
+			bssid:        "test-bssid",
+			channel:      1,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
 		}, nil
 	}
 
@@ -349,18 +359,19 @@ func TestWLANChannelSwapEventsChannelZero(t *testing.T) {
 	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 1.0, "", expectedTags)
 }
 
-func TestWLANRoamingEvents(t *testing.T) {
+func TestWLANChannelSwapEventsWhenSSIDEmptyAndBSSIDIsTheSame(t *testing.T) {
 	// setup mocks
-	getWiFiInfo = func() (WiFiInfo, error) {
-		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "ssid-1",
-			Bssid:        "test-bssid",
-			Channel:      1,
-			Noise:        20,
-			TransmitRate: 4.0,
-			MacAddress:   "hardware-address",
-			PHYMode:      "802.11ac",
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "",
+			bssid:        "test-bssid",
+			channel:      1,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
 		}, nil
 	}
 
@@ -368,7 +379,7 @@ func TestWLANRoamingEvents(t *testing.T) {
 		getWiFiInfo = GetWiFiInfo
 	}()
 
-	expectedTags := []string{"ssid:ssid-1", "bssid:test-bssid", "mac_address:hardware-address"}
+	expectedTags := []string{"ssid:unknown", "bssid:test-bssid", "mac_address:hardware-address"}
 
 	wlanCheck := new(WLANCheck)
 
@@ -378,65 +389,386 @@ func TestWLANRoamingEvents(t *testing.T) {
 	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
 	mockSender.SetupAcceptAll()
 
-	// 1st run: initial ssid set to ssid-1
+	// 1st run: no channel change
+	wlanCheck.Run()
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "",
+			bssid:        "test-bssid",
+			channel:      1,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
+		}, nil
+	}
+
+	// 2nd run: no channel change
+	wlanCheck.Run()
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "",
+			bssid:        "test-bssid",
+			channel:      2,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
+		}, nil
+	}
+
+	// 3nd run: change channel to 1
+	wlanCheck.Run()
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 1.0, "", expectedTags)
+}
+
+func TestWLANChannelSwapEventsUnlessThereIsRoaming(t *testing.T) {
+	// setup mocks
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "test-ssid",
+			bssid:        "test-bssid-1",
+			channel:      1,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
+		}, nil
+	}
+
+	defer func() {
+		getWiFiInfo = GetWiFiInfo
+	}()
+
+	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid-1", "mac_address:hardware-address"}
+
+	wlanCheck := new(WLANCheck)
+
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	// 1st run: no channel change
+	wlanCheck.Run()
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "test-ssid",
+			bssid:        "test-bssid-1",
+			channel:      2,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
+		}, nil
+	}
+
+	// 2nd run: channel change (BSSID is the same)
+	wlanCheck.Run()
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 1.0, "", expectedTags)
+
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "test-ssid",
+			bssid:        "test-bssid-2",
+			channel:      3,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
+		}, nil
+	}
+
+	// 3nd run: channel event is not triggered because it is roaming
+	wlanCheck.Run()
+	expectedTags = []string{"ssid:test-ssid", "bssid:test-bssid-2", "mac_address:hardware-address"}
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 1.0, "", expectedTags)
+}
+
+func TestWLANRoamingEvents(t *testing.T) {
+	// setup mocks
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "ssid",
+			bssid:        "test-bssid-1",
+			channel:      1,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
+		}, nil
+	}
+
+	defer func() {
+		getWiFiInfo = GetWiFiInfo
+	}()
+
+	expectedTags := []string{"ssid:ssid", "bssid:test-bssid-1", "mac_address:hardware-address"}
+
+	wlanCheck := new(WLANCheck)
+
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	// 1st run: initial bssid set to test-bssid-1
 	wlanCheck.Run()
 	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
 
-	getWiFiInfo = func() (WiFiInfo, error) {
-		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "ssid-2",
-			Bssid:        "test-bssid",
-			Channel:      2,
-			Noise:        20,
-			TransmitRate: 4.0,
-			MacAddress:   "hardware-address",
-			PHYMode:      "802.11ac",
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "ssid",
+			bssid:        "test-bssid-2",
+			channel:      2,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
 		}, nil
 	}
 
-	expectedTags = []string{"ssid:ssid-2", "bssid:test-bssid", "mac_address:hardware-address"}
+	expectedTags = []string{"ssid:ssid", "bssid:test-bssid-2", "mac_address:hardware-address"}
 
-	// 2nd run: changing the ssid to ssid-2
+	// 2nd run: changing the test-bssid-1 to test-bssid-2
 	wlanCheck.Run()
 	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 1.0, "", expectedTags)
+	// despite channel change, and due to roaming event the channel swap event is not changed
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
 
-	getWiFiInfo = func() (WiFiInfo, error) {
-		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "ssid-1",
-			Bssid:        "test-bssid",
-			Channel:      1,
-			Noise:        20,
-			TransmitRate: 4.0,
-			MacAddress:   "hardware-address",
-			PHYMode:      "802.11ac",
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "ssid",
+			bssid:        "test-bssid-1",
+			channel:      1,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
 		}, nil
 	}
 
-	expectedTags = []string{"ssid:ssid-1", "bssid:test-bssid", "mac_address:hardware-address"}
+	expectedTags = []string{"ssid:ssid", "bssid:test-bssid-1", "mac_address:hardware-address"}
 
-	// 3rd run: changing the ssid back to ssid-1
+	// 3rd run: changing the test-bssid-2 back to test-bssid-1
 	wlanCheck.Run()
 	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 1.0, "", expectedTags)
+	// despite channel change, and due to roaming event the channel swap event is not changed
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	// 4th run: keeping the same ssid
 	wlanCheck.Run()
 	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+}
+
+func TestWLANNoRoamingOrChannelSwapEventsWhenDifferentNetwork(t *testing.T) {
+	// setup mocks
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "ssid",
+			bssid:        "test-bssid",
+			channel:      1,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
+		}, nil
+	}
+
+	defer func() {
+		getWiFiInfo = GetWiFiInfo
+	}()
+
+	expectedTags := []string{"ssid:ssid", "bssid:test-bssid", "mac_address:hardware-address"}
+
+	wlanCheck := new(WLANCheck)
+
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	// 1st run: initial no detection is performed
+	wlanCheck.Run()
+	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+
+	// change channel, bssid and ssid
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "ssid-2",
+			bssid:        "test-bssid-2",
+			channel:      2,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
+		}, nil
+	}
+
+	expectedTags = []string{"ssid:ssid-2", "bssid:test-bssid-2", "mac_address:hardware-address"}
+
+	// 2nd run: since ssid changed roaming or channel swap will not be detected
+	wlanCheck.Run()
+	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+
+	// ssid is empty
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "",
+			bssid:        "test-bssid-3",
+			channel:      3,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
+		}, nil
+	}
+
+	expectedTags = []string{"ssid:unknown", "bssid:test-bssid-3", "mac_address:hardware-address"}
+
+	// 3rd run: ssid is empty and different from premise scan, meaning it is a different network and no
+	// 1.0 metrics for roaming or channel swap would be emitted
+	wlanCheck.Run()
+	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+
+	// now both ssid asre empty but bssid is also different
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "",
+			bssid:        "test-bssid-4",
+			channel:      4,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
+		}, nil
+	}
+
+	expectedTags = []string{"ssid:unknown", "bssid:test-bssid-4", "mac_address:hardware-address"}
+
+	// 4rd run: both ssids are empty and different and bssid is different
+	wlanCheck.Run()
+	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+
+	// now both ssid asre empty but bssid is also different
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "ssid",
+			bssid:        "test-bssid-5",
+			channel:      5,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
+		}, nil
+	}
+
+	expectedTags = []string{"ssid:ssid", "bssid:test-bssid-5", "mac_address:hardware-address"}
+
+	// 5rd run: now one ssids is not empty and other is so dsifferent network
+	wlanCheck.Run()
+	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+
+	// one bssid is empty
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "ssid",
+			bssid:        "",
+			channel:      6,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
+		}, nil
+	}
+
+	expectedTags = []string{"ssid:ssid", "bssid:unknown", "mac_address:hardware-address"}
+
+	// 6rd run: if a bssid empty we cannot determine roaming or channel swap
+	wlanCheck.Run()
+	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+
+	// now both bssid are empty
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "ssid",
+			bssid:        "",
+			channel:      7,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
+		}, nil
+	}
+
+	expectedTags = []string{"ssid:ssid", "bssid:unknown", "mac_address:hardware-address"}
+
+	// 7rd run: if a bssid empty we cannot determine roaming or channel swap
+	wlanCheck.Run()
+	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
 }
 
 func TestWLANNoMetricsWhenWiFiInterfaceInactive(t *testing.T) {
 	// setup mocks
-	getWiFiInfo = func() (WiFiInfo, error) {
-		return WiFiInfo{
-			Rssi:         10,
-			Ssid:         "ssid-1",
-			Bssid:        "test-bssid",
-			Channel:      1,
-			Noise:        20,
-			TransmitRate: 4.0,
-			MacAddress:   "hardware-address",
-			PHYMode:      "None",
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "ssid-1",
+			bssid:        "test-bssid",
+			channel:      1,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "None",
 		}, nil
 	}
 
@@ -455,4 +787,138 @@ func TestWLANNoMetricsWhenWiFiInterfaceInactive(t *testing.T) {
 
 	mockSender.AssertNumberOfCalls(t, "Gauge", 0)
 	mockSender.AssertNumberOfCalls(t, "Count", 0)
+}
+
+func TestWLANNoiseValidDisabled(t *testing.T) {
+	// setup mocks
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "test-ssid",
+			bssid:        "test-bssid",
+			channel:      1,
+			noise:        20,
+			noiseValid:   false,
+			transmitRate: 4.0,
+			macAddress:   "hardware-address",
+			phyMode:      "802.11ac",
+		}, nil
+	}
+
+	defer func() {
+		getWiFiInfo = GetWiFiInfo
+	}()
+
+	wlanCheck := new(WLANCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	wlanCheck.Run()
+	mockSender.AssertMetricMissing(t, "Gauge", "wlan.noise")
+}
+
+func TestWLANNoiseValidEnabled(t *testing.T) {
+	// setup mocks
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:             10,
+			ssid:             "test-ssid",
+			bssid:            "test-bssid",
+			channel:          1,
+			noise:            20,
+			noiseValid:       true,
+			transmitRate:     4.0,
+			receiveRate:      5.0,
+			receiveRateValid: false,
+			macAddress:       "hardware-address",
+			phyMode:          "802.11ac",
+		}, nil
+	}
+
+	defer func() {
+		getWiFiInfo = GetWiFiInfo
+	}()
+
+	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:hardware-address"}
+
+	wlanCheck := new(WLANCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	wlanCheck.Run()
+	mockSender.AssertMetric(t, "Gauge", "wlan.noise", 20.0, "", expectedTags)
+}
+
+func TestWLANReceiveRateValidDisabled(t *testing.T) {
+	// setup mocks
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:             10,
+			ssid:             "test-ssid",
+			bssid:            "test-bssid",
+			channel:          1,
+			noise:            20,
+			noiseValid:       true,
+			transmitRate:     4.0,
+			receiveRate:      5.0,
+			receiveRateValid: false,
+			macAddress:       "hardware-address",
+			phyMode:          "802.11ac",
+		}, nil
+	}
+
+	defer func() {
+		getWiFiInfo = GetWiFiInfo
+	}()
+
+	wlanCheck := new(WLANCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	wlanCheck.Run()
+	mockSender.AssertMetricMissing(t, "Gauge", "wlan.receive_rate")
+}
+
+func TestWLANReceiveRateValid(t *testing.T) {
+	// setup mocks
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{
+			rssi:             10,
+			ssid:             "test-ssid",
+			bssid:            "test-bssid",
+			channel:          1,
+			noise:            20,
+			noiseValid:       true,
+			transmitRate:     4.0,
+			receiveRate:      5.0,
+			receiveRateValid: true,
+			macAddress:       "hardware-address",
+			phyMode:          "802.11ac",
+		}, nil
+	}
+
+	defer func() {
+		getWiFiInfo = GetWiFiInfo
+	}()
+
+	expectedTags := []string{"ssid:test-ssid", "bssid:test-bssid", "mac_address:hardware-address"}
+
+	wlanCheck := new(WLANCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	wlanCheck.Run()
+	mockSender.AssertMetric(t, "Gauge", "wlan.receive_rate", 5.0, "", expectedTags)
 }

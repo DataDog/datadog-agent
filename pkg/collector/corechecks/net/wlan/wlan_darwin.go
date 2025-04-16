@@ -52,7 +52,7 @@ func (phy phyMode) String() string {
 	}
 }
 
-func GetWiFiInfo() (WiFiInfo, error) {
+func GetWiFiInfo() (wifiInfo, error) {
 	info := C.GetWiFiInformation()
 
 	ssid := C.GoString(info.ssid)
@@ -74,15 +74,16 @@ func GetWiFiInfo() (WiFiInfo, error) {
 		C.free(unsafe.Pointer(info.errorMessage))
 	}
 
-	wifiInfo := WiFiInfo{
-		Rssi:         int(info.rssi),
-		Ssid:         ssid,
-		Bssid:        bssid,
-		Channel:      int(info.channel),
-		Noise:        int(info.noise),
-		TransmitRate: float64(info.transmitRate), // in Mbps
-		MacAddress:   hardwareAddress,
-		PHYMode:      phyMode(info.activePHYMode).String(),
+	wifiInfo := wifiInfo{
+		rssi:         int(info.rssi),
+		ssid:         ssid,
+		bssid:        bssid,
+		channel:      int(info.channel),
+		noise:        int(info.noise),
+		noiseValid:   true,
+		transmitRate: float64(info.transmitRate), // in Mbps
+		macAddress:   hardwareAddress,
+		phyMode:      phyMode(info.activePHYMode).String(),
 	}
 
 	var err error

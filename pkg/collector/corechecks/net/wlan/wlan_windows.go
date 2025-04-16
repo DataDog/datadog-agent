@@ -673,26 +673,27 @@ func getFirstConnectedWlanInfo() (*wlanInfo, error) {
 	return nil, nil
 }
 
-func GetWiFiInfo() (WiFiInfo, error) {
+func GetWiFiInfo() (wifiInfo, error) {
 	wi, err := getFirstConnectedWlanInfo()
 	if err != nil {
-		return WiFiInfo{}, err
+		return wifiInfo{}, err
 	}
 
-	// If no connected WiFi interface found, return empty WiFiInfo
+	// If no connected WiFi interface found, return empty wifiInfo
 	if wi == nil {
-		return WiFiInfo{PHYMode: "None"}, nil
+		return wifiInfo{phyMode: "None"}, nil
 	}
 
 	// For majority of cases for connected WiFi interface, return its details
-	return WiFiInfo{
-		Rssi:         int(wi.rssi),
-		Ssid:         wi.ssid,
-		Bssid:        wi.bssid,
-		Channel:      int(wi.channel),
-		Noise:        0, // Noise (aka Interference or SNR) are not available on Windows (not found in API or other methods)
-		TransmitRate: float64(wi.txRate),
-		MacAddress:   wi.adapterMac,
-		PHYMode:      wi.phy,
+	return wifiInfo{
+		rssi:             int(wi.rssi),
+		ssid:             wi.ssid,
+		bssid:            wi.bssid,
+		channel:          int(wi.channel),
+		transmitRate:     float64(wi.txRate),
+		receiveRate:      float64(wi.rxRate),
+		receiveRateValid: true,
+		macAddress:       wi.adapterMac,
+		phyMode:          wi.phy,
 	}, nil
 }
