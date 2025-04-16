@@ -20,7 +20,9 @@ static void __attribute__((always_inline)) fill_container_context(struct proc_ca
 }
 
 static __attribute__((always_inline)) int is_container_id_valid(const container_id_t id) {
+#ifndef USE_FENTRY
 #pragma unroll
+#endif
     for (int i = 0; i < CONTAINER_ID_LEN; i++) {
         if (!_isxdigit(id[i])) {
             return 0;
