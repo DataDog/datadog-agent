@@ -188,8 +188,11 @@ func (r *recommenderClient) buildWorkloadRecommendationRequest(dpa model.PodAuto
 	if len(recommenderConfig.Settings) > 0 {
 		req.Settings = make(map[string]*structpb.Value)
 		for k, v := range recommenderConfig.Settings {
-			v := v.(string)
-			req.Settings[k] = structpb.NewStringValue(v)
+			if strVal, ok := v.(string); ok {
+				req.Settings[k] = structpb.NewStringValue(strVal)
+			} else {
+				log.Debugf("Invalid type for setting %s: expected string, got %T", k, v)
+			}
 		}
 	}
 
