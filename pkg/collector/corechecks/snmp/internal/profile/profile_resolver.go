@@ -20,7 +20,6 @@ var (
 	profileExpVar = expvar.NewMap("snmpProfileErrors")
 )
 
-// TODO: PROFILE
 func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileConfigMap, bool) {
 	rawProfiles := mergeProfiles(defaultProfiles, userProfiles)
 	userExpandedProfiles, haveLegacyProfile := normalizeProfiles(rawProfiles, defaultProfiles)

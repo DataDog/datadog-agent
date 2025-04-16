@@ -152,6 +152,8 @@ type InstanceConfig struct {
 	// `interface_configs` option is not supported by SNMP corecheck autodiscovery (`network_address`)
 	// it's only supported for single device instance (`ip_address`)
 	InterfaceConfigs InterfaceConfigs `yaml:"interface_configs"`
+
+	Loader string `yaml:"loader"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
@@ -433,6 +435,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, err
 	}
 
+	var haveLegacyProfile bool
 	if initConfig.UseRCProfiles {
 		if rcClient == nil {
 			return nil, fmt.Errorf("rc client not initialized, cannot use rc profiles")
@@ -447,12 +450,13 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		}
 		c.ProfileProvider, err = profile.NewRCProvider(rcClient)
 	} else {
-		var haveLegacyProfile bool
 		c.ProfileProvider, haveLegacyProfile, err = profile.GetProfileProvider(initConfig.Profiles)
-		// TODO: PROFILE
 	}
 	if err != nil {
 		return nil, err
+	}
+	if haveLegacyProfile && instance.Loader == "" {
+		return nil, fmt.Errorf("legacy profile detected with no loader specified, falling back to the Python loader")
 	}
 
 	// profile configs
