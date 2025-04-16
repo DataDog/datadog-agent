@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
-func newPodEvent(ns, deployment, podName string, containerNames []string) workloadmeta.Event {
+func newFakeWLMPodEvent(ns, deployment, podName string, containerNames []string) workloadmeta.Event {
 	containers := []workloadmeta.OrchestratorContainer{}
 	for _, c := range containerNames {
 		containers = append(containers, workloadmeta.OrchestratorContainer{

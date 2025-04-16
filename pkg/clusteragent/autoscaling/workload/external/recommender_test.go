@@ -35,7 +35,7 @@ func TestProcess(t *testing.T) {
 
 	// setup podwatcher
 	pw := workload.NewPodWatcher(nil, nil)
-	pw.HandleEvent(newPodEvent("default", "test-deployment", "pod1", []string{"container-name1", "container-name2"}))
+	pw.HandleEvent(newFakeWLMPodEvent("default", "test-deployment", "pod1", []string{"container-name1", "container-name2"}))
 
 	recommendationReplicas := int32(3)
 	recommendationTimestamp := time.Now()

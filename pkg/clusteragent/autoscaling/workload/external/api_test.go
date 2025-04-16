@@ -414,7 +414,7 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 			}
 
 			pw := workload.NewPodWatcher(nil, nil)
-			pw.HandleEvent(newPodEvent(tt.dpa.Namespace, tt.dpa.Spec.TargetRef.Name, "pod1", []string{"container-name1"}))
+			pw.HandleEvent(newFakeWLMPodEvent(tt.dpa.Namespace, tt.dpa.Spec.TargetRef.Name, "pod1", []string{"container-name1"}))
 
 			client := newRecommenderClient(pw)
 			client.client = server.Client()
