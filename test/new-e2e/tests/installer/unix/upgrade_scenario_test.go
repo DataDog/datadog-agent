@@ -119,10 +119,10 @@ const (
 	unknownAgentImageVersion = "7.52.1-1"
 
 	// TODO: when 7.65 & the next version is out, use the latest prod images
-	previousAgentImageVersion     = "7.66.0-devel.git.313.dec6082.pipeline.61295751-1"
-	latestAgentImageVersion       = "7.66.0-devel.git.315.5ae3478.pipeline.61423672-1"
-	previousInstallerImageVersion = "7.66.0-devel.git.313.dec6082.pipeline.61295751-1"
-	latestInstallerImageVersion   = "7.66.0-devel.git.315.5ae3478.pipeline.61423672-1"
+	previousAgentImageVersion     = "7.66.0~devel.git.522.81f06ad-1"
+	latestAgentImageVersion       = "7.66.0~devel.git.523.d844b98.pipeline.62328248-1"
+	previousInstallerImageVersion = "7.66.0~devel.git.522.81f06ad-1"
+	latestInstallerImageVersion   = "7.66.0~devel.git.523.d844b98.pipeline.62328248-1"
 )
 
 func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {

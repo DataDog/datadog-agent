@@ -167,9 +167,12 @@ func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, na
 	}
 	pkgPath := h.getPath(pkg, packageType, experiment)
 	if pkg == "datadog-agent" && runtime.GOOS == "linux" && name != "preInstall" {
-		hooksCLIPath = filepath.Join(pkgPath, "embedded", "bin", "installer")
-		if _, err := os.Stat(hooksCLIPath); os.IsNotExist(err) {
-			return fmt.Errorf("failed to find installer to run hooks at (%s): %w", hooksCLIPath, err)
+		_, err := os.Stat(hooksCLIPath)
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("failed to check if installer exists at (%s): %w", hooksCLIPath, err)
+		}
+		if !os.IsNotExist(err) {
+			hooksCLIPath = filepath.Join(pkgPath, "embedded", "bin", "installer")
 		}
 	}
 	hookCtx := HookContext{
