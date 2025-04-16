@@ -264,7 +264,7 @@ func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("could not generate header text for underlying slice element type: %w", err)
 	}
-	if slice == nil || len(slice.ParameterPieces) == 0 || slice.ParameterPieces[1] == nil {
+	if len(slice.ParameterPieces) == 0 || slice.ParameterPieces[1] == nil {
 		return fmt.Errorf("could not read slice length parameter")
 	}
 	excludePopPointerAddressExpressions(&slice.ParameterPieces[1].LocationExpressions)
@@ -306,7 +306,7 @@ func generateStringHeader(stringParam *ditypes.Parameter, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("could not execute template for generating string header: %w", err)
 	}
-	if stringParam == nil || len(stringParam.ParameterPieces) == 0 || stringParam.ParameterPieces[1] == nil {
+	if len(stringParam.ParameterPieces) == 0 || stringParam.ParameterPieces[1] == nil {
 		return fmt.Errorf("could not read string length parameter")
 	}
 	excludePopPointerAddressExpressions(&stringParam.ParameterPieces[1].LocationExpressions)
