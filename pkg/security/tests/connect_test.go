@@ -11,10 +11,10 @@ package tests
 import (
 	"context"
 	"fmt"
+	"golang.org/x/net/nettest"
 	"net"
 	"testing"
 
-	"golang.org/x/net/nettest"
 	"golang.org/x/sys/unix"
 
 	"github.com/stretchr/testify/assert"

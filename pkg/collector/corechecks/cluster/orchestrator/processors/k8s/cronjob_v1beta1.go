@@ -33,6 +33,16 @@ func (h *CronJobV1Beta1Handlers) AfterMarshalling(ctx processors.ProcessorContex
 	return
 }
 
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *CronJobV1Beta1Handlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*batchv1beta1.CronJob)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
+	return
+}
+
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
 func (h *CronJobV1Beta1Handlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
@@ -58,7 +68,7 @@ func (h *CronJobV1Beta1Handlers) BuildMessageBody(ctx processors.ProcessorContex
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *CronJobV1Beta1Handlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*batchv1beta1.CronJob)
-	return k8sTransformers.ExtractCronJobV1Beta1(r)
+	return k8sTransformers.ExtractCronJobV1Beta1(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

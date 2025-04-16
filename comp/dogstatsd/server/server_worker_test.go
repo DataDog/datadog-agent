@@ -255,13 +255,13 @@ func TestParseMetricMessageTelemetry(t *testing.T) {
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 
 	assert.Equal(t, float64(0), s.tlmProcessedOk.Get())
-	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", "", false)
+	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", 0, "", false)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
 	assert.Equal(t, float64(1), s.tlmProcessedOk.Get())
 
 	assert.Equal(t, float64(0), s.tlmProcessedError.Get())
-	samples, err = s.parseMetricMessage(samples, parser, nil, "", "", false)
+	samples, err = s.parseMetricMessage(samples, parser, nil, "", 0, "", false)
 	assert.Error(t, err, "invalid dogstatsd message format")
 	assert.Len(t, samples, 1)
 	assert.Equal(t, float64(1), s.tlmProcessedError.Get())
@@ -387,11 +387,11 @@ func TestParseEventMessageTelemetry(t *testing.T) {
 	assert.True(t, ok)
 
 	// three successful events
-	s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "")
-	s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "")
-	s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "")
+	s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "", 0)
+	s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "", 0)
+	s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "", 0)
 	// one error event
-	_, err := s.parseEventMessage(parser, nil, "")
+	_, err := s.parseEventMessage(parser, nil, "", 0)
 	assert.Error(t, err)
 
 	processedEvents, err := telemetryMock.GetCountMetric("dogstatsd", "processed")
@@ -423,11 +423,11 @@ func TestParseServiceCheckMessageTelemetry(t *testing.T) {
 	assert.True(t, ok)
 
 	// three successful events
-	s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "")
-	s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "")
-	s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "")
+	s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "", 0)
+	s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "", 0)
+	s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "", 0)
 	// one error event
-	_, err := s.parseServiceCheckMessage(parser, nil, "")
+	_, err := s.parseServiceCheckMessage(parser, nil, "", 0)
 	assert.Error(t, err)
 
 	processedEvents, err := telemetryMock.GetCountMetric("dogstatsd", "processed")
@@ -463,12 +463,12 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 
 		parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 		samples := []metrics.MetricSample{}
-		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "test_container", "1", false)
+		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "test_container", 0, "1", false)
 		assert.NoError(err)
 		assert.Len(samples, 1)
 
 		// one thing should have been stored when we parse a metric
-		samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:555|g"), "test_container", "1", true)
+		samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:555|g"), "test_container", 0, "1", true)
 		assert.NoError(err)
 		assert.Len(samples, 2)
 		assert.Len(s.cachedOriginCounters, 1, "one entry should have been cached")
@@ -476,7 +476,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Equal(s.cachedOrder[0].origin, "test_container")
 
 		// when we parse another metric (different value) with same origin, cache should contain only one entry
-		samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "test_container", "2", true)
+		samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "test_container", 0, "2", true)
 		assert.NoError(err)
 		assert.Len(samples, 3)
 		assert.Len(s.cachedOriginCounters, 1, "one entry should have been cached")
@@ -486,7 +486,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "test_container"})
 
 		// when we parse another metric (different value) but with a different origin, we should store a new entry
-		samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "another_container", "3", true)
+		samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "another_container", 0, "3", true)
 		assert.NoError(err)
 		assert.Len(samples, 4)
 		assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached")
@@ -500,7 +500,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 
 		// oldest one should be removed once we reach the limit of the cache
 		maxOriginCounters = 2
-		samples, err = s.parseMetricMessage(samples, parser, []byte("yetanothermetric:525|g"), "third_origin", "3", true)
+		samples, err = s.parseMetricMessage(samples, parser, []byte("yetanothermetric:525|g"), "third_origin", 0, "3", true)
 		assert.NoError(err)
 		assert.Len(samples, 5)
 		assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached, one has been evicted already")
@@ -514,7 +514,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 
 		// oldest one should be removed once we reach the limit of the cache
 		maxOriginCounters = 2
-		samples, err = s.parseMetricMessage(samples, parser, []byte("blablabla:555|g"), "fourth_origin", "4", true)
+		samples, err = s.parseMetricMessage(samples, parser, []byte("blablabla:555|g"), "fourth_origin", 0, "4", true)
 		assert.NoError(err)
 		assert.Len(samples, 6)
 		assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached, two have been evicted already")

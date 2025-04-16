@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(PROC) Fix revive linter
+// Package resolver resolves local Raddrs
 package resolver
 
 import (
@@ -52,6 +52,7 @@ type LocalResolver struct {
 	done               chan bool
 }
 
+// NewLocalResolver creates a new LocalResolver
 func NewLocalResolver(containerProvider proccontainers.ContainerProvider, clock clock.Clock, maxAddrCacheSize, maxPidCacheSize int) *LocalResolver {
 	return &LocalResolver{
 		ContainerProvider:  containerProvider,
@@ -64,12 +65,14 @@ func NewLocalResolver(containerProvider proccontainers.ContainerProvider, clock 
 	}
 }
 
+// Run the resolver
 func (l *LocalResolver) Run() {
 	pullContainerFrequency := 10 * time.Second
 	ticker := l.Clock.Ticker(pullContainerFrequency)
 	go l.pullContainers(ticker)
 }
 
+// Stop the resolver
 func (l *LocalResolver) Stop() {
 	l.done <- true
 }

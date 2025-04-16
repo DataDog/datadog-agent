@@ -39,12 +39,12 @@ func ParseNDMFlowPayload(payload api.Payload) (ndmflows []*NDMFlow, err error) {
 	if len(payload.Data) == 0 || bytes.Equal(payload.Data, []byte("{}")) {
 		return []*NDMFlow{}, nil
 	}
-	enflated, err := enflate(payload.Data, payload.Encoding)
+	inflated, err := inflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, err
 	}
 	ndmflows = []*NDMFlow{}
-	err = json.Unmarshal(enflated, &ndmflows)
+	err = json.Unmarshal(inflated, &ndmflows)
 	if err != nil {
 		return nil, err
 	}

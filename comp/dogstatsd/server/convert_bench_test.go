@@ -18,7 +18,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func buildRawSample(tagCount int, multipleValues bool) []byte {
@@ -61,7 +61,7 @@ func runParseMetricBenchmark(b *testing.B, multipleValues bool) {
 					continue
 				}
 
-				benchSamples = enrichMetricSample(samples, parsed, "", "", conf)
+				benchSamples = enrichMetricSample(samples, parsed, "", 0, "", conf)
 			}
 		})
 	}
@@ -78,7 +78,7 @@ func BenchmarkParseMultipleMetric(b *testing.B) {
 type ServerDeps struct {
 	fx.In
 	Config    config.Component
-	WMeta     optional.Option[workloadmeta.Component]
+	WMeta     option.Option[workloadmeta.Component]
 	Telemetry telemetry.Component
 }
 

@@ -249,16 +249,16 @@ func (nr *Resolver) SaveNetworkNamespaceHandleLazy(nsID uint32, nsPathFunc func(
 		return nil, false
 	}
 
-	nsPath := nsPathFunc()
-	if nsPath == nil {
-		return nil, false
-	}
-
 	nr.Lock()
 	defer nr.Unlock()
 
 	netns, found := nr.networkNamespaces.Get(nsID)
 	if !found {
+		nsPath := nsPathFunc()
+		if nsPath == nil {
+			return nil, false
+		}
+
 		var err error
 		netns, err = NewNetworkNamespaceWithPath(nsID, nsPath)
 		if err != nil {
@@ -271,6 +271,12 @@ func (nr *Resolver) SaveNetworkNamespaceHandleLazy(nsID uint32, nsPathFunc func(
 			// we already have a handle for this network namespace, ignore
 			return netns, false
 		}
+
+		nsPath := nsPathFunc()
+		if nsPath == nil {
+			return nil, false
+		}
+
 		if err := netns.openHandle(nsPath); err != nil {
 			// we'll get this namespace another time, ignore
 			return nil, false

@@ -8,12 +8,11 @@
 package autoscalers
 
 import (
-	"errors"
 	"fmt"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	datadogclientmock "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/mock"
@@ -24,12 +23,14 @@ import (
 // TestDatadogExternalQuery tests that the outputs gotten from Datadog are appropriately dealt with.
 // Worth noting: We check that the penultimate point is considered and also that even if buckets don't align, we can retrieve the last value.
 func TestDatadogExternalQuery(t *testing.T) {
+	testTime := time.Now()
+
 	tests := []struct {
-		name       string
-		queryfunc  func(from, to int64, query string) ([]datadog.Series, error)
-		metricName []string
-		points     map[string]Point
-		err        error
+		name           string
+		queryfunc      func(from, to int64, query string) ([]datadog.Series, error)
+		queries        []string
+		expectedPoints map[string]Point
+		err            error
 	}{
 		{
 			"metricName is empty",
@@ -45,7 +46,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 			},
 			[]string{"avg:mymetric{foo:bar}.rollup(30)"},
 			nil,
-			fmt.Errorf("error while executing metric query avg:mymetric{foo:bar}.rollup(30): Rate limit of 300 requests in 3600 seconds"),
+			fmt.Errorf("Rate limit of 300 requests in 3600 seconds"),
 		},
 		{
 			"metrics with different granularities Datadog",
@@ -63,7 +64,8 @@ func TestDatadogExternalQuery(t *testing.T) {
 						Scope:      pointer.Ptr("foo:bar,baz:ar"),
 						Metric:     pointer.Ptr("mymetric"),
 						QueryIndex: pointer.Ptr(0),
-					}, {
+					},
+					{
 						Points: []datadog.DataPoint{
 							makePartialPoints(10000),
 							makePoints(110000, 70),
@@ -74,7 +76,8 @@ func TestDatadogExternalQuery(t *testing.T) {
 						Scope:      pointer.Ptr("foo:baz"),
 						Metric:     pointer.Ptr("mymetric2"),
 						QueryIndex: pointer.Ptr(1),
-					}, {
+					},
+					{
 						Points: []datadog.DataPoint{
 							makePartialPoints(10000),
 							makePoints(110000, 3),
@@ -86,9 +89,23 @@ func TestDatadogExternalQuery(t *testing.T) {
 						Metric:     pointer.Ptr("my.aws.metric"),
 						QueryIndex: pointer.Ptr(2),
 					},
+					{
+						Points: []datadog.DataPoint{
+							makePartialPoints(10000),
+							makePartialPoints(20000),
+							makePartialPoints(30000),
+							makePartialPoints(40000),
+						},
+						Scope:      pointer.Ptr("foo:empty"),
+						Metric:     pointer.Ptr("another.metric"),
+						Start:      pointer.Ptr[float64](10000000),
+						End:        pointer.Ptr[float64](40000000),
+						Interval:   pointer.Ptr(2),
+						QueryIndex: pointer.Ptr(3),
+					},
 				}, nil
 			},
-			[]string{"mymetric{foo:bar,baz:ar}", "mymetric2{foo:baz}", "my.aws.metric{ba:bar}"},
+			[]string{"mymetric{foo:bar,baz:ar}", "mymetric2{foo:baz}", "my.aws.metric{ba:bar}", "another.metric{foo:empty}"},
 			map[string]Point{
 				"mymetric{foo:bar,baz:ar}": {
 					Value:     42.0,
@@ -104,6 +121,11 @@ func TestDatadogExternalQuery(t *testing.T) {
 					Value:     3.0,
 					Valid:     true,
 					Timestamp: 110,
+				},
+				"another.metric{foo:empty}": {
+					Valid:     false,
+					Timestamp: testTime.Unix(),
+					Error:     NewProcessingError("only null values found in API response (4 points), check data is available in the last 300 seconds (interval was 2)"),
 				},
 			},
 			nil,
@@ -166,9 +188,10 @@ func TestDatadogExternalQuery(t *testing.T) {
 			[]string{"sum:system.io.rkb_s{device:sda} + sum:system.io.rkb_s{device:sdb}by{host}", "mymetric2{foo:baz}", "my.aws.metric{ba:bar}"},
 			map[string]Point{
 				"sum:system.io.rkb_s{device:sda} + sum:system.io.rkb_s{device:sdb}by{host}": {
-					Value:     42.0,
+					Value:     0,
 					Valid:     false,
-					Timestamp: time.Now().Unix(),
+					Timestamp: testTime.Unix(),
+					Error:     NewProcessingError("multiple series found. Please change your query to return a single serie"),
 				},
 				"mymetric2{foo:baz}": {
 					Value:     70.0,
@@ -235,7 +258,8 @@ func TestDatadogExternalQuery(t *testing.T) {
 				"mymetric2{foo:baz}": {
 					Value:     0.0,
 					Valid:     false,
-					Timestamp: time.Now().Unix(),
+					Timestamp: testTime.Unix(),
+					Error:     NewProcessingError("no serie was found for this query in API Response, check Cluster Agent logs for QueryIndex errors"),
 				},
 				"my.aws.metric{ba:bar}": {
 					Value:     3.0,
@@ -251,91 +275,12 @@ func TestDatadogExternalQuery(t *testing.T) {
 			datadogClientComp := datadogclientmock.New(t).Comp
 			datadogClientComp.SetQueryMetricsFunc(test.queryfunc)
 			p := Processor{datadogClient: datadogClientComp}
-			points, err := p.queryDatadogExternal(test.metricName, time.Duration(pkgconfigsetup.Datadog().GetInt64("external_metrics_provider.bucket_size"))*time.Second)
+			points, err := p.queryDatadogExternal(testTime, test.queries, time.Duration(pkgconfigsetup.Datadog().GetInt64("external_metrics_provider.bucket_size"))*time.Second)
 			if test.err != nil {
-				require.EqualError(t, test.err, err.Error())
+				assert.EqualError(t, test.err, err.Error())
 			}
 
-			require.Len(t, test.points, len(points))
-			for n, p := range test.points {
-				require.Equal(t, p.Valid, points[n].Valid)
-				require.Equal(t, p.Value, points[n].Value)
-				if !p.Valid {
-					require.WithinDuration(t, time.Now(), time.Unix(points[n].Timestamp, 0), 5*time.Second)
-				}
-			}
-		})
-	}
-}
-
-func TestIsRateLimitError(t *testing.T) {
-
-	tests := []struct {
-		name        string
-		err         error
-		isRateLimit bool
-	}{
-		{
-			name:        "nil error",
-			err:         nil,
-			isRateLimit: false,
-		},
-		{
-			name:        "empty error",
-			err:         errors.New(""),
-			isRateLimit: false,
-		},
-		{
-			name:        "rate limit error",
-			err:         errors.New("429 Too Many Requests"),
-			isRateLimit: true,
-		},
-		{
-			name:        "rate limit error variant",
-			err:         errors.New("API error 429 Too Many Requests: "),
-			isRateLimit: true,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, IsRateLimitError(test.err), test.isRateLimit)
-		})
-	}
-}
-
-func TestIsUnprocessableEntityError(t *testing.T) {
-
-	tests := []struct {
-		name                  string
-		err                   error
-		isUnprocessableEntity bool
-	}{
-		{
-			name:                  "nil error",
-			err:                   nil,
-			isUnprocessableEntity: false,
-		},
-		{
-			name:                  "empty error",
-			err:                   errors.New(""),
-			isUnprocessableEntity: false,
-		},
-		{
-			name:                  "unprocessable entity error",
-			err:                   errors.New("422 Unprocessable Entity"),
-			isUnprocessableEntity: true,
-		},
-		{
-			name:                  "unprocessable entity error variant",
-			err:                   errors.New("API error 422 Unprocessable Entity: "),
-			isUnprocessableEntity: true,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, isUnprocessableEntityError(test.err), test.isUnprocessableEntity)
+			assert.EqualValues(t, test.expectedPoints, points)
 		})
 	}
 }

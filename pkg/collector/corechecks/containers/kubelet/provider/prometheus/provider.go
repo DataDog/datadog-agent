@@ -12,8 +12,10 @@ package prometheus
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -98,9 +100,7 @@ func NewProvider(config *common.KubeletConfig, transformers Transformers, scrape
 				wildcardMetrics = append(wildcardMetrics, val)
 			}
 		case map[string]string:
-			for k1, v1 := range val {
-				metricMappings[k1] = v1
-			}
+			maps.Copy(metricMappings, val)
 		case map[interface{}]interface{}:
 			for k1, v1 := range val {
 				if _, ok := k1.(string); !ok {
@@ -315,11 +315,8 @@ func (p *Provider) MetricTags(metric *model.Sample) []string {
 			continue
 		}
 
-		for i := range p.Config.ExcludeLabels {
-			if string(lName) == p.Config.ExcludeLabels[i] {
-				shouldExclude = true
-				break
-			}
+		if slices.Contains(p.Config.ExcludeLabels, string(lName)) {
+			shouldExclude = true
 		}
 		if shouldExclude {
 			continue

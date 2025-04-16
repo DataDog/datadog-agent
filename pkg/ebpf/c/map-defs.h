@@ -34,6 +34,9 @@
 #define BPF_HASH_MAP(name, key_type, value_type, max_entries) \
     BPF_MAP(name, BPF_MAP_TYPE_HASH, key_type, value_type, max_entries, 0, 0, INCLUDE_KEY_TYPE)
 
+#define BPF_HASH_MAP_FLAGS(name, key_type, value_type, max_entries, map_flags) \
+    BPF_MAP(name, BPF_MAP_TYPE_HASH, key_type, value_type, max_entries, 0, map_flags, INCLUDE_KEY_TYPE)
+
 #define BPF_PROG_ARRAY(name, max_entries) \
     BPF_MAP(name, BPF_MAP_TYPE_PROG_ARRAY, u32, u32, max_entries, 0, 0, INCLUDE_KEY_TYPE)
 

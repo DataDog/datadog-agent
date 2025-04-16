@@ -6,7 +6,7 @@
 // Package configsync implements synchronizing the configuration using the core agent config API
 package configsync
 
-// team: agent-shared-components
+// team: agent-configuration
 
 // Component is the component type.
 type Component interface{}

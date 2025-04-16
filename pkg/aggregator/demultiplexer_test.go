@@ -14,6 +14,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -22,8 +24,9 @@ import (
 	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
+	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
+	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -174,7 +177,7 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	opts := demuxTestOptions()
 	opts.FlushInterval = time.Hour
 	deps := createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
-	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorFwd, opts, deps.EventPlatformFwd, deps.HaAgent, deps.Compressor, nooptagger.NewComponent(), "")
+	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorFwd, opts, deps.EventPlatformFwd, deps.HaAgent, deps.Compressor, deps.Tagger, "")
 	demux.Aggregator().tlmContainerTagsEnabled = false
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)
@@ -282,6 +285,7 @@ type internalDemutiplexerDeps struct {
 	OrchestratorForwarder orchestratorForwarder.Component
 	Eventplatform         eventplatform.Component
 	Compressor            compression.Component
+	Tagger                tagger.Component
 }
 
 func createDemuxDepsWithOrchestratorFwd(
@@ -295,8 +299,10 @@ func createDemuxDepsWithOrchestratorFwd(
 		orchestratorForwarderImpl.Module(orchestratorParams),
 		eventplatformimpl.Module(eventPlatformParams),
 		eventplatformreceiverimpl.Module(),
-		compressionmock.MockModule(),
+		logscompressionmock.MockModule(),
+		metricscompressionmock.MockModule(),
 		haagentmock.Module(),
+		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 	)
 	deps := fxutil.Test[internalDemutiplexerDeps](t, modules)
 
@@ -304,6 +310,8 @@ func createDemuxDepsWithOrchestratorFwd(
 		TestDeps:         deps.TestDeps,
 		Demultiplexer:    InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, deps.HaAgent, deps.Compressor, nooptagger.NewComponent(), ""),
 		OrchestratorFwd:  deps.OrchestratorForwarder,
+		Compressor:       deps.Compressor,
 		EventPlatformFwd: deps.Eventplatform,
+		Tagger:           deps.Tagger,
 	}
 }

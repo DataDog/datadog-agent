@@ -26,7 +26,9 @@ type ProgOpts struct {
 }
 
 // DefaultProgOpts default options
-var DefaultProgOpts ProgOpts
+func DefaultProgOpts() ProgOpts {
+	return ProgOpts{}
+}
 
 // BPFFilterToInsts compile a bpf filter expression
 func BPFFilterToInsts(_ int, _ string, _ ProgOpts) (asm.Instructions, error) {

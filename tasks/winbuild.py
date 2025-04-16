@@ -19,8 +19,9 @@ OPT_SOURCE_DIR = os.path.join('C:\\', 'opt')
 def agent_package(
     ctx,
     flavor=AgentFlavor.base.name,
-    release_version="nightly-a7",
+    release_version="nightly",
     skip_deps=False,
+    build_upgrade=False,
 ):
     # Build agent
     omnibus_build(
@@ -30,8 +31,16 @@ def agent_package(
         skip_deps=skip_deps,
     )
 
+    # Build installer
+    omnibus_build(
+        ctx,
+        release_version=release_version,
+        skip_deps=skip_deps,
+        target_project="installer",
+    )
+
     # Package Agent into MSI
-    build_agent_msi(ctx, release_version=release_version)
+    build_agent_msi(ctx, release_version=release_version, build_upgrade=build_upgrade)
 
     # Package MSI into OCI
     if AgentFlavor[flavor] == AgentFlavor.base:
@@ -41,7 +50,7 @@ def agent_package(
 @task
 def installer_package(
     ctx,
-    release_version="nightly-a7",
+    release_version="nightly",
     skip_deps=False,
 ):
     # Build installer

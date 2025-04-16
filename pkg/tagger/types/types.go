@@ -6,25 +6,13 @@
 // Package types implements the types used by the Tagger for Origin Detection.
 package types
 
-// ProductOrigin is the origin of the product that sent the entity.
-type ProductOrigin int
-
-const (
-	// ProductOriginDogStatsDLegacy is the ProductOrigin for DogStatsD in Legacy mode.
-	// TODO: remove this when dogstatsd_origin_detection_unified is enabled by default
-	ProductOriginDogStatsDLegacy ProductOrigin = iota
-	// ProductOriginDogStatsD is the ProductOrigin for DogStatsD.
-	ProductOriginDogStatsD ProductOrigin = iota
-	// ProductOriginAPM is the ProductOrigin for APM.
-	ProductOriginAPM ProductOrigin = iota
-)
+import "github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 
 // OriginInfo contains the Origin Detection information.
 type OriginInfo struct {
-	ContainerIDFromSocket string        // ContainerIDFromSocket is the origin resolved using Unix Domain Socket.
-	PodUID                string        // PodUID is the origin resolved from the Kubernetes Pod UID.
-	ContainerID           string        // ContainerID is the origin resolved from the container ID.
-	ExternalData          string        // ExternalData is the external data list.
-	Cardinality           string        // Cardinality is the cardinality of the resolved origin.
-	ProductOrigin         ProductOrigin // ProductOrigin is the product that sent the origin information.
+	ContainerIDFromSocket string                        // ContainerIDFromSocket is the origin resolved using Unix Domain Socket.
+	LocalData             origindetection.LocalData     // LocalData is the local data list.
+	ExternalData          origindetection.ExternalData  // ExternalData is the external data list.
+	Cardinality           string                        // Cardinality is the cardinality of the resolved origin.
+	ProductOrigin         origindetection.ProductOrigin // ProductOrigin is the product that sent the origin information.
 }

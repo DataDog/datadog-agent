@@ -7,6 +7,7 @@ package autodiscoveryimpl
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -111,7 +112,7 @@ func (cache *templateCache) del(tpl integration.Config) error {
 		} else {
 			for i, digest := range digests {
 				if digest == d {
-					cache.adIDToDigests[id] = append(digests[:i], digests[i+1:]...)
+					cache.adIDToDigests[id] = slices.Delete(digests, i, i+1)
 					break
 				}
 			}

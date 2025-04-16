@@ -21,11 +21,11 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func udsDatagramListenerFactory(packetOut chan packets.Packets, manager *packets.PoolManager[packets.Packet], cfg config.Component, pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (StatsdListener, error) {
-	return NewUDSDatagramListener(packetOut, manager, nil, cfg, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap, telemetryStore, packetsTelemetryStore, telemetry)
+	return NewUDSDatagramListener(packetOut, manager, nil, cfg, nil, option.None[workloadmeta.Component](), pidMap, telemetryStore, packetsTelemetryStore, telemetry)
 }
 
 func TestNewUDSDatagramListener(t *testing.T) {

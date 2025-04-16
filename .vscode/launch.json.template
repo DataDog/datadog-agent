@@ -50,5 +50,14 @@
                 }
             ]
         },
+        {
+            "name": "Build and deploy using Skaffold",
+            "type": "cloudcode.kubernetes",
+            "request": "launch",
+            "skaffoldConfig": "${workspaceFolder}/skaffold.yaml",
+            "watch": false,
+            "cleanUp": true,
+            "portForward": true
+        }
     ]
 }

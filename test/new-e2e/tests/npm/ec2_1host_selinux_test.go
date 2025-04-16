@@ -56,6 +56,8 @@ func (v *ec2VMSELinuxSuite) AfterTest(suiteName, testName string) {
 
 func (v *ec2VMSELinuxSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer v.CleanupOnSetupFailure()
 
 	v.Env().RemoteHost.MustExecute("sudo yum install -y bind-utils httpd-tools")
 	v.Env().RemoteHost.MustExecute("sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo")
@@ -99,7 +101,7 @@ func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM_DockerRequests() {
 // TestFakeIntakeNPM600cnxBucket_HostRequests Validate the agent can communicate with the (fake) backend and send connections
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
-//   - looking for n payloads and check if the last 2 have a maximum span of 100ms
+//   - looking for n payloads and check if the last 2 have a maximum span of 200ms
 func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
@@ -112,7 +114,7 @@ func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 // TestFakeIntakeNPM600cnxBucket_DockerRequests Validate the agent can communicate with the (fake) backend and send connections
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
-//   - looking for n payloads and check if the last 2 have a maximum span of 100ms
+//   - looking for n payloads and check if the last 2 have a maximum span of 200ms
 func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 

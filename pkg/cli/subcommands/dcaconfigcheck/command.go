@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/flare"
+	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -62,7 +62,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 }
 
 func run(_ log.Component, _ config.Component, cliParams *cliParams) error {
-	if err := flare.GetClusterAgentConfigCheck(color.Output, cliParams.verbose); err != nil {
+	if err := clusterAgentFlare.GetClusterAgentConfigCheck(color.Output, cliParams.verbose); err != nil {
 		return fmt.Errorf("the agent ran into an error while checking config: %w", err)
 	}
 

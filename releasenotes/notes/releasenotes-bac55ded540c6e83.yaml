@@ -1,0 +1,3 @@
+upgrade:
+  - |
+    ECS task collection is now enabled by default (see `ecs_task_collection_enabled` in the datadog.yaml configuration).

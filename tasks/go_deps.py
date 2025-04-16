@@ -222,11 +222,11 @@ def graph(
 
     Usage:
         Dependency graph of the trace-agent on Linux
-          inv -e go-deps.graph --build trace-agent --os linux
+          dda inv -e go-deps.graph --build trace-agent --os linux
         Reachability graph of the process-agent on Linux to k8s.io/... dependencies
-          inv -e go-deps.graph --build process-agent --os linux --target k8s.io/...
+          dda inv -e go-deps.graph --build process-agent --os linux --target k8s.io/...
         Dependency graph of workloadmeta on Linux when using the same build tags as the core-agent
-          inv -e go-deps.graph --build agent --os linux --entrypoint github.com/DataDog/datadog-agent/comp/core/workloadmeta/...:all
+          dda inv -e go-deps.graph --build agent --os linux --entrypoint github.com/DataDog/datadog-agent/comp/core/workloadmeta/...:all
     """
     if shutil.which("goda") is None:
         raise Exit(

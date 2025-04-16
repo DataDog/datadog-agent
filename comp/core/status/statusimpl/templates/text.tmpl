@@ -7,6 +7,9 @@
   {{- end }}
   Build arch: {{.build_arch}}
   Agent flavor: {{.flavor}}
+  {{- if .fips_status}}
+  FIPS Mode: {{.fips_status}}
+  {{- end }}
   {{- if .config.log_file}}
   Log File: {{.config.log_file}}
   {{- end }}

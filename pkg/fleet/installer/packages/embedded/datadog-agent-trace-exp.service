@@ -1,6 +1,8 @@
 [Unit]
-Description=Datadog Trace Agent Experiment
+Description=Datadog Trace Agent (APM) Experiment
+After=datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent-exp.service
+Conflicts=datadog-agent.service datadog-agent-trace.service
 
 [Service]
 Type=simple

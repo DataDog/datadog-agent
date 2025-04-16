@@ -41,9 +41,12 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.obfuscation.remove_stack_traces", false, "DD_APM_OBFUSCATION_REMOVE_STACK_TRACES")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.redis.enabled", true, "DD_APM_OBFUSCATION_REDIS_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.redis.remove_all_args", false, "DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS")
+	config.BindEnvAndSetDefault("apm_config.obfuscation.valkey.enabled", true, "DD_APM_OBFUSCATION_VALKEY_ENABLED")
+	config.BindEnvAndSetDefault("apm_config.obfuscation.valkey.remove_all_args", false, "DD_APM_OBFUSCATION_VALKEY_REMOVE_ALL_ARGS")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.memcached.enabled", true, "DD_APM_OBFUSCATION_MEMCACHED_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.memcached.keep_command", false, "DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.cache.enabled", true, "DD_APM_OBFUSCATION_CACHE_ENABLED")
+	config.BindEnvAndSetDefault("apm_config.obfuscation.cache.max_size", 5000000, "DD_APM_OBFUSCATION_CACHE_MAX_SIZE")
 	config.SetKnown("apm_config.filter_tags.require")
 	config.SetKnown("apm_config.filter_tags.reject")
 	config.SetKnown("apm_config.filter_tags_regex.require")
@@ -82,8 +85,29 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.compute_stats_by_span_kind", true, "DD_APM_COMPUTE_STATS_BY_SPAN_KIND")                           //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled", false, "DD_APM_INSTRUMENTATION_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES")
+	config.ParseEnvAsStringSlice("apm_config.instrumentation.enabled_namespaces", func(in string) []string {
+		var mappings []string
+		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
+			log.Errorf(`"apm_config.instrumentation.enabled_namespaces" can not be parsed: %v`, err)
+		}
+		return mappings
+	})
 	config.BindEnvAndSetDefault("apm_config.instrumentation.disabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES")
+	config.ParseEnvAsStringSlice("apm_config.instrumentation.disabled_namespaces", func(in string) []string {
+		var mappings []string
+		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
+			log.Errorf(`"apm_config.instrumentation.disabled_namespaces" can not be parsed: %v`, err)
+		}
+		return mappings
+	})
 	config.BindEnvAndSetDefault("apm_config.instrumentation.lib_versions", map[string]string{}, "DD_APM_INSTRUMENTATION_LIB_VERSIONS")
+	config.ParseEnvAsMapStringInterface("apm_config.instrumentation.lib_versions", func(in string) map[string]interface{} {
+		var mappings map[string]interface{}
+		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
+			log.Errorf(`"apm_config.instrumentation.lib_versions" can not be parsed: %v`, err)
+		}
+		return mappings
+	})
 	// Note(stanistan): The flag "DD_APM_INSTRUMENTATION_VERSION"
 	//                  will remain undocumented for the duration of the beta.
 	//                  We intend to only switch back to v1 if beta customers have issues
@@ -128,6 +152,14 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnv("apm_config.replace_tags", "DD_APM_REPLACE_TAGS")
 	config.BindEnv("apm_config.analyzed_spans", "DD_APM_ANALYZED_SPANS")
 	config.BindEnv("apm_config.ignore_resources", "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")
+	config.BindEnv("apm_config.instrumentation.targets", "DD_APM_INSTRUMENTATION_TARGETS")
+	config.ParseEnvAsSlice("apm_config.instrumentation.targets", func(in string) []interface{} {
+		var mappings []interface{}
+		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
+			log.Errorf(`"apm_config.instrumentation.targets" can not be parsed: %v`, err)
+		}
+		return mappings
+	})
 	config.BindEnv("apm_config.receiver_socket", "DD_APM_RECEIVER_SOCKET")
 	config.BindEnv("apm_config.windows_pipe_name", "DD_APM_WINDOWS_PIPE_NAME")
 	config.BindEnv("apm_config.sync_flushing", "DD_APM_SYNC_FLUSHING")
@@ -154,6 +186,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.obfuscation.credit_cards.enabled", true, "DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.credit_cards.luhn", false, "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.credit_cards.keep_values", []string{}, "DD_APM_OBFUSCATION_CREDIT_CARDS_KEEP_VALUES")
+	config.BindEnvAndSetDefault("apm_config.sql_obfuscation_mode", "", "DD_APM_SQL_OBFUSCATION_MODE")
 	config.BindEnvAndSetDefault("apm_config.debug.port", 5012, "DD_APM_DEBUG_PORT")
 	config.BindEnv("apm_config.features", "DD_APM_FEATURES")
 	config.ParseEnvAsStringSlice("apm_config.features", func(s string) []string {

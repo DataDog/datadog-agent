@@ -25,13 +25,21 @@ func makeHandler() (chan *message.Message, func(*message.Message)) {
 }
 
 func newMessage(content string) *message.Message {
-	return message.NewRawMessage([]byte(content), message.StatusInfo, len([]byte(content)), "")
+
+	m := message.NewMessage([]byte(content), nil, message.StatusInfo, 0)
+	m.RawDataLen = len([]byte(content))
+	return m
 }
 
 func assertMessageContent(t *testing.T, m *message.Message, content string) {
 	isMultiLine := len(strings.Split(content, "\\n")) > 1
 	assert.Equal(t, content, string(m.GetContent()))
 	assert.Equal(t, m.IsMultiLine, isMultiLine)
+}
+
+func assertTrailingMultiline(t *testing.T, m *message.Message, content string) {
+	assert.Equal(t, content, string(m.GetContent()))
+	assert.Equal(t, m.IsMultiLine, true)
 }
 
 func TestNoAggregate(t *testing.T) {
@@ -127,36 +135,84 @@ func TestTagTruncatedLogs(t *testing.T) {
 	outputChan, outputFn := makeHandler()
 	ag := NewAggregator(outputFn, 10, time.Duration(1*time.Second), true, false, status.NewInfoRegistry())
 
+	// First 3 should be tagged as single line logs since they are too big to aggregate no matter what the label is.
 	ag.Aggregate(newMessage("1234567890"), startGroup)
-	ag.Aggregate(newMessage("12345678901"), aggregate) // Causes overflow, truncate and flush
+	ag.Aggregate(newMessage("12345678901"), aggregate)
 	ag.Aggregate(newMessage("12345"), aggregate)
-	ag.Aggregate(newMessage("6789"), aggregate)
-	ag.Aggregate(newMessage("3"), noAggregate)
+
+	// Next 3 lines should be tagged as multiline since they were truncated after a group was started
+	ag.Aggregate(newMessage("1234"), startGroup)
+	ag.Aggregate(newMessage("5678"), aggregate)
+	ag.Aggregate(newMessage("90"), aggregate)
+
+	// No aggregate should not be truncated
+	ag.Aggregate(newMessage("00"), noAggregate)
 
 	msg := <-outputChan
 	assert.True(t, msg.ParsingExtra.IsTruncated)
-	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("auto_multiline")})
+	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("single_line")})
 	assertMessageContent(t, msg, "1234567890...TRUNCATED...")
 
 	msg = <-outputChan
 	assert.True(t, msg.ParsingExtra.IsTruncated)
-	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("auto_multiline")})
+	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("single_line")})
 	assertMessageContent(t, msg, "...TRUNCATED...12345678901...TRUNCATED...")
 
 	msg = <-outputChan
 	assert.True(t, msg.ParsingExtra.IsTruncated)
-	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("auto_multiline")})
-	assertMessageContent(t, msg, "...TRUNCATED...12345...TRUNCATED...")
+	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("single_line")})
+	assertMessageContent(t, msg, "...TRUNCATED...12345")
 
 	msg = <-outputChan
 	assert.True(t, msg.ParsingExtra.IsTruncated)
 	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("auto_multiline")})
-	assertMessageContent(t, msg, "...TRUNCATED...6789")
+	assertMessageContent(t, msg, "1234\\n5678...TRUNCATED...")
+
+	msg = <-outputChan
+	assert.True(t, msg.ParsingExtra.IsTruncated)
+	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("auto_multiline")})
+	assertTrailingMultiline(t, msg, "...TRUNCATED...90")
 
 	msg = <-outputChan
 	assert.False(t, msg.ParsingExtra.IsTruncated)
 	assert.Empty(t, msg.ParsingExtra.Tags)
-	assertMessageContent(t, msg, "3")
+	assertMessageContent(t, msg, "00")
+}
+
+func TestSingleGroupIsTruncatedAsMultilineLog(t *testing.T) {
+	outputChan, outputFn := makeHandler()
+	ag := NewAggregator(outputFn, 5, time.Duration(1*time.Second), true, false, status.NewInfoRegistry())
+
+	ag.Aggregate(newMessage("123"), startGroup)
+	ag.Aggregate(newMessage("456"), aggregate)
+
+	msg := <-outputChan
+	assert.True(t, msg.ParsingExtra.IsTruncated)
+	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("auto_multiline")})
+	assertTrailingMultiline(t, msg, "123...TRUNCATED...")
+
+	msg = <-outputChan
+	assert.True(t, msg.ParsingExtra.IsTruncated)
+	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("auto_multiline")})
+	assertTrailingMultiline(t, msg, "...TRUNCATED...456")
+}
+
+func TestSingleLineTruncatedLogIsTaggedSingleLine(t *testing.T) {
+	outputChan, outputFn := makeHandler()
+	ag := NewAggregator(outputFn, 5, time.Duration(1*time.Second), true, false, status.NewInfoRegistry())
+
+	ag.Aggregate(newMessage("12345"), startGroup) // Exactly the size of the max message size - simulates truncation in the framer
+	ag.Aggregate(newMessage("456"), aggregate)
+
+	msg := <-outputChan
+	assert.True(t, msg.ParsingExtra.IsTruncated)
+	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("single_line")})
+	assertMessageContent(t, msg, "12345...TRUNCATED...")
+
+	msg = <-outputChan
+	assert.True(t, msg.ParsingExtra.IsTruncated)
+	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("single_line")})
+	assertMessageContent(t, msg, "...TRUNCATED...456")
 }
 
 func TestTagMultiLineLogs(t *testing.T) {
@@ -164,7 +220,7 @@ func TestTagMultiLineLogs(t *testing.T) {
 	ag := NewAggregator(outputFn, 10, time.Duration(1*time.Second), false, true, status.NewInfoRegistry())
 
 	ag.Aggregate(newMessage("12345"), startGroup)
-	ag.Aggregate(newMessage("67890"), aggregate)
+	ag.Aggregate(newMessage("6789"), aggregate)
 	ag.Aggregate(newMessage("1"), aggregate) // Causes overflow, truncate and flush
 	ag.Aggregate(newMessage("2"), noAggregate)
 
@@ -172,13 +228,13 @@ func TestTagMultiLineLogs(t *testing.T) {
 	assert.True(t, msg.ParsingExtra.IsMultiLine)
 	assert.True(t, msg.ParsingExtra.IsTruncated)
 	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.MultiLineSourceTag("auto_multiline")})
-	assertMessageContent(t, msg, "12345\\n67890...TRUNCATED...")
+	assertMessageContent(t, msg, "12345\\n6789...TRUNCATED...")
 
 	msg = <-outputChan
-	assert.False(t, msg.ParsingExtra.IsMultiLine)
+	assert.True(t, msg.ParsingExtra.IsMultiLine)
 	assert.True(t, msg.ParsingExtra.IsTruncated)
-	assert.Empty(t, msg.ParsingExtra.Tags)
-	assertMessageContent(t, msg, "...TRUNCATED...1")
+	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.MultiLineSourceTag("auto_multiline")})
+	assertTrailingMultiline(t, msg, "...TRUNCATED...1")
 
 	msg = <-outputChan
 	assert.False(t, msg.ParsingExtra.IsMultiLine)
@@ -187,14 +243,58 @@ func TestTagMultiLineLogs(t *testing.T) {
 	assertMessageContent(t, msg, "2")
 }
 
-func TestStartGruopIsNotTruncatedWithoutAggreagation(t *testing.T) {
+func TestSingleLineTooLongTruncation(t *testing.T) {
 	outputChan, outputFn := makeHandler()
 	ag := NewAggregator(outputFn, 5, time.Duration(1*time.Second), false, true, status.NewInfoRegistry())
 
-	ag.Aggregate(newMessage("123456"), startGroup)
+	// Multi line log where each message is too large except the last one
+	ag.Aggregate(newMessage("123"), startGroup)
+	ag.Aggregate(newMessage("456"), aggregate)
+	ag.Aggregate(newMessage("123456"), aggregate)
+	ag.Aggregate(newMessage("123"), aggregate)
 	// Force a flush
 	ag.Aggregate(newMessage(""), startGroup)
 
 	msg := <-outputChan
-	assertMessageContent(t, msg, "123456")
+	assertTrailingMultiline(t, msg, "123...TRUNCATED...")
+	msg = <-outputChan
+	assertTrailingMultiline(t, msg, "...TRUNCATED...456")
+	msg = <-outputChan
+	assertMessageContent(t, msg, "123456...TRUNCATED...")
+	msg = <-outputChan
+	assertMessageContent(t, msg, "...TRUNCATED...123")
+
+	// Single line logs where each message is too large except the last
+	ag.Aggregate(newMessage("123456"), startGroup)
+	ag.Aggregate(newMessage("123456"), startGroup)
+	ag.Aggregate(newMessage("123456"), startGroup)
+	ag.Aggregate(newMessage("123"), startGroup)
+	// Force a flush
+	ag.Aggregate(newMessage(""), startGroup)
+
+	msg = <-outputChan
+	assertMessageContent(t, msg, "123456...TRUNCATED...")
+	msg = <-outputChan
+	assertMessageContent(t, msg, "...TRUNCATED...123456...TRUNCATED...")
+	msg = <-outputChan
+	assertMessageContent(t, msg, "...TRUNCATED...123456...TRUNCATED...")
+	msg = <-outputChan
+	assertMessageContent(t, msg, "...TRUNCATED...123")
+
+	// No aggregate logs should never be truncated from the previous message (Could break a JSON payload)
+	ag.Aggregate(newMessage("123456"), startGroup)
+	ag.Aggregate(newMessage("123456"), noAggregate)
+	ag.Aggregate(newMessage("123456"), startGroup)
+	ag.Aggregate(newMessage("123"), startGroup)
+	// Force a flush
+	ag.Aggregate(newMessage(""), startGroup)
+
+	msg = <-outputChan
+	assertMessageContent(t, msg, "123456...TRUNCATED...")
+	msg = <-outputChan
+	assertMessageContent(t, msg, "123456...TRUNCATED...")
+	msg = <-outputChan
+	assertMessageContent(t, msg, "...TRUNCATED...123456...TRUNCATED...")
+	msg = <-outputChan
+	assertMessageContent(t, msg, "...TRUNCATED...123")
 }

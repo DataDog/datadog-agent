@@ -44,10 +44,6 @@ void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *src, st
     copy_proc_entry(&src->entry, &dst->entry);
 }
 
-void __attribute__((always_inline)) copy_credentials(struct credentials_t *src, struct credentials_t *dst) {
-    *dst = *src;
-}
-
 void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cache_t *src, struct pid_cache_t *dst) {
     dst->cookie = src->cookie;
     dst->user_session_id = src->user_session_id;
@@ -133,15 +129,15 @@ u32 __attribute__((always_inline)) get_root_nr_from_task_struct(struct task_stru
 
 u32 __attribute__((always_inline)) get_namespace_nr_from_task_struct(struct task_struct *task) {
     struct pid *pid = NULL;
-    bpf_probe_read(&pid, sizeof(pid), (void *)task + get_task_struct_pid_offset());
+    bpf_probe_read_kernel(&pid, sizeof(pid), (void *)task + get_task_struct_pid_offset());
 
     u32 pid_level = 0;
-    bpf_probe_read(&pid_level, sizeof(pid_level), (void *)pid + get_pid_level_offset());
+    bpf_probe_read_kernel(&pid_level, sizeof(pid_level), (void *)pid + get_pid_level_offset());
 
     // read the namespace nr from &pid->numbers[pid_level].nr
     u32 namespace_nr = 0;
     u64 namespace_numbers_offset = pid_level * get_sizeof_upid();
-    bpf_probe_read(&namespace_nr, sizeof(namespace_nr), (void *)pid + get_pid_numbers_offset() + namespace_numbers_offset);
+    bpf_probe_read_kernel(&namespace_nr, sizeof(namespace_nr), (void *)pid + get_pid_numbers_offset() + namespace_numbers_offset);
 
     return namespace_nr;
 }

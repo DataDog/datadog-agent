@@ -33,8 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
-	secl "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -133,50 +131,46 @@ func xccdfEnabled() bool {
 	return pkgconfigsetup.Datadog().GetBool("compliance_config.xccdf.enabled") || pkgconfigsetup.Datadog().GetBool("compliance_config.host_benchmarks.enabled")
 }
 
-var defaultSECLRuleFilter = sync.OnceValues(func() (*secl.SECLRuleFilter, error) {
-	ruleFilterModel, err := filtermodel.NewRuleFilterModel(nil, "")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create default SECL rule filter: %w", err)
-	}
-	filter := secl.NewSECLRuleFilter(ruleFilterModel)
-	return filter, nil
-})
+var defaultSECLRuleFilter = sync.OnceValues(newSECLRuleFilter)
 
-// DefaultRuleFilter implements the default filtering of benchmarks' rules. It
+// MakeDefaultRuleFilter implements the default filtering of benchmarks' rules. It
 // will exclude rules based on the evaluation context / environment running
 // the benchmark.
-func DefaultRuleFilter(r *Rule) bool {
-	if env.IsKubernetes() {
-		if r.SkipOnK8s {
-			return false
-		}
-	} else {
-		if r.HasScope(KubernetesNodeScope) || r.HasScope(KubernetesClusterScope) {
-			return false
-		}
-	}
-	if r.IsXCCDF() && !xccdfEnabled() {
-		return false
-	}
-	if len(r.Filters) > 0 {
-		seclRuleFilter, err := defaultSECLRuleFilter()
-		if err != nil {
-			log.Errorf("failed to apply rule filters: %s", err)
-			return false
-		}
+func MakeDefaultRuleFilter() RuleFilter {
+	isK8s := env.IsKubernetes()
+	xccdfEnabled := xccdfEnabled()
 
-		accepted, err := seclRuleFilter.IsRuleAccepted(&secl.RuleDefinition{
-			Filters: r.Filters,
-		})
-		if err != nil {
-			log.Errorf("failed to apply rule filters: %s", err)
+	return func(r *Rule) bool {
+		if isK8s {
+			if r.SkipOnK8s {
+				return false
+			}
+		} else {
+			if r.HasScope(KubernetesNodeScope) || r.HasScope(KubernetesClusterScope) {
+				return false
+			}
+		}
+		if r.IsXCCDF() && !xccdfEnabled {
 			return false
 		}
-		if !accepted {
-			return false
+		if len(r.Filters) > 0 {
+			seclRuleFilter, err := defaultSECLRuleFilter()
+			if err != nil {
+				log.Errorf("failed to apply rule filters: %s", err)
+				return false
+			}
+
+			accepted, err := seclRuleFilter.isRuleAccepted(r.Filters)
+			if err != nil {
+				log.Errorf("failed to apply rule filters: %s", err)
+				return false
+			}
+			if !accepted {
+				return false
+			}
 		}
+		return true
 	}
-	return true
 }
 
 // NewAgent returns a new compliance agent.
@@ -196,10 +190,11 @@ func NewAgent(telemetrySender telemetry.SimpleTelemetrySender, wmeta workloadmet
 	if opts.CheckIntervalLowPriority <= 0 {
 		opts.CheckIntervalLowPriority = defaultCheckIntervalLowPriority
 	}
+	defaultRuleFilter := MakeDefaultRuleFilter()
 	if ruleFilter := opts.RuleFilter; ruleFilter != nil {
-		opts.RuleFilter = func(r *Rule) bool { return DefaultRuleFilter(r) && ruleFilter(r) }
+		opts.RuleFilter = func(r *Rule) bool { return defaultRuleFilter(r) && ruleFilter(r) }
 	} else {
-		opts.RuleFilter = func(r *Rule) bool { return DefaultRuleFilter(r) }
+		opts.RuleFilter = func(r *Rule) bool { return defaultRuleFilter(r) }
 	}
 	return &Agent{
 		telemetrySender: telemetrySender,
@@ -422,16 +417,13 @@ func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
 }
 
 func (a *Agent) runAptConfigurationExport(ctx context.Context) {
-	ruleFilterModel, err := filtermodel.NewRuleFilterModel(nil, "")
+	seclRuleFilter, err := newSECLRuleFilter()
 	if err != nil {
 		log.Errorf("failed to run apt configuration export: %v", err)
 		return
 	}
 
-	seclRuleFilter := secl.NewSECLRuleFilter(ruleFilterModel)
-	accepted, err := seclRuleFilter.IsRuleAccepted(&secl.RuleDefinition{
-		Filters: []string{aptconfig.SeclFilter},
-	})
+	accepted, err := seclRuleFilter.isRuleAccepted([]string{aptconfig.SeclFilter})
 	if !accepted || err != nil {
 		return
 	}

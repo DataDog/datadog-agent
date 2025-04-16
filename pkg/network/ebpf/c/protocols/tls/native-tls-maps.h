@@ -15,7 +15,7 @@ BPF_HASH_MAP(ssl_write_ex_args, u64, ssl_write_ex_args_t, 1024)
 
 BPF_HASH_MAP(bio_new_socket_args, __u64, __u32, 1024)
 
-BPF_HASH_MAP(fd_by_ssl_bio, __u32, void *, 1024)
+BPF_HASH_MAP(fd_by_ssl_bio, void*, void *, 1024)
 
 BPF_HASH_MAP(ssl_ctx_by_pid_tgid, __u64, void *, 1)
 

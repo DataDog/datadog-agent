@@ -65,3 +65,7 @@ func (v *windowsStatusSuite) TestChecksMetadataWindows() {
 
 	fetchAndCheckStatus(&v.baseStatusSuite, expectedSections)
 }
+
+func (v *windowsStatusSuite) TestDefaultInstallStatus() {
+	v.testDefaultInstallStatus(nil, []string{"Status: Not running or unreachable"})
+}

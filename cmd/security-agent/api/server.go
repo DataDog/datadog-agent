@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api/agent"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -38,14 +39,14 @@ type Server struct {
 }
 
 // NewServer creates a new Server instance
-func NewServer(statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component, at authtoken.Component) (*Server, error) {
+func NewServer(statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component, at authtoken.Component, secrets secrets.Component) (*Server, error) {
 	listener, err := newListener()
 	if err != nil {
 		return nil, err
 	}
 	return &Server{
 		listener:  listener,
-		agent:     agent.NewAgent(statusComponent, settings, wmeta),
+		agent:     agent.NewAgent(statusComponent, settings, wmeta, secrets),
 		tlsConfig: at.GetTLSServerConfig(),
 	}, nil
 }

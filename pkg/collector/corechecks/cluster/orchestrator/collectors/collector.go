@@ -34,20 +34,27 @@ type Collector interface {
 	// Run triggers the collection process given a configuration and returns the
 	// collection result. Returns an error if the collection failed.
 	Run(*CollectorRunConfig) (*CollectorRunResult, error)
+
+	// Process is used to process the list of resources and return the result.
+	Process(rcfg *CollectorRunConfig, list interface{}) (*CollectorRunResult, error)
 }
 
 // CollectorMetadata contains information about a collector.
 type CollectorMetadata struct {
-	IsDefaultVersion          bool
-	IsMetadataProducer        bool
-	IsManifestProducer        bool
-	IsStable                  bool
-	SupportsManifestBuffering bool
-	Name                      string
-	NodeType                  pkgorchestratormodel.NodeType
-	Version                   string
-	IsSkipped                 bool
-	SkippedReason             string
+	IsDefaultVersion                     bool
+	IsMetadataProducer                   bool
+	IsManifestProducer                   bool
+	IsStable                             bool
+	SupportsManifestBuffering            bool
+	Name                                 string
+	NodeType                             pkgorchestratormodel.NodeType
+	Kind                                 string
+	Version                              string
+	IsSkipped                            bool
+	SkippedReason                        string
+	LabelsAsTags                         map[string]string
+	AnnotationsAsTags                    map[string]string
+	SupportsTerminatedResourceCollection bool
 }
 
 // FullName returns a string that contains the collector name and version.

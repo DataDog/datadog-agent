@@ -132,6 +132,7 @@ func NewServer(options ...Option) *Server {
 
 	mux.HandleFunc("/fakeintake/configure/override", fi.handleConfigureOverride)
 
+	mux.HandleFunc("/debug/lastAPIKey/", fi.handleGetLastAPIKey)
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
@@ -355,6 +356,11 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
+	apiKey := fi.extractDatadogAPIKey(req)
+	if apiKey != "" {
+		fi.store.SetLastAPIKey(apiKey)
+	}
+
 	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, redactHeader(req.Header))
 
 	switch req.Method {
@@ -440,7 +446,8 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 	}
 	contentType := req.Header.Get("Content-Type")
 
-	err = fi.store.AppendPayload(req.URL.Path, payload, encoding, contentType, fi.clock.Now().UTC())
+	apiKey := fi.extractDatadogAPIKey(req)
+	err = fi.store.AppendPayload(req.URL.Path, apiKey, payload, encoding, contentType, fi.clock.Now().UTC())
 	if err != nil {
 		log.Printf("Error adding payload to store: %v", err)
 		response := buildErrorResponse(err)
@@ -454,6 +461,33 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 	}
 
 	return fmt.Errorf("no POST response found for path %s", req.URL.Path)
+}
+
+func (fi *Server) extractDatadogAPIKey(req *http.Request) string {
+	apiKey := req.URL.Query().Get("api_key")
+	if apiKey != "" {
+		return apiKey
+	}
+	for hname, hval := range req.Header {
+		if strings.ToLower(hname) == "dd-api-key" {
+			return hval[0]
+		}
+	}
+	return ""
+}
+
+func (fi *Server) handleGetLastAPIKey(w http.ResponseWriter, _req *http.Request) {
+	apiKey, err := fi.store.GetLastAPIKey()
+	if err != nil {
+		response := buildErrorResponse(err)
+		writeHTTPResponse(w, response)
+		return
+	}
+	writeHTTPResponse(w, httpResponse{
+		contentType: "text/plain",
+		statusCode:  http.StatusOK,
+		body:        []byte(apiKey),
+	})
 }
 
 func (fi *Server) handleFlushPayloads(w http.ResponseWriter, _ *http.Request) {

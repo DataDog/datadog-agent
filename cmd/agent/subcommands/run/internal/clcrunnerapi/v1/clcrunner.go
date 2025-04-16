@@ -10,12 +10,13 @@ package v1
 
 import (
 	"encoding/json"
+	"maps"
 	"net/http"
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/api/version"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,7 +33,7 @@ import (
 // Check configs and any data that could contain sensitive information
 // MUST NEVER be sent via this API
 func SetupHandlers(r *mux.Router, ac autodiscovery.Component) {
-	r.HandleFunc("/clcrunner/version", common.GetVersion).Methods("GET")
+	r.HandleFunc("/clcrunner/version", version.Get).Methods("GET")
 	r.HandleFunc("/clcrunner/stats", func(w http.ResponseWriter, r *http.Request) {
 		getCLCRunnerStats(w, r, ac)
 	}).Methods("GET")
@@ -67,9 +68,7 @@ func getCLCRunnerStats(w http.ResponseWriter, _ *http.Request, ac autodiscovery.
 func flattenCLCStats(stats status.CLCChecks) map[string]status.CLCStats {
 	flatened := make(map[string]status.CLCStats)
 	for _, checks := range stats.Checks {
-		for checkID, checkStats := range checks {
-			flatened[checkID] = checkStats
-		}
+		maps.Copy(flatened, checks)
 	}
 
 	return flatened

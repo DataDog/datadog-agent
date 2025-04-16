@@ -8,18 +8,16 @@
 package model
 
 import (
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 )
 
 // ApplyModeAllowSource returns true if the given source is allowed by the given apply mode.
-func ApplyModeAllowSource(mode datadoghq.DatadogPodAutoscalerApplyMode, source datadoghq.DatadogPodAutoscalerValueSource) bool {
+func ApplyModeAllowSource(mode datadoghq.DatadogPodAutoscalerApplyMode, _ datadoghqcommon.DatadogPodAutoscalerValueSource) bool {
 	switch mode {
-	case datadoghq.DatadogPodAutoscalerNoneApplyMode:
-	case datadoghq.DatadogPodAutoscalerManualApplyMode:
-		return source == datadoghq.DatadogPodAutoscalerManualValueSource
-	case datadoghq.DatadogPodAutoscalerAllApplyMode:
+	case datadoghq.DatadogPodAutoscalerApplyModeApply:
 		return true
 	default:
+		return false
 	}
-	return false
 }

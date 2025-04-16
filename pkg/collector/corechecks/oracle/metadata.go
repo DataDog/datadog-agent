@@ -39,7 +39,7 @@ func sendDbInstanceMetadata(c *Check) error {
 	configTags := make([]string, len(c.config.Tags))
 	copy(configTags, c.config.Tags)
 	m := dbInstanceMetadata{
-		Dbm:            true,
+		Dbm:            c.dbmEnabled,
 		ConnectionHost: config.GetConnectData(c.config.InstanceConfig),
 	}
 	e := dbInstanceEvent{

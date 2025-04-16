@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
@@ -18,28 +19,71 @@ import (
 )
 
 var (
+	bigText     = 10
+	mediumText  = 7
+	smallText   = 5
+	tableHeader = "<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"1\">"
+
 	processColor             = "#8fbbff"
 	processProfileDriftColor = "#c2daff"
 	processRuntimeColor      = "#edf3ff"
 	processSnapshotColor     = "white"
 	processShape             = "record"
+	//nolint:deadcode,unused
+	processClusterColor = "#c7ddff"
+
+	processCategoryColor = "#c7c7c7"
+	//nolint:deadcode,unused
+	processCategoryProfileDriftColor = "#e0e0e0"
+	//nolint:deadcode,unused
+	processCategoryRuntimeColor  = "#f5f5f5"
+	processCategorySnapshotColor = "white"
+	processCategoryShape         = "record"
+	processCategoryClusterColor  = "#e3e3e3"
 
 	fileColor             = "#77bf77"
 	fileProfileDriftColor = "#c6e1c1"
 	fileRuntimeColor      = "#e9f3e7"
 	fileSnapshotColor     = "white"
 	fileShape             = "record"
+	fileClusterColor      = "#c2f2c2"
 
 	networkColor             = "#ff9800"
 	networkProfileDriftColor = "#faddb1"
 	networkRuntimeColor      = "#ffebcd"
 	networkShape             = "record"
+	networkClusterColor      = "#fff5e6"
 )
 
+func (at *ActivityTree) getGraphTitle(name string, selector string) string {
+	title := tableHeader
+	title += "<TR><TD>Name</TD><TD><FONT POINT-SIZE=\"" + strconv.Itoa(bigText) + "\">" + name + "</FONT></TD></TR>"
+	for i, t := range strings.Split(selector, ",") {
+		if i%3 == 0 {
+			if i != 0 {
+				title += "</TD></TR>"
+			}
+			title += "<TR>"
+			if i == 0 {
+				title += "<TD>Selector</TD>"
+			} else {
+				title += "<TD></TD>"
+			}
+			title += "<TD>"
+		} else {
+			title += ", "
+		}
+		title += t
+	}
+	title += "</TD></TR>"
+	title += "</TABLE>>"
+	return title
+}
+
 // PrepareGraphData returns a graph from the activity tree
-func (at *ActivityTree) PrepareGraphData(title string, resolver *process.EBPFResolver) utils.Graph {
+func (at *ActivityTree) PrepareGraphData(name string, selector string, resolver *process.EBPFResolver) utils.Graph {
 	data := utils.Graph{
-		Title: title,
+		Title: at.getGraphTitle(name, selector),
 		Nodes: make(map[utils.GraphID]*utils.Node),
 	}
 
@@ -63,14 +107,17 @@ func (at *ActivityTree) prepareProcessNode(p *ProcessNode, data *utils.Graph, re
 		args = strings.ReplaceAll(args, "\n", " ")
 		args = strings.ReplaceAll(args, ">", "\\>")
 		args = strings.ReplaceAll(args, "|", "\\|")
+		args = strings.ReplaceAll(args, "}", "\\}")
+		args = strings.ReplaceAll(args, "{", "\\{")
 	}
 	panGraphID := utils.NewGraphID(utils.NewNodeIDFromPtr(p))
 	pan := &utils.Node{
-		ID:    panGraphID,
-		Label: p.getNodeLabel(args),
-		Size:  60,
-		Color: processColor,
-		Shape: processShape,
+		ID:      panGraphID,
+		Label:   p.getNodeLabel(args),
+		Size:    smallText,
+		Color:   processColor,
+		Shape:   processShape,
+		IsTable: true,
 	}
 	switch p.GenerationType {
 	case ProfileDrift:
@@ -113,22 +160,76 @@ func (at *ActivityTree) prepareProcessNode(p *ProcessNode, data *utils.Graph, re
 		}
 	}
 
-	for _, f := range p.Files {
-		fileID := at.prepareFileNode(f, data, "", panGraphID)
-		data.Edges = append(data.Edges, &utils.Edge{
-			From:  panGraphID,
-			To:    fileID,
-			Color: fileColor,
-		})
+	if len(p.Files) > 0 {
+		// create new subgraph for the filesystem events
+		subgraph := utils.SubGraph{
+			Nodes:     make(map[utils.GraphID]*utils.Node),
+			Title:     "Filesystem",
+			TitleSize: mediumText,
+			Color:     fileClusterColor,
+			Name:      "cluster_" + panGraphID.Derive(utils.NewRandomNodeID()).String(),
+		}
+
+		for _, f := range p.Files {
+			fileID := at.prepareFileNode(f, &subgraph, panGraphID)
+			data.Edges = append(data.Edges, &utils.Edge{
+				From:  panGraphID,
+				To:    fileID,
+				Color: fileColor,
+			})
+		}
+
+		// add subgraph
+		data.SubGraphs = append(data.SubGraphs, &subgraph)
+	}
+
+	for _, n := range p.NetworkDevices {
+		// create new subgraph for network device
+		subgraph := utils.SubGraph{
+			Nodes:     make(map[utils.GraphID]*utils.Node),
+			Title:     "Network Flows",
+			TitleSize: mediumText,
+		}
+		deviceNodeID, ok := at.prepareNetworkDeviceNode(n, &subgraph, panGraphID)
+		if ok {
+			subgraph.Name = "cluster_" + deviceNodeID.String()
+			subgraph.Color = networkClusterColor
+
+			data.Edges = append(data.Edges, &utils.Edge{
+				From:  panGraphID,
+				To:    deviceNodeID,
+				Color: networkColor,
+			})
+
+			// build network flow nodes
+			for _, flowNode := range n.FlowNodes {
+				at.prepareNetworkFlowNode(flowNode, &subgraph, deviceNodeID)
+			}
+
+			// add subgraph
+			data.SubGraphs = append(data.SubGraphs, &subgraph)
+		}
 	}
 
 	if len(p.Syscalls) > 0 {
-		syscallsNodeID := at.prepareSyscallsNode(p, data)
+		// create new subgraph for syscalls
+		subgraph := utils.SubGraph{
+			Nodes:     make(map[utils.GraphID]*utils.Node),
+			Title:     "Syscalls",
+			TitleSize: mediumText,
+			Color:     processCategoryClusterColor,
+		}
+
+		syscallsNodeID := at.prepareSyscallsNode(p, &subgraph)
+		subgraph.Name = "cluster_" + syscallsNodeID.String()
 		data.Edges = append(data.Edges, &utils.Edge{
 			From:  utils.NewGraphID(utils.NewNodeIDFromPtr(p)),
 			To:    syscallsNodeID,
-			Color: processColor,
+			Color: processCategoryColor,
 		})
+
+		// add subgraph
+		data.SubGraphs = append(data.SubGraphs, &subgraph)
 	}
 
 	for _, child := range p.Children {
@@ -157,7 +258,7 @@ func (at *ActivityTree) prepareDNSNode(n *DNSNode, data *utils.Graph, processID 
 	dnsNode := &utils.Node{
 		ID:    processID.Derive(utils.NewNodeIDFromPtr(n)),
 		Label: name,
-		Size:  30,
+		Size:  smallText,
 		Color: networkColor,
 		Shape: networkShape,
 	}
@@ -172,7 +273,7 @@ func (at *ActivityTree) prepareDNSNode(n *DNSNode, data *utils.Graph, processID 
 }
 
 func (at *ActivityTree) prepareIMDSNode(n *IMDSNode, data *utils.Graph, processID utils.GraphID) (utils.GraphID, bool) {
-	label := "<<TABLE BORDER=\"0\" CELLBORDER=\"2\" CELLSPACING=\"0\" CELLPADDING=\"10\">"
+	label := tableHeader
 	label += "<TR><TD>IMDS</TD><TD>" + n.Event.Type + "</TD></TR>"
 	label += "<TR><TD>Cloud provider</TD><TD>" + n.Event.CloudProvider + "</TD></TR>"
 	if len(n.Event.UserAgent) > 0 {
@@ -198,7 +299,7 @@ func (at *ActivityTree) prepareIMDSNode(n *IMDSNode, data *utils.Graph, processI
 	imdsNode := &utils.Node{
 		ID:      processID.Derive(utils.NewNodeIDFromPtr(n)),
 		Label:   label,
-		Size:    30,
+		Size:    smallText,
 		Color:   networkColor,
 		Shape:   networkShape,
 		IsTable: true,
@@ -213,6 +314,71 @@ func (at *ActivityTree) prepareIMDSNode(n *IMDSNode, data *utils.Graph, processI
 	return imdsNode.ID, true
 }
 
+func (at *ActivityTree) prepareNetworkDeviceNode(n *NetworkDeviceNode, data *utils.SubGraph, processID utils.GraphID) (utils.GraphID, bool) {
+	label := tableHeader
+	label += "<TR><TD>Device name</TD><TD>" + n.Context.IfName + "</TD></TR>"
+	label += "<TR><TD>Index</TD><TD>" + strconv.Itoa(int(n.Context.IfIndex)) + "</TD></TR>"
+	label += "<TR><TD>Network namespace</TD><TD>" + strconv.Itoa(int(n.Context.NetNS)) + "</TD></TR>"
+	label += "</TABLE>>"
+
+	deviceNode := &utils.Node{
+		ID:      processID.Derive(utils.NewNodeIDFromPtr(n)),
+		Label:   label,
+		Size:    smallText,
+		Color:   networkColor,
+		Shape:   networkShape,
+		IsTable: true,
+	}
+
+	switch n.GenerationType {
+	case Runtime, Snapshot, Unknown:
+		deviceNode.FillColor = networkRuntimeColor
+	case ProfileDrift:
+		deviceNode.FillColor = networkProfileDriftColor
+	}
+	data.Nodes[deviceNode.ID] = deviceNode
+	return deviceNode.ID, true
+}
+
+func (at *ActivityTree) prepareNetworkFlowNode(n *FlowNode, data *utils.SubGraph, deviceID utils.GraphID) {
+	label := tableHeader
+	label += "<TR><TD>Source</TD><TD>" + fmt.Sprintf("%s:%d", n.Flow.Source.IPNet.String(), n.Flow.Source.Port) + "</TD></TR>"
+	if n.Flow.Source.IsPublicResolved {
+		label += "<TR><TD>Is src public ?</TD><TD>" + strconv.FormatBool(n.Flow.Source.IsPublic) + "</TD></TR>"
+	}
+	label += "<TR><TD>Destination</TD><TD>" + fmt.Sprintf("%s:%d", n.Flow.Destination.IPNet.String(), n.Flow.Destination.Port) + "</TD></TR>"
+	if n.Flow.Destination.IsPublicResolved {
+		label += "<TR><TD>Is dst public ?</TD><TD>" + strconv.FormatBool(n.Flow.Destination.IsPublic) + "</TD></TR>"
+	}
+	label += "<TR><TD>L4 protocol</TD><TD>" + model.L4Protocol(n.Flow.L4Protocol).String() + "</TD></TR>"
+	label += "<TR><TD>Egress</TD><TD>" + strconv.Itoa(int(n.Flow.Egress.DataSize)) + " bytes / " + strconv.Itoa(int(n.Flow.Egress.PacketCount)) + " pkts</TD></TR>"
+	label += "<TR><TD>Ingress</TD><TD>" + strconv.Itoa(int(n.Flow.Ingress.DataSize)) + " bytes / " + strconv.Itoa(int(n.Flow.Ingress.PacketCount)) + " pkts</TD></TR>"
+	label += "</TABLE>>"
+
+	flowNode := &utils.Node{
+		ID:      deviceID.Derive(utils.NewNodeIDFromPtr(&n.Flow.Source)),
+		Label:   label,
+		Size:    smallText,
+		Color:   networkColor,
+		Shape:   networkShape,
+		IsTable: true,
+	}
+
+	switch n.GenerationType {
+	case Runtime, Snapshot, Unknown:
+		flowNode.FillColor = networkRuntimeColor
+	case ProfileDrift:
+		flowNode.FillColor = networkProfileDriftColor
+	}
+	data.Nodes[flowNode.ID] = flowNode
+
+	data.Edges = append(data.Edges, &utils.Edge{
+		From:  deviceID,
+		To:    flowNode.ID,
+		Color: networkColor,
+	})
+}
+
 func (at *ActivityTree) prepareSocketNode(n *SocketNode, data *utils.Graph, processID utils.GraphID) utils.GraphID {
 	targetID := processID.Derive(utils.NewNodeIDFromPtr(n))
 
@@ -220,7 +386,7 @@ func (at *ActivityTree) prepareSocketNode(n *SocketNode, data *utils.Graph, proc
 	socketNode := &utils.Node{
 		ID:    targetID,
 		Label: n.Family,
-		Size:  30,
+		Size:  smallText,
 		Color: networkColor,
 		Shape: networkShape,
 	}
@@ -238,7 +404,7 @@ func (at *ActivityTree) prepareSocketNode(n *SocketNode, data *utils.Graph, proc
 		bindNode := &utils.Node{
 			ID:    processID.Derive(utils.NewNodeIDFromPtr(n), utils.NewNodeID(uint64(i+1))),
 			Label: fmt.Sprintf("[%s]:%d", node.IP, node.Port),
-			Size:  30,
+			Size:  smallText,
 			Color: networkColor,
 			Shape: networkShape,
 		}
@@ -260,14 +426,15 @@ func (at *ActivityTree) prepareSocketNode(n *SocketNode, data *utils.Graph, proc
 	return targetID
 }
 
-func (at *ActivityTree) prepareFileNode(f *FileNode, data *utils.Graph, prefix string, processID utils.GraphID) utils.GraphID {
+func (at *ActivityTree) prepareFileNode(f *FileNode, data *utils.SubGraph, processID utils.GraphID) utils.GraphID {
 	mergedID := processID.Derive(utils.NewNodeIDFromPtr(f))
 	fn := &utils.Node{
-		ID:    mergedID,
-		Label: f.getNodeLabel(),
-		Size:  30,
-		Color: fileColor,
-		Shape: fileShape,
+		ID:      mergedID,
+		Label:   f.getNodeLabel(""),
+		Size:    smallText,
+		Color:   fileColor,
+		Shape:   fileShape,
+		IsTable: true,
 	}
 	switch f.GenerationType {
 	case ProfileDrift:
@@ -278,32 +445,32 @@ func (at *ActivityTree) prepareFileNode(f *FileNode, data *utils.Graph, prefix s
 		fn.FillColor = fileSnapshotColor
 	}
 	data.Nodes[mergedID] = fn
-
-	for _, child := range f.Children {
-		childID := at.prepareFileNode(child, data, prefix+f.Name, processID)
-		data.Edges = append(data.Edges, &utils.Edge{
-			From:  mergedID,
-			To:    childID,
-			Color: fileColor,
-		})
-	}
 	return mergedID
 }
 
-func (at *ActivityTree) prepareSyscallsNode(p *ProcessNode, data *utils.Graph) utils.GraphID {
-	label := "<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"5\">"
-	for _, s := range p.Syscalls {
-		label += "<TR><TD>" + model.Syscall(s.Syscall).String() + "</TD></TR>"
+func (at *ActivityTree) prepareSyscallsNode(p *ProcessNode, data *utils.SubGraph) utils.GraphID {
+	label := tableHeader
+	for i, s := range p.Syscalls {
+		if i%5 == 0 {
+			if i != 0 {
+				label += "</TD></TR>"
+			}
+			label += "<TR><TD>"
+		} else {
+			label += ", "
+		}
+		label += model.Syscall(s.Syscall).String()
 	}
+	label += "</TD></TR>"
 	label += "</TABLE>>"
 
 	syscallsNode := &utils.Node{
 		ID:        utils.NewGraphIDWithDescription("syscalls", utils.NewNodeIDFromPtr(p)),
 		Label:     label,
-		Size:      30,
-		Color:     processColor,
-		FillColor: processSnapshotColor,
-		Shape:     processShape,
+		Size:      smallText,
+		Color:     processCategoryColor,
+		FillColor: processCategorySnapshotColor,
+		Shape:     processCategoryShape,
 		IsTable:   true,
 	}
 	data.Nodes[syscallsNode.ID] = syscallsNode

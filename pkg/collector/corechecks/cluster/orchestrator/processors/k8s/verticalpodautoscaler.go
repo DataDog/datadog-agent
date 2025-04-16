@@ -32,6 +32,16 @@ func (h *VerticalPodAutoscalerHandlers) AfterMarshalling(ctx processors.Processo
 	return
 }
 
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *VerticalPodAutoscalerHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*v1.VerticalPodAutoscaler)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
+	return
+}
+
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
 func (h *VerticalPodAutoscalerHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
@@ -57,7 +67,7 @@ func (h *VerticalPodAutoscalerHandlers) BuildMessageBody(ctx processors.Processo
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *VerticalPodAutoscalerHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (verticalPodAutoscalerModel interface{}) {
 	r := resource.(*v1.VerticalPodAutoscaler)
-	return k8sTransformers.ExtractVerticalPodAutoscaler(r)
+	return k8sTransformers.ExtractVerticalPodAutoscaler(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

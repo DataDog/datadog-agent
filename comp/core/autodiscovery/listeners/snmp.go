@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gosnmp/gosnmp"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -81,9 +82,14 @@ type snmpSubnet struct {
 	startingIP            net.IP
 	network               net.IPNet
 	cacheKey              string
-	devices               map[string]string
+	devices               map[string]device
 	deviceFailures        map[string]int
 	devicesScannedCounter atomic.Uint32
+}
+
+type device struct {
+	IP        net.IP `json:"ip"`
+	AuthIndex int    `json:"auth_index"`
 }
 
 type snmpJob struct {
@@ -122,20 +128,33 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 	if cacheValue == "" {
 		return
 	}
-	var devices []net.IP
-	if err = json.Unmarshal([]byte(cacheValue), &devices); err != nil {
+
+	// Try to unmarshal with the old cache format
+	var deviceIPs []net.IP
+	err = json.Unmarshal([]byte(cacheValue), &deviceIPs)
+	if err == nil {
+		for _, deviceIP := range deviceIPs {
+			entityID := subnet.config.Digest(deviceIP.String())
+			l.createService(entityID, subnet, deviceIP.String(), 0, false)
+		}
+		return
+	}
+
+	var devices []device
+	err = json.Unmarshal([]byte(cacheValue), &devices)
+	if err != nil {
 		log.Errorf("Couldn't unmarshal cache for %s: %s", subnet.cacheKey, err)
 		return
 	}
-	for _, deviceIP := range devices {
-		entityID := subnet.config.Digest(deviceIP.String())
-		l.createService(entityID, subnet, deviceIP.String(), false)
+	for _, device := range devices {
+		entityID := subnet.config.Digest(device.IP.String())
+		l.createService(entityID, subnet, device.IP.String(), device.AuthIndex, false)
 	}
 }
 
 func (l *SNMPListener) writeCache(subnet *snmpSubnet) {
 	// We don't lock the subnet for now, because the listener ought to be already locked
-	devices := make([]string, 0, len(subnet.devices))
+	devices := make([]device, 0, len(subnet.devices))
 	for _, v := range subnet.devices {
 		devices = append(devices, v)
 	}
@@ -166,38 +185,54 @@ var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 }
 
 func (l *SNMPListener) checkDevice(job snmpJob) {
-
 	deviceIP := job.currentIP.String()
-	params, err := job.subnet.config.BuildSNMPParams(deviceIP)
-	if err != nil {
-		log.Errorf("Error building params for device %s: %v", deviceIP, err)
-		return
-	}
 	entityID := job.subnet.config.Digest(deviceIP)
-	if err := params.Connect(); err != nil {
-		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
-		l.deleteService(entityID, job.subnet)
-	} else {
-		defer params.Conn.Close()
 
-		// Since `params<GoSNMP>.ContextEngineID` is empty
-		// `params.GetNext` might lead to multiple SNMP GET calls when using SNMP v3
-		value, err := params.GetNext([]string{snmp.DeviceReachableGetNextOid})
+	deviceFound := false
+	for authIndex, authentication := range job.subnet.config.Authentications {
+		log.Debugf("Building SNMP params for device %s for authentication at index %d", deviceIP, authIndex)
+		params, err := authentication.BuildSNMPParams(deviceIP, job.subnet.config.Port)
 		if err != nil {
-			log.Debugf("SNMP get to %s error: %v", deviceIP, err)
-			l.deleteService(entityID, job.subnet)
-		} else if len(value.Variables) < 1 || value.Variables[0].Value == nil {
-			log.Debugf("SNMP get to %s no data", deviceIP)
-			l.deleteService(entityID, job.subnet)
-		} else {
-			log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
-
-			l.createService(entityID, job.subnet, deviceIP, true)
+			log.Errorf("Error building params for device %s: %v", deviceIP, err)
+			continue
 		}
+
+		deviceFound = l.checkDeviceForParams(params, deviceIP)
+		if deviceFound {
+			l.createService(entityID, job.subnet, deviceIP, authIndex, true)
+			break
+		}
+	}
+	if !deviceFound {
+		l.deleteService(entityID, job.subnet)
 	}
 
 	autodiscoveryStatus := AutodiscoveryStatus{DevicesFoundList: l.getDevicesFoundInSubnet(*job.subnet), CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
 	autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey), &autodiscoveryStatus)
+}
+
+func (l *SNMPListener) checkDeviceForParams(params *gosnmp.GoSNMP, deviceIP string) bool {
+	if err := params.Connect(); err != nil {
+		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
+		return false
+	}
+
+	defer params.Conn.Close()
+
+	// Since `params<GoSNMP>.ContextEngineID` is empty
+	// `params.GetNext` might lead to multiple SNMP GET calls when using SNMP v3
+	value, err := params.GetNext([]string{snmp.DeviceReachableGetNextOid})
+	if err != nil {
+		log.Debugf("SNMP get to %s error: %v", deviceIP, err)
+		return false
+	}
+	if len(value.Variables) < 1 || value.Variables[0].Value == nil {
+		log.Debugf("SNMP get to %s no data", deviceIP)
+		return false
+	}
+
+	log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
+	return true
 }
 
 func (l *SNMPListener) getDevicesFoundInSubnet(subnet snmpSubnet) []string {
@@ -237,7 +272,7 @@ func (l *SNMPListener) checkDevices() {
 			startingIP:     startingIP,
 			network:        *ipNet,
 			cacheKey:       cacheKey,
-			devices:        map[string]string{},
+			devices:        map[string]device{},
 			deviceFailures: map[string]int{},
 		}
 		subnets = append(subnets, subnet)
@@ -306,21 +341,43 @@ func (l *SNMPListener) checkDevices() {
 	}
 }
 
-func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, deviceIP string, writeCache bool) {
+func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, deviceIP string, authIndex int, writeCache bool) {
 	l.Lock()
 	defer l.Unlock()
 	if _, present := l.services[entityID]; present {
 		return
 	}
+
+	config := subnet.config
+	if authIndex < 0 || authIndex >= len(config.Authentications) {
+		log.Errorf("Invalid authentication index %d for device %s (max: %d)", authIndex, deviceIP, len(config.Authentications)-1)
+		return
+	}
+	authentication := config.Authentications[authIndex]
+	config.Version = authentication.Version
+	config.Timeout = authentication.Timeout
+	config.Retries = authentication.Retries
+	config.Community = authentication.Community
+	config.User = authentication.User
+	config.AuthKey = authentication.AuthKey
+	config.AuthProtocol = authentication.AuthProtocol
+	config.PrivKey = authentication.PrivKey
+	config.PrivProtocol = authentication.PrivProtocol
+	config.ContextEngineID = authentication.ContextEngineID
+	config.ContextName = authentication.ContextName
+
 	svc := &SNMPService{
 		adIdentifier: subnet.adIdentifier,
 		entityID:     entityID,
 		deviceIP:     deviceIP,
-		config:       subnet.config,
+		config:       config,
 		subnet:       subnet,
 	}
 	l.services[entityID] = svc
-	subnet.devices[entityID] = deviceIP
+	subnet.devices[entityID] = device{
+		IP:        net.ParseIP(deviceIP),
+		AuthIndex: authIndex,
+	}
 	subnet.deviceFailures[entityID] = 0
 	if writeCache {
 		l.writeCache(subnet)

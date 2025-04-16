@@ -15,8 +15,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	sysprobeserver "github.com/DataDog/datadog-agent/cmd/system-probe/api/server"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	sysprobeserver "github.com/DataDog/datadog-agent/pkg/system-probe/api/server"
 )
 
 const (
@@ -32,7 +32,8 @@ func sysprobeSocketPath(_ *testing.T) string {
 func NewSystemProbeTestServer(handler http.Handler) (*httptest.Server, error) {
 	server := httptest.NewUnstartedServer(handler)
 
-	conn, err := sysprobeserver.NewListener(systemProbeTestPipeName)
+	// The test named pipe allows the current user.
+	conn, err := sysprobeserver.NewListenerForCurrentUser(systemProbeTestPipeName)
 	if err != nil {
 		return nil, err
 	}

@@ -13,6 +13,7 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
+	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
@@ -47,7 +48,7 @@ func getInstanceIDFromDMI() (string, error) {
 		isEC2UUID()
 		return "", fmt.Errorf("invalid board_asset_tag: '%s'", boardAssetTag)
 	}
-	setCloudProviderSource(metadataSourceDMI)
+	ec2internal.SetCloudProviderSource(ec2internal.MetadataSourceDMI)
 	return boardAssetTag, nil
 }
 
@@ -77,7 +78,7 @@ func isEC2UUID() bool {
 	}
 
 	if strings.HasPrefix(strings.ToLower(uuidData), "ec2") {
-		setCloudProviderSource(metadataSourceUUID)
+		ec2internal.SetCloudProviderSource(ec2internal.MetadataSourceUUID)
 		return true
 	}
 
@@ -96,7 +97,7 @@ func isEC2UUID() bool {
 
 	swapID := fmt.Sprintf("%x", b)
 	if strings.HasPrefix(strings.ToLower(swapID), "ec2") {
-		setCloudProviderSource(metadataSourceUUID)
+		ec2internal.SetCloudProviderSource(ec2internal.MetadataSourceUUID)
 		return true
 	}
 

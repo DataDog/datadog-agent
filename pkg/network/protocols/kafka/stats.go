@@ -6,10 +6,14 @@
 package kafka
 
 import (
+	"errors"
+
+	"github.com/DataDog/sketches-go/ddsketch"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/sketches-go/ddsketch"
 )
 
 const (
@@ -18,11 +22,6 @@ const (
 
 	// FetchAPIKey is the API key for fetch requests
 	FetchAPIKey = 1
-
-	// RelativeAccuracy defines the acceptable error in quantile values calculated by DDSketch.
-	// For example, if the actual value at p50 is 100, with a relative accuracy of 0.01 the value calculated
-	// will be between 99 and 101
-	RelativeAccuracy = 0.01
 )
 
 // Key is an identifier for a group of Kafka transactions
@@ -65,12 +64,20 @@ type RequestStat struct {
 	StaticTags         uint64
 }
 
-func (r *RequestStat) initSketch() (err error) {
-	r.Latencies, err = ddsketch.NewDefaultDDSketch(RelativeAccuracy)
-	if err != nil {
-		log.Debugf("error recording kafka transaction latency: could not create new ddsketch: %v", err)
+func (r *RequestStat) initSketch() error {
+	latencies := protocols.SketchesPool.Get()
+	if latencies == nil {
+		return errors.New("error recording kafka transaction latency: could not create new ddsketch")
 	}
-	return
+	r.Latencies = latencies
+	return nil
+}
+
+func (r *RequestStat) close() {
+	if r.Latencies != nil {
+		r.Latencies.Clear()
+		protocols.SketchesPool.Put(r.Latencies)
+	}
 }
 
 // CombineWith merges the data in 2 RequestStats objects
@@ -136,6 +143,7 @@ func (r *RequestStats) AddRequest(errorCode int32, count int, staticTags uint64,
 
 	if stats.Latencies == nil {
 		if err := stats.initSketch(); err != nil {
+			log.Warnf("could not add request latency to ddsketch: %v", err)
 			return
 		}
 
@@ -151,4 +159,13 @@ func (r *RequestStats) AddRequest(errorCode int32, count int, staticTags uint64,
 
 func isValidKafkaErrorCode(errorCode int32) bool {
 	return errorCode >= -1 && errorCode <= 119
+}
+
+// Close releases internal stats resources.
+func (r *RequestStats) Close() {
+	for _, stats := range r.ErrorCodeToStat {
+		if stats != nil {
+			stats.close()
+		}
+	}
 }

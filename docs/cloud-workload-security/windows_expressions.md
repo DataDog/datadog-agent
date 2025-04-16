@@ -892,6 +892,14 @@ L4 protocols are the supported Layer 4 protocols.
 | `IP_PROTO_MPLS` | all |
 | `IP_PROTO_RAW` | all |
 
+### `Network directions` {#network-directions}
+Network directions are the supported directions of network packets.
+
+| Name | Architectures |
+| ---- |---------------|
+| `INGRESS` | all |
+| `EGRESS` | all |
+
 
 
 {{< partial name="whats-next/whats-next.html" >}}

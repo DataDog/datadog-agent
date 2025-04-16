@@ -25,6 +25,10 @@ var vendorToSource = map[serverVendor]ServiceNameSource{
 	jboss:     JBoss,
 }
 
+func isNameFlag(arg string) bool {
+	return arg == "-jar" || arg == "-m" || arg == "--module"
+}
+
 func (jd javaDetector) detect(args []string) (metadata ServiceMetadata, success bool) {
 	// Look for dd.service
 	if index := slices.IndexFunc(args, func(arg string) bool { return strings.HasPrefix(arg, "-Ddd.service=") }); index != -1 {
@@ -38,7 +42,11 @@ func (jd javaDetector) detect(args []string) (metadata ServiceMetadata, success 
 			strings.HasPrefix(a, "-X") ||
 			strings.HasPrefix(a, "-javaagent:") ||
 			strings.HasPrefix(a, "-verbose:")
-		shouldSkipArg := prevArgIsFlag || hasFlagPrefix || includesAssignment
+		// @ is used to point to a file with more arguments. We do not supported
+		// at the moment, so explicitly ignore it to avoid naming services
+		// based on this file name.
+		atArg := strings.HasPrefix(a, "@")
+		shouldSkipArg := prevArgIsFlag || hasFlagPrefix || includesAssignment || atArg
 		if !shouldSkipArg {
 			arg := removeFilePath(a)
 
@@ -81,11 +89,12 @@ func (jd javaDetector) detect(args []string) (metadata ServiceMetadata, success 
 					}
 				}
 
-				if idx := strings.LastIndex(arg, "."); idx != -1 && idx+1 < len(arg) {
-					// take just the class name without the package
-					success = true
-					metadata.SetNames(arg[idx+1:], source, additionalNames...)
-					return
+				if arg == springBootLauncher || arg == springBootOldLauncher {
+					if springAppName, ok := newSpringBootParser(jd.ctx).GetSpringBootLauncherAppName(); ok {
+						success = true
+						metadata.SetNames(springAppName, Spring)
+						return
+					}
 				}
 
 				success = true
@@ -94,7 +103,7 @@ func (jd javaDetector) detect(args []string) (metadata ServiceMetadata, success 
 			}
 		}
 
-		prevArgIsFlag = hasFlagPrefix && !includesAssignment && a != javaJarFlag
+		prevArgIsFlag = hasFlagPrefix && !includesAssignment && !isNameFlag(a)
 	}
 	return
 }

@@ -22,7 +22,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
+	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -33,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type CollectorDemuxTestSuite struct {
@@ -82,7 +83,7 @@ func (s *SenderManagerProxy) GetDefaultSender() (sender.Sender, error) {
 }
 
 func (suite *CollectorDemuxTestSuite) SetupTest() {
-	suite.demux = fxutil.Test[demultiplexer.FakeSamplerMock](suite.T(), fx.Provide(func() log.Component { return logmock.New(suite.T()) }), compressionmock.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
+	suite.demux = fxutil.Test[demultiplexer.FakeSamplerMock](suite.T(), fx.Provide(func() log.Component { return logmock.New(suite.T()) }), metricscompressionmock.MockModule(), logscompressionmock.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 	suite.SenderManagerMock = NewSenderManagerMock(suite.demux)
 	suite.c = newCollector(fxutil.Test[dependencies](suite.T(),
 		core.MockBundle(),
@@ -90,8 +91,8 @@ func (suite *CollectorDemuxTestSuite) SetupTest() {
 		fx.Provide(func() sender.SenderManager {
 			return suite.SenderManagerMock
 		}),
-		fx.Provide(func() optional.Option[serializer.MetricSerializer] {
-			return optional.NewNoneOption[serializer.MetricSerializer]()
+		fx.Provide(func() option.Option[serializer.MetricSerializer] {
+			return option.None[serializer.MetricSerializer]()
 		}),
 		fx.Replace(config.MockParams{
 			Overrides: map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond},

@@ -13,6 +13,8 @@ issues:
 
   exclude-dirs:
     - pkg/proto/patches
+    - pkg/security/utils/lru
+    - pkg/template
     - tasks/unit_tests/testdata/components_src
 
   exclude:
@@ -58,6 +60,8 @@ issues:
     # net.Error.Temporary() isn't properly defined and was thus deprecated.
     # We are using it and it's not clear how to replace it.
     - text: "Temporary has been deprecated since Go 1.18"
+      linters: [staticcheck]
+    - text: ".IsSet is deprecated: this method will be removed once all settings have a default, use 'IsConfigured' instead"
       linters: [staticcheck]
     # Treat this list as a TODO for fixing issues with pkgconfigusage custom linter
     # DO NOT ADD NEW ENTRIES
@@ -565,6 +569,7 @@ issues:
     - path: comp/dogstatsd/packets/packet_manager_windows.go
       linters:
         - pkgconfigusage
+
 linters:
   disable-all: true
   enable:
@@ -654,6 +659,7 @@ linters-settings:
       - github.com/DataDog/datadog-agent/pkg/util/log.Warnc
       - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
       - github.com/DataDog/datadog-agent/pkg/util/log.WarnStackDepth
+      - github.com/DataDog/datadog-agent/pkg/util/log.WarnfStackDepth
       - golang.org/x/sys/windows.CloseHandle
       - golang.org/x/sys/windows.FreeLibrary
       - golang.org/x/sys/windows.FreeSid
@@ -687,6 +693,12 @@ linters-settings:
           - github.com/DataDog/datadog-agent/pkg/util/log.Printf
           - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
           - github.com/DataDog/datadog-agent/pkg/util/log.Errorf
+          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Tracef
+          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Debugf
+          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Infof
+          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warnf
+          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Errorf
+          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Criticalf
   revive:
     # in order to change revive config, the default configuration must be explicitly defined
     # https://github.com/mgechev/revive/blob/master/defaults.toml

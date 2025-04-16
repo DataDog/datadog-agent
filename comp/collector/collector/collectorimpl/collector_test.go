@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // FIXTURE
@@ -99,8 +99,8 @@ func (suite *CollectorTestSuite) SetupTest() {
 		core.MockBundle(),
 		demultiplexerimpl.MockModule(),
 		haagentmock.Module(),
-		fx.Provide(func() optional.Option[serializer.MetricSerializer] {
-			return optional.NewNoneOption[serializer.MetricSerializer]()
+		fx.Provide(func() option.Option[serializer.MetricSerializer] {
+			return option.None[serializer.MetricSerializer]()
 		}),
 		fx.Replace(config.MockParams{
 			Overrides: map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond},

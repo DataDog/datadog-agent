@@ -42,7 +42,7 @@ func TestSubServicesOpts(t *testing.T) {
 			tc: tc,
 		}
 		t.Run(tc.name, func(t *testing.T) {
-			run(t, s)
+			Run(t, s)
 		})
 		// clean the host between test runs
 		s.cleanupOnSuccessInDevMode()

@@ -6,9 +6,11 @@
 package listeners
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -18,7 +20,7 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // UDSStreamListener implements the StatsdListener interface for Unix Domain (streams)
@@ -29,18 +31,32 @@ type UDSStreamListener struct {
 }
 
 // NewUDSStreamListener returns an idle UDS datagram Statsd listener
-func NewUDSStreamListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (*UDSStreamListener, error) {
+func NewUDSStreamListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (*UDSStreamListener, error) {
 	socketPath := cfg.GetString("dogstatsd_stream_socket")
 	transport := "unix"
 
-	address, err := setupSocketBeforeListen(socketPath, transport)
+	_, err := setupSocketBeforeListen(socketPath, transport)
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := net.ListenUnix(transport, address)
+	originDetection := cfg.GetBool("dogstatsd_origin_detection")
+
+	conf := net.ListenConfig{
+		Control: func(_, address string, c syscall.RawConn) (err error) {
+			originDetection, err = setupUnixConn(c, originDetection, address)
+			return
+		},
+	}
+
+	unixListener, err := conf.Listen(context.Background(), transport, socketPath)
 	if err != nil {
 		return nil, fmt.Errorf("can't listen: %s", err)
+	}
+
+	conn, ok := unixListener.(*net.UnixListener)
+	if !ok {
+		return nil, fmt.Errorf("unexpected return type from Listen, expected UnixConn: %#v", unixListener)
 	}
 
 	err = setSocketWriteOnly(socketPath)
@@ -48,7 +64,7 @@ func NewUDSStreamListener(packetOut chan packets.Packets, sharedPacketPoolManage
 		return nil, err
 	}
 
-	l, err := NewUDSListener(packetOut, sharedPacketPoolManager, sharedOobPacketPoolManager, cfg, capture, transport, wmeta, pidMap, telemetryStore, packetsTelemetryStore, telemetry)
+	l, err := NewUDSListener(packetOut, sharedPacketPoolManager, sharedOobPacketPoolManager, cfg, capture, transport, wmeta, pidMap, telemetryStore, packetsTelemetryStore, telemetry, originDetection)
 	if err != nil {
 		return nil, err
 	}

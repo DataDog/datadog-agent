@@ -175,6 +175,12 @@ func insertAttributes(attr pcommon.Map, from map[string]interface{}) {
 			if !ok {
 				attr.PutDouble(k, v)
 			}
+		case map[string]interface{}:
+			_, ok := attr.Get(k)
+			if !ok {
+				kv := attr.PutEmptyMap(k)
+				insertAttributes(kv, v)
+			}
 		default:
 			_, ok := attr.Get(k)
 			if !ok {

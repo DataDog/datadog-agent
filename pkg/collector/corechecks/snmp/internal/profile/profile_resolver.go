@@ -8,31 +8,26 @@ package profile
 import (
 	"expvar"
 	"fmt"
+	"slices"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
 	profileExpVar = expvar.NewMap("snmpProfileErrors")
 )
 
-func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileConfigMap, error) {
+func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) ProfileConfigMap {
 	rawProfiles := mergeProfiles(defaultProfiles, userProfiles)
-	userExpandedProfiles, err := loadResolveProfiles(rawProfiles, defaultProfiles)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load profiles: %w", err)
-	}
-	return userExpandedProfiles, nil
+	userExpandedProfiles := normalizeProfiles(rawProfiles, defaultProfiles)
+	return userExpandedProfiles
 }
 
-func loadResolveProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMap) (ProfileConfigMap, error) {
+// normalizeProfiles returns a copy of pConfig with all profiles normalized, validated, and fully expanded (i.e. values from their .extend attributes will be baked into the profile itself).
+func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMap) ProfileConfigMap {
 	profiles := make(ProfileConfigMap, len(pConfig))
 
 	for name := range pConfig {
@@ -41,16 +36,16 @@ func loadResolveProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfig
 			continue
 		}
 
-		newProfileConfig := deepcopy.Copy(pConfig[name]).(ProfileConfig)
+		newProfileConfig := pConfig[name].Clone()
 		err := recursivelyExpandBaseProfiles(name, &newProfileConfig.Definition, newProfileConfig.Definition.Extends, []string{}, pConfig, defaultProfiles)
 		if err != nil {
 			log.Warnf("failed to expand profile %q: %v", name, err)
 			continue
 		}
 		profiledefinition.NormalizeMetrics(newProfileConfig.Definition.Metrics)
-		errors := configvalidation.ValidateEnrichMetadata(newProfileConfig.Definition.Metadata)
-		errors = append(errors, configvalidation.ValidateEnrichMetrics(newProfileConfig.Definition.Metrics)...)
-		errors = append(errors, configvalidation.ValidateEnrichMetricTags(newProfileConfig.Definition.MetricTags)...)
+		errors := profiledefinition.ValidateEnrichMetadata(newProfileConfig.Definition.Metadata)
+		errors = append(errors, profiledefinition.ValidateEnrichMetrics(newProfileConfig.Definition.Metrics)...)
+		errors = append(errors, profiledefinition.ValidateEnrichMetricTags(newProfileConfig.Definition.MetricTags)...)
 		if len(errors) > 0 {
 			log.Warnf("validation errors in profile %q: %s", name, strings.Join(errors, "\n"))
 			profileExpVar.Set(name, expvar.Func(func() interface{} {
@@ -61,7 +56,7 @@ func loadResolveProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfig
 		profiles[name] = newProfileConfig
 	}
 
-	return profiles, nil
+	return profiles
 }
 
 func recursivelyExpandBaseProfiles(parentExtend string, definition *profiledefinition.ProfileDefinition, extends []string, extendsHistory []string, profiles ProfileConfigMap, defaultProfiles ProfileConfigMap) error {
@@ -87,10 +82,8 @@ func recursivelyExpandBaseProfiles(parentExtend string, definition *profiledefin
 			}
 			baseDefinition = &profile.Definition
 		}
-		for _, extend := range extendsHistory {
-			if extend == extendEntry {
-				return fmt.Errorf("cyclic profile extend detected, `%s` has already been extended, extendsHistory=`%v`", extendEntry, extendsHistory)
-			}
+		if slices.Contains(extendsHistory, extendEntry) {
+			return fmt.Errorf("cyclic profile extend detected, `%s` has already been extended, extendsHistory=`%v`", extendEntry, extendsHistory)
 		}
 
 		mergeProfileDefinition(definition, baseDefinition)

@@ -130,8 +130,8 @@ func (h *fakeProcessor) ProcessEMList(metrics []custommetrics.ExternalMetricValu
 }
 
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *fakeProcessor) QueryExternalMetric(queries []string, timeWindow time.Duration) (map[string]autoscalers.Point, error) {
-	return nil, nil
+func (h *fakeProcessor) QueryExternalMetric(queries []string, timeWindow time.Duration) map[string]autoscalers.Point {
+	return nil
 }
 
 var maxAge = 30 * time.Second

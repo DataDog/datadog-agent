@@ -269,7 +269,7 @@ func (p *pclntanSymbolParser) funcName(data sectionAccess) string {
 		return ""
 	}
 
-	if p.symbolFilter.want(string(p.funcNameHelper[:idxToNull])) {
+	if p.symbolFilter.want(p.funcNameHelper[:idxToNull]) {
 		return string(p.funcNameHelper[:idxToNull])
 	}
 	return ""

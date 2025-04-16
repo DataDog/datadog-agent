@@ -10,7 +10,7 @@ import (
 
 	"github.com/vishvananda/netns"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 )
 
 // GetRootNetNs returns the network namespace to use for creating, e.g., netlink sockets
@@ -24,5 +24,5 @@ func (c *Config) GetRootNetNs() (netns.NsHandle, error) {
 	}
 
 	// get the root network namespace
-	return kernel.GetRootNetNamespace(c.ProcRoot)
+	return netnsutil.GetRootNetNamespace(c.ProcRoot)
 }

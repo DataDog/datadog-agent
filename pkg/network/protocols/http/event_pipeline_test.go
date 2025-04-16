@@ -70,7 +70,7 @@ func setupBenchmark(b *testing.B, c *config.Config, i, totalEventsCount, numOfEv
 		telemetry:  httpTelemetry,
 		statkeeper: NewStatkeeper(c, httpTelemetry, NewIncompleteBuffer(c, httpTelemetry)),
 	}
-	consumer, err := events.NewConsumer("test", program, p.processHTTP)
+	consumer, err := events.NewConsumer("test", program.Manager, p.processHTTP)
 	require.NoError(b, err)
 
 	// Using a wait group to ensure the goroutine finishes before the benchmark ends.

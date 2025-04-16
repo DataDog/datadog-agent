@@ -14,12 +14,13 @@ import (
 	"testing"
 	"time"
 
+	infraCommon "github.com/DataDog/test-infra-definitions/common"
+
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
-	infraCommon "github.com/DataDog/test-infra-definitions/common"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/assert"
@@ -53,6 +54,11 @@ func GetCodeSignatureThumbprints() map[string]struct{} {
 // GetDatadogAgentProductCode returns the product code GUID for the Datadog Agent
 func GetDatadogAgentProductCode(host *components.RemoteHost) (string, error) {
 	return windowsCommon.GetProductCodeByName(host, "Datadog Agent")
+}
+
+// GetDatadogProductVersion returns the product version for the Datadog Agent
+func GetDatadogProductVersion(host *components.RemoteHost) (string, error) {
+	return windowsCommon.GetProductVersionByName(host, "Datadog Agent")
 }
 
 // InstallAgent installs the agent and returns the remote MSI path and any errors

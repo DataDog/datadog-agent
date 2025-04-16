@@ -17,7 +17,6 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const defaultEnv = "testEnv"
@@ -28,7 +27,7 @@ func getTestErrorsSampler(tps float64) *ErrorsSampler {
 		ExtraSampleRate: 1,
 		ErrorTPS:        tps,
 	}
-	return NewErrorsSampler(conf, &statsd.NoOpClient{})
+	return NewErrorsSampler(conf)
 }
 
 func getTestTrace() (pb.Trace, *pb.Span) {

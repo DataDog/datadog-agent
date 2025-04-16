@@ -8,9 +8,7 @@
 package common
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -18,7 +16,6 @@ import (
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // GetPythonPaths returns the paths (in order of precedence) from where the agent
@@ -33,20 +30,12 @@ func GetPythonPaths() []string {
 	}
 }
 
-// GetVersion returns the version of the agent in a http response json
-func GetVersion(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	av, _ := version.Agent()
-	j, _ := json.Marshal(av)
-	w.Write(j)
-}
-
 // NewSettingsClient returns a configured runtime settings client.
 func NewSettingsClient() (settings.Client, error) {
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
-	hc := util.GetClient(false)
+	hc := util.GetClient()
 	return settingshttp.NewClient(hc, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")), "agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
 }

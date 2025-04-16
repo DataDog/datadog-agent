@@ -7,6 +7,7 @@ package sender
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -14,19 +15,19 @@ import (
 // that Message's Content. This is used for TCP destinations, which stream the output
 // without batching multiple messages together.
 type streamStrategy struct {
-	inputChan       chan *message.Message
-	outputChan      chan *message.Payload
-	contentEncoding ContentEncoding
-	done            chan struct{}
+	inputChan   chan *message.Message
+	outputChan  chan *message.Payload
+	compression compression.Compressor
+	done        chan struct{}
 }
 
 // NewStreamStrategy creates a new stream strategy
-func NewStreamStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, contentEncoding ContentEncoding) Strategy {
+func NewStreamStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, compression compression.Compressor) Strategy {
 	return &streamStrategy{
-		inputChan:       inputChan,
-		outputChan:      outputChan,
-		contentEncoding: contentEncoding,
-		done:            make(chan struct{}),
+		inputChan:   inputChan,
+		outputChan:  outputChan,
+		compression: compression,
+		done:        make(chan struct{}),
 	}
 }
 
@@ -38,18 +39,14 @@ func (s *streamStrategy) Start() {
 				msg.Origin.LogSource.LatencyStats.Add(msg.GetLatency())
 			}
 
-			encodedPayload, err := s.contentEncoding.encode(msg.GetContent())
+			encodedPayload, err := s.compression.Compress(msg.GetContent())
 			if err != nil {
 				log.Warn("Encoding failed - dropping payload", err)
 				return
 			}
 
-			s.outputChan <- &message.Payload{
-				Messages:      []*message.Message{msg},
-				Encoded:       encodedPayload,
-				Encoding:      s.contentEncoding.name(),
-				UnencodedSize: len(msg.GetContent()),
-			}
+			unencodedSize := len(msg.GetContent())
+			s.outputChan <- message.NewPayload([]*message.Message{msg}, encodedPayload, s.compression.ContentEncoding(), unencodedSize)
 		}
 		s.done <- struct{}{}
 	}()

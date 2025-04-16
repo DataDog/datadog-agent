@@ -6,6 +6,6 @@
 package haagentimpl
 
 type haAgentConfig struct {
-	Group  string `json:"group"`
-	Leader string `json:"leader"`
+	ConfigID    string `json:"config_id"`
+	ActiveAgent string `json:"active_agent"`
 }

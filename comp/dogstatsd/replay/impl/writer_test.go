@@ -20,7 +20,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -39,7 +39,7 @@ func writerTest(t *testing.T, z bool) {
 
 	cfg := config.NewMock(t)
 
-	taggerComponent := mock.SetupFakeTagger(t)
+	taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
 	writer := NewTrafficCaptureWriter(1, taggerComponent)
 

@@ -33,6 +33,16 @@ func (h *DeploymentHandlers) AfterMarshalling(ctx processors.ProcessorContext, r
 	return
 }
 
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *DeploymentHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*appsv1.Deployment)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
+	return
+}
+
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
 func (h *DeploymentHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
@@ -58,7 +68,7 @@ func (h *DeploymentHandlers) BuildMessageBody(ctx processors.ProcessorContext, r
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *DeploymentHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*appsv1.Deployment)
-	return k8sTransformers.ExtractDeployment(r)
+	return k8sTransformers.ExtractDeployment(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

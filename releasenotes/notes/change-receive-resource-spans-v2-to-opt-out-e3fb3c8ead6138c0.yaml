@@ -1,0 +1,5 @@
+
+---
+enhancements:
+  - |
+    Added a new feature flag `disable_receive_resource_spans_v2` in DD_APM_FEATURES that replaces `enable_receive_resource_spans_v2` - the refactored implementation of ReceiveResourceSpans for OTLP is now opt-out instead of opt-in.

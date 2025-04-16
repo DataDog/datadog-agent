@@ -77,6 +77,7 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
 
     // we're in the context of TLS hookpoints, thus the protocol is TLS.
     set_protocol(stack, PROTOCOL_TLS);
+    set_protocol_flag(stack, FLAG_USM_ENABLED);
 
     const __u32 zero = 0;
     protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);

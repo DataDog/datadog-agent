@@ -7,7 +7,7 @@
 // status and emit flare data
 package remoteagentregistry
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // Component is the component type.
 type Component interface {

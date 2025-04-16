@@ -116,8 +116,7 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
 def trigger_agent_pipeline(
     repo: Project,
     ref=None,
-    release_version_6="nightly",
-    release_version_7="nightly-a7",
+    release_version="nightly",
     branch="nightly",
     deploy=False,
     deploy_installer=False,
@@ -136,7 +135,7 @@ def trigger_agent_pipeline(
     """
 
     ref = ref or get_default_branch()
-    args = {}
+    args = {"TRIGGERED_PIPELINE": "true"}
 
     if deploy:
         args["DEPLOY_AGENT"] = "true"
@@ -159,11 +158,7 @@ def trigger_agent_pipeline(
 
     args["RUN_KMT_TESTS"] = "on" if kmt_tests else "off"
 
-    if release_version_6 is not None:
-        args["RELEASE_VERSION_6"] = release_version_6
-
-    if release_version_7 is not None:
-        args["RELEASE_VERSION_7"] = release_version_7
+    args["RELEASE_VERSION"] = release_version
 
     if branch is not None:
         args["BUCKET_BRANCH"] = branch

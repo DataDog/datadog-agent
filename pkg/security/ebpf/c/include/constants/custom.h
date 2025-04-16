@@ -64,6 +64,7 @@ enum TC_TAIL_CALL_KEYS
     DNS_REQUEST = 1,
     DNS_REQUEST_PARSER,
     IMDS_REQUEST,
+    DNS_RESPONSE
 };
 
 enum TC_RAWPACKET_KEYS {
@@ -72,6 +73,7 @@ enum TC_RAWPACKET_KEYS {
 };
 
 #define DNS_MAX_LENGTH 256
+#define DNS_RECEIVE_MAX_LENGTH 512
 #define DNS_EVENT_KEY 0
 
 #define EGRESS 1
@@ -199,5 +201,65 @@ static __attribute__((always_inline)) u64 get_imds_ip() {
 #define CGROUP_MANAGER_MASK 0b111
 #define CGROUP_SYSTEMD_SERVICE (0 << 8)
 #define CGROUP_SYSTEMD_SCOPE   (1 << 8)
+
+#define ACTIVE_FLOWS_MAX_SIZE 128
+
+enum PID_ROUTE_TYPE
+{
+    BIND_ENTRY,
+    PROCFS_ENTRY,
+    FLOW_CLASSIFICATION_ENTRY,
+};
+
+enum FLUSH_NETWORK_STATS_TYPE
+{
+    PID_EXIT,
+    PID_EXEC,
+    NETWORK_STATS_TICKER,
+};
+
+static __attribute__((always_inline)) u64 get_network_monitor_period() {
+    u64 network_monitor_period;
+    LOAD_CONSTANT("network_monitor_period", network_monitor_period);
+    return network_monitor_period;
+}
+
+static __attribute__((always_inline)) u64 is_sk_storage_supported() {
+    u64 is_sk_storage_supported;
+    LOAD_CONSTANT("is_sk_storage_supported", is_sk_storage_supported);
+    return is_sk_storage_supported;
+}
+
+static __attribute__((always_inline)) u64 is_network_flow_monitor_enabled() {
+    u64 is_network_flow_monitor_enabled;
+    LOAD_CONSTANT("is_network_flow_monitor_enabled", is_network_flow_monitor_enabled);
+    return is_network_flow_monitor_enabled;
+}
+
+#define SYSCTL_OK       1
+
+#define MAX_SYSCTL_BUFFER_LEN 1024
+#define MAX_SYSCTL_OBJ_LEN 256
+#define SYSCTL_EVENT_GEN_KEY 0
+
+#define SYSCTL_NAME_TRUNCATED (1 << 0)
+#define SYSCTL_OLD_VALUE_TRUNCATED (1 << 1)
+#define SYSCTL_NEW_VALUE_TRUNCATED (1 << 2)
+
+static __attribute__((always_inline)) u64 has_tracing_helpers_in_cgroup_sysctl() {
+    u64 tracing_helpers_in_cgroup_sysctl;
+    LOAD_CONSTANT("tracing_helpers_in_cgroup_sysctl", tracing_helpers_in_cgroup_sysctl);
+    return tracing_helpers_in_cgroup_sysctl;
+}
+
+enum link_target_dentry_origin {
+	ORIGIN_UNSET = 0,
+	ORIGIN_RETHOOK_FILENAME_CREATE,
+	ORIGIN_RETHOOK___LOOKUP_HASH,
+};
+
+enum global_rate_limiter_type {
+    RAW_PACKET_LIMITER = 0,
+};
 
 #endif

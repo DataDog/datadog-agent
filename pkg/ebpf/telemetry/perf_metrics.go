@@ -22,19 +22,25 @@ var (
 )
 
 type perfUsageCollector struct {
-	mtx      sync.Mutex
-	usage    *prometheus.GaugeVec
-	usagePct *prometheus.GaugeVec
-	size     *prometheus.GaugeVec
-	lost     *prometheus.CounterVec
+	mtx        sync.Mutex
+	usage      *prometheus.GaugeVec
+	usagePct   *prometheus.GaugeVec
+	size       *prometheus.GaugeVec
+	lost       *prometheus.CounterVec
+	channelLen *prometheus.GaugeVec
 
-	perfMaps    []*manager.PerfMap
-	ringBuffers []*manager.RingBuffer
+	perfMaps            []*manager.PerfMap
+	perfChannelLenFuncs map[*manager.PerfMap]func() int
+
+	ringBuffers         []*manager.RingBuffer
+	ringChannelLenFuncs map[*manager.RingBuffer]func() int
 }
 
 // NewPerfUsageCollector creates a prometheus.Collector for perf buffer and ring buffer metrics
 func NewPerfUsageCollector() prometheus.Collector {
 	perfCollector = &perfUsageCollector{
+		perfChannelLenFuncs: make(map[*manager.PerfMap]func() int),
+		ringChannelLenFuncs: make(map[*manager.RingBuffer]func() int),
 		usage: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Subsystem: "ebpf__perf",
@@ -66,6 +72,14 @@ func NewPerfUsageCollector() prometheus.Collector {
 				Help:      "counter tracking lost samples of a perf buffer (per-cpu)",
 			},
 			[]string{"map_name", "map_type", "cpu_num"},
+		),
+		channelLen: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Subsystem: "ebpf__perf",
+				Name:      "_channel_len",
+				Help:      "gauge tracking number of elements in buffer channel",
+			},
+			[]string{"map_name", "map_type"},
 		),
 	}
 	return perfCollector
@@ -103,6 +117,11 @@ func (p *perfUsageCollector) Collect(metrics chan<- prometheus.Metric) {
 		}
 	}
 
+	for pm, chFunc := range p.perfChannelLenFuncs {
+		mapName, mapType := pm.Name, ebpf.PerfEventArray.String()
+		p.channelLen.WithLabelValues(mapName, mapType).Set(float64(chFunc()))
+	}
+
 	for _, rb := range p.ringBuffers {
 		mapName, mapType := rb.Name, ebpf.RingBuf.String()
 		size := float64(rb.BufferSize())
@@ -118,10 +137,16 @@ func (p *perfUsageCollector) Collect(metrics chan<- prometheus.Metric) {
 		p.size.WithLabelValues(mapName, mapType, cpuString).Set(size)
 	}
 
+	for rb, chFunc := range p.ringChannelLenFuncs {
+		mapName, mapType := rb.Name, ebpf.RingBuf.String()
+		p.channelLen.WithLabelValues(mapName, mapType).Set(float64(chFunc()))
+	}
+
 	p.usage.Collect(metrics)
 	p.usagePct.Collect(metrics)
 	p.size.Collect(metrics)
 	p.lost.Collect(metrics)
+	p.channelLen.Collect(metrics)
 }
 
 // ReportPerfMapTelemetry starts reporting the telemetry for the provided PerfMap
@@ -132,12 +157,28 @@ func ReportPerfMapTelemetry(pm *manager.PerfMap) {
 	perfCollector.registerPerfMap(pm)
 }
 
+// ReportPerfMapChannelLenTelemetry starts reporting the telemetry for the provided PerfMap's buffer channel
+func ReportPerfMapChannelLenTelemetry(pm *manager.PerfMap, channelLenFunc func() int) {
+	if perfCollector == nil {
+		return
+	}
+	perfCollector.registerPerfMapChannel(pm, channelLenFunc)
+}
+
 // ReportRingBufferTelemetry starts reporting the telemetry for the provided RingBuffer
 func ReportRingBufferTelemetry(rb *manager.RingBuffer) {
 	if perfCollector == nil {
 		return
 	}
 	perfCollector.registerRingBuffer(rb)
+}
+
+// ReportRingBufferChannelLenTelemetry starts reporting the telemetry for the provided RingBuffer's buffer channel
+func ReportRingBufferChannelLenTelemetry(rb *manager.RingBuffer, channelLenFunc func() int) {
+	if perfCollector == nil {
+		return
+	}
+	perfCollector.registerRingBufferChannel(rb, channelLenFunc)
 }
 
 func (p *perfUsageCollector) registerPerfMap(pm *manager.PerfMap) {
@@ -149,6 +190,15 @@ func (p *perfUsageCollector) registerPerfMap(pm *manager.PerfMap) {
 	p.perfMaps = append(p.perfMaps, pm)
 }
 
+func (p *perfUsageCollector) registerPerfMapChannel(pm *manager.PerfMap, channelLenFunc func() int) {
+	if !pm.TelemetryEnabled {
+		return
+	}
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	p.perfChannelLenFuncs[pm] = channelLenFunc
+}
+
 func (p *perfUsageCollector) registerRingBuffer(rb *manager.RingBuffer) {
 	if !rb.TelemetryEnabled {
 		return
@@ -158,12 +208,20 @@ func (p *perfUsageCollector) registerRingBuffer(rb *manager.RingBuffer) {
 	p.ringBuffers = append(p.ringBuffers, rb)
 }
 
-// UnregisterTelemetry unregisters the PerfMap and RingBuffers from telemetry
-func UnregisterTelemetry(m *manager.Manager) {
-	if perfCollector == nil {
+func (p *perfUsageCollector) registerRingBufferChannel(rb *manager.RingBuffer, channelLenFunc func() int) {
+	if !rb.TelemetryEnabled {
 		return
 	}
-	perfCollector.unregisterTelemetry(m)
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	p.ringChannelLenFuncs[rb] = channelLenFunc
+}
+
+// UnregisterTelemetry unregisters the PerfMap and RingBuffers from telemetry
+func UnregisterTelemetry(m *manager.Manager) {
+	if perfCollector != nil {
+		perfCollector.unregisterTelemetry(m)
+	}
 }
 
 func (p *perfUsageCollector) unregisterTelemetry(m *manager.Manager) {
@@ -172,7 +230,13 @@ func (p *perfUsageCollector) unregisterTelemetry(m *manager.Manager) {
 	p.perfMaps = slices.DeleteFunc(p.perfMaps, func(perfMap *manager.PerfMap) bool {
 		return slices.Contains(m.PerfMaps, perfMap)
 	})
+	for _, pm := range m.PerfMaps {
+		delete(p.perfChannelLenFuncs, pm)
+	}
 	p.ringBuffers = slices.DeleteFunc(p.ringBuffers, func(ringBuf *manager.RingBuffer) bool {
 		return slices.Contains(m.RingBuffers, ringBuf)
 	})
+	for _, rb := range m.RingBuffers {
+		delete(p.ringChannelLenFuncs, rb)
+	}
 }

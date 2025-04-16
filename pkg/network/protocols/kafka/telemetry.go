@@ -28,8 +28,8 @@ func NewTelemetry() *Telemetry {
 
 	return &Telemetry{
 		metricGroup:    metricGroup,
-		produceHits:    newAPIVersionCounter(metricGroup, "total_hits", "operation:produce", libtelemetry.OptStatsd),
-		fetchHits:      newAPIVersionCounter(metricGroup, "total_hits", "operation:fetch", libtelemetry.OptStatsd),
+		produceHits:    newAPIVersionCounter(metricGroup, "total_hits", MinSupportedProduceRequestApiVersion, MaxSupportedProduceRequestApiVersion, "operation:produce", libtelemetry.OptStatsd),
+		fetchHits:      newAPIVersionCounter(metricGroup, "total_hits", MinSupportedFetchRequestApiVersion, MaxSupportedFetchRequestApiVersion, "operation:fetch", libtelemetry.OptStatsd),
 		dropped:        metricGroup.NewCounter("dropped", libtelemetry.OptStatsd),
 		invalidLatency: metricGroup.NewCounter("malformed", "type:invalid-latency", libtelemetry.OptStatsd),
 	}

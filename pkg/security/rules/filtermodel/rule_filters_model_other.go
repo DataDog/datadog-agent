@@ -12,31 +12,30 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // RuleFilterEvent represents a rule filtering event
 type RuleFilterEvent struct {
-	origin string
+	cfg RuleFilterEventConfig
 }
 
 // RuleFilterModel represents a rule fitlering model
 type RuleFilterModel struct {
-	origin string
+	cfg RuleFilterEventConfig
 }
 
 // NewRuleFilterModel returns a new rule filtering model
-func NewRuleFilterModel(_ *config.Config, origin string) (*RuleFilterModel, error) {
+func NewRuleFilterModel(cfg RuleFilterEventConfig) (*RuleFilterModel, error) {
 	return &RuleFilterModel{
-		origin: origin,
+		cfg: cfg,
 	}, nil
 }
 
 // NewEvent returns a new rule filtering event
 func (m *RuleFilterModel) NewEvent() eval.Event {
 	return &RuleFilterEvent{
-		origin: m.origin,
+		cfg: m.cfg,
 	}
 }
 
@@ -74,7 +73,7 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eva
 		}, nil
 	case "origin":
 		return &eval.StringEvaluator{
-			Value: m.origin,
+			Value: m.cfg.Origin,
 			Field: field,
 		}, nil
 	case "hostname":
@@ -106,7 +105,7 @@ func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "envs":
 		return os.Environ(), nil
 	case "origin":
-		return e.origin, nil
+		return e.cfg.Origin, nil
 	case "hostname":
 		return getHostname(), nil
 	}

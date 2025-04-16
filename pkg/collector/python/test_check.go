@@ -12,16 +12,17 @@ import (
 	"runtime"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 /*
@@ -201,8 +202,7 @@ void reset_check_mock() {
 import "C"
 
 func testRunCheck(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
 		return
@@ -212,7 +212,13 @@ func testRunCheck(t *testing.T) {
 
 	C.reset_check_mock()
 	C.run_check_return = C.CString("")
-	warn := []*C.char{C.CString("warn1"), C.CString("warn2"), nil}
+
+	type warnTy *[3]*C.char
+	var warn warnTy
+	warn = warnTy(C.malloc(C.size_t(unsafe.Sizeof(*warn))))
+	warn[0] = C.CString("warn1")
+	warn[1] = C.CString("warn2")
+	warn[2] = nil
 	C.get_checks_warnings_return = &warn[0]
 
 	err = check.runCheck(false)
@@ -228,8 +234,7 @@ func testRunCheck(t *testing.T) {
 }
 
 func testRunCheckWithRuntimeNotInitializedError(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
 		return
@@ -275,8 +280,7 @@ func testInitiCheckWithRuntimeNotInitialized(t *testing.T) {
 }
 
 func testCheckCancel(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
 		return
@@ -311,8 +315,7 @@ func testCheckCancel(t *testing.T) {
 }
 
 func testCheckCancelWhenRuntimeUnloaded(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
@@ -346,13 +349,7 @@ func testCheckCancelWhenRuntimeUnloaded(t *testing.T) {
 }
 
 func testFinalizer(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() {
-		// We have to wrap this in locks otherwise the race detector complains
-		pyDestroyLock.Lock()
-		rtloader = nil
-		pyDestroyLock.Unlock()
-	}()
+	mockRtloader(t)
 
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
@@ -390,13 +387,7 @@ func testFinalizer(t *testing.T) {
 }
 
 func testFinalizerWhenRuntimeUnloaded(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() {
-		// We have to wrap this in locks otherwise the race detector complains
-		pyDestroyLock.Lock()
-		rtloader = nil
-		pyDestroyLock.Unlock()
-	}()
+	mockRtloader(t)
 
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
@@ -435,8 +426,7 @@ func testFinalizerWhenRuntimeUnloaded(t *testing.T) {
 }
 
 func testRunErrorNil(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
@@ -463,8 +453,7 @@ func testRunErrorNil(t *testing.T) {
 }
 
 func testRunErrorReturn(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
@@ -492,8 +481,7 @@ func testRun(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	sender.SetupAcceptAll()
 
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 
 	c, err := NewPythonFakeCheck(sender.GetSenderManager())
 	if !assert.Nil(t, err) {
@@ -525,8 +513,7 @@ func testRunSimple(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	sender.SetupAcceptAll()
 
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 
 	c, err := NewPythonFakeCheck(sender.GetSenderManager())
 	if !assert.Nil(t, err) {
@@ -555,8 +542,7 @@ func testRunSimple(t *testing.T) {
 }
 
 func testConfigure(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	c, err := NewPythonFakeCheck(senderManager)
@@ -590,8 +576,7 @@ func testConfigure(t *testing.T) {
 }
 
 func testConfigureDeprecated(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	c, err := NewPythonFakeCheck(senderManager)
@@ -629,8 +614,7 @@ func testConfigureDeprecated(t *testing.T) {
 func testGetDiagnoses(t *testing.T) {
 	C.reset_check_mock()
 
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
@@ -666,14 +650,14 @@ func testGetDiagnoses(t *testing.T) {
 	assert.Zero(t, len(diagnoses[0].RawError))
 	assert.NotZero(t, len(diagnoses[1].RawError))
 
-	assert.Equal(t, diagnoses[0].Result, diagnosis.DiagnosisSuccess)
+	assert.Equal(t, diagnoses[0].Status, diagnose.DiagnosisSuccess)
 	assert.NotZero(t, len(diagnoses[0].Name))
 	assert.NotZero(t, len(diagnoses[0].Diagnosis))
 	assert.NotZero(t, len(diagnoses[0].Category))
 	assert.NotZero(t, len(diagnoses[0].Description))
 	assert.NotZero(t, len(diagnoses[0].Remediation))
 
-	assert.Equal(t, diagnoses[1].Result, diagnosis.DiagnosisFail)
+	assert.Equal(t, diagnoses[1].Status, diagnose.DiagnosisFail)
 	assert.NotZero(t, len(diagnoses[1].Name))
 	assert.NotZero(t, len(diagnoses[1].Diagnosis))
 	assert.Zero(t, len(diagnoses[1].Category))
@@ -683,7 +667,7 @@ func testGetDiagnoses(t *testing.T) {
 
 // NewPythonFakeCheck create a fake PythonCheck
 func NewPythonFakeCheck(senderManager sender.SenderManager) (*PythonCheck, error) {
-	c, err := NewPythonCheck(senderManager, "fake_check", nil)
+	c, err := NewPythonCheck(senderManager, "fake_check", nil, false)
 
 	// Remove check finalizer that may trigger race condition while testing
 	if err == nil {

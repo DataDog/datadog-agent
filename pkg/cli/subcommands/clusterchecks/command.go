@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/flare"
+	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -119,17 +119,17 @@ func bundleParams(globalParams GlobalParams) core.BundleParams {
 
 //nolint:revive // TODO(CINT) Fix revive linter
 func run(_ log.Component, _ config.Component, cliParams *cliParams) error {
-	if err := flare.GetClusterChecks(color.Output, cliParams.checkName); err != nil {
+	if err := clusterAgentFlare.GetClusterChecks(color.Output, cliParams.checkName); err != nil {
 		return err
 	}
 
-	return flare.GetEndpointsChecks(color.Output, cliParams.checkName)
+	return clusterAgentFlare.GetEndpointsChecks(color.Output, cliParams.checkName)
 }
 
 func rebalance(_ log.Component, config config.Component, cliParams *cliParams) error {
 
 	fmt.Println("Requesting a cluster check rebalance...")
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient()
 	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/rebalance", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 
 	// Set session token
@@ -179,7 +179,7 @@ func rebalance(_ log.Component, config config.Component, cliParams *cliParams) e
 }
 
 func isolate(_ log.Component, config config.Component, cliParams *cliParams) error {
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient()
 	if cliParams.checkID == "" {
 		return fmt.Errorf("checkID must be specified")
 	}

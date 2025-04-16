@@ -108,8 +108,8 @@ typedef struct {
 // connection_protocol map, but elsewhere in the code we're still using
 // protocol_stack_t, so this is change is "transparent" to most of the code.
 typedef struct {
-    protocol_stack_t stack;
     __u64 updated;
+    protocol_stack_t stack;
 } protocol_stack_wrapper_t;
 
 typedef enum {
@@ -123,10 +123,13 @@ typedef enum {
     CLASSIFICATION_GRPC_PROG,
     __PROG_ENCRYPTION,
     // Encryption classification programs go here
-    CLASSIFICATION_TLS_CLIENT_PROG,
-    CLASSIFICATION_TLS_SERVER_PROG,
     CLASSIFICATION_PROG_MAX,
 } classification_prog_t;
+
+typedef enum {
+    CLASSIFICATION_TLS_CLIENT_PROG,
+    CLASSIFICATION_TLS_SERVER_PROG,
+} classification_tls_prog_t;
 
 typedef enum {
     DISPATCHER_KAFKA_PROG = 0,

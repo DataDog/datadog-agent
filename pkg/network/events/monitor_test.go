@@ -45,7 +45,7 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 				},
 				FieldHandlers: &model.FakeFieldHandlers{},
 			},
-			CGroupContext: model.CGroupContext{
+			CGroupContext: &model.CGroupContext{
 				CGroupID: "cid_exec",
 			},
 		}
@@ -87,7 +87,7 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 				},
 				FieldHandlers: &model.FakeFieldHandlers{},
 			},
-			CGroupContext: model.CGroupContext{
+			CGroupContext: &model.CGroupContext{
 				CGroupID: "cid_fork",
 			},
 		}

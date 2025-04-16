@@ -78,6 +78,7 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		SpanKind:       a.SpanKind,
 		PeerTags:       s.peerTags,
 		IsTraceRoot:    a.IsTraceRoot,
+		GRPCStatusCode: a.GRPCStatusCode,
 	}, nil
 }
 
@@ -109,6 +110,7 @@ type RawBucket struct {
 	data map[Aggregation]*groupedStats
 
 	containerTagsByID map[string][]string // a map from container ID to container tags
+	processTagsByHash map[uint64]string   // a map from process hash to process tags
 }
 
 // NewRawBucket opens a new calculation bucket for time ts and initializes it properly
@@ -119,6 +121,7 @@ func NewRawBucket(ts, d uint64) *RawBucket {
 		duration:          d,
 		data:              make(map[Aggregation]*groupedStats),
 		containerTagsByID: make(map[string][]string),
+		processTagsByHash: make(map[uint64]string),
 	}
 }
 
@@ -134,12 +137,13 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
 			continue
 		}
 		key := PayloadAggregationKey{
-			Hostname:     k.Hostname,
-			Version:      k.Version,
-			Env:          k.Env,
-			ContainerID:  k.ContainerID,
-			GitCommitSha: k.GitCommitSha,
-			ImageTag:     k.ImageTag,
+			Hostname:        k.Hostname,
+			Version:         k.Version,
+			Env:             k.Env,
+			ContainerID:     k.ContainerID,
+			GitCommitSha:    k.GitCommitSha,
+			ImageTag:        k.ImageTag,
+			ProcessTagsHash: k.ProcessTagsHash,
 		}
 		s, ok := m[key]
 		if !ok {

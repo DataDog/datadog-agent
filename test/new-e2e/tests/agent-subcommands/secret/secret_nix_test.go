@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
@@ -59,7 +59,7 @@ host_aliases:
 	v.UpdateEnv(
 		awshost.ProvisionerNoFakeIntake(
 			awshost.WithAgentOptions(
-				agentparams.WithFileWithPermissions("/tmp/bin/secret.sh", secretScript, false, secrets.WithUnixSecretPermissions(false)),
+				secretsutils.WithUnixSetupCustomScript("/tmp/bin/secret.sh", secretScript, false),
 				agentparams.WithAgentConfig(config),
 			),
 		),
@@ -86,13 +86,13 @@ secret_backend_arguments:
 api_key: ENC[api_key]
 `
 
-	secretClient := secrets.NewSecretClient(v.T(), v.Env().RemoteHost, "/tmp")
+	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, "/tmp")
 	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
 
 	v.UpdateEnv(
 		awshost.ProvisionerNoFakeIntake(
 			awshost.WithAgentOptions(
-				secrets.WithUnixSecretSetupScript("/tmp/secret.py", false),
+				secretsutils.WithUnixSetupScript("/tmp/secret.py", false),
 				agentparams.WithSkipAPIKeyInConfig(),
 				agentparams.WithAgentConfig(config),
 			),

@@ -22,7 +22,7 @@ def build(ctx, debug=False, console=False, rebuild=False, race=False, major_vers
     the values from `invoke.yaml` will be used.
 
     Example invokation:
-        inv systray.build
+        dda inv systray.build
     """
 
     if not sys.platform == 'win32':

@@ -18,10 +18,7 @@ func CreateStringBatches(elements []string, size int) ([][]string, error) {
 	}
 
 	for i := 0; i < len(elements); i += size {
-		j := i + size
-		if j > len(elements) {
-			j = len(elements)
-		}
+		j := min(i+size, len(elements))
 		batch := elements[i:j]
 		batches = append(batches, batch)
 	}

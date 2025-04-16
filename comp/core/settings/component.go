@@ -15,7 +15,7 @@ import (
 	"go.uber.org/fx"
 )
 
-// team: agent-shared-components
+// team: agent-configuration
 
 // SettingNotFoundError is used to warn about non existing/not registered runtime setting
 type SettingNotFoundError struct {

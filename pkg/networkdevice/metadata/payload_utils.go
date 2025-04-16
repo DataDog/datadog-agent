@@ -8,45 +8,46 @@ package metadata
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/gosnmp/gosnmp"
 )
 
 // BatchPayloads batch NDM metadata payloads
-func BatchPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, devices []DeviceMetadata, interfaces []InterfaceMetadata, ipAddresses []IPAddressMetadata, topologyLinks []TopologyLinkMetadata, netflowExporters []NetflowExporter, diagnoses []DiagnosisMetadata) []NetworkDevicesMetadata {
+func BatchPayloads(integration integrations.Integration, namespace string, subnet string, collectTime time.Time, batchSize int, devices []DeviceMetadata, interfaces []InterfaceMetadata, ipAddresses []IPAddressMetadata, topologyLinks []TopologyLinkMetadata, netflowExporters []NetflowExporter, diagnoses []DiagnosisMetadata) []NetworkDevicesMetadata {
 
 	var payloads []NetworkDevicesMetadata
 	var resourceCount int
 
-	curPayload := newNetworkDevicesMetadata(namespace, subnet, collectTime)
+	curPayload := newNetworkDevicesMetadata(integration, namespace, subnet, collectTime)
 
 	for _, deviceMetadata := range devices {
-		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
+		payloads, curPayload, resourceCount = appendToPayloads(integration, namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
 		curPayload.Devices = append(curPayload.Devices, deviceMetadata)
 	}
 
 	for _, interfaceMetadata := range interfaces {
-		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
+		payloads, curPayload, resourceCount = appendToPayloads(integration, namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
 		curPayload.Interfaces = append(curPayload.Interfaces, interfaceMetadata)
 	}
 
 	for _, ipAddress := range ipAddresses {
-		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
+		payloads, curPayload, resourceCount = appendToPayloads(integration, namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
 		curPayload.IPAddresses = append(curPayload.IPAddresses, ipAddress)
 	}
 
 	for _, linkMetadata := range topologyLinks {
-		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
+		payloads, curPayload, resourceCount = appendToPayloads(integration, namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
 		curPayload.Links = append(curPayload.Links, linkMetadata)
 	}
 
 	for _, netflowExporter := range netflowExporters {
-		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
+		payloads, curPayload, resourceCount = appendToPayloads(integration, namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
 		curPayload.NetflowExporters = append(curPayload.NetflowExporters, netflowExporter)
 	}
 
 	for _, diagnosis := range diagnoses {
-		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
+		payloads, curPayload, resourceCount = appendToPayloads(integration, namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
 		curPayload.Diagnoses = append(curPayload.Diagnoses, diagnosis)
 	}
 	payloads = append(payloads, curPayload)
@@ -58,28 +59,29 @@ func BatchDeviceScan(namespace string, collectTime time.Time, batchSize int, dev
 	var payloads []NetworkDevicesMetadata
 	var resourceCount int
 
-	curPayload := newNetworkDevicesMetadata(namespace, "", collectTime)
+	curPayload := newNetworkDevicesMetadata("snmp", namespace, "", collectTime)
 
 	for _, oid := range deviceOIDs {
-		payloads, curPayload, resourceCount = appendToPayloads(namespace, "", collectTime, batchSize, resourceCount, payloads, curPayload)
+		payloads, curPayload, resourceCount = appendToPayloads("snmp", namespace, "", collectTime, batchSize, resourceCount, payloads, curPayload)
 		curPayload.DeviceOIDs = append(curPayload.DeviceOIDs, *oid)
 	}
 	payloads = append(payloads, curPayload)
 	return payloads
 }
 
-func newNetworkDevicesMetadata(namespace string, subnet string, collectTime time.Time) NetworkDevicesMetadata {
+func newNetworkDevicesMetadata(integration integrations.Integration, namespace string, subnet string, collectTime time.Time) NetworkDevicesMetadata {
 	return NetworkDevicesMetadata{
 		Subnet:           subnet,
 		Namespace:        namespace,
+		Integration:      integration,
 		CollectTimestamp: collectTime.Unix(),
 	}
 }
 
-func appendToPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, resourceCount int, payloads []NetworkDevicesMetadata, payload NetworkDevicesMetadata) ([]NetworkDevicesMetadata, NetworkDevicesMetadata, int) {
+func appendToPayloads(integration integrations.Integration, namespace string, subnet string, collectTime time.Time, batchSize int, resourceCount int, payloads []NetworkDevicesMetadata, payload NetworkDevicesMetadata) ([]NetworkDevicesMetadata, NetworkDevicesMetadata, int) {
 	if resourceCount == batchSize {
 		payloads = append(payloads, payload)
-		payload = newNetworkDevicesMetadata(namespace, subnet, collectTime)
+		payload = newNetworkDevicesMetadata(integration, namespace, subnet, collectTime)
 		resourceCount = 0
 	}
 	resourceCount++

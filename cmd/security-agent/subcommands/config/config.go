@@ -152,7 +152,7 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 		return nil, err
 	}
 
-	c := util.GetClient(false)
+	c := util.GetClient()
 	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", pkgconfigsetup.Datadog().GetInt("security_agent.cmd_port"))
 
 	return settingshttp.NewClient(c, apiConfigURL, "security-agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil

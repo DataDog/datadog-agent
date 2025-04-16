@@ -101,6 +101,7 @@ func defaultMetricTransformers() map[string]metricTransformerFunc {
 		"kube_cronjob_next_schedule_time":               cronJobNextScheduleTransformer,
 		"kube_cronjob_status_last_schedule_time":        cronJobLastScheduleTransformer,
 		"kube_job_complete":                             jobCompleteTransformer,
+		"kube_job_duration":                             jobDurationTransformer,
 		"kube_job_failed":                               jobFailedTransformer,
 		"kube_job_status_failed":                        jobStatusFailedTransformer,
 		"kube_job_status_succeeded":                     jobStatusSucceededTransformer,
@@ -370,6 +371,10 @@ func jobCompleteTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric,
 	jobMetric(s, metric, ksmMetricPrefix+"job.completion.succeeded", hostname, tagsCopy)
 
 	jobServiceCheck(s, metric, servicecheck.ServiceCheckOK, hostname, tags)
+}
+
+func jobDurationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+	jobMetric(s, metric, ksmMetricPrefix+"job.duration", hostname, tags)
 }
 
 // jobFailedTransformer sends a metric and a service check based on kube_job_failed

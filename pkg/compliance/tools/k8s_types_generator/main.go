@@ -267,7 +267,7 @@ func checkForKnownFlags(allKomponents []*komponent, knownFlags []string) {
 		for _, conf := range komponent.confs {
 			i := slices.Index(knownFlagsClone, "--"+conf.flagName)
 			if i >= 0 {
-				knownFlagsClone = append(knownFlagsClone[:i], knownFlagsClone[i+1:]...)
+				knownFlagsClone = slices.Delete(knownFlagsClone, i, i+1)
 			}
 		}
 	}
@@ -896,10 +896,5 @@ func download(url, dist string) error {
 }
 
 func isKnownFlag(flag string) bool {
-	for _, cisFlag := range knownFlags {
-		if "--"+flag == cisFlag {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(knownFlags, "--"+flag)
 }

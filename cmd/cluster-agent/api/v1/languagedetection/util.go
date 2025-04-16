@@ -15,6 +15,7 @@ import (
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
@@ -23,13 +24,13 @@ import (
 // The dirty flag is used to know if the containers languages are flushed to workload metadata store or not.
 // The dirty flag is reset when languages are flushed to workload metadata store.
 type containersLanguageWithDirtyFlag struct {
-	languages langUtil.TimedContainersLanguages
+	languages languagemodels.TimedContainersLanguages
 	dirty     bool
 }
 
 func newContainersLanguageWithDirtyFlag() *containersLanguageWithDirtyFlag {
 	return &containersLanguageWithDirtyFlag{
-		languages: make(langUtil.TimedContainersLanguages),
+		languages: make(languagemodels.TimedContainersLanguages),
 		dirty:     true,
 	}
 }
@@ -65,6 +66,54 @@ func newOwnersLanguages() *OwnersLanguages {
 	}
 }
 
+// String returns the current state of the owners languages including the detected languages
+// and whether they are dirty or not.
+// This method is thread-safe.
+func (ownersLanguages *OwnersLanguages) String() string {
+	if ownersLanguages == nil {
+		return ""
+	}
+
+	ownersLanguages.mutex.Lock()
+	defer ownersLanguages.mutex.Unlock()
+
+	var sb strings.Builder
+	sb.WriteString("[")
+
+	firstOwner := true
+	for owner, langs := range ownersLanguages.containersLanguages {
+		if !firstOwner {
+			sb.WriteString(",")
+		}
+
+		sb.WriteString(fmt.Sprintf("(%s/%s/%s, %v,[", owner.Namespace, owner.Kind, owner.Name, langs.dirty))
+
+		firstContainer := true
+		for container, languageSet := range langs.languages {
+			if !firstContainer {
+				sb.WriteString(",")
+			}
+			sb.WriteString(container.Name + ": (")
+
+			languages := make([]string, 0, len(languageSet))
+			for languagename := range languageSet {
+				languages = append(languages, string(languagename))
+			}
+			sb.WriteString(strings.Join(languages, ","))
+
+			sb.WriteString(")")
+			firstContainer = false
+		}
+
+		sb.WriteString("])")
+		firstOwner = false
+	}
+
+	sb.WriteString("]")
+
+	return sb.String()
+}
+
 // getOrInitialize returns the containers languages for a specific namespaced owner, initialising it if it doesn't already
 // exist.
 // This method is not thread-safe.
@@ -95,7 +144,6 @@ func (ownersLanguages *OwnersLanguages) flush(wlm workloadmeta.Component) error 
 	pushErrors := make([]error, 0)
 
 	for owner, containersLanguages := range ownersLanguages.containersLanguages {
-
 		// Skip if not dirty
 		if !containersLanguages.dirty {
 			continue
@@ -214,17 +262,17 @@ func (ownersLanguages *OwnersLanguages) cleanRemovedOwners(wlm workloadmeta.Comp
 // generatePushEvent generates a workloadmeta push event based on the owner languages
 // if owner has no detected languages, it generates an unset event
 // else it generates a set event
-func generatePushEvent(owner langUtil.NamespacedOwnerReference, languages langUtil.TimedContainersLanguages) *workloadmeta.Event {
+func generatePushEvent(owner langUtil.NamespacedOwnerReference, languages languagemodels.TimedContainersLanguages) *workloadmeta.Event {
 	_, found := langUtil.SupportedBaseOwners[owner.Kind]
 
 	if !found {
 		return nil
 	}
 
-	containerLanguages := make(langUtil.ContainersLanguages)
+	containerLanguages := make(languagemodels.ContainersLanguages)
 
 	for container, langsetWithExpiration := range languages {
-		containerLanguages[container] = make(langUtil.LanguageSet)
+		containerLanguages[container] = make(languagemodels.LanguageSet)
 		for lang := range langsetWithExpiration {
 			containerLanguages[container][lang] = struct{}{}
 		}
@@ -254,15 +302,15 @@ func generatePushEvent(owner langUtil.NamespacedOwnerReference, languages langUt
 
 // getContainersLanguagesFromPodDetail returns containers languages objects for both standard containers
 // and for init container
-func getContainersLanguagesFromPodDetail(podDetail *pbgo.PodLanguageDetails, expirationTime time.Time) *langUtil.TimedContainersLanguages {
-	containersLanguages := make(langUtil.TimedContainersLanguages)
+func getContainersLanguagesFromPodDetail(podDetail *pbgo.PodLanguageDetails, expirationTime time.Time) *languagemodels.TimedContainersLanguages {
+	containersLanguages := make(languagemodels.TimedContainersLanguages)
 
 	// handle standard containers
 	for _, containerLanguageDetails := range podDetail.ContainerDetails {
 		containerName := containerLanguageDetails.ContainerName
 		languages := containerLanguageDetails.Languages
 		for _, language := range languages {
-			containersLanguages.GetOrInitialize(*langUtil.NewContainer(containerName)).Add(langUtil.Language(language.Name), expirationTime)
+			containersLanguages.GetOrInitialize(*languagemodels.NewContainer(containerName)).Add(languagemodels.LanguageName(language.Name), expirationTime)
 		}
 	}
 
@@ -271,7 +319,7 @@ func getContainersLanguagesFromPodDetail(podDetail *pbgo.PodLanguageDetails, exp
 		containerName := containerLanguageDetails.ContainerName
 		languages := containerLanguageDetails.Languages
 		for _, language := range languages {
-			containersLanguages.GetOrInitialize(*langUtil.NewInitContainer(containerName)).Add(langUtil.Language(language.Name), expirationTime)
+			containersLanguages.GetOrInitialize(*languagemodels.NewInitContainer(containerName)).Add(languagemodels.LanguageName(language.Name), expirationTime)
 		}
 	}
 

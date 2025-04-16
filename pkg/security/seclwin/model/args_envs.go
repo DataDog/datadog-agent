@@ -9,20 +9,15 @@ package model
 import (
 	"slices"
 	"strings"
-)
 
-const (
-	// MaxArgEnvSize maximum size of one argument or environment variable
-	MaxArgEnvSize = 256
-	// MaxArgsEnvsSize maximum number of args and/or envs
-	MaxArgsEnvsSize = 256
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 )
 
 // ArgsEnvs raw value for args and envs
 type ArgsEnvs struct {
 	ID        uint64
 	Size      uint32
-	ValuesRaw [MaxArgEnvSize]byte
+	ValuesRaw [sharedconsts.MaxArgEnvSize]byte
 }
 
 // ArgsEntry defines a args cache entry

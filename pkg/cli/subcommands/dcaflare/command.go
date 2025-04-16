@@ -17,15 +17,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/flare"
+	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
@@ -88,7 +89,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					LogParams:    log.ForOneShot(LoggerName, DefaultLogLevel, true),
 				}),
 				core.Bundle(),
-				compressionfx.Module(),
+				diagnosefx.Module(),
 			)
 		},
 	}
@@ -105,9 +106,9 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func readProfileData(seconds int) (flare.ProfileData, error) {
-	pdata := flare.ProfileData{}
-	c := util.GetClient(false)
+func readProfileData(seconds int) (clusterAgentFlare.ProfileData, error) {
+	pdata := clusterAgentFlare.ProfileData{}
+	c := util.GetClient()
 
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from datadog-cluster-agent.", seconds))
 	pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfigsetup.Datadog().GetInt("expvar_port"))
@@ -149,13 +150,13 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	return pdata, nil
 }
 
-func run(cliParams *cliParams, _ config.Component) error {
+func run(cliParams *cliParams, _ config.Component, diagnoseComponent diagnose.Component) error {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Cluster Agent to build the flare archive."))
 	var (
-		profile flare.ProfileData
+		profile clusterAgentFlare.ProfileData
 		e       error
 	)
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient()
 	urlstr := fmt.Sprintf("https://localhost:%v/flare", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 
 	logFile := pkgconfigsetup.Datadog().GetString("log_file")
@@ -208,7 +209,7 @@ func run(cliParams *cliParams, _ config.Component) error {
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
-		filePath, e = flare.CreateDCAArchive(true, defaultpaths.GetDistPath(), logFile, profile, nil)
+		filePath, e = clusterAgentFlare.CreateDCAArchive(true, defaultpaths.GetDistPath(), logFile, profile, nil, diagnoseComponent)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e
@@ -226,7 +227,7 @@ func run(cliParams *cliParams, _ config.Component) error {
 		}
 	}
 
-	response, e := flare.SendFlare(pkgconfigsetup.Datadog(), filePath, cliParams.caseID, cliParams.email, helpers.NewLocalFlareSource())
+	response, e := helpers.SendFlare(pkgconfigsetup.Datadog(), filePath, cliParams.caseID, cliParams.email, helpers.NewLocalFlareSource())
 	fmt.Println(response)
 	if e != nil {
 		return e
@@ -235,7 +236,7 @@ func run(cliParams *cliParams, _ config.Component) error {
 }
 
 func newSettingsClient() (settings.Client, error) {
-	c := util.GetClient(false)
+	c := util.GetClient()
 
 	apiConfigURL := fmt.Sprintf(
 		"https://localhost:%v/config",

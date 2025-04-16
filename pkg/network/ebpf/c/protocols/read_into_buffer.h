@@ -37,13 +37,17 @@
             return;                                                                                                 \
         }                                                                                                           \
                                                                                                                     \
-        /* The maximum that we can read is (blk_size) - 1. Checking (to please the verifier) that we read no more */\
-        /* than the allowed max size. */                                                                            \
-        const s64 read_size = left_payload < (blk_size) - 1 ? left_payload : (blk_size) - 1;                        \
-                                                                                                                    \
+        if (total_size < i*(blk_size)) {                                                                            \
+            return;                                                                                                 \
+        }                                                                                                           \
         /* Calculating the absolute size from the allocated buffer, that was left empty, again to please the */     \
         /* verifier so it can be assured we are not exceeding the memory limits. */                                 \
-        const s64 left_buffer = (s64)(total_size) < (s64)(i*(blk_size)) ? 0 : total_size - i*(blk_size);            \
+        const u64 left_buffer = total_size - i*(blk_size);                                                          \
+                                                                                                                    \
+        /* The maximum that we can read is (blk_size) - 1. Checking (to please the verifier) that we read no more */\
+        /* than the allowed max size. */                                                                            \
+        const u64 read_size = left_payload < (blk_size) - 1 ? left_payload : (blk_size) - 1;                        \
+                                                                                                                    \
         if (read_size <= left_buffer) {                                                                             \
             fn(skb, offset, buffer, read_size);                                                                     \
         }                                                                                                           \

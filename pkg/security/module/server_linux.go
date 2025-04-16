@@ -84,8 +84,8 @@ func (a *APIServer) DumpActivity(_ context.Context, params *api.ActivityDumpPara
 		return nil, fmt.Errorf("not supported")
 	}
 
-	if managers := p.GetProfileManagers(); managers != nil {
-		msg, err := managers.DumpActivity(params)
+	if manager := p.GetProfileManager(); manager != nil {
+		msg, err := manager.DumpActivity(params)
 		if err != nil {
 			seclog.Errorf("%s", err.Error())
 		}
@@ -102,8 +102,8 @@ func (a *APIServer) ListActivityDumps(_ context.Context, params *api.ActivityDum
 		return nil, fmt.Errorf("not supported")
 	}
 
-	if managers := p.GetProfileManagers(); managers != nil {
-		msg, err := managers.ListActivityDumps(params)
+	if manager := p.GetProfileManager(); manager != nil {
+		msg, err := manager.ListActivityDumps(params)
 		if err != nil {
 			seclog.Errorf("%s", err.Error())
 		}
@@ -120,8 +120,8 @@ func (a *APIServer) StopActivityDump(_ context.Context, params *api.ActivityDump
 		return nil, fmt.Errorf("not supported")
 	}
 
-	if managers := p.GetProfileManagers(); managers != nil {
-		msg, err := managers.StopActivityDump(params)
+	if manager := p.GetProfileManager(); manager != nil {
+		msg, err := manager.StopActivityDump(params)
 		if err != nil {
 			seclog.Errorf("%s", err.Error())
 		}
@@ -138,8 +138,8 @@ func (a *APIServer) TranscodingRequest(_ context.Context, params *api.Transcodin
 		return nil, fmt.Errorf("not supported")
 	}
 
-	if managers := p.GetProfileManagers(); managers != nil {
-		msg, err := managers.GenerateTranscoding(params)
+	if manager := p.GetProfileManager(); manager != nil {
+		msg, err := manager.GenerateTranscoding(params)
 		if err != nil {
 			seclog.Errorf("%s", err.Error())
 		}
@@ -156,8 +156,8 @@ func (a *APIServer) ListSecurityProfiles(_ context.Context, params *api.Security
 		return nil, fmt.Errorf("not supported")
 	}
 
-	if managers := p.GetProfileManagers(); managers != nil {
-		msg, err := managers.ListSecurityProfiles(params)
+	if manager := p.GetProfileManager(); manager != nil {
+		msg, err := manager.ListSecurityProfiles(params)
 		if err != nil {
 			seclog.Errorf("%s", err.Error())
 		}
@@ -174,8 +174,8 @@ func (a *APIServer) SaveSecurityProfile(_ context.Context, params *api.SecurityP
 		return nil, fmt.Errorf("not supported")
 	}
 
-	if managers := p.GetProfileManagers(); managers != nil {
-		msg, err := managers.SaveSecurityProfile(params)
+	if manager := p.GetProfileManager(); manager != nil {
+		msg, err := manager.SaveSecurityProfile(params)
 		if err != nil {
 			seclog.Errorf("%s", err.Error())
 		}
@@ -191,8 +191,12 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 	if a.selfTester != nil {
 		apiStatus.SelfTests = a.selfTester.GetStatus()
 	}
-
 	apiStatus.PoliciesStatus = a.policiesStatus
+
+	seclVariables := a.GetSECLVariables()
+	for _, seclVariable := range seclVariables {
+		apiStatus.SECLVariables = append(apiStatus.SECLVariables, seclVariable)
+	}
 
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if ok {
@@ -217,7 +221,8 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 			},
 			KernelLockdown:  string(kernel.GetLockdownMode()),
 			UseMmapableMaps: p.GetKernelVersion().HaveMmapableMaps(),
-			UseRingBuffer:   p.UseRingBuffers(),
+			UseRingBuffer:   p.GetUseRingBuffers(),
+			UseFentry:       p.GetUseFentry(),
 		}
 
 		envErrors := p.VerifyEnvironment()

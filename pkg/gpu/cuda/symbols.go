@@ -21,14 +21,14 @@ type Symbols struct {
 }
 
 // GetSymbols reads an ELF file from the given path and return the parsed CUDA data
-func GetSymbols(path string) (*Symbols, error) {
+func GetSymbols(path string, wantedSmVersions map[uint32]struct{}) (*Symbols, error) {
 	elfFile, err := safeelf.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("error opening ELF file %s: %w", path, err)
 	}
 	defer elfFile.Close()
 
-	fatbin, err := ParseFatbinFromELFFile(elfFile)
+	fatbin, err := ParseFatbinFromELFFile(elfFile, wantedSmVersions)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing fatbin on %s: %w", path, err)
 	}

@@ -6,7 +6,7 @@
 // Package inventorychecks implements a component to generate the 'check_metadata' metadata payload for inventory.
 package inventorychecks
 
-// team: agent-shared-components
+// team: agent-configuration
 
 // Component is the component type.
 //
@@ -17,8 +17,6 @@ type Component interface {
 	Set(instanceID string, key string, value interface{})
 	// GetInstanceMetadata returns metadata for a specific check instance
 	GetInstanceMetadata(instanceID string) map[string]interface{}
-	// GetAsJSON returns the payload as a JSON string. Useful to be displayed in the CLI or added to a flare.
-	GetAsJSON() ([]byte, error)
 	// Refresh trigger a new payload to be send while still respecting the minimal interval between two updates.
 	Refresh()
 }

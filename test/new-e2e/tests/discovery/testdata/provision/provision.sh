@@ -74,13 +74,15 @@ npm install /home/ubuntu/e2e-test/node/instrumented
 apt-get install -y \
         ruby \
         ruby-dev \
-        ruby-rails \
         sqlite3 \
+        pkg-config \
+        libyaml-dev \
+
+gem install rails -v 7.1.5.1
 
 ## Create new Rails project
 pushd /home/ubuntu
 rails new rails-hello --minimal
-bundle install --gemfile=/home/ubuntu/rails-hello/Gemfile
 popd
 
 # Install our own services

@@ -65,6 +65,27 @@ CSM Threats event for Linux systems have the following JSON schema:
             ],
             "description": "AWSSecurityCredentialsSerializer serializes the security credentials from an AWS IMDS request"
         },
+        "AcceptEvent": {
+            "properties": {
+                "addr": {
+                    "$ref": "#/$defs/IPPortFamily",
+                    "description": "Bound address (if any)"
+                },
+                "hostnames": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "addr",
+                "hostnames"
+            ],
+            "description": "AcceptEventSerializer serializes a bind event to JSON"
+        },
         "AgentContext": {
             "properties": {
                 "rule_id": {
@@ -213,6 +234,12 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "addr": {
                     "$ref": "#/$defs/IPPortFamily"
                 },
+                "hostnames": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
                 "protocol": {
                     "type": "string"
                 }
@@ -221,6 +248,7 @@ CSM Threats event for Linux systems have the following JSON schema:
             "type": "object",
             "required": [
                 "addr",
+                "hostnames",
                 "protocol"
             ],
             "description": "ConnectEventSerializer serializes a connect event to JSON"
@@ -622,6 +650,43 @@ CSM Threats event for Linux systems have the following JSON schema:
             ],
             "description": "FileEventSerializer serializes a file event to JSON"
         },
+        "Flow": {
+            "properties": {
+                "l3_protocol": {
+                    "type": "string",
+                    "description": "l3_protocol is the layer 3 protocol name"
+                },
+                "l4_protocol": {
+                    "type": "string",
+                    "description": "l4_protocol is the layer 4 protocol name"
+                },
+                "source": {
+                    "$ref": "#/$defs/IPPort",
+                    "description": "source is the emitter of the network event"
+                },
+                "destination": {
+                    "$ref": "#/$defs/IPPort",
+                    "description": "destination is the receiver of the network event"
+                },
+                "ingress": {
+                    "$ref": "#/$defs/NetworkStats",
+                    "description": "ingress holds the network statistics for ingress traffic"
+                },
+                "egress": {
+                    "$ref": "#/$defs/NetworkStats",
+                    "description": "egress holds the network statistics for egress traffic"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "l3_protocol",
+                "l4_protocol",
+                "source",
+                "destination"
+            ],
+            "description": "FlowSerializer defines a new flow serializer"
+        },
         "IMDSEvent": {
             "properties": {
                 "type": {
@@ -906,6 +971,10 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "size": {
                     "type": "integer",
                     "description": "size is the size in bytes of the network event"
+                },
+                "network_direction": {
+                    "type": "string",
+                    "description": "network_direction indicates if the packet was captured on ingress or egress"
                 }
             },
             "additionalProperties": false,
@@ -915,7 +984,8 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "l4_protocol",
                 "source",
                 "destination",
-                "size"
+                "size",
+                "network_direction"
             ],
             "description": "NetworkContextSerializer serializes the network context to JSON"
         },
@@ -942,6 +1012,39 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "ifname"
             ],
             "description": "NetworkDeviceSerializer serializes the network device context to JSON"
+        },
+        "NetworkFlowMonitor": {
+            "properties": {
+                "device": {
+                    "$ref": "#/$defs/NetworkDevice",
+                    "description": "device is the network device on which the event was captured"
+                },
+                "flows": {
+                    "items": {
+                        "$ref": "#/$defs/Flow"
+                    },
+                    "type": "array",
+                    "description": "flows is the list of flows with network statistics that were captured"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "NetworkFlowMonitorSerializer defines a network monitor event serializer"
+        },
+        "NetworkStats": {
+            "properties": {
+                "data_size": {
+                    "type": "integer",
+                    "description": "data_size is the total count of bytes sent or received"
+                },
+                "packet_count": {
+                    "type": "integer",
+                    "description": "packet_count is the total count of packets sent or received"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "NetworkStatsSerializer defines a new network stats serializer"
         },
         "PTraceEvent": {
             "properties": {
@@ -1376,6 +1479,10 @@ CSM Threats event for Linux systems have the following JSON schema:
                     "type": "integer",
                     "description": "size is the size in bytes of the network event"
                 },
+                "network_direction": {
+                    "type": "string",
+                    "description": "network_direction indicates if the packet was captured on ingress or egress"
+                },
                 "tls": {
                     "$ref": "#/$defs/TLSContext"
                 }
@@ -1387,7 +1494,8 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "l4_protocol",
                 "source",
                 "destination",
-                "size"
+                "size",
+                "network_direction"
             ],
             "description": "RawPacketSerializer defines a raw packet serializer"
         },
@@ -1526,6 +1634,49 @@ CSM Threats event for Linux systems have the following JSON schema:
             ],
             "description": "SpliceEventSerializer serializes a splice event to JSON"
         },
+        "SysCtlEvent": {
+            "properties": {
+                "proc": {
+                    "type": "object",
+                    "description": "Proc contains the /proc system control parameters and their values"
+                },
+                "action": {
+                    "type": "string",
+                    "description": "action performed on the system control parameter"
+                },
+                "file_position": {
+                    "type": "integer",
+                    "description": "file_position is the position in the sysctl control parameter file at which the action occurred"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "name is the name of the system control parameter"
+                },
+                "name_truncated": {
+                    "type": "boolean",
+                    "description": "name_truncated indicates if the name field is truncated"
+                },
+                "value": {
+                    "type": "string",
+                    "description": "value is the new and/or current value for the system control parameter depending on the action type"
+                },
+                "value_truncated": {
+                    "type": "boolean",
+                    "description": "value_truncated indicates if the value field is truncated"
+                },
+                "old_value": {
+                    "type": "string",
+                    "description": "old_value is the old value of the system control parameter"
+                },
+                "old_value_truncated": {
+                    "type": "boolean",
+                    "description": "old_value_truncated indicates if the old_value field is truncated"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "SysCtlEventSerializer defines a sysctl event serializer"
+        },
         "Syscall": {
             "properties": {
                 "name": {
@@ -1614,6 +1765,12 @@ CSM Threats event for Linux systems have the following JSON schema:
                     "$ref": "#/$defs/SyscallArgs"
                 },
                 "mount": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "mkdir": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "rmdir": {
                     "$ref": "#/$defs/SyscallArgs"
                 }
             },
@@ -1766,6 +1923,9 @@ CSM Threats event for Linux systems have the following JSON schema:
         "imds": {
             "$ref": "#/$defs/IMDSEvent"
         },
+        "accept": {
+            "$ref": "#/$defs/AcceptEvent"
+        },
         "bind": {
             "$ref": "#/$defs/BindEvent"
         },
@@ -1786,6 +1946,12 @@ CSM Threats event for Linux systems have the following JSON schema:
         },
         "packet": {
             "$ref": "#/$defs/RawPacket"
+        },
+        "network_flow_monitor": {
+            "$ref": "#/$defs/NetworkFlowMonitor"
+        },
+        "sysctl": {
+            "$ref": "#/$defs/SysCtlEvent"
         }
     },
     "additionalProperties": false,
@@ -1822,6 +1988,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `splice` | $ref | Please see [SpliceEvent](#spliceevent) |
 | `dns` | $ref | Please see [DNSEvent](#dnsevent) |
 | `imds` | $ref | Please see [IMDSEvent](#imdsevent) |
+| `accept` | $ref | Please see [AcceptEvent](#acceptevent) |
 | `bind` | $ref | Please see [BindEvent](#bindevent) |
 | `connect` | $ref | Please see [ConnectEvent](#connectevent) |
 | `mount` | $ref | Please see [MountEvent](#mountevent) |
@@ -1829,6 +1996,8 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `syscall` | $ref | Please see [SyscallContext](#syscallcontext) |
 | `packet` | $ref | Please see [RawPacket](#rawpacket) |
+| `network_flow_monitor` | $ref | Please see [NetworkFlowMonitor](#networkflowmonitor) |
+| `sysctl` | $ref | Please see [SysCtlEvent](#sysctlevent) |
 
 ## `AWSIMDSEvent`
 
@@ -1913,6 +2082,42 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `last_updated` | last_updated is the last time the credentials were updated |
 | `expiration` | expiration is the expiration date of the credentials |
 
+
+## `AcceptEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "addr": {
+            "$ref": "#/$defs/IPPortFamily",
+            "description": "Bound address (if any)"
+        },
+        "hostnames": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "addr",
+        "hostnames"
+    ],
+    "description": "AcceptEventSerializer serializes a bind event to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `addr` | Bound address (if any) |
+
+| References |
+| ---------- |
+| [IPPortFamily](#ipportfamily) |
 
 ## `AgentContext`
 
@@ -2150,6 +2355,12 @@ CSM Threats event for Linux systems have the following JSON schema:
         "addr": {
             "$ref": "#/$defs/IPPortFamily"
         },
+        "hostnames": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array"
+        },
         "protocol": {
             "type": "string"
         }
@@ -2158,6 +2369,7 @@ CSM Threats event for Linux systems have the following JSON schema:
     "type": "object",
     "required": [
         "addr",
+        "hostnames",
         "protocol"
     ],
     "description": "ConnectEventSerializer serializes a connect event to JSON"
@@ -2741,6 +2953,64 @@ CSM Threats event for Linux systems have the following JSON schema:
 | ---------- |
 | [File](#file) |
 
+## `Flow`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "l3_protocol": {
+            "type": "string",
+            "description": "l3_protocol is the layer 3 protocol name"
+        },
+        "l4_protocol": {
+            "type": "string",
+            "description": "l4_protocol is the layer 4 protocol name"
+        },
+        "source": {
+            "$ref": "#/$defs/IPPort",
+            "description": "source is the emitter of the network event"
+        },
+        "destination": {
+            "$ref": "#/$defs/IPPort",
+            "description": "destination is the receiver of the network event"
+        },
+        "ingress": {
+            "$ref": "#/$defs/NetworkStats",
+            "description": "ingress holds the network statistics for ingress traffic"
+        },
+        "egress": {
+            "$ref": "#/$defs/NetworkStats",
+            "description": "egress holds the network statistics for egress traffic"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "l3_protocol",
+        "l4_protocol",
+        "source",
+        "destination"
+    ],
+    "description": "FlowSerializer defines a new flow serializer"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `l3_protocol` | l3_protocol is the layer 3 protocol name |
+| `l4_protocol` | l4_protocol is the layer 4 protocol name |
+| `source` | source is the emitter of the network event |
+| `destination` | destination is the receiver of the network event |
+| `ingress` | ingress holds the network statistics for ingress traffic |
+| `egress` | egress holds the network statistics for egress traffic |
+
+| References |
+| ---------- |
+| [IPPort](#ipport) |
+| [NetworkStats](#networkstats) |
+
 ## `IMDSEvent`
 
 
@@ -3162,6 +3432,10 @@ CSM Threats event for Linux systems have the following JSON schema:
         "size": {
             "type": "integer",
             "description": "size is the size in bytes of the network event"
+        },
+        "network_direction": {
+            "type": "string",
+            "description": "network_direction indicates if the packet was captured on ingress or egress"
         }
     },
     "additionalProperties": false,
@@ -3171,7 +3445,8 @@ CSM Threats event for Linux systems have the following JSON schema:
         "l4_protocol",
         "source",
         "destination",
-        "size"
+        "size",
+        "network_direction"
     ],
     "description": "NetworkContextSerializer serializes the network context to JSON"
 }
@@ -3186,6 +3461,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `source` | source is the emitter of the network event |
 | `destination` | destination is the receiver of the network event |
 | `size` | size is the size in bytes of the network event |
+| `network_direction` | network_direction indicates if the packet was captured on ingress or egress |
 
 | References |
 | ---------- |
@@ -3228,6 +3504,68 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `netns` | netns is the interface ifindex |
 | `ifindex` | ifindex is the network interface ifindex |
 | `ifname` | ifname is the network interface name |
+
+
+## `NetworkFlowMonitor`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "device": {
+            "$ref": "#/$defs/NetworkDevice",
+            "description": "device is the network device on which the event was captured"
+        },
+        "flows": {
+            "items": {
+                "$ref": "#/$defs/Flow"
+            },
+            "type": "array",
+            "description": "flows is the list of flows with network statistics that were captured"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "NetworkFlowMonitorSerializer defines a network monitor event serializer"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `device` | device is the network device on which the event was captured |
+| `flows` | flows is the list of flows with network statistics that were captured |
+
+| References |
+| ---------- |
+| [NetworkDevice](#networkdevice) |
+
+## `NetworkStats`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "data_size": {
+            "type": "integer",
+            "description": "data_size is the total count of bytes sent or received"
+        },
+        "packet_count": {
+            "type": "integer",
+            "description": "packet_count is the total count of packets sent or received"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "NetworkStatsSerializer defines a new network stats serializer"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `data_size` | data_size is the total count of bytes sent or received |
+| `packet_count` | packet_count is the total count of packets sent or received |
 
 
 ## `PTraceEvent`
@@ -3811,6 +4149,10 @@ CSM Threats event for Linux systems have the following JSON schema:
             "type": "integer",
             "description": "size is the size in bytes of the network event"
         },
+        "network_direction": {
+            "type": "string",
+            "description": "network_direction indicates if the packet was captured on ingress or egress"
+        },
         "tls": {
             "$ref": "#/$defs/TLSContext"
         }
@@ -3822,7 +4164,8 @@ CSM Threats event for Linux systems have the following JSON schema:
         "l4_protocol",
         "source",
         "destination",
-        "size"
+        "size",
+        "network_direction"
     ],
     "description": "RawPacketSerializer defines a raw packet serializer"
 }
@@ -3837,6 +4180,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `source` | source is the emitter of the network event |
 | `destination` | destination is the receiver of the network event |
 | `size` | size is the size in bytes of the network event |
+| `network_direction` | network_direction indicates if the packet was captured on ingress or egress |
 
 | References |
 | ---------- |
@@ -4081,6 +4425,69 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `pipe_exit_flag` | Exit flag of the fd_out pipe passed to the splice syscall |
 
 
+## `SysCtlEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "proc": {
+            "type": "object",
+            "description": "Proc contains the /proc system control parameters and their values"
+        },
+        "action": {
+            "type": "string",
+            "description": "action performed on the system control parameter"
+        },
+        "file_position": {
+            "type": "integer",
+            "description": "file_position is the position in the sysctl control parameter file at which the action occurred"
+        },
+        "name": {
+            "type": "string",
+            "description": "name is the name of the system control parameter"
+        },
+        "name_truncated": {
+            "type": "boolean",
+            "description": "name_truncated indicates if the name field is truncated"
+        },
+        "value": {
+            "type": "string",
+            "description": "value is the new and/or current value for the system control parameter depending on the action type"
+        },
+        "value_truncated": {
+            "type": "boolean",
+            "description": "value_truncated indicates if the value field is truncated"
+        },
+        "old_value": {
+            "type": "string",
+            "description": "old_value is the old value of the system control parameter"
+        },
+        "old_value_truncated": {
+            "type": "boolean",
+            "description": "old_value_truncated indicates if the old_value field is truncated"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "SysCtlEventSerializer defines a sysctl event serializer"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `proc` | Proc contains the /proc system control parameters and their values |
+| `action` | action performed on the system control parameter |
+| `file_position` | file_position is the position in the sysctl control parameter file at which the action occurred |
+| `name` | name is the name of the system control parameter |
+| `name_truncated` | name_truncated indicates if the name field is truncated |
+| `value` | value is the new and/or current value for the system control parameter depending on the action type |
+| `value_truncated` | value_truncated indicates if the value field is truncated |
+| `old_value` | old_value is the old value of the system control parameter |
+| `old_value_truncated` | old_value_truncated indicates if the old_value field is truncated |
+
+
 ## `Syscall`
 
 
@@ -4205,6 +4612,12 @@ CSM Threats event for Linux systems have the following JSON schema:
             "$ref": "#/$defs/SyscallArgs"
         },
         "mount": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "mkdir": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "rmdir": {
             "$ref": "#/$defs/SyscallArgs"
         }
     },

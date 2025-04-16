@@ -19,10 +19,7 @@ const stringReaderBufferSize = 1024 * 10
 // It returns -1 if toFind is not present in r.
 // It returns an error if reading from r other than io.EOF returns an error.
 func Index(r io.Reader, toFind string) (int, error) {
-	bufLen := stringReaderBufferSize
-	if len(toFind) > bufLen {
-		bufLen = len(toFind)
-	}
+	bufLen := max(len(toFind), stringReaderBufferSize)
 	buf := make([]byte, bufLen)
 	bytesToFind := []byte(toFind)
 	total := 0

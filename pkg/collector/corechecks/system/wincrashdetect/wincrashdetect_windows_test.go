@@ -17,12 +17,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows/registry"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/server"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 )
 
 const (
@@ -49,7 +49,8 @@ func TestWinCrashReporting(t *testing.T) {
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", systemProbeTestPipeName)
 
-	listener, err := server.NewListener(systemProbeTestPipeName)
+	// The test named pipe allows the current user.
+	listener, err := server.NewListenerForCurrentUser(systemProbeTestPipeName)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 
@@ -182,7 +183,8 @@ func TestCrashReportingStates(t *testing.T) {
 
 	var crashStatus *probe.WinCrashStatus
 
-	listener, err := server.NewListener(systemProbeTestPipeName)
+	// The test named pipe allows the current user.
+	listener, err := server.NewListenerForCurrentUser(systemProbeTestPipeName)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 

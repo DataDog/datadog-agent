@@ -8,15 +8,15 @@
 package setup
 
 import (
-	"strings"
-
+	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // newTestConf generates and returns a new configuration
 func newTestConf() pkgconfigmodel.Config {
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	conf := create.NewConfig("datadog")
 	InitConfig(conf)
+	conf.SetTestOnlyDynamicSchema(true)
 	conf.SetConfigFile("")
 	pkgconfigmodel.ApplyOverrideFuncs(conf)
 	return conf

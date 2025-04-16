@@ -8,6 +8,7 @@ package haagentimpl
 import (
 	"context"
 	"encoding/json"
+	"sync"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
@@ -20,6 +21,8 @@ type haAgentImpl struct {
 	log            log.Component
 	haAgentConfigs *haAgentConfigs
 	state          *atomic.String
+
+	logMissingConfigIDOnce sync.Once
 }
 
 func newHaAgentImpl(log log.Component, haAgentConfigs *haAgentConfigs) *haAgentImpl {
@@ -31,11 +34,17 @@ func newHaAgentImpl(log log.Component, haAgentConfigs *haAgentConfigs) *haAgentI
 }
 
 func (h *haAgentImpl) Enabled() bool {
+	if h.haAgentConfigs.enabled && h.GetConfigID() == "" {
+		h.logMissingConfigIDOnce.Do(func() {
+			h.log.Error("HA Agent feature requires config_id to be set")
+		})
+		return false
+	}
 	return h.haAgentConfigs.enabled
 }
 
-func (h *haAgentImpl) GetGroup() string {
-	return h.haAgentConfigs.group
+func (h *haAgentImpl) GetConfigID() string {
+	return h.haAgentConfigs.configID
 }
 
 func (h *haAgentImpl) GetState() haagent.State {
@@ -66,17 +75,25 @@ func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
 	}
 }
 
-// ShouldRunIntegration return true if the agent integrations should to run.
-// When ha-agent is disabled, the agent behave as standalone agent (non HA) and will always run all integrations.
-func (h *haAgentImpl) ShouldRunIntegration(integrationName string) bool {
-	if h.Enabled() && validHaIntegrations[integrationName] {
-		return h.GetState() == haagent.Active
-	}
-	return true
+func (h *haAgentImpl) resetAgentState() {
+	h.state.Store(string(haagent.Unknown))
+}
+
+func (h *haAgentImpl) IsActive() bool {
+	return h.GetState() == haagent.Active
 }
 
 func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	h.log.Debugf("Updates received: count=%d", len(updates))
+
+	// New updates arrived, but if the list of updates is empty,
+	// it means we don't have any updates applying to this agent anymore.
+	// In this case, reset HA Agent setting to default states.
+	if len(updates) == 0 {
+		h.log.Warn("Empty update received. Resetting Agent State to Unknown.")
+		h.resetAgentState()
+		return
+	}
 
 	for configPath, rawConfig := range updates {
 		h.log.Debugf("Received config %s: %s", configPath, string(rawConfig.Config))
@@ -90,17 +107,17 @@ func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyS
 			})
 			continue
 		}
-		if haAgentMsg.Group != h.GetGroup() {
-			h.log.Warnf("Skipping invalid HA_AGENT update %s: expected group %s, got %s",
-				configPath, h.GetGroup(), haAgentMsg.Group)
+		if haAgentMsg.ConfigID != h.GetConfigID() {
+			h.log.Warnf("Skipping invalid HA_AGENT update %s: expected configID %s, got %s",
+				configPath, h.GetConfigID(), haAgentMsg.ConfigID)
 			applyStateCallback(configPath, state.ApplyStatus{
 				State: state.ApplyStateError,
-				Error: "group does not match",
+				Error: "config_id does not match",
 			})
 			continue
 		}
 
-		h.SetLeader(haAgentMsg.Leader)
+		h.SetLeader(haAgentMsg.ActiveAgent)
 
 		h.log.Debugf("Processed config %s: %v", configPath, haAgentMsg)
 

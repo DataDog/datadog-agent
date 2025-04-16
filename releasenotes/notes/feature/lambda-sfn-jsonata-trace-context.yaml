@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Improved trace context creation from Step Function execution context:
+    - Now utilizes `State.RetryCount` and `Execution.RedriveCount` to generate parent IDs deterministically, preventing collisions with retry spans.
+    - Supports multi-level trace merging, allowing an arbitrary number of Lambda and Step Function traces to be linked together while maintaining root context.
+
+    This update brings feature parity with Node and Python Lambda layers in the Universal runtimes.

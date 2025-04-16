@@ -12,7 +12,7 @@ import (
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // team: container-platform
@@ -33,8 +33,8 @@ func module(options ...fx.Option) fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			workloadmeta.NewWorkloadMeta,
 		),
-		fx.Provide(func(wmeta wmdef.Component) optional.Option[wmdef.Component] {
-			return optional.NewOption(wmeta)
+		fx.Provide(func(wmeta wmdef.Component) option.Option[wmdef.Component] {
+			return option.New(wmeta)
 		}),
 		fx.Options(options...),
 	)

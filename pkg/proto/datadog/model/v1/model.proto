@@ -14,6 +14,13 @@ message HostnameReply {
     string hostname = 1;
 }
 
+message HostTagRequest {}
+
+message HostTagReply {
+    repeated string system = 1;
+    repeated string googleCloudPlatform = 2;
+}
+
 
 // Dogstatsd capture types
 message CaptureTriggerRequest {

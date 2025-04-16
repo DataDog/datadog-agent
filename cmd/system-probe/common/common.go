@@ -9,7 +9,7 @@ package common
 import (
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 )
 
 var (

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from collections import Counter
+from functools import lru_cache
 from typing import Any
 
 
+@lru_cache
 def read_owners(owners_file: str, remove_default_pattern=False) -> Any:
     """
     - remove_default_pattern: If True, will remove the '*' entry

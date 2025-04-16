@@ -23,6 +23,8 @@ import (
 type OnDemandProbesManager struct {
 	sync.RWMutex
 
+	disabled bool
+
 	probe *EBPFProbe
 
 	hookPoints   []rules.OnDemandHookPoint
@@ -31,10 +33,18 @@ type OnDemandProbesManager struct {
 	probeCounter uint16
 }
 
+func (sm *OnDemandProbesManager) isDisabled() bool {
+	sm.RLock()
+	defer sm.RUnlock()
+
+	return sm.disabled
+}
+
 func (sm *OnDemandProbesManager) disable() {
 	sm.Lock()
 	defer sm.Unlock()
 
+	sm.disabled = true
 	sm.hookPoints = nil
 
 	for _, p := range sm.probes {
@@ -65,6 +75,8 @@ func (sm *OnDemandProbesManager) getHookNameFromID(id int) string {
 func (sm *OnDemandProbesManager) updateProbes() {
 	sm.Lock()
 	defer sm.Unlock()
+
+	sm.disabled = false
 
 	sm.probes = make([]*manager.Probe, 0)
 	for hookID, hookPoint := range sm.hookPoints {

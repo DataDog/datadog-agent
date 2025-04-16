@@ -887,10 +887,10 @@ def generate_complexity_summary_for_pr(
 
     has_any_changes = False
     for group, rows in itertools.groupby(summarized_complexity_changes, key=lambda x: x[0].split("/")[0]):
+        rows = list(rows)  # Convert the iterator to a list, so we can iterate over it multiple times
+
         if not any(row[-1] for row in rows):
             continue
-
-        rows = list(rows)  # Convert the iterator to a list, so we can iterate over it multiple times
 
         def _build_table(orig_rows):
             # Format rows to make it more compact, remove the changes marker and remove the object name

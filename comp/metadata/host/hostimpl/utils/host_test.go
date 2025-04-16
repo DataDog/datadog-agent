@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
@@ -44,7 +44,7 @@ func TestOTLPEnabled(t *testing.T) {
 
 func TestGetNetworkMeta(t *testing.T) {
 	ctx := context.Background()
-	cloudproviders.MockNetworkID(t, "test networkID")
+	network.MockNetworkID(t, "test networkID")
 
 	m := getNetworkMeta(ctx)
 	assert.Equal(t, "test networkID", m.ID)

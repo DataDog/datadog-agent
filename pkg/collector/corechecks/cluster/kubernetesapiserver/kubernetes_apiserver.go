@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Covers the Control Plane service check and the in memory pod metadata.
@@ -143,8 +143,8 @@ func NewKubeASCheck(base core.CheckBase, instance *KubeASConfig, tagger tagger.C
 }
 
 // Factory creates a new check factory
-func Factory(tagger tagger.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(
+func Factory(tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(
 		func() check.Check {
 			return newCheck(tagger)
 		},
@@ -242,6 +242,11 @@ func (k *KubeASCheck) Run() error {
 		if err != nil {
 			k.Warnf("Could not connect to apiserver: %s", err) //nolint:errcheck
 			return err
+		}
+
+		err = apiserver.InitializeGlobalResourceTypeCache(k.ac.Cl.Discovery())
+		if err != nil {
+			log.Errorf("Could not initialize the global resource type cache: %s", err)
 		}
 
 		// We detect OpenShift presence for quota collection

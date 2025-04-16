@@ -39,4 +39,17 @@ unsigned long long load_half(void *skb,
 unsigned long long load_word(void *skb,
     unsigned long long off) asm("llvm.bpf.load.word");
 
+// declare our own versions of these enums, because they don't exist on <5.8
+enum {
+	DD_BPF_RB_NO_WAKEUP = 1,
+	DD_BPF_RB_FORCE_WAKEUP = 2,
+};
+
+enum {
+	DD_BPF_RB_AVAIL_DATA = 0,
+	DD_BPF_RB_RING_SIZE = 1,
+	DD_BPF_RB_CONS_POS = 2,
+	DD_BPF_RB_PROD_POS = 3,
+};
+
 #endif

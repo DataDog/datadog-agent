@@ -72,6 +72,12 @@ func getOpenProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "hook_filp_close",
 			},
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_terminate_walk",
+			},
+		},
 	}
 
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
@@ -117,4 +123,16 @@ func getOpenProbes(fentry bool) []*manager.Probe {
 		SyscallFuncName: "openat2",
 	}, fentry, EntryAndExit)...)
 	return openProbes
+}
+
+func getOpenTailCallRoutes() []manager.TailCallRoute {
+	return []manager.TailCallRoute{
+		{
+			ProgArrayName: "open_ret_progs",
+			Key:           uint32(0),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tail_call_target_sys_open_ret_cb",
+			},
+		},
+	}
 }

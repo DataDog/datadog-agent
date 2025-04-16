@@ -26,12 +26,16 @@ import (
 	dcav1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -51,7 +55,11 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
+	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
+	dcametadatafx "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/fx"
+	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -64,7 +72,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"go.uber.org/fx"
@@ -86,7 +94,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				core.Bundle(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers())),
-				compressionfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
@@ -97,13 +104,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadmetafx.Module(workloadmeta.Params{
 					InitHelper: common.GetWorkloadmetaInit(),
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
-				localTaggerfx.Module(tagger.Params{}),
+				localTaggerfx.Module(),
 				collectorimpl.Module(),
-				fx.Provide(func() optional.Option[serializer.MetricSerializer] {
-					return optional.NewNoneOption[serializer.MetricSerializer]()
+				fx.Provide(func() option.Option[serializer.MetricSerializer] {
+					return option.None[serializer.MetricSerializer]()
 				}),
-				fx.Provide(func() optional.Option[integrations.Component] {
-					return optional.NewNoneOption[integrations.Component]()
+				fx.Provide(func() option.Option[integrations.Component] {
+					return option.None[integrations.Component]()
 				}),
 				// The cluster-agent-cloudfoundry agent do not have a status command
 				// so there is no need to initialize the status component
@@ -128,7 +135,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					proccontainers.InitSharedContainerProvider(wmeta, tagger)
 				}),
 				haagentfx.Module(),
-			)
+				logscompressionfx.Module(),
+				metricscompressionfx.Module(),
+				createandfetchimpl.Module(),
+				diagnosefx.Module(),
+				fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
+					return demuxInstance.Serializer()
+				}),
+				metadatarunnerimpl.Module(),
+				dcametadatafx.Module())
 		},
 	}
 
@@ -147,7 +162,10 @@ func run(
 	statusComponent status.Component,
 	_ healthprobe.Component,
 	settings settings.Component,
-	logReceiver optional.Option[integrations.Component],
+	logReceiver option.Option[integrations.Component],
+	authToken authtoken.Component,
+	diagonseComp diagnose.Component,
+	dcametadataComp dcametadata.Component,
 ) error {
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel() // Calling cancel twice is safe
@@ -185,12 +203,12 @@ func run(
 	common.LoadComponents(secretResolver, wmeta, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 
 	// Set up check collector
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver, taggerComp), true)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, logReceiver, taggerComp), true)
 
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)
 
-	if err = api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config); err != nil {
+	if err = api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, authToken, diagonseComp, dcametadataComp); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 

@@ -123,6 +123,12 @@ func TestGetNetworkData(t *testing.T) {
 	assert.Equal(t, float64(180), networkData.RxBytes)
 	assert.Equal(t, float64(254), networkData.TxBytes)
 
+	path = "./testData/net/valid_dev_runtime"
+	networkData, err = getNetworkData(path)
+	assert.Nil(t, err)
+	assert.Equal(t, float64(4319), networkData.RxBytes)
+	assert.Equal(t, float64(2412), networkData.TxBytes)
+
 	path = "./testData/net/invalid_dev_malformed"
 	networkData, err = getNetworkData(path)
 	assert.NotNil(t, err)

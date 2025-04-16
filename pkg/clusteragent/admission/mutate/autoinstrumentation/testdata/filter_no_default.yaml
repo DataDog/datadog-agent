@@ -1,0 +1,38 @@
+---
+apm_config:
+  instrumentation:
+    enabled: true
+    disabled_namespaces:
+      - "infra"
+      - "system"
+    targets:
+      - name: "Billing Service"
+        podSelector:
+          matchLabels:
+            app: "billing-service"
+        namespaceSelector:
+          matchNames:
+          - "billing-service"
+        ddTraceVersions:
+          python: "default"
+      - name: "Microservices"
+        podSelector:
+          matchLabels:
+            language: "java"
+        ddTraceVersions:
+          java: "default"
+      - name: "Enabled Prod Namespaces"
+        namespaceSelector:
+          matchLabels:
+            tracing: "yes"
+          matchExpressions:
+            - key: "env"
+              operator: "In"
+              values:
+                - "prod"
+        ddTraceVersions:
+          dotnet: "v1"
+      - name: "Unknown Language"
+        podSelector:
+          matchLabels:
+            language: "unknown"

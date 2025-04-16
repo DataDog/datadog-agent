@@ -362,4 +362,42 @@ static __always_inline int handle_tcp_recv(u64 pid_tgid, struct sock *skp, int r
     return handle_message(&t, 0, recv, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
 }
 
+__maybe_unused static __always_inline bool tcp_failed_connections_enabled() {
+    __u64 val = 0;
+    LOAD_CONSTANT("tcp_failed_connections_enabled", val);
+    return val > 0;
+}
+
+// handle_tcp_failure handles TCP connection failures on the socket pointer and adds them to the connection tuple
+// returns an integer to the caller indicating if there was a failure or not
+static __always_inline bool handle_tcp_failure(struct sock *sk, conn_tuple_t *t) {
+    if (!tcp_failed_connections_enabled()) {
+        return false;
+    }
+    int err = 0;
+    BPF_CORE_READ_INTO(&err, sk, sk_err);
+
+    switch (err) {
+        case 0:
+            return false; // no error
+        case TCP_CONN_FAILED_RESET:
+        case TCP_CONN_FAILED_TIMEOUT:
+        case TCP_CONN_FAILED_REFUSED: {
+            tcp_stats_t stats = { .failure_reason = err };
+            update_tcp_stats(t, stats);
+            return true;
+        }
+    }
+    // initialize if no-exist
+    __u64 one = 1;
+    bpf_map_update_with_telemetry(tcp_failure_telemetry, &err, &one, BPF_NOEXIST, -EEXIST);
+    __u64 *count = bpf_map_lookup_elem(&tcp_failure_telemetry, &err);
+    if (count == NULL) {
+        return false;
+    }
+    __sync_fetch_and_add(count, one);
+
+    return false;
+}
+
 #endif // __TRACER_STATS_H

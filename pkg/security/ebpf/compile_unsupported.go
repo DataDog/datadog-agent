@@ -9,13 +9,12 @@
 package ebpf
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-func getRuntimeCompiledPrograms(_ *config.Config, _, _, _ bool, _ statsd.ClientInterface) (bytecode.AssetReader, error) {
-	return nil, fmt.Errorf("runtime compilation unsupported")
+func getRuntimeCompiledPrograms(_ *config.Config, _, _, _ bool) (bytecode.AssetReader, error) {
+	return nil, errors.New("runtime compilation unsupported")
 }

@@ -7,6 +7,7 @@ package logsagentpipelineimpl
 
 import (
 	"context"
+	"expvar"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
@@ -71,9 +73,10 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) *Agent {
 	))
 
 	agent := &Agent{
-		log:       deps.Log,
-		config:    deps.Config,
-		endpoints: endpoints,
+		log:         deps.Log,
+		config:      deps.Config,
+		endpoints:   endpoints,
+		compression: compressionfx.NewMockCompressor(),
 	}
 
 	agent.setupAgent()
@@ -95,7 +98,9 @@ func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
 	assert.Equal(suite.T(), zero, metrics.LogsProcessed.Value())
 	assert.Equal(suite.T(), zero, metrics.LogsSent.Value())
 	assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value())
-	assert.Equal(suite.T(), "{}", metrics.DestinationLogsDropped.String())
+	metrics.DestinationLogsDropped.Do(func(k expvar.KeyValue) {
+		assert.Equal(suite.T(), k.Value.String(), "0")
+	})
 
 	agent.startPipeline()
 	suite.sendTestMessages(agent)
@@ -131,7 +136,7 @@ func (suite *AgentTestSuite) TestAgentHttp() {
 }
 
 func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
-	endpoint := config.NewEndpoint("", "fake:", 0, false)
+	endpoint := config.NewEndpoint("", "", "fake:", 0, false)
 	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
 
 	agent := createAgent(suite, endpoints)

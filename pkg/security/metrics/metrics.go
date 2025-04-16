@@ -68,6 +68,22 @@ var (
 	// MetricDentryERPC is the counter of eRPC dentry resolution errors by error type
 	// Tags: ret
 	MetricDentryERPC = newRuntimeMetric(".dentry_resolver.erpc")
+	// MetricDentryCacheSize is the size of the cache
+	MetricDentryCacheSize = newRuntimeMetric(".dentry_resolver.cache_size")
+
+	// DNS Resolver metrics
+
+	// MetricDNSResolverIPResolverCache is the counter for the IP resolver (A and AAAA records)
+	// Tags: hit, miss, insertion, eviction
+	MetricDNSResolverIPResolverCache = newRuntimeMetric(".dns_resolver.ip_resolver_cache")
+	// MetricDNSResolverCnameResolverCache is the counter for the CNAME resolver
+	// Tags: hit, miss, insertion, eviction
+	MetricDNSResolverCnameResolverCache = newRuntimeMetric(".dns_resolver.cname_resolver_cache")
+
+	// MetricRepeatedDNSResponsesFilteredOnKernel DNS responses that were filtered on the kernel
+	MetricRepeatedDNSResponsesFilteredOnKernel = newRuntimeMetric(".dns_response_collector.repeated_dns_responses_filtered_on_kernel")
+	// MetricDNSSameIDDifferentSize DNS responses that had the same ID but a different size
+	MetricDNSSameIDDifferentSize = newRuntimeMetric(".dns_response_collector.dns_same_id_different_size")
 
 	// filtering metrics
 
@@ -83,6 +99,9 @@ var (
 	// MetricEventApproved is the number of events approved
 	// Tags: approver_type, event_type
 	MetricEventApproved = newRuntimeMetric(".approvers.event_approved")
+	// MetricEventRejected is the number of events rejected
+	// Tags: event_type
+	MetricEventRejected = newRuntimeMetric(".approvers.event_rejected")
 
 	// syscalls metrics
 
@@ -265,6 +284,18 @@ var (
 	// MetricSBOMResolverSBOMCacheMiss is the name of the metric used to report the number of SBOMs that weren't in cache
 	// Tags: -
 	MetricSBOMResolverSBOMCacheMiss = newRuntimeMetric(".sbom_resolver.sbom_cache.miss")
+
+	// CGroup resolver metrics
+
+	// MetricCGroupResolverActiveCGroups is the name of the metric used to report the count of cgroups kept in memory
+	// Tags: -
+	MetricCGroupResolverActiveCGroups = newRuntimeMetric(".cgroup_resolver.active_cgroups")
+	// MetricCGroupResolverActiveContainerWorkloads is the name of the metric used to report the count of active cgroups corresponding to a container kept in memory
+	// Tags: -
+	MetricCGroupResolverActiveContainerWorkloads = newRuntimeMetric(".cgroup_resolver.active_containers")
+	// MetricCGroupResolverActiveHostWorkloads is the name of the metric used to report the count of active cgroups not corresponding to a container kept in memory
+	// Tags: -
+	MetricCGroupResolverActiveHostWorkloads = newRuntimeMetric(".cgroup_resolver.active_non_containers")
 
 	// Security Profile metrics
 

@@ -93,16 +93,12 @@ func TestManagerInitWithOptions(t *testing.T) {
 	mgr := NewManager(&manager.Manager{}, "test", modifier)
 	require.NotNil(t, mgr)
 
-	// Load a simple eBPF program to test the modifiers
-	cfg := NewConfig()
-	require.NotNil(t, cfg)
+	err := LoadCOREAsset("logdebug-test.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+		err := mgr.InitWithOptions(buf, &opts)
+		require.NoError(t, err)
 
-	buf, err := bytecode.GetReader(cfg.BPFDir, "logdebug-test.o")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = buf.Close })
-
-	opts := manager.Options{}
-	err = mgr.InitWithOptions(buf, &opts)
+		return nil
+	})
 	require.NoError(t, err)
 
 	modifier.AssertExpectations(t)

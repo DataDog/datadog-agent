@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"runtime"
 	"time"
 
@@ -188,18 +187,19 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
 
-	family, _ := config.GetFamilyAddress(socketPath)
-	if runtime.GOOS == "windows" && family == "unix" {
-		return nil, fmt.Errorf("unix sockets are not supported on Windows")
+	family := config.GetFamilyAddress(socketPath)
+	if family == "unix" {
+		if runtime.GOOS == "windows" {
+			return nil, fmt.Errorf("unix sockets are not supported on Windows")
+		}
+
+		socketPath = fmt.Sprintf("unix://%s", socketPath)
 	}
 
-	conn, err := grpc.Dial( //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
+	conn, err := grpc.NewClient(
 		socketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
-		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
-			return net.Dial(family, url)
-		}),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
 				BaseDelay: time.Second,

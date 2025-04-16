@@ -14,6 +14,7 @@ import (
 type multiRegionFailoverConfig struct {
 	FailoverMetrics *bool `json:"failover_metrics"`
 	FailoverLogs    *bool `json:"failover_logs"`
+	FailoverAPM     *bool `json:"failover_apm"`
 }
 
 // parseMultiRegionFailoverConfig parses an AGENT_FAILOVER Multi-Region Failover configuration file

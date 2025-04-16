@@ -495,3 +495,42 @@ func newStructuredMessage(content []byte, source *sources.LogSource, status stri
 	msg.SetContent(content)
 	return msg
 }
+
+func BenchmarkMaskSequences(b *testing.B) {
+	processor := &Processor{
+		processingRules: []*config.ProcessingRule{
+			{
+				Type:               config.MaskSequences,
+				Regex:              regexp.MustCompile("(?:api_key=[a-f0-9]{28})"),
+				ReplacePlaceholder: "api_key=****************************",
+			},
+		},
+	}
+
+	msg := newMessage(nil, &sources.LogSource{
+		Config: &config.LogsConfig{},
+	}, "")
+
+	b.Run("always matching", func(b *testing.B) {
+		// what we benchmark here is the worse case scenario where the regex matches every time
+		content := []byte("[1234] log message, api_key=1234567890123456789012345678")
+		b.ResetTimer()
+
+		for range b.N {
+			msg.SetContent(content)
+			processor.applyRedactingRules(msg)
+		}
+	})
+
+	b.Run("never matching", func(b *testing.B) {
+		// what we benchmark here is the best case scenario where the regex never matches
+		content := []byte("nothing to see here")
+		b.ResetTimer()
+
+		for range b.N {
+			msg.SetContent(content)
+			processor.applyRedactingRules(msg)
+		}
+	})
+
+}

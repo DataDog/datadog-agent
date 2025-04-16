@@ -44,20 +44,6 @@ func ReportStatsd() {
 	}
 }
 
-var telemetryDelta deltaCalculator
-
-// ReportPayloadTelemetry returns a map with all metrics tagged with `OptPayloadTelemetry`
-// The return format is consistent with what we use in the protobuf messages sent to the backend
-func ReportPayloadTelemetry(clientID string) map[string]int64 {
-	metrics := globalRegistry.GetMetrics(OptPayloadTelemetry)
-	previousValues := telemetryDelta.GetState(clientID)
-	result := make(map[string]int64, len(metrics))
-	for _, metric := range metrics {
-		result[metric.base().name] = previousValues.ValueFor(metric)
-	}
-	return result
-}
-
 var clientMux sync.Mutex
 var client statsd.ClientInterface
 

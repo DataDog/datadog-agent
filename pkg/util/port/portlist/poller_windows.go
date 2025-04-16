@@ -1,9 +1,7 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
+// Copyright (c) Tailscale Inc & AUTHORS
+// SPDX-License-Identifier: BSD-3-Clause
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
-
-//go:build windows
+// Copyright 2014-present Datadog, Inc.
 
 package portlist
 
@@ -18,21 +16,86 @@ var ErrNotImplemented = errors.New("not implemented yet")
 
 // init initializes the Poller by ensuring it has an underlying
 func (p *Poller) init() {
-	p.os = newWindowsOSImpl(p.IncludeLocalhost)
+	p.os = newWindowsImpl(p.IncludeLocalhost)
 }
 
-type windowsOSImpl struct {
+type windowsImpl struct {
+	known            map[famPort]*portMeta
 	includeLocalhost bool
 }
 
-func newWindowsOSImpl(includeLocalhost bool) osImpl {
-	return &windowsOSImpl{
+type famPort struct {
+	proto string
+	port  uint16
+	pid   uint32
+}
+
+type portMeta struct {
+	port Port
+	keep bool
+}
+
+func newWindowsImpl(includeLocalhost bool) osImpl {
+	return &windowsImpl{
+		known:            map[famPort]*portMeta{},
 		includeLocalhost: includeLocalhost,
 	}
 }
+func (*windowsImpl) Close() error { return nil }
 
-func (im *windowsOSImpl) AppendListeningPorts(_ []Port) ([]Port, error) {
-	return nil, ErrNotImplemented
+func (im *windowsImpl) AppendListeningPorts(base []Port) ([]Port, error) {
+	tab, err := GetConnTable()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, pm := range im.known {
+		pm.keep = false
+	}
+
+	ret := base
+	for _, e := range tab.Entries {
+		if e.State != "LISTEN" {
+			continue
+		}
+		if !im.includeLocalhost && !e.Local.Addr().IsUnspecified() {
+			continue
+		}
+		fp := famPort{
+			proto: "tcp",
+			port:  e.Local.Port(),
+			pid:   uint32(e.Pid),
+		}
+		pm, ok := im.known[fp]
+		if ok {
+			pm.keep = true
+			continue
+		}
+		var process string
+		if e.OSMetadata != nil {
+			if module, err := e.OSMetadata.GetModule(); err == nil {
+				process = module
+			}
+		}
+		pm = &portMeta{
+			keep: true,
+			port: Port{
+				Proto:   "tcp",
+				Port:    e.Local.Port(),
+				Process: process,
+				Pid:     e.Pid,
+			},
+		}
+		im.known[fp] = pm
+	}
+
+	for k, m := range im.known {
+		if !m.keep {
+			delete(im.known, k)
+			continue
+		}
+		ret = append(ret, m.port)
+	}
+
+	return sortAndDedup(ret), nil
 }
-
-func (*windowsOSImpl) Close() error { return ErrNotImplemented }

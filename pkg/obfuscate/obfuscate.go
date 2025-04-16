@@ -20,6 +20,10 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// Version is an incrementing integer to identify this "version" of obfuscation logic. This is used to avoid obfuscation
+// conflicts and ensure that clients of the obfuscator can decide where obfuscation should occur.
+const Version = 1
+
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
 // concurrent use.
 type Obfuscator struct {
@@ -90,6 +94,9 @@ type Config struct {
 
 	// Redis holds the obfuscation settings for Redis commands.
 	Redis RedisConfig `mapstructure:"redis"`
+
+	// Valkey holds the obfuscation settings for Valkey commands.
+	Valkey ValkeyConfig `mapstructure:"valkey"`
 
 	// Memcached holds the obfuscation settings for Memcached commands.
 	Memcached MemcachedConfig `mapstructure:"memcached"`
@@ -232,6 +239,16 @@ type RedisConfig struct {
 	RemoveAllArgs bool `mapstructure:"remove_all_args"`
 }
 
+// ValkeyConfig holds the configuration settings for Valkey obfuscation
+type ValkeyConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
+	// RemoveAllArgs specifies whether all arguments to a given Valkey
+	// command should be obfuscated.
+	RemoveAllArgs bool `mapstructure:"remove_all_args"`
+}
+
 // MemcachedConfig holds the configuration settings for Memcached obfuscation
 type MemcachedConfig struct {
 	// Enabled specifies whether this feature should be enabled.
@@ -277,6 +294,9 @@ type CreditCardsConfig struct {
 type CacheConfig struct {
 	// Enabled specifies whether caching should be enabled.
 	Enabled bool `mapstructure:"enabled"`
+
+	// MaxSize is the maximum size of the cache in bytes.
+	MaxSize int64 `mapstructure:"max_size"`
 }
 
 // NewObfuscator creates a new obfuscator
@@ -286,7 +306,7 @@ func NewObfuscator(cfg Config) *Obfuscator {
 	}
 	o := Obfuscator{
 		opts:              &cfg,
-		queryCache:        newMeasuredCache(cacheOptions{On: cfg.Cache.Enabled, Statsd: cfg.Statsd}),
+		queryCache:        newMeasuredCache(cacheOptions{On: cfg.Cache.Enabled, Statsd: cfg.Statsd, MaxSize: cfg.Cache.MaxSize}),
 		sqlLiteralEscapes: atomic.NewBool(false),
 		log:               cfg.Logger,
 	}

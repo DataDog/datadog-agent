@@ -10,7 +10,6 @@ package python
 import (
 	"context"
 	"math/rand/v2"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -20,10 +19,10 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
+	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -62,7 +61,7 @@ func testHeaders(t *testing.T) {
 	Headers(&headers)
 	require.NotNil(t, headers)
 
-	h := util.HTTPHeaders()
+	h := httpHeaders()
 	yamlPayload, _ := yaml.Marshal(h)
 	assert.Equal(t, string(yamlPayload), C.GoString(headers))
 }
@@ -129,7 +128,7 @@ func testEmitAgentTelemetry(t *testing.T) {
 
 func testObfuscaterConfig(t *testing.T) {
 	pkgconfigmodel.CleanOverride(t)
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	conf := pkgconfigmock.New(t)
 	pkgconfigsetup.InitConfig(conf)
 	o := lazyInitObfuscator()
 	o.Stop()
@@ -155,6 +154,10 @@ func testObfuscaterConfig(t *testing.T) {
 			Enabled:       true,
 			RemoveAllArgs: false,
 		},
+		Valkey: obfuscate.ValkeyConfig{
+			Enabled:       true,
+			RemoveAllArgs: false,
+		},
 		Memcached: obfuscate.MemcachedConfig{
 			Enabled:     true,
 			KeepCommand: false,
@@ -166,6 +169,7 @@ func testObfuscaterConfig(t *testing.T) {
 		},
 		Cache: obfuscate.CacheConfig{
 			Enabled: true,
+			MaxSize: 5000000,
 		},
 	}
 	assert.Equal(t, expected, obfuscaterConfig)

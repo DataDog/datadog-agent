@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubeapiserver"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubelet"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubemetadata"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/nvml"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/podman"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector"
 	remoteworkloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
@@ -42,5 +43,6 @@ func getCollectorOptions() []fx.Option {
 		remoteworkloadmeta.GetFxOptions(),
 		remoteWorkloadmetaParams(),
 		processcollector.GetFxOptions(),
+		nvml.GetFxOptions(),
 	}
 }

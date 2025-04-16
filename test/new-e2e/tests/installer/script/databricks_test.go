@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	databricksAgentVersion          = "7.58.2-1"
-	databricksApmInjectVersion      = "0.26.0"
-	databricksApmLibraryJavaVersion = "1.42.2"
+	databricksAgentVersion          = "7.63.3-1"
+	databricksApmInjectVersion      = "0.35.0"
+	databricksApmLibraryJavaVersion = "1.48.0"
 )
 
 type installScriptDatabricksSuite struct {
@@ -26,9 +26,9 @@ type installScriptDatabricksSuite struct {
 
 func testDatabricksScript(os e2eos.Descriptor, arch e2eos.Architecture) installerScriptSuite {
 	s := &installScriptDatabricksSuite{
-		installerScriptBaseSuite: newInstallerScriptSuite("installer", os, arch, awshost.WithoutFakeIntake(), awshost.WithoutAgent()),
+		installerScriptBaseSuite: newInstallerScriptSuite("installer-databricks", os, arch, awshost.WithoutFakeIntake(), awshost.WithoutAgent()),
 	}
-	s.url = fmt.Sprintf("https://installtesting.datad0g.com/%s/scripts/install-databricks.sh", s.commitHash)
+	s.url = s.scriptURLPrefix + "install-databricks.sh"
 
 	return s
 }

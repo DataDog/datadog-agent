@@ -10,6 +10,7 @@ package fxutil
 import (
 	"context"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -181,7 +182,7 @@ func TestOneShotSubcommand(
 	for _, c := range subcommands {
 		cmd.AddCommand(c)
 	}
-	cmd.SetArgs(append([]string{}, commandline...))
+	cmd.SetArgs(slices.Clone(commandline))
 
 	require.NoError(t, cmd.Execute())
 	require.True(t, oneShotRan, "fxutil.OneShot wasn't called")

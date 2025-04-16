@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -153,12 +154,15 @@ func (is *stepByStepSuite) CheckStepByStepAgentInstallation(VMclient *common.Tes
 	common.CheckAgentRestarts(is.T(), VMclient)
 	common.CheckIntegrationInstall(is.T(), VMclient)
 	common.SetAgentPythonMajorVersion(is.T(), VMclient, "3")
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
 	common.CheckAgentPython(is.T(), VMclient, common.ExpectedPythonVersion3)
 	if *majorVersion == "6" {
 		common.SetAgentPythonMajorVersion(is.T(), VMclient, "2")
 		common.CheckAgentPython(is.T(), VMclient, common.ExpectedPythonVersion2)
 	}
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
 	common.CheckApmEnabled(is.T(), VMclient)
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
 	common.CheckApmDisabled(is.T(), VMclient)
 	if *flavorName == "datadog-agent" {
 		common.CheckSystemProbeBehavior(is.T(), VMclient)

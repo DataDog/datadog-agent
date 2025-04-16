@@ -10,3 +10,6 @@ def sysprobe_enabled?()
   !heroku_target? && linux_target? && !ENV.fetch('SYSTEM_PROBE_BIN', '').empty?
 end
 
+def windows_signing_enabled?()
+  return ENV['SIGN_WINDOWS_DD_WCS']
+end

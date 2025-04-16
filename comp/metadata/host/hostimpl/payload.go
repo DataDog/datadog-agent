@@ -53,7 +53,7 @@ func (h *host) getPayload(ctx context.Context) *Payload {
 	}
 
 	if h.config.GetBool("enable_gohai") {
-		gohaiPayload, err := gohai.GetPayloadAsString(env.IsContainerized())
+		gohaiPayload, err := gohai.GetPayloadAsString(h.hostname, h.config.GetBool("metadata_ip_resolution_from_hostname"), env.IsContainerized())
 		if err != nil {
 			h.log.Errorf("Could not serialize gohai payload: %s", err)
 		} else {

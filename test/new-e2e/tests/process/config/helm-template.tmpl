@@ -7,13 +7,13 @@ datadog:
   networkMonitoring:
     enabled: {{.NetworkPerformanceMonitoring}}
 
-agents: 
+agents:
   containers:
     agent:
       env:
         - name: DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED
-          value: {{.RunInCoreAgent}}
+          value: "{{.RunInCoreAgent}}"
     processAgent:
       env:
         - name: DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED
-          value: {{.RunInCoreAgent}}
+          value: "{{.RunInCoreAgent}}"

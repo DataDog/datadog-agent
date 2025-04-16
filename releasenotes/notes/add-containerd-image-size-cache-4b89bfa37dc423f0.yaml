@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Enhanced the Containerd Check to use a cache for container image sizes,
+    reducing redundant API calls and improving performance.

@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // MakeMockBundle returns a core bundle with a customized set of fx.Option including sane defaults.
 func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {

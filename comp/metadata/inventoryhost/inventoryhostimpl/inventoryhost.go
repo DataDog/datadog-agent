@@ -83,6 +83,7 @@ type hostMetadata struct {
 	IPAddress   string `json:"ip_address"`
 	IPv6Address string `json:"ipv6_address"`
 	MacAddress  string `json:"mac_address"`
+	Interfaces  string `json:"interfaces"`
 
 	// from the agent itself
 	AgentVersion           string `json:"agent_version"`
@@ -230,6 +231,26 @@ func (ih *invHost) fillData() {
 		ih.data.IPAddress = networkInfo.IPAddress
 		ih.data.IPv6Address = networkInfo.IPAddressV6.ValueOrDefault()
 		ih.data.MacAddress = networkInfo.MacAddress
+		jsonInterfaces, err := json.Marshal(networkInfo.Interfaces)
+		if err != nil {
+			ih.log.Errorf("failed to marshal network interfaces: %s", err) //nolint:errcheck
+		} else {
+			ih.data.Interfaces = string(jsonInterfaces)
+		}
+	}
+
+	if ih.conf.GetBool("metadata_ip_resolution_from_hostname") {
+		ipv4s, ipv6s, err := network.ResolveFromHostname(ih.hostname)
+		if err != nil {
+			ih.log.Errorf("failed to resolve hostname to IP addresses: %s", err) //nolint:errcheck
+		} else {
+			if len(ipv4s) > 0 {
+				ih.data.IPAddress = ipv4s[0]
+			}
+			if len(ipv6s) > 0 {
+				ih.data.IPv6Address = ipv6s[0]
+			}
+		}
 	}
 
 	ih.data.AgentVersion = version.AgentVersion

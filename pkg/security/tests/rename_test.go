@@ -39,6 +39,11 @@ func TestRename(t *testing.T) {
 	}
 	defer test.Close()
 
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	fileMode := 0o447
 	expectedMode := uint16(applyUmask(fileMode))
 	testOldFile, testOldFilePtr, err := test.CreateWithOptions("test-rename", 98, 99, fileMode)
@@ -203,10 +208,6 @@ func TestRename(t *testing.T) {
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), true)
 
-			executable, err := os.Executable()
-			if err != nil {
-				t.Fatal(err)
-			}
 			assertFieldEqual(t, event, "process.file.path", executable)
 		})
 	})

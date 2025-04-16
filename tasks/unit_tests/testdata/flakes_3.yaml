@@ -1,2 +1,2 @@
 test/new-e2e/tests/containers:
-  - TestEKSSuite/Ifail
+  - test: TestEKSSuite/Ifail

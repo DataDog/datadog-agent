@@ -12,7 +12,9 @@ type Logger interface {
 	Infof(format string, params ...interface{})
 	// Tracef is used to print a trace level log
 	Tracef(format string, params ...interface{})
-	// Debugf is used to print a trace level log
+	// Warnf is used to print a warning level log
+	Warnf(format string, params ...interface{})
+	// Debugf is used to print a debug level log
 	Debugf(format string, params ...interface{})
 	// Errorf is used to print an error
 	Errorf(format string, params ...interface{})
@@ -29,6 +31,10 @@ func (l NullLogger) Tracef(_ string, _ ...interface{}) {
 
 // Debugf is used to print a trace level log
 func (l NullLogger) Debugf(_ string, _ ...interface{}) {
+}
+
+// Warnf is used to print a warning level log
+func (l NullLogger) Warnf(_ string, _ ...interface{}) {
 }
 
 // Errorf is used to print an error

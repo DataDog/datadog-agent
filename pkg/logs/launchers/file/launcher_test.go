@@ -16,7 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -50,13 +51,13 @@ type LauncherTestSuite struct {
 	source           *sources.LogSource
 	openFilesLimit   int
 	s                *Launcher
-	tagger           taggerMock.Mock
+	tagger           taggermock.Mock
 }
 
 func (suite *LauncherTestSuite) SetupTest() {
 	suite.pipelineProvider = mock.NewMockProvider()
 	suite.outputChan = suite.pipelineProvider.NextPipelineChan()
-	suite.tagger = taggerMock.SetupFakeTagger(suite.T())
+	suite.tagger = taggerfxmock.SetupFakeTagger(suite.T())
 
 	var err error
 	suite.testDir = suite.T().TempDir()
@@ -222,7 +223,7 @@ func TestLauncherTestSuiteWithConfigID(t *testing.T) {
 func TestLauncherScanStartNewTailer(t *testing.T) {
 	var path string
 	var msg *message.Message
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	IDs := []string{"", "123456789"}
 
@@ -268,7 +269,7 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 	testDir := t.TempDir()
 	path := fmt.Sprintf("%s/container.log", testDir)
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	// create launcher
 	openFilesLimit := 3
@@ -317,7 +318,7 @@ func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 
 func TestLauncherTailFromTheBeginning(t *testing.T) {
 	testDir := t.TempDir()
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	// create launcher
 	openFilesLimit := 3
@@ -368,7 +369,7 @@ func TestLauncherTailFromTheBeginning(t *testing.T) {
 
 func TestLauncherSetTail(t *testing.T) {
 	testDir := t.TempDir()
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	path1 := fmt.Sprintf("%s/test.log", testDir)
 	path2 := fmt.Sprintf("%s/test2.log", testDir)
@@ -395,7 +396,7 @@ func TestLauncherSetTail(t *testing.T) {
 
 func TestLauncherConfigIdentifier(t *testing.T) {
 	testDir := t.TempDir()
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	path := fmt.Sprintf("%s/test.log", testDir)
 	os.Create(path)
@@ -420,7 +421,7 @@ func TestLauncherScanWithTooManyFiles(t *testing.T) {
 	var path string
 
 	testDir := t.TempDir()
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	// creates files
 	path = fmt.Sprintf("%s/1.log", testDir)
@@ -463,7 +464,7 @@ func TestLauncherScanWithTooManyFiles(t *testing.T) {
 
 func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
 	testDir := t.TempDir()
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	path := fmt.Sprintf("%s/*.log", testDir)
 	os.Create(path)
@@ -513,7 +514,7 @@ func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 		err = os.Remove(path(name))
 		assert.Nil(t, err)
 	}
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	createLauncher := func() *Launcher {
 		sleepDuration := 20 * time.Millisecond
@@ -568,7 +569,7 @@ func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
 	testDir := t.TempDir()
 	baseTime := time.Date(2010, time.August, 10, 25, 0, 0, 0, time.UTC)
 	openFilesLimit := 2
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	path := func(name string) string {
 		return fmt.Sprintf("%s/%s", testDir, name)
@@ -633,7 +634,7 @@ func TestLauncherFileRotation(t *testing.T) {
 
 	testDir := t.TempDir()
 	openFilesLimit := 2
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	path := func(name string) string {
 		return fmt.Sprintf("%s/%s", testDir, name)
@@ -699,7 +700,7 @@ func TestLauncherFileDetectionSingleScan(t *testing.T) {
 
 	testDir := t.TempDir()
 	openFilesLimit := 2
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	path := func(name string) string {
 		return fmt.Sprintf("%s/%s", testDir, name)

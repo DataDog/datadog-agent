@@ -142,7 +142,7 @@ func IsExpectedTagsSet(coreConfig pkgconfigmodel.Reader) bool {
 
 func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys) (*Endpoints, error) {
 	useProto := logsConfig.devModeUseProto()
-	main := NewTCPEndpoint(logsConfig)
+	main := newTCPEndpoint(logsConfig)
 
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
 		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
@@ -190,7 +190,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 	// Provide default values for legacy settings when the configuration key does not exist
 	defaultNoSSL := logsConfig.logsNoSSL()
 
-	main := NewHTTPEndpoint(logsConfig)
+	main := newHTTPEndpoint(logsConfig)
 
 	if logsConfig.useV2API() && intakeTrackType != "" {
 		main.Version = EPIntakeVersion2
@@ -243,7 +243,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 			return nil, fmt.Errorf("could not parse %s: %v", mrfURL, err)
 		}
 
-		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), mrfHost, mrfPort, mrfUseSSL)
+		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), "multi_region_failover.api_key", mrfHost, mrfPort, mrfUseSSL)
 		e.IsMRF = true
 		e.UseCompression = main.UseCompression
 		e.CompressionLevel = main.CompressionLevel

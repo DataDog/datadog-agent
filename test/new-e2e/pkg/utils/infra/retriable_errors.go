@@ -61,5 +61,10 @@ func getKnownErrors() []knownError {
 			errorMessage: `error: awsx:ecs:FargateTaskDefinition resource '.+fakeintake.+' has a problem: grpc: the client connection is closing`,
 			retryType:    ReCreate,
 		},
+		{
+			// https://datadoghq.atlassian.net/browse/ADXT-726
+			errorMessage: `error: .*ssh: rejected: connect failed (No route to host)`,
+			retryType:    ReCreate,
+		},
 	}
 }

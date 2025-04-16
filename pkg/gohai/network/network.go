@@ -199,7 +199,6 @@ func externalIpv6Address() (string, error) {
 
 func externalIPAddress() (string, error) {
 	ifaces, err := net.Interfaces()
-
 	if err != nil {
 		return "", err
 	}
@@ -297,4 +296,24 @@ func getNetworkInfo() (*Info, error) {
 	}
 
 	return networkInfo, nil
+}
+
+// ResolveFromHostname resolves the non-loopback addresses from the hostname
+func ResolveFromHostname(hostname string) (ipv4s []string, ipv6s []string, err error) {
+	ipLookup, err := net.LookupIP(hostname)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, ip := range ipLookup {
+		if ip.IsLoopback() {
+			continue
+		}
+		if ip.To4() != nil {
+			ipv4s = append(ipv4s, ip.String())
+		} else {
+			ipv6s = append(ipv6s, ip.String())
+		}
+	}
+	return ipv4s, ipv6s, nil
 }

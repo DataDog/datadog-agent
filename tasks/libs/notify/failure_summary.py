@@ -303,7 +303,7 @@ def send_summary_slack_notification(
         print(f'Would send to {channel}:')
         print(blocks)
     else:
-        client = WebClient(os.environ["SLACK_API_TOKEN"])
+        client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
         client.chat_postMessage(channel=channel, blocks=blocks, text=alt_message)
 
 

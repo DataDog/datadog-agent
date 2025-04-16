@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // MockParams defines the parameters for the mock component.
@@ -28,7 +28,7 @@ type MockParams struct {
 
 type mockdependencies struct {
 	fx.In
-	WMeta      optional.Option[workloadmeta.Component]
+	WMeta      option.Option[workloadmeta.Component]
 	Params     MockParams
 	TaggerComp mockTagger.Mock
 	LogsComp   log.Component

@@ -56,6 +56,16 @@ func (h *PodHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource
 	return
 }
 
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*corev1.Pod)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
+	return
+}
+
 // BeforeCacheCheck is a handler called before cache lookup.
 func (h *PodHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	pctx := ctx.(*processors.K8sProcessorContext)
@@ -132,7 +142,7 @@ func (h *PodHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PodHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*corev1.Pod)
-	return k8sTransformers.ExtractPod(r)
+	return k8sTransformers.ExtractPod(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

@@ -13,13 +13,13 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -214,6 +214,10 @@ func (c *CheckBase) ConfigSource() string {
 	return c.source
 }
 
+func (*CheckBase) Loader() string {
+	return GoCheckLoaderName
+}
+
 // InitConfig returns the init_config configuration for the check.
 func (c *CheckBase) InitConfig() string {
 	return c.initConfig
@@ -278,6 +282,11 @@ func (c *CheckBase) GetSenderStats() (stats.SenderStats, error) {
 }
 
 // GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
-func (c *CheckBase) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+func (c *CheckBase) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	return nil, nil
+}
+
+// IsHASupported returns if the check is compatible with High Availability
+func (c *CheckBase) IsHASupported() bool {
+	return false
 }

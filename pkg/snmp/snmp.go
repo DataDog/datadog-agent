@@ -49,24 +49,25 @@ type ListenerConfig struct {
 
 // Config holds configuration for a particular subnet
 type Config struct {
-	Network                     string          `mapstructure:"network_address"`
-	Port                        uint16          `mapstructure:"port"`
-	Version                     string          `mapstructure:"snmp_version"`
-	Timeout                     int             `mapstructure:"timeout"`
-	Retries                     int             `mapstructure:"retries"`
-	OidBatchSize                int             `mapstructure:"oid_batch_size"`
-	Community                   string          `mapstructure:"community_string"`
-	User                        string          `mapstructure:"user"`
-	AuthKey                     string          `mapstructure:"authKey"`
-	AuthProtocol                string          `mapstructure:"authProtocol"`
-	PrivKey                     string          `mapstructure:"privKey"`
-	PrivProtocol                string          `mapstructure:"privProtocol"`
-	ContextEngineID             string          `mapstructure:"context_engine_id"`
-	ContextName                 string          `mapstructure:"context_name"`
-	IgnoredIPAddresses          map[string]bool `mapstructure:"ignored_ip_addresses"`
-	ADIdentifier                string          `mapstructure:"ad_identifier"`
-	Loader                      string          `mapstructure:"loader"`
-	CollectDeviceMetadataConfig *bool           `mapstructure:"collect_device_metadata"`
+	Network                     string           `mapstructure:"network_address"`
+	Port                        uint16           `mapstructure:"port"`
+	Version                     string           `mapstructure:"snmp_version"`
+	Timeout                     int              `mapstructure:"timeout"`
+	Retries                     int              `mapstructure:"retries"`
+	OidBatchSize                int              `mapstructure:"oid_batch_size"`
+	Community                   string           `mapstructure:"community_string"`
+	User                        string           `mapstructure:"user"`
+	AuthKey                     string           `mapstructure:"authKey"`
+	AuthProtocol                string           `mapstructure:"authProtocol"`
+	PrivKey                     string           `mapstructure:"privKey"`
+	PrivProtocol                string           `mapstructure:"privProtocol"`
+	ContextEngineID             string           `mapstructure:"context_engine_id"`
+	ContextName                 string           `mapstructure:"context_name"`
+	Authentications             []Authentication `mapstructure:"authentications"`
+	IgnoredIPAddresses          map[string]bool  `mapstructure:"ignored_ip_addresses"`
+	ADIdentifier                string           `mapstructure:"ad_identifier"`
+	Loader                      string           `mapstructure:"loader"`
+	CollectDeviceMetadataConfig *bool            `mapstructure:"collect_device_metadata"`
 	CollectDeviceMetadata       bool
 	CollectTopologyConfig       *bool `mapstructure:"collect_topology"`
 	CollectTopology             bool
@@ -89,6 +90,21 @@ type Config struct {
 	AuthProtocolLegacy string `mapstructure:"authentication_protocol"`
 	PrivKeyLegacy      string `mapstructure:"privacy_key"`
 	PrivProtocolLegacy string `mapstructure:"privacy_protocol"`
+}
+
+// Authentication holds SNMP authentication data
+type Authentication struct {
+	Version         string `mapstructure:"snmp_version"`
+	Timeout         int    `mapstructure:"timeout"`
+	Retries         int    `mapstructure:"retries"`
+	Community       string `mapstructure:"community_string"`
+	User            string `mapstructure:"user"`
+	AuthKey         string `mapstructure:"authKey"`
+	AuthProtocol    string `mapstructure:"authProtocol"`
+	PrivKey         string `mapstructure:"privKey"`
+	PrivProtocol    string `mapstructure:"privProtocol"`
+	ContextEngineID string `mapstructure:"context_engine_id"`
+	ContextName     string `mapstructure:"context_name"`
 }
 
 type intOrBoolPtr interface {
@@ -177,6 +193,33 @@ func NewListenerConfig() (ListenerConfig, error) {
 		config.PrivProtocol = firstNonEmpty(config.PrivProtocol, config.PrivProtocolLegacy)
 		config.Network = firstNonEmpty(config.Network, config.NetworkLegacy)
 		config.Version = firstNonEmpty(config.Version, config.VersionLegacy)
+
+		if config.Community != "" || config.User != "" {
+			config.Authentications = append([]Authentication{
+				{
+					Version:         config.Version,
+					Timeout:         config.Timeout,
+					Retries:         config.Retries,
+					Community:       config.Community,
+					User:            config.User,
+					AuthKey:         config.AuthKey,
+					AuthProtocol:    config.AuthProtocol,
+					PrivKey:         config.PrivKey,
+					PrivProtocol:    config.PrivProtocol,
+					ContextEngineID: config.ContextEngineID,
+					ContextName:     config.ContextName,
+				},
+			}, config.Authentications...)
+		}
+
+		for authIndex := range config.Authentications {
+			if config.Authentications[authIndex].Timeout == 0 {
+				config.Authentications[authIndex].Timeout = defaultTimeout
+			}
+			if config.Authentications[authIndex].Retries == 0 {
+				config.Authentications[authIndex].Retries = defaultRetries
+			}
+		}
 	}
 	return snmpConfig, nil
 }
@@ -212,67 +255,67 @@ func (c *Config) Digest(address string) string {
 	return strconv.FormatUint(h.Sum64(), 16)
 }
 
-// BuildSNMPParams returns a valid GoSNMP struct to start making queries
-func (c *Config) BuildSNMPParams(deviceIP string) (*gosnmp.GoSNMP, error) {
-	if c.Community == "" && c.User == "" {
-		return nil, errors.New("No authentication mechanism specified")
-	}
-
-	var version gosnmp.SnmpVersion
-	if c.Version == "1" {
-		version = gosnmp.Version1
-	} else if c.Version == "2" || (c.Version == "" && c.Community != "") {
-		version = gosnmp.Version2c
-	} else if c.Version == "3" || (c.Version == "" && c.User != "") {
-		version = gosnmp.Version3
-	} else {
-		return nil, fmt.Errorf("SNMP version not supported: %s", c.Version)
-	}
-
-	authProtocol, err := gosnmplib.GetAuthProtocol(c.AuthProtocol)
-	if err != nil {
-		return nil, err
-	}
-
-	privProtocol, err := gosnmplib.GetPrivProtocol(c.PrivProtocol)
-	if err != nil {
-		return nil, err
-	}
-
-	msgFlags := gosnmp.NoAuthNoPriv
-	if c.PrivKey != "" {
-		msgFlags = gosnmp.AuthPriv
-	} else if c.AuthKey != "" {
-		msgFlags = gosnmp.AuthNoPriv
-	}
-
-	return &gosnmp.GoSNMP{
-		Target:          deviceIP,
-		Port:            c.Port,
-		Community:       c.Community,
-		Transport:       "udp",
-		Version:         version,
-		Timeout:         time.Duration(c.Timeout) * time.Second,
-		Retries:         c.Retries,
-		SecurityModel:   gosnmp.UserSecurityModel,
-		MsgFlags:        msgFlags,
-		ContextEngineID: c.ContextEngineID,
-		ContextName:     c.ContextName,
-		SecurityParameters: &gosnmp.UsmSecurityParameters{
-			UserName:                 c.User,
-			AuthenticationProtocol:   authProtocol,
-			AuthenticationPassphrase: c.AuthKey,
-			PrivacyProtocol:          privProtocol,
-			PrivacyPassphrase:        c.PrivKey,
-		},
-	}, nil
-}
-
 // IsIPIgnored checks the given IP against IgnoredIPAddresses
 func (c *Config) IsIPIgnored(ip net.IP) bool {
 	ipString := ip.String()
 	_, present := c.IgnoredIPAddresses[ipString]
 	return present
+}
+
+// BuildSNMPParams returns a valid GoSNMP struct to start making queries
+func (authentication *Authentication) BuildSNMPParams(deviceIP string, port uint16) (*gosnmp.GoSNMP, error) {
+	if authentication.Community == "" && authentication.User == "" {
+		return nil, errors.New("No authentication mechanism specified")
+	}
+
+	var version gosnmp.SnmpVersion
+	if authentication.Version == "1" {
+		version = gosnmp.Version1
+	} else if authentication.Version == "2" || (authentication.Version == "" && authentication.Community != "") {
+		version = gosnmp.Version2c
+	} else if authentication.Version == "3" || (authentication.Version == "" && authentication.User != "") {
+		version = gosnmp.Version3
+	} else {
+		return nil, fmt.Errorf("SNMP version not supported: %s", authentication.Version)
+	}
+
+	authProtocol, err := gosnmplib.GetAuthProtocol(authentication.AuthProtocol)
+	if err != nil {
+		return nil, err
+	}
+
+	privProtocol, err := gosnmplib.GetPrivProtocol(authentication.PrivProtocol)
+	if err != nil {
+		return nil, err
+	}
+
+	msgFlags := gosnmp.NoAuthNoPriv
+	if authentication.PrivKey != "" {
+		msgFlags = gosnmp.AuthPriv
+	} else if authentication.AuthKey != "" {
+		msgFlags = gosnmp.AuthNoPriv
+	}
+
+	return &gosnmp.GoSNMP{
+		Target:          deviceIP,
+		Port:            port,
+		Community:       authentication.Community,
+		Transport:       "udp",
+		Version:         version,
+		Timeout:         time.Duration(authentication.Timeout) * time.Second,
+		Retries:         authentication.Retries,
+		SecurityModel:   gosnmp.UserSecurityModel,
+		MsgFlags:        msgFlags,
+		ContextEngineID: authentication.ContextEngineID,
+		ContextName:     authentication.ContextName,
+		SecurityParameters: &gosnmp.UsmSecurityParameters{
+			UserName:                 authentication.User,
+			AuthenticationProtocol:   authProtocol,
+			AuthenticationPassphrase: authentication.AuthKey,
+			PrivacyProtocol:          privProtocol,
+			PrivacyPassphrase:        authentication.PrivKey,
+		},
+	}, nil
 }
 
 func firstNonEmpty(strings ...string) string {

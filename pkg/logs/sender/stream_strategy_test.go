@@ -10,23 +10,25 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
 func TestStreamStrategy(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
 
-	s := NewStreamStrategy(input, output, IdentityContentType)
+	s := NewStreamStrategy(input, output, compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1))
 	s.Start()
 
-	content := []byte("a")
+	content := []byte("aa")
 	message1 := message.NewMessage(content, nil, "", 0)
 	input <- message1
 
 	payload := <-output
-	assert.Equal(t, message1, payload.Messages[0])
-	assert.Equal(t, 1, payload.UnencodedSize)
+	assert.Equal(t, &message1.MessageMetadata, payload.MessageMetas[0])
+	assert.Equal(t, 2, payload.UnencodedSize)
 	assert.Equal(t, content, payload.Encoded)
 
 	content = []byte("b")
@@ -34,7 +36,7 @@ func TestStreamStrategy(t *testing.T) {
 	input <- message2
 
 	payload = <-output
-	assert.Equal(t, message2, payload.Messages[0])
+	assert.Equal(t, &message2.MessageMetadata, payload.MessageMetas[0])
 	assert.Equal(t, 1, payload.UnencodedSize)
 	assert.Equal(t, content, payload.Encoded)
 	s.Stop()
@@ -45,7 +47,7 @@ func TestStreamStrategyShouldNotBlockWhenForceStopping(_ *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
 
-	s := NewStreamStrategy(input, output, IdentityContentType)
+	s := NewStreamStrategy(input, output, compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1))
 
 	message := message.NewMessage([]byte{}, nil, "", 0)
 	go func() {
@@ -60,7 +62,7 @@ func TestStreamStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
 
-	s := NewStreamStrategy(input, output, IdentityContentType)
+	s := NewStreamStrategy(input, output, compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1))
 
 	message := message.NewMessage([]byte{}, nil, "", 0)
 	go func() {

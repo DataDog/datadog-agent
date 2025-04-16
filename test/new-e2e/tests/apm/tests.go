@@ -90,6 +90,54 @@ func testTracesHaveContainerTag(t *testing.T, c *assert.CollectT, service string
 	assert.True(c, hasContainerTag(traces, fmt.Sprintf("container_name:%s", service)), "got traces: %v", traces)
 }
 
+func testProcessTraces(c *assert.CollectT, intake *components.FakeIntake, processTags string) {
+	traces, err := intake.Client().GetTraces()
+	assert.NoError(c, err)
+	assert.NotEmpty(c, traces)
+	for _, p := range traces {
+		assert.NotEmpty(c, p.TracerPayloads)
+		for _, tp := range p.TracerPayloads {
+			tags, ok := tp.Tags["_dd.tags.process"]
+			assert.True(c, ok)
+			assert.Equal(c, processTags, tags)
+		}
+	}
+}
+
+func testStatsHaveProcessTags(c *assert.CollectT, intake *components.FakeIntake, processTags string) {
+	stats, err := intake.Client().GetAPMStats()
+	assert.NoError(c, err)
+	assert.NotEmpty(c, stats)
+	for _, p := range stats {
+		assert.NotEmpty(c, p.StatsPayload.Stats)
+		for _, s := range p.StatsPayload.Stats {
+			assert.Equal(c, processTags, s.ProcessTags)
+		}
+	}
+}
+
+func testStatsHaveContainerTags(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
+	t.Helper()
+	stats, err := intake.Client().GetAPMStats()
+	assert.NoError(c, err)
+	assert.NotEmpty(c, stats)
+	t.Logf("Got %d apm stats", len(stats))
+
+	for _, p := range stats {
+		for _, s := range p.StatsPayload.Stats {
+			for _, bucket := range s.Stats {
+				for _, ss := range bucket.Stats {
+					if ss.Service == service {
+						assert.NotEmpty(c, s.ContainerID, "ContainerID should not be empty. Got Stats: %v", stats)
+						assert.NotEmpty(c, s.Tags, "Container Tags should not be empty. Got Stats: %v", stats)
+						assert.Contains(c, s.Tags, fmt.Sprintf("container_name:%s", service))
+					}
+				}
+			}
+		}
+	}
+}
+
 func testAutoVersionTraces(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
 	t.Helper()
 	traces, err := intake.Client().GetTraces()

@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    added new expvar "submission_error_count" on process endpoint to be shown during user status checks

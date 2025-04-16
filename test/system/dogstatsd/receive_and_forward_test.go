@@ -16,9 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	common "github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )

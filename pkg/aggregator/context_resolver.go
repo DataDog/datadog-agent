@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/size"
 )
 
 // Context holds the elements that form a context, and can be serialized into a context key
@@ -61,7 +61,7 @@ func (c *Context) DataSizeInBytes() int {
 }
 
 // Make sure we implement the interface
-var _ util.HasSizeInBytes = &Context{}
+var _ size.HasSizeInBytes = &Context{}
 
 // contextResolver allows tracking and expiring contexts
 type contextResolver struct {
@@ -171,8 +171,8 @@ func (cr *contextResolver) updateMetrics(countsByMTypeGauge telemetry.Gauge, byt
 			continue
 		}
 		countsByMTypeGauge.WithValues(cr.id, mtype).Set(float64(count))
-		bytesByMTypeGauge.Set(float64(bytes), cr.id, mtype, util.BytesKindStruct)
-		bytesByMTypeGauge.Set(float64(dataBytes), cr.id, mtype, util.BytesKindData)
+		bytesByMTypeGauge.Set(float64(bytes), cr.id, mtype, tags.BytesKindStruct)
+		bytesByMTypeGauge.Set(float64(dataBytes), cr.id, mtype, tags.BytesKindData)
 	}
 }
 

@@ -33,7 +33,7 @@ func (p *PolicyProvider) LoadPolicies([]rules.MacroFilter, []rules.RuleFilter) (
 		Rules:   newBundledPolicyRules(p.cfg),
 	}
 
-	policy, err := rules.LoadPolicyFromDefinition("bundled_policy", "bundled", policyDef, nil, nil)
+	policy, err := rules.LoadPolicyFromDefinition("bundled_policy", "bundled", rules.InternalPolicyType, policyDef, nil, nil)
 	if err != nil {
 		return nil, multierror.Append(nil, err)
 	}

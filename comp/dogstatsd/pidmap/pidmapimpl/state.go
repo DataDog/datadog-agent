@@ -8,6 +8,7 @@ package pidmapimpl
 
 import (
 	"errors"
+	"maps"
 	"sync"
 
 	"go.uber.org/fx"
@@ -41,9 +42,7 @@ func (s *state) SetPidMap(m map[int32]string) {
 	defer s.mux.Unlock()
 
 	s.pidMap = pidContainerMap{}
-	for pid, containerID := range m {
-		s.pidMap[pid] = containerID
-	}
+	maps.Copy(s.pidMap, m)
 }
 
 // ContainerIDForPID returns the matching container id for a pid, or an error if not found.

@@ -45,6 +45,10 @@ func NewNodeTree(v interface{}, source model.Source) (Node, error) {
 		return newInnerNode(children), nil
 	case []interface{}:
 		return newLeafNode(it, source), nil
+	case nil:
+		// nil as a value acts as the zero value, and the cast library will correctly
+		// convert it to zero values for the types we handle
+		return newLeafNode(nil, source), nil
 	}
 	if isScalar(v) {
 		return newLeafNode(v, source), nil
@@ -97,7 +101,6 @@ type InnerNode interface {
 	SetAt([]string, interface{}, model.Source) (bool, error)
 	InsertChildNode(string, Node)
 	RemoveChild(string)
-	makeRemapCase()
 	DumpSettings(func(model.Source) bool) map[string]interface{}
 }
 

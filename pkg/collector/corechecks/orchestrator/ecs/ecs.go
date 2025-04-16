@@ -31,12 +31,13 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/ecs"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // CheckName is the name of the check
@@ -61,16 +62,17 @@ type Check struct {
 }
 
 // Factory creates a new check factory
-func Factory(store workloadmeta.Component, tagger tagger.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check { return newCheck(store, tagger) })
+func Factory(store workloadmeta.Component, tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check { return newCheck(store, tagger) })
 }
 
 func newCheck(store workloadmeta.Component, tagger tagger.Component) check.Check {
+	extraTags := pkgconfigsetup.Datadog().GetStringSlice(oconfig.OrchestratorNSKey("extra_tags"))
 	return &Check{
 		CheckBase:                  core.NewCheckBase(CheckName),
 		workloadmetaStore:          store,
 		tagger:                     tagger,
-		config:                     oconfig.NewDefaultOrchestratorConfig(),
+		config:                     oconfig.NewDefaultOrchestratorConfig(extraTags),
 		groupID:                    atomic.NewInt32(rand.Int31()),
 		isECSCollectionEnabledFunc: oconfig.IsOrchestratorECSExplorerEnabled,
 	}

@@ -12,16 +12,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 
 	"github.com/acobaugh/osrelease"
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/asm"
-	"github.com/cilium/ebpf/btf"
-	"github.com/cilium/ebpf/features"
-	"github.com/cilium/ebpf/link"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
@@ -319,15 +313,16 @@ func (k *Version) IsInRangeCloseOpen(begin kernel.Version, end kernel.Version) b
 	return k.Code != 0 && begin <= k.Code && k.Code < end
 }
 
-// HaveMmapableMaps returns whether the kernel supports mmapable maps.
-func (k *Version) HaveMmapableMaps() bool {
-	return features.HaveMapFlag(features.BPF_F_MMAPABLE) == nil
-
+// HasNoPreallocMapsInPerfEvent returns true if the kernel supports using non-preallocated maps in perf_event programs
+// See https://github.com/torvalds/linux/commit/274052a2b0ab9f380ce22b19ff80a99b99ecb198
+func (k *Version) HasNoPreallocMapsInPerfEvent() bool {
+	return k.Code >= Kernel6_1
 }
 
-// HaveRingBuffers returns whether the kernel supports ring buffer.
-func (k *Version) HaveRingBuffers() bool {
-	return features.HaveMapType(ebpf.RingBuf) == nil
+// IsMapValuesToMapHelpersAllowed returns true if the kernel supports passing map values to map helpers
+// See https://github.com/torvalds/linux/commit/d71962f3e627b5941804036755c844fabfb65ff5
+func (k *Version) IsMapValuesToMapHelpersAllowed() bool {
+	return k.Code != 0 && k.Code >= Kernel4_18
 }
 
 // HavePIDLinkStruct returns whether the kernel uses the pid_link struct, which was removed in 4.19
@@ -340,69 +335,7 @@ func (k *Version) HaveLegacyPipeInodeInfoStruct() bool {
 	return k.Code != 0 && k.Code < Kernel5_5
 }
 
-func (k *Version) commonFentryCheck(funcName string) bool {
-	if features.HaveProgramType(ebpf.Tracing) != nil {
-		return false
-	}
-
-	spec := &ebpf.ProgramSpec{
-		Type:       ebpf.Tracing,
-		AttachType: ebpf.AttachTraceFEntry,
-		AttachTo:   funcName,
-		Instructions: asm.Instructions{
-			asm.LoadImm(asm.R0, 0, asm.DWord),
-			asm.Return(),
-		},
-	}
-	prog, err := ebpf.NewProgramWithOptions(spec, ebpf.ProgramOptions{
-		LogDisabled: true,
-	})
-	if err != nil {
-		return false
-	}
-	defer prog.Close()
-
-	link, err := link.AttachTracing(link.TracingOptions{
-		Program: prog,
-	})
-	if err != nil {
-		return false
-	}
-	defer link.Close()
-
-	return true
-}
-
-// HaveFentrySupport returns whether the kernel supports fentry probes
-func (k *Version) HaveFentrySupport() bool {
-	return k.commonFentryCheck("vfs_open")
-}
-
-// HaveFentrySupportWithStructArgs returns whether the kernel supports fentry probes with struct arguments
-func (k *Version) HaveFentrySupportWithStructArgs() bool {
-	return k.commonFentryCheck("audit_set_loginuid")
-}
-
-// HaveFentryNoDuplicatedWeakSymbols returns whether the kernel supports fentry probes with struct arguments
-func (k *Version) HaveFentryNoDuplicatedWeakSymbols() bool {
-	var symbol string
-	switch runtime.GOARCH {
-	case "amd64":
-		symbol = "__ia32_sys_setregid16"
-	default:
-		return true
-	}
-
-	return k.commonFentryCheck(symbol)
-}
-
 // SupportBPFSendSignal returns true if the eBPF function bpf_send_signal is available
 func (k *Version) SupportBPFSendSignal() bool {
 	return k.Code != 0 && k.Code >= Kernel5_3
-}
-
-// SupportCORE returns is CORE is supported
-func (k *Version) SupportCORE() bool {
-	_, err := btf.LoadKernelSpec()
-	return err == nil
 }

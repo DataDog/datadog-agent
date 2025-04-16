@@ -33,6 +33,17 @@ func makeConfigArray(configMap map[string]integration.Config) []integration.Conf
 	return configSlice
 }
 
+// makeConfigArrayFromDangling flattens a map of configs into a slice. Creating a new slice
+// allows for thread-safe usage by other external, as long as the field values in
+// the config objects are not modified.
+func makeConfigArrayFromDangling(configMap map[string]*danglingConfigWrapper) []integration.Config {
+	configSlice := make([]integration.Config, 0, len(configMap))
+	for _, c := range configMap {
+		configSlice = append(configSlice, c.config)
+	}
+	return configSlice
+}
+
 func timestampNowNano() int64 {
 	return time.Now().UnixNano()
 }

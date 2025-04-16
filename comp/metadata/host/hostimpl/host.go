@@ -152,7 +152,7 @@ func (h *host) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (h *host) writeGohaiPayload(w http.ResponseWriter, _ *http.Request) {
-	payload := gohai.GetPayloadWithProcesses(env.IsContainerized())
+	payload := gohai.GetPayloadWithProcesses(h.hostname, h.config.GetBool("metadata_ip_resolution_from_hostname"), env.IsContainerized())
 	jsonPayload, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		httputils.SetJSONError(w, h.log.Errorf("Unable to marshal gohai metadata payload: %s", err), 500)

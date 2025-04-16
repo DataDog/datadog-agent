@@ -16,7 +16,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -43,7 +43,7 @@ func newCollectorBundle(t *testing.T, chk *OrchestratorCheck) *CollectorBundle {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	bundle := &CollectorBundle{
 		discoverCollectors: chk.orchestratorConfig.CollectorDiscoveryEnabled,
@@ -82,15 +82,14 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
 	orchCheck.apiClient = cl
 
 	orchCheck.orchestratorInformerFactory = getOrchestratorInformerFactory(cl)
 	bundle := newCollectorBundle(t, orchCheck)
-	err := bundle.Initialize()
-	assert.NoError(t, err)
+	bundle.Initialize()
 
 	wg.Add(2)
 
@@ -99,10 +98,10 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 
 	bundle.runCfg.OrchestratorInformerFactory = getOrchestratorInformerFactory(cl)
 	bundle.stopCh = make(chan struct{})
-	err = bundle.Initialize()
-	assert.NoError(t, err)
+	bundle.initializeOnce = sync.Once{}
+	bundle.Initialize()
 
-	_, err = bundle.runCfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes().Informer().AddEventHandler(&cache.ResourceEventHandlerFuncs{
+	_, err := bundle.runCfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes().Informer().AddEventHandler(&cache.ResourceEventHandlerFuncs{
 		AddFunc: func(_ interface{}) {
 			wg.Done()
 		},

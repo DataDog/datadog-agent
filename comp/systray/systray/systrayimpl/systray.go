@@ -20,6 +20,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/systray/systray"
@@ -46,20 +47,22 @@ type dependencies struct {
 	Lc         fx.Lifecycle
 	Shutdowner fx.Shutdowner
 
-	Log    log.Component
-	Config config.Component
-	Flare  flare.Component
-	Params systray.Params
+	Log      log.Component
+	Config   config.Component
+	Flare    flare.Component
+	Diagnose diagnose.Component
+	Params   systray.Params
 }
 
 type systrayImpl struct {
 	// For triggering Shutdown
 	shutdowner fx.Shutdowner
 
-	log    log.Component
-	config config.Component
-	flare  flare.Component
-	params systray.Params
+	log      log.Component
+	config   config.Component
+	flare    flare.Component
+	diagnose diagnose.Component
+	params   systray.Params
 
 	// allocated in start, destroyed in stop
 	singletonEventHandle windows.Handle
@@ -121,6 +124,7 @@ func newSystray(deps dependencies) (systray.Component, error) {
 		log:        deps.Log,
 		config:     deps.Config,
 		flare:      deps.Flare,
+		diagnose:   deps.Diagnose,
 		params:     deps.Params,
 		shutdowner: deps.Shutdowner,
 	}

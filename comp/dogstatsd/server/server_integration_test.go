@@ -136,7 +136,6 @@ func TestUDSConn(t *testing.T) {
 	cfg["dogstatsd_socket"] = socketPath
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-	require.True(t, deps.Server.UdsListenerRunning())
 
 	conn, err := net.Dial("unixgram", socketPath)
 	require.NoError(t, err, "cannot connect to DSD socket")
@@ -195,9 +194,7 @@ func TestUDSReceiverNoDir(t *testing.T) {
 	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off
 	cfg["dogstatsd_socket"] = socketPath
 
-	deps := fulfillDepsWithConfigOverride(t, cfg)
-	require.False(t, deps.Server.UdsListenerRunning())
-
+	_ = fulfillDepsWithConfigOverride(t, cfg)
 	_, err := net.Dial("unixgram", socketPath)
 	require.Error(t, err, "UDS listener should be closed")
 }

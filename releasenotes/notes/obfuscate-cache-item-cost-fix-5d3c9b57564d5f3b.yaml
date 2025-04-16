@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Obfuscation Cache Size Calculation:
+    Resolved an issue where the cache item size was underestimated by not accounting for the Go struct overhead (including struct fields and headers for strings and slices).
+    This fix ensures a more accurate calculation of cache item memory usage, leading to better memory efficiency and preventing over-allocation of NumCounters in cache configurations.

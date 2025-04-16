@@ -18,74 +18,83 @@ import (
 )
 
 func TestBuildSNMPParams(t *testing.T) {
-	config := Config{
-		Network: "192.168.0.0/24",
-	}
-	_, err := config.BuildSNMPParams("192.168.0.1")
+	authentication := Authentication{}
+	_, err := authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "No authentication mechanism specified", err.Error())
 
-	config = Config{
-		Network: "192.168.0.0/24",
+	authentication = Authentication{
 		User:    "admin",
 		Version: "4",
 	}
-	_, err = config.BuildSNMPParams("192.168.0.1")
+	_, err = authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "SNMP version not supported: 4", err.Error())
 
-	config = Config{
-		Network:   "192.168.0.0/24",
+	authentication = Authentication{
 		Community: "public",
 	}
-	params, _ := config.BuildSNMPParams("192.168.0.1")
+	params, _ := authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, gosnmp.Version2c, params.Version)
 	assert.Equal(t, "192.168.0.1", params.Target)
 
-	config = Config{
-		Network: "192.168.0.0/24",
-		User:    "admin",
+	authentication = Authentication{
+		User: "admin",
 	}
-	params, _ = config.BuildSNMPParams("192.168.0.2")
+	params, _ = authentication.BuildSNMPParams("192.168.0.2", 0)
 	assert.Equal(t, gosnmp.Version3, params.Version)
 	assert.Equal(t, gosnmp.NoAuthNoPriv, params.MsgFlags)
 	assert.Equal(t, "192.168.0.2", params.Target)
 
 	for _, authProto := range []string{"", "md5", "sha", "sha224", "sha256", "sha384", "sha512"} {
-		config = Config{
-			Network:      "192.168.0.0/24",
+		authentication = Authentication{
 			User:         "admin",
 			AuthProtocol: authProto,
 		}
-		_, err = config.BuildSNMPParams("192.168.0.1")
+		_, err = authentication.BuildSNMPParams("192.168.0.1", 0)
 		assert.NoError(t, err)
-		assert.Equal(t, authProto, config.AuthProtocol)
+		assert.Equal(t, authProto, authentication.AuthProtocol)
 	}
 
 	for _, privProto := range []string{"", "des", "aes", "aes192", "aes192c", "aes256", "aes256c"} {
-		config = Config{
-			Network:      "192.168.0.0/24",
+		authentication = Authentication{
 			User:         "admin",
 			PrivProtocol: privProto,
 		}
-		_, err = config.BuildSNMPParams("192.168.0.1")
+		_, err = authentication.BuildSNMPParams("192.168.0.1", 0)
 		assert.NoError(t, err)
-		assert.Equal(t, privProto, config.PrivProtocol)
+		assert.Equal(t, privProto, authentication.PrivProtocol)
 	}
 
-	config = Config{
-		Network:      "192.168.0.0/24",
+	authentication = Authentication{
 		User:         "admin",
 		AuthProtocol: "foo",
 	}
-	_, err = config.BuildSNMPParams("192.168.0.1")
+	_, err = authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "unsupported authentication protocol: foo", err.Error())
 
-	config = Config{
-		Network:      "192.168.0.0/24",
+	authentication = Authentication{
 		User:         "admin",
 		PrivProtocol: "bar",
 	}
-	_, err = config.BuildSNMPParams("192.168.0.1")
+	_, err = authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "unsupported privacy protocol: bar", err.Error())
+
+	authentications := []Authentication{
+		{
+			Community: "myCommunityString1",
+		},
+		{
+			Community: "myCommunityString2",
+		},
+		{
+			Community: "myCommunityString3",
+		},
+	}
+	for _, authentication = range authentications {
+		params, _ = authentication.BuildSNMPParams("192.168.0.1", 0)
+		assert.Equal(t, authentication.Community, params.Community)
+		assert.Equal(t, gosnmp.Version2c, params.Version)
+		assert.Equal(t, "192.168.0.1", params.Target)
+	}
 }
 
 func TestNewListenerConfig(t *testing.T) {
@@ -303,6 +312,80 @@ network_devices:
 
 	conf, err = NewListenerConfig()
 	assert.Error(t, err)
+}
+
+func Test_AuthenticationsConfig(t *testing.T) {
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+     - network_address: 127.1.0.0/30
+       authentications:
+        - community_string: someCommunityString1
+        - user: someUser
+          authProtocol: someAuthProtocol
+          authKey: someAuthKey
+          privProtocol: somePrivProtocol
+          privKey: somePrivKey
+        - community_string: someCommunityString2
+          snmp_version: someSnmpVersion
+`)
+
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+
+	networkConf := conf.Configs[0]
+	assert.Equal(t, "someCommunityString1", networkConf.Authentications[0].Community)
+	assert.Equal(t, defaultTimeout, networkConf.Authentications[0].Timeout)
+	assert.Equal(t, defaultRetries, networkConf.Authentications[0].Retries)
+	assert.Equal(t, "someUser", networkConf.Authentications[1].User)
+	assert.Equal(t, "someAuthProtocol", networkConf.Authentications[1].AuthProtocol)
+	assert.Equal(t, "someAuthKey", networkConf.Authentications[1].AuthKey)
+	assert.Equal(t, "somePrivProtocol", networkConf.Authentications[1].PrivProtocol)
+	assert.Equal(t, "somePrivKey", networkConf.Authentications[1].PrivKey)
+	assert.Equal(t, defaultTimeout, networkConf.Authentications[1].Timeout)
+	assert.Equal(t, defaultRetries, networkConf.Authentications[1].Retries)
+	assert.Equal(t, "someCommunityString2", networkConf.Authentications[2].Community)
+	assert.Equal(t, "someSnmpVersion", networkConf.Authentications[2].Version)
+	assert.Equal(t, defaultTimeout, networkConf.Authentications[2].Timeout)
+	assert.Equal(t, defaultRetries, networkConf.Authentications[2].Retries)
+
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+     - network_address: 127.1.0.0/30
+       user: someUser1
+       authProtocol: someAuthProtocol1
+       authKey: someAuthKey1
+       privProtocol: somePrivProtocol1
+       privKey: somePrivKey1
+       snmp_version: someSnmpVersion
+       authentications:
+        - community_string: someCommunityString
+        - user: someUser2
+          authProtocol: someAuthProtocol2
+          authKey: someAuthKey2
+          privProtocol: somePrivProtocol2
+          privKey: somePrivKey2
+`)
+
+	conf, err = NewListenerConfig()
+	assert.NoError(t, err)
+
+	networkConf = conf.Configs[0]
+	assert.Equal(t, "someUser1", networkConf.Authentications[0].User)
+	assert.Equal(t, "someAuthProtocol1", networkConf.Authentications[0].AuthProtocol)
+	assert.Equal(t, "someAuthKey1", networkConf.Authentications[0].AuthKey)
+	assert.Equal(t, "somePrivProtocol1", networkConf.Authentications[0].PrivProtocol)
+	assert.Equal(t, "somePrivKey1", networkConf.Authentications[0].PrivKey)
+	assert.Equal(t, "someSnmpVersion", networkConf.Authentications[0].Version)
+	assert.Equal(t, "someCommunityString", networkConf.Authentications[1].Community)
+	assert.Equal(t, "someUser2", networkConf.Authentications[2].User)
+	assert.Equal(t, "someAuthProtocol2", networkConf.Authentications[2].AuthProtocol)
+	assert.Equal(t, "someAuthKey2", networkConf.Authentications[2].AuthKey)
+	assert.Equal(t, "somePrivProtocol2", networkConf.Authentications[2].PrivProtocol)
+	assert.Equal(t, "somePrivKey2", networkConf.Authentications[2].PrivKey)
 }
 
 func Test_LoaderConfig(t *testing.T) {

@@ -9,11 +9,12 @@ package listeners
 
 import (
 	"errors"
+	"syscall"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // ErrLinuxOnly is emitted on non-linux platforms
@@ -25,15 +26,13 @@ func getUDSAncillarySize() int {
 }
 
 // enableUDSPassCred returns a "not implemented" error on non-linux hosts
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func enableUDSPassCred(_ netUnixConn) error {
+func enableUDSPassCred(_ syscall.RawConn) error {
 	return ErrLinuxOnly
 }
 
 // processUDSOrigin returns a "not implemented" error on non-linux hosts
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func processUDSOrigin(_ []byte, _ optional.Option[workloadmeta.Component], _ pidmap.Component) (int, string, error) {
+func processUDSOrigin(_ []byte, _ option.Option[workloadmeta.Component], _ pidmap.Component) (int, string, error) {
 	return 0, packets.NoOrigin, ErrLinuxOnly
 }

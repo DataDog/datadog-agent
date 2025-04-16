@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -277,7 +277,7 @@ func (w *AutoscalerWatcher) getAutoscalerReferences() (map[string]*externalMetri
 
 		for _, wpaObj := range wpaList {
 			wpa := &v1alpha1.WatermarkPodAutoscaler{}
-			err := apiserver.UnstructuredIntoWPA(wpaObj, wpa)
+			err := controllers.UnstructuredIntoWPA(wpaObj, wpa)
 			if err != nil {
 				log.Errorf("Error converting wpa from the cache %v", err)
 				continue

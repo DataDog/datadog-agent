@@ -357,8 +357,14 @@ func TestSNMPConfig(t *testing.T) {
 		`authKey: password`,
 		`authKey: "********"`)
 	assertClean(t,
+		`authkey: password`,
+		`authkey: "********"`)
+	assertClean(t,
 		`privKey: password`,
 		`privKey: "********"`)
+	assertClean(t,
+		`privkey: password`,
+		`privkey: "********"`)
 	assertClean(t,
 		`community_string: p@ssw0r)`,
 		`community_string: "********"`)

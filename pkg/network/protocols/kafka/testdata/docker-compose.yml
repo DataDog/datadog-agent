@@ -2,7 +2,7 @@ version: '3'
 name: kafka
 services:
   zookeeper:
-    image: bitnami/zookeeper:3.8
+    image: bitnami/zookeeper:3.9
     ports:
       - "2181:2181"
     environment:
@@ -10,7 +10,7 @@ services:
     tmpfs:
       - /bitnami/zookeeper/data
   kafka:
-    image: bitnami/kafka:3.7
+    image: bitnami/kafka:3.9
     ports:
       - "${KAFKA_PORT:-9092}:9092"
       - "${KAFKA_TLS_PORT:-9093}:9093"

@@ -23,7 +23,7 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.
 		return err
 	}
 
-	configEndpointMux := configendpoint.GetConfigEndpointMuxCore()
+	configEndpointMux := configendpoint.GetConfigEndpointMuxCore(server.cfg)
 	configEndpointMux.Use(validateToken)
 
 	ipcMux := http.NewServeMux()

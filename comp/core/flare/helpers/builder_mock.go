@@ -8,6 +8,7 @@
 package helpers
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,7 +21,7 @@ import (
 
 // FlareBuilderMock offers all the helpers to test flare providers.
 type FlareBuilderMock struct {
-	Fb   types.FlareBuilder
+	types.FlareBuilder
 	Root string
 	t    *testing.T
 }
@@ -30,15 +31,29 @@ type FlareBuilderMock struct {
 // 'local' relates to where the flare is currently created. Flare created from the Agent process are not local. Flares
 // created directly from the CLI are local. Almost every flare Provider shouldn't care where the flare is being built.
 func NewFlareBuilderMock(t *testing.T, local bool) *FlareBuilderMock {
+	return createMock(t, local, types.FlareArgs{})
+}
+
+// NewFlareBuilderMockWithArgs return a FlareBuilderMock to test flare providers.
+//
+// 'local' relates to where the flare is currently created. Flare created from the Agent process are not local. Flares
+// created directly from the CLI are local. Almost every flare Provider shouldn't care where the flare is being built.
+//
+// FlareArgs will be made available to callers of GetFlareArgs()
+func NewFlareBuilderMockWithArgs(t *testing.T, local bool, args types.FlareArgs) *FlareBuilderMock {
+	return createMock(t, local, args)
+}
+
+func createMock(t *testing.T, local bool, args types.FlareArgs) *FlareBuilderMock {
 	root := t.TempDir()
 
-	builder, err := newBuilder(root, "test-hostname", local, types.FlareArgs{})
+	builder, err := newBuilder(root, "test-hostname", local, args)
 	require.NoError(t, err)
 
 	fb := &FlareBuilderMock{
-		Fb:   builder,
-		Root: builder.flareDir,
-		t:    t,
+		FlareBuilder: builder,
+		Root:         builder.flareDir,
+		t:            t,
 	}
 	t.Cleanup(func() { builder.logFile.Close() })
 	return fb
@@ -82,4 +97,10 @@ func (m *FlareBuilderMock) AssertFileContentMatch(pattern string, paths ...strin
 // AssertNoFileExists asserts that a file does not exists within the flare
 func (m *FlareBuilderMock) AssertNoFileExists(paths ...string) bool {
 	return assert.NoFileExists(m.t, m.filePath(paths...))
+}
+
+// Save overrides the underlying flarebuilder method to a no-op. This helps
+// ensure tests do not attempt to further process the temporary flare.
+func (m *FlareBuilderMock) Save() (string, error) {
+	return "", errors.New("Unimplemented")
 }

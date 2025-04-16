@@ -19,23 +19,23 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
-	noopAutodiscover "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/comp/systray/systray"
 	"github.com/DataDog/datadog-agent/comp/systray/systray/systrayimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -107,10 +107,10 @@ func MakeCommand() *cobra.Command {
 					defaultpaths.DogstatsDLogFile,
 					defaultpaths.StreamlogsLogFile,
 				)),
-				noopAutodiscover.Module(),
-				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
-				fx.Supply(optional.NewNoneOption[collector.Component]()),
-				compressionfx.Module(),
+				diagnosefx.Module(),
+				fx.Supply(option.None[workloadmeta.Component]()),
+				logscompressionfx.Module(),
+				metricscompressionfx.Module(),
 				diagnosesendermanagerimpl.Module(),
 				nooptagger.Module(),
 				authtokenimpl.Module(),
@@ -124,6 +124,7 @@ func MakeCommand() *cobra.Command {
 				// systray
 				fx.Supply(systrayParams),
 				systrayimpl.Module(),
+
 				// require the systray component, causing it to start
 				fx.Invoke(func(_ systray.Component) {}),
 				haagentfx.Module(),

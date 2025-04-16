@@ -32,6 +32,7 @@ The payload is a JSON dict with the following fields
   - `agent_startup_time_ms` - **int**: the Agent startup timestamp (Unix milliseconds timestamp).
   - `flavor` - **string**: the flavor of the Agent. The Agent can be build under different flavor such as standalone
     dogstatsd, iot, serverless ... (see `pkg/util/flavor` package).
+  - `fips_mode` - **bool**: True if the Datadog Agent is in FIPS mode.
   - `config_apm_dd_url` - **string**: the configuration value `apm_config.dd_url` (scrubbed)
   - `config_dd_url` - **string**: the configuration value `dd_url` (scrubbed)
   - `config_site` - **string**: the configuration value `site` (scrubbed)
@@ -49,7 +50,6 @@ The payload is a JSON dict with the following fields
   - `install_method_installer_version` - **string**:  The version of Datadog module (ex: the Chef Datadog package, the Datadog Ansible playbook, ...).
   - `logs_transport` - **string**:  The transport used to send logs to Datadog. Value is either `"HTTP"` or `"TCP"` when logs collection is
     enabled, otherwise the field is omitted.
-  - `feature_fips_enabled` - **bool**: True if the Datadog Agent is in FIPS mode (see: `fips.enabled` config option).
   - `feature_cws_enabled` - **bool**: True if the Cloud Workload Security is enabled (see: `runtime_security_config.enabled`
     config option).
   - `feature_process_enabled` - **bool**: True if the Process Agent has process collection enabled
@@ -124,6 +124,7 @@ The payload is a JSON dict with the following fields
   - `ecs_fargate_task_arn` - **string**: if the Agent runs in ECS Fargate, contains the Agent's Task ARN. Else, is empty.
   - `ecs_fargate_cluster_name` - **string**: if the Agent runs in ECS Fargate, contains the Agent's cluster name. Else, is empty.
   - `fleet_policies_applied` -- **array of string**: The Fleet Policies that have been applied to the agent, if any. Is empty if no policy is applied.
+  - `config_id` -- **string**: the Fleet Config ID, the configuration value `config_id`.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
@@ -167,7 +168,8 @@ Here an example of an inventory payload:
         "environment_variable_configuration": "api_key: \"***************************aaaaa\"",
         "remote_configuration": "log_level: \"debug\"",
         "cli_configuration": "log_level: \"warn\"",
-        "source_local_configuration": ""
+        "source_local_configuration": "",
+        "config_id": "my-config"
     }
     "hostname": "my-host",
     "timestamp": 1631281754507358895

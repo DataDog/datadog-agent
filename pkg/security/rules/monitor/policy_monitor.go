@@ -164,14 +164,15 @@ func ReportRuleSetLoaded(acc *events.AgentContainerContext, sender events.EventS
 // RuleState defines a loaded rule
 // easyjson:json
 type RuleState struct {
-	ID         string            `json:"id"`
-	Version    string            `json:"version,omitempty"`
-	Expression string            `json:"expression"`
-	Status     string            `json:"status"`
-	Message    string            `json:"message,omitempty"`
-	Tags       map[string]string `json:"tags,omitempty"`
-	Actions    []RuleAction      `json:"actions,omitempty"`
-	ModifiedBy []*PolicyState    `json:"modified_by,omitempty"`
+	ID          string            `json:"id"`
+	Version     string            `json:"version,omitempty"`
+	Expression  string            `json:"expression"`
+	Status      string            `json:"status"`
+	Message     string            `json:"message,omitempty"`
+	Tags        map[string]string `json:"tags,omitempty"`
+	ProductTags []string          `json:"product_tags,omitempty"`
+	Actions     []RuleAction      `json:"actions,omitempty"`
+	ModifiedBy  []*PolicyState    `json:"modified_by,omitempty"`
 }
 
 // PolicyState is used to report policy was loaded
@@ -191,6 +192,7 @@ type RuleAction struct {
 	Kill     *RuleKillAction `json:"kill,omitempty"`
 	Hash     *HashAction     `json:"hash,omitempty"`
 	CoreDump *CoreDumpAction `json:"coredump,omitempty"`
+	Log      *LogAction      `json:"log,omitempty"`
 }
 
 // HashAction is used to report 'hash' action
@@ -202,11 +204,15 @@ type HashAction struct {
 // RuleSetAction is used to report 'set' action
 // easyjson:json
 type RuleSetAction struct {
-	Name   string      `json:"name,omitempty"`
-	Value  interface{} `json:"value,omitempty"`
-	Field  string      `json:"field,omitempty"`
-	Append bool        `json:"append,omitempty"`
-	Scope  string      `json:"scope,omitempty"`
+	Name         string      `json:"name,omitempty"`
+	Value        interface{} `json:"value,omitempty"`
+	DefaultValue interface{} `json:"default_value,omitempty"`
+	Field        string      `json:"field,omitempty"`
+	Expression   string      `json:"expression,omitempty"`
+	Append       bool        `json:"append,omitempty"`
+	Scope        string      `json:"scope,omitempty"`
+	Size         int         `json:"size,omitempty"`
+	TTL          string      `json:"ttl,omitempty"`
 }
 
 // RuleKillAction is used to report the 'kill' action
@@ -223,6 +229,13 @@ type CoreDumpAction struct {
 	Mount         bool `json:"mount,omitempty"`
 	Dentry        bool `json:"dentry,omitempty"`
 	NoCompression bool `json:"no_compression,omitempty"`
+}
+
+// LogAction is used to report the 'log' action
+// easyjson:json
+type LogAction struct {
+	Level   string `json:"level,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 // RulesetLoadedEvent is used to report that a new ruleset was loaded
@@ -258,15 +271,25 @@ func PolicyStateFromRule(rule *rules.PolicyRule) *PolicyState {
 	}
 }
 
+// PolicyStateFromPolicy returns a policy state based on the policy definition
+func PolicyStateFromPolicy(policy *rules.Policy) *PolicyState {
+	return &PolicyState{
+		Name:    policy.Name,
+		Version: policy.Def.Version,
+		Source:  policy.Source,
+	}
+}
+
 // RuleStateFromRule returns a rule state based on the given rule
 func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *RuleState {
 	ruleState := &RuleState{
-		ID:         rule.Def.ID,
-		Version:    rule.Policy.Def.Version,
-		Expression: rule.Def.Expression,
-		Status:     status,
-		Message:    message,
-		Tags:       rule.Def.Tags,
+		ID:          rule.Def.ID,
+		Version:     rule.Policy.Def.Version,
+		Expression:  rule.Def.Expression,
+		Status:      status,
+		Message:     message,
+		Tags:        rule.Def.Tags,
+		ProductTags: rule.Def.ProductTags,
 	}
 
 	for _, action := range rule.Actions {
@@ -279,11 +302,17 @@ func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *R
 			}
 		case action.Def.Set != nil:
 			ruleAction.Set = &RuleSetAction{
-				Name:   action.Def.Set.Name,
-				Value:  action.Def.Set.Value,
-				Field:  action.Def.Set.Field,
-				Append: action.Def.Set.Append,
-				Scope:  string(action.Def.Set.Scope),
+				Name:         action.Def.Set.Name,
+				Value:        action.Def.Set.Value,
+				DefaultValue: action.Def.Set.DefaultValue,
+				Field:        action.Def.Set.Field,
+				Expression:   action.Def.Set.Expression,
+				Append:       action.Def.Set.Append,
+				Scope:        string(action.Def.Set.Scope),
+				Size:         action.Def.Set.Size,
+			}
+			if action.Def.Set.TTL != nil {
+				ruleAction.Set.TTL = action.Def.Set.TTL.String()
 			}
 		case action.Def.Hash != nil:
 			ruleAction.Hash = &HashAction{
@@ -295,6 +324,11 @@ func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *R
 				Mount:         action.Def.CoreDump.Mount,
 				Dentry:        action.Def.CoreDump.Dentry,
 				NoCompression: action.Def.CoreDump.NoCompression,
+			}
+		case action.Def.Log != nil:
+			ruleAction.Log = &LogAction{
+				Level:   action.Def.Log.Level,
+				Message: action.Def.Log.Message,
 			}
 		}
 		ruleState.Actions = append(ruleState.Actions, ruleAction)
@@ -319,12 +353,13 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 			continue
 		}
 
-		policyName := rule.Policy.Name
-		if policyState, exists = mp[policyName]; !exists {
-			policyState = PolicyStateFromRule(rule.PolicyRule)
-			mp[policyName] = policyState
+		for _, policy := range rule.UsedBy {
+			if policyState, exists = mp[policy.Name]; !exists {
+				policyState = PolicyStateFromPolicy(policy)
+				mp[policy.Name] = policyState
+			}
+			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, "loaded", ""))
 		}
-		policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, "loaded", ""))
 	}
 
 	// rules ignored due to errors

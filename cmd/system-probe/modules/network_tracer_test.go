@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux || windows
+//go:build (linux && linux_bpf) || (windows && npm)
 
 package modules
 
 import (
 	"bytes"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,6 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
+
+func TestNetworkModuleOrder(t *testing.T) {
+	allModules := All()
+	assert.Less(t, slices.Index(allModules, EventMonitor), slices.Index(allModules, NetworkTracer))
+}
 
 func TestDecode(t *testing.T) {
 	rec := httptest.NewRecorder()

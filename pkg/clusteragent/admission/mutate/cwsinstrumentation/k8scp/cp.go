@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
@@ -39,11 +40,11 @@ func NewCopy(apiClient *apiserver.APIClient) *Copy {
 	}
 }
 
-func (o *Copy) prepareCommand(destFile remotePath) []string {
+func (o *Copy) prepareCommand(destFile string) []string {
 	// arguments are split on purpose to try to differentiate this kubectl cp from others
 	cmdArr := make([]string, len(CWSRemoteCopyCommand))
 	copy(cmdArr, CWSRemoteCopyCommand)
-	destFileDir := destFile.Dir().String()
+	destFileDir := path.Dir(destFile)
 	if len(destFileDir) > 0 {
 		cmdArr = append(cmdArr, "-C", destFileDir)
 	}
@@ -53,6 +54,8 @@ func (o *Copy) prepareCommand(destFile remotePath) []string {
 // CopyToPod copies the provided local file to the provided container
 func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, container string) error {
 	o.Container = container
+	localFile = path.Clean(localFile)
+	remoteFile = path.Clean(remoteFile)
 
 	// sanity check
 	if _, err := os.Stat(localFile); err != nil {
@@ -60,18 +63,20 @@ func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, c
 	}
 
 	reader, writer := io.Pipe()
-	srcFile := newLocalPath(localFile)
-	destFile := newRemotePath(remoteFile)
-
+	defer reader.Close()
 	tarErrChan := make(chan error, 1)
-	go func(src localPath, dest remotePath, writer io.WriteCloser) {
-		defer writer.Close()
+	go func(src, dest string, writer io.WriteCloser) {
 		if err := makeTar(src, dest, writer); err != nil {
+			_ = writer.Close()
 			tarErrChan <- fmt.Errorf("failed to tar local file: %v", err)
-		} else {
-			tarErrChan <- nil
+			return
 		}
-	}(srcFile, destFile, writer)
+		if err := writer.Close(); err != nil {
+			tarErrChan <- fmt.Errorf("failed to close the pipe writer: %v", err)
+			return
+		}
+		tarErrChan <- nil
+	}(localFile, remoteFile, writer)
 
 	streamOptions := k8sexec.StreamOptions{
 		IOStreams: genericiooptions.IOStreams{
@@ -82,12 +87,11 @@ func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, c
 		Stdin: true,
 	}
 
-	if err := o.Execute(pod, o.prepareCommand(destFile), streamOptions); err != nil {
+	if err := o.Execute(pod, o.prepareCommand(remoteFile), streamOptions); err != nil {
 		return err
 	}
 
 	// close pipe, wait for tar chan to finish and check tar error
-	_ = reader.Close()
 	tarErr := <-tarErrChan
 	if tarErr != nil && len(tarErr.Error()) > 0 {
 		return tarErr

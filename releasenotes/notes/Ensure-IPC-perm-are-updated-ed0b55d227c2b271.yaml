@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    On Windows, ensures the ipc_perm.pem file's permissions are updated during installation.

@@ -19,6 +19,9 @@ var (
 	danglingConfigs = telemetry.NewGaugeWithOpts("cluster_checks", "configs_dangling",
 		[]string{le.JoinLeaderLabel}, "Number of check configurations not dispatched.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
+	unscheduledCheck = telemetry.NewGaugeWithOpts("cluster_checks", "unscheduled_check",
+		[]string{le.JoinLeaderLabel, "config_name", "config_source"}, "Number of check configurations not scheduled.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 	dispatchedConfigs = telemetry.NewGaugeWithOpts("cluster_checks", "configs_dispatched",
 		[]string{"node", le.JoinLeaderLabel}, "Number of check configurations dispatched, by node.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})

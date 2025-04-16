@@ -13,35 +13,35 @@ import (
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 )
 
-const (
-	minSupportedAPIVersion = 1
-	maxSupportedAPIVersion = max(MaxSupportedProduceRequestApiVersion, MaxSupportedFetchRequestApiVersion)
-)
-
 // apiVersionCounter is a Kafka API version aware counter, it has a counter for each supported Kafka API version.
 // It enables the use of a single metric that increments based on the API version, avoiding the need for separate metrics for API version
 type apiVersionCounter struct {
-	hitsVersions           [maxSupportedAPIVersion]*libtelemetry.Counter
+	hitsVersions           []*libtelemetry.Counter
 	hitsUnsupportedVersion *libtelemetry.Counter
+	minSupportedVersion    uint16
+	maxSupportedVersion    uint16
 }
 
 // newAPIVersionCounter creates and returns a new instance of apiVersionCounter
-func newAPIVersionCounter(metricGroup *libtelemetry.MetricGroup, metricName string, tags ...string) *apiVersionCounter {
-	var hitsVersions [maxSupportedAPIVersion]*libtelemetry.Counter
-	for i := 0; i < len(hitsVersions); i++ {
-		hitsVersions[i] = metricGroup.NewCounter(metricName, append(tags, fmt.Sprintf("protocol_version:%d", i+1))...)
+func newAPIVersionCounter(metricGroup *libtelemetry.MetricGroup, metricName string, minSupportedVersion, maxSupportedVersion uint16, tags ...string) *apiVersionCounter {
+	hitsVersions := make([]*libtelemetry.Counter, maxSupportedVersion-minSupportedVersion+1)
+	for i := minSupportedVersion; i <= maxSupportedVersion; i++ {
+		hitsVersions[i-minSupportedVersion] = metricGroup.NewCounter(metricName, append(tags, fmt.Sprintf("protocol_version:%d", i))...)
 	}
 	return &apiVersionCounter{
 		hitsVersions:           hitsVersions,
 		hitsUnsupportedVersion: metricGroup.NewCounter(metricName, append(tags, "protocol_version:unsupported")...),
+		minSupportedVersion:    minSupportedVersion,
+		maxSupportedVersion:    maxSupportedVersion,
 	}
 }
 
 // Add increments the API version counter based on the specified request api version
 func (c *apiVersionCounter) Add(tx *KafkaTransaction) {
-	if tx.Request_api_version < minSupportedAPIVersion || tx.Request_api_version > maxSupportedAPIVersion {
+	currentVersion := uint16(tx.Request_api_version)
+	if currentVersion < c.minSupportedVersion || currentVersion > c.maxSupportedVersion {
 		c.hitsUnsupportedVersion.Add(int64(tx.Records_count))
 		return
 	}
-	c.hitsVersions[tx.Request_api_version-1].Add(int64(tx.Records_count))
+	c.hitsVersions[currentVersion-c.minSupportedVersion].Add(int64(tx.Records_count))
 }

@@ -11,6 +11,7 @@ package validators
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -113,7 +114,11 @@ func TestHasBareWildcardInField(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ruleToEval := eval.NewRule(tt.name, tt.args.ruleExpression, &eval.Opts{})
+			pc := ast.NewParsingContext(false)
+			ruleToEval, err := eval.NewRule(tt.name, tt.args.ruleExpression, pc, &eval.Opts{})
+			if err != nil {
+				t.Fatalf("Error creating rule: %s", err)
+			}
 
 			got, err := HasBareWildcardInField(ruleToEval)
 

@@ -10,6 +10,4 @@ package packagesigning
 
 // Component is the component type.
 type Component interface {
-	// GetAsJSON returns the payload as a JSON string. Useful to be displayed in the CLI or added to a flare.
-	GetAsJSON() ([]byte, error)
 }

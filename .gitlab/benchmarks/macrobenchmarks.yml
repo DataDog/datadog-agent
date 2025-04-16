@@ -6,12 +6,10 @@ variables:
   tags: ["team:apm-k8s-tweaked-metal-datadog-agent", "specific:true"]
   timeout: 1h
   rules:
-    - if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
-      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: always
-    - when: manual
-      allow_failure: true
+    - !reference [.on_scheduled_main]
+    - !reference [.manual]
   # If you have a problem with Gitlab cache, see Troubleshooting section in Benchmarking Platform docs
   image: $BENCHMARKS_CI_IMAGE
   needs: ["setup_agent_version"]

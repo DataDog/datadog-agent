@@ -53,21 +53,31 @@ func (f *FSResources) clone() *FSResources {
 	}
 }
 
+// SocketInfo represents the status of an open socket
+type SocketInfo struct {
+	AddressFamily uint16
+	Protocol      uint16
+	BoundToPort   uint16
+}
+
 // Process represents a process context
 type Process struct {
-	Pid   int
-	Tgid  int
-	Nr    map[int]*ebpfless.SyscallMsg
-	FdRes *FdResources
-	FsRes *FSResources
+	Pid        int
+	Tgid       int
+	Nr         map[int]*ebpfless.SyscallMsg
+	FdRes      *FdResources
+	FsRes      *FSResources
+	FdToSocket map[int32]SocketInfo
 }
 
 // NewProcess returns a new process
 func NewProcess(pid int) *Process {
 	return &Process{
-		Pid:  pid,
-		Tgid: pid,
-		Nr:   make(map[int]*ebpfless.SyscallMsg),
+		Pid:        pid,
+		Tgid:       pid,
+		Nr:         make(map[int]*ebpfless.SyscallMsg),
+		FdToSocket: make(map[int32]SocketInfo),
+
 		FdRes: &FdResources{
 			Fd:              make(map[int32]string),
 			FileHandleCache: make(map[fileHandleKey]*fileHandleVal),

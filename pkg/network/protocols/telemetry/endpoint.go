@@ -13,7 +13,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 )
 
 // MarshableMetric sole purpose is to provide a marshable representation of a

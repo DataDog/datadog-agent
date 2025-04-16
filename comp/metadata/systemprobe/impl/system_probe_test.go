@@ -18,7 +18,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -64,11 +64,11 @@ func getSystemProbeComp(t *testing.T, enableConfig bool) *systemprobe {
 		Config:     cfg,
 		Serializer: serializermock.NewMetricSerializer(t),
 		AuthToken: fxutil.Test[authtoken.Component](t,
-			authtokenimpl.Module(),
+			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 			fx.Provide(func() log.Component { return l }),
 			fx.Provide(func() config.Component { return cfg }),
 		),
-		SysProbeConfig: fxutil.Test[optional.Option[sysprobeconfig.Component]](t, sysprobeconfigimpl.MockModule()),
+		SysProbeConfig: fxutil.Test[option.Option[sysprobeconfig.Component]](t, sysprobeconfigimpl.MockModule()),
 	}
 
 	comp := NewComponent(r).Comp

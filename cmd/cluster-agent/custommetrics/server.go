@@ -24,7 +24,7 @@ import (
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 var cmd *DatadogMetricsAdapter
@@ -44,7 +44,7 @@ const (
 )
 
 // RunServer creates and start a k8s custom metrics API server
-func RunServer(ctx context.Context, apiCl *as.APIClient, datadogCl optional.Option[datadogclient.Component]) error {
+func RunServer(ctx context.Context, apiCl *as.APIClient, datadogCl option.Option[datadogclient.Component]) error {
 	defer clearServerResources()
 	if apiCl == nil {
 		return fmt.Errorf("unable to run server with nil APIClient")
@@ -82,7 +82,7 @@ func RunServer(ctx context.Context, apiCl *as.APIClient, datadogCl optional.Opti
 	return server.GenericAPIServer.PrepareRun().RunWithContext(ctx)
 }
 
-func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context, apiCl *as.APIClient, datadogCl optional.Option[datadogclient.Component]) (provider.ExternalMetricsProvider, error) {
+func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context, apiCl *as.APIClient, datadogCl option.Option[datadogclient.Component]) (provider.ExternalMetricsProvider, error) {
 	client, err := a.DynamicClient()
 	if err != nil {
 		log.Infof("Unable to construct dynamic client: %v", err)

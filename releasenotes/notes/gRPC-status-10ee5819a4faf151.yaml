@@ -1,0 +1,3 @@
+upgrade:
+  - |
+    Covers more gRPC status code values sent by tracer libraries

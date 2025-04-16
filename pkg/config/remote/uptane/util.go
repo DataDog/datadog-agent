@@ -14,6 +14,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type metaPath struct {
@@ -51,7 +52,7 @@ func parseMetaPath(rawMetaPath string) (metaPath, error) {
 	}, nil
 }
 
-func metaVersion(rawMeta json.RawMessage) (uint64, error) {
+func unsafeMetaVersion(rawMeta json.RawMessage) (uint64, error) {
 	var metaVersion struct {
 		Signed *struct {
 			Version *uint64 `json:"version"`
@@ -67,7 +68,7 @@ func metaVersion(rawMeta json.RawMessage) (uint64, error) {
 	return *metaVersion.Signed.Version, nil
 }
 
-func metaCustom(rawMeta json.RawMessage) ([]byte, error) {
+func unsafeMetaCustom(rawMeta json.RawMessage) ([]byte, error) {
 	var metaVersion struct {
 		Signed *struct {
 			Custom json.RawMessage `json:"custom"`
@@ -81,6 +82,22 @@ func metaCustom(rawMeta json.RawMessage) ([]byte, error) {
 		return nil, fmt.Errorf("invalid meta: signed is missing")
 	}
 	return []byte(metaVersion.Signed.Custom), nil
+}
+
+func unsafeMetaExpires(rawMeta json.RawMessage) (time.Time, error) {
+	var metaExpires struct {
+		Signed *struct {
+			Expires time.Time `json:"expires"`
+		} `json:"signed"`
+	}
+	err := json.Unmarshal(rawMeta, &metaExpires)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if metaExpires.Signed == nil {
+		return time.Time{}, fmt.Errorf("invalid meta: signed is missing")
+	}
+	return metaExpires.Signed.Expires, nil
 }
 
 func metaHash(rawMeta json.RawMessage) string {

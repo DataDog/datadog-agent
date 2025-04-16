@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,12 +17,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 )
 
 func TestExtractResourceLimit(t *testing.T) {
 	input := corev1.LimitRange{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "limit-range",
+			Name:        "limit-range",
+			Labels:      map[string]string{"app": "my-app"},
+			Annotations: map[string]string{"annotation": "my-annotation"},
 		},
 		Spec: corev1.LimitRangeSpec{
 			Limits: []corev1.LimitRangeItem{
@@ -55,7 +59,9 @@ func TestExtractResourceLimit(t *testing.T) {
 	expected := &model.LimitRange{
 		LimitTypes: []string{"Container"},
 		Metadata: &model.Metadata{
-			Name: "limit-range",
+			Name:        "limit-range",
+			Labels:      []string{"app:my-app"},
+			Annotations: []string{"annotation:my-annotation"},
 		},
 		Spec: &model.LimitRangeSpec{
 			Limits: []*model.LimitRangeItem{
@@ -84,8 +90,17 @@ func TestExtractResourceLimit(t *testing.T) {
 				},
 			},
 		},
+		Tags: []string{
+			"application:my-app",
+			"annotation_key:my-annotation",
+		},
 	}
-
-	out := ExtractLimitRange(&input)
-	assert.Equal(t, expected, out)
+	pctx := &processors.K8sProcessorContext{
+		LabelsAsTags:      map[string]string{"app": "application"},
+		AnnotationsAsTags: map[string]string{"annotation": "annotation_key"},
+	}
+	actual := ExtractLimitRange(pctx, &input)
+	sort.Strings(actual.Tags)
+	sort.Strings(expected.Tags)
+	assert.Equal(t, expected, actual)
 }

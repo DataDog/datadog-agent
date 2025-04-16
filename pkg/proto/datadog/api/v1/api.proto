@@ -178,6 +178,14 @@ service AgentSecure {
             body: "*"
         };
     };
+
+    // Get the host tags
+    rpc GetHostTags(datadog.model.v1.HostTagRequest) returns (datadog.model.v1.HostTagReply) {
+        option (google.api.http) = {
+            get: "/v1/grpc/host_tags"
+        };
+    };
+
 }
 
 // Service exposed by remote agents to allow querying by the Core Agent.
@@ -187,4 +195,7 @@ service RemoteAgent {
 
   // Gets all relevant flare files of a remote agent.
   rpc GetFlareFiles(datadog.remoteagent.GetFlareFilesRequest) returns (datadog.remoteagent.GetFlareFilesResponse);
+
+  // Gets the telemetry data of a remote agent.
+  rpc GetTelemetry(datadog.remoteagent.GetTelemetryRequest) returns (datadog.remoteagent.GetTelemetryResponse);
 }

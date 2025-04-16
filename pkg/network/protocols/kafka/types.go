@@ -17,7 +17,9 @@ const (
 	TopicNameBuckets                     = C.KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS
 	TopicNameMaxSize                     = C.TOPIC_NAME_MAX_STRING_SIZE
 	MaxSupportedProduceRequestApiVersion = C.KAFKA_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION
+	MinSupportedProduceRequestApiVersion = C.KAFKA_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION
 	MaxSupportedFetchRequestApiVersion   = C.KAFKA_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION
+	MinSupportedFetchRequestApiVersion   = C.KAFKA_MIN_SUPPORTED_FETCH_REQUEST_API_VERSION
 )
 
 type ConnTuple C.conn_tuple_t

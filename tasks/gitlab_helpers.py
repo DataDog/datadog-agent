@@ -34,7 +34,7 @@ def generate_ci_visibility_links(_ctx, output: str | None):
     """Generates links to CI Visibility for the current job.
 
     Usage:
-        $ inv gitlab.generate-ci-visibility-links
+        $ dda inv gitlab.generate-ci-visibility-links
     """
 
     ci_job_id = os.environ.get("CI_JOB_ID")
@@ -127,9 +127,9 @@ def print_pipeline(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None
     """Prints one or more Gitlab pipelines in JSON and potentially query them with jq.
 
     Usage:
-        $ inv gitlab.print-pipeline 1234
-        $ inv gitlab.print-pipeline 1234 -j .source
-        $ inv gitlab.print-pipeline 1234 -j .duration,.ref,.status,.sha
+        $ dda inv gitlab.print-pipeline 1234
+        $ dda inv gitlab.print-pipeline 1234 -j .source
+        $ dda inv gitlab.print-pipeline 1234 -j .duration,.ref,.status,.sha
     """
 
     def get_pipeline(repo, id):
@@ -143,11 +143,11 @@ def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_
     """Prints one or more Gitlab jobs in JSON and potentially query them with jq.
 
     Usage:
-        $ inv gitlab.print-job 1234
-        $ inv gitlab.print-job 1234 -j '.commit.id'
-        $ inv gitlab.print-job 1234 -j '.pipeline.id'
-        $ inv gitlab.print-job 1234 -j '.web_url.stage,.ref,.duration,.status'
-        $ inv gitlab.print-job 1234 -j '.artifacts | length'
+        $ dda inv gitlab.print-job 1234
+        $ dda inv gitlab.print-job 1234 -j '.commit.id'
+        $ dda inv gitlab.print-job 1234 -j '.pipeline.id'
+        $ dda inv gitlab.print-job 1234 -j '.web_url.stage,.ref,.duration,.status'
+        $ dda inv gitlab.print-job 1234 -j '.artifacts | length'
     """
 
     def get_job(repo, id):
@@ -173,8 +173,8 @@ def gen_config_subset(ctx, jobs, dry_run=False, force=False):
         force: Force the update of the .gitlab-ci.yml file even if it has been modified.
 
     Example:
-        $ inv gitlab.gen-config-subset tests_deb-arm64-py3
-        $ inv gitlab.gen-config-subset tests_rpm-arm64-py3,tests_deb-arm64-py3 --dry-run
+        $ dda inv gitlab.gen-config-subset tests_deb-arm64-py3
+        $ dda inv gitlab.gen-config-subset tests_rpm-arm64-py3,tests_deb-arm64-py3 --dry-run
     """
 
     jobs_to_keep = ['cancel-prev-pipelines', 'github_rate_limit_info', 'setup_agent_version']

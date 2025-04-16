@@ -28,9 +28,11 @@ type Config struct {
 	SourceContainerID string
 	// Max number of hops to try
 	MaxTTL uint8
-	// TODO: do we want to expose this?
+	// Timeout for each hop
 	Timeout time.Duration
 	// Protocol is the protocol to use
 	// for traceroute, default is UDP
 	Protocol payload.Protocol
+	// TCPMethod is the method used to run a TCP traceroute.
+	TCPMethod payload.TCPMethod
 }

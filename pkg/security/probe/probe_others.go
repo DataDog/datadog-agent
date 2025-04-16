@@ -20,13 +20,15 @@ import (
 )
 
 // PlatformProbe represents the no-op platform probe on unsupported platforms
-type PlatformProbe struct {
+type PlatformProbe interface {
+	NewEvent() *model.Event
 }
 
 // Probe represents the runtime security probe
 type Probe struct {
-	Config *config.Config
-	Opts   Opts
+	PlatformProbe PlatformProbe
+	Config        *config.Config
+	Opts          Opts
 }
 
 // Origin returns origin
@@ -82,6 +84,11 @@ func (p *Probe) IsNetworkRawPacketEnabled() bool {
 	return p.IsNetworkEnabled() && p.Config.Probe.NetworkRawPacketEnabled
 }
 
+// IsNetworkFlowMonitorEnabled returns whether the network flow monitor is enabled
+func (p *Probe) IsNetworkFlowMonitorEnabled() bool {
+	return p.IsNetworkEnabled() && p.Config.Probe.NetworkFlowMonitorEnabled
+}
+
 // IsActivityDumpEnabled returns whether activity dump is enabled
 func (p *Probe) IsActivityDumpEnabled() bool {
 	return p.Config.RuntimeSecurity.ActivityDumpEnabled
@@ -111,4 +118,8 @@ func (p *Probe) EnableEnforcement(_ bool) {}
 // GetAgentContainerContext returns nil
 func (p *Probe) GetAgentContainerContext() *events.AgentContainerContext {
 	return nil
+}
+
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *Probe) Walk(_ func(*model.ProcessCacheEntry)) {
 }

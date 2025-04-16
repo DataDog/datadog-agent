@@ -5,5 +5,5 @@
 #define PARAM_BUFFER_SIZE {{ .InstrumentationInfo.InstrumentationOptions.ArgumentsMaxSize }}
 #define STACK_DEPTH_LIMIT 10
 #define MAX_SLICE_LENGTH {{ .InstrumentationInfo.InstrumentationOptions.SliceMaxLength }}
-
+#define MAX_FIELD_AND_PARAM_COUNT 20
 #endif

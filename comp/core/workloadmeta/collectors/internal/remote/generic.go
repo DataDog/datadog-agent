@@ -24,7 +24,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -148,12 +148,14 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 		default:
 		}
 
-		token, err := security.FetchAuthToken(pkgconfigsetup.Datadog())
+		err := util.SetAuthToken(pkgconfigsetup.Datadog())
 		if err != nil {
-			err = fmt.Errorf("unable to fetch authentication token: %w", err)
+			err = fmt.Errorf("unable to set authentication token: %w", err)
 			log.Warnf("unable to establish entity stream between agents, will possibly retry: %s", err)
 			return err
 		}
+
+		token := util.GetAuthToken()
 
 		c.streamCtx, c.streamCancel = context.WithCancel(
 			metadata.NewOutgoingContext(

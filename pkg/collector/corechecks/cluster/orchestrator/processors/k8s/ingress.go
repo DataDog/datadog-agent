@@ -33,6 +33,16 @@ func (h *IngressHandlers) AfterMarshalling(ctx processors.ProcessorContext, reso
 	return
 }
 
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *IngressHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*netv1.Ingress)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
+	return
+}
+
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
 func (h *IngressHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
@@ -58,7 +68,7 @@ func (h *IngressHandlers) BuildMessageBody(ctx processors.ProcessorContext, reso
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *IngressHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*netv1.Ingress)
-	return k8sTransformers.ExtractIngress(r)
+	return k8sTransformers.ExtractIngress(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

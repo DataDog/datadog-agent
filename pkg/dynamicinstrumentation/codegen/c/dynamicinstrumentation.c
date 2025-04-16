@@ -2,8 +2,8 @@
 #include "bpf_tracing.h"
 #include "kconfig.h"
 #include <asm/ptrace.h>
-#include "base_event.h"
 #include "macros.h"
+#include "base_event.h"
 #include "event.h"
 #include "maps.h"
 #include "expressions.h"
@@ -45,6 +45,10 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     err = bpf_probe_read_kernel(&event->base.probe_id, {{ .ID | len }}, "{{.ID}}");
     if (err != 0) {
         log_debug("could not write probe id to output");
+    }
+    err = bpf_probe_read_kernel(&event->base.param_indicies, sizeof(event->base.param_indicies), zero_string);
+    if (err != 0) {
+        log_debug("could not zero out param indicies");
     }
 
     // Get tid and tgid
@@ -110,6 +114,13 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
         return 0;
     }
 
+    u32 cpu = bpf_get_smp_processor_id();
+    struct bpf_map *param_stack = (struct bpf_map*)bpf_map_lookup_elem(&param_stacks, &cpu);
+    if (!param_stack) {
+        log_debug("could not lookup param stack for cpu %d", cpu);
+        bpf_ringbuf_discard(event, 0);
+        return 0;
+    }
 
     expression_context_t context = {
         .ctx = ctx,
@@ -118,6 +129,7 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
         .zero_string = zero_string,
         .output_offset = 0,
         .stack_counter = 0,
+        .param_stack = param_stack,
     };
 
     {{ .InstrumentationInfo.BPFParametersSourceCode }}
@@ -130,7 +142,7 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     __u64 placeholder;
     long pop_ret = 0;
     for (m = 0; m < context.stack_counter; m++) {
-        pop_ret = bpf_map_pop_elem(&param_stack, &placeholder);
+        pop_ret = bpf_map_pop_elem(context.param_stack, &placeholder);
         if (pop_ret != 0) {
             break;
         }

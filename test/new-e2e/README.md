@@ -38,6 +38,6 @@ The following are considered as installer tests:
 
 All these tests can be executed locally with the following command:
 
-`inv new-e2e-tests.run --targets <test folder path> --osversion '<comma separated os version list>' --platform '<debian/centos/suse/ubuntu>' --arch <x86_64/arm64>`
+`dda inv new-e2e-tests.run --targets <test folder path> --osversion '<comma separated os version list>' --platform '<debian/centos/suse/ubuntu>' --arch <x86_64/arm64>`
 
 The available os versions can be found in the file `./tests/agent-platform/platforms/platforms.json`

@@ -49,6 +49,11 @@ func TestLink(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	t.Run("link", ifSyscallSupported("SYS_LINK", func(t *testing.T, syscallNB uintptr) {
 		test.WaitSignal(t, func() error {
 			_, _, errno := syscall.Syscall(syscallNB, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
@@ -158,10 +163,6 @@ func TestLink(t *testing.T) {
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), true)
 
-			executable, err := os.Executable()
-			if err != nil {
-				t.Fatal(err)
-			}
 			assertFieldEqual(t, event, "process.file.path", executable)
 		})
 	})
