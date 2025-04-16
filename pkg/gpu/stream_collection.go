@@ -256,7 +256,7 @@ func cleanHandlerMap[K comparable](sc *streamCollection, handlerMap map[K]*Strea
 			deleteReason = "inactive"
 		}
 
-		if deleteReason != "" {
+.		if deleteReason != "" {
 			delete(handlerMap, key)
 			sc.telemetry.removedHandlers.Inc(handler.metadata.gpuUUID, deleteReason)
 		}

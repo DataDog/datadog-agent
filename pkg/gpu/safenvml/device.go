@@ -8,6 +8,8 @@
 package safenvml
 
 import (
+	"fmt"
+
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
@@ -85,13 +87,21 @@ type SafeDevice interface {
 type Device struct {
 	SafeDevice
 
-	// Cached fields for quick access
-	SMVersion uint32
-	UUID      string
-	Name      string
-	CoreCount int
-	Index     int
-	Memory    uint64
+	// NVMLDevice is the underlying NVML device. While it would make more sense to embed it,
+	// that causes this type to include all the methods of the nvml.Device, which makes it
+	// heavier than it needs to be and causes a binary size increase. As we're not using this
+	// type as a drop-in replacement for the nvml.Device in too many places, it is not
+	// too problematic to have it as a separate field.
+	NVMLDevice nvml.Device
+
+	SMVersion   uint32
+	UUID        string
+	Name        string
+	CoreCount   int
+	Index       int
+	Memory      uint64
+	IsMIG       bool
+	MIGChildren []*Device
 }
 
 // safeDeviceImpl implements the SafeDevice interface
@@ -356,7 +366,35 @@ func (d *safeDeviceImpl) GetUtilizationRates() (nvml.Utilization, error) {
 	return utilization, NewNvmlAPIErrorOrNil("GetUtilizationRates", ret)
 }
 
-// NewDevice creates a new Device from the nvml.Device and caches some properties
+// fillBasicData fills the basic data for a device, such as name, UUID, compute capability, etc.
+// Valid for both MIG and non-MIG devices
+func (d *Device) fillBasicData() error {
+	var ret nvml.Return
+	major, minor, ret := d.NVMLDevice.GetCudaComputeCapability()
+	if ret != nvml.SUCCESS {
+		return fmt.Errorf("error getting SM version: %s", nvml.ErrorString(ret))
+	}
+	d.SMVersion = uint32(major*10 + minor)
+
+	d.UUID, ret = d.NVMLDevice.GetUUID()
+	if ret != nvml.SUCCESS {
+		return fmt.Errorf("error getting UUID: %s", nvml.ErrorString(ret))
+	}
+
+	d.Name, ret = d.NVMLDevice.GetName()
+	if ret != nvml.SUCCESS {
+		return fmt.Errorf("error getting name: %s", nvml.ErrorString(ret))
+	}
+
+	d.Index, ret = d.NVMLDevice.GetIndex()
+	if ret != nvml.SUCCESS {
+		return fmt.Errorf("error getting index: %s", nvml.ErrorString(ret))
+	}
+
+	return nil
+}
+
+// NewDevice creates a new Device from the nvml.Device and caches some properties.
 func NewDevice(dev nvml.Device) (*Device, error) {
 	lib, err := GetSafeNvmlLib()
 	if err != nil {
@@ -374,42 +412,94 @@ func NewDevice(dev nvml.Device) (*Device, error) {
 		SafeDevice: safeDev,
 	}
 
-	// Now use safe methods to populate the cached fields
-	major, minor, err := safeDev.GetCudaComputeCapability()
-	if err != nil {
+	if err := device.fillBasicData(); err != nil {
 		return nil, err
 	}
-	device.SMVersion = uint32(major*10 + minor)
 
-	uuid, err := safeDev.GetUUID()
-	if err != nil {
-		return nil, err
-	}
-	device.UUID = uuid
+	migEnabled, _, ret := dev.GetMigMode()
+	if ret == nvml.SUCCESS && migEnabled == nvml.DEVICE_MIG_ENABLE {
+		if err := device.fillMigChildren(); err != nil {
+			return nil, err
+		}
 
-	cores, err := safeDev.GetNumGpuCores()
-	if err != nil {
-		return nil, err
-	}
-	device.CoreCount = cores
+		for _, migChild := range device.MIGChildren {
+			device.Memory += migChild.Memory
+			device.CoreCount += migChild.CoreCount
+		}
+	} else {
+		cores, ret := dev.GetNumGpuCores()
+		if ret != nvml.SUCCESS {
+			return nil, fmt.Errorf("error getting core count: %s", nvml.ErrorString(ret))
+		}
+		device.CoreCount = int(cores)
 
-	name, err := safeDev.GetName()
-	if err != nil {
-		return nil, err
+		memInfo, ret := dev.GetMemoryInfo()
+		if ret != nvml.SUCCESS {
+			return nil, fmt.Errorf("error getting memory info: %s", nvml.ErrorString(ret))
+		}
+		device.Memory = memInfo.Total
 	}
-	device.Name = name
 
-	index, err := safeDev.GetIndex()
-	if err != nil {
-		return nil, err
-	}
-	device.Index = index
+	return device, nil
+}
 
-	memInfo, err := safeDev.GetMemoryInfo()
+func (d *Device) fillMigChildren() error {
+	// note that this returns the number of MIG devices that are supported by the device,
+	// not the number of MIG devices that are currently enabled.
+	migDeviceCount, ret := d.NVMLDevice.GetMaxMigDeviceCount()
+	if ret != nvml.SUCCESS {
+		return fmt.Errorf("error getting MIG device count: %s", nvml.ErrorString(ret))
+	}
+
+	d.MIGChildren = make([]*Device, 0, migDeviceCount)
+	for i := 0; i < migDeviceCount; i++ {
+		migChild, ret := d.NVMLDevice.GetMigDeviceHandleByIndex(i)
+		if ret == nvml.ERROR_NOT_FOUND {
+			continue // No MIG device at this index, ignore the error
+		} else if ret != nvml.SUCCESS {
+			return fmt.Errorf("error getting MIG device handle by index %d: %s", i, nvml.ErrorString(ret))
+		}
+
+		migChildDevice, err := NewMIGDevice(migChild)
+		if err != nil {
+			return fmt.Errorf("error creating MIG device: %s", err)
+		}
+
+		d.MIGChildren = append(d.MIGChildren, migChildDevice)
+	}
+
+	return nil
+}
+
+func NewMIGDevice(dev nvml.Device) (*Device, error) {
+	lib, err := GetSafeNvmlLib()
 	if err != nil {
 		return nil, err
 	}
-	device.Memory = memInfo.Total
+
+	// Create the safe device implementation
+	safeDev := &safeDeviceImpl{
+		nvmlDevice: dev,
+		lib:        lib,
+	}
+
+	// Create the device with embedded safe device
+	device := &Device{
+		SafeDevice: safeDev,
+		IsMIG:      true,
+	}
+
+	if err := device.fillBasicData(); err != nil {
+		return nil, err
+	}
+
+	attr, ret := dev.GetAttributes()
+	if ret != nvml.SUCCESS {
+		return nil, fmt.Errorf("error getting MIG device attributes: %s", nvml.ErrorString(ret))
+	}
+
+	device.Memory = attr.MemorySizeMB
+	device.CoreCount = int(attr.MultiprocessorCount)
 
 	return device, nil
 }
