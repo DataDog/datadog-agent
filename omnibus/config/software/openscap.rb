@@ -41,8 +41,8 @@ build do
   patch source: "rpm-verbosity-err.patch", env: env # decrease rpmlog verbosity level to ERR
   patch source: "session-print-syschar.patch", env: env # add a function to print system characteristics
   patch source: "memusage-cgroup.patch", env: env # consider cgroup when determining memory usage
-
   patch source: "oval_probe_session_reset.patch", env: env # use oval_probe_session_reset instead of oval_probe_session_reinit
+  patch source: "sysctl-probe-offline-skip.patch", env: env # skip sysctl probe in offline mode
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
 

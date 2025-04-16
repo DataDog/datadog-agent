@@ -22,20 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-// ErrSymbolNotFound represents an error when a required NVML symbol is not found in the library
-type ErrSymbolNotFound struct {
-	Symbol string
-}
-
-func (e *ErrSymbolNotFound) Error() string {
-	return fmt.Sprintf("%s symbol not found in NVML library", e.Symbol)
-}
-
-// NewErrSymbolNotFound creates a new ErrSymbolNotFound error
-func NewErrSymbolNotFound(symbol string) error {
-	return &ErrSymbolNotFound{Symbol: symbol}
-}
-
 // symbolLookup is an internal interface for checking symbol availability
 type symbolLookup interface {
 	lookup(string) error
@@ -68,7 +54,7 @@ func toNativeName(symbol string) string {
 
 func (s *safeNvml) lookup(symbol string) error {
 	if _, ok := s.capabilities[symbol]; !ok {
-		return NewErrSymbolNotFound(symbol)
+		return NewNvmlAPIErrorOrNil(symbol, nvml.ERROR_FUNCTION_NOT_FOUND)
 	}
 
 	return nil
@@ -80,10 +66,7 @@ func (s *safeNvml) SystemGetDriverVersion() (string, error) {
 		return "", err
 	}
 	driverVersion, ret := s.lib.SystemGetDriverVersion()
-	if ret != nvml.SUCCESS {
-		return "", fmt.Errorf("error getting driver version: %s", nvml.ErrorString(ret))
-	}
-	return driverVersion, nil
+	return driverVersion, NewNvmlAPIErrorOrNil("SystemGetDriverVersion", ret)
 }
 
 // Shutdown shuts down the NVML library
@@ -92,10 +75,7 @@ func (s *safeNvml) Shutdown() error {
 		return err
 	}
 	ret := s.lib.Shutdown()
-	if ret != nvml.SUCCESS {
-		return fmt.Errorf("error shutting down NVML: %s", nvml.ErrorString(ret))
-	}
-	return nil
+	return NewNvmlAPIErrorOrNil("Shutdown", ret)
 }
 
 // DeviceGetCount returns the number of NVIDIA devices in the system
@@ -104,10 +84,7 @@ func (s *safeNvml) DeviceGetCount() (int, error) {
 		return 0, err
 	}
 	count, ret := s.lib.DeviceGetCount()
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting device count: %s", nvml.ErrorString(ret))
-	}
-	return count, nil
+	return count, NewNvmlAPIErrorOrNil("GetDeviceCount", ret)
 }
 
 // DeviceGetHandleByIndex returns a SafeDevice for the device at the given index
@@ -116,8 +93,8 @@ func (s *safeNvml) DeviceGetHandleByIndex(idx int) (SafeDevice, error) {
 		return nil, err
 	}
 	dev, ret := s.lib.DeviceGetHandleByIndex(idx)
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("error getting device handle by index %d: %s", idx, nvml.ErrorString(ret))
+	if err := NewNvmlAPIErrorOrNil("DeviceGetHandleByIndex", ret); err != nil {
+		return nil, err
 	}
 	return NewDevice(dev)
 }
@@ -148,6 +125,7 @@ func (s *safeNvml) populateCapabilities() error {
 		toNativeName("GetAttributes"),
 		toNativeName("GetClockInfo"),
 		toNativeName("GetComputeRunningProcesses"),
+		toNativeName("GetCurrentClocksThrottleReasons"),
 		toNativeName("GetDecoderUtilization"),
 		toNativeName("GetEncoderUtilization"),
 		toNativeName("GetFanSpeed"),
@@ -163,6 +141,8 @@ func (s *safeNvml) populateCapabilities() error {
 		toNativeName("GetPerformanceState"),
 		toNativeName("GetPowerManagementLimit"),
 		toNativeName("GetPowerUsage"),
+		toNativeName("GetRemappedRows"),
+		toNativeName("GetSamples"),
 		toNativeName("GetTemperature"),
 		toNativeName("GetTotalEnergyConsumption"),
 		toNativeName("GetUtilizationRates"),
