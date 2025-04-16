@@ -111,7 +111,7 @@ func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadme
 	// default filter includes host aliases
 	defaultFilter := pkgconfigsetup.Datadog().GetStringSlice("kubernetes_node_annotations_as_host_aliases")
 
-	// client can override filter by passing a comma delimited list query paramter
+	// client can override filter by passing a comma delimited list query parameter
 	filters := r.URL.Query()["filter"]
 	var clientFilter []string
 	if len(filters) > 0 {
