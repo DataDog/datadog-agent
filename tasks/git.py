@@ -34,10 +34,10 @@ def check_protected_branch(ctx: Context) -> None:
 def push_signed_commits(ctx: Context, branch: str, commit_message: str, source_branch: str | None = None) -> None:
     """Create a tree from local stage changes, commit and push using API to get signed commits from bots.
 
-    Keywords arguments:
-    ctx -- Invoke context
-    update_branch -- The branch to push to
-    commit_message -- The commit message to use
+    Args:
+        ctx: Invoke context
+        update_branch: The branch to push to
+        commit_message: The commit message to use
     """
     print("Creating signed commits using Github API")
     github = GithubAPI()
