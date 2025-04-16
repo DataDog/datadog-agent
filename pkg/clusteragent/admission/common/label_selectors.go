@@ -13,30 +13,57 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
-// DefaultLabelSelectors returns the mutating webhooks object selector based on the configuration
-func DefaultLabelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSelector *metav1.LabelSelector) {
+var (
+	// Accept all, ignore pods if they're explicitly filtered-out
+	acceptAllLabelSelector = metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      EnabledLabelKey,
+				Operator: metav1.LabelSelectorOpNotIn,
+				Values:   []string{"false"},
+			},
+		},
+	}
+
+	// Ignore all, accept pods if they're explicitly allowed
+	ignoreAllLabelSelector = metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			EnabledLabelKey: "true",
+		},
+	}
+)
+
+// DefaultValidatingLabelSelectors returns the validating webhooks object selector based on the configuration
+func DefaultValidatingLabelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSelector *metav1.LabelSelector) {
+	var labelSelector metav1.LabelSelector
+
+	if pkgconfigsetup.Datadog().GetBool("admission_controller.validate_unlabelled") {
+		labelSelector = acceptAllLabelSelector
+	} else {
+		labelSelector = ignoreAllLabelSelector
+	}
+
+	if pkgconfigsetup.Datadog().GetBool("admission_controller.add_aks_selectors") {
+		return aksSelectors(useNamespaceSelector, labelSelector)
+	}
+
+	if useNamespaceSelector {
+		return &labelSelector, nil
+	}
+
+	return nil, &labelSelector
+}
+
+// DefaultMutatingLabelSelectors returns the mutating webhooks object selector based on the configuration
+func DefaultMutatingLabelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSelector *metav1.LabelSelector) {
 	var labelSelector metav1.LabelSelector
 
 	if pkgconfigsetup.Datadog().GetBool("admission_controller.mutate_unlabelled") ||
 		pkgconfigsetup.Datadog().GetBool("apm_config.instrumentation.enabled") ||
 		len(pkgconfigsetup.Datadog().GetStringSlice("apm_config.instrumentation.enabled_namespaces")) > 0 {
-		// Accept all, ignore pods if they're explicitly filtered-out
-		labelSelector = metav1.LabelSelector{
-			MatchExpressions: []metav1.LabelSelectorRequirement{
-				{
-					Key:      EnabledLabelKey,
-					Operator: metav1.LabelSelectorOpNotIn,
-					Values:   []string{"false"},
-				},
-			},
-		}
+		labelSelector = acceptAllLabelSelector
 	} else {
-		// Ignore all, accept pods if they're explicitly allowed
-		labelSelector = metav1.LabelSelector{
-			MatchLabels: map[string]string{
-				EnabledLabelKey: "true",
-			},
-		}
+		labelSelector = ignoreAllLabelSelector
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("admission_controller.add_aks_selectors") {
