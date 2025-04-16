@@ -26,7 +26,7 @@ func TestSingleDomainResolverDedupedKey(t *testing.T) {
 		utils.NewAPIKeys("multi_region_failover.api_key", "key2"),
 	}
 
-	resolver := NewSingleDomainResolver("example.com", apiKeys)
+	resolver, _ := NewSingleDomainResolver("example.com", apiKeys)
 
 	assert.Equal(t, resolver.dedupedAPIKeys,
 		[]string{"key1", "key2"})
@@ -38,7 +38,7 @@ func TestSingleDomainResolverSetApiKeysSimple(t *testing.T) {
 		utils.NewAPIKeys("multi_region_failover.api_key", makeKey("key2")),
 	}
 
-	resolver := NewSingleDomainResolver("example.com", apiKeys)
+	resolver, _ := NewSingleDomainResolver("example.com", apiKeys)
 
 	removed, added := resolver.SetAPIKeys([]string{makeKey("key1"), makeKey("key3")})
 
@@ -51,7 +51,7 @@ func TestSingleDomainResolverSetApiKeysMany(t *testing.T) {
 		utils.NewAPIKeys("additional_endpoints", makeKey("key1"), makeKey("key2"), makeKey("key3"), makeKey("key4"), makeKey("key5"), makeKey("key6")),
 	}
 
-	resolver := NewSingleDomainResolver("example.com", apiKeys)
+	resolver, _ := NewSingleDomainResolver("example.com", apiKeys)
 
 	removed, added := resolver.SetAPIKeys([]string{makeKey("key3"), makeKey("lock2"), makeKey("key1"), makeKey("lock4"), makeKey("key5"), makeKey("key6")})
 

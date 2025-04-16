@@ -183,7 +183,7 @@ func initTestAgentDemultiplexerWithFlushInterval(log log.Component, hostname hos
 	opts.DontStartForwarders = true
 	opts.EnableNoAggregationPipeline = true
 
-	sharedForwarderOptions := defaultforwarder.NewOptions(pkgconfigsetup.Datadog(), log, nil)
+	sharedForwarderOptions, _ := defaultforwarder.NewOptions(pkgconfigsetup.Datadog(), log, nil)
 	sharedForwarder := defaultforwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), log, sharedForwarderOptions)
 
 	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})

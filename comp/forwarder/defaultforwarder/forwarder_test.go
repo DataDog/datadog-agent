@@ -33,35 +33,37 @@ var (
 	testDomain           = "http://app.datadoghq.com"
 	testVersionDomain, _ = configUtils.AddAgentVersionToDomain(testDomain, "app")
 	monoKeysDomains      = map[string][]configUtils.APIKeys{
-		testVersionDomain: {configUtils.NewAPIKeys("", "monokey")},
+		testVersionDomain: {configUtils.NewAPIKeys("path", "monokey")},
 	}
 	keysPerDomains = map[string][]configUtils.APIKeys{
 		testDomain: {
-			configUtils.NewAPIKeys("", "api-key-1", "api-key-2"),
+			configUtils.NewAPIKeys("path", "api-key-1", "api-key-2"),
 		},
 		"datadog.bar": nil,
 	}
 	keysWithMultipleDomains = map[string][]configUtils.APIKeys{
 		testDomain: {
-			configUtils.NewAPIKeys("", "api-key-1"),
-			configUtils.NewAPIKeys("", "api-key-2"),
+			configUtils.NewAPIKeys("path", "api-key-1"),
+			configUtils.NewAPIKeys("path", "api-key-2"),
 		},
-		"datadog.bar": {configUtils.NewAPIKeys("", "api-key-3")},
+		"datadog.bar": {configUtils.NewAPIKeys("path", "api-key-3")},
 	}
 	validKeysPerDomain = map[string][]configUtils.APIKeys{
-		testVersionDomain: {configUtils.NewAPIKeys("", "api-key-1", "api-key-2")},
+		testVersionDomain: {configUtils.NewAPIKeys("path", "api-key-1", "api-key-2")},
 	}
 )
 
 func TestNewDefaultForwarder(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
-	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysPerDomains)))
+	r, _ := resolver.NewSingleDomainResolvers(keysPerDomains)
+	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
 
 	assert.NotNil(t, forwarder)
 	assert.Equal(t, 1, forwarder.NumberOfWorkers)
 	require.Len(t, forwarder.domainForwarders, 1) // only one domain has keys
-	assert.Equal(t, resolver.NewSingleDomainResolvers(validKeysPerDomain), forwarder.domainResolvers)
+	r, _ = resolver.NewSingleDomainResolvers(validKeysPerDomain)
+	assert.Equal(t, r, forwarder.domainResolvers)
 	assert.Len(t, forwarder.domainForwarders, 1) // datadog.bar should have been dropped
 
 	assert.Equal(t, forwarder.internalState.Load(), Stopped)
@@ -73,11 +75,12 @@ func TestNewDefaultForwarder(t *testing.T) {
 	localAuth := "tokenABCD12345678910109876543210"
 	mockConfig.SetWithoutSource("cluster_agent.url", localDomain)
 	mockConfig.SetWithoutSource("cluster_agent.auth_token", localAuth)
-	forwarder2 := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysPerDomains)))
+	r, _ = resolver.NewSingleDomainResolvers(keysPerDomains)
+	forwarder2 := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
 	assert.NotNil(t, forwarder2)
 	assert.Equal(t, 1, forwarder2.NumberOfWorkers)
 	require.Len(t, forwarder2.domainForwarders, 2) // 1 remote domain, 1 dca domain
-	domainResolver := resolver.NewSingleDomainResolvers(validKeysPerDomain)
+	domainResolver, _ := resolver.NewSingleDomainResolvers(validKeysPerDomain)
 	domainResolver[localDomain] = resolver.NewLocalDomainResolver(localDomain, localAuth)
 	assert.Equal(t, domainResolver, forwarder2.domainResolvers)
 	assert.Equal(t, forwarder2.internalState.Load(), Stopped)
@@ -104,7 +107,8 @@ func TestFeature(t *testing.T) {
 func TestStart(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
-	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(monoKeysDomains)))
+	r, _ := resolver.NewSingleDomainResolvers(monoKeysDomains)
+	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
 	err := forwarder.Start()
 	defer forwarder.Stop()
 
@@ -131,7 +135,8 @@ func TestStopWithPurgingTransaction(t *testing.T) {
 
 func testStop(t *testing.T, mockConfig pkgconfigmodel.Config) {
 	log := logmock.New(t)
-	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysPerDomains)))
+	r, _ := resolver.NewSingleDomainResolvers(keysPerDomains)
+	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
 	assert.Equal(t, Stopped, forwarder.State())
 	forwarder.Stop() // this should be a noop
 	forwarder.Start()
@@ -148,7 +153,8 @@ func testStop(t *testing.T, mockConfig pkgconfigmodel.Config) {
 func TestSubmitIfStopped(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
-	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(monoKeysDomains)))
+	r, _ := resolver.NewSingleDomainResolvers(monoKeysDomains)
+	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
 
 	require.NotNil(t, forwarder)
 	require.Equal(t, Stopped, forwarder.State())
@@ -164,7 +170,8 @@ func TestSubmitIfStopped(t *testing.T) {
 func TestCreateHTTPTransactions(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
-	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysPerDomains)))
+	r, _ := resolver.NewSingleDomainResolvers(keysPerDomains)
+	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
 	p2 := []byte("Another payload")
@@ -197,7 +204,8 @@ func TestCreateHTTPTransactions(t *testing.T) {
 func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
-	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysWithMultipleDomains)))
+	r, _ := resolver.NewSingleDomainResolvers(keysWithMultipleDomains)
+	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
 	payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p1})
@@ -232,8 +240,8 @@ func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 }
 
 func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
-	resolvers := resolver.NewSingleDomainResolvers(keysWithMultipleDomains)
-	additionalResolver := resolver.NewMultiDomainResolver("datadog.vector", []configUtils.APIKeys{configUtils.NewAPIKeys("", "api-key-4")})
+	resolvers, _ := resolver.NewSingleDomainResolvers(keysWithMultipleDomains)
+	additionalResolver, _ := resolver.NewMultiDomainResolver("datadog.vector", []configUtils.APIKeys{configUtils.NewAPIKeys("path", "api-key-4")})
 	additionalResolver.RegisterAlternateDestination("diversion.domain", "diverted_name", resolver.Vector)
 	resolvers["datadog.vector"] = additionalResolver
 	mockConfig := mock.New(t)
@@ -277,7 +285,7 @@ func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 
 func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
 	resolvers := make(map[string]resolver.DomainResolver)
-	r := resolver.NewMultiDomainResolver(testDomain, []configUtils.APIKeys{configUtils.NewAPIKeys("", "api-key-1")})
+	r, _ := resolver.NewMultiDomainResolver(testDomain, []configUtils.APIKeys{configUtils.NewAPIKeys("path", "api-key-1")})
 	r.RegisterAlternateDestination("observability_pipelines_worker.tld", "diverted", resolver.Vector)
 	resolvers[testDomain] = r
 	mockConfig := mock.New(t)
@@ -309,7 +317,8 @@ func TestArbitraryTagsHTTPHeader(t *testing.T) {
 	mockConfig.SetWithoutSource("allow_arbitrary_tags", true)
 
 	log := logmock.New(t)
-	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysPerDomains)))
+	r, _ := resolver.NewSingleDomainResolvers(keysPerDomains)
+	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	payload := []byte("A payload")
 	headers := make(http.Header)
@@ -322,7 +331,8 @@ func TestArbitraryTagsHTTPHeader(t *testing.T) {
 func TestSendHTTPTransactions(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
-	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysPerDomains)))
+	r, _ := resolver.NewSingleDomainResolvers(keysPerDomains)
+	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
 	payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p1})
@@ -342,7 +352,8 @@ func TestSendHTTPTransactions(t *testing.T) {
 func TestSubmitV1Intake(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
-	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(monoKeysDomains)))
+	r, _ := resolver.NewSingleDomainResolvers(monoKeysDomains)
+	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
 	forwarder.Start()
 	defer forwarder.Stop()
 
@@ -385,7 +396,8 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := logmock.New(t)
-	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("", "api_key1", "api_key2")}, "invalid": {}, "invalid2": nil})))
+	r, _ := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1", "api_key2")}, "invalid": {}, "invalid2": nil})
+	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
 
 	f.Start()
 	defer f.Stop()
@@ -441,7 +453,8 @@ func TestTransactionEventHandlers(t *testing.T) {
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := logmock.New(t)
-	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("", "api_key1")}})))
+	r, _ := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1")}})
+	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
 
 	_ = f.Start()
 	defer f.Stop()
@@ -496,8 +509,9 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := logmock.New(t)
+	r, _ := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1")}})
 	f := NewDefaultForwarder(mockConfig, log,
-		NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("", "api_key1")}})),
+		NewOptionsWithResolvers(mockConfig, log, r),
 	)
 
 	_ = f.Start()
@@ -549,8 +563,9 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := logmock.New(t)
+	r, _ := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1")}})
 	f := NewDefaultForwarder(mockConfig, log,
-		NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("", "api_key1")}})),
+		NewOptionsWithResolvers(mockConfig, log, r),
 	)
 
 	_ = f.Start()
@@ -605,8 +620,9 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	}()
 
 	log := logmock.New(t)
+	r, _ := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1")}})
 	f := NewDefaultForwarder(mockConfig, log,
-		NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("", "api_key1")}})),
+		NewOptionsWithResolvers(mockConfig, log, r),
 	)
 
 	_ = f.Start()
@@ -662,9 +678,9 @@ func TestHighPriorityTransactionTendency(t *testing.T) {
 	defer func() { flushInterval = oldFlushInterval }()
 
 	log := logmock.New(t)
+	r, _ := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1")}})
 	f := NewDefaultForwarder(mockConfig, log,
-		NewOptionsWithResolvers(mockConfig, log,
-			resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("", "api_key1")}})),
+		NewOptionsWithResolvers(mockConfig, log, r),
 	)
 
 	f.Start()
@@ -736,9 +752,9 @@ func TestHighPriorityTransaction(t *testing.T) {
 	defer func() { flushInterval = oldFlushInterval }()
 
 	log := logmock.New(t)
-	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log,
-		resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("", "api_key1")}})),
-	)
+	r, _ := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1")}})
+
+	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
 
 	f.Start()
 	defer f.Stop()
@@ -784,9 +800,10 @@ func TestCustomCompletionHandler(t *testing.T) {
 	}
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
-	options := NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{
-		srv.URL: {configUtils.NewAPIKeys("", "api_key1")},
-	}))
+	r, _ := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{
+		srv.URL: {configUtils.NewAPIKeys("path", "api_key1")},
+	})
+	options := NewOptionsWithResolvers(mockConfig, log, r)
 	options.CompletionHandler = handler
 
 	f := NewDefaultForwarder(mockConfig, log, options)

@@ -217,7 +217,8 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	require.NoError(t, err)
 	pkgconfigsetup.Datadog().SetDefault("dogstatsd_port", port)
 
-	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000, nooptagger.NewComponent())
+	demux, err := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000, nooptagger.NewComponent())
+	require.NoError(t, err, "cannot start Demultiplexer")
 
 	s, err := dogstatsdServer.NewServerlessServer(demux)
 	require.NoError(t, err, "cannot start DSD")

@@ -85,7 +85,18 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 	}
 
 	var diagnoses []diagnose.Diagnosis
-	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
+	domainResolvers, err := resolver.NewSingleDomainResolvers(keysPerDomain)
+	if err != nil {
+		return []diagnose.Diagnosis{
+			{
+				Status:      diagnose.DiagnosisSuccess,
+				Name:        "Resolver error",
+				Diagnosis:   "Unable to create domain resolver",
+				Remediation: "This is likely due to a bug",
+				RawError:    err.Error(),
+			},
+		}
+	}
 	numberOfWorkers := 1
 	client := forwarder.NewHTTPClient(pkgconfigsetup.Datadog(), numberOfWorkers, log)
 

@@ -41,7 +41,7 @@ func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
 			utils.NewAPIKeys("additional_endpoints", "api_key3"),
 		},
 	}
-	forwarderOptions := NewOptions(mockConfig, log, keysPerDomains)
+	forwarderOptions, _ := NewOptions(mockConfig, log, keysPerDomains)
 	forwarder := NewDefaultForwarder(mockConfig, log, forwarderOptions)
 
 	// API keys from the domain resolvers match
