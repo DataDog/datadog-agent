@@ -10,6 +10,7 @@ package datadogagent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"os"
@@ -303,18 +304,6 @@ func installAgentPackage(env *env.Env, target string, args []string, logFileName
 	}
 	logFile := path.Join(tempDir, logFileName)
 
-	// Stop the Datadog Agent services before running MSI command
-	log.Infof("stopping the datadogagent service")
-	err = winutil.StopService("datadogagent")
-	if err != nil {
-		if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
-			log.Infof("the datadogagent service is not present on this machine, skipping stop action")
-		} else {
-			// Only fail if the service exists
-			return fmt.Errorf("failed to stop the datadogagent service: %w", err)
-		}
-	}
-
 	// create args
 	// need to carry these over as we are uninstalling the agent first
 	// and we need to reinstall it with the same configuration
@@ -373,6 +362,17 @@ func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 }
 
 func removeAgentIfInstalled(ctx context.Context) (err error) {
+	// Stop the Datadog Agent services before trying to remove it
+	log.Infof("stopping the datadogagent service")
+	err = winutil.StopService("datadogagent")
+	if err != nil {
+		if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+			log.Infof("the datadogagent service is not present on this machine, skipping stop action")
+		} else {
+			// Only fail if the service exists
+			return fmt.Errorf("failed to stop the datadogagent service: %w", err)
+		}
+	}
 	return removeProductIfInstalled(ctx, "Datadog Agent")
 }
 
