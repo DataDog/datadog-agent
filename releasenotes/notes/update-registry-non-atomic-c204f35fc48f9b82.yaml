@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Update registry writer to not write atomically when Agent runs on ECS Fargate.
+    Update registry writer to not write atomically when Agent runs on ECS Fargate to reduce memory leak.
