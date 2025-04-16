@@ -102,14 +102,6 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	// now, simulate a cluster-agent environment and enabled the orchestrator feature
 
 	cfg := configmock.New(t)
-	oee := cfg.Get("orchestrator_explorer.enabled")
-	cre := cfg.Get("clc_runner_enabled")
-	ecp := cfg.Get("extra_config_providers")
-	defer func() {
-		cfg.SetWithoutSource("orchestrator_explorer.enabled", oee)
-		cfg.SetWithoutSource("clc_runner_enabled", cre)
-		cfg.SetWithoutSource("extra_config_providers", ecp)
-	}()
 	cfg.SetWithoutSource("orchestrator_explorer.enabled", true)
 	cfg.SetWithoutSource("clc_runner_enabled", true)
 	cfg.SetWithoutSource("extra_config_providers", []string{"clusterchecks"})
@@ -211,12 +203,6 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 	cfg := configmock.New(t)
 	pc := cfg.GetInt("dogstatsd_pipeline_count")
-	aa := cfg.GetInt("dogstatsd_pipeline_autoadjust")
-	defer func() {
-		cfg.SetWithoutSource("dogstatsd_pipeline_count", pc)
-		cfg.SetWithoutSource("dogstatsd_pipeline_autoadjust", aa)
-	}()
-
 	assert := assert.New(t)
 
 	// auto-adjust

@@ -97,8 +97,6 @@ func TestStartInvalidDogStatsD(t *testing.T) {
 func TestStartWithProxy(t *testing.T) {
 	t.SkipNow()
 	mockConfig := configmock.New(t)
-	originalValues := mockConfig.GetStringSlice(statsDMetricBlocklistKey)
-	defer mockConfig.SetWithoutSource(statsDMetricBlocklistKey, originalValues)
 	mockConfig.SetWithoutSource(statsDMetricBlocklistKey, []string{})
 
 	t.Setenv(proxyEnabledEnvVar, "true")

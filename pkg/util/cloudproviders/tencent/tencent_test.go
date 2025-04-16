@@ -21,8 +21,6 @@ import (
 func TestGetInstanceID(t *testing.T) {
 	cfg := configmock.New(t)
 	ctx := context.Background()
-	holdValue := cfg.Get("cloud_provider_metadata")
-	defer cfg.SetWithoutSource("cloud_provider_metadata", holdValue)
 	cfg.SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
 
 	expected := "ins-nad6bga0"
@@ -44,8 +42,6 @@ func TestGetInstanceID(t *testing.T) {
 func TestGetHostAliases(t *testing.T) {
 	cfg := configmock.New(t)
 	ctx := context.Background()
-	holdValue := cfg.Get("cloud_provider_metadata")
-	defer cfg.SetWithoutSource("cloud_provider_metadata", holdValue)
 	cfg.SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
 
 	expected := "ins-nad6bga0"
@@ -67,8 +63,6 @@ func TestGetHostAliases(t *testing.T) {
 
 func TestGetNTPHosts(t *testing.T) {
 	cfg := configmock.New(t)
-	holdValue := cfg.Get("cloud_provider_metadata")
-	defer cfg.SetWithoutSource("cloud_provider_metadata", holdValue)
 	cfg.SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
 
 	ctx := context.Background()

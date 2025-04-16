@@ -20,8 +20,6 @@ import (
 
 func TestGetHostAliases(t *testing.T) {
 	cfg := configmock.New(t)
-	holdValue := cfg.Get("cloud_provider_metadata")
-	defer cfg.SetWithoutSource("cloud_provider_metadata", holdValue)
 	cfg.SetWithoutSource("cloud_provider_metadata", []string{"oracle"})
 
 	ctx := context.Background()
@@ -47,8 +45,6 @@ func TestGetHostAliases(t *testing.T) {
 
 func TestGetNTPHosts(t *testing.T) {
 	cfg := configmock.New(t)
-	holdValue := cfg.Get("cloud_provider_metadata")
-	defer cfg.SetWithoutSource("cloud_provider_metadata", holdValue)
 	cfg.SetWithoutSource("cloud_provider_metadata", []string{"oracle"})
 
 	ctx := context.Background()

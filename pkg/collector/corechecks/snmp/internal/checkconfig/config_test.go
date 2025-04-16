@@ -942,7 +942,6 @@ collect_topology: true
 
 func Test_buildConfig_namespace(t *testing.T) {
 	mockConfig := configmock.New(t)
-	defer mockConfig.SetWithoutSource("network_devices.namespace", "default")
 
 	// Should use namespace defined in instance config
 	// language=yaml
