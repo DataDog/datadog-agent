@@ -5,77 +5,13 @@
 
 //go:build linux && nvml
 
-// Package nvml contains utilities to wrap usage of the NVML library
-package nvml
+package safenvml
 
 import (
 	"fmt"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// Device represents a GPU device with some properties already computed
-type Device struct {
-	// NVMLDevice is the underlying NVML device. While it would make more sense to embed it,
-	// that causes this type to include all the methods of the nvml.Device, which makes it
-	// heavier than it needs to be and causes a binary size increase. As we're not using this
-	// type as a drop-in replacement for the nvml.Device in too many places, it is not
-	// too problematic to have it as a separate field.
-	NVMLDevice nvml.Device
-
-	SMVersion uint32
-	UUID      string
-	Name      string
-	CoreCount int
-	Index     int
-	Memory    uint64
-}
-
-// NewDevice creates a new Device from an nvml.Device and caches some properties
-func NewDevice(dev nvml.Device) (*Device, error) {
-	major, minor, ret := dev.GetCudaComputeCapability()
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("error getting SM version: %s", nvml.ErrorString(ret))
-	}
-	smVersion := uint32(major*10 + minor)
-
-	uuid, ret := dev.GetUUID()
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("error getting UUID: %s", nvml.ErrorString(ret))
-	}
-
-	name, ret := dev.GetName()
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("error getting name: %s", nvml.ErrorString(ret))
-	}
-
-	cores, ret := dev.GetNumGpuCores()
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("error getting core count: %s", nvml.ErrorString(ret))
-	}
-
-	index, ret := dev.GetIndex()
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("error getting index: %s", nvml.ErrorString(ret))
-	}
-
-	memInfo, ret := dev.GetMemoryInfo()
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("error getting memory info: %s", nvml.ErrorString(ret))
-	}
-
-	return &Device{
-		NVMLDevice: dev,
-		SMVersion:  smVersion,
-		UUID:       uuid,
-		Name:       name,
-		CoreCount:  cores,
-		Index:      index,
-		Memory:     memInfo.Total,
-	}, nil
-}
 
 // DeviceCache is a cache of GPU devices, with some methods to easily access devices by UUID or index
 type DeviceCache interface {
@@ -102,7 +38,7 @@ type deviceCache struct {
 
 // NewDeviceCache creates a new DeviceCache
 func NewDeviceCache() (DeviceCache, error) {
-	lib, err := GetNvmlLib()
+	lib, err := GetSafeNvmlLib()
 	if err != nil {
 		return nil, err
 	}
@@ -111,33 +47,35 @@ func NewDeviceCache() (DeviceCache, error) {
 }
 
 // NewDeviceCacheWithOptions creates a new DeviceCache with an already initialized NVML library
-func NewDeviceCacheWithOptions(nvmlLib nvml.Interface) (DeviceCache, error) {
+func NewDeviceCacheWithOptions(lib SafeNVML) (DeviceCache, error) {
 	cache := &deviceCache{
 		uuidToDevice: make(map[string]*Device),
 		smVersionSet: make(map[uint32]struct{}),
 	}
 
-	count, ret := nvmlLib.DeviceGetCount()
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("error getting device count: %s", nvml.ErrorString(ret))
+	count, err := lib.DeviceGetCount()
+	if err != nil {
+		return nil, err
 	}
 
 	for i := 0; i < count; i++ {
-		dev, ret := nvmlLib.DeviceGetHandleByIndex(i)
-		if ret != nvml.SUCCESS {
-			log.Warnf("error getting device by index %d: %s", i, nvml.ErrorString(ret))
-			continue
-		}
-
-		device, err := NewDevice(dev)
+		nvmlDev, err := lib.DeviceGetHandleByIndex(i)
 		if err != nil {
-			log.Warnf("error creating device index %d: %s", i, err)
+			log.Warnf("error getting device by index %d: %s", i, err)
 			continue
 		}
 
-		cache.uuidToDevice[device.UUID] = device
-		cache.allDevices = append(cache.allDevices, device)
-		cache.smVersionSet[device.SMVersion] = struct{}{}
+		// Convert from SafeDevice to *Device
+		dev, ok := nvmlDev.(*Device)
+		if !ok {
+			// This should never happen
+			log.Warnf("error converting device at index %d to *Device", i)
+			continue
+		}
+
+		cache.uuidToDevice[dev.UUID] = dev
+		cache.allDevices = append(cache.allDevices, dev)
+		cache.smVersionSet[dev.SMVersion] = struct{}{}
 	}
 
 	return cache, nil
