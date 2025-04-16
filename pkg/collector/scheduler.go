@@ -197,6 +197,17 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			fmt.Printf("Loading check instance for check '%s' using default loaders\n", config.Name)
 		}
 
+		if config.Name == "snmp" && selectedInstanceLoader == "" {
+			fmt.Println("CONFIG NAME == SNMP && SELECTED INSTANCE LOADER == EMPTY")
+			c, err := s.loaders[1].Load(s.senderManager, config, instance)
+			if err != nil {
+				fmt.Println("UNABLE TO LOAD CORE CHECK SNMP IN CASE OF EMPTY SELECTED INSTANCE LOADER")
+			}
+			checks = append(checks, c)
+			fmt.Println("SUCCESSFULLY LOADED CORE CHECK SNMP IN CASE OF EMPTY SELECTED INSTANCE LOADER")
+			continue
+		}
+
 		fmt.Println("LEN OF LOADERS")
 		fmt.Println(len(s.loaders))
 		var pythonLoader check.Loader
