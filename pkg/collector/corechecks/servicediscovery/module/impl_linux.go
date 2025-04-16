@@ -261,10 +261,13 @@ func (s *discovery) Close() {
 	s.cleanCache(pidSet{})
 	if s.network != nil {
 		s.network.close()
+		s.network = nil
 	}
 	clear(s.cache)
 	clear(s.noPortTries)
 	clear(s.ignorePids)
+	clear(s.potentialServices)
+	clear(s.runningServices)
 }
 
 // handleStatusEndpoint is the handler for the /status endpoint.
@@ -543,14 +546,15 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 		log.Debugf("couldn't snapshot UDP sockets: %v", err)
 	}
 	tcpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/tcp6", pid)), tcpListen, noIgnore)
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		// The file won't exist if IPv6 is disabled.
 		log.Debugf("couldn't snapshot TCP6 sockets: %v", err)
 	}
 	udpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/udp6", pid)), udpListen,
 		func(port uint16) bool {
 			return network.IsPortInEphemeralRange(network.AFINET6, network.UDP, port) == network.EphemeralTrue
 		})
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		log.Debugf("couldn't snapshot UDP6 sockets: %v", err)
 	}
 

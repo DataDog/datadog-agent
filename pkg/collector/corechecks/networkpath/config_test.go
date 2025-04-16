@@ -309,6 +309,42 @@ max_ttl: 64
 				MaxTTL:                64,
 			},
 		},
+		{
+			name: "overriding the TCP method",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+protocol: tcp
+tcp_method: sack
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+				Protocol:              payload.ProtocolTCP,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPConfigSACK,
+			},
+		},
+		{
+			name: "TCP method converts to lower case",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+protocol: tcp
+tcp_method: prefer_SACK
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+				Protocol:              payload.ProtocolTCP,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPConfigPreferSACK,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

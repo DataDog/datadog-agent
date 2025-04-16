@@ -220,6 +220,7 @@ func setupDatabricksDriver(s *common.Setup) {
 	if os.Getenv("DRIVER_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = driverLogs
+		s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" {
 		sparkIntegration.Instances = []any{
@@ -243,6 +244,7 @@ func setupDatabricksWorker(s *common.Setup) {
 	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = workerLogs
+		s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
 	}
 	s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 }
