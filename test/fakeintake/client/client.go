@@ -725,7 +725,7 @@ func (c *Client) GetLastProcessPayloadAPIKey() (string, error) {
 	return payloads[len(payloads)-1].APIKey, nil
 }
 
-// GetAllProcessPayloadAPIKey fetches fakeintake on `/api/v1/collector` endpoint and returns
+// GetAllProcessPayloadAPIKeys fetches fakeintake on `/api/v1/collector` endpoint and returns
 // a list of unique API keys of the received process payloads
 func (c *Client) GetAllProcessPayloadAPIKeys() (map[string]struct{}, error) {
 	payloads, err := c.getFakePayloads(processesEndpoint)
