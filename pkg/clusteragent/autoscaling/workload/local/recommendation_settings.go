@@ -38,7 +38,7 @@ type resourceRecommenderSettings struct {
 }
 
 func newResourceRecommenderSettings(fallbackSettings *datadoghq.DatadogFallbackPolicy, objective datadoghqcommon.DatadogPodAutoscalerObjective) (*resourceRecommenderSettings, error) {
-	recSettings := &resourceRecommenderSettings{}
+	var recSettings *resourceRecommenderSettings
 	var err error
 
 	if objective.Type == datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType {

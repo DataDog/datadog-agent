@@ -69,7 +69,7 @@ func (r *Recommender) process(ctx context.Context) {
 
 	localFallbackFilter := func(podAutoscaler model.PodAutoscalerInternal) bool {
 		// Only return false if Fallback exists and Horizontal.Enabled is explicitly set to false
-		if podAutoscaler.Spec().Fallback != nil && podAutoscaler.Spec().Fallback.Horizontal.Enabled == false {
+		if podAutoscaler.Spec().Fallback != nil && !podAutoscaler.Spec().Fallback.Horizontal.Enabled {
 			return false
 		}
 		return true
