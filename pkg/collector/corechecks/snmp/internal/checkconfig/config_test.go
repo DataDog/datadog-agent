@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/stretchr/testify/require"
+	"path/filepath"
 	"regexp"
 	"testing"
 	"time"
@@ -1825,6 +1826,181 @@ func TestCheckConfig_GetStaticTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.ElementsMatch(t, tt.expectedTags, tt.config.GetStaticTags())
+		})
+	}
+}
+
+func TestHaveLegacyProfile(t *testing.T) {
+	tests := []struct {
+		name                      string
+		rawInstanceConfig         []byte
+		rawInitConfig             []byte
+		mockConfd                 string
+		expectedHaveLegacyProfile bool
+	}{
+		{
+			name: "legacy custom profile with loader specified should not fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+loader: core
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: legacy
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "legacy.d",
+			expectedHaveLegacyProfile: false,
+		},
+		{
+			name: "legacy init config profile with loader specified should not fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+loader: core
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: legacy-init-config
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+profiles:
+  legacy-init-config:
+    definition:
+      metrics:
+        - MIB: FOO-MIB
+          symbol:
+            # OID: 1.2.3.4.5.6
+            name: fooName
+`),
+			mockConfd:                 "legacy.d",
+			expectedHaveLegacyProfile: false,
+		},
+		{
+			name: "legacy instance config profile with loader specified should not fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+loader: core
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+metrics:
+  - MIB: FOO-MIB
+    table:
+      OID: 1.2.3.4.5.6
+      name: fooTable
+    symbols:
+      - OID: 1.2.3.4.5.6.1
+        name: fooName1
+        metric_type: monotonic_count
+      # - OID: 1.2.3.4.5.6.2
+      - name: fooName2
+        metric_type: monotonic_count
+    metric_tags:
+      - index: 1
+        tag: fooTag3
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "legacy.d",
+			expectedHaveLegacyProfile: false,
+		},
+		{
+			name: "ok profile without loader specified should not fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "conf.d",
+			expectedHaveLegacyProfile: false,
+		},
+		{
+			name: "legacy custom profile without loader specified should fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: legacy
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "legacy.d",
+			expectedHaveLegacyProfile: true,
+		},
+		{
+			name: "legacy init config profile without loader specified should fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: legacy-init-config
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+profiles:
+  legacy-init-config:
+    definition:
+      metrics:
+        - MIB: FOO-MIB
+          symbol:
+            # OID: 1.2.3.4.5.6
+            name: fooName
+`),
+			mockConfd:                 "legacy.d",
+			expectedHaveLegacyProfile: true,
+		},
+		{
+			name: "legacy instance config profile without loader specified should fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+metrics:
+  - MIB: FOO-MIB
+    table:
+      OID: 1.2.3.4.5.6
+      name: fooTable
+    symbols:
+      - OID: 1.2.3.4.5.6.1
+        name: fooName1
+        metric_type: monotonic_count
+      # - OID: 1.2.3.4.5.6.2
+      - name: fooName2
+        metric_type: monotonic_count
+    metric_tags:
+      - index: 1
+        tag: fooTag3
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "legacy.d",
+			expectedHaveLegacyProfile: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			profile.SetGlobalProfileConfigMap(nil)
+			mockConfdPath, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
+			pkgconfigsetup.Datadog().SetWithoutSource("confd_path", mockConfdPath)
+
+			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)
+			errString := "legacy profile detected with no loader specified, falling back to the Python loader"
+			if tt.expectedHaveLegacyProfile {
+				assert.Equal(t, err.Error(), errString)
+			} else {
+				if err != nil {
+					assert.NotEqual(t, err.Error(), errString)
+				}
+			}
 		})
 	}
 }
