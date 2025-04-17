@@ -258,11 +258,6 @@ func stop(remoteTagger *remoteTagger) error {
 	return nil
 }
 
-// GetTaggerTelemetryStore returns tagger telemetry store
-func (t *remoteTagger) GetTaggerTelemetryStore() *telemetry.Store {
-	return t.telemetryStore
-}
-
 // Tag returns tags for a given entity at the desired cardinality.
 func (t *remoteTagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
 	if cardinality == types.ChecksConfigCardinality {

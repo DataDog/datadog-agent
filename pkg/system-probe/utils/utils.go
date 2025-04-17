@@ -16,9 +16,18 @@ import (
 func WriteAsJSON(w http.ResponseWriter, data interface{}) {
 	buf, err := json.Marshal(data)
 	if err != nil {
-		log.Errorf("unable to marshall connections into JSON: %s", err)
+		log.Errorf("unable to marshal data into JSON: %s", err)
 		w.WriteHeader(500)
 		return
 	}
-	w.Write(buf) //nolint:errcheck
+	_, _ = w.Write(buf)
+}
+
+// GetClientID gets client provided in the http request, defaulting to -1
+func GetClientID(req *http.Request) string {
+	var clientID = "-1"
+	if rawCID := req.URL.Query().Get("client_id"); rawCID != "" {
+		clientID = rawCID
+	}
+	return clientID
 }

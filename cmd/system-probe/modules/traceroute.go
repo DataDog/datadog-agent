@@ -14,10 +14,10 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/mux"
-	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -27,6 +27,8 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func init() { registerModule(Traceroute) }
 
 type traceroute struct {
 	runner *runner.Runner
@@ -54,7 +56,7 @@ func (t *traceroute) GetStats() map[string]interface{} {
 }
 
 func (t *traceroute) Register(httpMux *module.Router) error {
-	var runCounter = atomic.NewUint64(0)
+	var runCounter atomic.Uint64
 
 	// TODO: what other config should be passed as part of this request?
 	httpMux.HandleFunc("/traceroute/{host}", func(w http.ResponseWriter, req *http.Request) {
@@ -85,7 +87,7 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 			log.Errorf("unable to write traceroute response: %s", err)
 		}
 
-		runCount := runCounter.Inc()
+		runCount := runCounter.Add(1)
 
 		logTracerouteRequests(req.URL, runCount, start)
 	})

@@ -32,13 +32,13 @@ def clone(ctx, repo, branch, options=""):
         os.chdir(current_dir)
 
 
-def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterable[str]:
+def get_staged_files(ctx, commit="HEAD", include_deleted_files=False, relative_path=False) -> Iterable[str]:
     """
     Get the list of staged (to be committed) files in the repository compared to the `commit` commit.
     """
 
     files = ctx.run(f"git diff --name-only --staged {commit}", hide=True).stdout.strip().splitlines()
-    repo_root = ctx.run("git rev-parse --show-toplevel", hide=True).stdout.strip()
+    repo_root = ctx.run("git rev-parse --show-toplevel", hide=True).stdout.strip() if not relative_path else ""
 
     for file in files:
         if include_deleted_files or os.path.isfile(file):
@@ -313,21 +313,24 @@ def get_last_release_tag(ctx, repo, pattern):
     return last_tag_commit, last_tag_name
 
 
-def get_git_config(ctx, key):
-    try:
-        result = ctx.run(f'git config --get {key}')
-    except Exit:
-        return None
-    return result.stdout.strip() if result.return_code == 0 else None
-
-
 def set_git_config(ctx, key, value):
     ctx.run(f'git config {key} {value}')
 
 
-def revert_git_config(ctx, original_config):
-    for key, value in original_config.items():
-        if value is None:
-            ctx.run(f'git config --unset {key}', hide=True)
-        else:
-            ctx.run(f'git config {key} {value}', hide=True)
+def create_tree(ctx, base_branch):
+    """
+    Create a tree on all the local staged files
+    """
+    base = get_common_ancestor(ctx, "HEAD", base_branch)
+    tree = {"base_tree": base, "tree": []}
+    template = {"path": None, "mode": "100644", "type": "blob", "content": None}
+    for file in get_staged_files(ctx, include_deleted_files=True, relative_path=True):
+        blob = template.copy()
+        blob["path"] = file
+        content = ""
+        if os.path.isfile(file):
+            with open(file) as f:
+                content = f.read()
+        blob["content"] = content
+        tree["tree"].append(blob)
+    return tree

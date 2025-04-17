@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,9 +32,14 @@ func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
 	log := logmock.New(t)
 
 	// starting API Keys, before the update
-	keysPerDomains := map[string][]string{
-		"example1.com": {"api_key1", "api_key2"},
-		"example2.com": {"api_key3"},
+	keysPerDomains := map[string][]utils.APIKeys{
+		"example1.com": {
+			utils.NewAPIKeys("api_key", "api_key1"),
+			utils.NewAPIKeys("additional_endpoints", "api_key2"),
+		},
+		"example2.com": {
+			utils.NewAPIKeys("additional_endpoints", "api_key3"),
+		},
 	}
 	forwarderOptions := NewOptions(mockConfig, log, keysPerDomains)
 	forwarder := NewDefaultForwarder(mockConfig, log, forwarderOptions)

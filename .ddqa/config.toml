@@ -50,20 +50,12 @@ github_team = "agent-configuration"
 github_labels = ["team/agent-configuration"]
 exclude_members = ["sgnn7"]
 
-[teams."Agent Developer Tools"]
-jira_project = "ADXT"
-jira_issue_type = "QA"
-jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-devx-loops"
-github_labels = ["team/agent-devx-loops"]
-exclude_members = []
-
-[teams."Agent CI Experience"]
+[teams."Agent Developer Experience"]
 jira_project = "ACIX"
 jira_issue_type = "QA"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-devx-infra"
-github_labels = ["team/agent-devx-infra"]
+github_team = "agent-devx"
+github_labels = ["team/agent-devx"]
 exclude_members = []
 
 [teams."Agent Delivery"]

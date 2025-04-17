@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux || windows
+//go:build (linux && linux_bpf) || (windows && npm)
 
 package modules
 
@@ -17,9 +17,8 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
-
-	"go.uber.org/atomic"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -83,11 +82,11 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 
 // Register all networkTracer endpoints
 func (nt *networkTracer) Register(httpMux *module.Router) error {
-	var runCounter = atomic.NewUint64(0)
+	var runCounter atomic.Uint64
 
 	httpMux.HandleFunc("/connections", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
-		id := getClientID(req)
+		id := utils.GetClientID(req)
 		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
@@ -102,7 +101,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		if nt.restartTimer != nil {
 			nt.restartTimer.Reset(inactivityRestartDuration)
 		}
-		count := runCounter.Inc()
+		count := runCounter.Add(1)
 		logRequests(id, count, len(cs.Conns), start)
 	}))
 
@@ -117,7 +116,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	}))
 
 	httpMux.HandleFunc("/register", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
-		id := getClientID(req)
+		id := utils.GetClientID(req)
 		err := nt.tracer.RegisterClient(id)
 		log.Debugf("Got request on /network_tracer/register?client_id=%s", id)
 		if err != nil {
@@ -142,7 +141,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/net_state", func(w http.ResponseWriter, req *http.Request) {
-		stats, err := nt.tracer.DebugNetworkState(getClientID(req))
+		stats, err := nt.tracer.DebugNetworkState(utils.GetClientID(req))
 		if err != nil {
 			log.Errorf("unable to retrieve tracer stats: %s", err)
 			w.WriteHeader(500)
@@ -157,7 +156,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			writeDisabledProtocolMessage("http", w)
 			return
 		}
-		id := getClientID(req)
+		id := utils.GetClientID(req)
 		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
@@ -174,7 +173,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			writeDisabledProtocolMessage("kafka", w)
 			return
 		}
-		id := getClientID(req)
+		id := utils.GetClientID(req)
 		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
@@ -191,7 +190,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			writeDisabledProtocolMessage("postgres", w)
 			return
 		}
-		id := getClientID(req)
+		id := utils.GetClientID(req)
 		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
@@ -208,7 +207,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			writeDisabledProtocolMessage("redis", w)
 			return
 		}
-		id := getClientID(req)
+		id := utils.GetClientID(req)
 		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
@@ -225,7 +224,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			writeDisabledProtocolMessage("http2", w)
 			return
 		}
-		id := getClientID(req)
+		id := utils.GetClientID(req)
 		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
@@ -333,14 +332,6 @@ func logRequests(client string, count uint64, connectionsCount int, start time.T
 	default:
 		log.Debugf(msg, args...)
 	}
-}
-
-func getClientID(req *http.Request) string {
-	var clientID = network.DEBUGCLIENT
-	if rawCID := req.URL.Query().Get("client_id"); rawCID != "" {
-		clientID = rawCID
-	}
-	return clientID
 }
 
 func writeConnections(w http.ResponseWriter, marshaler marshal.Marshaler, cs *network.Connections) {

@@ -76,6 +76,8 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameSockCommonStructSKCNum:          14,
 		OffsetNameFlowI4StructProto:               18,
 		OffsetNameFlowI6StructProto:               18,
+		SizeOfPipeBuffer:                          40,
+		OffsetNamePipeBufferStructFlags:           24,
 	}
 }
 

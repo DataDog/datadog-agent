@@ -78,6 +78,7 @@ func getProfilingSettings(cfg config.Component) profiling.Settings {
 
 	tags := cfg.GetStringSlice("internal_profiling.extra_tags")
 	tags = append(tags, fmt.Sprintf("version:%v", version.AgentVersion))
+	tags = append(tags, "__dd_internal_profiling:datadog-agent")
 
 	return profiling.Settings{
 		ProfilingURL:         site,

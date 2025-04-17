@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/ntp"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/wlan"
 	ciscosdwan "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
@@ -65,6 +66,7 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(uptime.CheckName, uptime.Factory())
 	corecheckLoader.RegisterCheck(telemetryCheck.CheckName, telemetryCheck.Factory(telemetry))
 	corecheckLoader.RegisterCheck(ntp.CheckName, ntp.Factory())
+	corecheckLoader.RegisterCheck(wlan.CheckName, wlan.Factory())
 	corecheckLoader.RegisterCheck(snmp.CheckName, snmp.Factory(cfg, rcClient))
 	corecheckLoader.RegisterCheck(networkpath.CheckName, networkpath.Factory(telemetry))
 	corecheckLoader.RegisterCheck(io.CheckName, io.Factory())

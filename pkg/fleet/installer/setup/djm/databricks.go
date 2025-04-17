@@ -240,13 +240,14 @@ func setupDatabricksDriver(s *common.Setup) {
 func setupDatabricksWorker(s *common.Setup) {
 	setClearHostTag(s, "spark_node", "worker")
 
-	var sparkIntegration common.IntegrationConfig
 	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
+		var sparkIntegration common.IntegrationConfig
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = workerLogs
 		s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
+		s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 	}
-	s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
+
 }
 
 func addCustomHostTags(s *common.Setup) {

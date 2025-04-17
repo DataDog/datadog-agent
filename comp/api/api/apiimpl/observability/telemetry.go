@@ -27,6 +27,7 @@ const (
 type telemetryMiddlewareFactory struct {
 	requestDuration telemetry.Histogram
 	clock           clock.Clock
+	authTagGetter   func(r *http.Request) string
 }
 
 // TelemetryMiddlewareFactory creates a telemetry middleware tagged with a given server name
@@ -49,19 +50,25 @@ func (th *telemetryMiddlewareFactory) Middleware(serverName string) mux.Middlewa
 			next.ServeHTTP(w, r)
 
 			path := extractPath(r)
-			th.requestDuration.Observe(duration.Seconds(), serverName, strconv.Itoa(statusCode), r.Method, path)
+
+			durationSeconds := duration.Seconds()
+
+			auth := th.authTagGetter(r)
+
+			th.requestDuration.Observe(durationSeconds, serverName, strconv.Itoa(statusCode), r.Method, path, auth)
 		})
 	}
 }
 
-func newTelemetryMiddlewareFactory(telemetry telemetry.Component, clock clock.Clock) TelemetryMiddlewareFactory {
-	tags := []string{"servername", "status_code", "method", "path"}
+func newTelemetryMiddlewareFactory(telemetry telemetry.Component, clock clock.Clock, authTagGetter func(r *http.Request) string) TelemetryMiddlewareFactory {
+	tags := []string{"servername", "status_code", "method", "path", "auth"}
 	var buckets []float64 // use default buckets
 	requestDuration := telemetry.NewHistogram(MetricSubsystem, MetricName, tags, metricHelp, buckets)
 
 	return &telemetryMiddlewareFactory{
 		requestDuration,
 		clock,
+		authTagGetter,
 	}
 }
 
@@ -69,6 +76,6 @@ func newTelemetryMiddlewareFactory(telemetry telemetry.Component, clock clock.Cl
 //
 // This function must be called only once for a given telemetry Component,
 // as it creates a new metric, and Prometheus panics if the same metric is registered twice.
-func NewTelemetryMiddlewareFactory(telemetry telemetry.Component) TelemetryMiddlewareFactory {
-	return newTelemetryMiddlewareFactory(telemetry, clock.New())
+func NewTelemetryMiddlewareFactory(telemetry telemetry.Component, authTagGetter func(r *http.Request) string) TelemetryMiddlewareFactory {
+	return newTelemetryMiddlewareFactory(telemetry, clock.New(), authTagGetter)
 }

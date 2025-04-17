@@ -216,6 +216,7 @@ var defaultProfiles = `
           aggregate_tags:
             - truncated
             - line_type
+        - name: logs_destination.destination_workers
         - name: point.sent
         - name: point.dropped
         - name: transactions.input_count
@@ -260,6 +261,7 @@ var defaultProfiles = `
             - status_code
             - method
             - path
+            - auth
     schedule:
       start_after: 600
       iterations: 0
