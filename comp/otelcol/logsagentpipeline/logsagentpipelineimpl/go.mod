@@ -9,7 +9,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.61.0
-	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-devel
+	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.64.0-rc.3
