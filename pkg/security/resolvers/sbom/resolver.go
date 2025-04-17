@@ -266,7 +266,7 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 			refresher = debouncer.New(
 				3*time.Second, func() {
 					// invalid cache data
-					r.removeSBOMData(sbom.workloadKey)
+					r.removeSBOMData(workloadKey(sbom.ContainerID))
 
 					sbom.Lock()
 					r.triggerScan(sbom)
@@ -444,7 +444,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 
 	// add to cache
 	r.dataCacheLock.Lock()
-	r.dataCache.Add(sbom.workloadKey, data)
+	r.dataCache.Add(workloadKey(sbom.ContainerID), data)
 	r.dataCacheLock.Unlock()
 
 	r.removePendingScan(sbom.ContainerID)
@@ -501,7 +501,7 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 	r.dataCacheLock.Lock()
 	defer r.dataCacheLock.Unlock()
 
-	if data, ok := r.dataCache.Get(sbom.workloadKey); ok {
+	if data, ok := r.dataCache.Get(workloadKey(sbom.ContainerID)); ok {
 		sbom.data = data
 
 		sbom.state.Store(computedState)
