@@ -63,3 +63,5 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/version => ../../../pkg/version
 )
+
+replace github.com/DataDog/datadog-agent/pkg/util/winutil => ..\..\util\winutil
