@@ -1,7 +1,4 @@
 ---
-include:
-  - .gitlab/common/macos.yml
-
 .agent_build_common_dmg:
   script:
     - echo "About to build for $RELEASE_VERSION"
