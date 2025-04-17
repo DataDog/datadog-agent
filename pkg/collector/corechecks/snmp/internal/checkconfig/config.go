@@ -94,6 +94,7 @@ type InitConfig struct {
 	MinCollectionInterval int                               `yaml:"min_collection_interval"`
 	Namespace             string                            `yaml:"namespace"`
 	PingConfig            snmpintegration.PackedPingConfig  `yaml:"ping"`
+	Loader                string                            `yaml:"loader"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -311,6 +312,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	fmt.Println("#####")
 	fmt.Println("INIT CONFIG")
 	fmt.Println(initConfig)
+	fmt.Println("#####")
+	fmt.Println("INIT CONFIG LOADER")
+	fmt.Println(initConfig.Loader)
 	fmt.Println("#####")
 
 	c := &CheckConfig{}

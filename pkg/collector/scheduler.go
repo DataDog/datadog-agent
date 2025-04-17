@@ -172,6 +172,9 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 	}
 	selectedLoader := initConfig.LoaderName
 
+	fmt.Println("INIT CONFIG IN GET CHECKS")
+	fmt.Println(initConfig)
+
 	for _, instance := range config.Instances {
 		if check.IsJMXInstance(config.Name, instance, config.InitConfig) {
 			fmt.Printf("skip loading jmx check '%s', it is handled elsewhere\n", config.Name)
@@ -197,16 +200,16 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			fmt.Printf("Loading check instance for check '%s' using default loaders\n", config.Name)
 		}
 
-		if config.Name == "snmp" && selectedInstanceLoader == "" {
-			fmt.Println("CONFIG NAME == SNMP && SELECTED INSTANCE LOADER == EMPTY")
-			c, err := s.loaders[1].Load(s.senderManager, config, instance)
-			if err != nil {
-				fmt.Println("UNABLE TO LOAD CORE CHECK SNMP IN CASE OF EMPTY SELECTED INSTANCE LOADER")
-			}
-			checks = append(checks, c)
-			fmt.Println("SUCCESSFULLY LOADED CORE CHECK SNMP IN CASE OF EMPTY SELECTED INSTANCE LOADER")
-			continue
-		}
+		//if config.Name == "snmp" && selectedInstanceLoader == "" {
+		//	fmt.Println("CONFIG NAME == SNMP && SELECTED INSTANCE LOADER == EMPTY")
+		//	c, err := s.loaders[1].Load(s.senderManager, config, instance)
+		//	if err != nil {
+		//		fmt.Println("UNABLE TO LOAD CORE CHECK SNMP IN CASE OF EMPTY SELECTED INSTANCE LOADER")
+		//	}
+		//	checks = append(checks, c)
+		//	fmt.Println("SUCCESSFULLY LOADED CORE CHECK SNMP IN CASE OF EMPTY SELECTED INSTANCE LOADER")
+		//	continue
+		//}
 
 		fmt.Println("LEN OF LOADERS")
 		fmt.Println(len(s.loaders))
