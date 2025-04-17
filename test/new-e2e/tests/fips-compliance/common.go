@@ -7,7 +7,6 @@
 package fipscompliance
 
 import (
-	_ "embed"
 	"fmt"
 	"strings"
 	"testing"
@@ -104,8 +103,6 @@ var (
 		// {cert: "rsa", cipher: "TLS_AES_128_GCM_SHA256", tlsMax: "1.3", want: true},
 		// {cert: "rsa", cipher: "TLS_AES_256_GCM_SHA384", tlsMax: "1.3", want: true},
 	}
-	//go:embed fixtures/e2e_fips_test.py
-	fipsTestCheck string
 )
 
 type fipsServerSuite[Env any] struct {

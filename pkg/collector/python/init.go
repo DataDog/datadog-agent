@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -233,11 +232,8 @@ func init() {
 	expvarPyInit = expvar.NewMap("pythonInit")
 	expvarPyInit.Set("Errors", expvar.Func(expvarPythonInitErrors))
 
-	resolvePythonHome()
-
 	// Setting environment variables must happen as early as possible in the process lifetime to avoid data race with
 	// `getenv`. Ideally before we start any goroutines that call native code or open network connections.
-	initFIPS()
 }
 
 func expvarPythonInitErrors() interface{} {
@@ -294,7 +290,7 @@ func pathToBinary(name string, ignoreErrors bool) (string, error) {
 	return absPath, nil
 }
 
-func resolvePythonHome() {
+func resolvePythonExecPath(ignoreErrors bool) (string, error) {
 	// Allow to relatively import python
 	_here, err := executable.Folder()
 	if err != nil {
@@ -327,9 +323,7 @@ func resolvePythonHome() {
 	PythonHome = pythonHome3
 
 	log.Infof("Using '%s' as Python home", PythonHome)
-}
 
-func resolvePythonExecPath(ignoreErrors bool) (string, error) {
 	// For Windows, the binary should be in our path already and have a
 	// consistent name
 	if runtime.GOOS == "windows" {
@@ -502,42 +496,4 @@ func initPymemTelemetry(d time.Duration) {
 			prevAlloc = s.alloc
 		}
 	}()
-}
-
-func initFIPS() {
-	fipsEnabled, err := fips.Enabled()
-	if err != nil {
-		log.Warnf("could not check FIPS mode: %v", err)
-		return
-	}
-	if PythonHome == "" {
-		log.Warnf("Python home is empty. FIPS mode could not be enabled.")
-		return
-	}
-	if fipsEnabled {
-		err := enableFIPS(PythonHome)
-		if err != nil {
-			log.Warnf("could not initialize FIPS mode: %v", err)
-		}
-	}
-}
-
-// enableFIPS sets the OPENSSL_CONF and OPENSSL_MODULES environment variables
-func enableFIPS(embeddedPath string) error {
-	envVars := map[string][]string{
-		"OPENSSL_CONF":    {embeddedPath, "ssl", "openssl.cnf"},
-		"OPENSSL_MODULES": {embeddedPath, "lib", "ossl-modules"},
-	}
-
-	for envVar, pathParts := range envVars {
-		if v := os.Getenv(envVar); v != "" {
-			continue
-		}
-		path := filepath.Join(pathParts...)
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			return fmt.Errorf("path %q does not exist", path)
-		}
-		os.Setenv(envVar, path)
-	}
-	return nil
 }
