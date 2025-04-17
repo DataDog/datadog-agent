@@ -68,11 +68,8 @@ RUN go version && \
 RUN python3 -m venv venv && \
     . venv/bin/activate && \
     pip install --upgrade pip && \
-    pip install -r requirements.txt
-
-# TODO confirm if we can remove this
-# Copy the manifest file
-# COPY manifest.yaml /workspace/datadog-agent/comp/otelcol/collector-contrib/impl/manifest.yaml
+    pip install dda && \
+    dda self dep sync -f legacy-tasks
 
 # Generate the files
 RUN . venv/bin/activate && invoke collector.generate
@@ -89,8 +86,8 @@ FROM $AGENT_BASE_IMAGE_TAG AS release
 LABEL org.opencontainers.image.title="Otel Agent"
 # Copy the built OTel agent from the builder stage
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent
-# TODO: confirm if this should be copied to otel-config.yaml.example
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml /etc/datadog-agent/otel-config.yaml
+COPY --from=builder /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml "#{conf_dir}/otel-config.yaml.example"
 # Find all directories and files in /etc with world-writable permissions and remove write permissions for group and others
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
