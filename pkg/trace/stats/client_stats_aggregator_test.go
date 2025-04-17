@@ -707,9 +707,10 @@ func TestAggregationProcessTags(t *testing.T) {
 	assertAggCountsPayload(t, aggCounts)
 
 	assert.Len(aggCounts.Stats, 2)
-	res := []string{aggCounts.Stats[0].ProcessTags, aggCounts.Stats[1].ProcessTags}
-	assert.Equal(aggCounts.Stats[0].ProcessTagsHash, uint64(0x619223a2efed999d))
-	assert.ElementsMatch([]string{"a:1,b:2,c:3", "b:33"}, res)
+	resProcessTags := []string{aggCounts.Stats[0].ProcessTags, aggCounts.Stats[1].ProcessTags}
+	resProcessTagsHash := []uint64{aggCounts.Stats[0].ProcessTagsHash, aggCounts.Stats[1].ProcessTagsHash}
+	assert.ElementsMatch([]string{"a:1,b:2,c:3", "b:33"}, resProcessTags)
+	assert.ElementsMatch([]uint64{7030721150995765661, 6360281807028847755}, resProcessTagsHash)
 	assert.Len(a.buckets, 0)
 }
 

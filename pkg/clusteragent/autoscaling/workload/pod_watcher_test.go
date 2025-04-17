@@ -38,6 +38,7 @@ func TestHandleSetEvent(t *testing.T) {
 			Namespace: "default",
 		},
 		Owners: []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: "deploymentName-766dbb7846"}},
+		Ready:  true,
 	}
 	event := workloadmeta.Event{
 		Type:   workloadmeta.EventTypeSet,
@@ -54,6 +55,9 @@ func TestHandleSetEvent(t *testing.T) {
 	pods := pw.GetPodsForOwner(expectedOwner)
 	require.Len(t, pods, 1)
 	assert.Equal(t, pod, pods[0])
+
+	numReadyPods := pw.GetReadyPodsForOwner(expectedOwner)
+	assert.Equal(t, int32(1), numReadyPods)
 }
 
 func TestHandleUnsetEvent(t *testing.T) {
@@ -68,6 +72,7 @@ func TestHandleUnsetEvent(t *testing.T) {
 			Namespace: "default",
 		},
 		Owners: []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: "deploymentName-766dbb7846"}},
+		Ready:  true,
 	}
 	setEvent := workloadmeta.Event{
 		Type:   workloadmeta.EventTypeSet,
@@ -78,16 +83,25 @@ func TestHandleUnsetEvent(t *testing.T) {
 		Entity: pod,
 	}
 
-	pw.HandleEvent(setEvent)
-	pw.HandleEvent(unsetEvent)
-
-	pods := pw.GetPodsForOwner(NamespacedPodOwner{
+	expectedOwner := NamespacedPodOwner{
 		Namespace: "default",
 		Kind:      kubernetes.DeploymentKind,
 		Name:      "deploymentName",
-	})
+	}
+
+	pw.HandleEvent(setEvent)
+
+	numReadyPods := pw.GetReadyPodsForOwner(expectedOwner)
+	assert.Equal(t, int32(1), numReadyPods)
+
+	pw.HandleEvent(unsetEvent)
+
+	pods := pw.GetPodsForOwner(expectedOwner)
 	assert.Nil(t, pods)
 	assert.NotNil(t, pw.podsPerPodOwner)
+
+	numReadyPods = pw.GetReadyPodsForOwner(expectedOwner)
+	assert.Equal(t, int32(0), numReadyPods)
 }
 
 func TestPodWatcherStartStop(t *testing.T) {
@@ -110,6 +124,7 @@ func TestPodWatcherStartStop(t *testing.T) {
 			Namespace: "default",
 		},
 		Owners: []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: "deploymentName-766dbb7846"}},
+		Ready:  false,
 	}
 
 	wlm.Set(pod)
@@ -128,6 +143,11 @@ func TestPodWatcherStartStop(t *testing.T) {
 	require.Len(t, newPods, 1)
 	assert.Equal(t, pod, newPods[0])
 	cancel()
+
+	numReadyPods := pw.GetReadyPodsForOwner(expectedOwner)
+	assert.Equal(t, int32(0), numReadyPods)
+	_, ok := pw.readyPodsPerPodOwner[expectedOwner]
+	assert.False(t, ok)
 }
 
 func TestGetNamespacedPodOwner(t *testing.T) {
