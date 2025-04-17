@@ -169,7 +169,7 @@ type InstanceConfig struct {
 	LogUnobfuscatedQueries             bool                     `yaml:"log_unobfuscated_queries"`
 	ObfuscatorOptions                  obfuscate.SQLConfig      `yaml:"obfuscator_options"`
 	InstantClient                      bool                     `yaml:"instant_client"`
-	EmptyDefaultHostname               bool                     `yaml:"empty_default_hostname"`
+	ExcludeHostname                    bool                     `yaml:"exclude_hostname"`
 	DatabaseIdentifier                 DatabaseIdentifierConfig `yaml:"database_identifier"`
 	ReportedHostname                   string                   `yaml:"reported_hostname"`
 	QuerySamples                       QuerySamplesConfig       `yaml:"query_samples"`
