@@ -38,6 +38,9 @@ use (
 	comp/forwarder/defaultforwarder
 	comp/forwarder/orchestrator/orchestratorinterface
 	comp/logs/agent/config
+	comp/logs/auditor/def
+	comp/logs/auditor/impl-none
+	comp/logs/auditor/mock
 	comp/netflow/payload
 	comp/otelcol/collector-contrib/def
 	comp/otelcol/collector-contrib/impl
