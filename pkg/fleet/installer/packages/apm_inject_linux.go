@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
-
 package packages
 
 import (
@@ -14,18 +12,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
-// SetupAPMInjector sets up the injector at bootstrap
-func SetupAPMInjector(ctx context.Context) (err error) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, "setup_injector")
+var (
+	apmInjectPackage = hooks{
+		postInstall: postInstallAPMInjector,
+		preRemove:   preRemoveAPMInjector,
+	}
+)
+
+// postInstallAPMInjector is called after the APM injector is installed
+func postInstallAPMInjector(ctx HookContext) (err error) {
+	span, ctx := ctx.StartSpan("setup_injector")
 	defer func() { span.Finish(err) }()
 	installer := apminject.NewInstaller()
 	defer func() { installer.Finish(err) }()
 	return installer.Setup(ctx)
 }
 
-// RemoveAPMInjector removes the APM injector
-func RemoveAPMInjector(ctx context.Context) (err error) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, "remove_injector")
+// preRemoveAPMInjector is called before the APM injector is removed
+func preRemoveAPMInjector(ctx HookContext) (err error) {
+	span, ctx := ctx.StartSpan("remove_injector")
 	defer func() { span.Finish(err) }()
 	installer := apminject.NewInstaller()
 	defer func() { installer.Finish(err) }()

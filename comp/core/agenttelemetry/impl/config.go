@@ -216,6 +216,7 @@ var defaultProfiles = `
           aggregate_tags:
             - truncated
             - line_type
+        - name: logs_destination.destination_workers
         - name: point.sent
         - name: point.dropped
         - name: transactions.input_count
