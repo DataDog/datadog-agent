@@ -26,7 +26,6 @@ from tasks.libs.civisibility import (
     get_test_link_to_job_on_main,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.utils import experimental
 
 
@@ -326,23 +325,3 @@ def compute_gitlab_ci_config(
     print('Writing', diff_file)
     with open(diff_file, 'w') as f:
         f.write(yaml.safe_dump(diff.to_dict()))
-
-
-@task
-def open_latest(ctx):
-    repo = get_gitlab_repo()
-    pipeline = repo.pipelines.list(ref=get_current_branch(ctx), page=1, per_page=1, iterator=False)[0]
-    print('Pipeline', pipeline.id, 'created at', pipeline.created_at)
-    print(pipeline.web_url)
-    jobs = pipeline.jobs.list(all=True, per_page=100)
-    j = [j for j in jobs if j.name == 'new-agent_dmg-x64-a7'][0]
-    print('job', j.web_url)
-    ctx.run(f'open {j.web_url}')
-
-
-@task
-def cancel_latest(ctx):
-    repo = get_gitlab_repo()
-    pipeline = repo.pipelines.list(ref=get_current_branch(ctx), page=1, per_page=1, iterator=False)[0]
-    print('Pipeline', pipeline.id, 'created at', pipeline.created_at)
-    pipeline.cancel()
