@@ -14,6 +14,7 @@ package obfuscate
 
 import (
 	"bytes"
+	"fmt"
 
 	"go.uber.org/atomic"
 
@@ -297,6 +298,9 @@ type CacheConfig struct {
 
 	// MaxSize is the maximum size of the cache in bytes.
 	MaxSize int64 `mapstructure:"max_size"`
+
+	// Purpose is the purpose of the cache.
+	Purpose string `mapstructure:"-"`
 }
 
 // NewObfuscator creates a new obfuscator
@@ -305,8 +309,12 @@ func NewObfuscator(cfg Config) *Obfuscator {
 		cfg.Logger = noopLogger{}
 	}
 	o := Obfuscator{
-		opts:              &cfg,
-		queryCache:        newMeasuredCache(cacheOptions{On: cfg.Cache.Enabled, Statsd: cfg.Statsd, MaxSize: cfg.Cache.MaxSize}),
+		opts: &cfg,
+		queryCache: newMeasuredCache(cacheOptions{
+			On:      cfg.Cache.Enabled,
+			Statsd:  cfg.Statsd,
+			MaxSize: cfg.Cache.MaxSize,
+			Tags:    []string{fmt.Sprintf("purpose:%s", cfg.Cache.Purpose)}}),
 		sqlLiteralEscapes: atomic.NewBool(false),
 		log:               cfg.Logger,
 	}
