@@ -2,6 +2,11 @@ module github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none
 
 go 1.23.0
 
+require (
+	github.com/DataDog/datadog-agent/comp/logs/auditor/def v0.0.0
+	github.com/DataDog/datadog-agent/pkg/logs/message v0.64.0-rc.12
+)
+
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
@@ -153,8 +158,6 @@ replace (
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../../../test/otel
 )
-
-require github.com/DataDog/datadog-agent/pkg/logs/message v0.0.0-00010101000000-000000000000
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.61.0 // indirect

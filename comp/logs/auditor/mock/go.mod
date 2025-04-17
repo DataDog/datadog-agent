@@ -2,6 +2,8 @@ module github.com/DataDog/datadog-agent/comp/logs/auditor/mock
 
 go 1.23.0
 
+require github.com/DataDog/datadog-agent/comp/logs/auditor/def v0.0.0
+
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
@@ -156,9 +158,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/comp/def v0.61.0
-	github.com/DataDog/datadog-agent/comp/logs/auditor/def v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/logs/message v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/logs/message v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0
 )
 
