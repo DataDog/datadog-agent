@@ -397,6 +397,7 @@ func TestNoOutsideImport(t *testing.T) {
 		"pkg/fleet/installer",
 		"pkg/version",  // TODO: cleanup & remove
 		"pkg/util/log", // TODO: cleanup & remove
+		"pkg/template",
 	}
 
 	// Walk the directory tree
