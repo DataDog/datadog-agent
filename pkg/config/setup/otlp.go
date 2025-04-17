@@ -43,7 +43,8 @@ func OTLP(config pkgconfigmodel.Setup) {
 		"DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
 	config.BindEnvAndSetDefault("otlp_config.traces.internal_port", 5003)
 
-	// Do NOT add default values for any config under otlp_config.receiver, that will force the OTLP ingestion pipelines to always start
+	// TODO(OTAGENT-378): Fix OTLP ingestion configs so that they can have default values
+	// For now do NOT add default values for any config under otlp_config.receiver, that will force the OTLP ingestion pipelines to always start
 
 	// gRPC settings
 	config.BindEnv("otlp_config.receiver.protocols.grpc.endpoint")
