@@ -16,14 +16,19 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// SOCKADDR_INET is a struct that encapsulates a socket address
+// for Windows
 type SOCKADDR_INET struct {
 	Ipv4      windows.RawSockaddrInet4
 	Ipv6      windows.RawSockaddrInet4
 	si_family uint16
 }
 
+// ICMP_ERROR_INFO is a struct that encapsulates the ICMP error information
+// for Windows
 type ICMP_ERROR_INFO struct {
 	SrcAddress SOCKADDR_INET
 	Protocol   uint32
@@ -31,6 +36,8 @@ type ICMP_ERROR_INFO struct {
 	Code       uint8
 }
 
+// WSAPOLLFD is a struct that encapsulates the WSAPoll information
+// for Windows
 type WSAPOLLFD struct {
 	fd      windows.Handle
 	events  uint16
@@ -43,7 +50,7 @@ var (
 )
 
 type (
-	// RawConnWrapper is an interface that abstracts the raw socket
+	// ConnWrapper is an interface that abstracts the raw socket
 	// connection for Windows
 	ConnWrapper interface {
 		SetTTL(ttl int) error
@@ -51,7 +58,7 @@ type (
 		Close()
 	}
 
-	// RawConn is a struct that encapsulates a raw socket
+	// Conn is a struct that encapsulates a raw socket
 	// on Windows that can be used to listen to traffic on a host
 	// or send raw packets from a host
 	Conn struct {
@@ -78,7 +85,7 @@ func NewConn() (*Conn, error) {
 
 	// set the socket to non-blocking mode
 	var nonBlocking uint32 = 1
-	var outLen uint32 = 0
+	var outLen uint32
 	err = windows.WSAIoctl(
 		s,
 		0x8004667E, // FIONBIO
@@ -138,8 +145,9 @@ func (r *Conn) sendConnect(destIP net.IP, destPort uint16) error {
 // getHoppAddress gets the address of the hop
 func (r *Conn) getHoppAddress() (net.IP, error) {
 	var errorInfo ICMP_ERROR_INFO
-	var errorInfoSize int32 = int32(unsafe.Sizeof(errorInfo))
-	// getsockopt for
+	var errorInfoSize = int32(unsafe.Sizeof(errorInfo))
+	// getsockopt for ICMP_ERROR_INFO
+	// this will have the address of the hop
 	err := windows.Getsockopt(
 		r.Socket,
 		windows.IPPROTO_TCP,
@@ -221,14 +229,21 @@ func (r *Conn) getSocketError() error {
 // Waits to get ICMP response from hop and returns the IP of the hop
 // and the time it took to get the response
 func (r *Conn) GetHop(timeout time.Duration, destIP net.IP, destPort uint16) (net.IP, time.Time, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 	err := r.sendConnect(destIP, destPort)
 
 	if errors.Is(err, windows.WSAEWOULDBLOCK) {
 		// wait for the socket to be ready
 		// set error to returned error from poll
-		err = r.poll(context.Background())
+		err = r.poll(ctx)
 		if err != nil {
-			return nil, time.Time{}, fmt.Errorf("failed to poll: %w", err)
+			_, canceled := err.(common.CanceledError)
+			if canceled {
+				log.Trace("timed out waiting for responses")
+				return net.IP{}, time.Time{}, nil
+			}
+			log.Errorf("failed to poll: %s", err.Error())
 		}
 		// get the new socket error
 		// this will be handled from other below if statments
