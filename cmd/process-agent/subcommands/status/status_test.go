@@ -141,7 +141,7 @@ func TestNotRunning(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("process_config.cmd_port", 8082)
 
-	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
+	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(cfg)
 	require.NoError(t, err)
 	statusURL := fmt.Sprintf("https://%s/agent/status", addressPort)
 
@@ -156,7 +156,7 @@ func TestNotRunning(t *testing.T) {
 func TestError(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("cmd_host", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
-	_, ipcError := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	_, ipcError := pkgconfigsetup.GetIPCAddress(cfg)
 
 	var errText, expectedErrText strings.Builder
 	url, err := getStatusURL()

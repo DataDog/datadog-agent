@@ -51,13 +51,14 @@ var _ (ptraceotlp.GRPCServer) = (*OTLPReceiver)(nil)
 // data on two ports for both plain HTTP and gRPC.
 type OTLPReceiver struct {
 	ptraceotlp.UnimplementedGRPCServer
-	wg          sync.WaitGroup      // waits for a graceful shutdown
-	grpcsrv     *grpc.Server        // the running GRPC server on a started receiver, if enabled
-	out         chan<- *Payload     // the outgoing payload channel
-	conf        *config.AgentConfig // receiver config
-	cidProvider IDProvider          // container ID provider
-	statsd      statsd.ClientInterface
-	timing      timing.Reporter
+	wg                 sync.WaitGroup      // waits for a graceful shutdown
+	grpcsrv            *grpc.Server        // the running GRPC server on a started receiver, if enabled
+	out                chan<- *Payload     // the outgoing payload channel
+	conf               *config.AgentConfig // receiver config
+	cidProvider        IDProvider          // container ID provider
+	statsd             statsd.ClientInterface
+	timing             timing.Reporter
+	grpcMaxRecvMsgSize int
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
@@ -99,7 +100,11 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 		enableReceiveResourceSpansV2Val = 0.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.enable_receive_resource_spans_v2", enableReceiveResourceSpansV2Val, nil, 1)
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo), statsd: statsd, timing: timing}
+	grpcMaxRecvMsgSize := 10 * 1024 * 1024
+	if cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib > 0 {
+		grpcMaxRecvMsgSize = cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib * 1024 * 1024
+	}
+	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo), statsd: statsd, timing: timing, grpcMaxRecvMsgSize: grpcMaxRecvMsgSize}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -111,7 +116,7 @@ func (o *OTLPReceiver) Start() {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {
 			o.grpcsrv = grpc.NewServer(
-				grpc.MaxRecvMsgSize(10*1024*1024),
+				grpc.MaxRecvMsgSize(o.grpcMaxRecvMsgSize),
 				grpc.MaxConcurrentStreams(1), // Each payload must be sent to processing stage before we decode the next.
 			)
 			ptraceotlp.RegisterGRPCServer(o.grpcsrv, o)
