@@ -115,6 +115,7 @@ func NewTraceWriter(
 		statsd:             statsd,
 		timing:             timing,
 		compressor:         compressor,
+		minConvertPayloads: cfg.MinConvertPayloads,
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
