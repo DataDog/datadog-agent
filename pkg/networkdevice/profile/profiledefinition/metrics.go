@@ -81,6 +81,8 @@ type SymbolConfig struct {
 	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"metric_type,omitempty"`
 }
 
+type SymbolConfig2 SymbolConfig
+
 // Clone creates a duplicate of this SymbolConfig
 func (s SymbolConfig) Clone() SymbolConfig {
 	// SymbolConfig has no mutable members, so simple assignment copies it.
