@@ -119,9 +119,9 @@ const (
 	unknownAgentImageVersion = "7.52.1-1"
 
 	// TODO: when 7.65 & the next version is out, use the latest prod images
-	previousAgentImageVersion     = "7.66.0-devel.git.522.81f06ad-1"
+	previousAgentImageVersion     = "7.66.0-devel.git.531.97720be.pipeline.62442783-1"
 	latestAgentImageVersion       = "7.66.0-devel.git.528.f463f5f.pipeline.62398262-1"
-	previousInstallerImageVersion = "7.66.0-devel.git.522.81f06ad-1"
+	previousInstallerImageVersion = "7.66.0-devel.git.531.97720be.pipeline.62442783-1"
 	latestInstallerImageVersion   = "7.66.0-devel.git.528.f463f5f.pipeline.62398262-1"
 )
 
