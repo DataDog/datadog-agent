@@ -17,7 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/image"
@@ -522,11 +521,11 @@ func extractHealth(containerLabels map[string]string, containerHealth *container
 	}
 
 	switch containerHealth.Status {
-	case types.NoHealthcheck, types.Starting:
+	case container.NoHealthcheck, container.Starting:
 		return workloadmeta.ContainerHealthUnknown
 	case container.Healthy:
 		return workloadmeta.ContainerHealthHealthy
-	case types.Unhealthy:
+	case container.Unhealthy:
 		return workloadmeta.ContainerHealthUnhealthy
 	}
 
