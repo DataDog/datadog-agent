@@ -6,6 +6,8 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-other:
+enhancements:
   - |
-    Update OpenSSL from 3.4.0 to 3.4.1.
+    Added an option for the Oracle integration to template the database instance identifier.
+  - |
+    The Oracle integration now supports the `empty_default_hostname` option to omit `host` from metrics
