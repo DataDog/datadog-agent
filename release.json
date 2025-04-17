@@ -24,7 +24,7 @@
         "OMNIBUS_RUBY_VERSION": "7.56.0-rc.1",
         "JMXFETCH_VERSION": "0.49.6",
         "JMXFETCH_HASH": "f06bdac1f8ec41daf9b9839ac883f1865a068b04810ea82197b8a6afb9369cb9",
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.65.0",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.66.0",
         "MACOS_BUILD_VERSION": "7.56.0-rc.3",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "2.7.1",
