@@ -8,9 +8,11 @@
 package safenvml
 
 import (
+	"errors"
 	"maps"
 	"testing"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -46,7 +48,7 @@ func TestPopulateCapabilities(t *testing.T) {
 				return symbols
 			},
 			expectInitErr:     true,
-			expectedLookupErr: NewErrSymbolNotFound(toNativeName("GetCount")),
+			expectedLookupErr: NewNvmlAPIErrorOrNil(toNativeName("GetCount"), nvml.ERROR_FUNCTION_NOT_FOUND),
 			testSymbol:        toNativeName("GetCount"),
 		},
 		{
@@ -61,7 +63,7 @@ func TestPopulateCapabilities(t *testing.T) {
 				return symbols
 			},
 			expectInitErr:     false,
-			expectedLookupErr: NewErrSymbolNotFound("nvmlSystemGetDriverVersion"),
+			expectedLookupErr: NewNvmlAPIErrorOrNil("nvmlSystemGetDriverVersion", nvml.ERROR_FUNCTION_NOT_FOUND),
 			testSymbol:        "nvmlSystemGetDriverVersion",
 		},
 	}
@@ -96,4 +98,55 @@ func TestPopulateCapabilities(t *testing.T) {
 			require.Equal(t, tc.expectedLookupErr, err)
 		})
 	}
+}
+
+// Tests for the NvmlAPIError type
+func TestNvmlAPIError(t *testing.T) {
+	// Define test cases with different error codes and API names
+	tests := []struct {
+		name      string
+		apiName   string
+		errorCode nvml.Return
+	}{
+		{
+			name:      "symbol not found error",
+			apiName:   "TestSymbol",
+			errorCode: nvml.ERROR_FUNCTION_NOT_FOUND,
+		},
+		{
+			name:      "not supported error",
+			apiName:   "TestAPI",
+			errorCode: nvml.ERROR_NOT_SUPPORTED,
+		},
+		{
+			name:      "other NVML error",
+			apiName:   "TestAPI",
+			errorCode: nvml.ERROR_UNKNOWN,
+		},
+		{
+			name:      "wrapped error",
+			apiName:   "TestSymbol",
+			errorCode: nvml.ERROR_FUNCTION_NOT_FOUND,
+		},
+	}
+
+	// Run subtests for each error type
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create the NvmlAPIError
+			err := NewNvmlAPIErrorOrNil(tc.apiName, tc.errorCode)
+			require.NotNil(t, err, "Expected non-nil error for non-SUCCESS error code")
+
+			var nvmlErr *NvmlAPIError
+			require.True(t, errors.As(err, &nvmlErr))
+			require.Equal(t, tc.apiName, nvmlErr.APIName)
+			require.Equal(t, tc.errorCode, nvmlErr.NvmlErrorCode)
+		})
+	}
+
+	// Special test for SUCCESS which should return nil
+	t.Run("SUCCESS returns nil", func(t *testing.T) {
+		err := NewNvmlAPIErrorOrNil("TestAPI", nvml.SUCCESS)
+		require.Nil(t, err)
+	})
 }

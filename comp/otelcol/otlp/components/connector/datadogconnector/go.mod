@@ -51,7 +51,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.64.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.64.1 // indirect
