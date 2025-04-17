@@ -14,15 +14,15 @@ import (
 	"os"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	sbompb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"google.golang.org/protobuf/proto"
 
 	model "github.com/DataDog/agent-payload/v5/sbom"
-
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // DumpDiscarders handles discarder dump requests
@@ -306,7 +306,7 @@ func (a *APIServer) collectSBOMS() {
 }
 
 // GetSBOMStream handles SBOM stream requests
-func (a *APIServer) GetSBOMStream(_ *api.SBOMStreamParams, stream api.SecurityModule_GetSBOMStreamServer) error {
+func (a *APIServer) GetSBOMStream(_ *sbompb.SBOMStreamParams, stream sbompb.SBOMCollector_GetSBOMStreamServer) error {
 	for {
 		select {
 		case <-stream.Context().Done():
@@ -314,13 +314,13 @@ func (a *APIServer) GetSBOMStream(_ *api.SBOMStreamParams, stream api.SecurityMo
 		case <-a.stopChan:
 			return nil
 		case sbom := <-a.sboms:
-			anyMsg, err := anypb.New(sbom)
+			bytes, err := proto.Marshal(sbom)
 			if err != nil {
 				seclog.Errorf("failed to convert SBOM: %s", err)
 			}
 
-			msg := &api.SBOMMessage{
-				Sbom: anyMsg,
+			msg := &sbompb.SBOMMessage{
+				Data: bytes,
 				Kind: string(workloadmeta.KindContainer),
 				ID:   sbom.Id,
 			}
