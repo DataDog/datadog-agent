@@ -18,6 +18,7 @@ require (
 	go.opentelemetry.io/collector/component v1.28.1
 	go.opentelemetry.io/collector/config/confignet v1.28.1 // indirect
 	go.opentelemetry.io/collector/confmap v1.28.1
+	go.opentelemetry.io/collector/confmap/xconfmap v0.122.1
 	go.opentelemetry.io/collector/consumer v1.28.1
 	go.opentelemetry.io/collector/exporter v0.122.1
 	go.opentelemetry.io/collector/extension v1.28.1 // indirect
@@ -110,7 +111,7 @@ require (
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
@@ -166,6 +167,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.122.0
 	go.opentelemetry.io/collector/component/componenttest v0.122.1
+	go.opentelemetry.io/collector/config/configopaque v1.28.1
 	go.opentelemetry.io/collector/exporter/exportertest v0.122.1
 )
 
@@ -203,7 +205,6 @@ require (
 	go.opentelemetry.io/collector/config/configauth v0.122.1 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.28.1 // indirect
 	go.opentelemetry.io/collector/config/confighttp v0.122.1 // indirect
-	go.opentelemetry.io/collector/config/configopaque v1.28.1 // indirect
 	go.opentelemetry.io/collector/config/configtls v1.28.1 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.122.1 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.122.1 // indirect
@@ -320,6 +321,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../../../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../../../../../pkg/tagset
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../../../pkg/telemetry
+	github.com/DataDog/datadog-agent/pkg/template => ../../../../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest => ../../../../../../pkg/trace/stats/oteltest
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../../../pkg/util/backoff
