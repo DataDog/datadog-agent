@@ -330,16 +330,17 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 	}()
 
 	// No tasks should equal no utilization
-
-	time.Sleep(500 * time.Millisecond)
-	require.InDelta(t, getWorkerUtilizationExpvar(t, "worker_2"), 0, 0)
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.InDelta(c, getWorkerUtilizationExpvar(c, "worker_2"), 0, 0)
+	}, 500*time.Millisecond, 100*time.Millisecond)
 
 	// High util checks should be reflected in expvars
 
 	pendingChecksChan <- blockingCheck
 
-	time.Sleep(2000 * time.Millisecond)
-	assert.InDelta(t, getWorkerUtilizationExpvar(t, "worker_2"), 1, 0.05)
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.InDelta(c, getWorkerUtilizationExpvar(c, "worker_2"), 1, 0.05)
+	}, 2*time.Second, 200*time.Millisecond)
 
 	blockingCheck.Unlock()
 
@@ -347,8 +348,9 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 
 	pendingChecksChan <- longRunningCheck
 
-	time.Sleep(2000 * time.Millisecond)
-	assert.InDelta(t, getWorkerUtilizationExpvar(t, "worker_2"), 1, 0.05)
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.InDelta(c, getWorkerUtilizationExpvar(c, "worker_2"), 1, 0.05)
+	}, 2*time.Second, 200*time.Millisecond)
 
 	longRunningCheck.Unlock()
 }
@@ -752,21 +754,21 @@ func TestWorker_HaIntegration(t *testing.T) {
 
 // getWorkerUtilizationExpvar returns the utilization as presented by expvars
 // for a named worker.
-func getWorkerUtilizationExpvar(t *testing.T, name string) float64 {
+func getWorkerUtilizationExpvar(c *assert.CollectT, name string) float64 {
 	runnerMapExpvar := expvar.Get("runner")
-	require.NotNil(t, runnerMapExpvar)
+	require.NotNil(c, runnerMapExpvar)
 
 	workersExpvar := runnerMapExpvar.(*expvar.Map).Get("Workers")
-	require.NotNil(t, workersExpvar)
+	require.NotNil(c, workersExpvar)
 
 	instancesExpvar := workersExpvar.(*expvar.Map).Get("Instances")
-	require.NotNil(t, instancesExpvar)
+	require.NotNil(c, instancesExpvar)
 
 	workerStatsExpvar := instancesExpvar.(*expvar.Map).Get(name)
-	require.NotNil(t, workerStatsExpvar)
+	require.NotNil(c, workerStatsExpvar)
 
 	workerStats := workerStatsExpvar.(*expvars.WorkerStats)
-	require.NotNil(t, workerStats)
+	require.NotNil(c, workerStats)
 
 	return workerStats.Utilization
 }

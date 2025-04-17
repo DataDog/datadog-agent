@@ -21,7 +21,7 @@ type otelAgentSpanReceiverV2TestSuite struct {
 }
 
 func TestOTelAgentSpanReceiverV2(t *testing.T) {
-	values := enableOTELAgentonfig(`
+	values := enableOTELAgentConfig(`
 datadog:
   logs:
     containerCollectAll: false
