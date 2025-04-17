@@ -601,6 +601,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallFromOldInstaller$"
       - EXTRA_PARAMS: --run "TestInstallScript$/TestFailedUnsupportedVersion$"
       - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
+      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUserOnDC$"
       # installer-package
       - EXTRA_PARAMS: --run "TestInstaller$"
       # TODO: disabling tests during MSI merge, should be covered by regular Agent MSI tests

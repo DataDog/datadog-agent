@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/stretchr/testify/assert"
@@ -85,12 +84,12 @@ func TestGetAgentV1ContainerURLs(t *testing.T) {
 	nets["bridge"] = &network.EndpointSettings{IPAddress: "172.17.0.2"}
 	nets["foo"] = &network.EndpointSettings{IPAddress: "172.17.0.3"}
 
-	co := types.ContainerJSON{
+	co := container.InspectResponse{
 		Config: &container.Config{
 			Hostname: "ip-172-29-167-5",
 		},
-		ContainerJSONBase: &types.ContainerJSONBase{},
-		NetworkSettings: &types.NetworkSettings{
+		ContainerJSONBase: &container.ContainerJSONBase{},
+		NetworkSettings: &container.NetworkSettings{
 			Networks: nets,
 		},
 	}
