@@ -32,10 +32,13 @@ type baseCheckSuite struct {
 }
 
 // a relative diff considered acceptable when comparing metrics
-const metricCompareFraction = 0.02
+// const metricCompareFraction = 0.02
 
 // an absolute diff considered acceptable when comparing metrics
-const metricCompareMargin = 0.001
+// const metricCompareMargin = 0.001
+
+// number of decimals when comparing metrics
+const metricCompareDecimals = 1
 
 func TestLinuxDiskSuite(t *testing.T) {
 	agentOptions := []agentparams.Option{}
@@ -79,7 +82,7 @@ instances:
 			``,
 		},
 	}
-
+	p := math.Pow(10, float64(metricCompareDecimals))
 	for _, testCase := range testCases {
 		v.Run(testCase.name, func() {
 			v.T().Log("run the disk check using old version")
@@ -90,7 +93,7 @@ instances:
 			// assert the check output
 			diff := gocmp.Diff(pythonMetrics, goMetrics,
 				gocmp.Transformer("roundTo1", func(f float64) float64 {
-					return math.Round(f*10) / 10
+					return math.Round(f*p) / p
 				}),
 				// gocmpopts.EquateApprox(metricCompareFraction, metricCompareMargin),
 				gocmpopts.SortSlices(cmp.Less[string]),     // sort tags
