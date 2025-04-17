@@ -1,7 +1,5 @@
 cloud.google.com/go/compute/metadata v0.6.0 h1:A6hENjEsCDtC1k8byVsgwvVcioamEHvZ4j01OwKxG9I=
 cloud.google.com/go/compute/metadata v0.6.0/go.mod h1:FjyFAW1MW0C203CEOMDTu3Dk1FlqW3Rga40jzHL4hfg=
-github.com/DataDog/datadog-agent/pkg/util/winutil v0.64.3 h1:pdAYGtZsIWA+n67w9brezcpJEuQkbMbZ+E18sky9S1s=
-github.com/DataDog/datadog-agent/pkg/util/winutil v0.64.3/go.mod h1:8WOFd3QYv2M2riipRvma6kDr09/OrjW/dNsvMvUT1To=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 h1:kHaBemcxl8o/pQ5VM1c8PVE1PubbNx3mjUr09OqWGCs=
