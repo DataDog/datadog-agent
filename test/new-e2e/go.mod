@@ -154,7 +154,7 @@ require (
 	github.com/moby/spdystream v0.5.0 // indirect
 	github.com/moby/term v0.5.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
@@ -396,6 +396,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../pkg/tagset
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../pkg/telemetry
+	github.com/DataDog/datadog-agent/pkg/template => ../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest => ../../pkg/trace/stats/oteltest
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../pkg/util/backoff

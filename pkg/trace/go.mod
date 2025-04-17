@@ -50,6 +50,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/template v0.0.0-00010101000000-000000000000
 	github.com/shirou/gopsutil/v4 v4.25.1
 	go.opentelemetry.io/collector/component/componenttest v0.122.1
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250224174004-546df14abb99
@@ -228,6 +229,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../pkg/tagset
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../pkg/telemetry
+	github.com/DataDog/datadog-agent/pkg/template => ../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest => ../../pkg/trace/stats/oteltest
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../pkg/util/buf

@@ -25,6 +25,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
@@ -198,6 +199,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../../../pkg/tagset
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
+	github.com/DataDog/datadog-agent/pkg/template => ../../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../../pkg/util/buf

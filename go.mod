@@ -333,7 +333,7 @@ require (
 	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/sys/signal v0.7.1 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/mostynb/go-grpc-compression v1.2.3 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
@@ -624,6 +624,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.64.1
 	github.com/DataDog/datadog-agent/pkg/tagset v0.64.1
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/template v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/common v0.63.2
@@ -660,6 +661,7 @@ require (
 	github.com/glaslos/ssdeep v0.4.0
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
 	github.com/godror/godror v0.37.0
+	github.com/gorilla/handlers v1.5.2
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/judwhite/go-svc v1.2.1
@@ -1116,6 +1118,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ./pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ./pkg/tagset
 	github.com/DataDog/datadog-agent/pkg/telemetry => ./pkg/telemetry
+	github.com/DataDog/datadog-agent/pkg/template => ./pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
 	github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest => ./pkg/trace/stats/oteltest
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ./pkg/util/backoff
