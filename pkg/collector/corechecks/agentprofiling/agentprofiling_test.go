@@ -9,6 +9,7 @@
 package agentprofiling
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,36 +21,68 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )
 
-func createTestCheck(t *testing.T) *Check {
+// testConfig represents a test configuration for the agentprofiling check
+type testConfig struct {
+	memoryThreshold string
+	cpuThreshold    int
+	ticketID        string
+	userEmail       string
+}
+
+// defaultTestConfig returns a default test configuration
+func defaultTestConfig() testConfig {
+	return testConfig{
+		memoryThreshold: "0",
+		cpuThreshold:    0,
+		ticketID:        "",
+		userEmail:       "",
+	}
+}
+
+// createTestCheck creates a new check instance with the given configuration
+func createTestCheck(t *testing.T, cfg testConfig) *Check {
 	flare := flaremock.NewMock().Comp
-	cfg := configmock.NewMock(t)
-	return newCheck(flare, cfg).(*Check)
+	config := configmock.NewMock(t)
+	check := newCheck(flare, config).(*Check)
+
+	// Configure the check with the test configuration
+	configData := []byte(fmt.Sprintf(`memory_threshold: "%s"
+cpu_threshold: %d
+ticket_id: "%s"
+user_email: "%s"`, cfg.memoryThreshold, cfg.cpuThreshold, cfg.ticketID, cfg.userEmail))
+
+	initConfig := []byte("")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := check.Configure(senderManager, integration.FakeConfigHash, configData, initConfig, "test")
+	require.NoError(t, err)
+
+	return check
 }
 
 // TestConfigParse tests that the configuration is parsed correctly
 func TestConfigParse(t *testing.T) {
-	check := createTestCheck(t)
-	config := []byte(`
-memory_threshold: "10MB"
-cpu_threshold: 30
-ticket_id: "12345678"
-user_email: "test@datadoghq.com"
-`)
-	initConfig := []byte("")
-	senderManager := mocksender.CreateDefaultDemultiplexer()
-	err := check.Configure(senderManager, integration.FakeConfigHash, config, initConfig, "test")
-	require.NoError(t, err)
-	assert.Equal(t, "10MB", check.instance.MemoryThreshold)
-	assert.Equal(t, 30, check.instance.CPUThreshold)
-	assert.Equal(t, "12345678", check.instance.TicketID)
-	assert.Equal(t, "test@datadoghq.com", check.instance.UserEmail)
+	cfg := testConfig{
+		memoryThreshold: "10MB",
+		cpuThreshold:    30,
+		ticketID:        "12345678",
+		userEmail:       "test@datadoghq.com",
+	}
+
+	check := createTestCheck(t, cfg)
+
+	assert.Equal(t, cfg.memoryThreshold, check.instance.MemoryThreshold)
+	assert.Equal(t, cfg.cpuThreshold, check.instance.CPUThreshold)
+	assert.Equal(t, cfg.ticketID, check.instance.TicketID)
+	assert.Equal(t, cfg.userEmail, check.instance.UserEmail)
+
+	// Verify that memory threshold is properly parsed into bytes
+	expectedBytes := uint(10 * 1024 * 1024) // 10MB in bytes
+	assert.Equal(t, expectedBytes, check.memoryThreshold)
 }
 
 // TestZeroThresholds tests that the flare is not generated when thresholds are set to zero
 func TestZeroThresholds(t *testing.T) {
-	check := createTestCheck(t)
-	check.instance.MemoryThreshold = "0"
-	check.instance.CPUThreshold = 0
+	check := createTestCheck(t, defaultTestConfig())
 
 	err := check.Run()
 	require.NoError(t, err)
@@ -58,69 +91,51 @@ func TestZeroThresholds(t *testing.T) {
 
 // TestMemThreshold tests that the flare is generated when memory threshold is exceeded
 func TestMemThreshold(t *testing.T) {
-	check := createTestCheck(t)
-	check.instance.MemoryThreshold = "1B" // 1 byte to force trigger
+	cfg := defaultTestConfig()
+	cfg.memoryThreshold = "1B" // 1 byte to force trigger
 
-	config := []byte(`
-memory_threshold: "1B"
-`)
-	initConfig := []byte("")
-	senderManager := mocksender.CreateDefaultDemultiplexer()
-	err := check.Configure(senderManager, integration.FakeConfigHash, config, initConfig, "test")
-	require.NoError(t, err)
+	check := createTestCheck(t, cfg)
 
-	check.memoryThreshold = 1 // Set to 1 byte
+	// Verify memory threshold is properly parsed
+	assert.Equal(t, uint(1), check.memoryThreshold)
 
-	err = check.Run()
+	err := check.Run()
 	require.NoError(t, err)
 	assert.True(t, check.profileCaptured)
 }
 
 // TestCPUThreshold tests that the flare is generated when CPU threshold is exceeded
 func TestCPUThreshold(t *testing.T) {
-	check := createTestCheck(t)
-	check.instance.CPUThreshold = 1 // 1 percent to force trigger
+	cfg := defaultTestConfig()
+	cfg.cpuThreshold = 1 // 1 percent to force trigger
 
-	config := []byte(`
-cpu_threshold: 1
-`)
-	initConfig := []byte("")
-	senderManager := mocksender.CreateDefaultDemultiplexer()
-	err := check.Configure(senderManager, integration.FakeConfigHash, config, initConfig, "test")
-	require.NoError(t, err)
+	check := createTestCheck(t, cfg)
 
-	err = check.Run()
+	err := check.Run()
 	require.NoError(t, err)
 	assert.True(t, check.profileCaptured)
 }
 
 // TestBelowThresholds tests that the flare is not generated when both memory and CPU usage are below thresholds
 func TestBelowThresholds(t *testing.T) {
-	check := createTestCheck(t)
-	check.instance.MemoryThreshold = "1000GB" // Very high memory threshold
-	check.instance.CPUThreshold = 1000        // 1000% CPU threshold
+	cfg := defaultTestConfig()
+	cfg.memoryThreshold = "1000GB" // Very high memory threshold
+	cfg.cpuThreshold = 1000        // 1000% CPU threshold
 
-	config := []byte(`
-memory_threshold: "1000GB"
-cpu_threshold: 1000
-`)
-	initConfig := []byte("")
-	senderManager := mocksender.CreateDefaultDemultiplexer()
-	err := check.Configure(senderManager, integration.FakeConfigHash, config, initConfig, "test")
-	require.NoError(t, err)
+	check := createTestCheck(t, cfg)
 
-	check.memoryThreshold = 1000 * 1024 * 1024 * 1024 // Set to 1000GB in bytes
+	// Verify memory threshold is properly parsed
+	expectedBytes := uint(1000 * 1024 * 1024 * 1024) // 1000GB in bytes
+	assert.Equal(t, expectedBytes, check.memoryThreshold)
 
-	err = check.Run()
+	err := check.Run()
 	require.NoError(t, err)
 	assert.False(t, check.profileCaptured)
 }
 
 // TestGenerateFlareLocal tests that the flare is generated correctly when ticket ID and user email are not provided
 func TestGenerateFlareLocal(t *testing.T) {
-	check := createTestCheck(t)
-	check.instance.TicketID = ""
-	check.instance.UserEmail = ""
+	check := createTestCheck(t, defaultTestConfig())
 
 	err := check.generateFlare()
 	require.NoError(t, err)
@@ -129,9 +144,11 @@ func TestGenerateFlareLocal(t *testing.T) {
 
 // TestGenerateFlareZendesk tests that the flare is generated correctly when ticket ID and user email are provided
 func TestGenerateFlareZendesk(t *testing.T) {
-	check := createTestCheck(t)
-	check.instance.TicketID = "12345678"
-	check.instance.UserEmail = "user@example.com"
+	cfg := defaultTestConfig()
+	cfg.ticketID = "12345678"
+	cfg.userEmail = "user@example.com"
+
+	check := createTestCheck(t, cfg)
 
 	err := check.generateFlare()
 	require.NoError(t, err)

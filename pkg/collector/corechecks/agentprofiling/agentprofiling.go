@@ -28,6 +28,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/size"
 )
 
 // CheckName is the name of the agentprofiling check
@@ -95,8 +96,8 @@ func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return err
 	}
 
-	// Parse the memory threshold into bytes
-	m.memoryThreshold = m.agentConfig.GetSizeInBytes("memory_threshold")
+	// Parse memory threshold
+	m.memoryThreshold = size.ParseSizeInBytes(m.instance.MemoryThreshold)
 	return nil
 }
 
