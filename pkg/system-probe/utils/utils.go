@@ -49,6 +49,8 @@ func GetPrettyPrintFromQueryParams(req *http.Request) FormatOptions {
 func WriteAsJSON(w http.ResponseWriter, data interface{}, outputOptions FormatOptions) {
 	var buf []byte
 	var err error
+	// Keeping the condition explicit for readability
+	//nolint:gosimple
 	if outputOptions == PrettyPrint {
 		buf, err = json.MarshalIndent(data, "", "  ")
 	} else {
