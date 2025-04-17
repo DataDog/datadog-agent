@@ -216,7 +216,6 @@ func (m *MatchingValue) getPosWithinRuleExpr(expr string, offset int) MatchingVa
 			return pos
 		}
 
-
 		if idx := strings.Index(expr[offset:], str); idx >= 0 {
 			pos.Offset = idx + offset
 			pos.Length = len(str)
