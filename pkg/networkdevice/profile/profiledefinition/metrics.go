@@ -6,6 +6,7 @@
 package profiledefinition
 
 import (
+	"fmt"
 	"maps"
 	"regexp"
 	"slices"
@@ -40,6 +41,8 @@ const (
 	// `percent` is deprecated in favour of `scale_factor`
 	ProfileMetricTypePercent ProfileMetricType = "percent"
 )
+
+var LegacySymbolTypeError = fmt.Errorf("legacy symbol type 'string' is not supported")
 
 // SymbolConfigCompat is used to deserialize string field or SymbolConfig.
 // For OID/Name to Symbol harmonization:

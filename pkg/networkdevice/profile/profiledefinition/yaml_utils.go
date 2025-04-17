@@ -62,3 +62,31 @@ func (mtcl *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error
 	*mtcl = multi
 	return nil
 }
+
+// UnmarshalYAML unmarshalls MetricsConfig
+func (mc *MetricsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type metricsConfig MetricsConfig
+
+	var rawMap map[string]interface{}
+	err := unmarshal(&rawMap)
+	if err != nil {
+		return unmarshal((*metricsConfig)(mc))
+	}
+
+	mib, exists := rawMap["MIB"]
+	if !exists || mib == "" {
+		return unmarshal((*metricsConfig)(mc))
+	}
+
+	symbol, exists := rawMap["symbol"]
+	if !exists {
+		return unmarshal((*metricsConfig)(mc))
+	}
+
+	_, isString := symbol.(string)
+	if isString {
+		return LegacySymbolTypeError
+	}
+
+	return unmarshal((*metricsConfig)(mc))
+}

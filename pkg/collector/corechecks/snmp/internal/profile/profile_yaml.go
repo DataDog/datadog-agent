@@ -6,6 +6,7 @@
 package profile
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -41,13 +42,17 @@ func loadYamlProfiles() (ProfileConfigMap, bool, error) {
 	}
 	log.Debugf("build yaml profiles")
 
-	profiles, haveLegacyProfile := resolveProfiles(getYamlUserProfiles(), getYamlDefaultProfiles())
+	userProfiles, haveLegacyUserProfile := getYamlUserProfiles()
+	defaultProfiles, haveLegacyDefaultProfile := getYamlDefaultProfiles()
+	profiles, haveLegacyResolvedProfile := resolveProfiles(userProfiles, defaultProfiles)
 
 	SetGlobalProfileConfigMap(profiles)
+
+	haveLegacyProfile := haveLegacyUserProfile || haveLegacyDefaultProfile || haveLegacyResolvedProfile
 	return profiles, haveLegacyProfile, nil
 }
 
-func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileConfigMap, error) {
+func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileConfigMap, bool, error) {
 	profilesRoot := getProfileConfdRoot(profilesFolder)
 	if isUserProfile {
 		log.Debugf("Reading user profiles from %s", profilesRoot)
@@ -56,10 +61,11 @@ func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileCo
 	}
 	files, err := os.ReadDir(profilesRoot)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read profile dir %q: %w", profilesRoot, err)
+		return nil, false, fmt.Errorf("failed to read profile dir %q: %w", profilesRoot, err)
 	}
 
 	profiles := make(ProfileConfigMap)
+	haveLegacyProfile := false
 	for _, f := range files {
 
 		fName := f.Name()
@@ -70,7 +76,8 @@ func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileCo
 		profileName := fName[:len(fName)-len(".yaml")]
 
 		absPath := filepath.Join(profilesRoot, fName)
-		definition, err := readProfileDefinition(absPath)
+		definition, isLegacyProfile, err := readProfileDefinition(absPath)
+		haveLegacyProfile = isLegacyProfile || haveLegacyProfile
 		if err != nil {
 			log.Warnf("cannot load profile %q: %v", profileName, err)
 			continue
@@ -83,22 +90,23 @@ func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileCo
 			IsUserProfile: isUserProfile,
 		}
 	}
-	return profiles, nil
+	return profiles, haveLegacyProfile, nil
 }
 
-func readProfileDefinition(definitionFile string) (*profiledefinition.ProfileDefinition, error) {
+func readProfileDefinition(definitionFile string) (*profiledefinition.ProfileDefinition, bool, error) {
 	filePath := resolveProfileDefinitionPath(definitionFile)
 	buf, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read file %q: %w", filePath, err)
+		return nil, false, fmt.Errorf("unable to read file %q: %w", filePath, err)
 	}
 
 	profileDefinition := profiledefinition.NewProfileDefinition()
 	err = yaml.Unmarshal(buf, profileDefinition)
 	if err != nil {
-		return nil, fmt.Errorf("parse error in file %q: %w", filePath, err)
+		isLegacyProfile := errors.Is(err, profiledefinition.LegacySymbolTypeError)
+		return nil, isLegacyProfile, fmt.Errorf("parse error in file %q: %w", filePath, err)
 	}
-	return profileDefinition, nil
+	return profileDefinition, false, nil
 }
 
 func resolveProfileDefinitionPath(definitionFile string) string {
@@ -117,20 +125,20 @@ func getProfileConfdRoot(profileFolderName string) string {
 	return filepath.Join(confdPath, "snmp.d", profileFolderName)
 }
 
-func getYamlUserProfiles() ProfileConfigMap {
-	userProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+func getYamlUserProfiles() (ProfileConfigMap, bool) {
+	userProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	if err != nil {
 		log.Warnf("failed to load user profile definitions: %s", err)
-		return ProfileConfigMap{}
+		return ProfileConfigMap{}, haveLegacyProfile
 	}
-	return userProfiles
+	return userProfiles, haveLegacyProfile
 }
 
-func getYamlDefaultProfiles() ProfileConfigMap {
-	userProfiles, err := getProfileDefinitions(defaultProfilesFolder, false)
+func getYamlDefaultProfiles() (ProfileConfigMap, bool) {
+	userProfiles, haveLegacyProfile, err := getProfileDefinitions(defaultProfilesFolder, false)
 	if err != nil {
 		log.Warnf("failed to load default profile definitions: %s", err)
-		return ProfileConfigMap{}
+		return ProfileConfigMap{}, haveLegacyProfile
 	}
-	return userProfiles
+	return userProfiles, haveLegacyProfile
 }

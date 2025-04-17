@@ -9,10 +9,12 @@ import "github.com/DataDog/datadog-agent/pkg/util/log"
 
 func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConfigMap, bool, error) {
 	initConfigProfiles := make(ProfileConfigMap, len(rawInitConfigProfiles))
+	haveLegacyProfile := false
 
 	for name, profConfig := range rawInitConfigProfiles {
 		if profConfig.DefinitionFile != "" {
-			profDefinition, err := readProfileDefinition(profConfig.DefinitionFile)
+			profDefinition, haveLegacyInitConfigProfile, err := readProfileDefinition(profConfig.DefinitionFile)
+			haveLegacyProfile = haveLegacyInitConfigProfile || haveLegacyProfile
 			if err != nil {
 				log.Warnf("unable to load profile %q: %s", name, err)
 				continue
@@ -25,8 +27,11 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 		initConfigProfiles[name] = profConfig
 	}
 
-	userProfiles := mergeProfiles(getYamlUserProfiles(), initConfigProfiles)
-	resolvedProfiles, haveLegacyProfile := resolveProfiles(userProfiles, getYamlDefaultProfiles())
+	userProfiles, haveLegacyUserProfile := getYamlUserProfiles()
+	userProfiles = mergeProfiles(userProfiles, initConfigProfiles)
+
+	defaultProfiles, haveLegacyDefaultProfile := getYamlDefaultProfiles()
+	resolvedProfiles, haveLegacyResolvedProfile := resolveProfiles(userProfiles, defaultProfiles)
 
 	// When user profiles are from initConfigProfiles
 	// only profiles listed in initConfigProfiles are returned
@@ -37,5 +42,7 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 		}
 		filteredResolvedProfiles[key] = val
 	}
+
+	haveLegacyProfile = haveLegacyUserProfile || haveLegacyDefaultProfile || haveLegacyResolvedProfile || haveLegacyProfile
 	return filteredResolvedProfiles, haveLegacyProfile, nil
 }
