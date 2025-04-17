@@ -14,10 +14,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -82,7 +82,7 @@ type provider struct {
 // NewProvider returns a new Provider
 func NewProvider(
 	numberOfPipelines int,
-	auditor auditor.Auditor,
+	auditor auditor.Component,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	processingRules []*config.ProcessingRule,
 	endpoints *config.Endpoints,
@@ -131,7 +131,7 @@ func NewMockProvider() Provider {
 func tcpSender(
 	numberOfPipelines int,
 	cfg pkgconfigmodel.Reader,
-	auditor auditor.Auditor,
+	auditor auditor.Component,
 	endpoints *config.Endpoints,
 	destinationsContext *client.DestinationsContext,
 	status statusinterface.Status,
@@ -169,7 +169,7 @@ func tcpSender(
 func httpSender(
 	numberOfPipelines int,
 	cfg pkgconfigmodel.Reader,
-	auditor auditor.Auditor,
+	auditor auditor.Component,
 	endpoints *config.Endpoints,
 	destinationsContext *client.DestinationsContext,
 	senderDoneChan chan *sync.WaitGroup,
