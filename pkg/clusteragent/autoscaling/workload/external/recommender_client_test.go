@@ -303,33 +303,6 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 			expectedError: "only http and https schemes are supported",
 		},
 		{
-			name: "no objectives",
-			dpa: model.FakePodAutoscalerInternal{
-				Namespace: "default",
-				Name:      "test-dpa",
-				Spec: &datadoghq.DatadogPodAutoscalerSpec{
-					TargetRef: autoscalingv2.CrossVersionObjectReference{
-						Kind:       "Deployment",
-						Name:       "test-deployment",
-						APIVersion: "apps/v1",
-					},
-					Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{},
-					Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
-						MinReplicas: pointer.Ptr[int32](2),
-						MaxReplicas: 4,
-					},
-				},
-				CurrentReplicas: pointer.Ptr[int32](3),
-				CustomRecommenderConfiguration: &model.RecommenderConfiguration{
-					Endpoint: "",
-					Settings: map[string]interface{}{
-						"custom_setting": "value",
-					},
-				},
-			},
-			expectedError: "error building workload recommendation request: no objectives found",
-		},
-		{
 			name: "http call returns unexpected response code",
 			dpa: model.FakePodAutoscalerInternal{
 				Namespace: "default",

@@ -117,9 +117,6 @@ func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, cluste
 func (r *recommenderClient) buildWorkloadRecommendationRequest(clusterName string, dpa model.PodAutoscalerInternal, recommenderConfig *model.RecommenderConfiguration) (*kubeAutoscaling.WorkloadRecommendationRequest, error) {
 	log.Debugf("Building workload recommendation request for pod autoscaler %s", dpa.ID())
 	objectives := dpa.Spec().Objectives
-	if len(objectives) == 0 {
-		return nil, fmt.Errorf("no objectives found")
-	}
 
 	// Loop through all objectives and build a target for each one
 	targets := []*kubeAutoscaling.WorkloadRecommendationTarget{}
