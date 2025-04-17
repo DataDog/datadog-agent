@@ -47,6 +47,7 @@ const (
 	MetadataSymbol
 )
 
+// IsLegacyMetrics returns true if one or more metrics config is written in the legacy Python syntax
 func IsLegacyMetrics(metrics []MetricsConfig) bool {
 	for i := range metrics {
 		if metrics[i].IsLegacy() {
