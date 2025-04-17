@@ -235,7 +235,6 @@ func (s *streamHandler) populateMissingContainerID(collectorEvents []workloadmet
 			processEntity.ContainerID = ctrIDFromProvider
 		}
 
-		event.Entity = processEntity
 		collectorEvents[idx] = event
 	}
 }
