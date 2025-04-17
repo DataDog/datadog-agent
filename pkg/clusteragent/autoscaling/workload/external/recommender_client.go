@@ -136,17 +136,9 @@ func (r *recommenderClient) buildWorkloadRecommendationRequest(clusterName strin
 			}
 		}
 
-		upperBound, lowerBound := float64(0), float64(0)
-		if utilization > 0 {
-			upperBound = float64((utilization + watermarkTolerance)) / 100.0
-			lowerBound = float64((utilization - watermarkTolerance)) / 100.0
-		}
-
 		targets = append(targets, &kubeAutoscaling.WorkloadRecommendationTarget{
 			Type:        targetType,
-			TargetValue: 0.,
-			UpperBound:  upperBound,
-			LowerBound:  lowerBound,
+			TargetValue: float64(utilization) / 100.0, // convert percentage to decimal
 		})
 	}
 

@@ -89,9 +89,7 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 				Targets: []*kubeAutoscaling.WorkloadRecommendationTarget{
 					{
 						Type:        "cpu",
-						TargetValue: 0,
-						LowerBound:  0.75, // 80 - 5
-						UpperBound:  0.85, // 80 + 5
+						TargetValue: 0.80,
 					},
 				},
 				Constraints: &kubeAutoscaling.WorkloadRecommendationConstraints{
@@ -138,9 +136,7 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 				Targets: []*kubeAutoscaling.WorkloadRecommendationTarget{
 					{
 						Type:        "memory",
-						TargetValue: 0,
-						LowerBound:  0.70, // 75 - 5
-						UpperBound:  0.80, // 75 + 5
+						TargetValue: 0.75,
 					},
 				},
 			},
@@ -189,15 +185,11 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 				Targets: []*kubeAutoscaling.WorkloadRecommendationTarget{
 					{
 						Type:        "cpu",
-						TargetValue: 0,
-						LowerBound:  0.75, // 80 - 5
-						UpperBound:  0.85, // 80 + 5
+						TargetValue: 0.80,
 					},
 					{
 						Type:        "memory",
-						TargetValue: 0,
-						LowerBound:  0.70, // 75 - 5
-						UpperBound:  0.80, // 75 + 5
+						TargetValue: 0.75,
 					},
 				},
 			},
