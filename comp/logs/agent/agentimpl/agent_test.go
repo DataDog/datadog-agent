@@ -32,6 +32,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
@@ -69,6 +71,7 @@ type testDeps struct {
 	Config         configComponent.Component
 	Log            log.Component
 	InventoryAgent inventoryagent.Component
+	Auditor        auditor.Component
 }
 
 func (suite *AgentTestSuite) SetupTest() {
@@ -125,6 +128,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		hostnameimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
+		auditorMock.AuditorMockModule(),
 	))
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
@@ -135,6 +139,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		inventoryAgent:   deps.InventoryAgent,
 		started:          atomic.NewUint32(0),
 		integrationsLogs: integrationsimpl.NewLogsIntegration(),
+		auditor:          deps.Auditor,
 
 		sources:     sources,
 		services:    services,
@@ -414,6 +419,7 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		fx.Provide(func() tagger.Component {
 			return suite.tagger
 		}),
+		auditorMock.AuditorMockModule(),
 	))
 }
 

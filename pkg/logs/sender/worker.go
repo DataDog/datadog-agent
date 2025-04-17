@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -32,7 +32,7 @@ var (
 // the auditor or block the pipeline if they fail. There will always be at
 // least 1 reliable destination (the main destination).
 type worker struct {
-	auditor        auditor.Auditor
+	auditor        auditor.Component
 	config         pkgconfigmodel.Reader
 	inputChan      chan *message.Payload
 	outputChan     chan *message.Payload
@@ -77,7 +77,7 @@ func newWorkerLegacy(
 func newWorker(
 	config pkgconfigmodel.Reader,
 	inputChan chan *message.Payload,
-	auditor auditor.Auditor,
+	auditor auditor.Component,
 	destinations *client.Destinations,
 	bufferSize int,
 	senderDoneChan chan *sync.WaitGroup,
