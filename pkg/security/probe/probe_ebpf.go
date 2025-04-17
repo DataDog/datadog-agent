@@ -915,7 +915,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	eventType := event.GetEventType()
 	if eventType > model.MaxKernelEventType {
-		p.monitors.eventStreamMonitor.CountInvalidEvent(eventstream.EventStreamMap, eventstream.InvalidType, dataLen)
+		p.monitors.eventStreamMonitor.CountInvalidEvent(dataLen)
 		seclog.Errorf("unsupported event type %d", eventType)
 		return
 	}
