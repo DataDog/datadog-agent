@@ -27,6 +27,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	sbomapi "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -127,6 +128,7 @@ func mergeJSON(j1, j2 []byte) ([]byte, error) {
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
 	api.UnimplementedSecurityModuleServer
+	sbomapi.UnimplementedSBOMCollectorServer
 	msgs               chan *api.SecurityEventMessage
 	activityDumps      chan *api.ActivityDumpStreamMessage
 	sboms              chan *sbomModel.SBOMEntity
