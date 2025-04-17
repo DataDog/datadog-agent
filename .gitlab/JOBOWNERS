@@ -1,12 +1,12 @@
-*                                    @DataDog/agent-devx-infra
+*                                    @DataDog/agent-devx
 
 # CI / DevX
-test_gitlab*                         @DataDog/agent-devx-infra
-invoke_unit_tests                    @DataDog/agent-devx-infra
-skip-ci-check                        @DataDog/agent-devx-infra
-slack_teams_channels_check           @DataDog/agent-devx-infra
-lint*                                @DataDog/agent-devx-infra
-notify*                              @DataDog/agent-devx-infra
+test_gitlab*                         @DataDog/agent-devx
+invoke_unit_tests                    @DataDog/agent-devx
+skip-ci-check                        @DataDog/agent-devx
+slack_teams_channels_check           @DataDog/agent-devx
+lint*                                @DataDog/agent-devx
+notify*                              @DataDog/agent-devx
 
 # Deps build
 build_clang_*                        @DataDog/ebpf-platform
@@ -97,10 +97,10 @@ cws_instrumentation_dev_branch*        @DataDog/agent-security
 dev_branch*                            @Datadog/agent-delivery
 dev_master*                            @Datadog/agent-delivery
 dev_nightly*                           @Datadog/agent-delivery
-qa_agent*                              @DataDog/agent-devx-loops
-qa_cws_instrumentation*                @DataDog/agent-devx-loops
-qa_dca*                                @DataDog/agent-devx-loops
-qa_dogstatsd*                          @DataDog/agent-devx-loops
+qa_agent*                              @DataDog/agent-devx
+qa_cws_instrumentation*                @DataDog/agent-devx
+qa_dca*                                @DataDog/agent-devx
+qa_dogstatsd*                          @DataDog/agent-devx
 
 # Internal image deploy
 docker_trigger_internal*                     @Datadog/agent-delivery
@@ -151,7 +151,7 @@ k8s-e2e-otlp-*                    @DataDog/opentelemetry
 k8s-e2e-cspm-*                    @DataDog/agent-security
 
 # New E2E
-e2e_pre_test*                     @DataDog/agent-devx-loops
+e2e_pre_test*                     @DataDog/agent-devx
 new-e2e*                          @DataDog/multiple
 
 

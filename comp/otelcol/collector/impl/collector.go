@@ -148,7 +148,7 @@ var buildInfo = component.BuildInfo{
 // NewComponent returns a new instance of the collector component with full Agent functionalities.
 func NewComponent(reqs Requires) (Provides, error) {
 	if !reqs.Config.GetBool("otelcollector.enabled") {
-		reqs.Log.Info("OpenTelemetry Collector is not enabled, exiting application")
+		reqs.Log.Info("*** OpenTelemetry Collector is not enabled, exiting application ***. Set the config option `otelcollector.enabled` or the environment variable `DD_OTELCOLLECTOR_ENABLED` at true to enable it.")
 		// Required to signal that the whole app must stop.
 		_ = reqs.Shutdowner.Shutdown()
 		return Provides{}, nil

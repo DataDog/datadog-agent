@@ -5,7 +5,8 @@
 
 //go:build !windows
 
-package datadogagent
+// Package integrations contains packaging logic for python integrations
+package integrations
 
 import (
 	"context"
@@ -18,13 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
-// saveCustomIntegrations saves custom integrations from the previous installation
+// SaveCustomIntegrations saves custom integrations from the previous installation
 // Today it calls pre.py to persist the custom integrations; though we should probably
 // port this to Go in the future.
 //
 // Note: in the OCI installation this fails as the file where integrations are saved
 // is hardcoded to be in the same directory as the agent. This will be fixed in a future PR.
-func saveCustomIntegrations(ctx context.Context, installPath string) (err error) {
+func SaveCustomIntegrations(ctx context.Context, installPath string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "save_custom_integrations")
 	defer func() {
 		span.Finish(err)
@@ -41,13 +42,13 @@ func saveCustomIntegrations(ctx context.Context, installPath string) (err error)
 	return nil
 }
 
-// restoreCustomIntegrations restores custom integrations from the previous installation
+// RestoreCustomIntegrations restores custom integrations from the previous installation
 // Today it calls post.py to persist the custom integrations; though we should probably
 // port this to Go in the future.
 //
 // Note: in the OCI installation this fails as the file where integrations are saved
 // is hardcoded to be in the same directory as the agent. This will be fixed in a future PR.
-func restoreCustomIntegrations(ctx context.Context, installPath string) (err error) {
+func RestoreCustomIntegrations(ctx context.Context, installPath string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "restore_custom_integrations")
 	defer func() {
 		span.Finish(err)
@@ -64,12 +65,12 @@ func restoreCustomIntegrations(ctx context.Context, installPath string) (err err
 	return nil
 }
 
-// removeCustomIntegrations removes custom integrations that are not installed by the package
+// RemoveCustomIntegrations removes custom integrations that are not installed by the package
 //
 // Since 6.18.0, a file containing all integrations files which have been installed by
 // the package is available. We use it to remove only the datadog-related check files which
 // have *NOT* been installed by the package (eg: installed using the `integration` command).
-func removeCustomIntegrations(ctx context.Context, installPath string) (err error) {
+func RemoveCustomIntegrations(ctx context.Context, installPath string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "remove_custom_integrations")
 	defer func() { span.Finish(err) }()
 
@@ -113,4 +114,67 @@ func removeCustomIntegrations(ctx context.Context, installPath string) (err erro
 	}
 
 	return nil
+}
+
+// RemoveCompiledFiles removes compiled Python files (.pyc, .pyo) and __pycache__ directories
+func RemoveCompiledFiles(installPath string) {
+	// Remove files in in "{installPath}/embedded/.py_compiled_files.txt"
+	if _, err := os.Stat(filepath.Join(installPath, "embedded/.py_compiled_files.txt")); err == nil {
+		compiledFiles, err := os.ReadFile(filepath.Join(installPath, "embedded/.py_compiled_files.txt"))
+		if err != nil {
+			fmt.Printf("failed to read compiled files list: %s\n", err.Error())
+		} else {
+			for _, file := range strings.Split(string(compiledFiles), "\n") {
+				if strings.HasPrefix(file, installPath) {
+					if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
+						fmt.Printf("failed to remove compiled file %s: %s\n", file, err.Error())
+					}
+				}
+			}
+		}
+	}
+	// Remove files in {installPath}/bin/agent/dist
+	err := filepath.Walk(filepath.Join(installPath, "bin", "agent", "dist"), func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if info.IsDir() && info.Name() == "__pycache__" {
+			if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+		} else if strings.HasSuffix(info.Name(), ".pyc") || strings.HasSuffix(info.Name(), ".pyo") {
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		fmt.Printf("failed to remove compiled files: %s\n", err.Error())
+	}
+	// Remove files in {installPath}/python-scripts
+	err = filepath.Walk(filepath.Join(installPath, "python-scripts"), func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if info.IsDir() && info.Name() == "__pycache__" {
+			if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+		} else if strings.HasSuffix(info.Name(), ".pyc") || strings.HasSuffix(info.Name(), ".pyo") {
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		fmt.Printf("failed to remove compiled files: %s\n", err.Error())
+	}
 }

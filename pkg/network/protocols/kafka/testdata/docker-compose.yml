@@ -1,4 +1,6 @@
-version: '3'
+# Kafka instances for testing
+# Two Kafka instances are needed: an updated one and an old one,
+# the old one is used to test very old versions of Kafka protocols, which Kafka v4 dropped support for
 name: kafka
 services:
   zookeeper:
@@ -9,16 +11,16 @@ services:
       - ALLOW_ANONYMOUS_LOGIN=yes
     tmpfs:
       - /bitnami/zookeeper/data
-  kafka:
+  kafka-old:
     image: bitnami/kafka:3.9
     ports:
-      - "${KAFKA_PORT:-9092}:9092"
-      - "${KAFKA_TLS_PORT:-9093}:9093"
+      - "9082:9082"
+      - "9083:9083"
     environment:
       - KAFKA_ENABLE_KRAFT=false
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CLIENT:PLAINTEXT,SSL:SSL
-      - KAFKA_CFG_LISTENERS=CLIENT://:9092,SSL://:9093
-      - KAFKA_CFG_ADVERTISED_LISTENERS=CLIENT://${KAFKA_ADDR:-127.0.0.1}:${KAFKA_PORT:-9092},SSL://${KAFKA_ADDR:-127.0.0.1}:${KAFKA_TLS_PORT:-9093}
+      - KAFKA_CFG_LISTENERS=CLIENT://:9082,SSL://:9083
+      - KAFKA_CFG_ADVERTISED_LISTENERS=CLIENT://${KAFKA_ADDR:-127.0.0.1}:9082,SSL://${KAFKA_ADDR:-127.0.0.1}:9083
       - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=CLIENT
       - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
       - ALLOW_PLAINTEXT_LISTENER=yes
@@ -33,5 +35,37 @@ services:
       - './kafka.truststore.jks:/opt/bitnami/kafka/config/certs/kafka.truststore.jks:ro'
     depends_on:
       - zookeeper
+    tmpfs:
+      - /bitnami/kafka/data
+  kafka:
+    image: bitnami/kafka:4.0
+    ports:
+      - "${KAFKA_PORT:-9092}:9092"
+      - "${KAFKA_TLS_PORT:-9093}:9093"
+    environment:
+      - KAFKA_ENABLE_KRAFT=yes
+      - KAFKA_KRAFT_CLUSTER_ID=kraft-cluster-kafka-test
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9094
+      - KAFKA_CFG_LISTENERS=CLIENT://:9092,SSL://:9093,CONTROLLER://:9094
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CLIENT:PLAINTEXT,SSL:SSL,CONTROLLER:PLAINTEXT
+      - KAFKA_CFG_ADVERTISED_LISTENERS=CLIENT://${KAFKA_ADDR:-127.0.0.1}:${KAFKA_PORT:-9092},SSL://${KAFKA_ADDR:-127.0.0.1}:${KAFKA_TLS_PORT:-9093}
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=CLIENT
+      - KAFKA_CFG_SASL_ENABLED_MECHANISMS=PLAIN
+      - KAFKA_CFG_SASL_MECHANISM_INTER_BROKER_PROTOCOL=PLAIN
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_CFG_DELETE_TOPIC_ENABLE=true
+      - KAFKA_MESSAGE_MAX_BYTES=1048576
+      - KAFKA_TLS_TYPE=JKS
+      - KAFKA_CERTIFICATE_PASSWORD=password
+      - KAFKA_TLS_CLIENT_AUTH=none
+      - KAFKA_CFG_SSL_CLIENT_AUTH=none
+    volumes:
+      - './kafka.keystore.jks:/opt/bitnami/kafka/config/certs/kafka.keystore.jks:ro'
+      - './kafka.truststore.jks:/opt/bitnami/kafka/config/certs/kafka.truststore.jks:ro'
+    depends_on:
+      - kafka-old # that's a hack to make sure the kafka-old is ready when this one is ready
     tmpfs:
       - /bitnami/kafka/data

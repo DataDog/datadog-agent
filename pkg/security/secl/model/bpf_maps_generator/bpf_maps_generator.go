@@ -15,7 +15,7 @@ import (
 	"os/exec"
 	"regexp"
 	"sort"
-	"text/template"
+	"text/template" //nolint:depguard
 )
 
 //go:embed gen.go.tmpl
