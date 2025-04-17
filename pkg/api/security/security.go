@@ -194,7 +194,7 @@ func getClusterAgentAuthToken(ctx context.Context, config configModel.Reader, to
 
 func validateAuthToken(authToken string) error {
 	if len(authToken) < authTokenMinimalLen {
-		return fmt.Errorf("cluster agent authentication token length must be greater than %d, curently: %d", authTokenMinimalLen, len(authToken))
+		return fmt.Errorf("cluster agent authentication token must be at least %d characters long, currently: %d", authTokenMinimalLen, len(authToken))
 	}
 	return nil
 }
