@@ -130,7 +130,7 @@ func TestProcess(t *testing.T) {
 	paiExternal, found := store.Get("default/autoscaler1")
 	assert.True(t, found)
 	assert.Nil(t, paiExternal.MainScalingValues().HorizontalError)
-	assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource, paiExternal.MainScalingValues().Horizontal.Source)
+	assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerExternalValueSource, paiExternal.MainScalingValues().Horizontal.Source)
 	assert.Equal(t, recommendationReplicas, paiExternal.MainScalingValues().Horizontal.Replicas) // currently 1 replica, recommending scale up to 2
 	assert.Equal(t, recommendationTimestamp.Unix(), paiExternal.MainScalingValues().Horizontal.Timestamp.Unix())
 

@@ -205,7 +205,7 @@ func (r *recommenderClient) buildReplicaRecommendationResponse(reply *kubeAutosc
 	recommendedReplicas := &model.HorizontalScalingValues{
 		Replicas:  int32(reply.GetTargetReplicas()),
 		Timestamp: reply.GetTimestamp().AsTime(),
-		Source:    common.DatadogPodAutoscalerAutoscalingValueSource,
+		Source:    common.DatadogPodAutoscalerExternalValueSource,
 	}
 
 	return recommendedReplicas, nil

@@ -488,7 +488,7 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 			assert.NotNil(t, result)
 			assert.Equal(t, tt.serverResponse.TargetReplicas, result.Replicas)
 			assert.Equal(t, tt.serverResponse.Timestamp.AsTime(), result.Timestamp)
-			assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource, result.Source)
+			assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerExternalValueSource, result.Source)
 		})
 	}
 }
