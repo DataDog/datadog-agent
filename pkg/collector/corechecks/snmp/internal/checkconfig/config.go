@@ -435,7 +435,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, err
 	}
 
-	var haveLegacyProfile bool
 	if initConfig.UseRCProfiles {
 		if rcClient == nil {
 			return nil, fmt.Errorf("rc client not initialized, cannot use rc profiles")
@@ -449,14 +448,20 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 				"ignored because use_remote_config_profiles is set", len(initConfig.Profiles))
 		}
 		c.ProfileProvider, err = profile.NewRCProvider(rcClient)
+		if err != nil {
+			return nil, err
+		}
 	} else {
+		var haveLegacyProfile bool
 		c.ProfileProvider, haveLegacyProfile, err = profile.GetProfileProvider(initConfig.Profiles)
-	}
-	if err != nil {
-		return nil, err
-	}
-	if haveLegacyProfile && initConfig.Loader == "" && instance.Loader == "" {
-		return nil, fmt.Errorf("legacy profile detected with no loader specified, falling back to the Python loader")
+		if err != nil {
+			return nil, err
+		}
+		if haveLegacyProfile || profiledefinition.IsLegacyMetrics(instance.Metrics) {
+			if initConfig.Loader == "" && instance.Loader == "" {
+				return nil, fmt.Errorf("legacy profile detected with no loader specified, falling back to the Python loader")
+			}
+		}
 	}
 
 	// profile configs
