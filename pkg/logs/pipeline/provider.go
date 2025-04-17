@@ -64,7 +64,6 @@ type Provider interface {
 type provider struct {
 	numberOfPipelines int
 
-	auditor                   auditor.Component
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	processingRules           []*config.ProcessingRule
 	endpoints                 *config.Endpoints
