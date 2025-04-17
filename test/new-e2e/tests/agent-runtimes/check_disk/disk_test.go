@@ -92,8 +92,8 @@ instances:
 
 			// assert the check output
 			diff := gocmp.Diff(pythonMetrics, goMetrics,
-				gocmp.Transformer("roundTo1", func(f float64) float64 {
-					return math.Round(f*p) / p
+				gocmp.Comparer(func(a, b float64) bool {
+					return math.Round(a*p)/p == math.Round(b*p)/p
 				}),
 				// gocmpopts.EquateApprox(metricCompareFraction, metricCompareMargin),
 				gocmpopts.SortSlices(cmp.Less[string]),     // sort tags
