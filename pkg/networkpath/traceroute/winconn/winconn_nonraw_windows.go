@@ -118,6 +118,7 @@ func NewConn() (*Conn, error) {
 
 // SetTTL sets the TTL for the socket
 func (r *Conn) SetTTL(ttl int) error {
+	log.Debugf("setting TTL to %d", ttl)
 	return windows.SetsockoptInt(
 		r.Socket,
 		windows.IPPROTO_IP,
@@ -191,7 +192,7 @@ func (r *Conn) poll(ctx context.Context) error {
 		fds := []WSAPOLLFD{
 			{
 				fd:      r.Socket,
-				events:  1, // POLLIN
+				events:  0x0010, // POLLOUT
 				revents: 0,
 			},
 		}
@@ -212,16 +213,22 @@ func (r *Conn) poll(ctx context.Context) error {
 func (r *Conn) getSocketError() error {
 	var err error
 	var errCode int32
+	var errCodeSize = int32(unsafe.Sizeof(errCode))
 	err = windows.Getsockopt(
 		r.Socket,
 		windows.SOL_SOCKET,
 		0x1007, // SO_ERROR
 		(*byte)(unsafe.Pointer(&errCode)),
-		&errCode,
+		&errCodeSize,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to get socket error: %w", err)
 	}
+	// if the error code is 0, then the connection was made
+	if errCode == 0 {
+		return nil
+	}
+	log.Debugf("got socket error code: %d", errCode)
 	return windows.Errno(errCode)
 }
 
@@ -244,12 +251,15 @@ func (r *Conn) GetHop(timeout time.Duration, destIP net.IP, destPort uint16) (ne
 				return net.IP{}, time.Time{}, nil
 			}
 			log.Errorf("failed to poll: %s", err.Error())
+			return net.IP{}, time.Time{}, fmt.Errorf("failed to poll: %w", err)
 		}
 		// get the new socket error
 		// this will be handled from other below if statments
 		// if the error is nil, it means the connection was made
 		err = r.getSocketError()
-
+		if err != nil {
+			log.Debugf("got socket error: %s", err.Error())
+		}
 	}
 
 	if errors.Is(err, windows.WSAEHOSTUNREACH) {
@@ -257,8 +267,10 @@ func (r *Conn) GetHop(timeout time.Duration, destIP net.IP, destPort uint16) (ne
 		if err != nil {
 			return nil, time.Time{}, fmt.Errorf("failed to get hop address: %w", err)
 		}
+		log.Debugf("got hop address: %s", addr)
 		return addr, time.Now(), nil
 	} else if err != nil {
+		log.Errorf("failed to send connect: %s", err.Error())
 		return nil, time.Time{}, fmt.Errorf("failed to send connect: %w", err)
 	}
 

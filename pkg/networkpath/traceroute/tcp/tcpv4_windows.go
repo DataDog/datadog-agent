@@ -30,16 +30,15 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 	t.srcIP = addr.IP
 	t.srcPort = addr.AddrPort().Port()
 
-	s, err := winconn.NewConn()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create raw socket: %w", err)
-	}
-	defer s.Close()
-
 	hops := make([]*common.Hop, 0, int(t.MaxTTL-t.MinTTL)+1)
 
 	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
+		s, err := winconn.NewConn()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create raw socket: %w", err)
+		}
 		hop, err := t.sendAndReceive(s, i, t.Timeout)
+		s.Close()
 		if err != nil {
 			return nil, fmt.Errorf("failed to run traceroute: %w", err)
 		}
