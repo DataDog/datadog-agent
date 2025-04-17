@@ -183,6 +183,17 @@ func TestIsLegacyMetricsConfig(t *testing.T) {
 	assert.False(t, mc.IsLegacy())
 
 	mc = MetricsConfig{
+		OID:  "1.2.3.4",
+		Name: "foo",
+	}
+	assert.False(t, mc.IsLegacy())
+
+	mc = MetricsConfig{
+		Name: "foo",
+	}
+	assert.False(t, mc.IsLegacy())
+
+	mc = MetricsConfig{
 		MIB:  "FOO-MIB",
 		OID:  "1.2.3.4",
 		Name: "foo",

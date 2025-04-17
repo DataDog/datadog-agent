@@ -206,6 +206,10 @@ func (m *MetricsConfig) GetSymbolTags() []string {
 
 // IsLegacy returns true if the metrics config is written in the legacy Python syntax
 func (m *MetricsConfig) IsLegacy() bool {
+	if m.MIB == "" {
+		return false
+	}
+
 	if m.OID == "" && m.Name != "" {
 		return true
 	}

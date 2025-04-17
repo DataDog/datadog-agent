@@ -23,6 +23,9 @@ func Test_IsLegacyMetrics(t *testing.T) {
 			name: "metrics are not legacy",
 			metrics: []MetricsConfig{
 				{
+					Name: "foo",
+				},
+				{
 					MIB:  "FOO-MIB",
 					OID:  "1.2.3.4",
 					Name: "foo",
