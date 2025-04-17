@@ -8,7 +8,7 @@ dist:
   otelcol_version: 0.124.0
 
 extensions:
-  - gomod: go.opentelemetry.io/collector/extension/zpagesextension v0.122.1
+  - gomod: go.opentelemetry.io/collector/extension/zpagesextension v0.124.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.124.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.124.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/dockerobserver v0.124.0
@@ -18,15 +18,15 @@ extensions:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/k8sobserver v0.124.0
 
 exporters:
-  - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.122.1
-  - gomod: go.opentelemetry.io/collector/exporter/nopexporter v0.122.1
-  - gomod: go.opentelemetry.io/collector/exporter/otlpexporter v0.122.1
-  - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.122.1
+  - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.124.0
+  - gomod: go.opentelemetry.io/collector/exporter/nopexporter v0.124.0
+  - gomod: go.opentelemetry.io/collector/exporter/otlpexporter v0.124.0
+  - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.124.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.124.0
 
 processors:
-  - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.122.1
-  - gomod: go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.122.1
+  - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.124.0
+  - gomod: go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.124.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.124.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor v0.124.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.124.0
@@ -40,8 +40,8 @@ processors:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.124.0
 
 receivers:
-  - gomod: go.opentelemetry.io/collector/receiver/nopreceiver v0.122.1
-  - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.122.1
+  - gomod: go.opentelemetry.io/collector/receiver/nopreceiver v0.124.0
+  - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.124.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.124.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.124.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver v0.124.0

@@ -6,7 +6,7 @@ dist:
   output_path: ./comp/otelcol/collector-contrib/impl
 
 extensions:
-  - gomod: go.opentelemetry.io/collector/extension/zpagesextension v0.122.1
+  - gomod: go.opentelemetry.io/collector/extension/zpagesextension v0.124.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.124.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.124.0
 

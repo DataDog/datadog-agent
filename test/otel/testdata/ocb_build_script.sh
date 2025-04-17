@@ -75,7 +75,7 @@ dd_mods=$(find . -type f -name "go.mod" -exec dirname {} \; | sort | sed 's/.//'
 # Issues Fixed:
 # 	1.	Dependency Mismatch:
 # 	  -	connector/datadogconnector/go.mod does not reference the latest version of exporter/datadogexporter.
-# 	  -	This adjustment is necessary until opentelemetry-collector-contrib v0.122.1 is officially released.
+# 	  -	This adjustment is necessary until opentelemetry-collector-contrib v0.124.0 is officially released.
 # 	2.	Compatibility Issue:
 # 	  -	opentelemetry-collector-contrib fails to compile due to recent changes in the Datadog Agent.
 # 	  -	The pkgconfigmodel package was renamed to viperconfig, breaking compatibility with the latest updates.
