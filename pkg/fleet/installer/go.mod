@@ -65,4 +65,4 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/version => ../../../pkg/version
 )
 
-replace github.com/DataDog/datadog-agent/pkg/util/winutil => ..\..\util\winutil
+replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil
