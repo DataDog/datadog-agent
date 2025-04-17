@@ -215,6 +215,7 @@ new-agent_dmg-x64-a7:
   # This is used to avoid conflicts with the current build job on main / release branches with s3. This will run on dev branches
   rules:
      - !reference [.on_main_or_release_branch_or_deploy_manual]
+     - when: on_success
 
   # TODO(celian): Replace by the following after testing new builds.
   # rules:
