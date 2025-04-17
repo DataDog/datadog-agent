@@ -23,7 +23,7 @@ var TimeNow = time.Now
 const DeviceUserTagResourcePrefix = "dd.internal.resource:ndm_device_user_tags"
 
 // GetDevicesMetadata process devices API payloads to build metadata
-func GetDevicesMetadata(namespace string, devices []client.ApplianceLite) []devicemetadata.DeviceMetadata {
+func GetDevicesMetadata(namespace string, devices []client.Appliance) []devicemetadata.DeviceMetadata {
 	var devicesMetadata []devicemetadata.DeviceMetadata
 	for _, device := range devices {
 		devicesMetadata = append(devicesMetadata, buildDeviceMetadata(namespace, device))
@@ -41,7 +41,7 @@ func GetControllersMetadata(namespace string, controllers []client.ControllerSta
 }
 
 // GetDevicesTags process devices API payloads to build device tags
-func GetDevicesTags(namespace string, devices []client.ApplianceLite) map[string][]string {
+func GetDevicesTags(namespace string, devices []client.Appliance) map[string][]string {
 	deviceTags := make(map[string][]string)
 	for _, device := range devices {
 		deviceTags[device.IPAddress] = buildApplianceDeviceTags(namespace, device)
@@ -51,7 +51,7 @@ func GetDevicesTags(namespace string, devices []client.ApplianceLite) map[string
 }
 
 // GetDevicesUptime process devices API payloads to compute uptimes
-func GetDevicesUptime(devices []client.ApplianceLite) map[string]float64 {
+func GetDevicesUptime(devices []client.Appliance) map[string]float64 {
 	uptimes := make(map[string]float64, len(devices))
 	for _, device := range devices {
 		uptime, err := computeUptime(device)
@@ -65,7 +65,7 @@ func GetDevicesUptime(devices []client.ApplianceLite) map[string]float64 {
 }
 
 // GetDevicesStatus process devices API payloads to get status
-func GetDevicesStatus(devices []client.ApplianceLite) map[string]float64 {
+func GetDevicesStatus(devices []client.Appliance) map[string]float64 {
 	states := make(map[string]float64)
 	for _, device := range devices {
 		status := 1.0
@@ -77,7 +77,7 @@ func GetDevicesStatus(devices []client.ApplianceLite) map[string]float64 {
 	return states
 }
 
-func buildDeviceMetadata(namespace string, device client.ApplianceLite) devicemetadata.DeviceMetadata {
+func buildDeviceMetadata(namespace string, device client.Appliance) devicemetadata.DeviceMetadata {
 	id := buildDeviceID(namespace, device)
 
 	return devicemetadata.DeviceMetadata{
@@ -95,7 +95,7 @@ func buildDeviceMetadata(namespace string, device client.ApplianceLite) deviceme
 		SerialNumber: device.Hardware.SerialNo,
 		DeviceType:   mapNDMDeviceType(device.Type),
 		ProductName:  device.Hardware.Model,
-		Location:     device.Location,
+		Location:     device.ApplianceLocation.LocationID, // TODO: is this appropriate?
 		Integration:  "versa",
 	}
 }
@@ -140,13 +140,13 @@ func mapNDMDeviceType(_ string) string {
 	return "Versa PLACEHOLDER"
 }
 
-func buildApplianceDeviceTags(namespace string, device client.ApplianceLite) []string {
+func buildApplianceDeviceTags(namespace string, device client.Appliance) []string {
 	return []string{
 		"device_vendor:versa",
 		"device_namespace:" + namespace,
 		"hostname:" + device.Name,
 		"system_ip:" + device.IPAddress,
-		"site_id:" + device.Location,
+		"site_id:" + device.ApplianceLocation.LocationID, // TODO: is this appropriate?
 		"type:" + device.Type,
 		"device_ip:" + device.IPAddress,
 		"device_hostname:" + device.Name,
@@ -168,7 +168,7 @@ func buildControllerDeviceTags(namespace string, controller client.ControllerSta
 	}
 }
 
-func computeUptime(device client.ApplianceLite) (float64, error) {
+func computeUptime(device client.Appliance) (float64, error) {
 	now := TimeNow().UnixMilli()
 
 	// TODO: should we be using lastUpdatedTime instead of startTime?
@@ -181,6 +181,6 @@ func computeUptime(device client.ApplianceLite) (float64, error) {
 	return math.Round((float64(now) - float64(deviceUptime)) / 10), nil // In hundredths of a second, to match SNMP
 }
 
-func buildDeviceID(namespace string, device client.ApplianceLite) string {
+func buildDeviceID(namespace string, device client.Appliance) string {
 	return fmt.Sprintf("%s:%s", namespace, device.IPAddress)
 }

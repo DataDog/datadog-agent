@@ -17,16 +17,16 @@ import (
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 // newRequest creates a new request for this client.
 func (client *Client) newRequest(method, uri string, body io.Reader) (*http.Request, error) {
-	return http.NewRequest(method, client.endpoint+uri, body)
+	return http.NewRequest(method, client.endpoint+":"+client.port+uri, body) // TODO: is it really more efficient to use +?
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 // do exec a request with authentication
 func (client *Client) do(req *http.Request) ([]byte, int, error) {
 	// // Cross-forgery token
-	client.authenticationMutex.Lock()
-	req.Header.Add("X-CSRF-TOKEN", client.token)
-	client.authenticationMutex.Unlock()
+	// client.authenticationMutex.Lock()
+	// req.Header.Add("X-CSRF-TOKEN", client.token)
+	// client.authenticationMutex.Unlock()
 
 	log.Tracef("Executing Versa api request %s %s", req.Method, req.URL.Path)
 	resp, err := client.httpClient.Do(req)
@@ -61,6 +61,10 @@ func (client *Client) get(endpoint string, params map[string]string) ([]byte, er
 		return nil, err
 	}
 
+	// use basic auth
+	// TODO: replace with OAuth token
+	req.SetBasicAuth(client.username, client.password)
+
 	query := req.URL.Query()
 	for key, value := range params {
 		query.Add(key, value)
@@ -71,10 +75,12 @@ func (client *Client) get(endpoint string, params map[string]string) ([]byte, er
 	var statusCode int
 
 	for attempts := 0; attempts < client.maxAttempts; attempts++ {
-		err = client.authenticate()
-		if err != nil {
-			return nil, err
-		}
+		// TODO: uncomment when OAuth is implemented
+		// currently BASIC Auth is being used
+		// err = client.authenticate()
+		// if err != nil {
+		// 	return nil, err
+		// }
 
 		bytes, statusCode, err = client.do(req)
 

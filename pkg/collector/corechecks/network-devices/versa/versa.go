@@ -72,7 +72,7 @@ func (v *VersaCheck) Run() error {
 		return fmt.Errorf("error creating Versa client: %w", err)
 	}
 
-	appliances, err := client.GetAppliancesLite()
+	appliances, err := client.GetChildAppliancesDetail("datadog")
 	if err != nil {
 		return fmt.Errorf("error getting appliances from Versa client: %w", err)
 	}
