@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -91,6 +92,7 @@ type diskInstanceConfig struct {
 	ExcludedMountPointRe string            `yaml:"excluded_mountpoint_re"`
 	DeviceTagRe          map[string]string `yaml:"device_tag_re"`
 	LowercaseDeviceTag   bool              `yaml:"lowercase_device_tag"`
+	Timeout              uint16            `yaml:"timeout"`
 }
 
 func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
@@ -105,6 +107,7 @@ func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
 // Check represents the Disk check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
+	clock               Clock
 	initConfig          diskInitConfig
 	instanceConfig      diskInstanceConfig
 	includedDevices     []regexp.Regexp
@@ -443,8 +446,30 @@ func (c *Check) sendDiskMetrics(sender sender.Sender, ioCounter gopsutil_disk.IO
 	sender.Rate(fmt.Sprintf(diskMetric, "write_time_pct"), float64(ioCounter.WriteTime)*100/1000, "", tags)
 }
 
+func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+	type usageResult struct {
+		usage *gopsutil_disk.UsageStat
+		err   error
+	}
+	resultCh := make(chan usageResult, 1)
+	// Start the disk usage call in a separate goroutine.
+	go func() {
+		// UsageWithContext in gopsutil ignores the context for now (PR opened: https://github.com/shirou/gopsutil/pull/1837)
+		usage, err := DiskUsage(mountpoint)
+		resultCh <- usageResult{usage, err}
+	}()
+	// Use select to wait for either the disk usage result or a timeout.
+	timeout := time.Duration(c.instanceConfig.Timeout) * time.Second
+	select {
+	case result := <-resultCh:
+		return result.usage, result.err
+	case <-c.clock.After(timeout):
+		return nil, fmt.Errorf("disk usage call timed out after %s", timeout)
+	}
+}
+
 func (c *Check) getPartitionUsage(partition gopsutil_disk.PartitionStat) *gopsutil_disk.UsageStat {
-	usage, err := DiskUsage(partition.Mountpoint)
+	usage, err := c.getDiskUsageWithTimeout(partition.Mountpoint)
 	if err != nil {
 		log.Warnf("Unable to get disk metrics for %s: %s. You can exclude this mountpoint in the settings if it is invalid.", partition.Mountpoint, err)
 		return nil
@@ -604,9 +629,21 @@ func Factory() option.Option[func() check.Check] {
 	return option.New(newCheck)
 }
 
+// FactoryWithClock creates a new check factory with the clock dependency injection
+func FactoryWithClock(clock Clock) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
+		return newCheckWithClock(clock)
+	})
+}
+
 func newCheck() check.Check {
+	return newCheckWithClock(&RealClock{})
+}
+
+func newCheckWithClock(clock Clock) check.Check {
 	return &Check{
 		CheckBase: core.NewCheckBase(CheckName),
+		clock:     clock,
 		initConfig: diskInitConfig{
 			DeviceGlobalExclude:       []string{},
 			DeviceGlobalBlacklist:     []string{},
@@ -644,6 +681,7 @@ func newCheck() check.Check {
 			ExcludedMountPointRe: "",
 			DeviceTagRe:          make(map[string]string),
 			LowercaseDeviceTag:   false,
+			Timeout:              5,
 		},
 		includedDevices:     []regexp.Regexp{},
 		excludedDevices:     []regexp.Regexp{},

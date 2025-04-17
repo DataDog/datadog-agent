@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -169,6 +170,13 @@ func setupDefaultMocks() {
 
 func createCheck() check.Check {
 	diskCheckOpt := diskv2.Factory()
+	diskCheckFunc, _ := diskCheckOpt.Get()
+	diskCheck := diskCheckFunc()
+	return diskCheck
+}
+
+func createCheckWithClock(clock diskv2.Clock) check.Check {
+	diskCheckOpt := diskv2.FactoryWithClock(clock)
 	diskCheckFunc, _ := diskCheckOpt.Get()
 	diskCheck := diskCheckFunc()
 	return diskCheck
@@ -1246,4 +1254,49 @@ service_check_rw: false
 
 	assert.Nil(t, err)
 	m.AssertNotCalled(t, "ServiceCheck", "disk.read_write", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenUsagePartitionTimeout_ThenUsageMetricsNotReported(t *testing.T) {
+	setupDefaultMocks()
+	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "shm",
+				Mountpoint: "/dev/shm",
+				Fstype:     "tmpfs",
+				Opts:       []string{"rw", "nosuid", "nodev"},
+			}}, nil
+	}
+	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:              "/dev/shm",
+			Fstype:            "tmpfs",
+			Total:             1024,
+			Free:              1024,
+			Used:              0,
+			UsedPercent:       0,
+			InodesTotal:       0,
+			InodesUsed:        0,
+			InodesFree:        0,
+			InodesUsedPercent: 0,
+		}, nil
+	}
+	fc := &diskv2.FakeClock{AfterCh: make(chan time.Time, 1)}
+	// Instead of waiting for a real timeout, simulate it immediately.
+	// For example, send a value to the channel to trigger the timeout.
+	fc.AfterCh <- time.Now()
+
+	diskCheck := createCheckWithClock(fc)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.utilized", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.in_use", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 }
