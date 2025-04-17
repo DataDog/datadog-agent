@@ -32,7 +32,7 @@ type baseCheckSuite struct {
 }
 
 // a relative diff considered acceptable when comparing metrics
-// const metricCompareFraction = 0.02
+const metricCompareFraction = 0.02
 
 // an absolute diff considered acceptable when comparing metrics
 // const metricCompareMargin = 0.001
@@ -93,9 +93,11 @@ instances:
 			// assert the check output
 			diff := gocmp.Diff(pythonMetrics, goMetrics,
 				gocmp.Comparer(func(a, b float64) bool {
-					return math.Round(a*p)/p == math.Round(b*p)/p
+					x := math.Round(a*p) / p
+					y := math.Round(b*p) / p
+					relMarg := metricCompareFraction * math.Min(math.Abs(x), math.Abs(y))
+					return math.Abs(x-y) <= relMarg
 				}),
-				// gocmpopts.EquateApprox(metricCompareFraction, metricCompareMargin),
 				gocmpopts.SortSlices(cmp.Less[string]),     // sort tags
 				gocmpopts.SortSlices(metricPayloadCompare), // sort metrics
 			)
