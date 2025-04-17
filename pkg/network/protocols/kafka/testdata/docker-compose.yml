@@ -1,3 +1,6 @@
+# Kafka instances for testing
+# Two Kafka instances are needed: an updated one and an old one,
+# the old one is used to test very old versions of Kafka protocols, which Kafka v4 dropped support for
 name: kafka
 services:
   zookeeper:
