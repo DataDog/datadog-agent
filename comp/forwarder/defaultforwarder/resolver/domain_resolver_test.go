@@ -56,7 +56,7 @@ func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 		"example.com": {"key4", "key2", "key3"},
 	}
 	mockConfig.SetWithoutSource("additional_endpoints", endpoints)
-	updateAdditionalEndpoints(mockConfig, "additional_endpoints", resolver, log)
+	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
 
 	// The new key4 key is in the list and the main endpoint key1 is still there
 	assert.Equal(t, []string{"key1", "key4", "key2", "key3"}, resolver.GetAPIKeys())
@@ -66,7 +66,7 @@ func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 		"example.com": {"key4", "key1", "key3"},
 	}
 	mockConfig.SetWithoutSource("additional_endpoints", endpoints)
-	updateAdditionalEndpoints(mockConfig, "additional_endpoints", resolver, log)
+	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
 
 	assert.Equal(t, []string{"key1", "key4", "key3"}, resolver.GetAPIKeys())
 }
@@ -87,7 +87,7 @@ func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 		"example.com": {"key4", "key2", "key3"},
 	}
 	mockConfig.SetWithoutSource("additional_endpoints", endpoints)
-	updateAdditionalEndpoints(mockConfig, "additional_endpoints", resolver, log)
+	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
 
 	// The new key4 key is in the list and the main endpoint key1 is still there
 	assert.Equal(t, []string{"key1", "key4", "key2", "key3"}, resolver.GetAPIKeys())
@@ -97,7 +97,7 @@ func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 		"example.com": {"key4", "key1", "key3"},
 	}
 	mockConfig.SetWithoutSource("additional_endpoints", endpoints)
-	updateAdditionalEndpoints(mockConfig, "additional_endpoints", resolver, log)
+	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
 
 	assert.Equal(t, []string{"key1", "key4", "key3"}, resolver.GetAPIKeys())
 }

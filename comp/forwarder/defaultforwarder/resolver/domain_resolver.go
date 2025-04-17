@@ -83,7 +83,7 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 
 		if strings.Contains(setting, "additional_endpoints") {
 			// Updating additional endpoints don't give us the exact key that has been updated so we reload the whole config section.
-			updateAdditionalEndpoints(config, setting, resolver, log)
+			updateAdditionalEndpoints(resolver, setting, config, log)
 			return
 		}
 
@@ -115,7 +115,7 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 // Since additional_endpoints are in the config as a map of domain to api key array, when the api key updates the updater
 // will not know exactly which api key has been updated so we reload the whole list from the config and insert this
 // into our list before deduping.
-func updateAdditionalEndpoints(config config.Component, setting string, resolver DomainResolver, log log.Component) {
+func updateAdditionalEndpoints(resolver DomainResolver, setting string, config config.Component, log log.Component) {
 	additionalEndpoints := utils.MakeEndpoints(config.GetStringMapStringSlice(setting), setting)
 	endpoints, ok := additionalEndpoints[resolver.GetBaseDomain()]
 	if !ok {
