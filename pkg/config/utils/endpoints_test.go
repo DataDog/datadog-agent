@@ -233,6 +233,19 @@ additional_endpoints:
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
+func TestConfigReset(t *testing.T) {
+	t.Setenv("DD_SITE", "datadoghq.eu")
+
+	testConfig := mock.New(t)
+	assert.Equal(t, "datadoghq.eu", testConfig.GetString("site"))
+	testConfig.SetWithoutSource("dd_url", "https://example.com/")
+	assert.Equal(t, "https://example.com/", testConfig.GetString("dd_url"))
+
+	testConfig = mock.New(t)
+	assert.Equal(t, "datadoghq.eu", testConfig.GetString("site"))
+	assert.Equal(t, "https://example.com/", testConfig.GetString("dd_url"))
+}
+
 func TestSiteEnvVar(t *testing.T) {
 	t.Setenv("DD_API_KEY", "fakeapikey")
 	t.Setenv("DD_SITE", "datadoghq.eu")
