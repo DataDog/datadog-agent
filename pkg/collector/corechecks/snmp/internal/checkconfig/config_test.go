@@ -1907,12 +1907,28 @@ metrics:
 			expectedHaveLegacyProfile: false,
 		},
 		{
+			name: "ok profile with loader specified should not fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+loader: core
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: f5-big-ip
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "conf.d",
+			expectedHaveLegacyProfile: false,
+		},
+		{
 			name: "ok profile without loader specified should not fallback to Python",
 			// language=yaml
 			rawInstanceConfig: []byte(`
 ip_address: 1.2.3.4
 port: 1161
 community_string: public
+profile: f5-big-ip
 `),
 			// language=yaml
 			rawInitConfig:             []byte(``),
