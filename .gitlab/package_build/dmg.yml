@@ -205,7 +205,8 @@ include:
 new-agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64-test", "specific:true"]
-  needs: ["go_mod_tidy_check"]
+  # TODO: needs: ["go_mod_tidy_check"]
+  needs: []
   allow_failure: true
 
   # TODO: Possible clashes except version manifest?
