@@ -193,7 +193,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/status/health v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagset v0.64.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.56.0-rc.3 // indirect
