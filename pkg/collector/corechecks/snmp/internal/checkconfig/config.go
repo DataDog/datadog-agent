@@ -94,6 +94,7 @@ type InitConfig struct {
 	MinCollectionInterval int                               `yaml:"min_collection_interval"`
 	Namespace             string                            `yaml:"namespace"`
 	PingConfig            snmpintegration.PackedPingConfig  `yaml:"ping"`
+	Loader                string                            `yaml:"loader"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -119,6 +120,7 @@ type InstanceConfig struct {
 	CollectTopology       *Boolean                            `yaml:"collect_topology"`
 	UseDeviceIDAsHostname *Boolean                            `yaml:"use_device_id_as_hostname"`
 	PingConfig            snmpintegration.PackedPingConfig    `yaml:"ping"`
+	Loader                string                              `yaml:"loader"`
 
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
 	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
@@ -152,8 +154,6 @@ type InstanceConfig struct {
 	// `interface_configs` option is not supported by SNMP corecheck autodiscovery (`network_address`)
 	// it's only supported for single device instance (`ip_address`)
 	InterfaceConfigs InterfaceConfigs `yaml:"interface_configs"`
-
-	Loader string `yaml:"loader"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
@@ -455,7 +455,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	if err != nil {
 		return nil, err
 	}
-	if haveLegacyProfile && instance.Loader == "" {
+	if haveLegacyProfile && initConfig.Loader == "" && instance.Loader == "" {
 		return nil, fmt.Errorf("legacy profile detected with no loader specified, falling back to the Python loader")
 	}
 
