@@ -49,7 +49,7 @@ const (
 //	  - OID: 1.2.3
 //	    symbol: aSymbol
 //
-// this will lead to OID stored as MetricTagConfig.OID  and name stored as MetricTagConfig.Symbol.Name
+// this will lead to OID stored as MetricTagConfig.OID and name stored as MetricTagConfig.Symbol.Name
 // When this happens, in ValidateEnrichMetricTags we harmonize by moving MetricTagConfig.OID to MetricTagConfig.Symbol.OID.
 type SymbolConfigCompat SymbolConfig
 
