@@ -37,9 +37,8 @@ var datadogAgentPackage = hooks{
 }
 
 const (
-	agentPackage       = "datadog-agent"
-	agentSymlink       = "/usr/bin/datadog-agent"
-	legacyAgentSymlink = "/opt/datadog-agent"
+	agentPackage = "datadog-agent"
+	agentSymlink = "/usr/bin/datadog-agent"
 )
 
 var (
@@ -148,7 +147,6 @@ func removeFilesystem(ctx HookContext) {
 	installinfo.RemoveInstallInfo()
 	// Remove symlinks
 	os.Remove(agentSymlink)
-	os.Remove(legacyAgentSymlink)
 	if target, err := os.Readlink(installerSymlink); err == nil && strings.HasPrefix(target, ctx.PackagePath) {
 		os.Remove(installerSymlink)
 	}

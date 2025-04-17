@@ -50,7 +50,11 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertDirExists("/opt/datadog-packages/datadog-installer", 0755, "root", "root")
 
 	state.AssertSymlinkExists("/usr/bin/datadog-bootstrap", "/opt/datadog-installer/bin/installer/installer", "root", "root")
-	state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "root", "root")
+
+	if s.installMethod != InstallMethodAnsible {
+		// DD_NO_AGENT_INSTALL isn't supported on ansible, so the symlink is updated to the agent's installer
+		state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "root", "root")
+	}
 
 	state.AssertUnitsLoaded("datadog-installer.service", "datadog-installer-exp.service")
 	state.AssertUnitsEnabled("datadog-installer.service")
@@ -73,11 +77,16 @@ func (s *packageInstallerSuite) TestInstall() {
 }
 
 func (s *packageInstallerSuite) TestInstallWithRemoteUpdates() {
+	if s.installMethod == InstallMethodAnsible {
+		s.T().Skip("Ansible doesn't support installer in agent yet")
+	}
+
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.WaitForUnitActive(s.T(), "datadog-agent-installer.service")
 
 	state := s.host.State()
+
 	state.AssertUnitsLoaded("datadog-agent-installer.service")
 	state.AssertUnitsRunning("datadog-agent-installer.service")
 

@@ -53,7 +53,7 @@ var (
 		{t: testInstaller},
 		{t: testAgent},
 		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
-		{t: testUpgradeScenario},
+		{t: testUpgradeScenario, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 	}
 )
 
@@ -288,7 +288,10 @@ func (s *packageBaseSuite) Purge() {
 		s.Env().RemoteHost.Execute(fmt.Sprintf("sudo systemctl reset-failed %s", service))
 	}
 
+	// Unfortunately no guarantee that the datadog-installer symlink exists
 	s.Env().RemoteHost.Execute("sudo datadog-installer purge")
+	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-installer/stable/bin/installer/installer purge")
+	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-agent/stable/embedded/bin/installer purge")
 	s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer || sudo zypper remove -y datadog-installer")
 	s.Env().RemoteHost.Execute("sudo rm -rf /etc/datadog-agent")
 }
