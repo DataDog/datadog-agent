@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
+// TODO: PROFILE: ADD EXPECTEDhaveLegacyProfile
 func Test_resolveProfiles(t *testing.T) {
 
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d"))
@@ -52,19 +53,21 @@ func Test_resolveProfiles(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name                    string
-		userProfiles            ProfileConfigMap
-		defaultProfiles         ProfileConfigMap
-		expectedProfileDefMap   ProfileConfigMap
-		expectedProfileMetrics  []string
-		expectedInterfaceIDTags []string
-		expectedLogs            []LogCount
+		name                      string
+		userProfiles              ProfileConfigMap
+		defaultProfiles           ProfileConfigMap
+		expectedProfileDefMap     ProfileConfigMap
+		expectedProfileMetrics    []string
+		expectedInterfaceIDTags   []string
+		expectedHaveLegacyProfile bool
+		expectedLogs              []LogCount
 	}{
 		{
-			name:                  "ok case",
-			userProfiles:          userTestConfdProfiles,
-			defaultProfiles:       defaultTestConfdProfiles,
-			expectedProfileDefMap: FixtureProfileDefinitionMap(),
+			name:                      "ok case",
+			userProfiles:              userTestConfdProfiles,
+			defaultProfiles:           defaultTestConfdProfiles,
+			expectedProfileDefMap:     FixtureProfileDefinitionMap(),
+			expectedHaveLegacyProfile: false,
 		},
 		{
 			name:            "ok user profiles case",
@@ -135,7 +138,7 @@ func Test_resolveProfiles(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			trap := TrapLogs(t, log.DebugLvl)
 
-			profiles := resolveProfiles(tt.userProfiles, tt.defaultProfiles)
+			profiles, haveLegacyProfile := resolveProfiles(tt.userProfiles, tt.defaultProfiles)
 
 			trap.AssertContains(t, tt.expectedLogs)
 
@@ -163,6 +166,8 @@ func Test_resolveProfiles(t *testing.T) {
 			} else {
 				assert.Equal(t, tt.expectedProfileDefMap, profiles)
 			}
+
+			assert.Equal(t, tt.expectedHaveLegacyProfile, haveLegacyProfile)
 		})
 	}
 }

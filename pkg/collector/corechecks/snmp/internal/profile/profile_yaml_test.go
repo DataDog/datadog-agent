@@ -69,12 +69,13 @@ func Test_resolveProfileDefinitionPath(t *testing.T) {
 func Test_loadYamlProfiles(t *testing.T) {
 	SetConfdPathAndCleanProfiles()
 	SetGlobalProfileConfigMap(nil)
-	defaultProfiles, err := loadYamlProfiles()
+	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
 	assert.Nil(t, err)
-	defaultProfiles2, err := loadYamlProfiles()
+	defaultProfiles2, haveLegacyProfile2, err := loadYamlProfiles()
 	assert.Nil(t, err)
 
 	assert.Equal(t, fmt.Sprintf("%p", defaultProfiles), fmt.Sprintf("%p", defaultProfiles2))
+	assert.Equal(t, haveLegacyProfile, haveLegacyProfile2)
 }
 
 func Test_loadYamlProfiles_withUserProfiles(t *testing.T) {
@@ -82,11 +83,12 @@ func Test_loadYamlProfiles_withUserProfiles(t *testing.T) {
 	SetGlobalProfileConfigMap(nil)
 	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", defaultTestConfdPath)
 
-	defaultProfiles, err := loadYamlProfiles()
+	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
 	assert.Nil(t, err)
 
 	assert.Len(t, defaultProfiles, 6)
 	assert.NotNil(t, defaultProfiles)
+	assert.False(t, haveLegacyProfile)
 
 	p1 := defaultProfiles["p1"].Definition // user p1 overrides datadog p1
 	p2 := defaultProfiles["p2"].Definition // datadog p2
@@ -112,9 +114,10 @@ func Test_loadYamlProfiles_invalidDir(t *testing.T) {
 	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", invalidPath)
 	SetGlobalProfileConfigMap(nil)
 
-	defaultProfiles, err := loadYamlProfiles()
+	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
 	assert.Nil(t, err)
 	assert.Len(t, defaultProfiles, 0)
+	assert.False(t, haveLegacyProfile)
 }
 
 func Test_loadYamlProfiles_invalidExtendProfile(t *testing.T) {
@@ -124,11 +127,12 @@ func Test_loadYamlProfiles_invalidExtendProfile(t *testing.T) {
 	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
 	SetGlobalProfileConfigMap(nil)
 
-	defaultProfiles, err := loadYamlProfiles()
+	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
 	require.NoError(t, err)
 
 	logs.AssertPresent(t, "failed to expand profile \"f5-big-ip\"")
 	assert.Equal(t, ProfileConfigMap{}, defaultProfiles)
+	assert.False(t, haveLegacyProfile)
 }
 
 func Test_loadYamlProfiles_userAndDefaultProfileFolderDoesNotExist(t *testing.T) {
@@ -138,7 +142,7 @@ func Test_loadYamlProfiles_userAndDefaultProfileFolderDoesNotExist(t *testing.T)
 	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
 	SetGlobalProfileConfigMap(nil)
 
-	defaultProfiles, err := loadYamlProfiles()
+	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
 	require.NoError(t, err)
 
 	logs.AssertPresent(t,
@@ -147,6 +151,7 @@ func Test_loadYamlProfiles_userAndDefaultProfileFolderDoesNotExist(t *testing.T)
 	)
 
 	assert.Equal(t, ProfileConfigMap{}, defaultProfiles)
+	assert.False(t, haveLegacyProfile)
 }
 
 func Test_loadYamlProfiles_validAndInvalidProfiles(t *testing.T) {
@@ -157,7 +162,7 @@ func Test_loadYamlProfiles_validAndInvalidProfiles(t *testing.T) {
 	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
 	SetGlobalProfileConfigMap(nil)
 
-	defaultProfiles, err := loadYamlProfiles()
+	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
 	require.NoError(t, err)
 
 	for _, profile := range defaultProfiles {
@@ -168,4 +173,5 @@ func Test_loadYamlProfiles_validAndInvalidProfiles(t *testing.T) {
 
 	assert.Contains(t, defaultProfiles, "f5-big-ip")
 	assert.NotContains(t, defaultProfiles, "f5-invalid")
+	assert.False(t, haveLegacyProfile)
 }

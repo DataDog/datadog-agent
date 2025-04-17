@@ -18,14 +18,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
+// TODO: PROFILE: ADD EXPECTEDhaveLegacyProfile
 func Test_loadProfiles(t *testing.T) {
 	tests := []struct {
-		name                   string
-		mockConfd              string
-		profiles               ProfileConfigMap
-		expectedProfileMetrics []string
-		expectedProfileNames   []string
-		expectedErr            string
+		name                      string
+		mockConfd                 string
+		profiles                  ProfileConfigMap
+		expectedProfileMetrics    []string
+		expectedProfileNames      []string
+		expectedHaveLegacyProfile bool
+		expectedErr               string
 	}{
 		{
 			name:      "OK Use init config profiles",
@@ -90,7 +92,7 @@ func Test_loadProfiles(t *testing.T) {
 			path, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
 			pkgconfigsetup.Datadog().SetWithoutSource("confd_path", path)
 
-			actualProfiles, err := loadProfiles(tt.profiles)
+			actualProfiles, haveLegacyProfile, err := loadProfiles(tt.profiles)
 			if tt.expectedErr != "" {
 				assert.ErrorContains(t, err, tt.expectedErr)
 			}
@@ -111,6 +113,8 @@ func Test_loadProfiles(t *testing.T) {
 				}
 				assert.ElementsMatch(t, tt.expectedProfileMetrics, metricsNames)
 			}
+
+			assert.Equal(t, tt.expectedHaveLegacyProfile, haveLegacyProfile)
 		})
 	}
 }
