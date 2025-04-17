@@ -10,13 +10,13 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	htemplate "html/template"
+	htemplate "html/template" //nolint:depguard
 	"io"
 	"path"
 	"strconv"
 	"strings"
 	"sync"
-	ttemplate "text/template"
+	ttemplate "text/template" //nolint:depguard
 	"time"
 	"unicode"
 
