@@ -18,14 +18,16 @@ from tasks.libs.releasing.documentation import parse_table
 from tasks.libs.releasing.json import (
     COMPATIBLE_MAJOR_VERSIONS,
     _get_jmxfetch_release_json_info,
-    _get_release_json_info_for_next_rc,
-    _get_release_version_from_release_json,
     _get_windows_release_json_info,
     _update_release_json_entry,
     find_previous_tags,
     generate_repo_data,
 )
-from tasks.libs.releasing.version import _get_highest_repo_version, build_compatible_version_re
+from tasks.libs.releasing.version import (
+    _get_highest_repo_version,
+    _get_release_version_from_release_json,
+    build_compatible_version_re,
+)
 from tasks.libs.types.version import Version
 
 MOCK_TMP_DIR = '/tmp/tmp'
@@ -190,7 +192,7 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
         self.maxDiff = None
         initial_release_json = OrderedDict(
             {
-                "nightly": {
+                "dependencies": {
                     "INTEGRATIONS_CORE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
                     "JMXFETCH_VERSION": "0.44.1",
@@ -203,21 +205,7 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDPROCMON_DRIVER": "release-signed",
                     "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
                     "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                },
-                "release": {
-                    "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-                    "JMXFETCH_VERSION": "0.44.1",
-                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
-                    "MACOS_BUILD_VERSION": "master",
-                    "WINDOWS_DDNPM_DRIVER": "release-signed",
-                    "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                    "SECURITY_AGENT_POLICIES_VERSION": "master",
-                    "WINDOWS_DDPROCMON_DRIVER": "release-signed",
-                    "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                },
+                }
             }
         )
 
@@ -236,7 +224,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 
         release_json = _update_release_json_entry(
             release_json=initial_release_json,
-            release_entry="release",
             integrations_version=integrations_version,
             omnibus_ruby_version=omnibus_ruby_version,
             macos_build_version=macos_build_version,
@@ -253,21 +240,7 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 
         expected_release_json = OrderedDict(
             {
-                "nightly": {
-                    "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-                    "JMXFETCH_VERSION": "0.44.1",
-                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
-                    "MACOS_BUILD_VERSION": "master",
-                    "WINDOWS_DDNPM_DRIVER": "release-signed",
-                    "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                    "SECURITY_AGENT_POLICIES_VERSION": "master",
-                    "WINDOWS_DDPROCMON_DRIVER": "release-signed",
-                    "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                },
-                "release": {
+                "dependencies": {
                     "INTEGRATIONS_CORE_VERSION": str(integrations_version),
                     "OMNIBUS_RUBY_VERSION": str(omnibus_ruby_version),
                     "JMXFETCH_VERSION": str(jmxfetch_version),
@@ -280,7 +253,7 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDPROCMON_DRIVER": str(windows_ddprocmon_driver),
                     "WINDOWS_DDPROCMON_VERSION": str(windows_ddprocmon_version),
                     "WINDOWS_DDPROCMON_SHASUM": str(windows_ddprocmon_shasum),
-                },
+                }
             }
         )
 
@@ -289,13 +262,12 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 
 class TestGetReleaseVersionFromReleaseJson(unittest.TestCase):
     test_release_json = {
-        "nightly": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master"},
-        "release": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "v0.10"},
+        "dependencies": {
+            "JMXFETCH_VERSION": "0.44.1",
+            "SECURITY_AGENT_POLICIES_VERSION": "v0.10",
+            "TEST_COMPONENT_VERSION": "invalid_version",
+        },
     }
-
-    def test_release_version(self):
-        version = _get_release_version_from_release_json(self.test_release_json, release.VERSION_RE)
-        self.assertEqual(version, "release")
 
     def test_release_jmxfetch_version(self):
         version = _get_release_version_from_release_json(
@@ -309,10 +281,20 @@ class TestGetReleaseVersionFromReleaseJson(unittest.TestCase):
         )
         self.assertEqual(version, Version(prefix="v", major=0, minor=10))
 
+    def test_invalid_version(self):
+        version = _get_release_version_from_release_json(
+            self.test_release_json, release.VERSION_RE, release_json_key="TEST_COMPONENT_VERSION"
+        )
+        self.assertEqual(version, None)
 
-class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
+
+class TestReleaseJsonInfo(unittest.TestCase):
     test_release_json = {
-        "nightly": {
+        "dependencies": {
+            "VERSION": "ver7_nightly",
+            "HASH": "hash7_nightly",
+            "JMXFETCH_VERSION": "ver7_nightly",
+            "JMXFETCH_HASH": "hash7_nightly",
             "WINDOWS_DDNPM_DRIVER": "attestation-signed",
             "WINDOWS_DDNPM_VERSION": "nightly-ddnpm-version",
             "WINDOWS_DDNPM_SHASUM": "nightly-ddnpm-sha",
@@ -320,17 +302,16 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
             "WINDOWS_DDPROCMON_VERSION": "nightly-ddprocmon-version",
             "WINDOWS_DDPROCMON_SHASUM": "nightly-ddprocmon-sha",
         },
-        "release": {
-            "WINDOWS_DDNPM_DRIVER": "release-signed",
-            "WINDOWS_DDNPM_VERSION": "rc3-ddnpm-version",
-            "WINDOWS_DDNPM_SHASUM": "rc3-ddnpm-sha",
-            "WINDOWS_DDPROCMON_DRIVER": "release-signed",
-            "WINDOWS_DDPROCMON_VERSION": "rc3-ddprocmon-version",
-            "WINDOWS_DDPROCMON_SHASUM": "rc3-ddprocmon-sha",
-        },
     }
 
-    def test_ddnpm_info_is_taken_from_nightly_on_first_rc(self):
+    def test_jmxfetch_info_extraction(self):
+        """Test extraction of JMXFetch specific fields"""
+        jmxfetch_version, jmxfetch_hash = _get_jmxfetch_release_json_info(self.test_release_json)
+        self.assertEqual(jmxfetch_version, "ver7_nightly")
+        self.assertEqual(jmxfetch_hash, "hash7_nightly")
+
+    def test_windows_info_extraction(self):
+        """Test extraction of Windows driver specific fields"""
         (
             ddnpm_driver,
             ddnpm_version,
@@ -338,7 +319,7 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
             ddprocmon_driver,
             ddprocmon_version,
             ddprocmon_shasum,
-        ) = _get_windows_release_json_info(self.test_release_json, True)
+        ) = _get_windows_release_json_info(self.test_release_json)
 
         self.assertEqual(ddnpm_driver, 'attestation-signed')
         self.assertEqual(ddnpm_version, 'nightly-ddnpm-version')
@@ -346,77 +327,6 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
         self.assertEqual(ddprocmon_driver, 'attestation-signed')
         self.assertEqual(ddprocmon_version, 'nightly-ddprocmon-version')
         self.assertEqual(ddprocmon_shasum, 'nightly-ddprocmon-sha')
-
-    def test_ddnpm_info_is_taken_from_previous_rc_on_subsequent_rcs(self):
-        (
-            ddnpm_driver,
-            ddnpm_version,
-            ddnpm_shasum,
-            ddprocmon_driver,
-            ddprocmon_version,
-            ddprocmon_shasum,
-        ) = _get_windows_release_json_info(self.test_release_json, False)
-
-        self.assertEqual(ddnpm_driver, 'release-signed')
-        self.assertEqual(ddnpm_version, 'rc3-ddnpm-version')
-        self.assertEqual(ddnpm_shasum, 'rc3-ddnpm-sha')
-        self.assertEqual(ddprocmon_driver, 'release-signed')
-        self.assertEqual(ddprocmon_version, 'rc3-ddprocmon-version')
-        self.assertEqual(ddprocmon_shasum, 'rc3-ddprocmon-sha')
-
-
-class TestGetReleaseJsonInfoForNextRC(unittest.TestCase):
-    test_release_json = {
-        "nightly": {
-            "VERSION": "ver7_nightly",
-            "HASH": "hash7_nightly",
-        },
-        "release": {
-            "VERSION": "ver7_release",
-            "HASH": "hash7_release",
-        },
-    }
-
-    def test_get_release_json_info_for_next_rc_on_first_rc(self):
-        previous_release_json = _get_release_json_info_for_next_rc(self.test_release_json, True)
-
-        self.assertEqual(
-            previous_release_json,
-            {
-                "VERSION": "ver7_nightly",
-                "HASH": "hash7_nightly",
-            },
-        )
-
-    def test_get_release_json_info_for_next_rc_on_second_rc(self):
-        previous_release_json = _get_release_json_info_for_next_rc(self.test_release_json, False)
-
-        self.assertEqual(
-            previous_release_json,
-            {
-                "VERSION": "ver7_release",
-                "HASH": "hash7_release",
-            },
-        )
-
-
-class TestGetJMXFetchReleaseJsonInfo(unittest.TestCase):
-    test_release_json = {
-        "nightly": {
-            "JMXFETCH_VERSION": "ver7_nightly",
-            "JMXFETCH_HASH": "hash7_nightly",
-        },
-        "release": {
-            "JMXFETCH_VERSION": "ver7_release",
-            "JMXFETCH_HASH": "hash7_release",
-        },
-    }
-
-    def test_get_release_json_info_for_next_rc_on_first_rc(self):
-        jmxfetch_version, jmxfetch_hash = _get_jmxfetch_release_json_info(self.test_release_json, True)
-
-        self.assertEqual(jmxfetch_version, "ver7_nightly")
-        self.assertEqual(jmxfetch_hash, "hash7_nightly")
 
 
 class TestCreateBuildLinksPatterns(unittest.TestCase):
