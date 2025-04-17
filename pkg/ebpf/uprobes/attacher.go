@@ -769,6 +769,10 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 		return fmt.Errorf("path %s from process %d is tempmount of containerd, skipping", fpath.HostPath, fpath.PID)
 	}
 
+	if strings.Contains(fpath.HostPath, " ") {
+		return fmt.Errorf("path %s from process %d contains spaces, skipping", fpath.HostPath, fpath.PID)
+	}
+
 	symbolsToRequest, err := ua.computeSymbolsToRequest(matchingRules)
 	if err != nil {
 		return fmt.Errorf("error computing symbols to request for rules %+v: %w", matchingRules, err)

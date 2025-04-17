@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
@@ -42,6 +43,10 @@ func SetupEventsMap() error {
 
 // AttachBPFUprobe attaches the probe to the specified process
 func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error {
+	if strings.Contains(procInfo.BinaryPath, " ") {
+		return fmt.Errorf("binary path contains spaces: %s", procInfo.BinaryPath)
+	}
+
 	executable, err := link.OpenExecutable(procInfo.BinaryPath)
 	if err != nil {
 		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "ATTACH_ERROR", err.Error())
