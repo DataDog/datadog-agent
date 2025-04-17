@@ -1,7 +1,6 @@
 ---
 .agent_build_common_dmg:
   script:
-    - echo "About to build for $RELEASE_VERSION"
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     - mkdir -p $OMNIBUS_PACKAGE_DIR
@@ -10,7 +9,7 @@
     - export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
     - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
     - python3 -m dda self dep sync -f legacy-tasks
-    - dda inv -- -e github.trigger-macos --workflow-type "build" --datadog-agent-ref "$CI_COMMIT_SHA" --release-version "$RELEASE_VERSION" --destination "$OMNIBUS_PACKAGE_DIR" --version-cache "$VERSION_CACHE_CONTENT" --integrations-core-ref "$INTEGRATIONS_CORE_VERSION"
+    - dda inv -- -e github.trigger-macos --workflow-type "build" --datadog-agent-ref "$CI_COMMIT_SHA" --destination "$OMNIBUS_PACKAGE_DIR" --version-cache "$VERSION_CACHE_CONTENT" --integrations-core-ref "$INTEGRATIONS_CORE_VERSION"
     - !reference [.upload_sbom_artifacts]
   timeout: 3h # MacOS builds can take 1h~2h, increase the timeout to avoid timeout flakes
   artifacts:
