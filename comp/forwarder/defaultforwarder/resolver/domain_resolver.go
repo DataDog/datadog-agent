@@ -137,7 +137,7 @@ func updateAdditionalEndpoints(config config.Component, setting string, resolver
 		log.Infof("rotating API key for '%s': %s -> %s", setting, strings.Join(removed, ","), strings.Join(added, ","))
 	} else if len(removed) > 0 {
 		log.Infof("removing API key for '%s': %s", setting, strings.Join(removed, ","))
-	} else {
+	} else if len(added) > 0 {
 		log.Infof("adding API key for '%s': %s", setting, strings.Join(added, ","))
 	}
 }
