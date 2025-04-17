@@ -8,6 +8,6 @@
 ---
 fixes:
   - |
-    CWS: Fix a bug preventing more than one runtime security rule 
-    from being disabled, and causing wrong policy information to 
+    CWS: Fixed a bug preventing more than one runtime security rule
+    from being disabled, and caused incorrect policy information to
     be reported in ruleset loaded events.
