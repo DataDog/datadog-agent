@@ -21,6 +21,7 @@ PROTO_PKGS = {
     'remoteagent': (False, False),
     'autodiscovery': (False, False),
     'trace/idx': (False, False),
+    'sbom': (False, False),
 }
 
 # maybe put this in a separate function

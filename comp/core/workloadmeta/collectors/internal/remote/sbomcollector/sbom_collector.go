@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build trivy
+
 // Package sbomcollector implements the remote SBOM collector for
 // Workloadmeta.
 package sbomcollector
@@ -15,13 +17,14 @@ import (
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/agent-payload/v5/sbom"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	sbompb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,7 +36,7 @@ const (
 )
 
 type client struct {
-	cl              api.SecurityModuleClient
+	cl              sbompb.SBOMCollectorClient
 	parentCollector *streamHandler
 }
 
@@ -41,7 +44,7 @@ func (c *client) StreamEntities(ctx context.Context) (remote.Stream, error) {
 	log.Debug("starting a new stream")
 	streamcl, err := c.cl.GetSBOMStream(
 		ctx,
-		&api.SBOMStreamParams{},
+		&sbompb.SBOMStreamParams{},
 	)
 	if err != nil {
 		return nil, err
@@ -50,7 +53,7 @@ func (c *client) StreamEntities(ctx context.Context) (remote.Stream, error) {
 }
 
 type stream struct {
-	cl api.SecurityModule_GetSBOMStreamClient
+	cl sbompb.SBOMCollector_GetSBOMStreamClient
 }
 
 func (s *stream) Recv() (interface{}, error) {
@@ -63,13 +66,13 @@ type streamHandler struct {
 }
 
 // workloadmetaEventFromSBOMEventSet converts the given SBOM message into a workloadmeta event
-func workloadmetaEventFromSBOMEventSet(event *api.SBOMMessage) (workloadmeta.Event, error) {
+func workloadmetaEventFromSBOMEventSet(event *sbompb.SBOMMessage) (workloadmeta.Event, error) {
 	if event == nil {
 		return workloadmeta.Event{}, nil
 	}
 
 	var sbom sbom.SBOMEntity
-	if err := event.Sbom.UnmarshalTo(&sbom); err != nil {
+	if err := proto.Unmarshal(event.Data, &sbom); err != nil {
 		return workloadmeta.Event{}, fmt.Errorf("failed to unmarshal SBOM: %w", err)
 	}
 
@@ -135,18 +138,18 @@ func (s *streamHandler) IsEnabled() bool {
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {
 	log.Debug("creating grpc client")
 
-	return &client{cl: api.NewSecurityModuleClient(cc), parentCollector: s}
+	return &client{cl: sbompb.NewSBOMCollectorClient(cc), parentCollector: s}
 }
 
 func (s *streamHandler) HandleResponse(_ workloadmeta.Component, resp interface{}) ([]workloadmeta.CollectorEvent, error) {
 	log.Trace("handling response")
-	response, ok := resp.(*api.SBOMMessage)
+	response, ok := resp.(*sbompb.SBOMMessage)
 	if !ok {
 		return nil, fmt.Errorf("incorrect response type")
 	}
 
 	var collectorEvents []workloadmeta.CollectorEvent
-	collectorEvents = handleEvents(collectorEvents, []*api.SBOMMessage{response}, workloadmetaEventFromSBOMEventSet)
+	collectorEvents = handleEvents(collectorEvents, []*sbompb.SBOMMessage{response}, workloadmetaEventFromSBOMEventSet)
 	log.Tracef("collected [%d] events", len(collectorEvents))
 	return collectorEvents, nil
 }
