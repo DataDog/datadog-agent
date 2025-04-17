@@ -160,7 +160,6 @@ func (s *linuxTestSuite) TestAPIKeyRefreshAdditionalEndpoints() {
 	secretRefreshOutput := s.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
 	require.Contains(t, secretRefreshOutput, "api_key")
 	require.Contains(t, secretRefreshOutput, "api_key_additional")
-	t.Logf("secretRefreshOutput: %s", secretRefreshOutput)
 
 	fakeIntakeClient.FlushServerAndResetAggregators()
 
@@ -168,13 +167,7 @@ func (s *linuxTestSuite) TestAPIKeyRefreshAdditionalEndpoints() {
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertAPIKeyStatus(collect, apiKey, agentClient, true)
 		assertAPIKeyStatus(collect, apiKeyAdditional, agentClient, true)
-		// Assert that all received payloads have the expected API keys
-		payloadKeys, err := fakeIntakeClient.GetAllProcessPayloadAPIKeys()
-		require.NoError(collect, err)
-		t.Logf("payloadKeys: %+v", payloadKeys)
-		for _, expectedAPIKey := range []string{apiKey, apiKeyAdditional} {
-			assert.Contains(collect, payloadKeys, expectedAPIKey)
-		}
+		assertAllPayloadsAPIKeys(collect, []string{apiKey, apiKeyAdditional}, fakeIntakeClient)
 	}, 2*time.Minute, 10*time.Second)
 }
 

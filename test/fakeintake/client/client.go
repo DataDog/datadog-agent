@@ -727,15 +727,19 @@ func (c *Client) GetLastProcessPayloadAPIKey() (string, error) {
 
 // GetAllProcessPayloadAPIKeys fetches fakeintake on `/api/v1/collector` endpoint and returns
 // a list of unique API keys of the received process payloads
-func (c *Client) GetAllProcessPayloadAPIKeys() (map[string]struct{}, error) {
+func (c *Client) GetAllProcessPayloadAPIKeys() ([]string, error) {
 	payloads, err := c.getFakePayloads(processesEndpoint)
 	if err != nil {
 		return nil, err
 	}
 
-	keys := make(map[string]struct{})
+	keysFound := make(map[string]struct{})
+	keys := make([]string, 0)
 	for _, payload := range payloads {
-		keys[payload.APIKey] = struct{}{}
+		if _, ok := keysFound[payload.APIKey]; !ok {
+			keysFound[payload.APIKey] = struct{}{}
+			keys = append(keys, payload.APIKey)
+		}
 	}
 
 	return keys, nil
