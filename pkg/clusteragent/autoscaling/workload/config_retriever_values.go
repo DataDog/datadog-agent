@@ -71,6 +71,11 @@ func (p autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Worklo
 		return nil
 	}
 
+	// Ignore values if the PodAutoscaler has a custom recommender configuration
+	if podAutoscaler.CustomRecommenderConfiguration() != nil {
+		return nil
+	}
+
 	// Update PodAutoscaler values with received values
 	// Even on error, the PodAutoscaler can be partially updated, always setting it
 	defer func() {
