@@ -31,8 +31,7 @@ var ErrorDisabled = errors.New("fentry tracer is disabled")
 // LoadTracer loads a new tracer
 func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), error) {
 	if !config.EnableFentry {
-		panic("bruh")
-		//return nil, nil, ErrorDisabled
+		return nil, nil, ErrorDisabled
 	}
 
 	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)
