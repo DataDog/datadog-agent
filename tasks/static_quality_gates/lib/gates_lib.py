@@ -144,6 +144,7 @@ class GateMetricHandler:
                 warn=True,
             )
             if out.exited == 0:
+                print("[DEBUG] FETCH SUCCESS")
                 ancestor_metric_handler = GateMetricHandler(ancestor, self.bucket_branch, filename)
                 for gate in self.metrics:
                     ancestor_gate = ancestor_metric_handler.metrics.get(gate)
@@ -161,6 +162,13 @@ class GateMetricHandler:
                         "orange",
                     )
                 )
+        else:
+            print(
+                color_message(
+                    f"[WARN] Unable to find this commit ancestor",
+                    "orange",
+                )
+            )
 
     def _generate_series(self):
         if not self.git_ref or not self.bucket_branch:
