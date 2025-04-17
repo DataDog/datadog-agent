@@ -14,6 +14,7 @@ import (
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -35,7 +36,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.host.InstallDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-agent"))
 	defer s.Purge()
-	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
 	s.host.StartExamplePythonApp()
 	defer s.host.StopExamplePythonApp()
@@ -61,6 +62,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()
 	s.assertDockerdInstrumented(injectOCIPath)
+	s.assertStableConfig(map[string]interface{}{})
 
 	traceID := rand.Uint64()
 	s.host.CallExamplePythonApp(fmt.Sprint(traceID))
@@ -128,6 +130,15 @@ func (s *packageApmInjectSuite) TestInstrumentHost() {
 	s.assertDockerdNotInstrumented()
 }
 
+func (s *packageApmInjectSuite) TestInstrumentProfilingEnabled() {
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python", "DD_PROFILING_ENABLED=auto", "DD_DATA_STREAMS_ENABLED=true", envForceInstall("datadog-agent"))
+	defer s.Purge()
+	s.assertStableConfig(map[string]interface{}{
+		"DD_PROFILING_ENABLED":    "auto",
+		"DD_DATA_STREAMS_ENABLED": true,
+	})
+}
+
 func (s *packageApmInjectSuite) TestInstrumentDefault() {
 	s.host.InstallDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-agent"))
@@ -143,7 +154,7 @@ func (s *packageApmInjectSuite) TestSystemdReload() {
 	defer s.Purge()
 
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
-	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()
 	s.assertDockerdInstrumented(injectOCIPath)
@@ -152,6 +163,10 @@ func (s *packageApmInjectSuite) TestSystemdReload() {
 // TestUpgrade_InjectorDeb_To_InjectorOCI tests the upgrade from the DEB injector to the OCI injector.
 // Library package is OCI.
 func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
+	if s.os.Flavor == e2eos.Suse {
+		s.T().Skip("Can't install APM deb/rpm packages on Suse, they were never released")
+	}
+
 	s.host.InstallDocker()
 
 	// Deb install using today's defaults
@@ -193,6 +208,10 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 // TestUpgrade_InjectorOCI_To_InjectorDeb tests the upgrade from the OCI injector to the DEB injector.
 // Library package is OCI.
 func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
+	if s.os.Flavor == e2eos.Suse {
+		s.T().Skip("Can't install APM deb/rpm packages on Suse, they were never released")
+	}
+
 	s.host.InstallDocker()
 
 	// OCI install
@@ -238,7 +257,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 		envForceVersion("datadog-apm-inject", "0.15.0-1"),
 	)
 	defer s.Purge()
-	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
 	state := s.host.State()
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-library-python/2.8.5", 0755, "root", "root")
@@ -261,7 +280,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 		envForceInstall("datadog-agent"),
 		envForceVersion("datadog-apm-inject", "0.16.0-1"),
 	)
-	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
 	// Today we expect the previous dir to be fully removed and the new one to be symlinked
 	state = s.host.State()
@@ -352,6 +371,10 @@ func (s *packageApmInjectSuite) TestUninstrument() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentScripts() {
+	if s.os.Flavor == e2eos.Suse {
+		s.T().Skip("Can't install APM deb/rpm packages on Suse, they were never released")
+	}
+
 	s.host.InstallDocker()
 
 	// Deb install using today's defaults
@@ -481,6 +504,20 @@ func (s *packageApmInjectSuite) assertLDPreloadInstrumented(libPath string) {
 	content, err := s.host.ReadFile("/etc/ld.so.preload")
 	assert.NoError(s.T(), err)
 	assert.Contains(s.T(), string(content), libPath)
+}
+
+func (s *packageApmInjectSuite) assertStableConfig(expectedConfigs map[string]interface{}) {
+	state := s.host.State()
+	state.AssertFileExists("/etc/datadog-agent/application_monitoring.yaml", 0644, "dd-agent", "dd-agent")
+	content, err := s.host.ReadFile("/etc/datadog-agent/application_monitoring.yaml")
+	assert.NoError(s.T(), err)
+
+	actualStableConfig := map[string]interface{}{}
+	err = yaml.Unmarshal(content, &actualStableConfig)
+	assert.NoError(s.T(), err)
+
+	assert.Contains(s.T(), actualStableConfig, "apm_configuration_default")
+	assert.Equal(s.T(), expectedConfigs, actualStableConfig["apm_configuration_default"])
 }
 
 func (s *packageApmInjectSuite) assertSocketPath() {

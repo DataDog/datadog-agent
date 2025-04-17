@@ -44,13 +44,10 @@ func TestFindContainerID(t *testing.T) {
 			input:  "prefixaAbBcCdDeEfF2345678901234567890123456789012345678901234567890123suffix",
 			output: "aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
 		},
-		{ // multiple
-			input:  "prefixaAbBcCdDeEfF2345678901234567890123456789012345678901234567890123-0123456789012345678901234567890123456789012345678901234567890123-9999999999999999999999999999999999999999999999999999999999999999suffix",
-			output: "aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
-		},
 		{ // path reducer test
 			input:  "/var/run/docker/overlay2/47c1f1930c1831f2359c6d276912c583be1cda5924233cf273022b91763a20f7/merged/etc/passwd",
 			output: "47c1f1930c1831f2359c6d276912c583be1cda5924233cf273022b91763a20f7",
+			flags:  CGroupManagerDocker,
 		},
 		{ // GARDEN
 			input:  "01234567-0123-4567-890a-bcde",
@@ -59,6 +56,7 @@ func TestFindContainerID(t *testing.T) {
 		{ // GARDEN as present in proc
 			input:  "/docker/01234567-0123-4567-890a-bcde",
 			output: "01234567-0123-4567-890a-bcde",
+			flags:  CGroupManagerDocker,
 		},
 		{ // Some random path which could match garden format
 			input:  "/user.slice/user-1000.slice/user@1000.service/apps.slice/apps-org.gnome.Terminal.slice/vte-spawn-f9176c6a-2a34-4ce2-86af-60d16888ed8e.scope",
@@ -69,25 +67,28 @@ func TestFindContainerID(t *testing.T) {
 			input:  "prefix01234567-0123-4567-890a-bcdesuffix",
 			output: "01234567-0123-4567-890a-bcde",
 		},
-		{ // ECS
-			input:  "0123456789aAbBcCdDeEfF0123456789-0123456789",
-			output: "0123456789aAbBcCdDeEfF0123456789-0123456789",
-		},
-		{ // ECS double with first having a bad format
+		{ // double with first having a bad format
 			input:  "0123456789aAbBcCdDeEfF0123456789-abcdef6789/0123456789aAbBcCdDeEfF0123456789-0123456789",
 			output: "0123456789aAbBcCdDeEfF0123456789-0123456789",
 		},
-		{ // ECS as present in proc
+		{ // Docker as present in proc
 			input:  "/docker/0123456789aAbBcCdDeEfF0123456789-0123456789",
 			output: "0123456789aAbBcCdDeEfF0123456789-0123456789",
+			flags:  CGroupManagerDocker,
 		},
-		{ // ECS with prefix / suffix
+		{ // prefix / suffix
 			input:  "prefix0123456789aAbBcCdDeEfF0123456789-0123456789suffix",
 			output: "0123456789aAbBcCdDeEfF0123456789-0123456789",
 		},
-		{ // ECS short
+		{ // ECS
 			input:  "/ecs/0123456789aAbBcCdDeEfF0123456789/0123456789aAbBcCdDeEfF0123456789-012345678",
 			output: "0123456789aAbBcCdDeEfF0123456789-012345678",
+			flags:  CGroupManagerECS,
+		},
+		{ // EKS
+			input:  "/ecs/409b8b89ccd746bdb9b5e03418406d96/409b8b89ccd746bdb9b5e03418406d96-3057940393/kubepods/besteffort/podc00eb3e2-d6c0-4eb6-9e58-fe539629263f/7022ec9d5774c69f38feddd6460373c4681ef72a4e03bc6f2d374387e9bde981",
+			output: "7022ec9d5774c69f38feddd6460373c4681ef72a4e03bc6f2d374387e9bde981",
+			flags:  CGroupManagerECS,
 		},
 	}
 

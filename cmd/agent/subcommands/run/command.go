@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -32,6 +33,10 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
 
 	// checks implemented as components
 
@@ -49,6 +54,7 @@ import (
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	commonendpoints "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx"
+	grpcAgentfx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-agent"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -56,6 +62,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
@@ -263,7 +271,8 @@ func run(log log.Component,
 	_ autoexit.Component,
 	settings settings.Component,
 	_ option.Option[gui.Component],
-	_ agenttelemetry.Component,
+	agenttelemetryComponent agenttelemetry.Component,
+	_ diagnose.Component,
 ) error {
 	defer func() {
 		stopAgent()
@@ -328,6 +337,7 @@ func run(log log.Component,
 		cloudfoundrycontainer,
 		jmxlogger,
 		settings,
+		agenttelemetryComponent,
 	); err != nil {
 		return err
 	}
@@ -385,6 +395,7 @@ func getSharedFxOption() fx.Option {
 		statusimpl.Module(),
 		authtokenimpl.Module(),
 		apiimpl.Module(),
+		grpcAgentfx.Module(),
 		commonendpoints.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
@@ -444,7 +455,11 @@ func getSharedFxOption() fx.Option {
 		netflow.Bundle(),
 		rdnsquerierfx.Module(),
 		snmptraps.Bundle(),
+		snmpscanfx.Module(),
 		collectorimpl.Module(),
+		fx.Provide(func(demux demultiplexer.Component) (ddgostatsd.ClientInterface, error) {
+			return aggregator.NewStatsdDirect(demux)
+		}),
 		process.Bundle(),
 		guiimpl.Module(),
 		agent.Bundle(jmxloggerimpl.NewDefaultParams()),
@@ -469,6 +484,7 @@ func getSharedFxOption() fx.Option {
 					"multi_region_failover.enabled":          internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.enabled", "Enable/disable Multi-Region Failover support."),
 					"multi_region_failover.failover_metrics": internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_metrics", "Enable/disable redirection of metrics to failover region."),
 					"multi_region_failover.failover_logs":    internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_logs", "Enable/disable redirection of logs to failover region."),
+					"multi_region_failover.failover_apm":     internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_apm", "Enable/disable redirection of APM to failover region."),
 					"internal_profiling":                     commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"),
 				},
 				Config: config,
@@ -480,6 +496,7 @@ func getSharedFxOption() fx.Option {
 		remoteagentregistryfx.Module(),
 		haagentfx.Module(),
 		metricscompressorfx.Module(),
+		diagnosefx.Module(),
 	)
 }
 
@@ -504,13 +521,19 @@ func startAgent(
 	invChecks inventorychecks.Component,
 	logReceiver option.Option[integrations.Component],
 	_ status.Component,
-	collector collector.Component,
+	collectorComponent collector.Component,
 	cfg config.Component,
 	_ cloudfoundrycontainer.Component,
 	jmxLogger jmxlogger.Component,
 	settings settings.Component,
+	agenttelemetryComponent agenttelemetry.Component,
 ) error {
 	var err error
+
+	span, _ := agenttelemetryComponent.StartStartupSpan("agent.startAgent")
+	defer func() {
+		span.Finish(err)
+	}()
 
 	if flavor.GetFlavor() == flavor.IotAgent {
 		log.Infof("Starting Datadog IoT Agent v%v", version.AgentVersion)
@@ -530,12 +553,12 @@ func startAgent(
 	// Setup Internal Profiling
 	common.SetupInternalProfiling(settings, pkgconfigsetup.Datadog(), "")
 
+	ctx, _ := pkgcommon.GetMainCtxCancel()
+
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()
 
 	http.Handle("/telemetry", telemetryHandler)
-
-	ctx, _ := pkgcommon.GetMainCtxCancel()
 
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
@@ -590,7 +613,7 @@ func startAgent(
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, tagger, cfg, telemetry, rcclient)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, logReceiver, tagger), true)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
@@ -600,7 +623,32 @@ func startAgent(
 	// check for common misconfigurations and report them to log
 	misconfig.ToLog(misconfig.CoreAgent)
 
+	// Register Diagnose functions
+	diagnosecatalog := diagnose.GetCatalog()
+
+	diagnosecatalog.Register(diagnose.CheckDatadog, func(_ diagnose.Config) []diagnose.Diagnosis {
+		return collector.Diagnose(collectorComponent, log)
+	})
+
+	diagnosecatalog.Register(diagnose.PortConflict, func(_ diagnose.Config) []diagnose.Diagnosis {
+		return ports.DiagnosePortSuite()
+	})
+
+	diagnosecatalog.Register(diagnose.EventPlatformConnectivity, func(_ diagnose.Config) []diagnose.Diagnosis {
+		return eventplatformimpl.Diagnose()
+	})
+
+	diagnosecatalog.Register(diagnose.AutodiscoveryConnectivity, func(_ diagnose.Config) []diagnose.Diagnosis {
+		return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()
+	})
+
+	diagnosecatalog.Register(diagnose.CoreEndpointsConnectivity, func(diagCfg diagnose.Config) []diagnose.Diagnosis {
+		return connectivity.Diagnose(diagCfg, log)
+	})
+
 	// start dependent services
+	// must run in background go command because the agent might be in service start pending
+	// and not service running yet, and as such, the call will block or fail
 	go startDependentServices()
 
 	return nil
@@ -630,6 +678,9 @@ func stopAgent() {
 	// gracefully shut down any component
 	_, cancel := pkgcommon.GetMainCtxCancel()
 	cancel()
+
+	// shutdown dependent services
+	stopDependentServices()
 
 	pkglog.Info("See ya!")
 	pkglog.Flush()

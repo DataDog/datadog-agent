@@ -8,19 +8,17 @@ package hostname
 import (
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
-	"path"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -86,8 +84,8 @@ func TestGetHostname(t *testing.T) {
 				forceLocal:   tc.forceLocal,
 			}
 
-			server := httptest.NewTLSServer(hostnameHandler(tc.remoteHostname))
-			t.Cleanup(server.Close)
+			authComp := authtokenmock.New(t)
+			server := authComp.NewMockServer(hostnameHandler(tc.remoteHostname))
 
 			serverURL, err := url.Parse(server.URL)
 			require.NoError(t, err)
@@ -96,9 +94,6 @@ func TestGetHostname(t *testing.T) {
 			config.Set("hostname", localHostname, model.SourceFile)
 			config.Set("cmd_host", serverURL.Hostname(), model.SourceFile)
 			config.Set("cmd_port", serverURL.Port(), model.SourceFile)
-
-			config.Set("auth_token_file_path", path.Join(t.TempDir(), "auth_token"), model.SourceFile)
-			apiutil.CreateAndSetAuthToken(config)
 
 			hname, err := getHostname(config, cliParams)
 			require.NoError(t, err)

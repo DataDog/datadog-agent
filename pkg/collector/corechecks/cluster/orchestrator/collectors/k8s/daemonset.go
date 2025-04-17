@@ -13,6 +13,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"k8s.io/apimachinery/pkg/labels"
 	appsv1Informers "k8s.io/client-go/informers/apps/v1"
@@ -50,6 +51,7 @@ func NewDaemonSetCollector(metadataAsTags utils.MetadataAsTags) *DaemonSetCollec
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
 			Name:                                 daemonSetName,
+			Kind:                                 kubernetes.DaemonSetKind,
 			NodeType:                             orchestrator.K8sDaemonSet,
 			Version:                              daemonSetVersion,
 			LabelsAsTags:                         labelsAsTags,

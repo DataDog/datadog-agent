@@ -63,6 +63,11 @@ const (
 	InternalCoreDumpRuleID = "internal_core_dump"
 	// InternalCoreDumpRuleDesc internal core dump
 	InternalCoreDumpRuleDesc = "Internal Core Dump"
+
+	// SysCtlSnapshotRuleID is the rule ID used when sending a sysctl snapshot event
+	SysCtlSnapshotRuleID = "sysctl_snapshot"
+	// SysCtlSnapshotRuleDesc is the description of the sysctl snapshot rule
+	SysCtlSnapshotRuleDesc = "A new sysctl snapshot was generated"
 )
 
 // AgentContainerContext is like model.ContainerContext, but without event based resolvers
@@ -105,6 +110,7 @@ func AllCustomRuleIDs() []string {
 		NoProcessContextErrorRuleID,
 		BrokenProcessLineageErrorRuleID,
 		InternalCoreDumpRuleID,
+		SysCtlSnapshotRuleID,
 	}
 }
 

@@ -9,14 +9,15 @@ package exec
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
@@ -44,28 +45,28 @@ type installerCmd struct {
 	ctx  context.Context
 }
 
-func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, args ...string) *installerCmd {
+func (i *InstallerExec) newInstallerCmdCustomPath(ctx context.Context, command string, path string, args ...string) *installerCmd {
 	env := i.env.ToEnv()
+	// Enforce the use of the installer when it is bundled with the agent.
+	env = append(env, "DD_BUNDLED_AGENT=installer")
 	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
-	span.SetTag("args", args)
-	cmd := exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
+	span.SetTag("args", strings.Join(args, " "))
+	cmd := exec.CommandContext(ctx, path, append([]string{command}, args...)...)
 	env = append(os.Environ(), env...)
-	if runtime.GOOS != "windows" {
-		// os.Interrupt is not support on Windows
-		// It gives " run failed: exec: canceling Cmd: not supported by windows"
-		cmd.Cancel = func() error {
-			return cmd.Process.Signal(os.Interrupt)
-		}
-	}
 	env = append(env, telemetry.EnvFromContext(ctx)...)
 	cmd.Env = env
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd = i.newInstallerCmdPlatform(cmd)
 	return &installerCmd{
 		Cmd:  cmd,
 		span: span,
 		ctx:  ctx,
 	}
+}
+
+func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, args ...string) *installerCmd {
+	return i.newInstallerCmdCustomPath(ctx, command, i.installerBinPath, args...)
 }
 
 // Install installs a package.
@@ -76,6 +77,13 @@ func (i *InstallerExec) Install(ctx context.Context, url string, args []string) 
 	}
 	cmd := i.newInstallerCmd(ctx, "install", cmdLineArgs...)
 	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// SetupInstaller runs the setup command.
+func (i *InstallerExec) SetupInstaller(ctx context.Context, path string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "setup-installer", path)
+	defer func() { cmd.span.Finish(nil) }()
 	return cmd.Run()
 }
 
@@ -111,7 +119,28 @@ func (i *InstallerExec) InstallExperiment(ctx context.Context, url string) (err 
 
 // RemoveExperiment removes an experiment.
 func (i *InstallerExec) RemoveExperiment(ctx context.Context, pkg string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "remove-experiment", pkg)
+	var cmd *installerCmd
+	// on windows we need to make a copy of installer binary so that it isn't in use
+	// while the MSI tries to remove it
+	if runtime.GOOS == "windows" && pkg == "datadog-agent" {
+		repositories := repository.NewRepositories(paths.PackagesPath, nil)
+		tmpDir, err := repositories.MkdirTemp()
+		if err != nil {
+			return fmt.Errorf("error creating temp dir: %w", err)
+		}
+		// this might not get run as this processes will be killed during the stop
+		defer os.RemoveAll(tmpDir)
+
+		// copy our installerPath to temp location
+		installerPath := filepath.Join(tmpDir, "datadog-installer.exe")
+		err = paths.CopyFile(i.installerBinPath, installerPath)
+		if err != nil {
+			return fmt.Errorf("error copying installer binary: %w", err)
+		}
+		cmd = i.newInstallerCmdCustomPath(ctx, "remove-experiment", installerPath, pkg)
+	} else {
+		cmd = i.newInstallerCmd(ctx, "remove-experiment", pkg)
+	}
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
@@ -220,32 +249,61 @@ func (i *InstallerExec) AvailableDiskSpace() (uint64, error) {
 	return repositories.AvailableDiskSpace()
 }
 
+// getStates retrieves the state of all packages & their configuration from disk.
+func (i *InstallerExec) getStates(ctx context.Context) (repo *repository.PackageStates, err error) {
+	cmd := i.newInstallerCmd(ctx, "get-states")
+	defer func() { cmd.span.Finish(err) }()
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err = cmd.Run()
+	if err != nil {
+		return nil, fmt.Errorf("error getting state from disk: %w\n%s", err, stderr.String())
+	}
+	var pkgStates *repository.PackageStates
+	err = json.Unmarshal(stdout.Bytes(), &pkgStates)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling state from disk: %w\n`%s`", err, stdout.String())
+	}
+
+	return pkgStates, nil
+}
+
 // State returns the state of a package.
-func (i *InstallerExec) State(pkg string) (repository.State, error) {
-	repositories := repository.NewRepositories(paths.PackagesPath, nil)
-	return repositories.Get(pkg).GetState()
+func (i *InstallerExec) State(ctx context.Context, pkg string) (repository.State, error) {
+	states, err := i.States(ctx)
+	if err != nil {
+		return repository.State{}, err
+	}
+	return states[pkg], nil
 }
 
 // States returns the states of all packages.
-func (i *InstallerExec) States() (map[string]repository.State, error) {
-	repositories := repository.NewRepositories(paths.PackagesPath, nil)
-	states, err := repositories.GetStates()
-	log.Debugf("repositories states: %v", states)
-	return states, err
+func (i *InstallerExec) States(ctx context.Context) (map[string]repository.State, error) {
+	allStates, err := i.getStates(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return allStates.States, nil
 }
 
 // ConfigState returns the state of a package's configuration.
-func (i *InstallerExec) ConfigState(pkg string) (repository.State, error) {
-	repositories := repository.NewRepositories(paths.ConfigsPath, nil)
-	return repositories.Get(pkg).GetState()
+func (i *InstallerExec) ConfigState(ctx context.Context, pkg string) (repository.State, error) {
+	configStates, err := i.ConfigStates(ctx)
+	if err != nil {
+		return repository.State{}, err
+	}
+	return configStates[pkg], nil
 }
 
 // ConfigStates returns the states of all packages' configurations.
-func (i *InstallerExec) ConfigStates() (map[string]repository.State, error) {
-	repositories := repository.NewRepositories(paths.ConfigsPath, nil)
-	states, err := repositories.GetStates()
-	log.Debugf("config repositories states: %v", states)
-	return states, err
+func (i *InstallerExec) ConfigStates(ctx context.Context) (map[string]repository.State, error) {
+	allStates, err := i.getStates(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return allStates.ConfigStates, nil
 }
 
 // Close cleans up any resources.
@@ -267,4 +325,11 @@ func (iCmd *installerCmd) Run() error {
 
 	installerError := installerErrors.FromJSON(strings.TrimSpace(errBuf.String()))
 	return fmt.Errorf("run failed: %w \n%s", installerError, err.Error())
+}
+
+// RunHook runs a hook for a given package.
+func (i *InstallerExec) RunHook(ctx context.Context, hookContext string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "hooks", hookContext)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
 }

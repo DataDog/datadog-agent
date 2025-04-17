@@ -28,11 +28,6 @@ packages:
   github.com/DataDog/datadog-agent/pkg/process/checks:
     interfaces:
       Check:
-  github.com/DataDog/datadog-agent/pkg/process/net:
-    interfaces:
-      SysProbeUtil:
-        config:
-          with-expecter: true
   github.com/DataDog/datadog-agent/pkg/process/procutil:
     interfaces:
       Probe:
@@ -53,7 +48,7 @@ packages:
       Collector:
         config:
           with-expecter: true
-          mock-build-tags: "linux && test"
+          mock-build-tags: "linux && nvml && test"
           # Need to have it in the same package to avoid import loops!
           inpackage: true
           dir: "{{.InterfaceDir}}"

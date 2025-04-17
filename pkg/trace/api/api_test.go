@@ -51,7 +51,7 @@ var headerFields = map[string]string{
 
 type noopStatsProcessor struct{}
 
-func (noopStatsProcessor) ProcessStats(_ *pb.ClientStatsPayload, _, _, _ string) {}
+func (noopStatsProcessor) ProcessStats(_ *pb.ClientStatsPayload, _, _, _, _ string) {}
 
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig()
@@ -66,6 +66,7 @@ func newTestReceiverConfig() *config.AgentConfig {
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "test"
 	conf.DecoderTimeout = 10000
+	conf.ReceiverTimeout = 1
 	conf.ReceiverPort = 8326 // use non-default port to avoid conflict with a running agent
 
 	return conf
@@ -656,15 +657,17 @@ type mockStatsProcessor struct {
 	lastLang          string
 	lastTracerVersion string
 	containerID       string
+	obfVersion        string
 }
 
-func (m *mockStatsProcessor) ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
+func (m *mockStatsProcessor) ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfVersion string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.lastP = p
 	m.lastLang = lang
 	m.lastTracerVersion = tracerVersion
 	m.containerID = containerID
+	m.obfVersion = obfVersion
 }
 
 func (m *mockStatsProcessor) Got() (p *pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
@@ -1200,6 +1203,81 @@ func TestNormalizeHTTPHeader(t *testing.T) {
 		if result != test.expected {
 			t.Errorf("normalizeHTTPHeader(%q) = %q; expected %q", test.input, result, test.expected)
 		}
+	}
+}
+
+func TestGetProcessTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		header   http.Header
+		payload  *pb.TracerPayload
+		expected string
+	}{
+		{
+			name: "process tags in payload tags",
+			header: http.Header{
+				header.ProcessTags: []string{"header-value"},
+			},
+			payload: &pb.TracerPayload{
+				Tags: map[string]string{
+					tagProcessTags: "payload-tag-value",
+				},
+			},
+			expected: "payload-tag-value",
+		},
+		{
+			name:   "process tags in first span meta",
+			header: http.Header{header.ProcessTags: []string{"header-value"}},
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					{
+						Spans: []*pb.Span{
+							{
+								Meta: map[string]string{
+									tagProcessTags: "span-meta-value",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: "span-meta-value",
+		},
+		{
+			name: "process tags in header only",
+			header: http.Header{
+				header.ProcessTags: []string{"header-value"},
+			},
+			payload:  &pb.TracerPayload{},
+			expected: "header-value",
+		},
+		{
+			name:     "no tags anywhere",
+			header:   http.Header{},
+			payload:  &pb.TracerPayload{},
+			expected: "",
+		},
+		{
+			name:   "chunks but no spans",
+			header: http.Header{header.ProcessTags: []string{"header-value"}},
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					nil,
+					{},
+					{Spans: []*pb.Span{nil}},
+				},
+			},
+			expected: "header-value",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := getProcessTags(tc.header, tc.payload)
+			if result != tc.expected {
+				t.Errorf("expected %q, got %q", tc.expected, result)
+			}
+		})
 	}
 }
 

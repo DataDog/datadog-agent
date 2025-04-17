@@ -26,7 +26,10 @@ if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
 else
   COMPRESSION_THREADS = 1
 end
-if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
+
+# We want an higher compression level on deploy pipelines that are not nightly.
+# Nightly pipelines will be used as main reference for static quality gates and need the same compression level as main.
+if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && ENV.has_key?("BUCKET_BRANCH") && ENV['BUCKET_BRANCH'] != "nightly"
   COMPRESSION_LEVEL = 9
 else
   COMPRESSION_LEVEL = 5
@@ -232,11 +235,6 @@ if do_build
     dependency 'datadog-security-agent-policies'
   end
 
-  # System-probe
-  if sysprobe_enabled?
-    dependency 'system-probe'
-  end
-
   if osx_target?
     dependency 'datadog-agent-mac-app'
   end
@@ -344,6 +342,9 @@ if windows_target?
     # strip the binary of debug symbols
     windows_symbol_stripping_file bin
   end
+
+  # We need to strip the debug symbols from the rtloader files
+  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
 
   if windows_signing_enabled?
     # Sign additional binaries from here.

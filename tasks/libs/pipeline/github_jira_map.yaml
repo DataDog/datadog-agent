@@ -29,6 +29,7 @@
 '@datadog/windows-agent': WINA
 '@datadog/windows-kernel-integrations': WKINT
 '@datadog/opentelemetry': OTAGENT
+'@datadog/opentelemetry-agent': OTAGENT
 '@datadog/agent-e2e-testing': ADXT
 '@datadog/sdlc-security': SINT
 '@datadog/single-machine-performance': SMP
@@ -40,8 +41,7 @@
 '@datadog/apm-trace-storage': APMTS
 '@datadog/asm-go': APPSEC
 '@datadog/agent-delivery': BARX
-'@datadog/agent-devx-loops': ADXT
-'@datadog/agent-devx-infra': ACIX
+'@datadog/agent-devx': ACIX
 '@datadog/injection-platform': INPLAT
 '@datadog/agent-processing-and-routing': APR
 '@DataDog/container-ecosystems': CECO

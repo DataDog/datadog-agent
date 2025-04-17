@@ -152,9 +152,19 @@ def get_ancestor(ctx, package_sizes, on_main):
     return ancestor
 
 
-def display_message(ctx, ancestor, rows, decision):
+def display_message(ctx, ancestor, rows, reduction_rows, decision):
     is_open = '' if "Passed" in decision else ' open'
+    size_wins = f"""<details open>
+<summary> Size reduction summary </summary>
+
+|package|diff|status|size|ancestor|threshold|
+|--|--|--|--|--|--|
+{reduction_rows}
+</details>
+"""
     message = f"""Comparison with [ancestor](https://github.com/DataDog/datadog-agent/commit/{ancestor}) `{ancestor}`
+{size_wins if reduction_rows else ''}
+
 <details{is_open}>
   <summary> Diff per package </summary>
 

@@ -10,6 +10,7 @@ package agentimpl
 import (
 	"bytes"
 	"context"
+	"expvar"
 	"fmt"
 	"os"
 	"strings"
@@ -27,7 +28,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -96,7 +97,7 @@ func (suite *AgentTestSuite) SetupTest() {
 	// Shorter grace period for tests.
 	suite.configOverrides["logs_config.stop_grace_period"] = 1
 
-	fakeTagger := taggerMock.SetupFakeTagger(suite.T())
+	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
 	suite.tagger = fakeTagger
 }
 
@@ -126,7 +127,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		inventoryagentimpl.MockModule(),
 	))
 
-	fakeTagger := taggerMock.SetupFakeTagger(suite.T())
+	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
 
 	agent := &logAgent{
 		log:              deps.Log,
@@ -158,7 +159,9 @@ func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
 	assert.Equal(suite.T(), zero, metrics.LogsProcessed.Value())
 	assert.Equal(suite.T(), zero, metrics.LogsSent.Value())
 	assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value())
-	assert.Equal(suite.T(), "{}", metrics.DestinationLogsDropped.String())
+	metrics.DestinationLogsDropped.Do(func(k expvar.KeyValue) {
+		assert.Equal(suite.T(), k.Value.String(), "0")
+	})
 
 	agent.startPipeline()
 	sources.AddSource(suite.source)
@@ -193,7 +196,7 @@ func (suite *AgentTestSuite) TestAgentHttp() {
 }
 
 func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
-	endpoint := config.NewEndpoint("", "fake:", 0, false)
+	endpoint := config.NewEndpoint("", "", "fake:", 0, false)
 	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
 
 	env.SetFeatures(suite.T(), env.Docker, env.Kubernetes)

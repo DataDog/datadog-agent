@@ -11,6 +11,7 @@ package orchestrator
 import (
 	"expvar"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -52,6 +53,7 @@ type CollectorBundle struct {
 	collectorDiscovery       *discovery.DiscoveryCollector
 	activatedCollectors      map[string]struct{}
 	terminatedResourceBundle *TerminatedResourceBundle
+	initializeOnce           sync.Once
 }
 
 // NewCollectorBundle creates a new bundle from the check configuration.
@@ -103,6 +105,8 @@ func (cb *CollectorBundle) prepareCollectors() {
 			return
 		}
 	}
+
+	defer cb.addTerminatedCollectorIfStable()
 
 	if ok := cb.importCollectorsFromCheckConfig(); ok {
 		return
@@ -269,7 +273,11 @@ func (cb *CollectorBundle) prepareExtraSyncTimeout() {
 // Initialize is used to initialize collectors part of the bundle.
 // During initialization informers are created, started and their cache is
 // synced.
-func (cb *CollectorBundle) Initialize() error {
+func (cb *CollectorBundle) Initialize() {
+	cb.initializeOnce.Do(cb.initialize)
+}
+
+func (cb *CollectorBundle) initialize() {
 	informersToSync := make(map[apiserver.InformerName]cache.SharedInformer)
 	// informerSynced is a helper map which makes sure that we don't initialize the same informer twice.
 	// i.e. the cluster and nodes resources share the same informer and using both can lead to a race condition activating both concurrently.
@@ -314,8 +322,6 @@ func (cb *CollectorBundle) Initialize() error {
 			cb.skipCollector(informerName, err)
 		}
 	}
-
-	return nil
 }
 
 func (cb *CollectorBundle) skipCollector(informerName apiserver.InformerName, err error) {
@@ -394,4 +400,31 @@ func (cb *CollectorBundle) terminatedResourceHandler(collector collectors.K8sCol
 // GetTerminatedResourceBundle returns the terminated resource bundle.
 func (cb *CollectorBundle) GetTerminatedResourceBundle() *TerminatedResourceBundle {
 	return cb.terminatedResourceBundle
+}
+
+// addTerminatedCollector adds terminated pod collector if unassigned pod collector is added
+func (cb *CollectorBundle) addTerminatedCollectorIfStable() {
+	hasUnassignedPodCollector := false
+	hasTerminatedPodCollector := false
+	for _, collector := range cb.collectors {
+		if collector.Metadata().Name == "pods" {
+			hasUnassignedPodCollector = true
+		}
+		if collector.Metadata().Name == "terminated-pods" {
+			hasTerminatedPodCollector = true
+		}
+	}
+
+	// add terminated pod collector if unassigned pod collector is added and terminated pod collector is stable
+	if hasUnassignedPodCollector && !hasTerminatedPodCollector {
+		terminatedPodCollector, err := cb.collectorDiscovery.VerifyForInventory("terminated-pods", "", cb.inventory)
+		if err != nil {
+			log.Warnf("Unabled to add terminated pod collector: %s", err)
+			return
+		}
+		if terminatedPodCollector.Metadata().IsStable {
+			cb.collectors = append(cb.collectors, terminatedPodCollector)
+			return
+		}
+	}
 }

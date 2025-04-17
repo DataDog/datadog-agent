@@ -199,10 +199,7 @@ func (a *Agent) Run() {
 	// enough to keep the agent busy.
 	// Having more processor threads would not speed
 	// up processing, but just expand memory.
-	workers := runtime.GOMAXPROCS(0)
-	if workers < 1 {
-		workers = 1
-	}
+	workers := max(runtime.GOMAXPROCS(0), 1)
 
 	log.Infof("Processing Pipeline configured with %d workers", workers)
 	for i := 0; i < workers; i++ {
@@ -316,7 +313,7 @@ func (a *Agent) Process(p *api.Payload) {
 	defer a.Timing.Since("datadog.trace_agent.internal.process_payload_ms", now)
 	ts := p.Source
 	sampledChunks := new(writer.SampledChunks)
-	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, a.conf)
+	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, p.ProcessTags)
 
 	p.TracerPayload.Env = traceutil.NormalizeTagValue(p.TracerPayload.Env)
 
@@ -343,8 +340,8 @@ func (a *Agent) Process(p *api.Payload) {
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
 		root := traceutil.GetRoot(chunk.Spans)
 		setChunkAttributes(chunk, root)
-		if !a.Blacklister.Allows(root) {
-			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
+		if allowed, denyingRule := a.Blacklister.Allows(root); !allowed {
+			log.Debugf("Trace rejected by ignore resources rules. root: %v matching rule: \"%s\"", root, denyingRule.String())
 			ts.TracesFiltered.Inc()
 			ts.SpansFiltered.Add(tracen)
 			p.RemoveChunk(i)
@@ -504,11 +501,8 @@ func (a *Agent) discardSpans(p *api.Payload) {
 	}
 }
 
-func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, containerID string) *pb.ClientStatsPayload {
-	enableContainers := a.conf.HasFeature("enable_cid_stats") || (a.conf.FargateOrchestrator != config.OrchestratorUnknown)
-	if !enableContainers || a.conf.HasFeature("disable_cid_stats") {
-		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
-		// been explicitly enabled and it's not prohibited by the disable_cid_stats feature flag.
+func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfuscationVersion string) *pb.ClientStatsPayload {
+	if a.conf.HasFeature("disable_cid_stats") {
 		in.ContainerID = ""
 		in.Tags = nil
 	} else {
@@ -524,6 +518,12 @@ func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, con
 	if in.Lang == "" {
 		in.Lang = lang
 	}
+	shouldObfuscate := obfuscationVersion == ""
+	if !shouldObfuscate {
+		if versionInt, err := strconv.Atoi(obfuscationVersion); err != nil && versionInt < obfuscate.Version {
+			log.Debug("Tracer is using older version of obfuscation %d", versionInt)
+		}
+	}
 	for i, group := range in.Stats {
 		n := 0
 		for _, b := range group.Stats {
@@ -531,7 +531,9 @@ func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, con
 			if !a.Blacklister.AllowsStat(b) {
 				continue
 			}
-			a.obfuscateStatsGroup(b)
+			if shouldObfuscate {
+				a.obfuscateStatsGroup(b)
+			}
 			a.Replacer.ReplaceStatsGroup(b)
 			group.Stats[n] = b
 			n++
@@ -560,8 +562,8 @@ func mergeDuplicates(s *pb.ClientStatsBucket) {
 }
 
 // ProcessStats processes incoming client stats in from the given tracer.
-func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
-	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion, containerID)
+func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfuscationVersion string) {
+	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion, containerID, obfuscationVersion)
 }
 
 // sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept

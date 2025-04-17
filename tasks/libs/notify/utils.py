@@ -58,13 +58,13 @@ def should_notify(pipeline_id):
     return pipeline.source != 'pipeline' or pipeline.source == 'pipeline' and 'DDR_WORKFLOW_ID' in os.environ
 
 
-def get_pipeline_type(pipeline):
+def get_pipeline_type():
     """
     Return the type of notification to send (related to the type of pipeline, amongst 'deploy', 'trigger' and 'merge')
     """
     if os.environ.get('DEPLOY_AGENT', '') == 'true':
         return 'deploy'
-    elif pipeline.source != 'push':
+    elif os.environ.get('TRIGGERED_PIPELINE', 'false') == 'true' or 'DDR_WORKFLOW_ID' in os.environ:
         return 'trigger'
     else:
         return 'merge'

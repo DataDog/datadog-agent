@@ -9,8 +9,10 @@ package eval
 import (
 	"errors"
 	"fmt"
+	"net"
 	"reflect"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/jellydator/ttlcache/v3"
@@ -48,6 +50,10 @@ type MutableVariable interface {
 // settableVariable describes a SECL variable
 type settableVariable struct {
 	setFnc func(ctx *Context, value interface{}) error
+}
+
+type expirableVariable interface {
+	CleanupExpired()
 }
 
 // Set the variable with the specified value
@@ -163,6 +169,37 @@ func NewScopedBoolVariable(boolFnc func(ctx *Context) (bool, bool), setFnc func(
 	}
 }
 
+// ScopedIPVariable describes a scoped IP variable
+type ScopedIPVariable struct {
+	settableVariable
+	ipFnc func(ctx *Context) (net.IPNet, bool)
+}
+
+// GetEvaluator returns the variable SECL evaluator
+func (i *ScopedIPVariable) GetEvaluator() interface{} {
+	return &CIDREvaluator{
+		EvalFnc: func(ctx *Context) net.IPNet {
+			i, _ := i.ipFnc(ctx)
+			return i
+		},
+	}
+}
+
+// GetValue returns the variable value
+func (i *ScopedIPVariable) GetValue(ctx *Context) (interface{}, bool) {
+	return i.ipFnc(ctx)
+}
+
+// NewScopedIPVariable returns a new scoped IP variable
+func NewScopedIPVariable(ipFnc func(ctx *Context) (net.IPNet, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedIPVariable {
+	return &ScopedIPVariable{
+		ipFnc: ipFnc,
+		settableVariable: settableVariable{
+			setFnc: setFnc,
+		},
+	}
+}
+
 // ScopedStringArrayVariable describes a scoped string array variable
 type ScopedStringArrayVariable struct {
 	settableVariable
@@ -259,21 +296,69 @@ func NewScopedIntArrayVariable(intFnc func(ctx *Context) ([]int, bool), setFnc f
 	}
 }
 
+// ScopedIPArrayVariable describes a scoped IP array variable
+type ScopedIPArrayVariable struct {
+	settableVariable
+	ipFnc func(ctx *Context) ([]net.IPNet, bool)
+}
+
+// GetEvaluator returns the variable SECL evaluator
+func (i *ScopedIPArrayVariable) GetEvaluator() interface{} {
+	return &CIDRArrayEvaluator{
+		EvalFnc: func(ctx *Context) []net.IPNet {
+			i, _ := i.ipFnc(ctx)
+			return i
+		},
+	}
+}
+
+// GetValue returns the variable value
+func (i *ScopedIPArrayVariable) GetValue(ctx *Context) (interface{}, bool) {
+	return i.ipFnc(ctx)
+}
+
+// Set the array values
+func (i *ScopedIPArrayVariable) Set(ctx *Context, value interface{}) error {
+	if ip, ok := value.(net.IPNet); ok {
+		value = []net.IPNet{ip}
+	}
+	return i.settableVariable.Set(ctx, value)
+}
+
+// Append a value to the array
+func (i *ScopedIPArrayVariable) Append(ctx *Context, value interface{}) error {
+	if val, ok := value.(net.IPNet); ok {
+		value = []net.IPNet{val}
+	}
+	values, _ := i.ipFnc(ctx)
+	return i.Set(ctx, append(values, value.([]net.IPNet)...))
+}
+
+// NewScopedIPArrayVariable returns a new IP array variable
+func NewScopedIPArrayVariable(ipFnc func(ctx *Context) ([]net.IPNet, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedIPArrayVariable {
+	return &ScopedIPArrayVariable{
+		ipFnc: ipFnc,
+		settableVariable: settableVariable{
+			setFnc: setFnc,
+		},
+	}
+}
+
 // IntVariable describes a global integer variable
 type IntVariable struct {
-	set   bool
+	isSet bool
 	Value int
 }
 
 // GetValue returns the variable value
 func (m *IntVariable) GetValue() (interface{}, bool) {
-	return m.Value, m.set
+	return m.Value, m.isSet
 }
 
 // Set the variable with the specified value
 func (m *IntVariable) Set(_ *Context, value interface{}) error {
-	m.set = true
 	m.Value = value.(int)
+	m.isSet = true
 	return nil
 }
 
@@ -281,8 +366,8 @@ func (m *IntVariable) Set(_ *Context, value interface{}) error {
 func (m *IntVariable) Append(_ *Context, value interface{}) error {
 	switch value := value.(type) {
 	case int:
-		m.set = true
 		m.Value += value
+		m.isSet = true
 	default:
 		return errAppendNotSupported
 	}
@@ -300,7 +385,7 @@ func (m *IntVariable) GetEvaluator() interface{} {
 
 // BoolVariable describes a mutable boolean variable
 type BoolVariable struct {
-	set   bool
+	isSet bool
 	Value bool
 }
 
@@ -314,19 +399,19 @@ func (m *BoolVariable) GetEvaluator() interface{} {
 }
 
 // NewIntVariable returns a new mutable integer variable
-func NewIntVariable() *IntVariable {
-	return &IntVariable{}
+func NewIntVariable(value int) *IntVariable {
+	return &IntVariable{Value: value}
 }
 
 // GetValue returns the variable value
 func (m *BoolVariable) GetValue() (interface{}, bool) {
-	return m.Value, m.set
+	return m.Value, m.isSet
 }
 
 // Set the variable with the specified value
 func (m *BoolVariable) Set(_ *Context, value interface{}) error {
 	m.Value = value.(bool)
-	m.set = true
+	m.isSet = true
 	return nil
 }
 
@@ -336,14 +421,14 @@ func (m *BoolVariable) Append(_ *Context, _ interface{}) error {
 }
 
 // NewBoolVariable returns a new mutable boolean variable
-func NewBoolVariable() *BoolVariable {
-	return &BoolVariable{}
+func NewBoolVariable(value bool) *BoolVariable {
+	return &BoolVariable{Value: value}
 }
 
 // StringVariable describes a mutable string variable
 type StringVariable struct {
 	Value string
-	set   bool
+	isSet bool
 }
 
 // GetEvaluator returns the variable SECL evaluator
@@ -358,7 +443,7 @@ func (m *StringVariable) GetEvaluator() interface{} {
 
 // GetValue returns the variable value
 func (m *StringVariable) GetValue() (interface{}, bool) {
-	return m.Value, m.set
+	return m.Value, m.isSet
 }
 
 // Append a value to the string
@@ -366,7 +451,7 @@ func (m *StringVariable) Append(_ *Context, value interface{}) error {
 	switch value := value.(type) {
 	case string:
 		m.Value += value
-		m.set = true
+		m.isSet = true
 	default:
 		return errAppendNotSupported
 	}
@@ -376,36 +461,80 @@ func (m *StringVariable) Append(_ *Context, value interface{}) error {
 // Set the variable with the specified value
 func (m *StringVariable) Set(_ *Context, value interface{}) error {
 	m.Value = value.(string)
-	m.set = true
+	m.isSet = true
 	return nil
 }
 
 // NewStringVariable returns a new mutable string variable
-func NewStringVariable() *StringVariable {
-	return &StringVariable{}
+func NewStringVariable(value string) *StringVariable {
+	return &StringVariable{Value: value}
+}
+
+// IPVariable describes a global IP variable
+type IPVariable struct {
+	Value net.IPNet
+	isSet bool
+}
+
+// GetValue returns the variable value
+func (m *IPVariable) GetValue() (interface{}, bool) {
+	return m.Value, m.isSet
+}
+
+// Set the variable with the specified value
+func (m *IPVariable) Set(_ *Context, value interface{}) error {
+	m.Value = value.(net.IPNet)
+	m.isSet = true
+	return nil
+}
+
+// Append a value to the IP
+func (m *IPVariable) Append(_ *Context, _ interface{}) error {
+	return errAppendNotSupported
+}
+
+// GetEvaluator returns the variable SECL evaluator
+func (m *IPVariable) GetEvaluator() interface{} {
+	return &CIDREvaluator{
+		EvalFnc: func(*Context) net.IPNet {
+			return m.Value
+		},
+	}
+}
+
+// NewIPVariable returns a new mutable IP variable
+func NewIPVariable(value net.IPNet) *IPVariable {
+	return &IPVariable{Value: value}
 }
 
 // StringArrayVariable describes a mutable string array variable
 type StringArrayVariable struct {
-	LRU *ttlcache.Cache[string, bool]
+	isSet bool
+	LRU   *ttlcache.Cache[string, bool]
 }
 
 // GetValue returns the variable value
 func (m *StringArrayVariable) GetValue() (interface{}, bool) {
 	keys := m.LRU.Keys()
-	return keys, len(keys) != 0
+	return keys, len(keys) != 0 && m.isSet
 }
 
-// Set the variable with the specified value
-func (m *StringArrayVariable) Set(_ *Context, values interface{}) error {
+func (m *StringArrayVariable) set(_ *Context, values interface{}) error {
 	if s, ok := values.(string); ok {
 		values = []string{s}
 	}
-
 	for _, v := range values.([]string) {
 		m.LRU.Set(v, true, ttlcache.DefaultTTL)
 	}
+	return nil
+}
 
+// Set the variable with the specified value
+func (m *StringArrayVariable) Set(ctx *Context, values interface{}) error {
+	if err := m.set(ctx, values); err != nil {
+		return err
+	}
+	m.isSet = true
 	return nil
 }
 
@@ -421,6 +550,7 @@ func (m *StringArrayVariable) Append(_ *Context, value interface{}) error {
 	default:
 		return errAppendNotSupported
 	}
+	m.isSet = true
 	return nil
 }
 
@@ -433,33 +563,41 @@ func (m *StringArrayVariable) GetEvaluator() interface{} {
 	}
 }
 
+// CleanupExpired cleans up expired values from the variable
+// note that this method in only used to free up memory
+// as expired entries are already not returned by the LRU.Keys() method
+func (m *StringArrayVariable) CleanupExpired() {
+	m.LRU.DeleteExpired()
+}
+
 // NewStringArrayVariable returns a new mutable string array variable
-func NewStringArrayVariable(size int, ttl time.Duration) *StringArrayVariable {
+func NewStringArrayVariable(value []string, size int, ttl time.Duration) *StringArrayVariable {
 	if size == 0 {
 		size = defaultMaxVariables
 	}
 
 	lru := ttlcache.New(ttlcache.WithCapacity[string, bool](uint64(size)), ttlcache.WithTTL[string, bool](ttl))
-	go lru.Start()
 
-	return &StringArrayVariable{
+	v := &StringArrayVariable{
 		LRU: lru,
 	}
+	_ = v.set(nil, value)
+	return v
 }
 
 // IntArrayVariable describes a mutable integer array variable
 type IntArrayVariable struct {
-	LRU *ttlcache.Cache[int, bool]
+	isSet bool
+	LRU   *ttlcache.Cache[int, bool]
 }
 
 // GetValue returns the variable value
 func (m *IntArrayVariable) GetValue() (interface{}, bool) {
 	keys := m.LRU.Keys()
-	return keys, len(keys) != 0
+	return keys, len(keys) != 0 && m.isSet
 }
 
-// Set the variable with the specified value
-func (m *IntArrayVariable) Set(_ *Context, values interface{}) error {
+func (m *IntArrayVariable) set(_ *Context, values interface{}) error {
 	if i, ok := values.(int); ok {
 		values = []int{i}
 	}
@@ -468,6 +606,15 @@ func (m *IntArrayVariable) Set(_ *Context, values interface{}) error {
 		m.LRU.Set(v, true, ttlcache.DefaultTTL)
 	}
 
+	return nil
+}
+
+// Set the variable with the specified value
+func (m *IntArrayVariable) Set(ctx *Context, values interface{}) error {
+	if err := m.set(ctx, values); err != nil {
+		return err
+	}
+	m.isSet = true
 	return nil
 }
 
@@ -483,6 +630,7 @@ func (m *IntArrayVariable) Append(_ *Context, value interface{}) error {
 	default:
 		return errAppendNotSupported
 	}
+	m.isSet = true
 	return nil
 }
 
@@ -495,30 +643,136 @@ func (m *IntArrayVariable) GetEvaluator() interface{} {
 	}
 }
 
+// CleanupExpired cleans up expired values from the variable
+// note that this method in only used to free up memory
+// as expired entries are already not returned by the LRU.Keys() method
+func (m *IntArrayVariable) CleanupExpired() {
+	m.LRU.DeleteExpired()
+}
+
 // NewIntArrayVariable returns a new mutable integer array variable
-func NewIntArrayVariable(size int, ttl time.Duration) *IntArrayVariable {
+func NewIntArrayVariable(value []int, size int, ttl time.Duration) *IntArrayVariable {
 	if size == 0 {
 		size = defaultMaxVariables
 	}
 
 	lru := ttlcache.New(ttlcache.WithCapacity[int, bool](uint64(size)), ttlcache.WithTTL[int, bool](ttl))
-	go lru.Start()
 
-	return &IntArrayVariable{
+	v := &IntArrayVariable{
 		LRU: lru,
 	}
+	_ = v.set(nil, value)
+	return v
+}
+
+// IPArrayVariable describes a global IP array variable
+type IPArrayVariable struct {
+	LRU   *ttlcache.Cache[string, bool]
+	isSet bool
+}
+
+// GetValue returns the variable value
+func (m *IPArrayVariable) GetValue() (interface{}, bool) {
+	keys := []net.IPNet{}
+	for _, v := range m.LRU.Keys() {
+		_, ipNet, err := net.ParseCIDR(v)
+		if err == nil {
+			keys = append(keys, *ipNet)
+		}
+	}
+	return keys, len(keys) != 0 && m.isSet
+}
+
+func (m *IPArrayVariable) set(_ *Context, values interface{}) error {
+	if ip, ok := values.(net.IPNet); ok {
+		values = []net.IPNet{ip}
+	}
+
+	for _, v := range values.([]net.IPNet) {
+		m.LRU.Set(v.String(), true, ttlcache.DefaultTTL)
+	}
+
+	return nil
+}
+
+// Set the variable with the specified value
+func (m *IPArrayVariable) Set(ctx *Context, values interface{}) error {
+	if err := m.set(ctx, values); err != nil {
+		return err
+	}
+	m.isSet = true
+	return nil
+}
+
+// Append a value to the array
+func (m *IPArrayVariable) Append(_ *Context, value interface{}) error {
+	switch value := value.(type) {
+	case net.IPNet:
+		m.LRU.Set(value.String(), true, ttlcache.DefaultTTL)
+	case []net.IPNet:
+		for _, v := range value {
+			m.LRU.Set(v.String(), true, ttlcache.DefaultTTL)
+		}
+	default:
+		return errAppendNotSupported
+	}
+
+	m.isSet = true
+	return nil
+}
+
+// GetEvaluator returns the variable SECL evaluator
+func (m *IPArrayVariable) GetEvaluator() interface{} {
+	return &CIDRArrayEvaluator{
+		EvalFnc: func(*Context) []net.IPNet {
+			keys := []net.IPNet{}
+			for _, v := range m.LRU.Keys() {
+				_, ipNet, err := net.ParseCIDR(v)
+				if err == nil {
+					keys = append(keys, *ipNet)
+				}
+			}
+			return keys
+		},
+	}
+}
+
+// CleanupExpired cleans up expired values from the variable
+// note that this method in only used to free up memory
+// as expired entries are already not returned by the LRU.Keys() method
+func (m *IPArrayVariable) CleanupExpired() {
+	m.LRU.DeleteExpired()
+}
+
+// NewIPArrayVariable returns a new mutable IP array variable
+func NewIPArrayVariable(value []net.IPNet, size int, ttl time.Duration) *IPArrayVariable {
+	if size == 0 {
+		size = defaultMaxVariables
+	}
+
+	lru := ttlcache.New(ttlcache.WithCapacity[string, bool](uint64(size)), ttlcache.WithTTL[string, bool](ttl))
+
+	v := &IPArrayVariable{
+		LRU: lru,
+	}
+	_ = v.set(nil, value)
+	return v
 }
 
 // VariableScope is the interface to be implemented by scoped variable in order to be released
 type VariableScope interface {
 	AppendReleaseCallback(callback func())
+	Hash() string
 }
 
 // Scoper maps a variable to the entity its scoped to
 type Scoper func(ctx *Context) VariableScope
 
 // Variables holds a set of variables
-type Variables struct{}
+type Variables struct {
+	expirablesLock sync.RWMutex
+	expirables     []expirableVariable
+}
 
 // VariableOpts holds the options of a variable set
 type VariableOpts struct {
@@ -534,15 +788,19 @@ func NewVariables() *Variables {
 func newSECLVariable(value interface{}, opts VariableOpts) (MutableSECLVariable, error) {
 	switch value := value.(type) {
 	case bool:
-		return NewBoolVariable(), nil
+		return NewBoolVariable(value), nil
 	case int:
-		return NewIntVariable(), nil
+		return NewIntVariable(value), nil
 	case string:
-		return NewStringVariable(), nil
+		return NewStringVariable(value), nil
+	case net.IPNet:
+		return NewIPVariable(value), nil
 	case []string:
-		return NewStringArrayVariable(opts.Size, opts.TTL), nil
+		return NewStringArrayVariable(value, opts.Size, opts.TTL), nil
 	case []int:
-		return NewIntArrayVariable(opts.Size, opts.TTL), nil
+		return NewIntArrayVariable(value, opts.Size, opts.TTL), nil
+	case []net.IPNet:
+		return NewIPArrayVariable(value, opts.Size, opts.TTL), nil
 	default:
 		return nil, fmt.Errorf("unsupported value type: %s", reflect.TypeOf(value))
 	}
@@ -554,7 +812,23 @@ func (v *Variables) NewSECLVariable(_ string, value interface{}, opts VariableOp
 	if err != nil {
 		return nil, err
 	}
+
+	if expirable, ok := seclVariable.(expirableVariable); ok && opts.TTL > 0 {
+		v.expirablesLock.Lock()
+		v.expirables = append(v.expirables, expirable)
+		v.expirablesLock.Unlock()
+	}
+
 	return seclVariable.(SECLVariable), nil
+}
+
+// CleanupExpiredVariables cleans up expired variables
+func (v *Variables) CleanupExpiredVariables() {
+	v.expirablesLock.RLock()
+	defer v.expirablesLock.RUnlock()
+	for _, expirable := range v.expirables {
+		expirable.CleanupExpired()
+	}
 }
 
 // MutableSECLVariable describes the interface implemented by mutable SECL variable
@@ -565,8 +839,10 @@ type MutableSECLVariable interface {
 
 // ScopedVariables holds a set of scoped variables
 type ScopedVariables struct {
-	scoper Scoper
-	vars   map[VariableScope]map[string]MutableSECLVariable
+	scoper         Scoper
+	vars           map[string]map[string]MutableSECLVariable
+	expirablesLock sync.RWMutex
+	expirables     map[string][]expirableVariable
 }
 
 // Len returns the length of the variable map
@@ -577,19 +853,25 @@ func (v *ScopedVariables) Len() int {
 // NewSECLVariable returns new variable of the type of the specified value
 func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts VariableOpts) (SECLVariable, error) {
 	getVariable := func(ctx *Context) MutableSECLVariable {
-		v := v.vars[v.scoper(ctx)]
+		scope := v.scoper(ctx)
+		if scope == nil {
+			return nil
+		}
+		key := scope.Hash()
+		v := v.vars[key]
 		return v[name]
 	}
 
 	setVariable := func(ctx *Context, value interface{}) error {
-		key := v.scoper(ctx)
-		if key == nil {
+		scope := v.scoper(ctx)
+		if scope == nil {
 			return fmt.Errorf("failed to scope variable '%s'", name)
 		}
 
+		key := scope.Hash()
 		vars := v.vars[key]
 		if vars == nil {
-			key.AppendReleaseCallback(func() {
+			scope.AppendReleaseCallback(func() {
 				v.ReleaseVariable(key)
 			})
 
@@ -602,6 +884,11 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 				return err
 			}
 			v.vars[key][name] = seclVariable
+			if expirable, ok := seclVariable.(expirableVariable); ok && opts.TTL > 0 {
+				v.expirablesLock.Lock()
+				v.expirables[key] = append(v.expirables[key], expirable)
+				v.expirablesLock.Unlock()
+			}
 		}
 
 		return v.vars[key][name].Set(ctx, value)
@@ -632,6 +919,14 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 			}
 			return "", false
 		}, setVariable), nil
+	case net.IPNet:
+		return NewScopedIPVariable(func(ctx *Context) (net.IPNet, bool) {
+			if v := getVariable(ctx); v != nil {
+				value, set := v.GetValue()
+				return value.(net.IPNet), set
+			}
+			return net.IPNet{}, false
+		}, setVariable), nil
 	case []string:
 		return NewScopedStringArrayVariable(func(ctx *Context) ([]string, bool) {
 			if v := getVariable(ctx); v != nil {
@@ -649,20 +944,43 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 			return nil, false
 
 		}, setVariable), nil
+	case []net.IPNet:
+		return NewScopedIPArrayVariable(func(ctx *Context) ([]net.IPNet, bool) {
+			if v := getVariable(ctx); v != nil {
+				value, set := v.GetValue()
+				return value.([]net.IPNet), set
+			}
+			return nil, false
+		}, setVariable), nil
 	default:
 		return nil, fmt.Errorf("unsupported variable type %s for '%s'", reflect.TypeOf(value), name)
 	}
 }
 
+// CleanupExpiredVariables cleans up expired variables
+func (v *ScopedVariables) CleanupExpiredVariables() {
+	v.expirablesLock.RLock()
+	defer v.expirablesLock.RUnlock()
+	for _, expirables := range v.expirables {
+		for _, expirable := range expirables {
+			expirable.CleanupExpired()
+		}
+	}
+}
+
 // ReleaseVariable releases a scoped variable
-func (v *ScopedVariables) ReleaseVariable(key VariableScope) {
+func (v *ScopedVariables) ReleaseVariable(key string) {
 	delete(v.vars, key)
+	v.expirablesLock.Lock()
+	delete(v.expirables, key)
+	v.expirablesLock.Unlock()
 }
 
 // NewScopedVariables returns a new set of scope variables
 func NewScopedVariables(scoper Scoper) *ScopedVariables {
 	return &ScopedVariables{
-		scoper: scoper,
-		vars:   make(map[VariableScope]map[string]MutableSECLVariable),
+		scoper:     scoper,
+		vars:       make(map[string]map[string]MutableSECLVariable),
+		expirables: make(map[string][]expirableVariable),
 	}
 }

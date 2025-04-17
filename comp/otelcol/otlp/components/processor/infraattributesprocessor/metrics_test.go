@@ -133,10 +133,12 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
 			tc.tagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
 
-			factory := NewFactoryForAgent(tc)
+			factory := NewFactoryForAgent(tc, func(_ context.Context) (string, error) {
+				return "test-host", nil
+			})
 			fmp, err := factory.CreateMetrics(
 				context.Background(),
-				processortest.NewNopSettings(),
+				processortest.NewNopSettings(Type),
 				cfg,
 				next,
 			)

@@ -10,9 +10,6 @@ on:
   pull_request_review_comment:
     types: [created, deleted]
 
-env:
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 permissions: {}
 jobs:
   codereview-complexity:
@@ -25,15 +22,12 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - name: Setup python
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+      - name: Install dda
+        uses: ./.github/actions/install-dda
         with:
-          python-version-file: .python-version
-          cache: 'pip'
-          cache-dependency-path: '**/requirements*.txt'
-      - name: Install dependencies
-        run: pip install -r requirements.txt -r tasks/requirements.txt
+          features: legacy-tasks
       - name: Check code review complexity
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: inv -e github.assign-codereview-label --pr-id="$PR_NUMBER"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dda inv -- -e github.assign-codereview-label --pr-id="$PR_NUMBER"

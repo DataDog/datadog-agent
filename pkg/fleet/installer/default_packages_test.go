@@ -36,6 +36,7 @@ func TestDefaultPackagesAPMInjectEnabled(t *testing.T) {
 		"oci://install.datadoghq.com/apm-library-js-package:5",
 		"oci://install.datadoghq.com/apm-library-dotnet-package:3",
 		"oci://install.datadoghq.com/apm-library-python-package:2",
+		"oci://install.datadoghq.com/apm-library-php-package:1",
 	}, packages)
 }
 
@@ -55,6 +56,7 @@ func TestCentos6PackagesAPMInjectEnabled(t *testing.T) {
 		"oci://install.datadoghq.com/apm-library-js-package:5",
 		"oci://install.datadoghq.com/apm-library-dotnet-package:3",
 		"oci://install.datadoghq.com/apm-library-python-package:2",
+		"oci://install.datadoghq.com/apm-library-php-package:1",
 	}, packages)
 }
 

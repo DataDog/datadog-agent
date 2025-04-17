@@ -27,6 +27,12 @@
             "hash"
           ],
           "title": "HashAction"
+        },
+        {
+          "required": [
+            "log"
+          ],
+          "title": "LogAction"
         }
       ],
       "properties": {
@@ -44,6 +50,9 @@
         },
         "hash": {
           "$ref": "#/$defs/HashDefinition"
+        },
+        "log": {
+          "$ref": "#/$defs/LogDefinition"
         }
       },
       "additionalProperties": false,
@@ -134,8 +143,13 @@
             "container"
           ]
         },
-        "disarmer": {
-          "$ref": "#/$defs/KillDisarmerDefinition"
+        "disable_container_disarmer": {
+          "type": "boolean",
+          "description": "Set to true to disable the rule kill action automatic container disarmer safeguard"
+        },
+        "disable_executable_disarmer": {
+          "type": "boolean",
+          "description": "Set to true to disable the rule kill action automatic executable disarmer safeguard"
         }
       },
       "additionalProperties": false,
@@ -145,46 +159,22 @@
       ],
       "description": "KillDefinition describes the 'kill' section of a rule action"
     },
-    "KillDisarmerDefinition": {
+    "LogDefinition": {
       "properties": {
-        "container": {
-          "$ref": "#/$defs/KillDisarmerParamsDefinition"
+        "Level": {
+          "type": "string"
         },
-        "executable": {
-          "$ref": "#/$defs/KillDisarmerParamsDefinition"
+        "Message": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "KillDisarmerDefinition describes the 'disarmer' section of a kill action"
-    },
-    "KillDisarmerParamsDefinition": {
-      "properties": {
-        "max_allowed": {
-          "type": "integer",
-          "description": "The maximum number of allowed kill actions within the period",
-          "examples": [
-            5
-          ]
-        },
-        "period": {
-          "oneOf": [
-            {
-              "type": "string",
-              "format": "duration",
-              "description": "Duration in Go format (e.g. 1h30m, see https://pkg.go.dev/time#ParseDuration)"
-            },
-            {
-              "type": "integer",
-              "description": "Duration in nanoseconds"
-            }
-          ],
-          "description": "The period of time during which the maximum number of allowed kill actions is calculated"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "description": "KillDisarmerParamsDefinition describes the parameters of a kill action disarmer"
+      "required": [
+        "Level",
+        "Message"
+      ],
+      "description": "LogDefinition describes the 'log' section of a rule action"
     },
     "MacroDefinition": {
       "oneOf": [
@@ -407,7 +397,26 @@
             }
           ]
         },
+        "default_value": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "array"
+            }
+          ]
+        },
         "field": {
+          "type": "string"
+        },
+        "expression": {
           "type": "string"
         },
         "append": {
@@ -417,7 +426,8 @@
           "type": "string",
           "enum": [
             "process",
-            "container"
+            "container",
+            "cgroup"
           ]
         },
         "size": {

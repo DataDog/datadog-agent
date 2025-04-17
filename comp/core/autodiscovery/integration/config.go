@@ -297,15 +297,15 @@ func (c *Data) GetNameForInstance() string {
 
 // SetNameForInstance set name for instance
 func (c *Data) SetNameForInstance(name string) error {
-	commonOptions := CommonInstanceConfig{}
-	err := yaml.Unmarshal(*c, &commonOptions)
+	rawConfig := map[interface{}]interface{}{}
+	err := yaml.Unmarshal(*c, &rawConfig)
 	if err != nil {
 		return fmt.Errorf("invalid instance section: %s", err)
 	}
-	commonOptions.Name = name
+	rawConfig["name"] = name
 
 	// modify original config
-	out, err := yaml.Marshal(&commonOptions)
+	out, err := yaml.Marshal(&rawConfig)
 	if err != nil {
 		return err
 	}

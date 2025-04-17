@@ -259,6 +259,9 @@ static __attribute__((always_inline)) int get_sb_flags(struct super_block *sb) {
     return s_flags;
 }
 
+// https://elixir.bootlin.com/linux/v6.13.7/source/include/uapi/linux/mount.h#L47
+#define MS_NOUSER (1 << 31)
+
 static __attribute__((always_inline)) int is_non_mountable_dentry(struct dentry *dentry) {
     struct super_block *sb = get_dentry_sb(dentry);
     return get_sb_flags(sb) & MS_NOUSER;
@@ -377,13 +380,6 @@ static __attribute__((always_inline)) u64 get_vfs_mkdir_dentry_position() {
     u64 vfs_mkdir_dentry_position;
     LOAD_CONSTANT("vfs_mkdir_dentry_position", vfs_mkdir_dentry_position);
     return vfs_mkdir_dentry_position;
-}
-
-static __attribute__((always_inline)) u64 get_vfs_link_target_dentry_position() {
-    u64 vfs_link_target_dentry_position;
-    LOAD_CONSTANT("vfs_link_target_dentry_position", vfs_link_target_dentry_position);
-    return vfs_link_target_dentry_position;
-    ;
 }
 
 static __attribute__((always_inline)) u64 get_vfs_setxattr_dentry_position() {

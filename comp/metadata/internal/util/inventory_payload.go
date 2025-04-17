@@ -150,6 +150,10 @@ func (i *InventoryPayload) MetadataProvider() runnerimpl.Provider {
 func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 	i.m.Lock()
 	defer i.m.Unlock()
+	if i.serializer == nil {
+		i.log.Tracef("serializer is nil, skipping submission")
+		return i.MinInterval
+	}
 
 	// Collect is called every MinInterval second. To maintain the same order of request as we did in 7.50.0
 	// We need to warranty that metadata information gets sent to the backend at least 1 minute past the startup time.
@@ -170,6 +174,11 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 	i.LastCollect = time.Now()
 
 	p := i.getPayload()
+	// If the payload is nil, we don't want to send it to the backend.
+	if p == nil {
+		i.log.Debugf("inventory payload is nil, skipping submission")
+		return i.MinInterval
+	}
 	if err := i.serializer.SendMetadata(p); err != nil {
 		i.log.Errorf("unable to submit inventories payload, %s", err)
 	}

@@ -17,7 +17,7 @@ import (
 )
 
 func TestNewCheckConfig(t *testing.T) {
-	setup.Datadog().SetDefault("network_devices.namespace", "my-namespace")
+	setup.Datadog().SetWithoutSource("network_devices.namespace", "my-namespace")
 	tests := []struct {
 		name           string
 		rawInstance    integration.Data
@@ -307,6 +307,42 @@ max_ttl: 64
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                64,
+			},
+		},
+		{
+			name: "overriding the TCP method",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+protocol: tcp
+tcp_method: sack
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+				Protocol:              payload.ProtocolTCP,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPConfigSACK,
+			},
+		},
+		{
+			name: "TCP method converts to lower case",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+protocol: tcp
+tcp_method: prefer_SACK
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+				Protocol:              payload.ProtocolTCP,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPConfigPreferSACK,
 			},
 		},
 	}

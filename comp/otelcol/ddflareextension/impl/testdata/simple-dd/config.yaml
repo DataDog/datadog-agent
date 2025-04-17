@@ -3,9 +3,12 @@ receivers:
   prometheus:
     config:
       scrape_configs:
-        - fallback_scrape_protocol: PrometheusText1.0.0
+        - fallback_scrape_protocol: PrometheusText0.0.4
           job_name: "datadog-agent"
+          metric_name_validation_scheme: legacy
           scrape_interval: 5s
+          scrape_protocols:
+            - PrometheusText0.0.4
           static_configs:
             - targets: ["0.0.0.0:8888"]
 

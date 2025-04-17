@@ -10,6 +10,7 @@ package kubernetesapiserver
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -446,10 +447,8 @@ func shouldCollect(ev *v1.Event, collectedTypes []collectedEventType) bool {
 			return true
 		}
 
-		for _, r := range f.Reasons {
-			if ev.Reason == r {
-				return true
-			}
+		if slices.Contains(f.Reasons, ev.Reason) {
+			return true
 		}
 	}
 

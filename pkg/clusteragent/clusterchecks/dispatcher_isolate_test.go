@@ -13,14 +13,14 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestIsolateCheckSuccessful(t *testing.T) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 	testDispatcher.store.nodes["A"] = newNodeStore("A", "")
 	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers
@@ -101,7 +101,7 @@ func TestIsolateCheckSuccessful(t *testing.T) {
 }
 
 func TestIsolateNonExistentCheckFails(t *testing.T) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 	testDispatcher.store.nodes["A"] = newNodeStore("A", "")
 	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers
@@ -180,7 +180,7 @@ func TestIsolateNonExistentCheckFails(t *testing.T) {
 }
 
 func TestIsolateCheckOnlyOneRunnerFails(t *testing.T) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 	testDispatcher.store.nodes["A"] = newNodeStore("A", "")
 	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers

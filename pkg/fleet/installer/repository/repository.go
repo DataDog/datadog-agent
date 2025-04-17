@@ -7,12 +7,18 @@
 package repository
 
 import (
+	"bytes"
+	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,7 +34,7 @@ var (
 // PreRemoveHook are called before a package is removed.  It returns a boolean
 // indicating if the package files can be deleted safely and an error if an error happened
 // when running the hook.
-type PreRemoveHook func(string) (bool, error)
+type PreRemoveHook func(context.Context, string) (bool, error)
 
 // Repository contains the stable and experimental package of a single artifact managed by the updater.
 //
@@ -50,10 +56,16 @@ type Repository struct {
 	preRemoveHooks map[string]PreRemoveHook
 }
 
+// PackageStates contains the state all installed packages
+type PackageStates struct {
+	States       map[string]State `json:"states"`
+	ConfigStates map[string]State `json:"config_states"`
+}
+
 // State is the state of the repository.
 type State struct {
-	Stable     string
-	Experiment string
+	Stable     string `json:"stable"`
+	Experiment string `json:"experiment"`
 }
 
 // HasStable returns true if the repository has a stable package.
@@ -68,12 +80,22 @@ func (s *State) HasExperiment() bool {
 
 // StableFS returns the stable package fs.
 func (r *Repository) StableFS() fs.FS {
-	return os.DirFS(filepath.Join(r.rootPath, stableVersionLink))
+	return os.DirFS(r.StablePath())
 }
 
 // ExperimentFS returns the experiment package fs.
 func (r *Repository) ExperimentFS() fs.FS {
-	return os.DirFS(filepath.Join(r.rootPath, experimentVersionLink))
+	return os.DirFS(r.ExperimentPath())
+}
+
+// StablePath returns the stable package path.
+func (r *Repository) StablePath() string {
+	return filepath.Join(r.rootPath, stableVersionLink)
+}
+
+// ExperimentPath returns the experiment package path.
+func (r *Repository) ExperimentPath() string {
+	return filepath.Join(r.rootPath, experimentVersionLink)
 }
 
 // GetState returns the state of the repository.
@@ -104,7 +126,7 @@ func (r *Repository) GetState() (State, error) {
 // 2. Create the root directory.
 // 3. Move the stable source to the repository.
 // 4. Create the stable link.
-func (r *Repository) Create(name string, stableSourcePath string) error {
+func (r *Repository) Create(ctx context.Context, name string, stableSourcePath string) error {
 	err := os.MkdirAll(r.rootPath, 0755)
 	if err != nil {
 		return fmt.Errorf("could not create packages root directory: %w", err)
@@ -129,7 +151,7 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 		}
 	}
 
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -150,7 +172,7 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 // 1. Remove the stable and experiment links.
 // 2. Cleanup the repository to remove all package versions after running the pre-remove hooks.
 // 3. Remove the root directory.
-func (r *Repository) Delete() error {
+func (r *Repository) Delete(ctx context.Context) error {
 	// Remove symlinks first so that cleanup will attempt to remove all package versions
 	repositoryFiles, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
@@ -170,7 +192,7 @@ func (r *Repository) Delete() error {
 	}
 
 	// Delete all package versions
-	err = r.Cleanup()
+	err = r.Cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository for package %w", err)
 	}
@@ -197,12 +219,12 @@ func (r *Repository) Delete() error {
 // 1. Cleanup the repository.
 // 2. Move the experiment source to the repository.
 // 3. Set the experiment link to the experiment package.
-func (r *Repository) SetExperiment(name string, sourcePath string) error {
+func (r *Repository) SetExperiment(ctx context.Context, name string, sourcePath string) error {
 	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
 	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -211,6 +233,16 @@ func (r *Repository) SetExperiment(name string, sourcePath string) error {
 	}
 	if !repository.experiment.Exists() {
 		return fmt.Errorf("experiment link does not exist, invalid state")
+	}
+	// Because we repair directories on windows, repository.setExperiment will
+	// not fail if called for a version that is already set to experiment or
+	// stable while it does on unix.  These check ensure that we have the same
+	// behavior on both platforms.
+	if filepath.Base(*repository.experiment.packagePath) == name {
+		return fmt.Errorf("cannot set new experiment to the same version as the current experiment")
+	}
+	if filepath.Base(*repository.stable.packagePath) == name {
+		return fmt.Errorf("cannot set new experiment to the same version as stable")
 	}
 	err = repository.setExperiment(name, sourcePath)
 	if err != nil {
@@ -224,12 +256,12 @@ func (r *Repository) SetExperiment(name string, sourcePath string) error {
 // 1. Cleanup the repository.
 // 2. Set the stable link to the experiment package. The experiment link stays in place.
 // 3. Cleanup the repository to remove the previous stable package.
-func (r *Repository) PromoteExperiment() error {
+func (r *Repository) PromoteExperiment(ctx context.Context) error {
 	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
 	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -246,7 +278,7 @@ func (r *Repository) PromoteExperiment() error {
 	if err != nil {
 		return fmt.Errorf("could not set stable: %w", err)
 	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -258,12 +290,12 @@ func (r *Repository) PromoteExperiment() error {
 // 1. Cleanup the repository.
 // 2. Sets the experiment link to the stable link.
 // 3. Cleanup the repository to remove the previous experiment package.
-func (r *Repository) DeleteExperiment() error {
+func (r *Repository) DeleteExperiment(ctx context.Context) error {
 	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
 	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -277,7 +309,7 @@ func (r *Repository) DeleteExperiment() error {
 	if err != nil {
 		return fmt.Errorf("could not set experiment to stable: %w", err)
 	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -285,12 +317,12 @@ func (r *Repository) DeleteExperiment() error {
 }
 
 // Cleanup calls the cleanup function of the repository
-func (r *Repository) Cleanup() error {
+func (r *Repository) Cleanup(ctx context.Context) error {
 	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
 	}
-	return repository.cleanup()
+	return repository.cleanup(ctx)
 }
 
 type repositoryFiles struct {
@@ -351,12 +383,22 @@ func movePackageFromSource(packageName string, rootPath string, sourcePath strin
 	if err == nil {
 		// TODO: Do we want to differentiate between packages that cannot be deleted
 		// due to the pre-remove hook and other reasons?
+		// On Windows, if directory exists, check contents and copy missing files
+		if runtime.GOOS == "windows" {
+			if err := repairDirectory(sourcePath, targetPath); err != nil {
+				return "", fmt.Errorf("target package directory exists and could not be repaired: %w", err)
+			}
+			if err := paths.SetRepositoryPermissions(targetPath); err != nil {
+				return "", fmt.Errorf("could not set permissions on package: %w", err)
+			}
+			return targetPath, nil
+		}
 		return "", fmt.Errorf("target package already exists")
 	}
 	if !errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("could not stat target package: %w", err)
 	}
-	if err := os.Chmod(sourcePath, 0755); err != nil {
+	if err := paths.SetRepositoryPermissions(sourcePath); err != nil {
 		return "", fmt.Errorf("could not set permissions on package: %w", err)
 	}
 	err = os.Rename(sourcePath, targetPath)
@@ -366,7 +408,7 @@ func movePackageFromSource(packageName string, rootPath string, sourcePath strin
 	return targetPath, nil
 }
 
-func (r *repositoryFiles) cleanup() error {
+func (r *repositoryFiles) cleanup(ctx context.Context) error {
 	// migrate old repositories that are missing the experiment link
 	if r.stable.Exists() && !r.experiment.Exists() {
 		err := r.setExperimentToStable()
@@ -396,7 +438,7 @@ func (r *repositoryFiles) cleanup() error {
 		pkgName := filepath.Base(r.rootPath)
 
 		if pkgHook, hasHook := r.preRemoveHooks[pkgName]; hasHook {
-			canDelete, err := pkgHook(pkgRepositoryPath)
+			canDelete, err := pkgHook(ctx, pkgRepositoryPath)
 			if err != nil {
 				log.Errorf("Pre-remove hook for package %s returned an error: %v", pkgRepositoryPath, err)
 			}
@@ -472,4 +514,143 @@ func (l *link) Delete() error {
 	}
 	l.packagePath = nil
 	return nil
+}
+
+func buildFileMap(rootPath string) (map[string]struct{}, error) {
+	files := make(map[string]struct{})
+	err := filepath.Walk(rootPath, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			relPath, err := filepath.Rel(rootPath, path)
+			if err != nil {
+				return fmt.Errorf("failed to get relative path: %w", err)
+			}
+			files[relPath] = struct{}{}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to walk directory: %w", err)
+	}
+	return files, nil
+}
+
+// repairDirectory compares files between source and target directories,
+// copying any missing files or files with mismatched content from source to target.
+// It preserves the directory structure and file permissions.
+// For simplicity, on Windows it is case sensitive although the file system is
+// case insensitive but it's not an issue since the filesystem preserves casing
+// and the OCI casing will not change.
+func repairDirectory(sourcePath, targetPath string) error {
+	// Build maps of source and target files
+	sourceFiles, err := buildFileMap(sourcePath)
+	if err != nil {
+		return fmt.Errorf("failed to build source file map: %w", err)
+	}
+
+	targetFiles, err := buildFileMap(targetPath)
+	if err != nil {
+		return fmt.Errorf("failed to build target file map: %w", err)
+	}
+
+	// Check for extra files in target
+	for relPath := range targetFiles {
+		if _, exists := sourceFiles[relPath]; !exists {
+			return fmt.Errorf("extra file found in target directory: %s", relPath)
+		}
+	}
+
+	// Walk through source directory and compare/copy files
+	return filepath.Walk(sourcePath, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Get relative path from source root
+		relPath, err := filepath.Rel(sourcePath, path)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path: %w", err)
+		}
+
+		// Construct target path
+		targetFilePath := filepath.Join(targetPath, relPath)
+
+		if info.IsDir() {
+			// Create directory if it doesn't exist
+			return os.MkdirAll(targetFilePath, info.Mode())
+		}
+
+		// Check if file exists in target
+		_, exists := targetFiles[relPath]
+		if !exists {
+			// File doesn't exist in target, copy it
+			return copyFile(path, targetFilePath)
+		}
+
+		// File exists, compare content
+		match, err := compareFiles(path, targetFilePath)
+		if err != nil {
+			return fmt.Errorf("failed to compare files: %w", err)
+		}
+
+		if !match {
+			// Content doesn't match, return error
+			return fmt.Errorf("file content mismatch: %s", relPath)
+		}
+
+		return nil
+	})
+}
+
+// compareFiles checks if two files have identical content by comparing their hashes
+func compareFiles(file1, file2 string) (bool, error) {
+	f1, err := os.Open(file1)
+	if err != nil {
+		return false, err
+	}
+	defer f1.Close()
+
+	f2, err := os.Open(file2)
+	if err != nil {
+		return false, err
+	}
+	defer f2.Close()
+
+	h1 := sha256.New()
+	h2 := sha256.New()
+
+	if _, err := io.Copy(h1, f1); err != nil {
+		return false, err
+	}
+
+	if _, err := io.Copy(h2, f2); err != nil {
+		return false, err
+	}
+
+	return bytes.Equal(h1.Sum(nil), h2.Sum(nil)), nil
+}
+
+// copyFile copies a file from src to dst, preserving file mode
+func copyFile(src, dst string) error {
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	// Ensure the destination directory exists
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+
+	destination, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destination.Close()
+
+	_, err = io.Copy(destination, source)
+	return err
 }

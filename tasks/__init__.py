@@ -29,6 +29,7 @@ from tasks import (
     emacs,
     epforwarder,
     fakeintake,
+    fips,
     git,
     github_tasks,
     gitlab_helpers,
@@ -49,12 +50,14 @@ from tasks import (
     owners,
     package,
     pipeline,
+    pkg_template,
     pre_commit,
     process_agent,
     protobuf,
     quality_gates,
     release,
     rtloader,
+    sbomgen,
     sds,
     security_agent,
     selinux,
@@ -177,6 +180,7 @@ ns.add_collection(ebpf)
 ns.add_collection(emacs)
 ns.add_collection(vim)
 ns.add_collection(epforwarder)
+ns.add_collection(fips)
 ns.add_collection(go_deps)
 ns.add_collection(linter)
 ns.add_collection(msi)
@@ -221,6 +225,8 @@ ns.add_collection(debug)
 ns.add_collection(winbuild)
 ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
+ns.add_collection(sbomgen)
+ns.add_collection(pkg_template)
 ns.configure(
     {
         "run": {

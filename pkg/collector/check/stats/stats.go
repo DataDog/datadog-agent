@@ -7,6 +7,7 @@
 package stats
 
 import (
+	"maps"
 	"sync"
 	"time"
 
@@ -89,9 +90,7 @@ func NewSenderStats() SenderStats {
 func (s SenderStats) Copy() (result SenderStats) {
 	result = s
 	result.EventPlatformEvents = make(map[string]int64, len(s.EventPlatformEvents))
-	for k, v := range s.EventPlatformEvents {
-		result.EventPlatformEvents[k] = v
-	}
+	maps.Copy(result.EventPlatformEvents, s.EventPlatformEvents)
 	return result
 }
 
@@ -130,6 +129,7 @@ type Stats struct {
 	UpdateTimestamp          int64     // latest update to this instance, unix timestamp in seconds
 	m                        sync.Mutex
 	Telemetry                bool // do we want telemetry on this Check
+	HASupported              bool
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
@@ -146,6 +146,8 @@ type StatsCheck interface {
 	ConfigSource() string
 	// Loader returns the name of the check loader
 	Loader() string
+	// IsHASupported returns if the check is HA enabled
+	IsHASupported() bool
 }
 
 // NewStats returns a new check stats instance
@@ -160,6 +162,7 @@ func NewStats(c StatsCheck) *Stats {
 		Telemetry:                utils.IsCheckTelemetryEnabled(c.String(), pkgconfigsetup.Datadog()),
 		EventPlatformEvents:      make(map[string]int64),
 		TotalEventPlatformEvents: make(map[string]int64),
+		HASupported:              c.IsHASupported(),
 	}
 
 	// We are interested in a check's run state values even when they are 0 so we
@@ -192,10 +195,7 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 		tlmExecutionTime.Set(float64(tms), cs.CheckName, cs.CheckLoader)
 	}
 	var totalExecutionTime int64
-	ringSize := cs.TotalRuns
-	if ringSize > uint64(len(cs.ExecutionTimes)) {
-		ringSize = uint64(len(cs.ExecutionTimes))
-	}
+	ringSize := min(cs.TotalRuns, uint64(len(cs.ExecutionTimes)))
 	for i := uint64(0); i < ringSize; i++ {
 		totalExecutionTime += cs.ExecutionTimes[i]
 	}
@@ -261,7 +261,7 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 		cs.TotalEventPlatformEvents[k] = cs.TotalEventPlatformEvents[k] + v
 		cs.EventPlatformEvents[k] = v
 	}
-	if haagent != nil && haagent.Enabled() && haagent.IsHaIntegration(cs.CheckName) {
+	if haagent != nil && haagent.Enabled() && cs.HASupported {
 		tlmHaAgentIntegrationRuns.Inc(cs.CheckName, pkgconfigsetup.Datadog().GetString("config_id"))
 	}
 }
@@ -305,8 +305,6 @@ func TranslateEventPlatformEventTypes(aggregatorStats interface{}) (interface{},
 	result := make(map[string]interface{})
 	result["EventPlatformEvents"] = translateEventTypes(aggStats.EventPlatformEvents)
 	result["EventPlatformEventsErrors"] = translateEventTypes(aggStats.EventPlatformEventsErrors)
-	for k, v := range aggStats.Other {
-		result[k] = v
-	}
+	maps.Copy(result, aggStats.Other)
 	return result, nil
 }

@@ -112,9 +112,7 @@ var supportedLanguages = []language{
 func defaultSupportedLanguagesMap() map[language]bool {
 	m := map[language]bool{}
 	for _, l := range supportedLanguages {
-		if l.isEnabledByDefault() {
-			m[l] = true
-		}
+		m[l] = true
 	}
 
 	return m
@@ -122,10 +120,6 @@ func defaultSupportedLanguagesMap() map[language]bool {
 
 func (l language) isSupported() bool {
 	return slices.Contains(supportedLanguages, l)
-}
-
-func (l language) isEnabledByDefault() bool {
-	return l != "php"
 }
 
 // defaultVersionMagicString is a magic string that indicates that the user

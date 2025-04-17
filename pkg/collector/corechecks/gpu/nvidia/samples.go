@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && nvml
 
 package nvidia
 
@@ -14,6 +14,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
 
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
@@ -32,15 +33,13 @@ type sampleMetric struct {
 }
 
 type samplesCollector struct {
-	device           nvml.Device
-	tags             []string
+	device           ddnvml.SafeDevice
 	samplesToCollect []sampleMetric
 }
 
-func newSamplesCollector(device nvml.Device, tags []string) (Collector, error) {
+func newSamplesCollector(device ddnvml.SafeDevice) (Collector, error) {
 	c := &samplesCollector{
 		device: device,
-		tags:   tags,
 	}
 	c.samplesToCollect = append(c.samplesToCollect, allSamples...) // copy all metrics to avoid modifying the original slice
 
@@ -59,9 +58,11 @@ func (c *samplesCollector) DeviceUUID() string {
 
 func (c *samplesCollector) removeUnsupportedSamples() {
 	metricsToRemove := common.StringSet{}
+
 	for _, metric := range c.samplesToCollect {
-		_, _, ret := c.device.GetSamples(metric.samplingType, 0)
-		if ret == nvml.ERROR_NOT_SUPPORTED {
+		_, _, err := c.device.GetSamples(metric.samplingType, 0)
+		if err != nil && ddnvml.IsUnsupported(err) {
+			// Only remove metrics if the API is not supported or symbol not found
 			metricsToRemove.Add(metric.name)
 		}
 	}
@@ -82,7 +83,7 @@ func (c *samplesCollector) Name() CollectorName {
 // possible internal counter type. In this function we compute the average over
 // time of those samples and report it as the metric for the current interval.
 func (c *samplesCollector) Collect() ([]Metric, error) {
-	var err error
+	var multiErr error
 
 	values := make([]Metric, 0, len(c.samplesToCollect)) // preallocate to reduce allocations
 	for _, metric := range c.samplesToCollect {
@@ -93,14 +94,14 @@ func (c *samplesCollector) Collect() ([]Metric, error) {
 		// Note that timestamps are in microseconds always.
 		// The values returned by GetSamples are of a gauge type, so
 		// we need to average them.
-		valueType, samples, ret := c.device.GetSamples(metric.samplingType, prevTimestamp)
-		if ret != nvml.SUCCESS {
-			err = multierror.Append(err, fmt.Errorf("failed to get metric %s: %s", metric.name, nvml.ErrorString(ret)))
+		valueType, samples, err := c.device.GetSamples(metric.samplingType, prevTimestamp)
+		if err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to get metric %s: %w", metric.name, err))
 			continue
 		}
 
 		if len(samples) == 0 {
-			err = multierror.Append(err, fmt.Errorf("no samples for metric %s", metric.name))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("no samples for metric %s", metric.name))
 			continue
 		}
 
@@ -125,9 +126,9 @@ func (c *samplesCollector) Collect() ([]Metric, error) {
 			sampleInterval := sample.TimeStamp - lastTimestamp
 
 			var value float64
-			value, err = metricValueToDouble(valueType, sample.SampleValue)
+			value, err = fieldValueToNumber[float64](valueType, sample.SampleValue)
 			if err != nil {
-				err = multierror.Append(err, fmt.Errorf("failed to convert sample value %s from %v with type %v: %w", metric.name, sample.SampleValue, valueType, err))
+				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to convert sample value %s from %v with type %v: %w", metric.name, sample.SampleValue, valueType, err))
 				continue
 			}
 
@@ -148,10 +149,9 @@ func (c *samplesCollector) Collect() ([]Metric, error) {
 		values = append(values, Metric{
 			Name:  metric.name,
 			Value: total,
-			Tags:  c.tags,
 			Type:  metrics.GaugeType,
 		})
 	}
 
-	return values, err
+	return values, multiErr
 }

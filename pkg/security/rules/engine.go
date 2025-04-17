@@ -180,6 +180,25 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 		}
 	}()
 
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
+
+		ruleSetCleanupTicker := time.NewTicker(5 * time.Minute)
+		defer ruleSetCleanupTicker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ruleSetCleanupTicker.C:
+				if ruleSet := e.GetRuleSet(); ruleSet != nil {
+					ruleSet.CleanupExpiredVariables()
+				}
+			}
+		}
+	}()
+
 	for _, provider := range e.policyProviders {
 		provider.Start()
 	}
@@ -377,12 +396,7 @@ func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor
 	e.apiServer.ApplyPolicyStates(policies)
 }
 
-// GetSECLVariables returns the set of SECL variables along with theirs values
-func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
-	rs := e.GetRuleSet()
-	if rs == nil {
-		return nil
-	}
+func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.SECLVariableState {
 	var seclVariables = make(map[string]*api.SECLVariableState)
 	for name, value := range rs.GetVariables() {
 		if strings.HasPrefix(name, "process.") {
@@ -404,21 +418,20 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 					return
 				}
 
-				scopedValue := fmt.Sprintf("%v", value)
+				scopedValue := fmt.Sprintf("%+v", value)
 				seclVariables[scopedName] = &api.SECLVariableState{
 					Name:  scopedName,
 					Value: scopedValue,
 				}
 			})
-		} else if strings.HasPrefix(name, "container.") {
-			continue // skip container variables for now
+		} else if strings.Contains(name, ".") { // other scopes
+			continue
 		} else { // global variables
 			value, found := value.(eval.Variable).GetValue()
 			if !found {
 				continue
 			}
-
-			scopedValue := fmt.Sprintf("%v", value)
+			scopedValue := fmt.Sprintf("%+v", value)
 			seclVariables[name] = &api.SECLVariableState{
 				Name:  name,
 				Value: scopedValue,
