@@ -384,40 +384,23 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 			log.Debugf("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
 			continue
 		}
-		usage, err := DiskUsage(partition.Mountpoint)
-		if err != nil {
-			log.Warnf("Unable to get disk metrics for %s: %s. You can exclude this mountpoint in the settings if it is invalid.", partition.Mountpoint, err)
-			continue
-		}
-		log.Debugf("usage %s", usage)
-		// Exclude disks with total disk size 0
-		if usage.Total == 0 {
-			log.Debugf("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s] with total disk size %d bytes", partition.Device, partition.Mountpoint, partition.Fstype, usage.Total)
-			continue
-		}
-		// Exclude disks with total disk size smaller than 'min_disk_size' (which is configured in MiB)
-		minDiskSizeInBytes := c.instanceConfig.MinDiskSize * 1024 * 1024
-		if usage.Total < minDiskSizeInBytes {
-			log.Infof("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s] with total disk size %d bytes", partition.Device, partition.Mountpoint, partition.Fstype, usage.Total)
-			continue
-		}
-		log.Debugf("Passed partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
+		if usage := c.getPartitionUsage(partition); usage != nil {
+			tags := c.getPartitionTags(partition)
+			c.sendPartitionMetrics(sender, usage, tags)
 
-		tags := c.getPartitionTags(partition)
-		c.sendPartitionMetrics(sender, usage, tags)
-
-		if c.instanceConfig.ServiceCheckRw {
-			checkStatus := servicecheck.ServiceCheckUnknown
-			for _, opt := range partition.Opts {
-				if opt == "rw" {
-					checkStatus = servicecheck.ServiceCheckOK
-					break
-				} else if opt == "ro" {
-					checkStatus = servicecheck.ServiceCheckCritical
-					break
+			if c.instanceConfig.ServiceCheckRw {
+				checkStatus := servicecheck.ServiceCheckUnknown
+				for _, opt := range partition.Opts {
+					if opt == "rw" {
+						checkStatus = servicecheck.ServiceCheckOK
+						break
+					} else if opt == "ro" {
+						checkStatus = servicecheck.ServiceCheckCritical
+						break
+					}
 				}
+				sender.ServiceCheck("disk.read_write", checkStatus, "", tags, "")
 			}
-			sender.ServiceCheck("disk.read_write", checkStatus, "", tags, "")
 		}
 	}
 	return nil
@@ -458,6 +441,28 @@ func (c *Check) sendDiskMetrics(sender sender.Sender, ioCounter gopsutil_disk.IO
 	// See: https://github.com/DataDog/integrations-core/pull/7323#issuecomment-756427024
 	sender.Rate(fmt.Sprintf(diskMetric, "read_time_pct"), float64(ioCounter.ReadTime)*100/1000, "", tags)
 	sender.Rate(fmt.Sprintf(diskMetric, "write_time_pct"), float64(ioCounter.WriteTime)*100/1000, "", tags)
+}
+
+func (c *Check) getPartitionUsage(partition gopsutil_disk.PartitionStat) *gopsutil_disk.UsageStat {
+	usage, err := DiskUsage(partition.Mountpoint)
+	if err != nil {
+		log.Warnf("Unable to get disk metrics for %s: %s. You can exclude this mountpoint in the settings if it is invalid.", partition.Mountpoint, err)
+		return nil
+	}
+	log.Debugf("usage %s", usage)
+	// Exclude disks with total disk size 0
+	if usage.Total == 0 {
+		log.Debugf("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s] with total disk size %d bytes", partition.Device, partition.Mountpoint, partition.Fstype, usage.Total)
+		return nil
+	}
+	// Exclude disks with total disk size smaller than 'min_disk_size' (which is configured in MiB)
+	minDiskSizeInBytes := c.instanceConfig.MinDiskSize * 1024 * 1024
+	if usage.Total < minDiskSizeInBytes {
+		log.Infof("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s] with total disk size %d bytes", partition.Device, partition.Mountpoint, partition.Fstype, usage.Total)
+		return nil
+	}
+	log.Debugf("Passed partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
+	return usage
 }
 
 func (c *Check) getPartitionTags(partition gopsutil_disk.PartitionStat) []string {
