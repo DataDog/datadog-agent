@@ -34,9 +34,6 @@ type baseCheckSuite struct {
 // a relative diff considered acceptable when comparing metrics
 const metricCompareFraction = 0.02
 
-// an absolute diff considered acceptable when comparing metrics
-// const metricCompareMargin = 0.001
-
 // number of decimals when comparing metrics
 const metricCompareDecimals = 1
 
