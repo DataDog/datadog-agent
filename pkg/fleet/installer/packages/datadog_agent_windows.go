@@ -297,6 +297,9 @@ func installAgentPackage(env *env.Env, target string, args []string, logFileName
 	if env.AgentUserName != "" {
 		opts = append(opts, msi.WithDdAgentUserName(env.AgentUserName))
 	}
+	if env.AgentUserPassword != "" {
+		opts = append(opts, msi.WithDdAgentUserPassword(env.AgentUserPassword))
+	}
 	additionalArgs := []string{"FLEET_INSTALL=1", dataDir, projectLocation}
 
 	// append input args last so they can take precedence
