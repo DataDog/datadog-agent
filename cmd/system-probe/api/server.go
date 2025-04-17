@@ -36,7 +36,7 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, teleme
 
 	mux := gorilla.NewRouter()
 
-	err = module.Register(cfg, mux, modules.All, deps)
+	err = module.Register(cfg, mux, modules.All(), deps)
 	if err != nil {
 		return fmt.Errorf("failed to create system probe: %s", err)
 	}
