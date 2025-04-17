@@ -103,6 +103,9 @@ func (suite *CollectorTestSuite) SetupTest() {
 		fx.Provide(func() option.Option[serializer.MetricSerializer] {
 			return option.None[serializer.MetricSerializer]()
 		}),
+		fx.Provide(func() option.Option[agenttelemetry.Component] {
+			return option.None[agenttelemetry.Component]()
+		}),
 		fx.Replace(config.MockParams{
 			Overrides: map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond},
 		})))
