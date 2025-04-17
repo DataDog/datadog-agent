@@ -27,7 +27,7 @@ type iaTestSuite struct {
 var iaConfig string
 
 func TestOTelAgentIA(t *testing.T) {
-	values := enableOTELAgentonfig(`
+	values := enableOTELAgentConfig(`
 datadog:
   logs:
     containerCollectAll: false

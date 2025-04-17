@@ -36,7 +36,7 @@ var minimalFullConfig string
 var sources string
 
 func TestOTelAgentMinimal(t *testing.T) {
-	values := enableOTELAgentonfig(`
+	values := enableOTELAgentConfig(`
 datadog:
   logs:
     containerCollectAll: false

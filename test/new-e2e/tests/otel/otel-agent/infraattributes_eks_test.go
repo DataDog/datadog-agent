@@ -25,7 +25,7 @@ type iaEKSTestSuite struct {
 }
 
 func TestOTelAgentIAEKS(t *testing.T) {
-	values := enableOTELAgentonfig(`
+	values := enableOTELAgentConfig(`
 datadog:
   logs:
     containerCollectAll: false
@@ -80,7 +80,7 @@ type iaUSTEKSTestSuite struct {
 }
 
 func TestOTelAgentIAUSTEKS(t *testing.T) {
-	values := enableOTELAgentonfig(`
+	values := enableOTELAgentConfig(`
 datadog:
   logs:
     containerCollectAll: false

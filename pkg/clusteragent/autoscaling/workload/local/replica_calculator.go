@@ -27,8 +27,7 @@ import (
 )
 
 const (
-	staleDataThresholdSeconds   = 60 // maximum time window to look for valid metrics
-	minRequiredMetricDataPoints = 2  // minimum number of data points to consider for a metric
+	minRequiredMetricDataPoints = 2 // minimum number of data points to consider for a metric
 )
 
 type replicaCalculator struct {
@@ -79,7 +78,7 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 	recommendedReplicas := model.HorizontalScalingValues{}
 
 	for _, objective := range objectives {
-		recSettings, err := newResourceRecommenderSettings(objective)
+		recSettings, err := newResourceRecommenderSettings(dpai.Spec().Fallback, objective)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to get resource recommender settings: %s", err)
 		}
@@ -185,7 +184,7 @@ func calculateUtilization(recSettings resourceRecommenderSettings, pods []*workl
 			}
 
 			series := getContainerMetrics(queryResult, pod.Name, container.Name)
-			averageValue, lastTimestamp, err := processAverageContainerMetricValue(series, currentTime)
+			averageValue, lastTimestamp, err := processAverageContainerMetricValue(series, currentTime, recSettings.fallbackStaleDataThreshold)
 			if err != nil {
 				continue // skip; no usage information
 			}
@@ -239,7 +238,7 @@ func getContainerMetrics(queryResult loadstore.QueryResult, podName, containerNa
 
 // processAverageContainerMetricValue takes a series of metrics and processes them to return the final metric value and
 // corresponding timestamp to use to generate a recommendation
-func processAverageContainerMetricValue(series []loadstore.EntityValue, currentTime time.Time) (float64, time.Time, error) {
+func processAverageContainerMetricValue(series []loadstore.EntityValue, currentTime time.Time, fallbackStaleDataThreshold int64) (float64, time.Time, error) {
 	if len(series) < 2 { // too little metrics data
 		return 0.0, time.Time{}, fmt.Errorf("Missing usage metrics")
 	}
@@ -256,7 +255,7 @@ func processAverageContainerMetricValue(series []loadstore.EntityValue, currentT
 		}
 
 		// Discard stale metrics
-		if isStaleMetric(currentTime, entity.Timestamp) && len(values) >= minRequiredMetricDataPoints {
+		if isStaleMetric(currentTime, entity.Timestamp, fallbackStaleDataThreshold) && len(values) >= minRequiredMetricDataPoints {
 			continue
 		}
 
@@ -266,6 +265,7 @@ func processAverageContainerMetricValue(series []loadstore.EntityValue, currentT
 		if (lastTimestamp == time.Time{}) || ts.Before(lastTimestamp) {
 			lastTimestamp = ts
 		}
+
 	}
 
 	return average(values), lastTimestamp, nil
@@ -313,7 +313,7 @@ func calculateReplicas(recSettings resourceRecommenderSettings, currentReplicas 
 }
 
 // Helpers
-func isStaleMetric(currentTime time.Time, metricTimestamp loadstore.Timestamp) bool {
+func isStaleMetric(currentTime time.Time, metricTimestamp loadstore.Timestamp, staleDataThresholdSeconds int64) bool {
 	return currentTime.Unix()-int64(metricTimestamp) > staleDataThresholdSeconds
 }
 

@@ -67,13 +67,19 @@ func (r *Recommender) process(ctx context.Context) {
 		return
 	}
 
-	// TODO: filter this list to only retrieve autoscalers where local fallback is enabled
-	podAutoscalers := r.store.GetAll()
+	localFallbackFilter := func(podAutoscaler model.PodAutoscalerInternal) bool {
+		// Only return false if Fallback exists and Horizontal.Enabled is explicitly set to false
+		if podAutoscaler.Spec().Fallback != nil && !podAutoscaler.Spec().Fallback.Horizontal.Enabled {
+			return false
+		}
+		return true
+	}
+	podAutoscalers := r.store.GetFiltered(localFallbackFilter)
 
 	for _, podAutoscaler := range podAutoscalers {
 		// Generate local recommendations
 		horizontalRecommendation, err := r.replicaCalculator.calculateHorizontalRecommendations(podAutoscaler, lStore)
-		r.updateAutoscalerAndUnlock(podAutoscaler.ID(), horizontalRecommendation, err)
+		r.updateAutoscaler(podAutoscaler.ID(), horizontalRecommendation, err)
 		if err != nil {
 			log.Debugf("Got error calculating horizontal recommendation for pod autoscaler %s: %v", podAutoscaler.ID(), err)
 		} else {
@@ -82,7 +88,7 @@ func (r *Recommender) process(ctx context.Context) {
 	}
 }
 
-func (r *Recommender) updateAutoscalerAndUnlock(key string, horizontalRecommendation *model.HorizontalScalingValues, err error) {
+func (r *Recommender) updateAutoscaler(key string, horizontalRecommendation *model.HorizontalScalingValues, err error) {
 	recommendation := model.ScalingValues{}
 
 	if err != nil {
