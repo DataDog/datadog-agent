@@ -21,18 +21,18 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
 const probeUID = "net"
 
-// ErrorNotSupported is the error when entry tracer is not supported on an environment
-var ErrorNotSupported = errors.New("fentry tracer is only supported on Fargate")
+// ErrorDisabled is the error that occurs when enable_fentry is false
+var ErrorDisabled = errors.New("fentry tracer is disabled")
 
 // LoadTracer loads a new tracer
 func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), error) {
-	if !fargate.IsFargateInstance() {
-		return nil, nil, ErrorNotSupported
+	if !config.EnableFentry {
+		panic("bruh")
+		//return nil, nil, ErrorDisabled
 	}
 
 	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)
