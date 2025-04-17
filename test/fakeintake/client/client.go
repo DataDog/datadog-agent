@@ -733,7 +733,7 @@ func (c *Client) GetAllProcessPayloadAPIKeys() (map[string]struct{}, error) {
 		return nil, err
 	}
 
-	keys := make(map[string]struct{}, 0)
+	keys := make(map[string]struct{})
 	for _, payload := range payloads {
 		keys[payload.APIKey] = struct{}{}
 	}

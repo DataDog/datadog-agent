@@ -168,7 +168,13 @@ func (s *linuxTestSuite) TestAPIKeyRefreshAdditionalEndpoints() {
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertAPIKeyStatus(collect, apiKey, agentClient, true)
 		assertAPIKeyStatus(collect, apiKeyAdditional, agentClient, true)
-		assertAllPayloadsAPIKeys(collect, []string{apiKey, apiKeyAdditional}, fakeIntakeClient)
+		// Assert that all received payloads have the expected API keys
+		payloadKeys, err := fakeIntakeClient.GetAllProcessPayloadAPIKeys()
+		require.NoError(collect, err)
+		t.Logf("payloadKeys: %+v", payloadKeys)
+		for _, expectedAPIKey := range []string{apiKey, apiKeyAdditional} {
+			assert.Contains(collect, payloadKeys, expectedAPIKey)
+		}
 	}, 2*time.Minute, 10*time.Second)
 }
 
