@@ -62,10 +62,12 @@ type Serie struct {
 	Source         MetricSource         `json:"-"` // This is only used by api V2
 }
 
+// Metadata holds metadata about the metric
 type Metadata struct {
 	Origin Origin `json:"origin,omitempty"`
 }
 
+// Origin holds the metric origins metadata
 type Origin struct {
 	OriginProduct       int32 `json:"origin_product,omitempty"`
 	OriginSubProduct    int32 `json:"origin_sub_product,omitempty"`
