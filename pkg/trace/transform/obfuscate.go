@@ -14,6 +14,8 @@ import (
 const (
 	// TagRedisRawCommand represents a redis raw command tag
 	TagRedisRawCommand = "redis.raw_command"
+	// TagValkeyRawCommand represents a redis raw command tag
+	TagValkeyRawCommand = "valkey.raw_command"
 	// TagMemcachedCommand represents a memcached command tag
 	TagMemcachedCommand = "memcached.command"
 	// TagMongoDBQuery represents a MongoDB query tag
@@ -65,4 +67,16 @@ func ObfuscateRedisSpan(o *obfuscate.Obfuscator, span *pb.Span, removeAllArgs bo
 		return
 	}
 	span.Meta[TagRedisRawCommand] = o.ObfuscateRedisString(span.Meta[TagRedisRawCommand])
+}
+
+// ObfuscateValkeySpan obfuscates a Valkey span using pkg/obfuscate logic
+func ObfuscateValkeySpan(o *obfuscate.Obfuscator, span *pb.Span, removeAllArgs bool) {
+	if span.Meta == nil || span.Meta[TagValkeyRawCommand] == "" {
+		return
+	}
+	if removeAllArgs {
+		span.Meta[TagValkeyRawCommand] = o.RemoveAllRedisArgs(span.Meta[TagValkeyRawCommand])
+		return
+	}
+	span.Meta[TagValkeyRawCommand] = o.ObfuscateRedisString(span.Meta[TagValkeyRawCommand])
 }

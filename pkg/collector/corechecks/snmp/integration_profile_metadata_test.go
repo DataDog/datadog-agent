@@ -339,6 +339,7 @@ profiles:
 	event := []byte(fmt.Sprintf(`
 {
   "namespace":"profile-metadata",
+  "integration": "snmp",
   "devices": [
     {
       "id": "profile-metadata:1.2.3.4",

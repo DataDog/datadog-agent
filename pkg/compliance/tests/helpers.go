@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package tests implements the test suite of our compliance package.
 package tests
 
 import (
@@ -20,7 +21,6 @@ import (
 	docker "github.com/docker/docker/client"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -113,7 +113,7 @@ func (s *suite) Run() {
 				options.DockerProvider = func(context.Context) (docker.CommonAPIClient, error) { return s.dockerClient, nil }
 			}
 			if s.kubeClient != nil {
-				options.KubernetesProvider = func(context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
+				options.KubernetesProvider = func(context.Context) (dynamic.Interface, compliance.KubernetesGroupsAndResourcesProvider, error) {
 					return s.kubeClient, nil, nil
 				}
 			}

@@ -15,11 +15,11 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/shirou/gopsutil/v4/cpu"
-	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
@@ -27,12 +27,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
 
 const (
@@ -46,7 +45,7 @@ const (
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
-func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component) *ProcessCheck {
+func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component, gpuSubscriber gpusubscriber.Component, statsd statsd.ClientInterface) *ProcessCheck {
 	serviceExtractorEnabled := true
 	useWindowsServiceName := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	useImprovedAlgorithm := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
@@ -56,6 +55,8 @@ func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigm
 		lookupIdProbe:    NewLookupIDProbe(config),
 		serviceExtractor: parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
 		wmeta:            wmeta,
+		gpuSubscriber:    gpuSubscriber,
+		statsd:           statsd,
 	}
 
 	return check
@@ -111,9 +112,6 @@ type ProcessCheck struct {
 	checkCount uint32
 	skipAmount uint32
 
-	lastConnRates     *atomic.Pointer[ProcessConnRates]
-	connRatesReceiver subscriptions.Receiver[ProcessConnRates]
-
 	//nolint:revive // TODO(PROC) Fix revive linter
 	lookupIdProbe *LookupIdProbe
 
@@ -127,6 +125,9 @@ type ProcessCheck struct {
 	wmeta workloadmetacomp.Component
 
 	sysprobeClient *http.Client
+	statsd         statsd.ClientInterface
+
+	gpuSubscriber gpusubscriber.Component
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -170,8 +171,6 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 	p.ignoreZombieProcesses = p.config.GetBool(configIgnoreZombies)
 
-	p.initConnRates()
-
 	p.extractors = append(p.extractors, p.serviceExtractor)
 
 	if !oneShot && workloadmeta.Enabled(p.config) {
@@ -187,33 +186,6 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 		}
 
 		p.extractors = append(p.extractors, p.workloadMetaExtractor)
-	}
-	return nil
-}
-
-func (p *ProcessCheck) initConnRates() {
-	p.lastConnRates = atomic.NewPointer[ProcessConnRates](nil)
-	p.connRatesReceiver = subscriptions.NewReceiver[ProcessConnRates]()
-
-	go p.updateConnRates()
-}
-
-func (p *ProcessCheck) updateConnRates() {
-	for {
-		connRates, ok := <-p.connRatesReceiver.Ch
-		if !ok {
-			return
-		}
-		p.lastConnRates.Store(&connRates)
-	}
-}
-
-func (p *ProcessCheck) getLastConnRates() ProcessConnRates {
-	if p.lastConnRates == nil {
-		return nil
-	}
-	if result := p.lastConnRates.Load(); result != nil {
-		return *result
 	}
 	return nil
 }
@@ -319,8 +291,9 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	collectorProcHints := p.generateHints()
 	p.checkCount++
 
-	connsRates := p.getLastConnRates()
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor)
+	pidToGPUTags := p.gpuSubscriber.GetGPUTags()
+
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -337,7 +310,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 		if p.realtimeLastProcs != nil {
 			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsRates)
+			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun)
 			groupSize := len(chunkedStats)
 			chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
@@ -363,8 +336,8 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	}
 
 	agentNameTag := fmt.Sprintf("agent:%s", flavor.GetFlavor())
-	statsd.Client.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{agentNameTag}, 1) //nolint:errcheck
-	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{agentNameTag}, 1)       //nolint:errcheck
+	_ = p.statsd.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{agentNameTag}, 1)
+	_ = p.statsd.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{agentNameTag}, 1)
 	log.Debugf("collected processes in %s", time.Since(start))
 
 	return result, nil
@@ -487,11 +460,11 @@ func fmtProcesses(
 	ctrByProc map[int]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
-	connRates ProcessConnRates,
 	//nolint:revive // TODO(PROC) Fix revive linter
 	lookupIdProbe *LookupIdProbe,
 	zombiesIgnored bool,
 	serviceExtractor *parser.ServiceExtractor,
+	pidToGPUTags map[int32][]string,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
 
@@ -519,9 +492,11 @@ func fmtProcesses(
 			ProcessContext:         serviceExtractor.GetServiceContext(fp.Pid),
 		}
 
-		if connRates != nil {
-			proc.Networks = connRates[fp.Pid]
+		if tags, ok := pidToGPUTags[fp.Pid]; ok {
+			log.Debugf("Detected GPU, and process is in activePids, adding GPU tags to pid: %d, tags: %v", fp.Pid, tags)
+			proc.Tags = append(proc.Tags, tags...)
 		}
+
 		_, ok := procsByCtr[proc.ContainerId]
 		if !ok {
 			procsByCtr[proc.ContainerId] = make([]*model.Process, 0)

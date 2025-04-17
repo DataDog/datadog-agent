@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Enable collection of Pod Disruption Budgets by default in the orchestrator check.

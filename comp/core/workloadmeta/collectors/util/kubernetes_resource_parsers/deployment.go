@@ -15,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	languagedetectionUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	ddkube "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
@@ -40,28 +40,28 @@ func NewDeploymentParser(annotationsExclude []string) (ObjectParser, error) {
 	}, nil
 }
 
-func updateContainerLanguage(cl languagedetectionUtil.ContainersLanguages, container languagedetectionUtil.Container, languages string) {
+func updateContainerLanguage(cl languagemodels.ContainersLanguages, container languagemodels.Container, languages string) {
 	if _, found := cl[container]; !found {
-		cl[container] = make(languagedetectionUtil.LanguageSet)
+		cl[container] = make(languagemodels.LanguageSet)
 	}
 
 	for _, lang := range strings.Split(languages, ",") {
-		cl[container][languagedetectionUtil.Language(strings.TrimSpace(lang))] = struct{}{}
+		cl[container][languagemodels.LanguageName(strings.TrimSpace(lang))] = struct{}{}
 	}
 }
 
 func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 	deployment := obj.(*appsv1.Deployment)
-	containerLanguages := make(languagedetectionUtil.ContainersLanguages)
+	containerLanguages := make(languagemodels.ContainersLanguages)
 
 	for annotation, languages := range deployment.Annotations {
 
-		containerName, isInitContainer := languagedetectionUtil.ExtractContainerFromAnnotationKey(annotation)
+		containerName, isInitContainer := languagemodels.ExtractContainerFromAnnotationKey(annotation)
 		if containerName != "" && languages != "" {
 
 			updateContainerLanguage(
 				containerLanguages,
-				languagedetectionUtil.Container{
+				languagemodels.Container{
 					Name: containerName,
 					Init: isInitContainer,
 				},

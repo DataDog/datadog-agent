@@ -31,6 +31,9 @@ const (
 
 	// SizeOfCookie size of cookie
 	SizeOfCookie = 8
+
+	// FakeInodeMSW inode used internally
+	fakeInodeMSW uint64 = 0xdeadc001
 )
 
 // check that all path are absolute
@@ -112,6 +115,11 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 	}
 
 	return nil
+}
+
+// IsFakeInode returns whether the given inode is a fake inode
+func IsFakeInode(inode uint64) bool {
+	return inode>>32 == fakeInodeMSW
 }
 
 // SetPathResolutionError sets the Event.pathResolutionError
@@ -332,10 +340,6 @@ func (d NetDevice) GetKey() string {
 // IsNull returns true if a key is invalid
 func (p *PathKey) IsNull() bool {
 	return p.Inode == 0 && p.MountID == 0
-}
-
-func (p *PathKey) String() string {
-	return fmt.Sprintf("%x/%x", p.MountID, p.Inode)
 }
 
 // PathKeySize defines the path key size

@@ -22,7 +22,6 @@ import (
 	"github.com/xeipuuv/gojsonschema"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/schemas"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
@@ -233,6 +232,12 @@ func (tm *testModule) validateIMDSSchema(t *testing.T, event *model.Event) bool 
 }
 
 //nolint:deadcode,unused
+func (tm *testModule) validateSysctlSchema(t *testing.T, event *model.Event) bool {
+	t.Helper()
+	return tm.validateEventSchema(t, event, "file:///sysctl.schema.json")
+}
+
+//nolint:deadcode,unused
 func (tm *testModule) validateAcceptSchema(t *testing.T, event *model.Event) bool {
 	if ebpfLessEnabled {
 		return true
@@ -322,7 +327,7 @@ func (v ValidInodeFormatChecker) IsFormat(input interface{}) bool {
 	default:
 		return false
 	}
-	return !dentry.IsFakeInode(inode)
+	return !model.IsFakeInode(inode)
 }
 
 func validateSchema(t *testing.T, schemaLoader gojsonschema.JSONLoader, documentLoader gojsonschema.JSONLoader) (bool, error) {

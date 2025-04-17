@@ -13,12 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -43,8 +44,9 @@ func TestBundleDependencies(t *testing.T) {
 		statsd.Module(),
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
 		zstdfx.Module(),
-		taggerfx.Module(tagger.Params{}),
+		taggerfx.Module(),
 		fx.Supply(&traceagentimpl.Params{}),
+		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 	)
 }
 
@@ -74,7 +76,8 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Supply(&traceagentimpl.Params{}),
 		fx.Invoke(func(_ traceagent.Component) {}),
 		MockBundle(),
-		taggerfx.Module(tagger.Params{}),
+		taggerfx.Module(),
+		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 	))
 
 	require.NotNil(t, cfg.Object())

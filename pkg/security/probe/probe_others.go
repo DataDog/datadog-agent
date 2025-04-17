@@ -20,13 +20,15 @@ import (
 )
 
 // PlatformProbe represents the no-op platform probe on unsupported platforms
-type PlatformProbe struct {
+type PlatformProbe interface {
+	NewEvent() *model.Event
 }
 
 // Probe represents the runtime security probe
 type Probe struct {
-	Config *config.Config
-	Opts   Opts
+	PlatformProbe PlatformProbe
+	Config        *config.Config
+	Opts          Opts
 }
 
 // Origin returns origin
@@ -116,4 +118,8 @@ func (p *Probe) EnableEnforcement(_ bool) {}
 // GetAgentContainerContext returns nil
 func (p *Probe) GetAgentContainerContext() *events.AgentContainerContext {
 	return nil
+}
+
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *Probe) Walk(_ func(*model.ProcessCacheEntry)) {
 }

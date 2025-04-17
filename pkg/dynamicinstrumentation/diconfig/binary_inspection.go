@@ -8,6 +8,7 @@
 package diconfig
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -22,12 +23,20 @@ import (
 // configEvent maps service names to info about the service and their configurations
 func inspectGoBinaries(configEvent ditypes.DIProcs) error {
 	var err error
+	var inspectedAtLeastOneBinary bool
 	for i := range configEvent {
 		err = AnalyzeBinary(configEvent[i])
 		if err != nil {
-			return fmt.Errorf("inspection of PID %d (path=%s) failed: %w", configEvent[i].PID, configEvent[i].BinaryPath, err)
+			log.Info("inspection of PID %d (path=%s) failed: %w", configEvent[i].PID, configEvent[i].BinaryPath, err)
+		} else {
+			inspectedAtLeastOneBinary = true
 		}
 	}
+
+	if !inspectedAtLeastOneBinary {
+		return fmt.Errorf("failed to inspect all tracked go binaries")
+	}
+
 	return nil
 }
 
@@ -41,9 +50,15 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 		targetFunctions[probe.FuncName] = true
 	}
 
-	dwarfData, err := loadDWARF(procInfo.BinaryPath)
+	elfFile, err := safeelf.Open(procInfo.BinaryPath)
 	if err != nil {
-		return fmt.Errorf("could not retrieve debug information from binary: %w", err)
+		return fmt.Errorf("could not open elf file %w", err)
+	}
+	defer elfFile.Close()
+
+	dwarfData, ok := bininspect.HasDwarfInfo(elfFile)
+	if !ok || dwarfData == nil {
+		return errors.New("could not get debug information from binary")
 	}
 
 	typeMap, err := getTypeMap(dwarfData, targetFunctions)
@@ -53,14 +68,17 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 
 	procInfo.TypeMap = typeMap
 
-	elfFile, err := safeelf.Open(procInfo.BinaryPath)
-	if err != nil {
-		return fmt.Errorf("could not open elf file %w", err)
+	// Enforce limit on number of parameters
+	for funcName := range procInfo.TypeMap.Functions {
+		for i, param := range procInfo.TypeMap.Functions[funcName] {
+			if i >= ditypes.MaxFieldCount {
+				param.DoNotCapture = true
+				param.NotCaptureReason = ditypes.FieldLimitReached
+			}
+		}
 	}
 
-	procInfo.DwarfData = dwarfData
-
-	fieldIDs := make([]bininspect.FieldIdentifier, 0)
+	fieldIDs := []bininspect.FieldIdentifier{}
 	for _, funcParams := range typeMap.Functions {
 		for _, param := range funcParams {
 			fieldIDs = append(fieldIDs,
@@ -68,7 +86,7 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 		}
 	}
 
-	r, err := bininspect.InspectWithDWARF(elfFile, functions, fieldIDs)
+	r, err := bininspect.InspectWithDWARF(elfFile, dwarfData, functions, fieldIDs)
 	if err != nil {
 		return fmt.Errorf("could not determine locations of variables from debug information %w", err)
 	}
@@ -81,7 +99,6 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 	for functionName, functionMetadata := range r.Functions {
 		putLocationsInParams(functionMetadata.Parameters, r.StructOffsets, procInfo.TypeMap.Functions, functionName)
 		populateLocationExpressionsForFunction(r.Functions, procInfo, functionName)
-		correctStructSizes(procInfo.TypeMap.Functions[functionName])
 	}
 
 	return nil
@@ -106,7 +123,7 @@ func collectFieldIDs(param *ditypes.Parameter) []bininspect.FieldIdentifier {
 
 		if current.Kind == uint(reflect.Struct) || current.Kind == uint(reflect.Slice) {
 			for _, structField := range current.ParameterPieces {
-				if structField.Name == "" || current.Type == "" {
+				if structField == nil || structField.Name == "" || current.Type == "" {
 					// these can be blank in anonymous types or embedded fields
 					// of builtin types. bininspect has no ability to find offsets
 					// in these cases and we're best off skipping them.
@@ -208,16 +225,17 @@ func assignLocationsInOrder(params []*ditypes.Parameter, locations []ditypes.Loc
 		}
 		current := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
+		locationToAssign := locations[locationCounter]
 		if len(current.ParameterPieces) != 0 &&
 			current.Kind != uint(reflect.Array) &&
-			current.Kind != uint(reflect.Pointer) {
+			current.Kind != uint(reflect.Pointer) &&
+			!(current.Kind == uint(reflect.Struct) && !locationToAssign.InReg) {
 			for i := range current.ParameterPieces {
 				stack = append(stack, current.ParameterPieces[len(current.ParameterPieces)-1-i])
 			}
 		} else {
 			// Location fields are directly assigned instead of setting the whole
 			// location field to preserve other fields
-			locationToAssign := locations[locationCounter]
 			if current.Location == nil {
 				current.Location = &ditypes.Location{}
 			}

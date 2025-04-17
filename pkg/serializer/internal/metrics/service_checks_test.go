@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -81,7 +82,7 @@ func createServiceCheck(checkName string) *servicecheck.ServiceCheck {
 
 func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler, cfg pkgconfigmodel.Config) [][]byte {
 	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
-	builder := stream.NewJSONPayloadBuilder(true, cfg, compressor)
+	builder := stream.NewJSONPayloadBuilder(true, cfg, compressor, logmock.New(t))
 	payloads, err := stream.BuildJSONPayload(builder, m)
 	assert.NoError(t, err)
 	var uncompressedPayloads [][]byte
@@ -160,7 +161,7 @@ func createServiceChecks(numberOfItem int) ServiceChecks {
 func benchmarkJSONPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
 	mockConfig := mock.New(b)
 	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-	payloadBuilder := stream.NewJSONPayloadBuilder(true, mockConfig, compressor)
+	payloadBuilder := stream.NewJSONPayloadBuilder(true, mockConfig, compressor, logmock.New(b))
 	serviceChecks := createServiceChecks(numberOfItem)
 
 	b.ResetTimer()
@@ -202,8 +203,9 @@ func benchmarkPayloadsServiceCheck(b *testing.B, numberOfItem int) {
 
 	mockConfig := mock.New(b)
 	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
+	logger := logmock.New(b)
 	for n := 0; n < b.N; n++ {
-		split.Payloads(serviceChecks, true, split.JSONMarshalFct, compressor)
+		split.Payloads(serviceChecks, true, split.JSONMarshalFct, compressor, logger)
 	}
 }
 

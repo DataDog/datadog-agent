@@ -9,7 +9,6 @@ SPACE_KEY = "agent"
 NON_RELEASING_TEAMS = {
     'telemetry-and-analytics',
     'documentation',
-    'software-integrity-and-trust',
     'single-machine-performance',
     'agent-all',
     'apm-core-reliability-and-performance',
@@ -21,10 +20,11 @@ NON_RELEASING_TEAMS = {
     'agent-release-management',
     'container-ecosystems',
     'apm-trace-storage',
-    'iglendd',  # Not a team but he's in the codeowners file
+    '@iglendd',  # Not a team but he's in the codeowners file
     'sdlc-security',
     'data-jobs-monitoring',
     'serverless-aws',
+    'apm-ecosystems-performance',
 }
 
 
@@ -40,16 +40,6 @@ def _stringify_config(config_dict):
     and transforms all VERSIONs into their string representation (using the Version object's __str__).
     """
     return {key: str(value) for key, value in config_dict.items()}
-
-
-def nightly_entry_for(agent_major_version):
-    if agent_major_version == 6:
-        return "nightly"
-    return f"nightly-a{agent_major_version}"
-
-
-def release_entry_for(agent_major_version):
-    return f"release-a{agent_major_version}"
 
 
 def create_release_page(version, cutoff_date):
@@ -214,10 +204,10 @@ def create_release_notes(cutoff_date, teams):
     milestones = {
         '"Cut-off"': cutoff_date,
         '"RC.1 built"': cutoff_date + timedelta(days=1),
-        '"Staging deployment"': cutoff_date + timedelta(days=3),
+        '"Staging deployment"': cutoff_date + timedelta(days=4),
         '"Prod deployment start"': cutoff_date + timedelta(days=11),
-        '"Full prod deployment"': cutoff_date + timedelta(days=20),
-        '"Release"': cutoff_date + timedelta(days=26),
+        '"Full prod deployment"': cutoff_date + timedelta(days=18),
+        '"Release"': cutoff_date + timedelta(days=27),
     }
 
     line('h2', 'Schedule')

@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -17,6 +18,8 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -94,6 +97,7 @@ type provides struct {
 	StatusProvider statusComponent.InformationProvider
 	RCListener     rctypes.ListenerProvider
 	LogsReciever   option.Option[integrations.Component]
+	APIStreamLogs  api.AgentEndpointProvider
 }
 
 // logAgent represents the data pipeline that collects, decodes,
@@ -174,6 +178,10 @@ func newLogsAgent(deps dependencies) provides {
 			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
 			RCListener:     rcListener,
 			LogsReciever:   option.New[integrations.Component](integrationsLogs),
+			APIStreamLogs: api.NewAgentEndpointProvider(streamLogsEvents(logsAgent),
+				"/stream-logs",
+				"POST",
+			),
 		}
 	}
 
@@ -407,4 +415,10 @@ func (a *logAgent) onUpdateSDS(reconfigType sds.ReconfigureOrderType, updates ma
 			})
 		}
 	}
+}
+
+func streamLogsEvents(logsAgent agent.Component) func(w http.ResponseWriter, r *http.Request) {
+	return apiutils.GetStreamFunc(func() apiutils.MessageReceiver {
+		return logsAgent.GetMessageReceiver()
+	}, "logs", "logs agent")
 }

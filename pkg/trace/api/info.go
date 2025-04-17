@@ -35,6 +35,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		HTTP                 obfuscate.HTTPConfig      `json:"http"`
 		RemoveStackTraces    bool                      `json:"remove_stack_traces"`
 		Redis                obfuscate.RedisConfig     `json:"redis"`
+		Valkey               obfuscate.ValkeyConfig    `json:"valkey"`
 		Memcached            obfuscate.MemcachedConfig `json:"memcached"`
 	}
 	type reducedConfig struct {
@@ -61,6 +62,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		oconf.HTTP = o.HTTP
 		oconf.RemoveStackTraces = o.RemoveStackTraces
 		oconf.Redis = o.Redis
+		oconf.Valkey = o.Valkey
 		oconf.Memcached = o.Memcached
 	}
 
@@ -89,6 +91,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		Config                 reducedConfig `json:"config"`
 		PeerTags               []string      `json:"peer_tags"`
 		SpanKindsStatsComputed []string      `json:"span_kinds_stats_computed"`
+		ObfuscationVersion     int           `json:"obfuscation_version"`
 	}{
 		Version:                r.conf.AgentVersion,
 		GitCommit:              r.conf.GitCommit,
@@ -100,6 +103,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		SpanEvents:             true,
 		EvpProxyAllowedHeaders: EvpProxyAllowedHeaders,
 		SpanKindsStatsComputed: spanKindsStatsComputed,
+		ObfuscationVersion:     obfuscate.Version,
 		Config: reducedConfig{
 			DefaultEnv:             r.conf.DefaultEnv,
 			TargetTPS:              r.conf.TargetTPS,

@@ -116,10 +116,8 @@ func (p *TraceAgent) Start() {
 		// we don't need the samplers' nor the processor's functionalities;
 		// but they are used by the agent nevertheless, so they need to be
 		// active and functioning.
-		p.PrioritySampler,
-		p.ErrorsSampler,
-		p.NoPrioritySampler,
 		p.EventProcessor,
+		p.SamplerMetrics,
 	} {
 		starter.Start()
 	}
@@ -131,10 +129,8 @@ func (p *TraceAgent) Stop() {
 	for _, stopper := range []interface{ Stop() }{
 		p.Concentrator,
 		p.ClientStatsAggregator,
-		p.PrioritySampler,
-		p.ErrorsSampler,
-		p.NoPrioritySampler,
 		p.EventProcessor,
+		p.SamplerMetrics,
 	} {
 		stopper.Stop()
 	}
@@ -148,7 +144,7 @@ func (p *TraceAgent) Ingest(ctx context.Context, traces ptrace.Traces) {
 	rspanss := traces.ResourceSpans()
 	for i := 0; i < rspanss.Len(); i++ {
 		rspans := rspanss.At(i)
-		p.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, http.Header{})
+		p.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, http.Header{}, nil)
 		// ...the call transforms the OTLP Spans into a Datadog payload and sends the result
 		// down the p.pchan channel
 

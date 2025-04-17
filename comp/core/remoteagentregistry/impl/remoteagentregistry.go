@@ -10,8 +10,16 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
@@ -21,18 +29,18 @@ import (
 	remoteagentregistryStatus "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/status"
 	util "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/util"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 // Requires defines the dependencies for the remoteagentregistry component
 type Requires struct {
 	Config    config.Component
 	Lifecycle compdef.Lifecycle
+	Telemetry telemetry.Component
 }
 
 // Provides defines the output of the remoteagentregistry component
@@ -64,6 +72,7 @@ func newRemoteAgent(reqs Requires) *remoteAgentRegistry {
 		conf:         reqs.Config,
 		agentMap:     make(map[string]*remoteAgentDetails),
 		shutdownChan: shutdownChan,
+		telemetry:    reqs.Telemetry,
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -87,6 +96,7 @@ type remoteAgentRegistry struct {
 	agentMap     map[string]*remoteAgentDetails
 	agentMapMu   sync.Mutex
 	shutdownChan chan struct{}
+	telemetry    telemetry.Component
 }
 
 // RegisterRemoteAgent registers a remote agent with the registry.
@@ -142,9 +152,14 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 	return recommendedRefreshInterval, nil
 }
 
+func (ra *remoteAgentRegistry) registerCollector() {
+	ra.telemetry.RegisterCollector(newRegistryCollector(&ra.agentMapMu, ra.agentMap, ra.getQueryTimeout()))
+}
+
 // Start starts the remote agent registry, which periodically checks for idle remote agents and deregisters them.
 func (ra *remoteAgentRegistry) start() {
 	remoteAgentIdleTimeout := ra.conf.GetDuration("remote_agent_registry.idle_timeout")
+	ra.registerCollector()
 
 	go func() {
 		log.Info("Remote Agent registry started.")
@@ -176,6 +191,118 @@ func (ra *remoteAgentRegistry) start() {
 			}
 		}
 	}()
+}
+
+type registryCollector struct {
+	agentMapMu   *sync.Mutex
+	agentMap     map[string]*remoteAgentDetails
+	queryTimeout time.Duration
+}
+
+func newRegistryCollector(agentMapMu *sync.Mutex, agentMap map[string]*remoteAgentDetails, queryTimeout time.Duration) prometheus.Collector {
+	return &registryCollector{
+		agentMapMu:   agentMapMu,
+		agentMap:     agentMap,
+		queryTimeout: queryTimeout,
+	}
+}
+
+func (c *registryCollector) Describe(_ chan<- *prometheus.Desc) {
+}
+
+func (c *registryCollector) Collect(ch chan<- prometheus.Metric) {
+	c.getRegisteredAgentsTelemetry(ch)
+}
+
+func (c *registryCollector) getRegisteredAgentsTelemetry(ch chan<- prometheus.Metric) {
+	c.agentMapMu.Lock()
+
+	agentsLen := len(c.agentMap)
+
+	// Return early if we have no registered remote agents.
+	if agentsLen == 0 {
+		c.agentMapMu.Unlock()
+		return
+	}
+
+	data := make(chan *pb.GetTelemetryResponse, agentsLen)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	for agentID, details := range c.agentMap {
+		go func() {
+			resp, err := details.client.GetTelemetry(ctx, &pb.GetTelemetryRequest{}, grpc.WaitForReady(true))
+			if err != nil {
+				log.Warnf("Failed to query remote agent '%s' for telemetry data: %v", agentID, err)
+				return
+			}
+			if promText, ok := resp.Payload.(*pb.GetTelemetryResponse_PromText); ok {
+				collectFromPromText(ch, promText.PromText)
+			}
+			data <- resp
+		}()
+	}
+
+	c.agentMapMu.Unlock()
+
+	timeout := time.After(c.queryTimeout)
+	responsesRemaining := agentsLen
+
+collect:
+	for {
+		select {
+		case <-data:
+			responsesRemaining--
+		case <-timeout:
+			break collect
+		default:
+			if responsesRemaining == 0 {
+				break collect
+			}
+		}
+	}
+
+}
+
+// Retrieve the telemetry data in exposition format from the remote agent
+func collectFromPromText(ch chan<- prometheus.Metric, promText string) {
+	var parser expfmt.TextParser
+	metricFamilies, err := parser.TextToMetricFamilies(strings.NewReader(promText))
+	if err != nil {
+		log.Warnf("Failed to parse prometheus text: %v", err)
+		return
+	}
+	for _, mf := range metricFamilies {
+		help := ""
+		if mf.Help != nil {
+			help = *mf.Help
+		}
+		for _, metric := range mf.Metric {
+			labelNames := make([]string, 0, len(metric.Label))
+			labelValues := make([]string, 0, len(metric.Label))
+			for _, label := range metric.Label {
+				labelNames = append(labelNames, *label.Name)
+				labelValues = append(labelValues, *label.Value)
+			}
+			switch *mf.Type {
+			case dto.MetricType_COUNTER:
+				ch <- prometheus.MustNewConstMetric(
+					prometheus.NewDesc(*mf.Name, help, labelNames, nil),
+					prometheus.CounterValue,
+					*metric.Counter.Value,
+					labelValues...,
+				)
+			case dto.MetricType_GAUGE:
+				ch <- prometheus.MustNewConstMetric(
+					prometheus.NewDesc(*mf.Name, help, labelNames, nil),
+					prometheus.GaugeValue,
+					*metric.Gauge.Value,
+					labelValues...,
+				)
+			}
+		}
+	}
 }
 
 func (ra *remoteAgentRegistry) getQueryTimeout() time.Duration {

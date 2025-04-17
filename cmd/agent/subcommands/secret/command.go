@@ -97,6 +97,18 @@ func secretRefresh(config config.Component, _ log.Component) error {
 		}
 	}
 
+	{
+		fmt.Println("Process Agent refresh:")
+		res, err := processAgentSecretRefresh(config)
+		if err != nil {
+			// the process agent might not be running
+			// so we handle the error in a non-fatal way
+			fmt.Println(err.Error())
+		} else {
+			fmt.Println(string(res))
+		}
+	}
+
 	return nil
 }
 
@@ -111,10 +123,10 @@ func commonSubAgentSecretRefresh(conf config.Component, agentName, portConfigNam
 		return nil, fmt.Errorf("invalid %s -- %d", portConfigName, port)
 	}
 
-	c := apiutil.GetClient(false)
+	c := apiutil.GetClient()
 	c.Timeout = conf.GetDuration("server_timeout") * time.Second
 
-	url := fmt.Sprintf("http://127.0.0.1:%d/secret/refresh", port)
+	url := fmt.Sprintf("https://127.0.0.1:%d/secret/refresh", port)
 	res, err := apiutil.DoGet(c, url, apiutil.CloseConnection)
 	if err != nil {
 		return nil, fmt.Errorf("could not contact %s: %s", agentName, err)
@@ -129,6 +141,10 @@ func traceAgentSecretRefresh(conf config.Component) ([]byte, error) {
 
 func securityAgentSecretRefresh(conf config.Component) ([]byte, error) {
 	return commonSubAgentSecretRefresh(conf, "security-agent", "security_agent.cmd_port")
+}
+
+func processAgentSecretRefresh(conf config.Component) ([]byte, error) {
+	return commonSubAgentSecretRefresh(conf, "process-agent", "process_config.cmd_port")
 }
 
 func callIPCEndpoint(config config.Component, endpointURL string) ([]byte, error) {

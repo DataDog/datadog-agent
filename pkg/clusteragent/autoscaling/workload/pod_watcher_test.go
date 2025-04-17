@@ -27,7 +27,7 @@ import (
 )
 
 func TestHandleSetEvent(t *testing.T) {
-	pw := newPodWatcher(nil, nil)
+	pw := NewPodWatcher(nil, nil)
 	pod := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
@@ -44,7 +44,7 @@ func TestHandleSetEvent(t *testing.T) {
 		Entity: pod,
 	}
 
-	pw.handleEvent(event)
+	pw.HandleEvent(event)
 
 	expectedOwner := NamespacedPodOwner{
 		Namespace: "default",
@@ -57,7 +57,7 @@ func TestHandleSetEvent(t *testing.T) {
 }
 
 func TestHandleUnsetEvent(t *testing.T) {
-	pw := newPodWatcher(nil, nil)
+	pw := NewPodWatcher(nil, nil)
 	pod := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
@@ -78,8 +78,8 @@ func TestHandleUnsetEvent(t *testing.T) {
 		Entity: pod,
 	}
 
-	pw.handleEvent(setEvent)
-	pw.handleEvent(unsetEvent)
+	pw.HandleEvent(setEvent)
+	pw.HandleEvent(unsetEvent)
 
 	pods := pw.GetPodsForOwner(NamespacedPodOwner{
 		Namespace: "default",
@@ -97,7 +97,7 @@ func TestPodWatcherStartStop(t *testing.T) {
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	pw := newPodWatcher(wlm, nil)
+	pw := NewPodWatcher(wlm, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	go pw.Run(ctx)
 	pod := &workloadmeta.KubernetesPod{

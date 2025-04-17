@@ -110,7 +110,15 @@ func (l *LogsConfigKeys) devModeUseProto() bool {
 }
 
 func (l *LogsConfigKeys) compressionKind() string {
-	return l.getConfig().GetString(l.getConfigKey("compression_kind"))
+	compressionKind := l.getConfig().GetString(l.getConfigKey("compression_kind"))
+	switch compressionKind {
+	case "zstd", "gzip":
+		log.Debugf("Logs agent is using: %s compression", compressionKind)
+		return compressionKind
+	default:
+		log.Warnf("Invalid compression kind: '%s', falling back to default compression: '%s' ", compressionKind, pkgconfigsetup.DefaultLogCompressionKind)
+		return pkgconfigsetup.DefaultLogCompressionKind
+	}
 }
 
 func (l *LogsConfigKeys) compressionLevel() int {
@@ -126,23 +134,19 @@ func (l *LogsConfigKeys) useCompression() bool {
 }
 
 func (l *LogsConfigKeys) hasAdditionalEndpoints() bool {
-	return len(l.getAdditionalEndpoints()) > 0
+	endpoints, _ := l.getAdditionalEndpoints()
+	return len(endpoints) > 0
 }
 
-// getAPIKeyGetter returns a getter function to retrieve the API key from the configuration. The getter will refetch the
-// value from the configuration upon each call to ensure the latest version is used. This ensure that the logs agent is
-// compatible with rotating the API key at runtime.
-//
-// The getter will use "logs_config.api_key" over "api_key" when needed.
-func (l *LogsConfigKeys) getAPIKeyGetter() func() string {
+// getMainAPIKey return the global API key for the current config with the path used to get it. Main api key means the
+// top level one, not one from additional_endpoints.
+func (l *LogsConfigKeys) getMainAPIKey() (string, string) {
 	path := "api_key"
 	if configKey := l.getConfigKey(path); l.isSetAndNotEmpty(configKey) {
 		path = configKey
 	}
 
-	return func() string {
-		return l.getConfig().GetString(path)
-	}
+	return l.getConfig().GetString(path), path
 }
 
 func (l *LogsConfigKeys) connectionResetInterval() time.Duration {
@@ -150,13 +154,13 @@ func (l *LogsConfigKeys) connectionResetInterval() time.Duration {
 
 }
 
-func (l *LogsConfigKeys) getAdditionalEndpoints() []unmarshalEndpoint {
+func (l *LogsConfigKeys) getAdditionalEndpoints() ([]unmarshalEndpoint, string) {
 	var endpoints []unmarshalEndpoint
 	var err error
 	configKey := l.getConfigKey("additional_endpoints")
 	raw := l.getConfig().Get(configKey)
 	if raw == nil {
-		return nil
+		return nil, ""
 	}
 	if s, ok := raw.(string); ok && s != "" {
 		err = json.Unmarshal([]byte(s), &endpoints)
@@ -166,7 +170,7 @@ func (l *LogsConfigKeys) getAdditionalEndpoints() []unmarshalEndpoint {
 	if err != nil {
 		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
 	}
-	return endpoints
+	return endpoints, configKey
 }
 
 func (l *LogsConfigKeys) expectedTagsDuration() time.Duration {

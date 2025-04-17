@@ -19,9 +19,10 @@ func NewFilterCommand(cl **client.Client) (cmd *cobra.Command) {
 	}
 
 	cmd.AddCommand(
+		NewFilterContainerImagesCommand(cl),
+		NewFilterEventsCommand(cl),
 		NewFilterLogsCommand(cl),
 		NewFilterMetricsCommand(cl),
-		NewFilterContainerImagesCommand(cl),
 		NewFilterSBOMCommand(cl),
 	)
 

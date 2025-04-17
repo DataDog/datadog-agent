@@ -35,7 +35,7 @@ type (
 
 // NewTCPv4 initializes a new TCPv4 traceroute instance
 func NewTCPv4(target net.IP, targetPort uint16, numPaths uint16, minTTL uint8, maxTTL uint8, delay time.Duration, timeout time.Duration) *TCPv4 {
-	buffer := gopacket.NewSerializeBuffer()
+	buffer := gopacket.NewSerializeBufferExpectedSize(40, 0)
 
 	return &TCPv4{
 		Target:   target,
@@ -67,6 +67,8 @@ func (t *TCPv4) createRawTCPSyn(seqNum uint32, ttl int) (*ipv4.Header, []byte, e
 }
 
 func (t *TCPv4) createRawTCPSynBuffer(seqNum uint32, ttl int) (*ipv4.Header, []byte, int, error) {
+	// if this function is modified in a way that changes the size,
+	// update the NewSerializeBufferExpectedSize call in NewTCPv4
 	ipLayer := &layers.IPv4{
 		Version:  4,
 		Length:   20,

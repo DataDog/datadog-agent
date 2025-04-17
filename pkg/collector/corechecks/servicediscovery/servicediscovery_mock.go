@@ -14,6 +14,8 @@ import (
 	time "time"
 
 	gomock "github.com/golang/mock/gomock"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 )
 
 // MockosImpl is a mock of osImpl interface.
@@ -40,10 +42,10 @@ func (m *MockosImpl) EXPECT() *MockosImplMockRecorder {
 }
 
 // DiscoverServices mocks base method.
-func (m *MockosImpl) DiscoverServices() (*discoveredServices, error) {
+func (m *MockosImpl) DiscoverServices() (*model.ServicesResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DiscoverServices")
-	ret0, _ := ret[0].(*discoveredServices)
+	ret0, _ := ret[0].(*model.ServicesResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

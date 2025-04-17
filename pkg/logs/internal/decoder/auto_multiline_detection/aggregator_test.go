@@ -25,7 +25,10 @@ func makeHandler() (chan *message.Message, func(*message.Message)) {
 }
 
 func newMessage(content string) *message.Message {
-	return message.NewRawMessage([]byte(content), message.StatusInfo, len([]byte(content)), "")
+
+	m := message.NewMessage([]byte(content), nil, message.StatusInfo, 0)
+	m.RawDataLen = len([]byte(content))
+	return m
 }
 
 func assertMessageContent(t *testing.T, m *message.Message, content string) {

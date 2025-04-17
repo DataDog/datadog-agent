@@ -98,7 +98,8 @@ type Tracer struct {
 
 func instrumentNode() {
 	currNodePath := os.Getenv("NODE_PATH")
-	os.Setenv("NODE_PATH", addToString(currNodePath, ":", "/dd_tracer/node/"))
+	legacyDatadogNodePath := addToString(currNodePath, ":", "/dd_tracer/node/")
+	os.Setenv("NODE_PATH", addToString(legacyDatadogNodePath, ":", "/dd_tracer/node/node_modules"))
 
 	currNodeOptions := os.Getenv("NODE_OPTIONS")
 	os.Setenv("NODE_OPTIONS", addToString(currNodeOptions, " ", "--require dd-trace/init"))

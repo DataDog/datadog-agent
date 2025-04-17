@@ -540,7 +540,7 @@ func GetOTelOperationNameV1(
 // GetOtelSource returns the source based on OTel span and resource attributes.
 func GetOtelSource(span ptrace.Span, res pcommon.Resource, tr *attributes.Translator) (source.Source, bool) {
 	ctx := context.Background()
-	src, srcok := tr.ResourceToSource(ctx, res, SignalTypeSet)
+	src, srcok := tr.ResourceToSource(ctx, res, SignalTypeSet, nil)
 	if !srcok {
 		if v := GetOTelAttrValInResAndSpanAttrs(span, res, false, "_dd.hostname"); v != "" {
 			src = source.Source{Kind: source.HostnameKind, Identifier: v}

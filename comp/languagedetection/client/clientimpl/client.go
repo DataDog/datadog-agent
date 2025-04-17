@@ -11,18 +11,18 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"go.uber.org/fx"
 )
 
 const (
@@ -299,10 +299,6 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 	}
 
 	process := processEvent.Entity.(*workloadmeta.Process)
-	if process.Language == nil || process.Language.Name == "" {
-		c.logger.Debugf("no language detected for process %s", process.ID)
-		return
-	}
 
 	if process.ContainerID == "" {
 		c.logger.Debugf("no container id detected for process %s", process.ID)
@@ -313,6 +309,7 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 	if err != nil {
 		c.logger.Debugf("no pod found for process %s and containerID %s", process.ID, process.ContainerID)
 		if !isRetry {
+			c.logger.Debugf("adding process %s and containerID %s to the retry set", process.ID, process.ContainerID)
 			c.telemetry.ProcessWithoutPod.Inc()
 			evs, found := c.processesWithoutPod[process.ContainerID]
 			if found {
@@ -338,9 +335,15 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 		return
 	}
 
-	podInfo := c.currentBatch.getOrAddPodInfo(pod.Name, pod.Namespace, &pod.Owners[0])
+	podInfo := c.currentBatch.getOrAddPodInfo(pod)
 	containerInfo := podInfo.getOrAddContainerInfo(containerName, isInitcontainer)
-	added := containerInfo.Add(langUtil.Language(process.Language.Name))
+
+	if process.Language == nil || process.Language.Name == "" {
+		c.logger.Debugf("no language detected for process %s", process.ID)
+		return
+	}
+
+	added := containerInfo.Add(process.Language.Name)
 	if added {
 		c.freshlyUpdatedPods[pod.Name] = struct{}{}
 		delete(c.processesWithoutPod, process.ContainerID)
@@ -356,24 +359,27 @@ func (c *client) handlePodEvent(podEvent workloadmeta.Event) {
 		containerIDs = append(containerIDs, c.ID)
 	}
 
+	var eventType string
+
 	switch podEvent.Type {
 	case workloadmeta.EventTypeSet:
+		eventType = "set"
 		c.retryProcessEventsWithoutPod(containerIDs)
 	case workloadmeta.EventTypeUnset:
+		eventType = "unset"
 		delete(c.currentBatch, pod.Name)
 		delete(c.freshlyUpdatedPods, pod.Name)
 		for _, cid := range containerIDs {
 			delete(c.processesWithoutPod, cid)
 		}
 	}
+
+	c.logger.Debugf("processed %s event for pod %s/%s having container IDs: %v", eventType, pod.Namespace, pod.Name, containerIDs)
 }
 
 func (c *client) getCurrentBatchProto() *pbgo.ParentLanguageAnnotationRequest {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	if len(c.currentBatch) == 0 {
-		return nil
-	}
 	return c.currentBatch.toProto()
 }
 
@@ -384,14 +390,10 @@ func (c *client) getFreshBatchProto() *pbgo.ParentLanguageAnnotationRequest {
 	batch := make(batch)
 
 	for podName := range c.freshlyUpdatedPods {
-		if containerInfo, ok := c.currentBatch[podName]; ok {
-			batch[podName] = containerInfo
+		if podInfo, ok := c.currentBatch[podName]; ok {
+			batch[podName] = podInfo
 		}
 	}
 
-	if len(batch) > 0 {
-		return batch.toProto()
-	}
-
-	return nil
+	return batch.toProto()
 }

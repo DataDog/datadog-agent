@@ -107,6 +107,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestLoginUID/login-uid-exec-test",
 			"TestActionKillExcludeBinary",
 			"~TestActionKillDisarm",
+			"~TestProcessInterpreter",
 		}
 
 		if disableSeccomp {

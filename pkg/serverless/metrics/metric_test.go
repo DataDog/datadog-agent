@@ -25,6 +25,7 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
@@ -53,13 +54,13 @@ func TestStartDoesNotBlock(t *testing.T) {
 
 type ValidMetricConfigMocked struct{}
 
-func (m *ValidMetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error) {
-	return map[string][]string{"http://localhost:8888": {"value"}}, nil
+func (m *ValidMetricConfigMocked) GetMultipleEndpoints() (map[string][]utils.APIKeys, error) {
+	return map[string][]utils.APIKeys{"http://localhost:8888": {utils.NewAPIKeys("api_key", "value")}}, nil
 }
 
 type InvalidMetricConfigMocked struct{}
 
-func (m *InvalidMetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error) {
+func (m *InvalidMetricConfigMocked) GetMultipleEndpoints() (map[string][]utils.APIKeys, error) {
 	return nil, fmt.Errorf("error")
 }
 

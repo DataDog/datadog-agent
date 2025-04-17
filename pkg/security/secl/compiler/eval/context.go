@@ -34,15 +34,11 @@ type Context struct {
 	// rule register
 	Registers map[RegisterID]int
 
-	now time.Time
-
 	IteratorCountCache map[string]int
 
+	// internal
+	now            time.Time
 	resolvedFields []string
-
-	IteratorCounters map[Field]int
-
-	Error error
 }
 
 // Now return and cache the `now` timestamp
@@ -62,7 +58,6 @@ func (c *Context) SetEvent(evt Event) {
 func (c *Context) Reset() {
 	c.Event = nil
 	c.now = time.Time{}
-	c.Error = nil
 
 	clear(c.StringCache)
 	clear(c.IPNetCache)

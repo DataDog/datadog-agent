@@ -1,0 +1,29 @@
+{{- with .otelAgent }}
+{{- if .error }}
+
+  Status: Not running or unreachable on {{.url}}.
+  Error: {{.error}}
+{{- else}}
+  Status: Running
+  {{if .agentVersion}}Agent Version: {{.agentVersion}} {{end}}
+  {{if .collectorVersion}}Collector Version: {{.collectorVersion}} {{end}}
+
+  Receiver
+  ==========================
+    Spans Accepted: {{.receiver.spans}}
+    {{- if gt .receiver.refused_spans 0.0}}, WARNING: Refused spans: {{.receiver.refused_spans}}{{end}}
+    Metric Points Accepted: {{.receiver.metrics}}
+    {{- if gt .receiver.refused_metrics 0.0}}, WARNING: Refused metric points: {{.receiver.refused_metrics}}{{end}}
+    Log Records Accepted: {{.receiver.logs}}
+    {{- if gt .receiver.refused_logs 0.0}}, WARNING: Refused log records: {{.receiver.refused_logs}}{{end}}
+
+  Exporter
+  ==========================
+    Spans Sent: {{.exporter.spans}}
+    {{- if gt .exporter.failed_spans 0.0}}, WARNING: Send failed spans: {{.exporter.failed_spans}}{{end}}
+    Metric Points Sent: {{.exporter.metrics}}
+    {{- if gt .exporter.failed_metrics 0.0}}, WARNING: Send failed metrics: {{.exporter.failed_metrics}}{{end}}
+    Log Records Sent: {{.exporter.logs}}
+    {{- if gt .exporter.failed_logs 0.0}}, WARNING: Send failed logs: {{.exporter.failed_logs}}{{end}}
+{{- end}}
+{{- end}}

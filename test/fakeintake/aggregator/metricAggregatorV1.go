@@ -82,12 +82,12 @@ func ParseV1MetricSeries(payload api.Payload) (metrics []*MetricSeriesV1, err er
 		return []*MetricSeriesV1{}, nil
 	}
 
-	enflated, err := enflate(payload.Data, payload.Encoding)
+	inflated, err := inflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, err
 	}
 	header := MetricSeriesV1Header{Series: []*MetricSeriesV1{}}
-	err = json.Unmarshal(enflated, &header)
+	err = json.Unmarshal(inflated, &header)
 	if err != nil {
 		return nil, err
 	}

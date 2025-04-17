@@ -8,6 +8,7 @@ package nodetreemodel
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -38,12 +39,7 @@ func (n *structNodeImpl) GetChild(key string) (Node, error) {
 
 func (n *structNodeImpl) HasChild(name string) bool {
 	names := n.ChildrenKeys()
-	for _, n := range names {
-		if n == name {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(names, name)
 }
 
 func (n *structNodeImpl) Merge(InnerNode) error {
@@ -76,9 +72,6 @@ func (n *structNodeImpl) InsertChildNode(string, Node) {}
 
 // RemoveChild is not implemented for struct node
 func (n *structNodeImpl) RemoveChild(string) {}
-
-// makeRemapCase not implemented
-func (n *structNodeImpl) makeRemapCase() {}
 
 // Clone clones a LeafNode
 func (n *structNodeImpl) Clone() Node {

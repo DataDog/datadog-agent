@@ -24,7 +24,6 @@ const (
 // Options is a struct to hold the options for the kafka client
 type Options struct {
 	ServerAddress string
-	Dialer        *net.Dialer
 	DialFn        func(context.Context, string, string) (net.Conn, error)
 	CustomOptions []kgo.Opt
 }
@@ -38,9 +37,8 @@ type Client struct {
 func NewClient(opts Options) (*Client, error) {
 	kafkaOptions := []kgo.Opt{kgo.SeedBrokers(opts.ServerAddress)}
 	kafkaOptions = append(kafkaOptions, opts.CustomOptions...)
-	if opts.Dialer != nil {
-		kafkaOptions = append(kafkaOptions, kgo.Dialer(opts.Dialer.DialContext))
-	} else if opts.DialFn != nil {
+
+	if opts.DialFn != nil {
 		kafkaOptions = append(kafkaOptions, kgo.Dialer(opts.DialFn))
 	}
 	client, err := kgo.NewClient(kafkaOptions...)

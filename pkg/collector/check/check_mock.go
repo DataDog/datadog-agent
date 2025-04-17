@@ -14,6 +14,7 @@ import (
 // MockInfo is a mock for test using check.Info interface
 type MockInfo struct {
 	Name         string
+	LoaderName   string
 	CheckID      checkid.ID
 	Source       string
 	InitConf     string
@@ -34,6 +35,9 @@ func (m MockInfo) Version() string { return "" }
 
 // ConfigSource returns the source of the check
 func (m MockInfo) ConfigSource() string { return m.Source }
+
+// Loader returns the name of the check loader
+func (m MockInfo) Loader() string { return m.LoaderName }
 
 // InitConfig returns the init_config of the check
 func (m MockInfo) InitConfig() string { return m.InitConf }

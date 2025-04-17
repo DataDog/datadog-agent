@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,14 +34,16 @@ const (
 // Server is a grpc server that streams tagger entities
 type Server struct {
 	taggerComponent tagger.Component
+	telemetry       *telemetryStore
 	maxEventSize    int
 	throttler       Throttler
 }
 
 // NewServer returns a new Server
-func NewServer(t tagger.Component, maxEventSize int, maxParallelSync int) *Server {
+func NewServer(t tagger.Component, telemetry telemetry.Component, maxEventSize int, maxParallelSync int) *Server {
 	return &Server{
 		taggerComponent: t,
+		telemetry:       newTelemetryStore(telemetry),
 		maxEventSize:    maxEventSize,
 		throttler:       NewSyncThrottler(uint32(maxParallelSync)),
 	}
@@ -83,7 +86,7 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 
 				if err != nil {
 					log.Warnf("error sending tagger keep-alive: %s", err)
-					s.taggerComponent.GetTaggerTelemetryStore().ServerStreamErrors.Inc()
+					s.telemetry.ServerStreamErrors.Inc()
 					timeoutRefreshError <- err
 					return
 				}
@@ -152,7 +155,7 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 
 			if err := processChunksInPlace(responseEvents, s.maxEventSize, computeTagsEventInBytes, sendFunc); err != nil {
 				log.Warnf("error sending tagger event: %s", err)
-				s.taggerComponent.GetTaggerTelemetryStore().ServerStreamErrors.Inc()
+				s.telemetry.ServerStreamErrors.Inc()
 				return err
 			}
 
@@ -197,10 +200,15 @@ func (s *Server) TaggerFetchEntity(_ context.Context, in *pb.FetchEntityRequest)
 	}, nil
 }
 
-// TaggerGenerateContainerIDFromOriginInfo request the generation of a container ID from external data from the Tagger.
-// This function takes an Origin Info but only uses the ExternalData part of it, this is done for backward compatibility.
+// TaggerGenerateContainerIDFromOriginInfo requests the Tagger to generate a container ID from the given OriginInfo.
 func (s *Server) TaggerGenerateContainerIDFromOriginInfo(_ context.Context, in *pb.GenerateContainerIDFromOriginInfoRequest) (*pb.GenerateContainerIDFromOriginInfoResponse, error) {
 	generatedContainerID, err := s.taggerComponent.GenerateContainerIDFromOriginInfo(origindetection.OriginInfo{
+		LocalData: origindetection.LocalData{
+			ProcessID:   *in.LocalData.ProcessID,
+			ContainerID: *in.LocalData.ContainerID,
+			Inode:       *in.LocalData.Inode,
+			PodUID:      *in.LocalData.PodUID,
+		},
 		ExternalData: origindetection.ExternalData{
 			Init:          *in.ExternalData.Init,
 			ContainerName: *in.ExternalData.ContainerName,

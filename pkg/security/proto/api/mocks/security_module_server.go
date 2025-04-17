@@ -17,6 +17,14 @@ type SecurityModuleServer struct {
 	mock.Mock
 }
 
+type SecurityModuleServer_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *SecurityModuleServer) EXPECT() *SecurityModuleServer_Expecter {
+	return &SecurityModuleServer_Expecter{mock: &_m.Mock}
+}
+
 // DumpActivity provides a mock function with given fields: _a0, _a1
 func (_m *SecurityModuleServer) DumpActivity(_a0 context.Context, _a1 *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
 	ret := _m.Called(_a0, _a1)
@@ -45,6 +53,35 @@ func (_m *SecurityModuleServer) DumpActivity(_a0 context.Context, _a1 *api.Activ
 	}
 
 	return r0, r1
+}
+
+// SecurityModuleServer_DumpActivity_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DumpActivity'
+type SecurityModuleServer_DumpActivity_Call struct {
+	*mock.Call
+}
+
+// DumpActivity is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *api.ActivityDumpParams
+func (_e *SecurityModuleServer_Expecter) DumpActivity(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_DumpActivity_Call {
+	return &SecurityModuleServer_DumpActivity_Call{Call: _e.mock.On("DumpActivity", _a0, _a1)}
+}
+
+func (_c *SecurityModuleServer_DumpActivity_Call) Run(run func(_a0 context.Context, _a1 *api.ActivityDumpParams)) *SecurityModuleServer_DumpActivity_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.ActivityDumpParams))
+	})
+	return _c
+}
+
+func (_c *SecurityModuleServer_DumpActivity_Call) Return(_a0 *api.ActivityDumpMessage, _a1 error) *SecurityModuleServer_DumpActivity_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SecurityModuleServer_DumpActivity_Call) RunAndReturn(run func(context.Context, *api.ActivityDumpParams) (*api.ActivityDumpMessage, error)) *SecurityModuleServer_DumpActivity_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // DumpDiscarders provides a mock function with given fields: _a0, _a1
@@ -77,6 +114,35 @@ func (_m *SecurityModuleServer) DumpDiscarders(_a0 context.Context, _a1 *api.Dum
 	return r0, r1
 }
 
+// SecurityModuleServer_DumpDiscarders_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DumpDiscarders'
+type SecurityModuleServer_DumpDiscarders_Call struct {
+	*mock.Call
+}
+
+// DumpDiscarders is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *api.DumpDiscardersParams
+func (_e *SecurityModuleServer_Expecter) DumpDiscarders(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_DumpDiscarders_Call {
+	return &SecurityModuleServer_DumpDiscarders_Call{Call: _e.mock.On("DumpDiscarders", _a0, _a1)}
+}
+
+func (_c *SecurityModuleServer_DumpDiscarders_Call) Run(run func(_a0 context.Context, _a1 *api.DumpDiscardersParams)) *SecurityModuleServer_DumpDiscarders_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.DumpDiscardersParams))
+	})
+	return _c
+}
+
+func (_c *SecurityModuleServer_DumpDiscarders_Call) Return(_a0 *api.DumpDiscardersMessage, _a1 error) *SecurityModuleServer_DumpDiscarders_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SecurityModuleServer_DumpDiscarders_Call) RunAndReturn(run func(context.Context, *api.DumpDiscardersParams) (*api.DumpDiscardersMessage, error)) *SecurityModuleServer_DumpDiscarders_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DumpNetworkNamespace provides a mock function with given fields: _a0, _a1
 func (_m *SecurityModuleServer) DumpNetworkNamespace(_a0 context.Context, _a1 *api.DumpNetworkNamespaceParams) (*api.DumpNetworkNamespaceMessage, error) {
 	ret := _m.Called(_a0, _a1)
@@ -105,6 +171,35 @@ func (_m *SecurityModuleServer) DumpNetworkNamespace(_a0 context.Context, _a1 *a
 	}
 
 	return r0, r1
+}
+
+// SecurityModuleServer_DumpNetworkNamespace_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DumpNetworkNamespace'
+type SecurityModuleServer_DumpNetworkNamespace_Call struct {
+	*mock.Call
+}
+
+// DumpNetworkNamespace is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *api.DumpNetworkNamespaceParams
+func (_e *SecurityModuleServer_Expecter) DumpNetworkNamespace(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_DumpNetworkNamespace_Call {
+	return &SecurityModuleServer_DumpNetworkNamespace_Call{Call: _e.mock.On("DumpNetworkNamespace", _a0, _a1)}
+}
+
+func (_c *SecurityModuleServer_DumpNetworkNamespace_Call) Run(run func(_a0 context.Context, _a1 *api.DumpNetworkNamespaceParams)) *SecurityModuleServer_DumpNetworkNamespace_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.DumpNetworkNamespaceParams))
+	})
+	return _c
+}
+
+func (_c *SecurityModuleServer_DumpNetworkNamespace_Call) Return(_a0 *api.DumpNetworkNamespaceMessage, _a1 error) *SecurityModuleServer_DumpNetworkNamespace_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SecurityModuleServer_DumpNetworkNamespace_Call) RunAndReturn(run func(context.Context, *api.DumpNetworkNamespaceParams) (*api.DumpNetworkNamespaceMessage, error)) *SecurityModuleServer_DumpNetworkNamespace_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // DumpProcessCache provides a mock function with given fields: _a0, _a1
@@ -137,6 +232,35 @@ func (_m *SecurityModuleServer) DumpProcessCache(_a0 context.Context, _a1 *api.D
 	return r0, r1
 }
 
+// SecurityModuleServer_DumpProcessCache_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DumpProcessCache'
+type SecurityModuleServer_DumpProcessCache_Call struct {
+	*mock.Call
+}
+
+// DumpProcessCache is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *api.DumpProcessCacheParams
+func (_e *SecurityModuleServer_Expecter) DumpProcessCache(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_DumpProcessCache_Call {
+	return &SecurityModuleServer_DumpProcessCache_Call{Call: _e.mock.On("DumpProcessCache", _a0, _a1)}
+}
+
+func (_c *SecurityModuleServer_DumpProcessCache_Call) Run(run func(_a0 context.Context, _a1 *api.DumpProcessCacheParams)) *SecurityModuleServer_DumpProcessCache_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.DumpProcessCacheParams))
+	})
+	return _c
+}
+
+func (_c *SecurityModuleServer_DumpProcessCache_Call) Return(_a0 *api.SecurityDumpProcessCacheMessage, _a1 error) *SecurityModuleServer_DumpProcessCache_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SecurityModuleServer_DumpProcessCache_Call) RunAndReturn(run func(context.Context, *api.DumpProcessCacheParams) (*api.SecurityDumpProcessCacheMessage, error)) *SecurityModuleServer_DumpProcessCache_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetActivityDumpStream provides a mock function with given fields: _a0, _a1
 func (_m *SecurityModuleServer) GetActivityDumpStream(_a0 *api.ActivityDumpStreamParams, _a1 grpc.ServerStreamingServer[api.ActivityDumpStreamMessage]) error {
 	ret := _m.Called(_a0, _a1)
@@ -153,6 +277,35 @@ func (_m *SecurityModuleServer) GetActivityDumpStream(_a0 *api.ActivityDumpStrea
 	}
 
 	return r0
+}
+
+// SecurityModuleServer_GetActivityDumpStream_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetActivityDumpStream'
+type SecurityModuleServer_GetActivityDumpStream_Call struct {
+	*mock.Call
+}
+
+// GetActivityDumpStream is a helper method to define mock.On call
+//   - _a0 *api.ActivityDumpStreamParams
+//   - _a1 grpc.ServerStreamingServer[api.ActivityDumpStreamMessage]
+func (_e *SecurityModuleServer_Expecter) GetActivityDumpStream(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_GetActivityDumpStream_Call {
+	return &SecurityModuleServer_GetActivityDumpStream_Call{Call: _e.mock.On("GetActivityDumpStream", _a0, _a1)}
+}
+
+func (_c *SecurityModuleServer_GetActivityDumpStream_Call) Run(run func(_a0 *api.ActivityDumpStreamParams, _a1 grpc.ServerStreamingServer[api.ActivityDumpStreamMessage])) *SecurityModuleServer_GetActivityDumpStream_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*api.ActivityDumpStreamParams), args[1].(grpc.ServerStreamingServer[api.ActivityDumpStreamMessage]))
+	})
+	return _c
+}
+
+func (_c *SecurityModuleServer_GetActivityDumpStream_Call) Return(_a0 error) *SecurityModuleServer_GetActivityDumpStream_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *SecurityModuleServer_GetActivityDumpStream_Call) RunAndReturn(run func(*api.ActivityDumpStreamParams, grpc.ServerStreamingServer[api.ActivityDumpStreamMessage]) error) *SecurityModuleServer_GetActivityDumpStream_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // GetConfig provides a mock function with given fields: _a0, _a1
@@ -185,6 +338,35 @@ func (_m *SecurityModuleServer) GetConfig(_a0 context.Context, _a1 *api.GetConfi
 	return r0, r1
 }
 
+// SecurityModuleServer_GetConfig_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetConfig'
+type SecurityModuleServer_GetConfig_Call struct {
+	*mock.Call
+}
+
+// GetConfig is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *api.GetConfigParams
+func (_e *SecurityModuleServer_Expecter) GetConfig(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_GetConfig_Call {
+	return &SecurityModuleServer_GetConfig_Call{Call: _e.mock.On("GetConfig", _a0, _a1)}
+}
+
+func (_c *SecurityModuleServer_GetConfig_Call) Run(run func(_a0 context.Context, _a1 *api.GetConfigParams)) *SecurityModuleServer_GetConfig_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.GetConfigParams))
+	})
+	return _c
+}
+
+func (_c *SecurityModuleServer_GetConfig_Call) Return(_a0 *api.SecurityConfigMessage, _a1 error) *SecurityModuleServer_GetConfig_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SecurityModuleServer_GetConfig_Call) RunAndReturn(run func(context.Context, *api.GetConfigParams) (*api.SecurityConfigMessage, error)) *SecurityModuleServer_GetConfig_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetEvents provides a mock function with given fields: _a0, _a1
 func (_m *SecurityModuleServer) GetEvents(_a0 *api.GetEventParams, _a1 grpc.ServerStreamingServer[api.SecurityEventMessage]) error {
 	ret := _m.Called(_a0, _a1)
@@ -201,6 +383,35 @@ func (_m *SecurityModuleServer) GetEvents(_a0 *api.GetEventParams, _a1 grpc.Serv
 	}
 
 	return r0
+}
+
+// SecurityModuleServer_GetEvents_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetEvents'
+type SecurityModuleServer_GetEvents_Call struct {
+	*mock.Call
+}
+
+// GetEvents is a helper method to define mock.On call
+//   - _a0 *api.GetEventParams
+//   - _a1 grpc.ServerStreamingServer[api.SecurityEventMessage]
+func (_e *SecurityModuleServer_Expecter) GetEvents(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_GetEvents_Call {
+	return &SecurityModuleServer_GetEvents_Call{Call: _e.mock.On("GetEvents", _a0, _a1)}
+}
+
+func (_c *SecurityModuleServer_GetEvents_Call) Run(run func(_a0 *api.GetEventParams, _a1 grpc.ServerStreamingServer[api.SecurityEventMessage])) *SecurityModuleServer_GetEvents_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*api.GetEventParams), args[1].(grpc.ServerStreamingServer[api.SecurityEventMessage]))
+	})
+	return _c
+}
+
+func (_c *SecurityModuleServer_GetEvents_Call) Return(_a0 error) *SecurityModuleServer_GetEvents_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *SecurityModuleServer_GetEvents_Call) RunAndReturn(run func(*api.GetEventParams, grpc.ServerStreamingServer[api.SecurityEventMessage]) error) *SecurityModuleServer_GetEvents_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // GetRuleSetReport provides a mock function with given fields: _a0, _a1
@@ -233,6 +444,35 @@ func (_m *SecurityModuleServer) GetRuleSetReport(_a0 context.Context, _a1 *api.G
 	return r0, r1
 }
 
+// SecurityModuleServer_GetRuleSetReport_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetRuleSetReport'
+type SecurityModuleServer_GetRuleSetReport_Call struct {
+	*mock.Call
+}
+
+// GetRuleSetReport is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *api.GetRuleSetReportParams
+func (_e *SecurityModuleServer_Expecter) GetRuleSetReport(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_GetRuleSetReport_Call {
+	return &SecurityModuleServer_GetRuleSetReport_Call{Call: _e.mock.On("GetRuleSetReport", _a0, _a1)}
+}
+
+func (_c *SecurityModuleServer_GetRuleSetReport_Call) Run(run func(_a0 context.Context, _a1 *api.GetRuleSetReportParams)) *SecurityModuleServer_GetRuleSetReport_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.GetRuleSetReportParams))
+	})
+	return _c
+}
+
+func (_c *SecurityModuleServer_GetRuleSetReport_Call) Return(_a0 *api.GetRuleSetReportResultMessage, _a1 error) *SecurityModuleServer_GetRuleSetReport_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SecurityModuleServer_GetRuleSetReport_Call) RunAndReturn(run func(context.Context, *api.GetRuleSetReportParams) (*api.GetRuleSetReportResultMessage, error)) *SecurityModuleServer_GetRuleSetReport_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetStatus provides a mock function with given fields: _a0, _a1
 func (_m *SecurityModuleServer) GetStatus(_a0 context.Context, _a1 *api.GetStatusParams) (*api.Status, error) {
 	ret := _m.Called(_a0, _a1)
@@ -261,6 +501,35 @@ func (_m *SecurityModuleServer) GetStatus(_a0 context.Context, _a1 *api.GetStatu
 	}
 
 	return r0, r1
+}
+
+// SecurityModuleServer_GetStatus_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetStatus'
+type SecurityModuleServer_GetStatus_Call struct {
+	*mock.Call
+}
+
+// GetStatus is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *api.GetStatusParams
+func (_e *SecurityModuleServer_Expecter) GetStatus(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_GetStatus_Call {
+	return &SecurityModuleServer_GetStatus_Call{Call: _e.mock.On("GetStatus", _a0, _a1)}
+}
+
+func (_c *SecurityModuleServer_GetStatus_Call) Run(run func(_a0 context.Context, _a1 *api.GetStatusParams)) *SecurityModuleServer_GetStatus_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.GetStatusParams))
+	})
+	return _c
+}
+
+func (_c *SecurityModuleServer_GetStatus_Call) Return(_a0 *api.Status, _a1 error) *SecurityModuleServer_GetStatus_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SecurityModuleServer_GetStatus_Call) RunAndReturn(run func(context.Context, *api.GetStatusParams) (*api.Status, error)) *SecurityModuleServer_GetStatus_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // ListActivityDumps provides a mock function with given fields: _a0, _a1
@@ -293,6 +562,35 @@ func (_m *SecurityModuleServer) ListActivityDumps(_a0 context.Context, _a1 *api.
 	return r0, r1
 }
 
+// SecurityModuleServer_ListActivityDumps_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListActivityDumps'
+type SecurityModuleServer_ListActivityDumps_Call struct {
+	*mock.Call
+}
+
+// ListActivityDumps is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *api.ActivityDumpListParams
+func (_e *SecurityModuleServer_Expecter) ListActivityDumps(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_ListActivityDumps_Call {
+	return &SecurityModuleServer_ListActivityDumps_Call{Call: _e.mock.On("ListActivityDumps", _a0, _a1)}
+}
+
+func (_c *SecurityModuleServer_ListActivityDumps_Call) Run(run func(_a0 context.Context, _a1 *api.ActivityDumpListParams)) *SecurityModuleServer_ListActivityDumps_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.ActivityDumpListParams))
+	})
+	return _c
+}
+
+func (_c *SecurityModuleServer_ListActivityDumps_Call) Return(_a0 *api.ActivityDumpListMessage, _a1 error) *SecurityModuleServer_ListActivityDumps_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SecurityModuleServer_ListActivityDumps_Call) RunAndReturn(run func(context.Context, *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error)) *SecurityModuleServer_ListActivityDumps_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListSecurityProfiles provides a mock function with given fields: _a0, _a1
 func (_m *SecurityModuleServer) ListSecurityProfiles(_a0 context.Context, _a1 *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
 	ret := _m.Called(_a0, _a1)
@@ -321,6 +619,35 @@ func (_m *SecurityModuleServer) ListSecurityProfiles(_a0 context.Context, _a1 *a
 	}
 
 	return r0, r1
+}
+
+// SecurityModuleServer_ListSecurityProfiles_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListSecurityProfiles'
+type SecurityModuleServer_ListSecurityProfiles_Call struct {
+	*mock.Call
+}
+
+// ListSecurityProfiles is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *api.SecurityProfileListParams
+func (_e *SecurityModuleServer_Expecter) ListSecurityProfiles(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_ListSecurityProfiles_Call {
+	return &SecurityModuleServer_ListSecurityProfiles_Call{Call: _e.mock.On("ListSecurityProfiles", _a0, _a1)}
+}
+
+func (_c *SecurityModuleServer_ListSecurityProfiles_Call) Run(run func(_a0 context.Context, _a1 *api.SecurityProfileListParams)) *SecurityModuleServer_ListSecurityProfiles_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.SecurityProfileListParams))
+	})
+	return _c
+}
+
+func (_c *SecurityModuleServer_ListSecurityProfiles_Call) Return(_a0 *api.SecurityProfileListMessage, _a1 error) *SecurityModuleServer_ListSecurityProfiles_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SecurityModuleServer_ListSecurityProfiles_Call) RunAndReturn(run func(context.Context, *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error)) *SecurityModuleServer_ListSecurityProfiles_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // ReloadPolicies provides a mock function with given fields: _a0, _a1
@@ -353,6 +680,35 @@ func (_m *SecurityModuleServer) ReloadPolicies(_a0 context.Context, _a1 *api.Rel
 	return r0, r1
 }
 
+// SecurityModuleServer_ReloadPolicies_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReloadPolicies'
+type SecurityModuleServer_ReloadPolicies_Call struct {
+	*mock.Call
+}
+
+// ReloadPolicies is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *api.ReloadPoliciesParams
+func (_e *SecurityModuleServer_Expecter) ReloadPolicies(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_ReloadPolicies_Call {
+	return &SecurityModuleServer_ReloadPolicies_Call{Call: _e.mock.On("ReloadPolicies", _a0, _a1)}
+}
+
+func (_c *SecurityModuleServer_ReloadPolicies_Call) Run(run func(_a0 context.Context, _a1 *api.ReloadPoliciesParams)) *SecurityModuleServer_ReloadPolicies_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.ReloadPoliciesParams))
+	})
+	return _c
+}
+
+func (_c *SecurityModuleServer_ReloadPolicies_Call) Return(_a0 *api.ReloadPoliciesResultMessage, _a1 error) *SecurityModuleServer_ReloadPolicies_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SecurityModuleServer_ReloadPolicies_Call) RunAndReturn(run func(context.Context, *api.ReloadPoliciesParams) (*api.ReloadPoliciesResultMessage, error)) *SecurityModuleServer_ReloadPolicies_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RunSelfTest provides a mock function with given fields: _a0, _a1
 func (_m *SecurityModuleServer) RunSelfTest(_a0 context.Context, _a1 *api.RunSelfTestParams) (*api.SecuritySelfTestResultMessage, error) {
 	ret := _m.Called(_a0, _a1)
@@ -381,6 +737,35 @@ func (_m *SecurityModuleServer) RunSelfTest(_a0 context.Context, _a1 *api.RunSel
 	}
 
 	return r0, r1
+}
+
+// SecurityModuleServer_RunSelfTest_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RunSelfTest'
+type SecurityModuleServer_RunSelfTest_Call struct {
+	*mock.Call
+}
+
+// RunSelfTest is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *api.RunSelfTestParams
+func (_e *SecurityModuleServer_Expecter) RunSelfTest(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_RunSelfTest_Call {
+	return &SecurityModuleServer_RunSelfTest_Call{Call: _e.mock.On("RunSelfTest", _a0, _a1)}
+}
+
+func (_c *SecurityModuleServer_RunSelfTest_Call) Run(run func(_a0 context.Context, _a1 *api.RunSelfTestParams)) *SecurityModuleServer_RunSelfTest_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.RunSelfTestParams))
+	})
+	return _c
+}
+
+func (_c *SecurityModuleServer_RunSelfTest_Call) Return(_a0 *api.SecuritySelfTestResultMessage, _a1 error) *SecurityModuleServer_RunSelfTest_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SecurityModuleServer_RunSelfTest_Call) RunAndReturn(run func(context.Context, *api.RunSelfTestParams) (*api.SecuritySelfTestResultMessage, error)) *SecurityModuleServer_RunSelfTest_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // SaveSecurityProfile provides a mock function with given fields: _a0, _a1
@@ -413,6 +798,35 @@ func (_m *SecurityModuleServer) SaveSecurityProfile(_a0 context.Context, _a1 *ap
 	return r0, r1
 }
 
+// SecurityModuleServer_SaveSecurityProfile_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SaveSecurityProfile'
+type SecurityModuleServer_SaveSecurityProfile_Call struct {
+	*mock.Call
+}
+
+// SaveSecurityProfile is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *api.SecurityProfileSaveParams
+func (_e *SecurityModuleServer_Expecter) SaveSecurityProfile(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_SaveSecurityProfile_Call {
+	return &SecurityModuleServer_SaveSecurityProfile_Call{Call: _e.mock.On("SaveSecurityProfile", _a0, _a1)}
+}
+
+func (_c *SecurityModuleServer_SaveSecurityProfile_Call) Run(run func(_a0 context.Context, _a1 *api.SecurityProfileSaveParams)) *SecurityModuleServer_SaveSecurityProfile_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.SecurityProfileSaveParams))
+	})
+	return _c
+}
+
+func (_c *SecurityModuleServer_SaveSecurityProfile_Call) Return(_a0 *api.SecurityProfileSaveMessage, _a1 error) *SecurityModuleServer_SaveSecurityProfile_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SecurityModuleServer_SaveSecurityProfile_Call) RunAndReturn(run func(context.Context, *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error)) *SecurityModuleServer_SaveSecurityProfile_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // StopActivityDump provides a mock function with given fields: _a0, _a1
 func (_m *SecurityModuleServer) StopActivityDump(_a0 context.Context, _a1 *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
 	ret := _m.Called(_a0, _a1)
@@ -441,6 +855,35 @@ func (_m *SecurityModuleServer) StopActivityDump(_a0 context.Context, _a1 *api.A
 	}
 
 	return r0, r1
+}
+
+// SecurityModuleServer_StopActivityDump_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'StopActivityDump'
+type SecurityModuleServer_StopActivityDump_Call struct {
+	*mock.Call
+}
+
+// StopActivityDump is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *api.ActivityDumpStopParams
+func (_e *SecurityModuleServer_Expecter) StopActivityDump(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_StopActivityDump_Call {
+	return &SecurityModuleServer_StopActivityDump_Call{Call: _e.mock.On("StopActivityDump", _a0, _a1)}
+}
+
+func (_c *SecurityModuleServer_StopActivityDump_Call) Run(run func(_a0 context.Context, _a1 *api.ActivityDumpStopParams)) *SecurityModuleServer_StopActivityDump_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.ActivityDumpStopParams))
+	})
+	return _c
+}
+
+func (_c *SecurityModuleServer_StopActivityDump_Call) Return(_a0 *api.ActivityDumpStopMessage, _a1 error) *SecurityModuleServer_StopActivityDump_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SecurityModuleServer_StopActivityDump_Call) RunAndReturn(run func(context.Context, *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error)) *SecurityModuleServer_StopActivityDump_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // TranscodingRequest provides a mock function with given fields: _a0, _a1
@@ -473,9 +916,65 @@ func (_m *SecurityModuleServer) TranscodingRequest(_a0 context.Context, _a1 *api
 	return r0, r1
 }
 
+// SecurityModuleServer_TranscodingRequest_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'TranscodingRequest'
+type SecurityModuleServer_TranscodingRequest_Call struct {
+	*mock.Call
+}
+
+// TranscodingRequest is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *api.TranscodingRequestParams
+func (_e *SecurityModuleServer_Expecter) TranscodingRequest(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_TranscodingRequest_Call {
+	return &SecurityModuleServer_TranscodingRequest_Call{Call: _e.mock.On("TranscodingRequest", _a0, _a1)}
+}
+
+func (_c *SecurityModuleServer_TranscodingRequest_Call) Run(run func(_a0 context.Context, _a1 *api.TranscodingRequestParams)) *SecurityModuleServer_TranscodingRequest_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*api.TranscodingRequestParams))
+	})
+	return _c
+}
+
+func (_c *SecurityModuleServer_TranscodingRequest_Call) Return(_a0 *api.TranscodingRequestMessage, _a1 error) *SecurityModuleServer_TranscodingRequest_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SecurityModuleServer_TranscodingRequest_Call) RunAndReturn(run func(context.Context, *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error)) *SecurityModuleServer_TranscodingRequest_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // mustEmbedUnimplementedSecurityModuleServer provides a mock function with no fields
 func (_m *SecurityModuleServer) mustEmbedUnimplementedSecurityModuleServer() {
 	_m.Called()
+}
+
+// SecurityModuleServer_mustEmbedUnimplementedSecurityModuleServer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'mustEmbedUnimplementedSecurityModuleServer'
+type SecurityModuleServer_mustEmbedUnimplementedSecurityModuleServer_Call struct {
+	*mock.Call
+}
+
+// mustEmbedUnimplementedSecurityModuleServer is a helper method to define mock.On call
+func (_e *SecurityModuleServer_Expecter) mustEmbedUnimplementedSecurityModuleServer() *SecurityModuleServer_mustEmbedUnimplementedSecurityModuleServer_Call {
+	return &SecurityModuleServer_mustEmbedUnimplementedSecurityModuleServer_Call{Call: _e.mock.On("mustEmbedUnimplementedSecurityModuleServer")}
+}
+
+func (_c *SecurityModuleServer_mustEmbedUnimplementedSecurityModuleServer_Call) Run(run func()) *SecurityModuleServer_mustEmbedUnimplementedSecurityModuleServer_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *SecurityModuleServer_mustEmbedUnimplementedSecurityModuleServer_Call) Return() *SecurityModuleServer_mustEmbedUnimplementedSecurityModuleServer_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *SecurityModuleServer_mustEmbedUnimplementedSecurityModuleServer_Call) RunAndReturn(run func()) *SecurityModuleServer_mustEmbedUnimplementedSecurityModuleServer_Call {
+	_c.Run(run)
+	return _c
 }
 
 // NewSecurityModuleServer creates a new instance of SecurityModuleServer. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

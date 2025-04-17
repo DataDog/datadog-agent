@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !goexperiment.systemcrypto
+//go:build !goexperiment.systemcrypto && !serverlessfips
 
 // Package fips is an interface for build specific status of FIPS compliance
 package fips
 
 // Status returns an empty string when not the datadog-fips-agent flavor
 func Status() string {
-	return ""
+	return "not available"
 }
 
 // Enabled  returns false when not the datadog-fips-agent flavor

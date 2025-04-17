@@ -17,9 +17,23 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
+// StatusCodeError exposes the status code of a failed request
+type StatusCodeError struct {
+	// StatusCode is the HTTP status code, e.g. 404
+	StatusCode int
+	// Method is the HTTP method, e.g. GET
+	Method string
+	// URL is the URL that was queried
+	URL string
+}
+
+func (e *StatusCodeError) Error() string {
+	return fmt.Sprintf("status code %d trying to %s %s", e.StatusCode, e.Method, e.URL)
+}
+
 func parseResponse(res *http.Response, method string, URL string) (string, error) {
 	if res.StatusCode != 200 {
-		return "", fmt.Errorf("status code %d trying to %s %s", res.StatusCode, method, URL)
+		return "", &StatusCodeError{StatusCode: res.StatusCode, Method: method, URL: URL}
 	}
 
 	defer res.Body.Close()

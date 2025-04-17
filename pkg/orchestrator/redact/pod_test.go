@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build orchestrator
+
 package redact
 
 import (
@@ -12,6 +14,67 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+func BenchmarkNoRegexMatching1(b *testing.B)        { benchmarkMatching(1, b) }
+func BenchmarkNoRegexMatching10(b *testing.B)       { benchmarkMatching(10, b) }
+func BenchmarkNoRegexMatching100(b *testing.B)      { benchmarkMatching(100, b) }
+func BenchmarkNoRegexMatching1000(b *testing.B)     { benchmarkMatching(1000, b) }
+func BenchmarkRegexMatchingCustom1000(b *testing.B) { benchmarkMatchingCustomRegex(1000, b) }
+
+//goland:noinspection ALL
+var avoidOptContainer v1.Container
+
+func benchmarkMatching(nbContainers int, b *testing.B) {
+	containersBenchmarks := make([]v1.Container, nbContainers)
+	containersToBenchmark := make([]v1.Container, nbContainers)
+	c := v1.Container{}
+
+	scrubber := NewDefaultDataScrubber()
+	for _, testCase := range getScrubCases() {
+		containersToBenchmark = append(containersToBenchmark, testCase.input)
+	}
+	for i := 0; i < nbContainers; i++ {
+		containersBenchmarks = append(containersBenchmarks, containersToBenchmark...)
+	}
+	b.ResetTimer()
+
+	b.Run("simplified", func(b *testing.B) {
+		for n := 0; n < b.N; n++ {
+			for _, c := range containersBenchmarks {
+				scrubContainer(&c, scrubber)
+			}
+		}
+	})
+	avoidOptContainer = c
+}
+
+func benchmarkMatchingCustomRegex(nbContainers int, b *testing.B) {
+	var containersBenchmarks []v1.Container
+	var containersToBenchmark []v1.Container
+	c := v1.Container{}
+
+	customRegs := []string{"pwd*", "*test"}
+	scrubber := NewDefaultDataScrubber()
+	scrubber.AddCustomSensitiveRegex(customRegs)
+
+	for _, testCase := range getScrubCases() {
+		containersToBenchmark = append(containersToBenchmark, testCase.input)
+	}
+	for i := 0; i < nbContainers; i++ {
+		containersBenchmarks = append(containersBenchmarks, containersToBenchmark...)
+	}
+
+	b.ResetTimer()
+	b.Run("simplified", func(b *testing.B) {
+		for n := 0; n < b.N; n++ {
+			for _, c := range containersBenchmarks {
+				scrubContainer(&c, scrubber)
+			}
+		}
+	})
+
+	avoidOptContainer = c
+}
 
 func TestRemoveSensitiveAnnotations(t *testing.T) {
 	objectMeta := metav1.ObjectMeta{

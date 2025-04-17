@@ -21,7 +21,9 @@ var _ = eval.NewContext
 
 {{range $Name, $Field := .Fields}}
 
-{{if not $Field.GenGetters }}
+{{ $getter := (PascalCaseFieldName $Name) | print "Get" }}
+
+{{if not ($getter | GenGetter $.Getters) }}
 {{continue}}
 {{end}}
 
@@ -32,8 +34,6 @@ var _ = eval.NewContext
     {{end}}
 {{end}}
 
-{{ $pascalCaseName := PascalCaseFieldName $Name }}
-
 {{$accessorReturnType := $Field.OrigType}}
 {{ if $Field.Handler}}
     {{$accessorReturnType = $Field.ReturnType}}
@@ -43,8 +43,8 @@ var _ = eval.NewContext
     {{$accessorReturnType = $accessorReturnType | printf "[]%s" }}
 {{ end }}
 
-// Get{{$pascalCaseName}} returns the value of the field, resolving if necessary
-func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
+// {{$getter}} returns the value of the field, resolving if necessary
+func (ev *Event) {{$getter}}() {{ $accessorReturnType }} {
     {{if ne $Field.Event ""}}
         if ev.GetEventType().String() != "{{$Field.Event}}" {
             return {{ GetDefaultValueOfType $accessorReturnType}}

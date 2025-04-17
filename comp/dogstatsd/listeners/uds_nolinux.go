@@ -9,6 +9,7 @@ package listeners
 
 import (
 	"errors"
+	"syscall"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -25,9 +26,7 @@ func getUDSAncillarySize() int {
 }
 
 // enableUDSPassCred returns a "not implemented" error on non-linux hosts
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func enableUDSPassCred(_ netUnixConn) error {
+func enableUDSPassCred(_ syscall.RawConn) error {
 	return ErrLinuxOnly
 }
 

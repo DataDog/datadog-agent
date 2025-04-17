@@ -10,8 +10,6 @@ package modules
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -20,6 +18,8 @@ import (
 	procconsumer "github.com/DataDog/datadog-agent/pkg/process/events/consumer"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,6 +35,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	}
 
 	opts := eventmonitor.Opts{}
+	opts.StatsdClient = deps.Statsd
 	opts.ProbeOpts.EnvsVarResolutionEnabled = emconfig.EnvVarsResolutionEnabled
 	opts.ProbeOpts.Tagger = deps.Tagger
 	secmoduleOpts := secmodule.Opts{}

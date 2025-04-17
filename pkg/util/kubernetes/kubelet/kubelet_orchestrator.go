@@ -10,6 +10,7 @@ package kubelet
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 
 	v1 "k8s.io/api/core/v1"
@@ -32,6 +33,7 @@ type KubeUtilInterface interface {
 	GetRawMetrics(ctx context.Context) ([]byte, error)
 	GetRawLocalPodList(ctx context.Context) ([]*v1.Pod, error)
 	GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error)
+	StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *StreamLogOptions) (io.ReadCloser, error)
 }
 
 // GetRawLocalPodList returns the unfiltered pod list from the kubelet

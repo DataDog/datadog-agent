@@ -13,6 +13,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"k8s.io/apimachinery/pkg/labels"
 	batchv1Informers "k8s.io/client-go/informers/batch/v1beta1"
@@ -36,16 +37,18 @@ func NewCronJobV1Beta1Collector(metadataAsTags utils.MetadataAsTags) *CronJobV1B
 
 	return &CronJobV1Beta1Collector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          false,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      cronJobName,
-			NodeType:                  orchestrator.K8sCronJob,
-			Version:                   cronJobVersionV1Beta1,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     false,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 cronJobName,
+			Kind:                                 kubernetes.CronJobKind,
+			NodeType:                             orchestrator.K8sCronJob,
+			Version:                              cronJobVersionV1Beta1,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.CronJobV1Beta1Handlers)),
 	}

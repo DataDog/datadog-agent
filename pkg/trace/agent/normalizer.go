@@ -169,7 +169,7 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 		s.Type = traceutil.TruncateUTF8(s.Type, MaxTypeLen)
 	}
 	if env, ok := s.Meta["env"]; ok {
-		s.Meta["env"] = traceutil.NormalizeTag(env)
+		s.Meta["env"] = traceutil.NormalizeTagValue(env)
 	}
 	if sc, ok := s.Meta["http.status_code"]; ok {
 		if !isValidStatusCode(sc) {
