@@ -10,8 +10,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.61.0
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.64.0-rc.3
@@ -40,8 +40,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.61.0 // indirect
