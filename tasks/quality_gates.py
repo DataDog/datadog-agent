@@ -89,7 +89,9 @@ def display_pr_comment(
         else:
             body_error += f"|{FAIL_CHAR}|{gate['name'].replace("static_quality_gate_","")}|{relative_disk_size}|{getMetric('current_on_disk_size')}|{getMetric('max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size')}|{getMetric('max_on_wire_size')}|\n"
             error_message = gate['message'].replace('\n', '<br>')
-            body_error_footer += f"|{gate['name'].replace("static_quality_gate_","")}|{gate['error_type']}|{error_message}|\n"
+            body_error_footer += (
+                f"|{gate['name'].replace("static_quality_gate_","")}|{gate['error_type']}|{error_message}|\n"
+            )
             with_error = True
 
     body_error_footer += "\n</details>\n\nStatic quality gates prevent the PR to merge! You can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"

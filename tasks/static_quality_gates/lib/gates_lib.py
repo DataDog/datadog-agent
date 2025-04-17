@@ -146,6 +146,7 @@ class GateMetricHandler:
             if out.exited == 0:
                 print("[DEBUG] FETCH SUCCESS")
                 ancestor_metric_handler = GateMetricHandler(ancestor, self.bucket_branch, filename)
+                print(f"[DEBUG] {list(ancestor_metric_handler.metrics.keys())}\n{list(self.metrics.keys())}")
                 for gate in self.metrics:
                     ancestor_gate = ancestor_metric_handler.metrics.get(gate)
                     if not ancestor_gate:
@@ -165,7 +166,7 @@ class GateMetricHandler:
         else:
             print(
                 color_message(
-                    f"[WARN] Unable to find this commit ancestor",
+                    "[WARN] Unable to find this commit ancestor",
                     "orange",
                 )
             )
