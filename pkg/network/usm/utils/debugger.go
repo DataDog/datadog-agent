@@ -53,7 +53,7 @@ type PathIdentifierWithSamplePath struct {
 // This is used for debugging purposes only.
 func GetTracedProgramsEndpoint(moduleName string) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		otherutils.WriteAsJSON(w, debugger.GetTracedPrograms(moduleName))
+		otherutils.WriteAsJSON(w, debugger.GetTracedPrograms(moduleName), otherutils.CompactOutput)
 	}
 }
 
@@ -63,7 +63,7 @@ func GetTracedProgramsEndpoint(moduleName string) func(http.ResponseWriter, *htt
 // This is used for debugging purposes only.
 func GetBlockedPathIDEndpoint(moduleName string) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		otherutils.WriteAsJSON(w, debugger.GetAllBlockedPathIDs(moduleName))
+		otherutils.WriteAsJSON(w, debugger.GetAllBlockedPathIDs(moduleName), otherutils.CompactOutput)
 	}
 }
 

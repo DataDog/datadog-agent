@@ -56,5 +56,5 @@ func Handler(w http.ResponseWriter, _ *http.Request) {
 		marshableMetrics[i] = MarshableMetric{m}
 	}
 
-	utils.WriteAsJSON(w, marshableMetrics)
+	utils.WriteAsJSON(w, marshableMetrics, utils.CompactOutput)
 }

@@ -43,7 +43,7 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, teleme
 
 	// Register stats endpoint
 	mux.HandleFunc("/debug/stats", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, _ *http.Request) {
-		utils.WriteAsJSON(w, module.GetStats())
+		utils.WriteAsJSON(w, module.GetStats(), utils.CompactOutput)
 	}))
 
 	setupConfigHandlers(mux, settings)
