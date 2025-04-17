@@ -612,15 +612,6 @@ func ProcessLogsAgentRequest(w http.ResponseWriter, r *http.Request) JSONLogs {
 	return jsonLogs
 }
 
-// TaggerClient provides client for tagger interface,
-// see comp/core/tagger for tagger functions; client for tagger interface
-type TaggerClient interface {
-	// Tag is an interface function that queries taggerclient singleton
-	Tag(entity types.EntityID, cardinality types.TagCardinality) ([]string, error)
-	// GlobalTags is an interface function that queries taggerclient singleton
-	GlobalTags(cardinality types.TagCardinality) ([]string, error)
-}
-
 // TestTaggerClient is used to store sample tags for testing purposes
 type TestTaggerClient struct {
 	TagMap map[string][]string
