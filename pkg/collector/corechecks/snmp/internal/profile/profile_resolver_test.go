@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-// TODO: PROFILE: ADD EXPECTEDhaveLegacyProfile
 func Test_resolveProfiles(t *testing.T) {
 
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d"))
@@ -90,6 +89,7 @@ func Test_resolveProfiles(t *testing.T) {
 				"p5:interface",
 				"p6:interface",
 			},
+			expectedHaveLegacyProfile: false,
 		},
 		{
 			name: "invalid extends",
@@ -99,23 +99,26 @@ func Test_resolveProfiles(t *testing.T) {
 					IsUserProfile: true,
 				},
 			},
-			expectedProfileDefMap: ProfileConfigMap{},
+			expectedProfileDefMap:     ProfileConfigMap{},
+			expectedHaveLegacyProfile: false,
 			expectedLogs: []LogCount{
 				{"failed to expand profile \"f5-big-ip\": extend does not exist: `does_not_exist`", 1},
 			},
 		},
 		{
-			name:                  "invalid recursive extends",
-			userProfiles:          profilesWithInvalidExtendProfiles,
-			expectedProfileDefMap: ProfileConfigMap{},
+			name:                      "invalid recursive extends",
+			userProfiles:              profilesWithInvalidExtendProfiles,
+			expectedProfileDefMap:     ProfileConfigMap{},
+			expectedHaveLegacyProfile: false,
 			expectedLogs: []LogCount{
 				{"failed to expand profile \"generic-if\": extend does not exist: `invalid`", 1},
 			},
 		},
 		{
-			name:                  "invalid cyclic extends",
-			userProfiles:          invalidCyclicProfiles,
-			expectedProfileDefMap: ProfileConfigMap{},
+			name:                      "invalid cyclic extends",
+			userProfiles:              invalidCyclicProfiles,
+			expectedProfileDefMap:     ProfileConfigMap{},
+			expectedHaveLegacyProfile: false,
 			expectedLogs: []LogCount{
 				{": failed to expand profile \"f5-big-ip\": cyclic profile extend detected", 1},
 			},
@@ -127,7 +130,8 @@ func Test_resolveProfiles(t *testing.T) {
 					Definition: *validationErrorProfile,
 				},
 			},
-			expectedProfileDefMap: ProfileConfigMap{},
+			expectedProfileDefMap:     ProfileConfigMap{},
+			expectedHaveLegacyProfile: false,
 			expectedLogs: []LogCount{
 				{"cannot compile `match` (`global_metric_tags[\\w)(\\w+)`)", 1},
 				{"cannot compile `match` (`table_match[\\w)`)", 1},

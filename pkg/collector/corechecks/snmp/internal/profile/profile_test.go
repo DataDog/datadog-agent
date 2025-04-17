@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-// TODO: PROFILE: ADD EXPECTEDhaveLegacyProfile
 func Test_loadProfiles(t *testing.T) {
 	tests := []struct {
 		name                      string
@@ -54,6 +53,7 @@ func Test_loadProfiles(t *testing.T) {
 			expectedProfileMetrics: []string{
 				"init_config_metric",
 			},
+			expectedHaveLegacyProfile: false,
 		},
 		{
 			name:      "OK init config contains invalid profiles with warnings logs",
@@ -69,7 +69,8 @@ func Test_loadProfiles(t *testing.T) {
 					},
 				},
 			},
-			expectedProfileNames: []string(nil), // invalid profiles are skipped
+			expectedProfileNames:      []string(nil), // invalid profiles are skipped
+			expectedHaveLegacyProfile: false,
 		},
 		// yaml profiles
 		{
@@ -79,11 +80,13 @@ func Test_loadProfiles(t *testing.T) {
 				"another_profile",
 				"f5-big-ip",
 			},
+			expectedHaveLegacyProfile: false,
 		},
 		{
-			name:                 "OK contains yaml profiles with warning logs",
-			mockConfd:            "does_non_exist.d",
-			expectedProfileNames: []string(nil),
+			name:                      "OK contains yaml profiles with warning logs",
+			mockConfd:                 "does_non_exist.d",
+			expectedProfileNames:      []string(nil),
+			expectedHaveLegacyProfile: false,
 		},
 	}
 	for _, tt := range tests {
