@@ -9,6 +9,7 @@ package checkdisk
 import (
 	"cmp"
 	"fmt"
+	"math"
 	"os"
 	"slices"
 	"testing"
@@ -88,7 +89,10 @@ instances:
 
 			// assert the check output
 			diff := gocmp.Diff(pythonMetrics, goMetrics,
-				gocmpopts.EquateApprox(metricCompareFraction, metricCompareMargin),
+				gocmp.Transformer("roundTo1", func(f float64) float64 {
+					return math.Round(f*10) / 10
+				}),
+				// gocmpopts.EquateApprox(metricCompareFraction, metricCompareMargin),
 				gocmpopts.SortSlices(cmp.Less[string]),     // sort tags
 				gocmpopts.SortSlices(metricPayloadCompare), // sort metrics
 			)
