@@ -248,7 +248,7 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 				sbom.Status = model.SBOMStatus_FAILED
 			} else {
 				sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-					Cyclonedx: sbomconvert.ConvertBOM(report),
+					Cyclonedx: sbomconvert.BOM(report),
 				}
 			}
 
@@ -323,7 +323,7 @@ func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 				sbom.Status = model.SBOMStatus_FAILED
 			} else {
 				sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-					Cyclonedx: sbomconvert.ConvertBOM(report),
+					Cyclonedx: sbomconvert.BOM(report),
 				}
 			}
 		}
@@ -436,7 +436,7 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 			sbom.GeneratedAt = timestamppb.New(img.SBOM.GenerationTime)
 			sbom.GenerationDuration = convertDuration(img.SBOM.GenerationDuration)
 			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-				Cyclonedx: sbomconvert.ConvertBOM(img.SBOM.CycloneDXBOM),
+				Cyclonedx: sbomconvert.BOM(img.SBOM.CycloneDXBOM),
 			}
 		}
 		p.queue <- sbom
