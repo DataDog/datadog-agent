@@ -452,7 +452,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 			return nil, err
 		}
 	} else {
-		var haveLegacyProfile bool
+		haveLegacyProfile := false
 		c.ProfileProvider, haveLegacyProfile, err = profile.GetProfileProvider(initConfig.Profiles)
 		if err != nil {
 			return nil, err

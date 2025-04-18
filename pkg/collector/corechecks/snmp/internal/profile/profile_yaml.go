@@ -77,7 +77,7 @@ func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileCo
 
 		absPath := filepath.Join(profilesRoot, fName)
 		definition, isLegacyProfile, err := readProfileDefinition(absPath)
-		haveLegacyProfile = isLegacyProfile || haveLegacyProfile
+		haveLegacyProfile = haveLegacyProfile || isLegacyProfile
 		if err != nil {
 			log.Warnf("cannot load profile %q: %v", profileName, err)
 			continue

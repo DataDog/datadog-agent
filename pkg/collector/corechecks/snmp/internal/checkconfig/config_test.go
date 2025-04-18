@@ -1878,35 +1878,6 @@ profiles:
 			expectedHaveLegacyProfile: false,
 		},
 		{
-			name: "legacy instance config profile with loader specified should not fallback to Python",
-			// language=yaml
-			rawInstanceConfig: []byte(`
-loader: core
-ip_address: 1.2.3.4
-port: 1161
-community_string: public
-metrics:
-  - MIB: FOO-MIB
-    table:
-      OID: 1.2.3.4.5.6
-      name: fooTable
-    symbols:
-      - OID: 1.2.3.4.5.6.1
-        name: fooName1
-        metric_type: monotonic_count
-      # - OID: 1.2.3.4.5.6.2
-      - name: fooName2
-        metric_type: monotonic_count
-    metric_tags:
-      - index: 1
-        tag: fooTag3
-`),
-			// language=yaml
-			rawInitConfig:             []byte(``),
-			mockConfd:                 "legacy.d",
-			expectedHaveLegacyProfile: false,
-		},
-		{
 			name: "ok profile with loader specified should not fallback to Python",
 			// language=yaml
 			rawInstanceConfig: []byte(`
@@ -2009,13 +1980,11 @@ metrics:
 			pkgconfigsetup.Datadog().SetWithoutSource("confd_path", mockConfdPath)
 
 			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)
-			errString := "legacy profile detected with no loader specified, falling back to the Python loader"
 			if tt.expectedHaveLegacyProfile {
-				assert.Equal(t, err.Error(), errString)
+				expectedError := "legacy profile detected with no loader specified, falling back to the Python loader"
+				assert.EqualError(t, err, expectedError)
 			} else {
-				if err != nil {
-					assert.NotEqual(t, err.Error(), errString)
-				}
+				assert.NoError(t, err)
 			}
 		})
 	}

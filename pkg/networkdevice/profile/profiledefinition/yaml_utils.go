@@ -67,25 +67,18 @@ func (mtcl *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error
 func (mc *MetricsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type metricsConfig MetricsConfig
 
-	var rawMap map[string]interface{}
-	err := unmarshal(&rawMap)
+	var rawData map[string]interface{}
+	err := unmarshal(&rawData)
 	if err != nil {
 		return unmarshal((*metricsConfig)(mc))
 	}
 
-	mib, exists := rawMap["MIB"]
-	if !exists || mib == "" {
-		return unmarshal((*metricsConfig)(mc))
-	}
-
-	symbol, exists := rawMap["symbol"]
-	if !exists {
-		return unmarshal((*metricsConfig)(mc))
-	}
-
-	_, isString := symbol.(string)
-	if isString {
-		return LegacySymbolTypeError
+	mibString, mibIsString := rawData["MIB"].(string)
+	if mibIsString && mibString != "" {
+		symbolString, symbolIsString := rawData["symbol"].(string)
+		if symbolIsString && symbolString != "" {
+			return LegacySymbolTypeError
+		}
 	}
 
 	return unmarshal((*metricsConfig)(mc))

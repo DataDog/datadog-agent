@@ -42,7 +42,7 @@ const (
 	ProfileMetricTypePercent ProfileMetricType = "percent"
 )
 
-var LegacySymbolTypeError = fmt.Errorf("legacy symbol type 'string' is not supported")
+var LegacySymbolTypeError = fmt.Errorf("legacy symbol type 'string' is not supported with the Core loader")
 
 // SymbolConfigCompat is used to deserialize string field or SymbolConfig.
 // For OID/Name to Symbol harmonization:

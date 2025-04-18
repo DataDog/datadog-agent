@@ -29,7 +29,7 @@ func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileCon
 // normalizeProfiles returns a copy of pConfig with all profiles normalized, validated, and fully expanded (i.e. values from their .extend attributes will be baked into the profile itself).
 func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMap) (ProfileConfigMap, bool) {
 	profiles := make(ProfileConfigMap, len(pConfig))
-	var haveLegacyProfile bool
+	haveLegacyProfile := false
 
 	for name := range pConfig {
 		// No need to resolve abstract profile

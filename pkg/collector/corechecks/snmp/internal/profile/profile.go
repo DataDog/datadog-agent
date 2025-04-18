@@ -26,7 +26,7 @@ func GetProfileProvider(initConfigProfiles ProfileConfigMap) (Provider, bool, er
 
 func loadProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, bool, error) {
 	var profiles ProfileConfigMap
-	var haveLegacyProfile bool
+	haveLegacyProfile := false
 
 	if len(initConfigProfiles) > 0 {
 		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations

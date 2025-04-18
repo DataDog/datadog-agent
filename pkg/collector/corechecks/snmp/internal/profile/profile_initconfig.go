@@ -14,7 +14,7 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 	for name, profConfig := range rawInitConfigProfiles {
 		if profConfig.DefinitionFile != "" {
 			profDefinition, haveLegacyInitConfigProfile, err := readProfileDefinition(profConfig.DefinitionFile)
-			haveLegacyProfile = haveLegacyInitConfigProfile || haveLegacyProfile
+			haveLegacyProfile = haveLegacyProfile || haveLegacyInitConfigProfile
 			if err != nil {
 				log.Warnf("unable to load profile %q: %s", name, err)
 				continue
@@ -43,6 +43,6 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 		filteredResolvedProfiles[key] = val
 	}
 
-	haveLegacyProfile = haveLegacyUserProfile || haveLegacyDefaultProfile || haveLegacyResolvedProfile || haveLegacyProfile
+	haveLegacyProfile = haveLegacyProfile || haveLegacyUserProfile || haveLegacyDefaultProfile || haveLegacyResolvedProfile
 	return filteredResolvedProfiles, haveLegacyProfile, nil
 }
