@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package agentprofiling is a core check that can capture a memory profile of the
-// core agent when the core agent's memory usage exceeds a certain threshold.
+// Package agentprofiling is a core check that can generate a flare with profiles
+// when the core agent's memory or CPU usage exceeds a certain threshold.
 package agentprofiling
 
 import (
@@ -45,11 +45,11 @@ type Config struct {
 	UserEmail       string `yaml:"user_email"`
 }
 
-// Check is the check that captures a memory profile of the core agent
+// Check is the check that generates a flare with profiles when the core agent's memory or CPU usage exceeds a certain threshold
 type Check struct {
 	core.CheckBase
 	instance        *Config
-	profileCaptured bool
+	flareGenerated  bool
 	flareComponent  flare.Component
 	agentConfig     config.Component
 	lastCPUTimes    *cpu.TimesStat
@@ -76,11 +76,6 @@ func newCheck(flareComponent flare.Component, agentConfig config.Component) chec
 
 // Parse parses the configuration for the agentprofiling check
 func (c *Config) Parse(data []byte) error {
-	// default values
-	c.MemoryThreshold = "0"
-	c.CPUThreshold = 0
-	c.TicketID = ""
-	c.UserEmail = ""
 	return yaml.Unmarshal(data, c)
 }
 
@@ -130,17 +125,17 @@ func (m *Check) calculateCPUPercentage(currentTimes *cpu.TimesStat) float64 {
 	return cpuPercent
 }
 
-// Run executes the agent profiling check, capturing a memory profile if thresholds are exceeded
+// Run executes the agent profiling check, generating a flare with profiles if thresholds are exceeded
 func (m *Check) Run() error {
-	// Don't run again if the profile has already been captured
-	if m.profileCaptured {
-		log.Debugf("Memory profile already captured, skipping further checks.")
+	// Don't run again if the flare has already been generated
+	if m.flareGenerated {
+		log.Debugf("Flare with profiles already attempted to generate, skipping further check runs.")
 		return nil
 	}
 
 	// Exit early if both thresholds are disabled
 	if m.memoryThreshold == 0 && m.instance.CPUThreshold <= 0 {
-		log.Debugf("Memory and CPU profile thresholds are disabled, skipping check.")
+		log.Warnf("Memory and CPU profile thresholds are disabled, skipping check.")
 		return nil
 	}
 
@@ -162,8 +157,6 @@ func (m *Check) Run() error {
 		// RSS (Resident Set Size) represents the total memory allocated to the process
 		// This includes all memory: Go heap, native libraries, and other allocations
 		processMemoryMB = float64(memInfo.RSS) / MB
-
-		log.Infof("Memory usage check - Current: %.2f MB, Threshold: %.2f MB", processMemoryMB, float64(m.memoryThreshold)/MB)
 	}
 
 	// Get Agent CPU usage
@@ -183,8 +176,6 @@ func (m *Check) Run() error {
 
 		// Calculate CPU percentage since last check
 		currentCPU = m.calculateCPUPercentage(cpuTimes)
-
-		log.Infof("CPU usage check - Current: %.2f%%, Threshold: %d%%", currentCPU, m.instance.CPUThreshold)
 	}
 
 	// Exit early if usage is below thresholds
@@ -207,12 +198,11 @@ func (m *Check) generateFlare() error {
 	// Skip flare generation if flareComponent is not available
 	if m.flareComponent == nil {
 		log.Info("Skipping flare generation: flare component not available")
-		m.profileCaptured = true
+		m.flareGenerated = true
 		return nil
 	}
 
 	// Prepare flare arguments
-	providerTimeout := time.Duration(0) // Use default timeout
 	flareArgs := types.FlareArgs{
 		ProfileDuration:      m.agentConfig.GetDuration("flare.rc_profiling.profile_duration"),
 		ProfileBlockingRate:  m.agentConfig.GetInt("flare.rc_profiling.blocking_rate"),
@@ -220,28 +210,29 @@ func (m *Check) generateFlare() error {
 	}
 
 	// Create an instance of the flare struct
-	flarePath, err := m.flareComponent.CreateWithArgs(flareArgs, providerTimeout, nil, []byte{})
+	flarePath, err := m.flareComponent.CreateWithArgs(flareArgs, 0, nil, []byte{})
 	if err != nil {
 		return fmt.Errorf("Failed to create flare: %w", err)
 	}
 
-	if m.instance.TicketID != "" {
-		// Send the flare to Zendesk
+	if m.instance.TicketID != "" && m.instance.UserEmail != "" {
+		// Send the flare
 		caseID := m.instance.TicketID
 		userHandle := m.instance.UserEmail
 		response, err := m.flareComponent.Send(flarePath, caseID, userHandle, helpers.NewLocalFlareSource())
 		if err != nil {
-			// Add debugging logs to capture the response from Zendesk
-			log.Errorf("Zendesk response: %s", response)
-			return fmt.Errorf("Failed to send flare to Zendesk: %w", err)
+			// Add debugging logs to capture the response from Datadog backend
+			log.Errorf("Datadog backend response: %s", response)
+			return fmt.Errorf("Failed to send flare: %w", err)
 		}
-		log.Infof("Flare sent to Zendesk with case ID %s", m.instance.TicketID)
+		log.Infof("Flare sent with case ID %s", m.instance.TicketID)
 	} else {
 		log.Infof("Flare generated locally at %s", flarePath)
 	}
 
 	// Mark flare as generated to stop future runs
-	m.profileCaptured = true
+	m.flareGenerated = true
+	log.Infof("Flare generation complete. No more flares will be generated until the Agent is restarted.")
 
 	return nil
 }

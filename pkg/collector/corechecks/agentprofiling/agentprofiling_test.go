@@ -3,9 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package agentprofiling is a core check that can capture a memory profile of the
-// core agent when the core agent's memory usage exceeds a certain threshold.
-
+// Package agentprofiling is a core check that can generate a flare with profiles
+// when the core agent's memory or CPU usage exceeds a certain threshold.
 package agentprofiling
 
 import (
@@ -86,7 +85,7 @@ func TestZeroThresholds(t *testing.T) {
 
 	err := check.Run()
 	require.NoError(t, err)
-	assert.False(t, check.profileCaptured)
+	assert.False(t, check.flareGenerated)
 }
 
 // TestMemThreshold tests that the flare is generated when memory threshold is exceeded
@@ -101,7 +100,7 @@ func TestMemThreshold(t *testing.T) {
 
 	err := check.Run()
 	require.NoError(t, err)
-	assert.True(t, check.profileCaptured)
+	assert.True(t, check.flareGenerated)
 }
 
 // TestCPUThreshold tests that the flare is generated when CPU threshold is exceeded
@@ -113,7 +112,7 @@ func TestCPUThreshold(t *testing.T) {
 
 	err := check.Run()
 	require.NoError(t, err)
-	assert.True(t, check.profileCaptured)
+	assert.True(t, check.flareGenerated)
 }
 
 // TestBelowThresholds tests that the flare is not generated when both memory and CPU usage are below thresholds
@@ -130,7 +129,7 @@ func TestBelowThresholds(t *testing.T) {
 
 	err := check.Run()
 	require.NoError(t, err)
-	assert.False(t, check.profileCaptured)
+	assert.False(t, check.flareGenerated)
 }
 
 // TestGenerateFlareLocal tests that the flare is generated correctly when ticket ID and user email are not provided
@@ -139,11 +138,11 @@ func TestGenerateFlareLocal(t *testing.T) {
 
 	err := check.generateFlare()
 	require.NoError(t, err)
-	assert.True(t, check.profileCaptured)
+	assert.True(t, check.flareGenerated)
 }
 
-// TestGenerateFlareZendesk tests that the flare is generated correctly when ticket ID and user email are provided
-func TestGenerateFlareZendesk(t *testing.T) {
+// TestGenerateFlareTicket tests that the flare is generated correctly when ticket ID and user email are provided
+func TestGenerateFlareTicket(t *testing.T) {
 	cfg := defaultTestConfig()
 	cfg.ticketID = "12345678"
 	cfg.userEmail = "user@example.com"
@@ -152,5 +151,5 @@ func TestGenerateFlareZendesk(t *testing.T) {
 
 	err := check.generateFlare()
 	require.NoError(t, err)
-	assert.True(t, check.profileCaptured)
+	assert.True(t, check.flareGenerated)
 }
