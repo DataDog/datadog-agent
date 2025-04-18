@@ -433,14 +433,14 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.65.0-rc.9
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.65.0-rc.9
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.65.0-rc.9
-	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.65.0-rc.9
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.65.0-rc.9
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.65.0-rc.9
 	github.com/DataDog/datadog-agent/pkg/fips v0.65.0-rc.9
 	github.com/DataDog/datadog-agent/pkg/network/payload v0.65.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.65.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.65.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.65.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
 	github.com/DataDog/dd-trace-go/v2 v2.0.0-beta.11
 	github.com/NVIDIA/go-nvml v0.12.4-0
 	github.com/cloudflare/cbpfc v0.0.0-20240920015331-ff978e94500b
