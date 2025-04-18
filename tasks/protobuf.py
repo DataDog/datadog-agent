@@ -46,7 +46,7 @@ def generate(ctx, pre_commit=False):
     We must build the packages one at a time due to protoc-gen-go limitations
     """
     proto_file = re.compile(r"pkg/proto/pbgo/.*\.pb(\.gw)?\.go$")
-    old_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file))
+    old_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file, include_deleted_files=True))
     old_untracked_proto_files = set(get_untracked_files(ctx, re_filter=proto_file))
     # Key: path, Value: grpc_gateway, inject_tags
     check_tools(ctx)
