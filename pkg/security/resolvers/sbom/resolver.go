@@ -17,20 +17,16 @@ import (
 	"sync"
 	"time"
 
-	sbomModel "github.com/DataDog/agent-payload/v5/sbom"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/avast/retry-go/v4"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/skydive-project/go-debouncer"
 	"go.uber.org/atomic"
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
-	sbomconvert "github.com/DataDog/datadog-agent/pkg/sbom/convert"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -127,7 +123,7 @@ func NewSBOM(id containerutils.ContainerID, cgroup *cgroupModel.CacheEntry, work
 
 // Resolver is the Software Bill-Of-material resolver
 type Resolver struct {
-	*utils.Notifier[Event, *sbomModel.SBOMEntity]
+	*utils.Notifier[Event, *sbom.ScanResult]
 
 	cfg *config.RuntimeSecurityConfig
 
@@ -178,7 +174,7 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 	}
 
 	resolver := &Resolver{
-		Notifier:              utils.NewNotifier[Event, *sbomModel.SBOMEntity](),
+		Notifier:              utils.NewNotifier[Event, *sbom.ScanResult](),
 		cfg:                   c,
 		statsdClient:          statsdClient,
 		dataCache:             dataCache,
@@ -387,71 +383,63 @@ func (r *Resolver) removePendingScan(containerID containerutils.ContainerID) {
 }
 
 // analyzeWorkload generates the SBOM of the provided sbom and send it to the security agent
-func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
-	sbom.Lock()
-	defer sbom.Unlock()
+func (r *Resolver) analyzeWorkload(sb *SBOM) error {
+	sb.Lock()
+	defer sb.Unlock()
 
-	seclog.Infof("analyzing sbom '%s'", sbom.ContainerID)
+	seclog.Infof("analyzing sbom '%s'", sb.ContainerID)
 
-	if sbom.state.Load() != pendingState {
-		r.removePendingScan(sbom.ContainerID)
+	if sb.state.Load() != pendingState {
+		r.removePendingScan(sb.ContainerID)
 
 		// should not append, ignore
-		seclog.Warnf("trying to analyze a sbom not in pending state for '%s': %d", sbom.ContainerID, sbom.state.Load())
+		seclog.Warnf("trying to analyze a sbom not in pending state for '%s': %d", sb.ContainerID, sb.state.Load())
 		return nil
 	}
 
 	// bail out if the workload has been analyzed while queued up
 	r.dataCacheLock.RLock()
-	if data, exists := r.dataCache.Get(sbom.workloadKey); exists {
+	if data, exists := r.dataCache.Get(sb.workloadKey); exists {
 		r.dataCacheLock.RUnlock()
-		sbom.data = data
+		sb.data = data
 
-		r.removePendingScan(sbom.ContainerID)
+		r.removePendingScan(sb.ContainerID)
 
 		return nil
 	}
 	r.dataCacheLock.RUnlock()
 
 	scanTime := time.Now()
-	report, scanErr := r.doScan(sbom)
+	report, scanErr := r.doScan(sb)
 	if scanErr != nil {
 		return scanErr
 	}
 	scanDuration := time.Since(scanTime)
 
-	bom, err := report.ToCycloneDX()
-	if err != nil {
-		return err
+	scanResult := &sbom.ScanResult{
+		CreatedAt: scanTime,
+		Duration:  scanDuration,
+		RequestID: string(sb.ContainerID),
+		Report:    report,
 	}
-
-	entity := &sbomModel.SBOMEntity{
-		Id:                 string(sbom.ContainerID),
-		GenerationDuration: durationpb.New(scanDuration),
-		GeneratedAt:        timestamppb.New(report.CreatedAt),
-		Sbom: &sbomModel.SBOMEntity_Cyclonedx{
-			Cyclonedx: sbomconvert.BOM(bom),
-		},
-	}
-
-	r.NotifyListeners(SBOMComputed, entity)
+	r.NotifyListeners(SBOMComputed, scanResult)
 
 	data := &Data{
 		files: newFileQuerier(report),
 	}
-	sbom.data = data
+	sb.data = data
 
 	// mark the SBOM as successful
-	sbom.state.Store(computedState)
+	sb.state.Store(computedState)
 
 	// add to cache
 	r.dataCacheLock.Lock()
-	r.dataCache.Add(workloadKey(sbom.ContainerID), data)
+	r.dataCache.Add(workloadKey(sb.ContainerID), data)
 	r.dataCacheLock.Unlock()
 
-	r.removePendingScan(sbom.ContainerID)
+	r.removePendingScan(sb.ContainerID)
 
-	seclog.Infof("new sbom generated for '%s': %d files added", sbom.ContainerID, data.files.len())
+	seclog.Infof("new sbom generated for '%s': %d files added", sb.ContainerID, data.files.len())
 	return nil
 }
 

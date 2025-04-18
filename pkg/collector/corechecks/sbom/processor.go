@@ -162,7 +162,21 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 			}
 
 			if container.SBOM != nil {
-				p.queue <- container.SBOM
+				status := model.SBOMStatus_value[string(container.SBOM.Status)]
+
+				sbomEntity := &model.SBOMEntity{
+					Type:               model.SBOMSourceType_CONTAINER_FILE_SYSTEM,
+					Id:                 container.ID,
+					GeneratedAt:        timestamppb.New(container.SBOM.GenerationTime),
+					GenerationDuration: convertDuration(container.SBOM.GenerationDuration),
+					InUse:              true,
+					Sbom: &model.SBOMEntity_Cyclonedx{
+						Cyclonedx: sbomconvert.BOM(container.SBOM.CycloneDXBOM),
+					},
+					Status: model.SBOMStatus(status),
+				}
+
+				p.queue <- sbomEntity
 			}
 		case workloadmeta.EventTypeUnset:
 			p.unregisterContainer(event.Entity.(*workloadmeta.Container))

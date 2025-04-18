@@ -17,7 +17,6 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/DataDog/agent-payload/v5/sbom"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -580,7 +579,7 @@ type Container struct {
 	CgroupPath   string
 	RestartCount int
 
-	SBOM *sbom.SBOMEntity
+	SBOM *SBOM
 }
 
 // GetID implements Entity#GetID.
@@ -632,9 +631,9 @@ func (c Container) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Status:", c.SBOM.Status)
 			switch SBOMStatus(c.SBOM.Status) {
 			case Success:
-				_, _ = fmt.Fprintf(&sb, "Generated in: %d seconds\n", c.SBOM.GenerationDuration.Seconds)
+				_, _ = fmt.Fprintf(&sb, "Generated in: %d seconds\n", c.SBOM.GenerationDuration.Seconds())
 			case Failed:
-				_, _ = fmt.Fprintf(&sb, "Error: %s\n", c.SBOM.GetError())
+				_, _ = fmt.Fprintf(&sb, "Error: %s\n", c.SBOM.Error)
 			default:
 			}
 		} else {
