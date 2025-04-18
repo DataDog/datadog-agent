@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Addressed a bug in the cluster-agent API that prevented tag extraction for annotations from working due to client
+    side filtering. The fix was implemented in both the node-agent and the cluster-agent. Now, node-agent clients
+    specify the annotations filter when querying the cluster-agent.
