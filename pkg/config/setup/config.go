@@ -841,8 +841,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
-	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", false)
-	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", false)
+	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", true)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
@@ -1125,6 +1125,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metadata_provider_stop_timeout", 30*time.Second)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
+	config.BindEnvAndSetDefault("check_system_probe_startup_time", 5*time.Minute)
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	// used to override the path where the IPC cert/key files are stored/retrieved
 	config.BindEnvAndSetDefault("ipc_cert_file_path", "")
@@ -1291,7 +1292,7 @@ func debugging(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
 	config.BindEnvAndSetDefault("c_core_dump", false)
 	config.BindEnvAndSetDefault("go_core_dump", false)
-	config.BindEnvAndSetDefault("memtrack_enabled", true)
+	config.BindEnvAndSetDefault("memtrack_enabled", false)
 	config.BindEnvAndSetDefault("tracemalloc_debug", false)
 	config.BindEnvAndSetDefault("tracemalloc_include", "")
 	config.BindEnvAndSetDefault("tracemalloc_exclude", "")
@@ -1515,6 +1516,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.container_collect_all", false)
 	// add a socks5 proxy:
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
+	// disable distributed senders
+	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false)
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key")
 

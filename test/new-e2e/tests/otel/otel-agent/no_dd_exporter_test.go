@@ -32,7 +32,7 @@ var noDDExporterProvidedConfig string
 var noDDExporterFullConfig string
 
 func TestOTelAgentWithNoDDExporter(t *testing.T) {
-	values := enableOTELAgentonfig(`
+	values := enableOTELAgentConfig(`
 datadog:
   logs:
     containerCollectAll: false

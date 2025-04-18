@@ -65,7 +65,7 @@ func NewDeviceCacheWithOptions(lib SafeNVML) (DeviceCache, error) {
 			continue
 		}
 
-		// Convert the SafeDevice to Device
+		// Convert from SafeDevice to *Device
 		dev, ok := nvmlDev.(*Device)
 		if !ok {
 			// This should never happen
