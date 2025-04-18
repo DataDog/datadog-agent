@@ -635,9 +635,7 @@ linters-settings:
           - "!$test"
           - "!**/tests/**"
           # TODO: remove those once migrated
-          - "!**/pkg/dynamicinstrumentation/codegen/**"
           - "!**/pkg/dynamicinstrumentation/ebpf/**"
-          - "!**/pkg/ebpf/bytecode/runtime/**"
 
   errcheck:
     exclude-functions:

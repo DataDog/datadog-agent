@@ -14,9 +14,9 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

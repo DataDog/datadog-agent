@@ -14,9 +14,9 @@ import (
 	"io"
 	"os"
 	"strings"
-	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
 const listGenSource = `
