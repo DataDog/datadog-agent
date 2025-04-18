@@ -631,7 +631,7 @@ func (c Container) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Status:", c.SBOM.Status)
 			switch SBOMStatus(c.SBOM.Status) {
 			case Success:
-				_, _ = fmt.Fprintf(&sb, "Generated in: %d seconds\n", c.SBOM.GenerationDuration.Seconds())
+				_, _ = fmt.Fprintf(&sb, "Generated in: %f seconds\n", c.SBOM.GenerationDuration.Seconds())
 			case Failed:
 				_, _ = fmt.Fprintf(&sb, "Error: %s\n", c.SBOM.Error)
 			default:
