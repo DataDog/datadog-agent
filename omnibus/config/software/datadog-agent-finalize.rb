@@ -178,6 +178,11 @@ build do
             # Most postgres binaries are removed in postgres' own software
             # recipe, but we need pg_config to build psycopq.
             delete "#{install_dir}/embedded/bin/pg_config"
+
+            # Delete empty folders that can still be present when building
+            # without the omnibus cache.
+            # When the cache gets used, git will transparently remove empty dirs for us
+            command "find #{install_dir} -type d -empty -delete"
         end
 
         if osx_target?
