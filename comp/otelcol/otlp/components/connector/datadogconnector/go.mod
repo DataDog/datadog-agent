@@ -3,14 +3,15 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/d
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.65.0-rc.9
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.65.0-rc.9
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.65.0-rc.9
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.65.0-rc.9
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.65.0-rc.9
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.65.0-rc.9
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.65.0-rc.9
 	github.com/DataDog/datadog-agent/pkg/proto v0.65.0-rc.9
 	github.com/DataDog/datadog-agent/pkg/trace v0.65.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/util/option v0.65.0-rc.9
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.65.0-rc.9
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0
@@ -51,7 +52,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.65.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.65.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.65.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.65.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.65.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.65.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.65.0-rc.9 // indirect
@@ -112,7 +112,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.65.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/json v0.65.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.65.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.65.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.65.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.65.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.65.0-rc.9 // indirect
