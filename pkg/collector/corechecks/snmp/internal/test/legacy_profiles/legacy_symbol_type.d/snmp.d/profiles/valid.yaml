@@ -1,0 +1,24 @@
+metrics:
+  - MIB: FOO-MIB1
+    OID: 1.2.3.4.5.6.1
+    name: fooName1
+
+  - MIB: FOO-MIB2
+    symbol:
+      OID: 1.2.3.4.5.6.2
+      name: fooName2
+
+  - MIB: FOO-MIB3
+    table:
+      OID: 1.2.3.4.5.6.3
+      name: fooTable3
+    symbols:
+      - OID: 1.2.3.4.5.6.3.1
+        name: fooName3_1
+        metric_type: monotonic_count
+      - OID: 1.2.3.4.5.6.3.2
+        name: fooName3_2
+        metric_type: monotonic_count
+    metric_tags:
+      - index: 1
+        tag: fooTag3

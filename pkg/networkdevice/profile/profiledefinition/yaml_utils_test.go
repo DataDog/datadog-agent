@@ -164,6 +164,7 @@ metrics:
 			data: []byte(`
 metrics:
   - MIB: FOO-MIB
+    OID: 1.2.3.4
     symbol: fooName
 `),
 			expectedError: LegacySymbolTypeError.Error(),
@@ -172,18 +173,20 @@ metrics:
 			name: "symbol declared in the legacy way without MIB specified",
 			data: []byte(`
 metrics:
-  - symbol: fooName
+  - OID: 1.2.3.4
+    symbol: fooName
 `),
-			expectedError: "line 3: cannot unmarshal !!str `fooName` into profiledefinition.SymbolConfig",
+			expectedError: "line 4: cannot unmarshal !!str `fooName` into profiledefinition.SymbolConfig",
 		},
 		{
 			name: "symbol declared in the legacy way with MIB empty",
 			data: []byte(`
 metrics:
   - MIB:
+    OID: 1.2.3.4
     symbol: fooName
 `),
-			expectedError: "line 4: cannot unmarshal !!str `fooName` into profiledefinition.SymbolConfig",
+			expectedError: "line 5: cannot unmarshal !!str `fooName` into profiledefinition.SymbolConfig",
 		},
 	}
 	for _, tt := range tests {

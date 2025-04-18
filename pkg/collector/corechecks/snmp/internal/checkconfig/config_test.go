@@ -1835,11 +1835,11 @@ func TestHaveLegacyProfile(t *testing.T) {
 		name                      string
 		rawInstanceConfig         []byte
 		rawInitConfig             []byte
-		mockConfd                 string
+		mockConfdPath             string
 		expectedHaveLegacyProfile bool
 	}{
 		{
-			name: "legacy custom profile with loader specified should not fallback to Python",
+			name: "legacy custom profile (no oid) with loader specified should not fallback to Python",
 			// language=yaml
 			rawInstanceConfig: []byte(`
 loader: core
@@ -1850,7 +1850,22 @@ profile: legacy
 `),
 			// language=yaml
 			rawInitConfig:             []byte(``),
-			mockConfd:                 "legacy.d",
+			mockConfdPath:             filepath.Join("..", "test", "legacy_profiles", "legacy_no_oid.d"),
+			expectedHaveLegacyProfile: false,
+		},
+		{
+			name: "legacy custom profile (string symbol type) with loader specified should not fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+loader: core
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: legacy
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfdPath:             filepath.Join("..", "test", "legacy_profiles", "legacy_symbol_type.d"),
 			expectedHaveLegacyProfile: false,
 		},
 		{
@@ -1874,7 +1889,7 @@ profiles:
             # OID: 1.2.3.4.5.6
             name: fooName
 `),
-			mockConfd:                 "legacy.d",
+			mockConfdPath:             filepath.Join("..", "test", "legacy_profiles", "legacy_no_oid.d"),
 			expectedHaveLegacyProfile: false,
 		},
 		{
@@ -1889,7 +1904,7 @@ profile: f5-big-ip
 `),
 			// language=yaml
 			rawInitConfig:             []byte(``),
-			mockConfd:                 "conf.d",
+			mockConfdPath:             filepath.Join("..", "test", "conf.d"),
 			expectedHaveLegacyProfile: false,
 		},
 		{
@@ -1903,11 +1918,11 @@ profile: f5-big-ip
 `),
 			// language=yaml
 			rawInitConfig:             []byte(``),
-			mockConfd:                 "conf.d",
+			mockConfdPath:             filepath.Join("..", "test", "conf.d"),
 			expectedHaveLegacyProfile: false,
 		},
 		{
-			name: "legacy custom profile without loader specified should fallback to Python",
+			name: "legacy custom profile (no oid) without loader specified should fallback to Python",
 			// language=yaml
 			rawInstanceConfig: []byte(`
 ip_address: 1.2.3.4
@@ -1917,7 +1932,21 @@ profile: legacy
 `),
 			// language=yaml
 			rawInitConfig:             []byte(``),
-			mockConfd:                 "legacy.d",
+			mockConfdPath:             filepath.Join("..", "test", "legacy_profiles", "legacy_no_oid.d"),
+			expectedHaveLegacyProfile: true,
+		},
+		{
+			name: "legacy custom profile (string symbol type) without loader specified should fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: legacy
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfdPath:             filepath.Join("..", "test", "legacy_profiles", "legacy_symbol_type.d"),
 			expectedHaveLegacyProfile: true,
 		},
 		{
@@ -1940,7 +1969,7 @@ profiles:
             # OID: 1.2.3.4.5.6
             name: fooName
 `),
-			mockConfd:                 "legacy.d",
+			mockConfdPath:             filepath.Join("..", "test", "legacy_profiles", "legacy_no_oid.d"),
 			expectedHaveLegacyProfile: true,
 		},
 		{
@@ -1968,7 +1997,7 @@ metrics:
 `),
 			// language=yaml
 			rawInitConfig:             []byte(``),
-			mockConfd:                 "legacy.d",
+			mockConfdPath:             filepath.Join("..", "test", "legacy_profiles", "legacy_no_oid.d"),
 			expectedHaveLegacyProfile: true,
 		},
 	}
@@ -1976,7 +2005,7 @@ metrics:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			profile.SetGlobalProfileConfigMap(nil)
-			mockConfdPath, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
+			mockConfdPath, _ := filepath.Abs(tt.mockConfdPath)
 			pkgconfigsetup.Datadog().SetWithoutSource("confd_path", mockConfdPath)
 
 			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)
