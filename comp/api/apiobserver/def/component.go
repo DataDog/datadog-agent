@@ -3,12 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package apiobserver ... /* TODO: detailed doc comment for the component */
+// Package apiobserver provides telemetry middleware for api servers
 package apiobserver
 
-// team: /* TODO: add team name */
+import (
+	"net/http"
+
+	"github.com/gorilla/mux"
+)
+
+// team: agent-runtimes
 
 // Component is the component type.
 type Component interface {
-    /* TODO: define Component interface */
+	Middleware(serverName string, authTagGetter func(r *http.Request) string) mux.MiddlewareFunc
 }

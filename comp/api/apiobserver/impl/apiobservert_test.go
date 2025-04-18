@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observability
+package apiobserverimpl
 
 import (
 	"fmt"
@@ -56,8 +56,8 @@ func TestTelemetryMiddleware(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			clock := clock.NewMock()
 			telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-			tm := newTelemetryMiddlewareFactory(telemetry, clock, NoopAuthTagGetter)
-			telemetryHandler := tm.Middleware(serverName)
+			tm := newComponentWithClock(telemetry, clock)
+			telemetryHandler := tm.Comp.Middleware(serverName, NoopAuthTagGetter)
 
 			var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {
 				clock.Add(tc.duration)
@@ -103,7 +103,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 
 func TestTelemetryMiddlewareDuration(t *testing.T) {
 	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	telemetryHandler := NewTelemetryMiddlewareFactory(telemetry, NoopAuthTagGetter).Middleware("test")
+	telemetryHandler := NewComponent(Requires{telemetry}).Comp.Middleware("test", NoopAuthTagGetter)
 
 	var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -123,13 +123,13 @@ func TestTelemetryMiddlewareDuration(t *testing.T) {
 
 func TestTelemetryMiddlewareTwice(t *testing.T) {
 	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	tm := NewTelemetryMiddlewareFactory(telemetry, NoopAuthTagGetter)
+	tm := NewComponent(Requires{telemetry})
 
 	// test that we can create multiple middleware instances
 	// Prometheus metrics can be registered only once, this test enforces that the metric
 	// is not created in the Middleware itself
-	_ = tm.Middleware("test1")
-	_ = tm.Middleware("test2")
+	_ = tm.Comp.Middleware("test1", NoopAuthTagGetter)
+	_ = tm.Comp.Middleware("test2", NoopAuthTagGetter)
 }
 
 func NoopAuthTagGetter(_ *http.Request) string {
