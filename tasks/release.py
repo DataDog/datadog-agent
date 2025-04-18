@@ -799,17 +799,18 @@ def create_release_branches(
 
         set_new_release_branch(release_branch)
 
-        # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml and notify.yml jobs
-        with open(".gitlab-ci.yml", "w") as f:
+        # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml
+        with open(".gitlab-ci.yml") as f:
             content = f.read()
+        with open(".gitlab-ci.yml", "w") as f:
             f.write(
                 content.replace(f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}')
             )
 
         # Step 1.3 - Commit new changes
-        ctx.run("git add release.json .gitlab-ci.yml .gitlab/notify/notify.yml")
+        ctx.run("git add release.json .gitlab-ci.yml")
         ok = try_git_command(
-            ctx, f"git commit -m 'Update release.json, .gitlab-ci.yml and notify.yml with {release_branch}'"
+            ctx, f"git commit -m 'Update release.json, .gitlab-ci.yml with {release_branch}'"
         )
         if not ok:
             raise Exit(
@@ -833,7 +834,7 @@ def create_release_branches(
             )
 
         create_release_pr(
-            f"[release] Update release.json and gitlab files for {release_branch} branch",
+            f"[release] Update release.json and .gitlab-ci.yml files for {release_branch} branch",
             release_branch,
             update_branch,
             current,
