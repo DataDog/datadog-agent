@@ -175,3 +175,61 @@ func Test_loadYamlProfiles_validAndInvalidProfiles(t *testing.T) {
 	assert.NotContains(t, defaultProfiles, "f5-invalid")
 	assert.True(t, haveLegacyProfile)
 }
+
+func Test_getProfileDefinitions_legacyProfiles(t *testing.T) {
+	legacyLoadLog := "found legacy profile \"legacy\""
+
+	legacyNoOIDLogs := TrapLogs(t, log.DebugLvl)
+	legacyNoOIDProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_no_oid.d"))
+	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", legacyNoOIDProfilesConfdPath)
+	SetGlobalProfileConfigMap(nil)
+	defaultProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
+	require.NoError(t, err)
+	assert.Len(t, defaultProfiles, 2)
+	assert.Contains(t, defaultProfiles, "legacy")
+	assert.Contains(t, defaultProfiles, "valid")
+	assert.False(t, haveLegacyProfile)
+	legacyNoOIDLogs.AssertAbsent(t, legacyLoadLog)
+
+	legacySymbolTypeLogs := TrapLogs(t, log.DebugLvl)
+	legacySymbolTypeProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_symbol_type.d"))
+	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", legacySymbolTypeProfilesConfdPath)
+	SetGlobalProfileConfigMap(nil)
+	defaultProfiles, haveLegacyProfile, err = getProfileDefinitions(userProfilesFolder, true)
+	require.NoError(t, err)
+	assert.Len(t, defaultProfiles, 1)
+	assert.Contains(t, defaultProfiles, "valid")
+	assert.True(t, haveLegacyProfile)
+	legacySymbolTypeLogs.AssertPresent(t, legacyLoadLog)
+}
+
+func Test_loadYamlProfiles_legacyProfiles(t *testing.T) {
+	legacyLoadLog := "found legacy profile \"legacy\""
+	legacyMetricsLog := "found legacy metrics definition in profile \"legacy\""
+
+	legacyNoOIDLogs := TrapLogs(t, log.DebugLvl)
+	legacyNoOIDProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_no_oid.d"))
+	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", legacyNoOIDProfilesConfdPath)
+	SetGlobalProfileConfigMap(nil)
+	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
+	require.NoError(t, err)
+	assert.Len(t, defaultProfiles, 1)
+	assert.Contains(t, defaultProfiles, "valid")
+	assert.True(t, haveLegacyProfile)
+	// Legacy profiles due to an OID not being present should not be detected during loading time
+	legacyNoOIDLogs.AssertAbsent(t, legacyLoadLog)
+	legacyNoOIDLogs.AssertPresent(t, legacyMetricsLog)
+
+	legacySymbolTypeLogs := TrapLogs(t, log.DebugLvl)
+	legacySymbolTypeProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_symbol_type.d"))
+	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", legacySymbolTypeProfilesConfdPath)
+	SetGlobalProfileConfigMap(nil)
+	defaultProfiles, haveLegacyProfile, err = loadYamlProfiles()
+	require.NoError(t, err)
+	assert.Len(t, defaultProfiles, 1)
+	assert.Contains(t, defaultProfiles, "valid")
+	assert.True(t, haveLegacyProfile)
+	// Legacy profiles due to a string symbol type should be detected during loading time
+	legacySymbolTypeLogs.AssertPresent(t, legacyLoadLog)
+	legacySymbolTypeLogs.AssertAbsent(t, legacyMetricsLog)
+}
