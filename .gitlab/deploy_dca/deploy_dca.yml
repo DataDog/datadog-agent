@@ -26,8 +26,3 @@ deploy_containers-dca:
   extends: .deploy_containers-dca-base
   rules: !reference [.on_deploy_manual_auto_on_rc]
 
-deploy_containers-dca-rc:
-  extends: .deploy_containers-dca-base
-  rules: !reference [.on_deploy_rc]
-  variables:
-    VERSION: rc
