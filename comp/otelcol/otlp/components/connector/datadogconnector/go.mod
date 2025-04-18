@@ -3,14 +3,15 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/d
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.64.1
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.64.1
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.59.0
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.64.0-rc.3
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.2
 	github.com/DataDog/datadog-agent/pkg/trace v0.64.2
+	github.com/DataDog/datadog-agent/pkg/util/option v0.64.1
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0
@@ -44,7 +45,7 @@ require (
 require go.opentelemetry.io/contrib/otelconf v0.15.0 // indirect
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.146 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.147 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.64.1 // indirect
@@ -115,7 +116,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/json v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.64.1 // indirect

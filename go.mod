@@ -33,9 +33,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0
 	github.com/DataDog/datadog-agent/pkg/trace v0.64.2
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.64.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.64.3
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.64.2
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.3
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	// TODO: pin to an operator released version once there is a release that includes the api module
 	github.com/DataDog/datadog-operator/api v0.0.0-20250417130148-1aa8dc0fc964
@@ -553,7 +553,7 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.146
+	github.com/DataDog/agent-payload/v5 v5.0.147
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.1
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.64.1
@@ -646,8 +646,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.64.2
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.64.2
-	github.com/DataDog/datadog-agent/pkg/version v0.64.2
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.64.3
+	github.com/DataDog/datadog-agent/pkg/version v0.64.3
 	github.com/DataDog/go-libddwaf/v3 v3.5.2
 	github.com/DataDog/go-sqllexer v0.1.3
 	github.com/Datadog/dublin-traceroute v0.0.2

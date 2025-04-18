@@ -44,5 +44,4 @@
 '@datadog/agent-devx': ACIX
 '@datadog/injection-platform': INPLAT
 '@datadog/agent-processing-and-routing': APR
-'@DataDog/container-ecosystems': CECO
 '@datadog/agent-discovery': DSCVR
