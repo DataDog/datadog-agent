@@ -11,6 +11,8 @@ import (
 	"context"
 	"time"
 
+	"k8s.io/utils/clock"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
@@ -30,8 +32,8 @@ type Recommender struct {
 }
 
 // NewRecommender creates a new Recommender to start generating local recommendations
-func NewRecommender(podWatcher workload.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) *Recommender {
-	replicaCalculator := newReplicaCalculator(podWatcher)
+func NewRecommender(clock clock.Clock, podWatcher workload.PodWatcher, store *autoscaling.Store[model.PodAutoscalerInternal]) *Recommender {
+	replicaCalculator := newReplicaCalculator(clock, podWatcher)
 
 	return &Recommender{
 		replicaCalculator: replicaCalculator,
