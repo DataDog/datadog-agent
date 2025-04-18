@@ -170,7 +170,15 @@ def __tag_single_module(ctx, module, tag_name, commit, force_option, devel):
 
 @task
 def tag_modules(
-    ctx, release_branch=None, commit="HEAD", push=True, force=False, devel=False, version=None, trust=False
+    ctx,
+    release_branch=None,
+    commit="HEAD",
+    push=True,
+    force=False,
+    devel=False,
+    version=None,
+    trust=False,
+    skip_agent_context=False,
 ):
     """Create tags for Go nested modules for a given Datadog Agent version.
 
@@ -180,6 +188,7 @@ def tag_modules(
         push: Will push the tags to the origin remote (on by default).
         force: Will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
         devel: Will create -devel tags (used after creation of the release branch).
+        skip_agent_context: Won't do context change if set.
 
     Examples:
         $ dda inv -e release.tag-modules 7.27.x                 # Create tags and push them to origin
@@ -191,8 +200,8 @@ def tag_modules(
 
     agent_version = version or deduce_version(ctx, release_branch, trust=trust)
 
-    tags = []
-    with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
+    def _tag_modules():
+        tags = []
         force_option = __get_force_option(force)
         for module in get_default_modules().values():
             # Skip main module; this is tagged at tag_version via __tag_single_module.
@@ -209,6 +218,12 @@ def tag_modules(
             print(f"Pushed tag {tags_list}")
         print(f"Created module tags for version {agent_version}")
 
+    if skip_agent_context:
+        _tag_modules()
+    else:
+        with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
+            _tag_modules()
+
 
 @task
 def tag_version(
@@ -221,16 +236,18 @@ def tag_version(
     version=None,
     trust=False,
     start_qual=False,
+    skip_agent_context=False,
 ):
     """Create tags for a given Datadog Agent version.
 
     Args:
-        commit: Will tag `commit` with the tags (default HEAD)
+        commit: Will tag `commit` with the tags (default HEAD).
         verify: Checks for correctness on the Agent version (on by default).
         push: Will push the tags to the origin remote (on by default).
         force: Will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
-        devel: Will create -devel tags (used after creation of the release branch)
-        start_qual: Will start the qualification phase for agent 6 release candidate by adding a qualification tag
+        devel: Will create -devel tags (used after creation of the release branch).
+        start_qual: Will start the qualification phase for agent 6 release candidate by adding a qualification tag.
+        skip_agent_context: Won't do context change if set.
 
     Examples:
         $ dda inv -e release.tag-version -r 7.27.x            # Create tags and push them to origin
@@ -242,9 +259,9 @@ def tag_version(
 
     agent_version = version or deduce_version(ctx, release_branch, trust=trust)
 
-    # Always tag the main module
-    force_option = __get_force_option(force)
-    with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
+    def _tag_version():
+        # Always tag the main module
+        force_option = __get_force_option(force)
         tags = __tag_single_module(ctx, get_default_modules()["."], agent_version, commit, force_option, devel)
 
         set_gitconfig_in_ci(ctx)
@@ -262,14 +279,20 @@ def tag_version(
             tags_list = ' '.join(tags)
             ctx.run(f"git push origin {tags_list}{force_option}")
             print(f"Pushed tag {tags_list}")
-    print(f"Created tags for version {agent_version}")
+        print(f"Created tags for version {agent_version}")
+
+    if skip_agent_context:
+        _tag_version()
+    else:
+        with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
+            _tag_version()
 
 
 @task
 def tag_devel(ctx, release_branch, commit="HEAD", push=True, force=False):
     with agent_context(ctx, get_default_branch(major=get_version_major(release_branch))):
-        tag_version(ctx, release_branch, commit, push, force, devel=True)
-        tag_modules(ctx, release_branch, commit, push, force, devel=True, trust=True)
+        tag_version(ctx, release_branch, commit, push, force, devel=True, skip_agent_context=True)
+        tag_modules(ctx, release_branch, commit, push, force, devel=True, trust=True, skip_agent_context=True)
 
 
 @task
