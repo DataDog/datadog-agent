@@ -1835,7 +1835,7 @@ func TestHaveLegacyProfile(t *testing.T) {
 		name                      string
 		rawInstanceConfig         []byte
 		rawInitConfig             []byte
-		mockConfdPath             string
+		mockConfd                 string
 		expectedHaveLegacyProfile bool
 	}{
 		{
@@ -1850,7 +1850,7 @@ profile: legacy
 `),
 			// language=yaml
 			rawInitConfig:             []byte(``),
-			mockConfdPath:             filepath.Join("..", "test", "legacy_profiles", "legacy_no_oid.d"),
+			mockConfd:                 "legacy_no_oid.d",
 			expectedHaveLegacyProfile: false,
 		},
 		{
@@ -1865,7 +1865,7 @@ profile: legacy
 `),
 			// language=yaml
 			rawInitConfig:             []byte(``),
-			mockConfdPath:             filepath.Join("..", "test", "legacy_profiles", "legacy_symbol_type.d"),
+			mockConfd:                 "legacy_symbol_type.d",
 			expectedHaveLegacyProfile: false,
 		},
 		{
@@ -1889,7 +1889,7 @@ profiles:
             # OID: 1.2.3.4.5.6
             name: fooName
 `),
-			mockConfdPath:             filepath.Join("..", "test", "conf.d"),
+			mockConfd:                 "conf.d",
 			expectedHaveLegacyProfile: false,
 		},
 		{
@@ -1904,7 +1904,7 @@ profile: f5-big-ip
 `),
 			// language=yaml
 			rawInitConfig:             []byte(``),
-			mockConfdPath:             filepath.Join("..", "test", "conf.d"),
+			mockConfd:                 "conf.d",
 			expectedHaveLegacyProfile: false,
 		},
 		{
@@ -1918,7 +1918,7 @@ profile: f5-big-ip
 `),
 			// language=yaml
 			rawInitConfig:             []byte(``),
-			mockConfdPath:             filepath.Join("..", "test", "conf.d"),
+			mockConfd:                 "conf.d",
 			expectedHaveLegacyProfile: false,
 		},
 		{
@@ -1932,7 +1932,7 @@ profile: legacy
 `),
 			// language=yaml
 			rawInitConfig:             []byte(``),
-			mockConfdPath:             filepath.Join("..", "test", "legacy_profiles", "legacy_no_oid.d"),
+			mockConfd:                 "legacy_no_oid.d",
 			expectedHaveLegacyProfile: true,
 		},
 		{
@@ -1946,7 +1946,7 @@ profile: legacy
 `),
 			// language=yaml
 			rawInitConfig:             []byte(``),
-			mockConfdPath:             filepath.Join("..", "test", "legacy_profiles", "legacy_symbol_type.d"),
+			mockConfd:                 "legacy_symbol_type.d",
 			expectedHaveLegacyProfile: true,
 		},
 		{
@@ -1969,7 +1969,7 @@ profiles:
             # OID: 1.2.3.4.5.6
             name: fooName
 `),
-			mockConfdPath:             filepath.Join("..", "test", "conf.d"),
+			mockConfd:                 "conf.d",
 			expectedHaveLegacyProfile: true,
 		},
 		{
@@ -1997,7 +1997,7 @@ metrics:
 `),
 			// language=yaml
 			rawInitConfig:             []byte(``),
-			mockConfdPath:             filepath.Join("..", "test", "conf.d"),
+			mockConfd:                 "conf.d",
 			expectedHaveLegacyProfile: true,
 		},
 	}
@@ -2005,7 +2005,7 @@ metrics:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			profile.SetGlobalProfileConfigMap(nil)
-			mockConfdPath, _ := filepath.Abs(tt.mockConfdPath)
+			mockConfdPath, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
 			pkgconfigsetup.Datadog().SetWithoutSource("confd_path", mockConfdPath)
 
 			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)

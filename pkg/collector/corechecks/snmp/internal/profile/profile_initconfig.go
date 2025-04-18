@@ -9,12 +9,15 @@ import "github.com/DataDog/datadog-agent/pkg/util/log"
 
 func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConfigMap, bool, error) {
 	initConfigProfiles := make(ProfileConfigMap, len(rawInitConfigProfiles))
-	haveLegacyProfile := false
+	var haveLegacyProfile bool
 
 	for name, profConfig := range rawInitConfigProfiles {
 		if profConfig.DefinitionFile != "" {
 			profDefinition, haveLegacyInitConfigProfile, err := readProfileDefinition(profConfig.DefinitionFile)
-			haveLegacyProfile = haveLegacyProfile || haveLegacyInitConfigProfile
+			if haveLegacyInitConfigProfile {
+				log.Warnf("found legacy profile in init config %q", name)
+				haveLegacyProfile = true
+			}
 			if err != nil {
 				log.Warnf("unable to load profile %q: %s", name, err)
 				continue

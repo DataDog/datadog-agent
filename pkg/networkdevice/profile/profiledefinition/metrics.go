@@ -42,6 +42,7 @@ const (
 	ProfileMetricTypePercent ProfileMetricType = "percent"
 )
 
+// LegacySymbolTypeError is returned when unmarshaling a MetricsConfig with a legacy string symbol type
 var LegacySymbolTypeError = fmt.Errorf("yaml: unmarshal errors: legacy symbol type 'string' is not supported with the Core loader")
 
 // SymbolConfigCompat is used to deserialize string field or SymbolConfig.

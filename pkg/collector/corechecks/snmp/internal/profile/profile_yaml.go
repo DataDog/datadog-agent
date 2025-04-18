@@ -65,7 +65,7 @@ func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileCo
 	}
 
 	profiles := make(ProfileConfigMap)
-	haveLegacyProfile := false
+	var haveLegacyProfile bool
 	for _, f := range files {
 
 		fName := f.Name()
@@ -77,7 +77,10 @@ func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileCo
 
 		absPath := filepath.Join(profilesRoot, fName)
 		definition, isLegacyProfile, err := readProfileDefinition(absPath)
-		haveLegacyProfile = haveLegacyProfile || isLegacyProfile
+		if isLegacyProfile {
+			log.Warnf("found legacy profile %q", profileName)
+			haveLegacyProfile = true
+		}
 		if err != nil {
 			log.Warnf("cannot load profile %q: %v", profileName, err)
 			continue

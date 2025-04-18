@@ -84,7 +84,7 @@ func Test_loadProfiles(t *testing.T) {
 		},
 		{
 			name:                      "OK contains yaml profiles with warning logs",
-			mockConfd:                 "does_non_exist.d",
+			mockConfd:                 "does_not_exist.d",
 			expectedProfileNames:      []string(nil),
 			expectedHaveLegacyProfile: false,
 		},

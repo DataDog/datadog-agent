@@ -29,7 +29,7 @@ func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileCon
 // normalizeProfiles returns a copy of pConfig with all profiles normalized, validated, and fully expanded (i.e. values from their .extend attributes will be baked into the profile itself).
 func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMap) (ProfileConfigMap, bool) {
 	profiles := make(ProfileConfigMap, len(pConfig))
-	haveLegacyProfile := false
+	var haveLegacyProfile bool
 
 	for name := range pConfig {
 		// No need to resolve abstract profile
@@ -44,7 +44,8 @@ func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMa
 			continue
 		}
 
-		if profiledefinition.IsLegacyMetrics(newProfileConfig.Definition.Metrics) {
+		isLegacyMetrics := profiledefinition.IsLegacyMetrics(newProfileConfig.Definition.Metrics)
+		if isLegacyMetrics {
 			log.Warnf("found legacy metrics definition in profile %q", name)
 			haveLegacyProfile = true
 		}

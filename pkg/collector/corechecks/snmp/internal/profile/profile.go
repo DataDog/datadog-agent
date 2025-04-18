@@ -26,7 +26,7 @@ func GetProfileProvider(initConfigProfiles ProfileConfigMap) (Provider, bool, er
 
 func loadProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, bool, error) {
 	var profiles ProfileConfigMap
-	haveLegacyProfile := false
+	var haveLegacyProfile bool
 
 	if len(initConfigProfiles) > 0 {
 		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
@@ -48,6 +48,7 @@ func loadProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, bool, 
 	for _, profileDef := range profiles {
 		profiledefinition.NormalizeMetrics(profileDef.Definition.Metrics)
 	}
+
 	return profiles, haveLegacyProfile, nil
 }
 
