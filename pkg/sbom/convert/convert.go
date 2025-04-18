@@ -5,6 +5,8 @@
 
 //go:build trivy || (windows && wmi)
 
+// Package convert holds conversion helpers from a cyclonedx-go
+// BOM to a agent-payload BOM
 package convert
 
 import (
