@@ -2010,8 +2010,7 @@ metrics:
 
 			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)
 			if tt.expectedHaveLegacyProfile {
-				expectedError := "legacy profile detected with no loader specified, falling back to the Python loader"
-				assert.EqualError(t, err, expectedError)
+				assert.EqualError(t, err, "legacy profile detected with no loader specified, falling back to the Python loader")
 			} else {
 				assert.NoError(t, err)
 			}
