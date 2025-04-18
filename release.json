@@ -1,6 +1,6 @@
 {
     "base_branch": "main",
-    "current_milestone": "7.66.0",
+    "current_milestone": "7.67.0",
     "last_stable": {
         "6": "6.53.1",
         "7": "7.64.3"
@@ -17,7 +17,7 @@
         "WINDOWS_DDPROCMON_DRIVER": "release-signed",
         "WINDOWS_DDPROCMON_VERSION": "1.2.0",
         "WINDOWS_DDPROCMON_SHASUM": "e5525959521254ba8218f64f644ad19cdeb720aa48ee83eb5e402a8d1643e32e",
-        "INTEGRATIONS_CORE_VERSION": "640f0f9c78eae0b4ef595843bb9ca0f1b985e6b9"
+        "INTEGRATIONS_CORE_VERSION": "a94be36a4bb573ebfef98bf89ba51f590a30a807"
     },
     "release": {
         "INTEGRATIONS_CORE_VERSION": "7.56.0-rc.2",
