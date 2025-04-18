@@ -170,7 +170,15 @@ def __tag_single_module(ctx, module, tag_name, commit, force_option, devel):
 
 @task
 def tag_modules(
-    ctx, release_branch=None, commit="HEAD", push=True, force=False, devel=False, version=None, trust=False, skip_agent_context=False
+    ctx,
+    release_branch=None,
+    commit="HEAD",
+    push=True,
+    force=False,
+    devel=False,
+    version=None,
+    trust=False,
+    skip_agent_context=False,
 ):
     """Create tags for Go nested modules for a given Datadog Agent version.
 
