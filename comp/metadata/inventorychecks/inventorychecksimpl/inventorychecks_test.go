@@ -26,6 +26,7 @@ import (
 	logsBundle "github.com/DataDog/datadog-agent/comp/logs"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditormock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -158,6 +159,7 @@ func TestGetPayload(t *testing.T) {
 		mockLogAgent := fxutil.Test[option.Option[logagent.Mock]](
 			t,
 			logsBundle.MockBundle(),
+			auditormock.AuditorMockModule(),
 			core.MockBundle(),
 			inventoryagentimpl.MockModule(),
 			logscompression.MockModule(),

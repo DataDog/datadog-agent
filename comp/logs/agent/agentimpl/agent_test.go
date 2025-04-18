@@ -13,6 +13,7 @@ import (
 	"expvar"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -32,6 +33,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	auditorfx "github.com/DataDog/datadog-agent/comp/logs/auditor/fx"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
@@ -48,6 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
@@ -69,6 +73,7 @@ type testDeps struct {
 	Config         configComponent.Component
 	Log            log.Component
 	InventoryAgent inventoryagent.Component
+	Auditor        auditor.Component
 }
 
 func (suite *AgentTestSuite) SetupTest() {
@@ -125,6 +130,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		hostnameimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
+		auditorfx.Module(),
 	))
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
@@ -136,12 +142,14 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		started:          atomic.NewUint32(0),
 		integrationsLogs: integrationsimpl.NewLogsIntegration(),
 
-		sources:     sources,
-		services:    services,
-		tracker:     tailers.NewTailerTracker(),
-		endpoints:   endpoints,
-		tagger:      fakeTagger,
-		compression: compressionfx.NewMockCompressor(),
+		auditor:         deps.Auditor,
+		sources:         sources,
+		services:        services,
+		tracker:         tailers.NewTailerTracker(),
+		endpoints:       endpoints,
+		tagger:          fakeTagger,
+		flarecontroller: flareController.NewFlareController(),
+		compression:     compressionfx.NewMockCompressor(),
 	}
 
 	agent.setupAgent()
@@ -233,8 +241,38 @@ func (suite *AgentTestSuite) TestGetPipelineProvider() {
 
 	agent, _, _ := createAgent(suite, endpoints)
 	agent.Start()
+	defer agent.Stop()
 
 	assert.NotNil(suite.T(), agent.GetPipelineProvider())
+}
+
+func (suite *AgentTestSuite) TestAgentLiveness() {
+	oldcatalog := health.SetTestReadinessAndLivenessCatalog(100 * time.Millisecond)
+	defer health.RestoreReadinessAndLivenessCatalog(oldcatalog)
+
+	server := http.NewTestServer(200, pkgconfigsetup.Datadog())
+	defer server.Stop()
+	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
+
+	agent, _, _ := createAgent(suite, endpoints)
+	agent.Start()
+	defer agent.Stop()
+
+	var status health.Status
+	// Give the agent at most one health tick to process the logs.
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 1*time.Second, func() bool {
+		status = health.GetLive()
+		return slices.Contains(status.Healthy, "logs-agent")
+	})
+
+	assert.NotContains(suite.T(), status.Unhealthy, "logs-agent", "logs-agent should not be unhealthy")
+	count := 0
+	for _, h := range status.Healthy {
+		if h == "logs-agent" {
+			count++
+		}
+	}
+	assert.Equal(suite.T(), 1, count, "logs-agent should appear exactly once in status.Healthy")
 }
 
 func (suite *AgentTestSuite) TestStatusProvider() {
@@ -414,6 +452,7 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		fx.Provide(func() tagger.Component {
 			return suite.tagger
 		}),
+		auditorfx.Module(),
 	))
 }
 

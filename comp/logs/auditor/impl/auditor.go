@@ -105,8 +105,7 @@ func NewProvides(deps Dependencies) Provides {
 
 // Start starts the Auditor
 func (a *registryAuditor) Start() {
-	health := health.RegisterLiveness("logs-agent")
-	a.health = health
+	a.health = health.RegisterLiveness("logs-agent")
 
 	a.createChannels()
 	a.registry = a.recoverRegistry()

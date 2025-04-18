@@ -83,10 +83,11 @@ func (c *catalog) register(name string, options ...Option) *Handle {
 // return if no components are registered anymore
 func (c *catalog) run() {
 	pingTicker := time.NewTicker(pingFrequency)
+	pingDeadline := mulDuration(pingFrequency, bufferSize)
 
 	for {
 		t := <-pingTicker.C
-		empty := c.pingComponents(t.Add(mulDuration(pingFrequency, bufferSize)))
+		empty := c.pingComponents(t.Add(pingDeadline))
 		if empty {
 			break
 		}
