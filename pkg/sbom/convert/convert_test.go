@@ -5,7 +5,7 @@
 
 //go:build trivy || windows
 
-package sbom
+package convert
 
 import (
 	"testing"
