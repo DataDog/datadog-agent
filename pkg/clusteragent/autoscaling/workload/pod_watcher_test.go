@@ -210,7 +210,7 @@ func TestGetNamespacedPodOwner(t *testing.T) {
 				Kind:      kubernetes.ReplicaSetKind,
 				Name:      "datadog-agent-linux-cluster-agent",
 			},
-			err: errors.New("deployment is not a valid owner"),
+			err: errors.New(errDeploymentNotValidOwner),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

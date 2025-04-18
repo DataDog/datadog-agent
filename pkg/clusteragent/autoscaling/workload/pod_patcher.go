@@ -142,7 +142,7 @@ func (pa podPatcher) findAutoscaler(pod *corev1.Pod) (*model.PodAutoscalerIntern
 
 	// Ignore pods owned directly by a deployment
 	if ownerRef.Kind == kubernetes.DeploymentKind {
-		return nil, fmt.Errorf("deployment is not a valid owner")
+		return nil, fmt.Errorf(errDeploymentNotValidOwner)
 	}
 
 	if ownerRef.Kind == kubernetes.ReplicaSetKind {
