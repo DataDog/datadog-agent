@@ -20,7 +20,7 @@ fetch_openjdk                        @DataDog/agent-metric-pipelines
 tests_*                                 @DataDog/multiple
 tests_ebpf*                             @DataDog/ebpf-platform
 tests_serverless                        @DataDog/serverless
-tests_windows_sysprobe*                 @DataDog/windows-kernel-integrations
+tests_windows_sysprobe*                 @DataDog/windows-agent
 security_go_generate_check              @DataDog/agent-security
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
 prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
