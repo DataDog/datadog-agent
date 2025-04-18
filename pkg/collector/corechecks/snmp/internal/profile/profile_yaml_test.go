@@ -173,5 +173,5 @@ func Test_loadYamlProfiles_validAndInvalidProfiles(t *testing.T) {
 
 	assert.Contains(t, defaultProfiles, "f5-big-ip")
 	assert.NotContains(t, defaultProfiles, "f5-invalid")
-	assert.False(t, haveLegacyProfile)
+	assert.True(t, haveLegacyProfile)
 }

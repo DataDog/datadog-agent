@@ -11,5 +11,6 @@ device:
 sysobjectid: 1.3.6.1.4.1.3375.2.1.3.99.*
 
 metrics:
-  - metric_type: gauge
+  - MIB: F5-BIGIP-SYSTEM-MIB
+    metric_type: gauge
     symbol: sysStatMemoryTotal  # invalid
