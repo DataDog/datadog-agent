@@ -213,6 +213,12 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 
 		fmt.Println("LEN OF LOADERS")
 		fmt.Println(len(s.loaders))
+		fmt.Println(s.loaders)
+		for _, loader := range s.loaders {
+			fmt.Print(loader.Name())
+			fmt.Print(" | ")
+		}
+		fmt.Println()
 		var pythonLoader check.Loader
 		for _, loader := range s.loaders {
 			if loader.Name() == "python" {
