@@ -90,3 +90,60 @@ func TestIsStringPrintable(t *testing.T) {
 		})
 	}
 }
+
+func TestStandardTypeToString(t *testing.T) {
+	tests := []struct {
+		name        string
+		value       interface{}
+		expectedStr string
+		expectErr   bool
+	}{
+		{
+			name:        "float64",
+			value:       float64(123),
+			expectedStr: "123",
+			expectErr:   false,
+		},
+		{
+			name:        "string",
+			value:       "test string",
+			expectedStr: "test string",
+			expectErr:   false,
+		},
+		{
+			name:        "printable byte array",
+			value:       []byte("hello world"),
+			expectedStr: "hello world",
+			expectErr:   false,
+		},
+		{
+			name:        "non-printable byte array",
+			value:       []byte{0x01, 0x02, 0x03},
+			expectedStr: "0x010203",
+			expectErr:   false,
+		},
+		{
+			name:        "byte array with trailing nulls",
+			value:       append([]byte("test"), 0x00, 0x00),
+			expectedStr: "test",
+			expectErr:   false,
+		},
+		{
+			name:        "invalid type",
+			value:       []int{1, 2, 3},
+			expectedStr: "",
+			expectErr:   true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			str, err := StandardTypeToString(tt.value)
+			if tt.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedStr, str)
+			}
+		})
+	}
+}
