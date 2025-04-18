@@ -146,13 +146,12 @@ class GateMetricHandler:
             if out.exited == 0:
                 print("[DEBUG] FETCH SUCCESS")
                 ancestor_metric_handler = GateMetricHandler(ancestor, self.bucket_branch, filename)
-                print(f"[DEBUG] {list(ancestor_metric_handler.metrics.keys())}\n{list(self.metrics.keys())}")
                 for gate in self.metrics:
                     ancestor_gate = ancestor_metric_handler.metrics.get(gate)
                     if not ancestor_gate:
                         continue
                     for metric_key in ["current_on_wire_size", "current_on_disk_size"]:
-                        if self.metrics.get(metric_key) and ancestor_gate.get(metric_key):
+                        if self.metrics[gate].get(metric_key) and ancestor_gate.get(metric_key):
                             relative_metric_size = ancestor_gate[metric_key] - self.metrics[gate][metric_key]
                             print(f"[DEBUG] {relative_metric_size}")
                             self.register_metric(gate, metric_key.replace("current", "relative"), relative_metric_size)
