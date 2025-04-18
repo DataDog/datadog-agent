@@ -142,7 +142,7 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
-	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression)
+	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, origin)
 
 	traceAgent := setupTraceAgent(tags, tagger)
 

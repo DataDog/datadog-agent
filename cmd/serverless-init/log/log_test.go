@@ -37,3 +37,12 @@ func TestIsEnabledFalse(t *testing.T) {
 	assert.False(t, isEnabled("1"))
 	assert.False(t, isEnabled("FALSE"))
 }
+
+func TestIsInstanceTailingEnabled(t *testing.T) {
+	t.Setenv("DD_AAS_INSTANCE_LOGGING_ENABLED", "false")
+	assert.False(t, isInstanceTailingEnabled())
+	t.Setenv("DD_AAS_INSTANCE_LOGGING_ENABLED", "True")
+	assert.True(t, isInstanceTailingEnabled())
+	t.Setenv("DD_AAS_INSTANCE_LOGGING_ENABLED", "")
+	assert.True(t, isInstanceTailingEnabled())
+}
