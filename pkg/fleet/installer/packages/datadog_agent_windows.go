@@ -9,20 +9,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"os"
 	"path"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 	"golang.org/x/sys/windows/svc"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
 // datadogAgentPackage is the package for the Datadog Agent
@@ -341,6 +343,8 @@ func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 
 func removeAgentIfInstalled(ctx context.Context) (err error) {
 	// Stop the Datadog Agent services before trying to remove it
+	// As datadogagent will shutdown the installer service when it stops
+	// we do not need to stop the installer service
 	log.Infof("stopping the datadogagent service")
 	err = winutil.StopService("datadogagent")
 	if err != nil {
