@@ -8,6 +8,7 @@ package checkconfig
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"testing"
 	"time"
@@ -1829,6 +1830,8 @@ func TestCheckConfig_GetStaticTags(t *testing.T) {
 }
 
 func TestHaveLegacyProfile(t *testing.T) {
+	mockConfig := configmock.New(t)
+
 	tests := []struct {
 		name                      string
 		rawInstanceConfig         []byte
@@ -2004,7 +2007,7 @@ metrics:
 		t.Run(tt.name, func(t *testing.T) {
 			profile.SetGlobalProfileConfigMap(nil)
 			mockConfdPath, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
-			pkgconfigsetup.Datadog().SetWithoutSource("confd_path", mockConfdPath)
+			mockConfig.SetWithoutSource("confd_path", mockConfdPath)
 
 			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)
 			if tt.expectedHaveLegacyProfile {

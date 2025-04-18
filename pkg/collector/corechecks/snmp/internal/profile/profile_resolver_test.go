@@ -30,13 +30,13 @@ func Test_resolveProfiles(t *testing.T) {
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
 	mockConfig.SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
-	profilesWithInvalidExtendProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+	profilesWithInvalidExtendProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 	require.False(t, haveLegacyProfile)
 
 	invalidCyclicConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_cyclic.d"))
 	mockConfig.SetWithoutSource("confd_path", invalidCyclicConfdPath)
-	invalidCyclicProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+	invalidCyclicProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 	require.False(t, haveLegacyProfile)
 
@@ -52,7 +52,7 @@ func Test_resolveProfiles(t *testing.T) {
 
 	userProfilesCaseConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
 	mockConfig.SetWithoutSource("confd_path", userProfilesCaseConfdPath)
-	userProfilesCaseUserProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+	userProfilesCaseUserProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 	require.False(t, haveLegacyProfile)
 	userProfilesCaseDefaultProfiles, haveLegacyProfile, err := getProfileDefinitions(defaultProfilesFolder, true)
@@ -60,13 +60,13 @@ func Test_resolveProfiles(t *testing.T) {
 	require.False(t, haveLegacyProfile)
 
 	legacyNoOIDConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_no_oid.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", legacyNoOIDConfdPath)
+	mockConfig.SetWithoutSource("confd_path", legacyNoOIDConfdPath)
 	legacyNoOIDProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 	require.False(t, haveLegacyProfile)
 
 	legacySymbolTypeConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_symbol_type.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", legacySymbolTypeConfdPath)
+	mockConfig.SetWithoutSource("confd_path", legacySymbolTypeConfdPath)
 	legacySymbolTypeProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 	require.True(t, haveLegacyProfile)

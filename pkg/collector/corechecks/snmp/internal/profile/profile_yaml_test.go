@@ -183,11 +183,13 @@ func Test_loadYamlProfiles_validAndInvalidProfiles(t *testing.T) {
 }
 
 func Test_getProfileDefinitions_legacyProfiles(t *testing.T) {
+	mockConfig := configmock.New(t)
+
 	legacyLoadLog := "found legacy profile \"legacy\""
 
 	legacyNoOIDLogs := TrapLogs(t, log.DebugLvl)
 	legacyNoOIDProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_no_oid.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", legacyNoOIDProfilesConfdPath)
+	mockConfig.SetWithoutSource("confd_path", legacyNoOIDProfilesConfdPath)
 	SetGlobalProfileConfigMap(nil)
 	defaultProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
@@ -199,7 +201,7 @@ func Test_getProfileDefinitions_legacyProfiles(t *testing.T) {
 
 	legacySymbolTypeLogs := TrapLogs(t, log.DebugLvl)
 	legacySymbolTypeProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_symbol_type.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", legacySymbolTypeProfilesConfdPath)
+	mockConfig.SetWithoutSource("confd_path", legacySymbolTypeProfilesConfdPath)
 	SetGlobalProfileConfigMap(nil)
 	defaultProfiles, haveLegacyProfile, err = getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
@@ -210,12 +212,14 @@ func Test_getProfileDefinitions_legacyProfiles(t *testing.T) {
 }
 
 func Test_loadYamlProfiles_legacyProfiles(t *testing.T) {
+	mockConfig := configmock.New(t)
+
 	legacyLoadLog := "found legacy profile \"legacy\""
 	legacyMetricsLog := "found legacy metrics definition in profile \"legacy\""
 
 	legacyNoOIDLogs := TrapLogs(t, log.DebugLvl)
 	legacyNoOIDProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_no_oid.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", legacyNoOIDProfilesConfdPath)
+	mockConfig.SetWithoutSource("confd_path", legacyNoOIDProfilesConfdPath)
 	SetGlobalProfileConfigMap(nil)
 	defaultProfiles, haveLegacyProfile, err := loadYamlProfiles()
 	require.NoError(t, err)
@@ -228,7 +232,7 @@ func Test_loadYamlProfiles_legacyProfiles(t *testing.T) {
 
 	legacySymbolTypeLogs := TrapLogs(t, log.DebugLvl)
 	legacySymbolTypeProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_symbol_type.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", legacySymbolTypeProfilesConfdPath)
+	mockConfig.SetWithoutSource("confd_path", legacySymbolTypeProfilesConfdPath)
 	SetGlobalProfileConfigMap(nil)
 	defaultProfiles, haveLegacyProfile, err = loadYamlProfiles()
 	require.NoError(t, err)
