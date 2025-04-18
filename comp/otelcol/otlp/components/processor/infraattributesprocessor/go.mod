@@ -49,7 +49,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.66.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.66.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.66.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/status v0.66.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/generic_store v0.66.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote v0.66.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.66.0-rc.1 // indirect
