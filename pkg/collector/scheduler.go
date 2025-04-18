@@ -193,7 +193,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 		// TODO: Remove this special case to use Core loader by default for SNMP
 		loaderList := s.loaders
 		if config.Name == "snmp" && selectedInstanceLoader == "" {
-			if loaderList[0].Name() == "python" && loaderList[1].Name() == "core" {
+			if len(loaderList) == 2 && loaderList[0].Name() == "python" && loaderList[1].Name() == "core" {
 				loaderList[0], loaderList[1] = loaderList[1], loaderList[0]
 			}
 		}
