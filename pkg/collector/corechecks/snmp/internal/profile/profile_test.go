@@ -147,12 +147,7 @@ func Test_loadProfiles(t *testing.T) {
 				var metricsNames []string
 				for _, profile := range actualProfiles {
 					for _, metric := range profile.Definition.Metrics {
-						if metric.Symbol.Name != "" {
-							metricsNames = append(metricsNames, metric.Symbol.Name)
-						}
-						for _, symbol := range metric.Symbols {
-							metricsNames = append(metricsNames, symbol.Name)
-						}
+						metricsNames = append(metricsNames, metric.Symbol.Name)
 					}
 				}
 				assert.ElementsMatch(t, tt.expectedProfileMetrics, metricsNames)
