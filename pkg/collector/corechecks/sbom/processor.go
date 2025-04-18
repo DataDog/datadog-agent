@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/procfs"
+	sbomconvert "github.com/DataDog/datadog-agent/pkg/sbom/convert"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -32,6 +33,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/sbom"
 
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -246,7 +248,7 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 				sbom.Status = model.SBOMStatus_FAILED
 			} else {
 				sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-					Cyclonedx: ConvertBOM(report),
+					Cyclonedx: sbomconvert.ConvertBOM(report),
 				}
 			}
 
@@ -257,6 +259,10 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	}
 
 	p.queue <- sbom
+}
+
+func convertDuration(in time.Duration) *durationpb.Duration {
+	return durationpb.New(in)
 }
 
 func (p *processor) triggerHostScan() {
@@ -317,7 +323,7 @@ func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 				sbom.Status = model.SBOMStatus_FAILED
 			} else {
 				sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-					Cyclonedx: ConvertBOM(report),
+					Cyclonedx: sbomconvert.ConvertBOM(report),
 				}
 			}
 		}
@@ -430,7 +436,7 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 			sbom.GeneratedAt = timestamppb.New(img.SBOM.GenerationTime)
 			sbom.GenerationDuration = convertDuration(img.SBOM.GenerationDuration)
 			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-				Cyclonedx: ConvertBOM(img.SBOM.CycloneDXBOM),
+				Cyclonedx: sbomconvert.ConvertBOM(img.SBOM.CycloneDXBOM),
 			}
 		}
 		p.queue <- sbom
