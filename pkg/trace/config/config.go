@@ -397,6 +397,9 @@ type AgentConfig struct {
 	// HTTP Transport used in writer connections. If nil, default transport values will be used.
 	HTTPTransportFunc func() *http.Transport `json:"-"`
 
+	// MinConvertPayloads specifies the minimum number of payloads to convert to IDX format.
+	MinConvertPayloads int
+
 	// internal telemetry
 	StatsdEnabled  bool
 	StatsdHost     string
@@ -615,6 +618,8 @@ func New() *AgentConfig {
 		Features:               make(map[string]struct{}),
 		PeerTagsAggregation:    true,
 		ComputeStatsBySpanKind: true,
+
+		MinConvertPayloads: 0,
 	}
 }
 
