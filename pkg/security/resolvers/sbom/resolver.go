@@ -27,10 +27,10 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	sbomConvert "github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
+	sbomconvert "github.com/DataDog/datadog-agent/pkg/sbom/convert"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -430,7 +430,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 		GenerationDuration: durationpb.New(scanDuration),
 		GeneratedAt:        timestamppb.New(report.CreatedAt),
 		Sbom: &sbomModel.SBOMEntity_Cyclonedx{
-			Cyclonedx: sbomConvert.ConvertBOM(bom),
+			Cyclonedx: sbomconvert.ConvertBOM(bom),
 		},
 	}
 
