@@ -20,15 +20,16 @@ var (
 	profileExpVar = expvar.NewMap("snmpProfileErrors")
 )
 
-func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) ProfileConfigMap {
+func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileConfigMap, bool) {
 	rawProfiles := mergeProfiles(defaultProfiles, userProfiles)
-	userExpandedProfiles := normalizeProfiles(rawProfiles, defaultProfiles)
-	return userExpandedProfiles
+	userExpandedProfiles, haveLegacyProfile := normalizeProfiles(rawProfiles, defaultProfiles)
+	return userExpandedProfiles, haveLegacyProfile
 }
 
 // normalizeProfiles returns a copy of pConfig with all profiles normalized, validated, and fully expanded (i.e. values from their .extend attributes will be baked into the profile itself).
-func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMap) ProfileConfigMap {
+func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMap) (ProfileConfigMap, bool) {
 	profiles := make(ProfileConfigMap, len(pConfig))
+	var haveLegacyProfile bool
 
 	for name := range pConfig {
 		// No need to resolve abstract profile
@@ -42,6 +43,13 @@ func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMa
 			log.Warnf("failed to expand profile %q: %v", name, err)
 			continue
 		}
+
+		isLegacyMetrics := profiledefinition.IsLegacyMetrics(newProfileConfig.Definition.Metrics)
+		if isLegacyMetrics {
+			log.Warnf("found legacy metrics definition in profile %q", name)
+			haveLegacyProfile = true
+		}
+
 		profiledefinition.NormalizeMetrics(newProfileConfig.Definition.Metrics)
 		errors := profiledefinition.ValidateEnrichMetadata(newProfileConfig.Definition.Metadata)
 		errors = append(errors, profiledefinition.ValidateEnrichMetrics(newProfileConfig.Definition.Metrics)...)
@@ -56,7 +64,7 @@ func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMa
 		profiles[name] = newProfileConfig
 	}
 
-	return profiles
+	return profiles, haveLegacyProfile
 }
 
 func recursivelyExpandBaseProfiles(parentExtend string, definition *profiledefinition.ProfileDefinition, extends []string, extendsHistory []string, profiles ProfileConfigMap, defaultProfiles ProfileConfigMap) error {

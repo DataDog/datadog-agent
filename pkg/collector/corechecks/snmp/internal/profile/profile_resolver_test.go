@@ -24,48 +24,69 @@ func Test_resolveProfiles(t *testing.T) {
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d"))
 	mockConfig.SetWithoutSource("confd_path", defaultTestConfdPath)
 	defaultTestConfdProfiles := ProfileConfigMap{}
-	userTestConfdProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+	userTestConfdProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
 	mockConfig.SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
-	profilesWithInvalidExtendProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+	profilesWithInvalidExtendProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
 
 	invalidCyclicConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_cyclic.d"))
 	mockConfig.SetWithoutSource("confd_path", invalidCyclicConfdPath)
-	invalidCyclicProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+	invalidCyclicProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
 
 	profileWithInvalidExtendsFile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "profile_with_invalid_extends.yaml"))
-	profileWithInvalidExtends, err := readProfileDefinition(profileWithInvalidExtendsFile)
+	profileWithInvalidExtends, haveLegacyProfile, err := readProfileDefinition(profileWithInvalidExtendsFile)
 	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
 
 	validationErrorProfileFile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "validation_error.yaml"))
-	validationErrorProfile, err := readProfileDefinition(validationErrorProfileFile)
+	validationErrorProfile, haveLegacyProfile, err := readProfileDefinition(validationErrorProfileFile)
 	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
 
 	userProfilesCaseConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
 	mockConfig.SetWithoutSource("confd_path", userProfilesCaseConfdPath)
-	userProfilesCaseUserProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+	userProfilesCaseUserProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
-	userProfilesCaseDefaultProfiles, err := getProfileDefinitions(defaultProfilesFolder, true)
+	require.False(t, haveLegacyProfile)
+	userProfilesCaseDefaultProfiles, haveLegacyProfile, err := getProfileDefinitions(defaultProfilesFolder, true)
 	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
+
+	legacyNoOIDConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_no_oid.d"))
+	mockConfig.SetWithoutSource("confd_path", legacyNoOIDConfdPath)
+	legacyNoOIDProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
+	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
+
+	legacySymbolTypeConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_symbol_type.d"))
+	mockConfig.SetWithoutSource("confd_path", legacySymbolTypeConfdPath)
+	legacySymbolTypeProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
+	require.NoError(t, err)
+	require.True(t, haveLegacyProfile)
 
 	tests := []struct {
-		name                    string
-		userProfiles            ProfileConfigMap
-		defaultProfiles         ProfileConfigMap
-		expectedProfileDefMap   ProfileConfigMap
-		expectedProfileMetrics  []string
-		expectedInterfaceIDTags []string
-		expectedLogs            []LogCount
+		name                      string
+		userProfiles              ProfileConfigMap
+		defaultProfiles           ProfileConfigMap
+		expectedProfileDefMap     ProfileConfigMap
+		expectedProfileMetrics    []string
+		expectedInterfaceIDTags   []string
+		expectedHaveLegacyProfile bool
+		expectedLogs              []LogCount
 	}{
 		{
-			name:                  "ok case",
-			userProfiles:          userTestConfdProfiles,
-			defaultProfiles:       defaultTestConfdProfiles,
-			expectedProfileDefMap: FixtureProfileDefinitionMap(),
+			name:                      "ok case",
+			userProfiles:              userTestConfdProfiles,
+			defaultProfiles:           defaultTestConfdProfiles,
+			expectedProfileDefMap:     FixtureProfileDefinitionMap(),
+			expectedHaveLegacyProfile: false,
 		},
 		{
 			name:            "ok user profiles case",
@@ -88,6 +109,7 @@ func Test_resolveProfiles(t *testing.T) {
 				"p5:interface",
 				"p6:interface",
 			},
+			expectedHaveLegacyProfile: false,
 		},
 		{
 			name: "invalid extends",
@@ -97,23 +119,26 @@ func Test_resolveProfiles(t *testing.T) {
 					IsUserProfile: true,
 				},
 			},
-			expectedProfileDefMap: ProfileConfigMap{},
+			expectedProfileDefMap:     ProfileConfigMap{},
+			expectedHaveLegacyProfile: false,
 			expectedLogs: []LogCount{
 				{"failed to expand profile \"f5-big-ip\": extend does not exist: `does_not_exist`", 1},
 			},
 		},
 		{
-			name:                  "invalid recursive extends",
-			userProfiles:          profilesWithInvalidExtendProfiles,
-			expectedProfileDefMap: ProfileConfigMap{},
+			name:                      "invalid recursive extends",
+			userProfiles:              profilesWithInvalidExtendProfiles,
+			expectedProfileDefMap:     ProfileConfigMap{},
+			expectedHaveLegacyProfile: false,
 			expectedLogs: []LogCount{
 				{"failed to expand profile \"generic-if\": extend does not exist: `invalid`", 1},
 			},
 		},
 		{
-			name:                  "invalid cyclic extends",
-			userProfiles:          invalidCyclicProfiles,
-			expectedProfileDefMap: ProfileConfigMap{},
+			name:                      "invalid cyclic extends",
+			userProfiles:              invalidCyclicProfiles,
+			expectedProfileDefMap:     ProfileConfigMap{},
+			expectedHaveLegacyProfile: false,
 			expectedLogs: []LogCount{
 				{": failed to expand profile \"f5-big-ip\": cyclic profile extend detected", 1},
 			},
@@ -125,18 +150,45 @@ func Test_resolveProfiles(t *testing.T) {
 					Definition: *validationErrorProfile,
 				},
 			},
-			expectedProfileDefMap: ProfileConfigMap{},
+			expectedProfileDefMap:     ProfileConfigMap{},
+			expectedHaveLegacyProfile: false,
 			expectedLogs: []LogCount{
 				{"cannot compile `match` (`global_metric_tags[\\w)(\\w+)`)", 1},
 				{"cannot compile `match` (`table_match[\\w)`)", 1},
 			},
+		},
+		{
+			name:         "legacy no OID",
+			userProfiles: legacyNoOIDProfiles,
+			expectedProfileMetrics: []string{
+				"valid:validName1",
+				"valid:validName2",
+				"valid:validName3_1",
+				"valid:validName3_2",
+			},
+			expectedHaveLegacyProfile: true,
+			expectedLogs: []LogCount{
+				{"found legacy metrics definition in profile \"legacy\"", 1},
+			},
+		},
+		{
+			name:         "legacy symbol type",
+			userProfiles: legacySymbolTypeProfiles,
+			expectedProfileMetrics: []string{
+				"valid:validName1",
+				"valid:validName2",
+				"valid:validName3_1",
+				"valid:validName3_2",
+			},
+			// The legacy profile legacy.yaml has already been skipped during unmarshal in getProfileDefinitions
+			expectedHaveLegacyProfile: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			trap := TrapLogs(t, log.DebugLvl)
 
-			profiles := resolveProfiles(tt.userProfiles, tt.defaultProfiles)
+			profiles, haveLegacyProfile := resolveProfiles(tt.userProfiles, tt.defaultProfiles)
 
 			trap.AssertContains(t, tt.expectedLogs)
 
@@ -150,7 +202,12 @@ func Test_resolveProfiles(t *testing.T) {
 				var ifIDTags []string
 				for name, profile := range profiles {
 					for _, metric := range profile.Definition.Metrics {
-						metricsNames = append(metricsNames, fmt.Sprintf("%s:%s", name, metric.Symbol.Name))
+						if metric.Symbol.Name != "" {
+							metricsNames = append(metricsNames, fmt.Sprintf("%s:%s", name, metric.Symbol.Name))
+						}
+						for _, symbols := range metric.Symbols {
+							metricsNames = append(metricsNames, fmt.Sprintf("%s:%s", name, symbols.Name))
+						}
 					}
 					ifMeta, ok := profile.Definition.Metadata["interface"]
 					if ok {
@@ -164,6 +221,8 @@ func Test_resolveProfiles(t *testing.T) {
 			} else {
 				assert.Equal(t, tt.expectedProfileDefMap, profiles)
 			}
+
+			assert.Equal(t, tt.expectedHaveLegacyProfile, haveLegacyProfile)
 		})
 	}
 }

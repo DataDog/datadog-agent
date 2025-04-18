@@ -44,7 +44,7 @@ func NewRCProvider(client rcclient.Component) (Provider, error) {
 // RC to receive profile updates.
 func buildAndSubscribeRCProvider(rcClient rcclient.Component) (*UpdatableProvider, error) {
 	// Load OOTB profiles from YAML
-	defaultProfiles := getYamlDefaultProfiles()
+	defaultProfiles, _ := getYamlDefaultProfiles()
 	if defaultProfiles == nil {
 		return nil, fmt.Errorf("could not find OOTB profiles")
 	}
