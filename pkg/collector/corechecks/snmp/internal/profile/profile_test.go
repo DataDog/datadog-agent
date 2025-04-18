@@ -72,6 +72,26 @@ func Test_loadProfiles(t *testing.T) {
 			expectedProfileNames:      []string(nil), // invalid profiles are skipped
 			expectedHaveLegacyProfile: false,
 		},
+		{
+			name:      "OK init config contains legacy profiles",
+			mockConfd: "conf.d",
+			profiles: ProfileConfigMap{
+				"my-init-config-profile": ProfileConfig{
+					Definition: profiledefinition.ProfileDefinition{
+						Metrics: []profiledefinition.MetricsConfig{
+							{
+								MIB: "FOO-MIB",
+								Symbol: profiledefinition.SymbolConfig{
+									Name: "fooName",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedProfileNames:      []string(nil),
+			expectedHaveLegacyProfile: true,
+		},
 		// yaml profiles
 		{
 			name:      "OK Use yaml profiles",
@@ -87,6 +107,22 @@ func Test_loadProfiles(t *testing.T) {
 			mockConfd:                 "does_not_exist.d",
 			expectedProfileNames:      []string(nil),
 			expectedHaveLegacyProfile: false,
+		},
+		{
+			name:      "OK yaml profiles contains legacy profile (no OID)",
+			mockConfd: "legacy_no_oid.d",
+			expectedProfileNames: []string{
+				"valid",
+			},
+			expectedHaveLegacyProfile: true,
+		},
+		{
+			name:      "OK yaml profiles contains legacy profile (string symbol type)",
+			mockConfd: "legacy_symbol_type.d",
+			expectedProfileNames: []string{
+				"valid",
+			},
+			expectedHaveLegacyProfile: true,
 		},
 	}
 	for _, tt := range tests {
@@ -111,7 +147,12 @@ func Test_loadProfiles(t *testing.T) {
 				var metricsNames []string
 				for _, profile := range actualProfiles {
 					for _, metric := range profile.Definition.Metrics {
-						metricsNames = append(metricsNames, metric.Symbol.Name)
+						if metric.Symbol.Name != "" {
+							metricsNames = append(metricsNames, metric.Symbol.Name)
+						}
+						for _, symbol := range metric.Symbols {
+							metricsNames = append(metricsNames, symbol.Name)
+						}
 					}
 				}
 				assert.ElementsMatch(t, tt.expectedProfileMetrics, metricsNames)

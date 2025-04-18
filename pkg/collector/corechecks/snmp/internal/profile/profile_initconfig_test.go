@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
 package profile
 
 import (
@@ -103,9 +108,8 @@ func Test_loadInitConfigProfiles_legacyProfiles(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, haveLegacyProfile, err := loadInitConfigProfiles(ProfileConfigMap{
-				"test": {
+				"my-init-config-profile": {
 					Definition: profiledefinition.ProfileDefinition{
-						Name:    "test",
 						Metrics: tt.metrics,
 					},
 				},

@@ -33,14 +33,14 @@ func loadProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, bool, 
 		//   There are possibly multiple init configs
 		customProfiles, haveLegacyCustomProfile, err := loadInitConfigProfiles(initConfigProfiles)
 		if err != nil {
-			return nil, false, fmt.Errorf("failed to load profiles from initConfig: %w", err)
+			return nil, haveLegacyCustomProfile, fmt.Errorf("failed to load profiles from initConfig: %w", err)
 		}
 		profiles = customProfiles
 		haveLegacyProfile = haveLegacyCustomProfile
 	} else {
 		defaultProfiles, haveLegacyDefaultProfile, err := loadYamlProfiles()
 		if err != nil {
-			return nil, false, fmt.Errorf("failed to load yaml profiles: %w", err)
+			return nil, haveLegacyDefaultProfile, fmt.Errorf("failed to load yaml profiles: %w", err)
 		}
 		profiles = defaultProfiles
 		haveLegacyProfile = haveLegacyDefaultProfile
