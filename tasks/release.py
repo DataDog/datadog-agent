@@ -809,9 +809,7 @@ def create_release_branches(
 
         # Step 1.3 - Commit new changes
         ctx.run("git add release.json .gitlab-ci.yml")
-        ok = try_git_command(
-            ctx, f"git commit -m 'Update release.json, .gitlab-ci.yml with {release_branch}'"
-        )
+        ok = try_git_command(ctx, f"git commit -m 'Update release.json, .gitlab-ci.yml with {release_branch}'")
         if not ok:
             raise Exit(
                 color_message(
