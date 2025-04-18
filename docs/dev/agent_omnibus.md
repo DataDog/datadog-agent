@@ -19,8 +19,10 @@ From the `datadog-agent` source folder, use the following command to run the
 `omnibus.build` task in a Docker container:
 
 ```
-docker run -v "$PWD:/go/src/github.com/DataDog/datadog-agent" -v "/tmp/omnibus:/omnibus" -v "/tmp/opt/datadog-agent:/opt/datadog-agent" -v"/tmp/gems:/gems" --workdir=/go/src/github.com/DataDog/datadog-agent datadog/agent-buildimages-deb_x64 dda -- inv -e omnibus.build --base-dir=/omnibus --gem-path=/gems
+docker run -v "$PWD:/go/src/github.com/DataDog/datadog-agent" -v "/tmp/omnibus:/omnibus" -v "/tmp/opt/datadog-agent:/opt/datadog-agent" -v"/tmp/gems:/gems" --workdir=/go/src/github.com/DataDog/datadog-agent datadog/agent-buildimages-linux-glibc-2-17-x64 dda -- inv -e omnibus.build --base-dir=/omnibus --gem-path=/gems
 ```
+
+For `arm64`, use this image instead: `datadog/agent-buildimages-linux-glibc-2-23-arm64`
 
 The container will share 3 volumes with the host to avoid starting from scratch
 at each Omnibus run:
@@ -28,8 +30,6 @@ at each Omnibus run:
  * `/tmp/omnibus`, containing the Omnibus base dir
  * `/tmp/opt/datadog-agent`, containing the Omnibus installation dir
  * `/tmp/gems`, containing all the ruby gems installed with Bundler
-
-Note that you can change `deb_x64` for `rpm_x64` to get an RPM package instead.
 
 If you want to find the Dockerfiles for these images, they are available in the
 [datadog-agent-buildimages](https://github.com/DataDog/datadog-agent-buildimages) git repo.
