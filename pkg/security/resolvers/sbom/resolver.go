@@ -430,7 +430,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 		GenerationDuration: durationpb.New(scanDuration),
 		GeneratedAt:        timestamppb.New(report.CreatedAt),
 		Sbom: &sbomModel.SBOMEntity_Cyclonedx{
-			Cyclonedx: sbomconvert.ConvertBOM(bom),
+			Cyclonedx: sbomconvert.BOM(bom),
 		},
 	}
 
