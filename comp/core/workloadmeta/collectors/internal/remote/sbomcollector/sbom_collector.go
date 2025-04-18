@@ -10,16 +10,16 @@
 package sbomcollector
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"time"
 
+	"github.com/CycloneDX/cyclonedx-go"
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
-	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/agent-payload/v5/sbom"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -71,8 +71,9 @@ func workloadmetaEventFromSBOMEventSet(event *sbompb.SBOMMessage) (workloadmeta.
 		return workloadmeta.Event{}, nil
 	}
 
-	var sbom sbom.SBOMEntity
-	if err := proto.Unmarshal(event.Data, &sbom); err != nil {
+	var bom cyclonedx.BOM
+	decoder := cyclonedx.NewBOMDecoder(bytes.NewReader(event.Data), cyclonedx.BOMFileFormatJSON)
+	if err := decoder.Decode(&bom); err != nil {
 		return workloadmeta.Event{}, fmt.Errorf("failed to unmarshal SBOM: %w", err)
 	}
 
@@ -91,7 +92,9 @@ func workloadmetaEventFromSBOMEventSet(event *sbompb.SBOMMessage) (workloadmeta.
 				Kind: workloadmeta.KindContainer,
 				ID:   event.ID,
 			},
-			SBOM: &sbom,
+			SBOM: &workloadmeta.SBOM{
+				CycloneDXBOM: &bom,
+			},
 		},
 	}, nil
 }
