@@ -19,6 +19,10 @@
 
 .select_python_env_commands:
   # Select the virtualenv using the current Python version. Create it if it doesn't exist.
+  - |
+    export PATH="$(pyenv root)/shims:$PATH"
+    eval "$(pyenv init -)"
+    eval "$(pyenv virtualenv-init -)"
   - PYTHON_VERSION=$(python3 --version | awk '{print $2}')
   - VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
   - VENV_PATH="$(pyenv root)/versions/$VENV_NAME"

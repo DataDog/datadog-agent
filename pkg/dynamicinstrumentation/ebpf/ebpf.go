@@ -146,8 +146,8 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 		PID: int(procInfo.PID),
 	})
 	if err != nil {
-		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "UPROBE_FAILURE", err.Error())
-		return fmt.Errorf("could not attach bpf program via uprobe: %w", err)
+		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "UPROBE_FAILURE", fmt.Sprintf("%s: %s", probe.FuncName, err.Error()))
+		return fmt.Errorf("could not attach bpf program for %s via uprobe: %w", probe.FuncName, err)
 	}
 
 	procInfo.SetUprobeLink(probe.ID, &link)
