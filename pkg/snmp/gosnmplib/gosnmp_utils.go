@@ -6,6 +6,7 @@
 package gosnmplib
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -104,7 +105,9 @@ func StandardTypeToString(value interface{}) (string, error) {
 			// An alternative solution is to explicitly force the conversion to specific type using profile config.
 			strValue = fmt.Sprintf("%#x", bytesValue)
 		} else {
-			strValue = string(bytesValue)
+			// Trimming leading/trailing 00s
+			trimmedBytes := bytes.Trim(bytesValue, "\x00")
+			strValue = string(trimmedBytes)
 		}
 		return strValue, nil
 	}
