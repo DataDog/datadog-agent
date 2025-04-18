@@ -29,6 +29,7 @@ from tasks.libs.common.datadog_api import get_ci_pipeline_events
 from tasks.libs.common.git import (
     check_base_branch,
     check_clean_branch_state,
+    create_tree,
     get_default_branch,
     get_last_commit,
     get_last_release_tag,
@@ -37,7 +38,7 @@ from tasks.libs.common.git import (
 )
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
-from tasks.libs.common.utils import set_gitconfig_in_ci
+from tasks.libs.common.utils import running_in_ci, set_gitconfig_in_ci
 from tasks.libs.common.worktree import agent_context
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
@@ -458,11 +459,11 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
         print(color_message("Updating Go modules", "bold"))
         update_modules(ctx, version=str(new_highest_version))
 
-        # Step 3: branch out, commit change, push branch
+        # Step 3: branch out, push branch, then add, and create signed commit with Github API
 
         print(color_message(f"Branching out to {update_branch}", "bold"))
         ctx.run(f"git checkout -b {update_branch}")
-
+        ctx.run(f"git push --set-upstream {upstream} {update_branch}")
         print(color_message("Committing release.json and Go modules updates", "bold"))
         print(
             color_message(
@@ -472,30 +473,31 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
         ctx.run("git add release.json")
         ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
-        set_gitconfig_in_ci(ctx)
-        ok = try_git_command(
-            ctx,
-            f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'",
-        )
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually, push the {update_branch} branch and then open a PR against {release_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        print(color_message("Pushing new branch to the upstream repository", "bold"))
-        res = ctx.run(f"git push --no-verify --set-upstream {upstream} {update_branch}", warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
+        commit_message = f"Update release.json and Go modules for {new_highest_version}"
+        if running_in_ci():
+            print("Creating signed commits using Github API")
+            tree = create_tree(ctx, release_branch)
+            github.commit_and_push_signed(update_branch, commit_message, tree)
+        else:
+            print("Creating commits using your local git configuration, please make sure to sign them")
+            ok = try_git_command(ctx, f"git commit --no-verify -m '{commit_message}'")
+            if not ok:
+                raise Exit(
+                    color_message(
+                        f"Could not create commit. Please commit manually, push the {update_branch} branch and then open a PR against {release_branch}.",
+                        "red",
+                    ),
+                    code=1,
+                )
+            res = ctx.run(f"git push --no-verify --set-upstream {upstream} {update_branch}", warn=True)
+            if res.exited is None or res.exited > 0:
+                raise Exit(
+                    color_message(
+                        f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
+                        "red",
+                    ),
+                    code=1,
+                )
 
         pr_url = create_release_pr(
             f"[release] Update release.json and Go modules for {new_highest_version}",
@@ -797,18 +799,17 @@ def create_release_branches(
 
         set_new_release_branch(release_branch)
 
-        # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml and notify.yml jobs
-        with open(".gitlab-ci.yml", "w") as f:
+        # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml
+        with open(".gitlab-ci.yml") as f:
             content = f.read()
+        with open(".gitlab-ci.yml", "w") as f:
             f.write(
                 content.replace(f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}')
             )
 
         # Step 1.3 - Commit new changes
-        ctx.run("git add release.json .gitlab-ci.yml .gitlab/notify/notify.yml")
-        ok = try_git_command(
-            ctx, f"git commit -m 'Update release.json, .gitlab-ci.yml and notify.yml with {release_branch}'"
-        )
+        ctx.run("git add release.json .gitlab-ci.yml")
+        ok = try_git_command(ctx, f"git commit -m 'Update release.json, .gitlab-ci.yml with {release_branch}'")
         if not ok:
             raise Exit(
                 color_message(
@@ -831,7 +832,7 @@ def create_release_branches(
             )
 
         create_release_pr(
-            f"[release] Update release.json and gitlab files for {release_branch} branch",
+            f"[release] Update release.json and .gitlab-ci.yml files for {release_branch} branch",
             release_branch,
             update_branch,
             current,

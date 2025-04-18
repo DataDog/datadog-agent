@@ -22,6 +22,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.63.0-devel.0.20250123185937-1feb84b482c8 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
@@ -196,6 +197,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../../../../pkg/tagset
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../../pkg/telemetry
+	github.com/DataDog/datadog-agent/pkg/template => ../../../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest => ../../../../../pkg/trace/stats/oteltest
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../../pkg/util/backoff

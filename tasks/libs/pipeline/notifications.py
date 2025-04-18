@@ -1,20 +1,13 @@
 from __future__ import annotations
 
-import json
 import os
 import pathlib
 import re
-from collections import defaultdict
 from datetime import datetime, timezone
 
-import gitlab
 import yaml
-from gitlab.v4.objects import ProjectCommit, ProjectJob, ProjectPipeline
 
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.owners.parsing import read_owners
-from tasks.libs.types.types import FailedJobReason, FailedJobs, Test
-from tasks.testwasher import FLAKY_TEST_INDICATOR
 
 
 def load_and_validate(
@@ -63,71 +56,6 @@ def check_for_missing_owners_slack_and_jira(print_missing_teams=True, owners_fil
     return error
 
 
-def get_failed_tests(project_name, job: ProjectJob, owners_file=".github/CODEOWNERS"):
-    repo = get_gitlab_repo(project_name)
-    owners = read_owners(owners_file)
-    try:
-        test_output = str(repo.jobs.get(job.id, lazy=True).artifact('test_output.json'), 'utf-8')
-    except gitlab.exceptions.GitlabGetError:
-        test_output = ''
-    failed_tests = {}  # type: dict[tuple[str, str], Test]
-    known_flaky_tests = {}
-
-    if test_output:
-        for line in test_output.splitlines():
-            json_test = json.loads(line)
-            if 'Test' in json_test:
-                name = json_test['Test']
-                package = json_test['Package']
-                action = json_test["Action"]
-
-                if action == "fail":
-                    # Ignore subtests, only the parent test should be reported for now
-                    # to avoid multiple reports on the same test
-                    # NTH: maybe the Test object should be more flexible to incorporate
-                    # subtests? This would require some postprocessing of the Test objects
-                    # we yield here to merge child Test objects with their parents.
-                    if '/' in name:  # Subtests have a name of the form "Test/Subtest"
-                        continue
-
-                    failed_tests[(package, name)] = Test(owners, name, package)
-                elif action == "pass" and (package, name) in failed_tests:
-                    print(f"Test {name} from package {package} passed after retry, removing from output")
-                    del failed_tests[(package, name)]
-                elif action == "output":
-                    # Register flaky tests
-                    if FLAKY_TEST_INDICATOR in json_test['Output']:
-                        known_flaky_tests[(package, name)] = Test(owners, name, package)
-
-    # Skip flaky tests
-    for package, name in known_flaky_tests.keys():
-        if (package, name) in failed_tests:
-            print(f"Test {name} from package {package} is flaky, removing from output")
-            del failed_tests[(package, name)]
-
-    return failed_tests.values()
-
-
-def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNERS") -> dict[str, FailedJobs]:
-    owners = read_owners(owners_file)
-    owners_to_notify = defaultdict(FailedJobs)
-    # For e2e test infrastructure errors, notify the agent-e2e-testing team
-    for job in failed_jobs.mandatory_infra_job_failures:
-        if job.failure_reason == FailedJobReason.E2E_INFRA_FAILURE:
-            owners_to_notify["@DataDog/agent-e2e-testing"].add_failed_job(job)
-
-    for job in failed_jobs.all_non_infra_failures():
-        job_owners = owners.of(job.name)
-        # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
-        # eg. [('TEAM', '@DataDog/agent-devx-infra')]
-
-        for kind, owner in job_owners:
-            if kind == "TEAM":
-                owners_to_notify[owner].add_failed_job(job)
-
-    return owners_to_notify
-
-
 def get_pr_from_commit(commit_title: str, project_name: str) -> tuple[str, str] | None:
     """
     Tries to find a GitHub PR id within a commit title (eg: "Fix PR (#27584)"),
@@ -144,33 +72,6 @@ def get_pr_from_commit(commit_title: str, project_name: str) -> tuple[str, str] 
     parsed_pr_id = parsed_pr_id_found.group(1)
 
     return parsed_pr_id, f"{GITHUB_BASE_URL}/{project_name}/pull/{parsed_pr_id}"
-
-
-def base_message(
-    project_name: str, pipeline: ProjectPipeline, commit: ProjectCommit, header: str, state: str, pr_pipeline_url: str
-) -> str:
-    commit_title = commit.title
-    pipeline_url = pipeline.web_url
-    pipeline_id = pipeline.id
-    commit_ref_name = pipeline.ref
-    commit_url_github = f"{GITHUB_BASE_URL}/{project_name}/commit/{commit.id}"
-    commit_short_sha = commit.id[:7]
-    author = commit.author_name
-    finish = datetime.fromisoformat(pipeline.finished_at) if pipeline.finished_at else datetime.now(timezone.utc)
-    delta = finish - datetime.fromisoformat(pipeline.started_at)
-    duration = f"[:hourglass: {int(delta.total_seconds() / 60)} min]"
-
-    # Try to find a PR id (e.g #12345) in the commit title and add a link to it in the message if found.
-    pr_info = get_pr_from_commit(commit_title, project_name)
-    enhanced_commit_title = commit_title
-    if pr_info:
-        parsed_pr_id, pr_url_github = pr_info
-        enhanced_commit_title = enhanced_commit_title.replace(
-            f"#{parsed_pr_id}", f"<{pr_url_github}/s|#{parsed_pr_id}>"
-        )
-    pr_pipelline_link = f"(:gitlab:<{pr_pipeline_url}|pr pipeline>)" if pr_pipeline_url else ""
-    return f"""{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {state} {duration}.
-{enhanced_commit_title} {pr_pipelline_link}(:github: <{commit_url_github}|{commit_short_sha}>) by {author}"""
 
 
 def warn_new_commits(release_managers, team, branch, next_rc):

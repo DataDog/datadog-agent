@@ -405,7 +405,7 @@ func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) (resName string) 
 func GetOTelOperationNameV2(
 	span ptrace.Span,
 ) string {
-	if operationName := GetOTelAttrVal(span.Attributes(), false, "operation.name"); operationName != "" {
+	if operationName := GetOTelAttrVal(span.Attributes(), true, "operation.name"); operationName != "" {
 		return operationName
 	}
 

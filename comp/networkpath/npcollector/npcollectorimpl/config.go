@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 type collectorConfigs struct {
@@ -27,6 +28,7 @@ type collectorConfigs struct {
 	networkDevicesNamespace      string
 	sourceExcludedConns          map[string][]string
 	destExcludedConns            map[string][]string
+	tcpMethod                    payload.TCPMethod
 }
 
 func newConfig(agentConfig config.Component) *collectorConfigs {
@@ -50,6 +52,7 @@ func newConfig(agentConfig config.Component) *collectorConfigs {
 		disableIntraVPCCollection: agentConfig.GetBool("network_path.collector.disable_intra_vpc_collection"),
 		sourceExcludedConns:       agentConfig.GetStringMapStringSlice("network_path.collector.source_excludes"),
 		destExcludedConns:         agentConfig.GetStringMapStringSlice("network_path.collector.dest_excludes"),
+		tcpMethod:                 payload.MakeTCPMethod(agentConfig.GetString("network_path.collector.tcp_method")),
 		networkDevicesNamespace:   agentConfig.GetString("network_devices.namespace"),
 	}
 }
