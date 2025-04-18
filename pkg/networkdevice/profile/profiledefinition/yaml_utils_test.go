@@ -99,10 +99,10 @@ my_symbol_field: aSymbol
 
 func Test_MetricsConfigs_UnmarshalYAML(t *testing.T) {
 	tests := []struct {
-		name          string
-		data          []byte
-		result        MyMetrics
-		expectedError string
+		name           string
+		data           []byte
+		result         MyMetrics
+		expectedErrors []string
 	}{
 		{
 			name: "ok unmarshal",
@@ -167,7 +167,10 @@ metrics:
     OID: 1.2.3.4
     symbol: fooName
 `),
-			expectedError: LegacySymbolTypeError.Error(),
+			expectedErrors: []string{
+				"line 5: cannot unmarshal !!str `fooName` into profiledefinition.SymbolConfig",
+				"legacy symbol type 'string' is not supported with the Core loader",
+			},
 		},
 		{
 			name: "symbol declared in the legacy way without MIB specified",
@@ -176,7 +179,9 @@ metrics:
   - OID: 1.2.3.4
     symbol: fooName
 `),
-			expectedError: "line 4: cannot unmarshal !!str `fooName` into profiledefinition.SymbolConfig",
+			expectedErrors: []string{
+				"line 4: cannot unmarshal !!str `fooName` into profiledefinition.SymbolConfig",
+			},
 		},
 		{
 			name: "symbol declared in the legacy way with MIB empty",
@@ -186,15 +191,19 @@ metrics:
     OID: 1.2.3.4
     symbol: fooName
 `),
-			expectedError: "line 5: cannot unmarshal !!str `fooName` into profiledefinition.SymbolConfig",
+			expectedErrors: []string{
+				"line 5: cannot unmarshal !!str `fooName` into profiledefinition.SymbolConfig",
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			myStruct := MyMetrics{}
 			err := yaml.Unmarshal(tt.data, &myStruct)
-			if tt.expectedError != "" {
-				assert.ErrorContains(t, err, tt.expectedError)
+			if len(tt.expectedErrors) > 0 {
+				for _, expectedError := range tt.expectedErrors {
+					assert.ErrorContains(t, err, expectedError)
+				}
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.result, myStruct)

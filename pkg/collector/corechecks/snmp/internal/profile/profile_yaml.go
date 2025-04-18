@@ -106,7 +106,7 @@ func readProfileDefinition(definitionFile string) (*profiledefinition.ProfileDef
 	profileDefinition := profiledefinition.NewProfileDefinition()
 	err = yaml.Unmarshal(buf, profileDefinition)
 	if err != nil {
-		isLegacyProfile := errors.Is(err, profiledefinition.LegacySymbolTypeError)
+		isLegacyProfile := errors.Is(err, profiledefinition.ErrLegacySymbolType)
 		return nil, isLegacyProfile, fmt.Errorf("parse error in file %q: %w", filePath, err)
 	}
 	return profileDefinition, false, nil
