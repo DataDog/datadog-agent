@@ -57,8 +57,8 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 
 	numCPUs, err := kernel.PossibleCPUs()
 	if err != nil {
-		numCPUs = 96
-		log.Error("unable to detect number of CPUs. assuming 96 cores")
+		numCPUs = 128
+		log.Error("unable to detect number of CPUs. assuming 128 cores")
 	}
 	outerMapSpec := spec.Maps["param_stacks"]
 	outerMapSpec.MaxEntries = uint32(numCPUs)
@@ -110,7 +110,8 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 	if err != nil {
 		var ve *ebpf.VerifierError
 		if errors.As(err, &ve) {
-			log.Infof("Verifier error: %+v\n", ve)
+			log.Errorf("Verifier rejection occurred while loading bpf collection for probe %s", probe.ID)
+			log.Tracef("Verifier output for probe %s: %+v\n", probe.ID, ve)
 		}
 		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "ATTACH_ERROR", err.Error())
 		return fmt.Errorf("could not load bpf collection for probe %s: %w", probe.ID, err)
