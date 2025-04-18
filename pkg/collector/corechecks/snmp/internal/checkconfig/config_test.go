@@ -1889,7 +1889,7 @@ profiles:
             # OID: 1.2.3.4.5.6
             name: fooName
 `),
-			mockConfdPath:             filepath.Join("..", "test", "legacy_profiles", "legacy_no_oid.d"),
+			mockConfdPath:             filepath.Join("..", "test", "conf.d"),
 			expectedHaveLegacyProfile: false,
 		},
 		{
@@ -1969,7 +1969,7 @@ profiles:
             # OID: 1.2.3.4.5.6
             name: fooName
 `),
-			mockConfdPath:             filepath.Join("..", "test", "legacy_profiles", "legacy_no_oid.d"),
+			mockConfdPath:             filepath.Join("..", "test", "conf.d"),
 			expectedHaveLegacyProfile: true,
 		},
 		{
@@ -1997,7 +1997,7 @@ metrics:
 `),
 			// language=yaml
 			rawInitConfig:             []byte(``),
-			mockConfdPath:             filepath.Join("..", "test", "legacy_profiles", "legacy_no_oid.d"),
+			mockConfdPath:             filepath.Join("..", "test", "conf.d"),
 			expectedHaveLegacyProfile: true,
 		},
 	}
