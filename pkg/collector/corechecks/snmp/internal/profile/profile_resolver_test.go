@@ -58,6 +58,18 @@ func Test_resolveProfiles(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, haveLegacyProfile)
 
+	legacyNoOIDConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_no_oid.d"))
+	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", legacyNoOIDConfdPath)
+	legacyNoOIDProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
+	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
+
+	legacySymbolTypeConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_symbol_type.d"))
+	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", legacySymbolTypeConfdPath)
+	legacySymbolTypeProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
+	require.NoError(t, err)
+	require.True(t, haveLegacyProfile)
+
 	tests := []struct {
 		name                      string
 		userProfiles              ProfileConfigMap
@@ -144,6 +156,32 @@ func Test_resolveProfiles(t *testing.T) {
 				{"cannot compile `match` (`table_match[\\w)`)", 1},
 			},
 		},
+		{
+			name:         "legacy no OID",
+			userProfiles: legacyNoOIDProfiles,
+			expectedProfileMetrics: []string{
+				"valid:validName1",
+				"valid:validName2",
+				"valid:validName3_1",
+				"valid:validName3_2",
+			},
+			expectedHaveLegacyProfile: true,
+			expectedLogs: []LogCount{
+				{"found legacy metrics definition in profile \"legacy\"", 1},
+			},
+		},
+		{
+			name:         "legacy symbol type",
+			userProfiles: legacySymbolTypeProfiles,
+			expectedProfileMetrics: []string{
+				"valid:validName1",
+				"valid:validName2",
+				"valid:validName3_1",
+				"valid:validName3_2",
+			},
+			// The legacy profile legacy.yaml has already been skipped during unmarshal in getProfileDefinitions
+			expectedHaveLegacyProfile: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -163,7 +201,12 @@ func Test_resolveProfiles(t *testing.T) {
 				var ifIDTags []string
 				for name, profile := range profiles {
 					for _, metric := range profile.Definition.Metrics {
-						metricsNames = append(metricsNames, fmt.Sprintf("%s:%s", name, metric.Symbol.Name))
+						if metric.Symbol.Name != "" {
+							metricsNames = append(metricsNames, fmt.Sprintf("%s:%s", name, metric.Symbol.Name))
+						}
+						for _, symbols := range metric.Symbols {
+							metricsNames = append(metricsNames, fmt.Sprintf("%s:%s", name, symbols.Name))
+						}
 					}
 					ifMeta, ok := profile.Definition.Metadata["interface"]
 					if ok {

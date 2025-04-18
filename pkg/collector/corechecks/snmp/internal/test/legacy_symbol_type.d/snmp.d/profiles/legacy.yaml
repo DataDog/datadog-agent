@@ -1,4 +1,4 @@
 metrics:
-  - MIB: FOO-MIB
+  - MIB: LEGACY-MIB
     OID: 1.2.3.4.5.6
-    symbol: fooName
+    symbol: legacyName
