@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Validate SNMP profiles when loader config is not specified and make Core check the check by default.
+    Validate SNMP profiles when loader config is not specified and make Core loader the loader by default.
