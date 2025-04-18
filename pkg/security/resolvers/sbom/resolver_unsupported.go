@@ -11,10 +11,10 @@ package sbom
 import (
 	"context"
 
-	sbomModel "github.com/DataDog/agent-payload/v5/sbom"
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
@@ -33,7 +33,7 @@ const (
 
 // Resolver is the Software Bill-Of-material resolver
 type Resolver struct {
-	*utils.Notifier[Event, *sbomModel.SBOMEntity]
+	*utils.Notifier[Event, *sbom.ScanResult]
 }
 
 // NewResolver returns a new instance of a SBOM resolver
