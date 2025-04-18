@@ -42,6 +42,7 @@
 /repository.datadog.yml                 @DataDog/agent-devx
 /generate_tools.go                      @DataDog/agent-devx
 /service.datadog.yaml                   @DataDog/agent-delivery
+/static-analysis.datadog.yml            @DataDog/agent-devx
 
 /modules.yml                            @DataDog/agent-runtimes
 # if go.work changes then either .go-version or modules.yml changed too, so ASC might as well own it
