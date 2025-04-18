@@ -27,8 +27,8 @@
         --release-version $RELEASE_VERSION \
         --target-repo $TARGET_REPO \
         --target-channel $BUCKET_BRANCH \
-        ${AUTO_RELEASE} \
-        ${FOLLOW}
+        $AUTO_RELEASE \
+        $FOLLOW
   dependencies: []
 
 installer_trigger_auto_staging_release:
