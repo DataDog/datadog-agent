@@ -503,11 +503,12 @@ func (s *baseStartStopSuite) SetupSuite() {
 	s.T().Cleanup(cancel)
 	// Collect metrics at most every 5 seconds
 	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
+	s.T().Cleanup(ticker.Stop)
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
+				s.T().Log("Stopping host memory metrics collection")
 				return
 			case <-ticker.C:
 				s.sendHostMemoryMetrics(host)
