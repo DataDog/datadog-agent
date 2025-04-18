@@ -7,6 +7,7 @@
 package servicetest
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"os"
@@ -495,7 +496,24 @@ func (s *baseStartStopSuite) SetupSuite() {
 	}
 
 	// TODO(WINA-1320): log the system memory to help debug
-	s.sendHostMemoryMetrics(host)
+	// Start in background goroutine to reduce affect on timing of other
+	// commands being run.
+	// Stop the goroutine when the test ends
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+	// Collect metrics at most every 5 seconds
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.sendHostMemoryMetrics(host)
+			}
+		}
+	}()
 }
 
 func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
@@ -627,8 +645,6 @@ func (s *baseStartStopSuite) assertAllServicesState(expected string) {
 func (s *baseStartStopSuite) assertServiceState(expected string, serviceName string) {
 	host := s.Env().RemoteHost
 	s.Assert().EventuallyWithT(func(c *assert.CollectT) {
-		// TODO(WINA-1320): log the system memory to help debug
-		s.sendHostMemoryMetrics(host)
 		status, err := windowsCommon.GetServiceStatus(host, serviceName)
 		if !assert.NoError(c, err) {
 			return
@@ -651,8 +667,6 @@ func (s *baseStartStopSuite) stopAllServices() {
 	// ensure all services are stopped
 	for _, serviceName := range s.getInstalledServices() {
 		s.Assert().EventuallyWithT(func(c *assert.CollectT) {
-			// TODO(WINA-1320): log the system memory to help debug
-			s.sendHostMemoryMetrics(host)
 			status, err := windowsCommon.GetServiceStatus(host, serviceName)
 			if !assert.NoError(c, err) {
 				return
