@@ -11,6 +11,9 @@ logs_config:
   logs_no_ssl: true
   force_use_http: true
 
-dd_url: http://127.0.0.1:9092
-telemetry.enabled: true
-telemetry.checks: '*'
+dd_url: http://127.0.0.1:9091
+process_config:
+  process_dd_url: http://localhost:9093
+telemetry:
+  enabled: true
+  checks: '*'
