@@ -31,6 +31,7 @@ var defaultProfilesMu = &sync.Mutex{}
 // globalProfileConfigMap. The mutex will help loading once when `loadYamlProfiles`
 // is called by multiple check instances.
 func loadYamlProfiles() (ProfileConfigMap, error) {
+	fmt.Println("CALLED loadYamlProfiles")
 	defaultProfilesMu.Lock()
 	defer defaultProfilesMu.Unlock()
 
@@ -114,10 +115,14 @@ func resolveProfileDefinitionPath(definitionFile string) string {
 
 func getProfileConfdRoot(profileFolderName string) string {
 	confdPath := pkgconfigsetup.Datadog().GetString("confd_path")
-	return filepath.Join(confdPath, "snmp.d", profileFolderName)
+	path := filepath.Join(confdPath, "snmp.d", profileFolderName)
+	fmt.Println("CALLED getProfileConfdRoot")
+	fmt.Println("PROFILE PATH:", path)
+	return path
 }
 
 func getYamlUserProfiles() ProfileConfigMap {
+	fmt.Println("CALLED getYamlUserProfiles")
 	userProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	if err != nil {
 		log.Warnf("failed to load user profile definitions: %s", err)
@@ -127,6 +132,7 @@ func getYamlUserProfiles() ProfileConfigMap {
 }
 
 func getYamlDefaultProfiles() ProfileConfigMap {
+	fmt.Println("CALLED getYamlDefaultProfiles")
 	userProfiles, err := getProfileDefinitions(defaultProfilesFolder, false)
 	if err != nil {
 		log.Warnf("failed to load default profile definitions: %s", err)

@@ -260,8 +260,10 @@ func (c *CheckBase) GetWarnings() []error {
 //
 // See `safesender.go` for details on the managed errors.
 func (c *CheckBase) GetSender() (sender.Sender, error) {
+	fmt.Println("CALLING GET SENDER OF CHECK BASE")
 	sender, err := c.GetRawSender()
 	if err != nil {
+		fmt.Println("ERROR GETTING SENDER IN CHECK BASE")
 		return nil, err
 	}
 	return newSafeSender(sender), err
@@ -269,6 +271,7 @@ func (c *CheckBase) GetSender() (sender.Sender, error) {
 
 // GetRawSender is similar to GetSender, but does not provide the safety wrapper.
 func (c *CheckBase) GetRawSender() (sender.Sender, error) {
+	fmt.Println("CALLING GET RAW SENDER OF CHECK BASE")
 	return c.senderManager.GetSender(c.ID())
 }
 

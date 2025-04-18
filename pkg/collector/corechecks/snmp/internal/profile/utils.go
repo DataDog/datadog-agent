@@ -6,12 +6,14 @@
 package profile
 
 import (
+	"fmt"
 	"os"
 )
 
 // mergeProfiles merges two ProfileConfigMaps
 // we clone the profiles to lower the risk of modifying original profiles
 func mergeProfiles(profilesA ProfileConfigMap, profilesB ProfileConfigMap) ProfileConfigMap {
+	fmt.Println("CALLED mergeProfiles")
 	profiles := make(ProfileConfigMap)
 	for k, v := range profilesA {
 		profiles[k] = v.Clone()

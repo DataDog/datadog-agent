@@ -81,6 +81,8 @@ type SymbolConfig struct {
 	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"metric_type,omitempty"`
 }
 
+type SymbolConfig2 SymbolConfig
+
 // Clone creates a duplicate of this SymbolConfig
 func (s SymbolConfig) Clone() SymbolConfig {
 	// SymbolConfig has no mutable members, so simple assignment copies it.
@@ -218,11 +220,14 @@ func (m *MetricsConfig) IsScalar() bool {
 // 1/ converts old symbol syntax to new symbol syntax
 // metric.Name and metric.OID info are moved to metric.Symbol.Name and metric.Symbol.OID
 func NormalizeMetrics(metrics []MetricsConfig) {
+	//fmt.Println("CALLED NormalizeMetrics")
 	for i := range metrics {
 		metric := &metrics[i]
+		//fmt.Println("METRIC MIB:", metric.MIB)
 
 		// converts old symbol syntax to new symbol syntax
 		if metric.Symbol.Name == "" && metric.Symbol.OID == "" && metric.Name != "" && metric.OID != "" {
+			//fmt.Println("OLD SYNTAX DETECTED IN NormalizeMetrics for MIB:", metric.MIB)
 			metric.Symbol.Name = metric.Name
 			metric.Symbol.OID = metric.OID
 			metric.Name = ""

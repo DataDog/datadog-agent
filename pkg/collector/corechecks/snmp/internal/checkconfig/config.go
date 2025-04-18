@@ -94,6 +94,7 @@ type InitConfig struct {
 	MinCollectionInterval int                               `yaml:"min_collection_interval"`
 	Namespace             string                            `yaml:"namespace"`
 	PingConfig            snmpintegration.PackedPingConfig  `yaml:"ping"`
+	Loader                string                            `yaml:"loader"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -152,6 +153,8 @@ type InstanceConfig struct {
 	// `interface_configs` option is not supported by SNMP corecheck autodiscovery (`network_address`)
 	// it's only supported for single device instance (`ip_address`)
 	InterfaceConfigs InterfaceConfigs `yaml:"interface_configs"`
+
+	Loader string `yaml:"loader"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
@@ -270,6 +273,18 @@ func (c *CheckConfig) ToString() string {
 // NewCheckConfig builds a new check config
 func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data, rcClient rcclient.Component) (*CheckConfig,
 	error) {
+	fmt.Println("CALLED NewCheckConfig")
+	fmt.Println("#####")
+	fmt.Println("RAW INSTANCE")
+	fmt.Println(rawInstance)
+	fmt.Println("#####")
+	fmt.Println("RAW INIT CONFIG")
+	fmt.Println(rawInitConfig)
+	fmt.Println("#####")
+	fmt.Println("RC CLIENT")
+	fmt.Println(rcClient)
+	fmt.Println("#####")
+
 	instance := InstanceConfig{}
 	initConfig := InitConfig{}
 
@@ -287,6 +302,20 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Println("#####")
+	fmt.Println("INSTANCE")
+	fmt.Println(instance)
+	fmt.Println("#####")
+	fmt.Println("INSTACE LOADER")
+	fmt.Println(instance.Loader)
+	fmt.Println("#####")
+	fmt.Println("INIT CONFIG")
+	fmt.Println(initConfig)
+	fmt.Println("#####")
+	fmt.Println("INIT CONFIG LOADER")
+	fmt.Println(initConfig.Loader)
+	fmt.Println("#####")
 
 	c := &CheckConfig{}
 

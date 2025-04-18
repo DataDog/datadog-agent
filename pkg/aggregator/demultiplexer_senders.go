@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -45,6 +46,7 @@ func (s *senders) SetSender(sender sender.Sender, id checkid.ID) error {
 // If no error is returned here, DestroySender must be called with the same ID
 // once the sender is not used anymore
 func (s *senders) GetSender(cid checkid.ID) (sender.Sender, error) {
+	fmt.Println("CALLING GET SENDER OF DEMULTIPLEXER SENDERS")
 	sender, err := s.senderPool.getSender(cid)
 	if err != nil {
 		sender, err = s.senderPool.mkSender(cid)

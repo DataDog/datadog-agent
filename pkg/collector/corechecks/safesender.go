@@ -6,6 +6,7 @@
 package corechecks
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
@@ -22,6 +23,7 @@ type safeSender struct {
 var _ sender.Sender = &safeSender{}
 
 func newSafeSender(sender sender.Sender) sender.Sender {
+	fmt.Println("CALLING NEW SAFE SENDER")
 	return &safeSender{Sender: sender}
 }
 

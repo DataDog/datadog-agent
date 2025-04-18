@@ -9,6 +9,7 @@ package aggregator
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -24,6 +25,7 @@ func NewNoOpSenderManager() NoOpSenderManager {
 
 // GetSender returns a sender.Sender with passed ID
 func (NoOpSenderManager) GetSender(_ checkid.ID) (sender.Sender, error) {
+	fmt.Println("CALLING GET SENDER OF NO OP SENDER MANAGER")
 	return nil, errors.New("NotImplemented")
 }
 

@@ -27,6 +27,34 @@ func (a *StringArray) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+func (a *SymbolConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var symbol SymbolConfig2
+	err := unmarshal(&symbol)
+	if err != nil {
+		var str string
+		err := unmarshal(&str)
+		if err != nil {
+			return err
+		}
+		*a = SymbolConfig{Name: str}
+	} else {
+		*a = SymbolConfig{
+			OID:                  symbol.OID,
+			Name:                 symbol.Name,
+			ExtractValue:         symbol.ExtractValue,
+			ExtractValueCompiled: symbol.ExtractValueCompiled,
+			MatchPattern:         symbol.MatchPattern,
+			MatchValue:           symbol.MatchValue,
+			MatchPatternCompiled: symbol.MatchPatternCompiled,
+			ScaleFactor:          symbol.ScaleFactor,
+			Format:               symbol.Format,
+			ConstantValueOne:     symbol.ConstantValueOne,
+			MetricType:           symbol.MetricType,
+		}
+	}
+	return nil
+}
+
 // UnmarshalYAML unmarshalls SymbolConfig
 func (a *SymbolConfigCompat) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var symbol SymbolConfig
