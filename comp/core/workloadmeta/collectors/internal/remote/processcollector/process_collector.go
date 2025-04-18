@@ -145,6 +145,10 @@ func (s *streamHandler) Port() int {
 	return s.port
 }
 
+func (s *streamHandler) Address() string {
+	return fmt.Sprintf(":%d", s.Port())
+}
+
 func (s *streamHandler) IsEnabled() bool {
 	if flavor.GetFlavor() != flavor.DefaultAgent {
 		return false
@@ -230,7 +234,6 @@ func (s *streamHandler) populateMissingContainerID(collectorEvents []workloadmet
 			processEntity.ContainerID = ctrIDFromProvider
 		}
 
-		event.Entity = processEntity
 		collectorEvents[idx] = event
 	}
 }
