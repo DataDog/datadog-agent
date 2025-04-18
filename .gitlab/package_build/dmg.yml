@@ -32,16 +32,11 @@ agent_dmg-x64-a7:
   needs: ["go_mod_tidy_check"]
   timeout: 6h
 
-
 .macos_setup_python:
   # Selecting the current Python version
   - !reference [.select_python_env_commands]
   # List Python and Go existing environments and their disk space
   - !reference [.list_python_versions_commands]
-  - |
-    export PATH="$(pyenv root)/bin:$PATH"
-    eval "$(pyenv init -)"
-    eval "$(pyenv virtualenv-init -)"
   - |
     VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
     VENV_PATH="$(pyenv root)/versions/$VENV_NAME"
@@ -87,10 +82,9 @@ agent_dmg-x64-a7:
       INSTALLER_CERT_BASE64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_INSTALLER_SIGNING certificate) || exit $?; export INSTALLER_CERT_BASE64
       INSTALLER_CERT_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_INSTALLER_SIGNING passphrase) || exit $?; export INSTALLER_CERT_PASSPHRASE
 
-      # TODO: Verify export is necessary
-      export NOTARIZATION_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_NOTARIZATION password) || exit $?; export NOTARIZATION_PWD
-      export TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT team-id) || exit $?; export TEAM_ID
-      export APPLE_ACCOUNT=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT user) || exit $?; export APPLE_ACCOUNT
+      NOTARIZATION_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_NOTARIZATION password) || exit $?; export NOTARIZATION_PWD
+      TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT team-id) || exit $?; export TEAM_ID
+      APPLE_ACCOUNT=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT user) || exit $?; export APPLE_ACCOUNT
 
       # Create temporary build keychain
       security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
@@ -204,13 +198,11 @@ new-agent_dmg-x64-a7:
   needs: ["go_mod_tidy_check"]
   allow_failure: true
 
-  # TODO: Possible clashes except version manifest?
-
   # TODO(celian): Temporary rules.
-  # This is used to avoid conflicts with the current build job on main / release branches with s3. This will run on dev branches
   rules:
-     - !reference [.on_main_or_release_branch_or_deploy_manual]
-     - when: on_success
+    # This is used to avoid conflicts with the current build job on main / release branches with s3. This will run on dev branches
+    - !reference [.on_main_or_release_branch_or_deploy_manual]
+    - when: on_success
 
   # TODO(celian): Replace by the following after testing new builds.
   # rules:
@@ -273,7 +265,6 @@ new-agent_dmg-x64-a7:
     - !reference [.macos_setup_python]
     - !reference [.macos_setup_go]
     - !reference [.macos_setup_signing]
-    # Setup cache
     - !reference [.macos_setup_cache]
     - !reference [.macos_do_build]
     - !reference [.macos_do_notarization]
