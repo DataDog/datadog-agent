@@ -37,6 +37,15 @@
     fi
   - pyenv activate $VENV_NAME
 
+.install_python_dependencies:
+  # Python 3.12 changes default behavior how packages are installed.
+  # In particular, --break-system-packages command line option is
+  # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
+  - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
+  - pyenv rehash
+  - python3 -m dda self dep sync -f legacy-tasks
+  - pyenv rehash
+
 .vault_login:
   # Point the CLI to our internal vault
   - export VAULT_ADDR=https://vault.us1.ddbuild.io
@@ -55,16 +64,10 @@
       export GOPATH=$GOROOT
     # Selecting the current Python version
     - !reference [.select_python_env_commands]
+    - !reference [.install_python_dependencies]
     # List Python and Go existing environments and their disk space
     - !reference [.list_go_versions_commands]
     - !reference [.list_python_versions_commands]
-    # Installing the job dependencies
-    # Python 3.12 changes default behavior how packages are installed.
-    # In particular, --break-system-packages command line option is
-    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
-    - python3 -m dda self dep sync -f legacy-tasks
-    - pyenv rehash
     - dda inv -- -e rtloader.make
     - dda inv -- -e rtloader.install
     - dda inv -- -e install-tools
