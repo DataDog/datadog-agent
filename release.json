@@ -1,10 +1,6 @@
 {
     "base_branch": "main",
     "current_milestone": "7.67.0",
-    "last_stable": {
-        "6": "6.53.1",
-        "7": "7.64.3"
-    },
     "dependencies":{
         "OMNIBUS_RUBY_VERSION": "95630818722a63cb9e6f3163984f363d799633a1",
         "JMXFETCH_VERSION": "0.49.6",
@@ -19,34 +15,8 @@
         "WINDOWS_DDPROCMON_SHASUM": "e5525959521254ba8218f64f644ad19cdeb720aa48ee83eb5e402a8d1643e32e",
         "INTEGRATIONS_CORE_VERSION": "5cdecdf964f58b5809f71713ce3cb5681f6c7c2c"
     },
-    "dca-1.17.0": {
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.18.6"
-    },
-    "dca-1.16.0": {
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.17"
-    },
-    "dca-1.15.0": {
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.16"
-    },
-    "dca-1.14.0": {
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.15"
-    },
-    "dca-1.13.1": {
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.12"
-    },
-    "dca-1.13.0": {
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.10"
-    },
-    "dca-1.12.0": {
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.9"
-    },
-    "dca-1.10.0": {
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.5"
-    },
-    "dca-1.9.1": {
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.3"
-    },
-    "dca-1.9.0": {
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.3"
+    "last_stable": {
+        "6": "6.53.1",
+        "7": "7.64.3"
     }
 }
