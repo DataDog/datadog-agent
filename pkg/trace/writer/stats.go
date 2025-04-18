@@ -109,6 +109,9 @@ func (w *DatadogStatsWriter) UpdateAPIKey(oldKey, newKey string) {
 // Run starts the DatadogStatsWriter, making it ready to receive stats and report w.statsd.
 func (w *DatadogStatsWriter) Run() {
 	t := time.NewTicker(5 * time.Second)
+	accWriterStats := info.StatsWriterInfo{}
+	info.UpdateStatsWriterInfo(&accWriterStats)
+	var lastReset time.Time
 	defer t.Stop()
 	defer close(w.stop)
 	for {
@@ -116,7 +119,12 @@ func (w *DatadogStatsWriter) Run() {
 		case notify := <-w.flushChan:
 			w.sendPayloads()
 			notify <- struct{}{}
-		case <-t.C:
+		case now := <-t.C:
+			accWriterStats.Acc(w.stats)
+			if now.Sub(lastReset) >= time.Minute {
+				accWriterStats.Reset()
+				lastReset = now
+			}
 			w.report()
 		case <-w.stop:
 			return
