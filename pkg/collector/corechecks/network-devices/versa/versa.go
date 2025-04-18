@@ -67,18 +67,27 @@ func (v *VersaCheck) Run() error {
 
 	log.Infof("Running Versa check for instance: %s", v.config.Name)
 
-	client, err := client.NewClient(v.config.DirectorEndpoint, v.config.AnalyticsEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP)
+	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.AnalyticsEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP)
 	if err != nil {
 		return fmt.Errorf("error creating Versa client: %w", err)
 	}
 
-	appliances, err := client.GetChildAppliancesDetail("datadog")
+	organizations, err := c.GetOrganizations()
 	if err != nil {
-		return fmt.Errorf("error getting appliances from Versa client: %w", err)
+		return fmt.Errorf("error getting organizations from Versa client: %w", err)
 	}
 
-	for _, appliance := range appliances {
-		log.Tracef("Processing appliance: %+v", appliance)
+	var appliances []client.Appliance
+	for _, org := range organizations {
+		orgAppliances, err := c.GetChildAppliancesDetail(org.Name)
+		if err != nil {
+			return fmt.Errorf("error getting appliances from Versa client: %w", err)
+		}
+
+		for _, appliance := range orgAppliances {
+			log.Tracef("Processing appliance: %+v", appliance)
+		}
+		appliances = append(appliances, orgAppliances...)
 	}
 
 	devicesMetadata := payload.GetDevicesMetadata(v.config.Namespace, appliances)
@@ -86,6 +95,8 @@ func (v *VersaCheck) Run() error {
 	if *v.config.SendNDMMetadata {
 		v.metricsSender.SendMetadata(devicesMetadata, nil, nil)
 	}
+
+	// TODO: send metrics from the appliance detail call
 
 	return nil
 }

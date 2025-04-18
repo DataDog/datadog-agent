@@ -173,6 +173,51 @@ func WithLookback(lookback time.Duration) ClientOptions {
 	}
 }
 
+func (client *Client) GetOrganizationsNextgen() ([]TenantConfig, error) {
+	// TODO: what is the lowest version of Versa that exposes this API?
+	// until we know, use the old API
+	// TODO: add pagination support
+	resp, err := get[[]TenantConfig](client, "/nextgen/organization", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenants: %v", err)
+	}
+	if resp == nil {
+		return nil, errors.New("failed to get tenants: returned nil")
+	}
+	return *resp, nil
+}
+
+func (client *Client) GetOrganizations() ([]Organization, error) {
+	var organizations []Organization
+	resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get organizations: %v", err)
+	}
+	organizations = append(organizations, resp.Organizations...)
+
+	// Paginate through the appliances
+	maxCount, _ := strconv.Atoi(client.maxCount)
+	totalPages := (resp.TotalCount + maxCount - 1) / maxCount // calculate total pages, rounding up if there's any remainder
+	for i := 1; i < totalPages; i++ {                         // start from 1 to skip the first page
+		params := map[string]string{
+			"limit":  client.maxCount,
+			"offset": strconv.Itoa(i * maxCount),
+		}
+		resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", params)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get organizations: %v", err)
+		}
+		if resp == nil {
+			return nil, errors.New("failed to get organizations: returned nil")
+		}
+		organizations = append(organizations, resp.Organizations...)
+	}
+	if len(organizations) != resp.TotalCount {
+		return nil, fmt.Errorf("failed to get organizations: expected %d, got %d", resp.TotalCount, len(organizations))
+	}
+	return organizations, nil
+}
+
 // GetChildAppliancesDetail retrieves a list of appliances with details
 func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, error) {
 	uri := "/vnms/dashboard/childAppliancesDetail/" + tenant
