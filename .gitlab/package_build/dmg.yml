@@ -34,8 +34,10 @@ agent_dmg-x64-a7:
 
 
 .macos_setup_python:
-  # Setup pyenv with virtual envs
-  - echo Using python $PYTHON_VERSION
+  # Selecting the current Python version
+  - !reference [.select_python_env_commands]
+  # List Python and Go existing environments and their disk space
+  - !reference [.list_python_versions_commands]
   - |
     export PATH="$(pyenv root)/bin:$PATH"
     eval "$(pyenv init -)"
@@ -53,9 +55,7 @@ agent_dmg-x64-a7:
     fi
   - |
     pyenv activate $VENV_NAME
-    echo "Using Python $PYTHON_VERSION"
-    # TODO A: Specific version (.dda/version)
-    python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v0.5.0" --break-system-packages
+    python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
     pyenv rehash
     dda self dep sync -f legacy-tasks
     pyenv rehash
