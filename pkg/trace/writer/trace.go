@@ -127,7 +127,7 @@ func NewTraceWriter(
 	tw.flushTicker = time.NewTicker(tw.tick)
 
 	qsize := 1
-	log.Infof("Trace writer initialized (climit=%d qsize=%d compression=%s)", climit, qsize, compressor.Encoding())
+	log.Infof("Trace writer initialized (climt=%d qsize=%d compression=%s)", climit, qsize, compressor.Encoding())
 	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize, telemetryCollector, statsd)
 	tw.wg.Add(1)
 	go tw.timeFlush()
@@ -148,11 +148,19 @@ func (w *TraceWriter) UpdateAPIKey(oldKey, newKey string) {
 
 func (w *TraceWriter) reporter() {
 	tck := time.NewTicker(w.tick)
+	accWriterStats := info.TraceWriterInfo{}
+	info.UpdateTraceWriterInfo(&accWriterStats)
+	var lastReset time.Time
 	defer tck.Stop()
 	defer w.wg.Done()
 	for {
 		select {
-		case <-tck.C:
+		case now := <-tck.C:
+			accWriterStats.Acc(w.stats)
+			if now.Sub(lastReset) >= time.Minute {
+				accWriterStats.Reset()
+				lastReset = now
+			}
 			w.report()
 		case <-w.stop:
 			return
