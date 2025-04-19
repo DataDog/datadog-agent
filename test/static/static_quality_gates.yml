@@ -9,7 +9,7 @@ static_quality_gate_agent_heroku_amd64:
   max_on_wire_size: 113.69 MiB
 static_quality_gate_agent_msi:
   max_on_disk_size: 958.92 MiB
-  max_on_wire_size: 149.05 MiB
+  max_on_wire_size: 149.04 MiB
 static_quality_gate_agent_rpm_amd64:
   max_on_disk_size: 770.92 MiB
   max_on_wire_size: 190.36 MiB
