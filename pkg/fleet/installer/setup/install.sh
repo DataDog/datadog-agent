@@ -19,14 +19,14 @@ if ! command -v sha256sum >/dev/null || ! (command -v curl >/dev/null || command
 fi
 
 flavor="INSTALLER_FLAVOR"
-version="INSTALLER_VERSION"
-export DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER="$version"
+version="AGENT_VERSION"
+export DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT="$version"
 case "$arch" in
 x86_64)
-  installer_sha256="INSTALLER_AMD64_SHA256"
+  installer_sha256="PINNED_INSTALLER_VERSION_AMD64_TODO" # TODO: Pin to the right installer version
   ;;
 aarch64)
-  installer_sha256="INSTALLER_ARM64_SHA256"
+  installer_sha256="PINNED_INSTALLER_VERSION_ARM64_TODO" # TODO: Pin to the right installer version
   ;;
 esac
 installer_domain=${DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE:-$([[ "$DD_SITE" == "datad0g.com" ]] && echo "install.datad0g.com" || echo "install.datadoghq.com")}
