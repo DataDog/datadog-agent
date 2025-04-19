@@ -1862,6 +1862,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 
 		enableAPMInstrumentation  = wConfig("apm_config.instrumentation.enabled", true)
 		disableAPMInstrumentation = wConfig("apm_config.instrumentation.enabled", false)
+		disableOwnerName          = wConfig("apm_config.instrumentation.use_owner_name_as_default_service_name", false)
 		disableNamespaces         = func(ns ...string) func() {
 			return wConfig("apm_config.instrumentation.disabled_namespaces", ns)
 		}
@@ -2544,6 +2545,35 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			wantErr:                   false,
 			wantWebhookInitErr:        false,
 			setupConfig:               funcs{enableAPMInstrumentation},
+		},
+		{
+			name: "Single Step Instrumentation: dont use owner name if disabled",
+			pod: common.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "test-deployment-123",
+			}.Create(),
+			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+			),
+			expectedInjectedLibraries: defaultLibraries,
+			expectedSecurityContext:   &corev1.SecurityContext{},
+			wantErr:                   false,
+			wantWebhookInitErr:        false,
+			setupConfig: funcs{
+				enableAPMInstrumentation,
+				disableOwnerName,
+			},
 		},
 		{
 			name: "Single Step Instrumentation: default service name for StatefulSet",
@@ -3698,7 +3728,7 @@ func TestShouldInject(t *testing.T) {
 func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component, versionOverride version) (*Webhook, error) {
 	config, err := NewConfig(ddConfig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("NewConfg: %w", err)
 	}
 
 	// N.B. keeping this around to continue to have tests for v1,
@@ -3707,11 +3737,11 @@ func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component, versi
 
 	mutator, err := NewNamespaceMutator(config, wmeta)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("NewNamespaceMutator: %w", err)
 	}
 	webhook, err := NewWebhook(config, wmeta, mutator)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("NewWebhook: %w", err)
 	}
 
 	return webhook, nil

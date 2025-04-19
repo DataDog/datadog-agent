@@ -243,7 +243,10 @@ func (m *mutatorCore) serviceNameMutator(pod *corev1.Pod) containerMutator {
 		return &serviceNameMutator{noop: true}
 	}
 
-	return newServiceNameMutator(pod)
+	return newServiceNameMutator(
+		pod,
+		m.config.Instrumentation.UseOwnerNameAsDefaultServiceName,
+	)
 }
 
 // newInitContainerMutators constructs container mutators for behavior
