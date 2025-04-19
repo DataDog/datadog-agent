@@ -133,6 +133,12 @@ func (s *PrioritySampler) applyRate(root *pb.Span, signature Signature) float64 
 	if rate, ok := getMetric(root, deprecatedRateKey); ok {
 		return rate
 	}
+
+	if rate, ok := getMetric(root, KeyOtelSampleRate); ok {
+		// OTLP uses a different key for the rate
+		return rate
+	}
+
 	rate := s.sampler.getSignatureSampleRate(signature)
 
 	setMetric(root, deprecatedRateKey, rate)
