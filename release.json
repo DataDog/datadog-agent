@@ -1,5 +1,5 @@
 {
-    "base_branch": "main",
+    "base_branch": "pgimalac/template-base",
     "current_milestone": "7.66.0",
     "last_stable": {
         "6": "6.53.1",
