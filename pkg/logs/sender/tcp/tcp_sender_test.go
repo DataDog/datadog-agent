@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 )
 
@@ -90,7 +91,7 @@ func TestTCPDestinationFactory(t *testing.T) {
 			factory := tcpDestinationFactory(
 				endpoints,
 				destinationsCtx,
-				tc.serverless,
+				sender.NewMockServerlessMeta(tc.serverless),
 				status,
 			)
 

@@ -7,7 +7,6 @@ package pipeline
 
 import (
 	"context"
-	"sync"
 
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
@@ -70,9 +69,7 @@ type provider struct {
 
 	pipelines            []*Pipeline
 	currentPipelineIndex *atomic.Uint32
-
-	serverless bool
-	flushWg    *sync.WaitGroup
+	serverlessMeta       sender.ServerlessMeta
 
 	hostname    hostnameinterface.Component
 	cfg         pkgconfigmodel.Reader
@@ -95,18 +92,12 @@ func NewProvider(
 	serverless bool,
 ) Provider {
 	var senderImpl sender.PipelineComponent
-	var senderDoneChan chan *sync.WaitGroup
-	var flushWg *sync.WaitGroup
-
-	if serverless {
-		senderDoneChan = make(chan *sync.WaitGroup)
-		flushWg = &sync.WaitGroup{}
-	} // else we use the default nil value for senderDoneChan and flushWg
+	serverlessMeta := sender.NewServerlessMeta(serverless)
 
 	if endpoints.UseHTTP {
-		senderImpl = httpSender(numberOfPipelines, cfg, auditor, endpoints, destinationsContext, senderDoneChan, flushWg, serverless, legacyMode)
+		senderImpl = httpSender(numberOfPipelines, cfg, auditor, endpoints, destinationsContext, serverlessMeta, legacyMode)
 	} else {
-		senderImpl = tcpSender(numberOfPipelines, cfg, auditor, endpoints, destinationsContext, status, senderDoneChan, flushWg, serverless, legacyMode)
+		senderImpl = tcpSender(numberOfPipelines, cfg, auditor, endpoints, destinationsContext, status, serverlessMeta, legacyMode)
 	}
 
 	return newProvider(
@@ -117,8 +108,7 @@ func NewProvider(
 		hostname,
 		cfg,
 		compression,
-		flushWg,
-		serverless,
+		serverlessMeta,
 		senderImpl,
 	)
 }
@@ -135,9 +125,7 @@ func tcpSender(
 	endpoints *config.Endpoints,
 	destinationsContext *client.DestinationsContext,
 	status statusinterface.Status,
-	senderDoneChan chan *sync.WaitGroup,
-	flushWg *sync.WaitGroup,
-	serverless bool,
+	serverlessMeta sender.ServerlessMeta,
 	legacy bool,
 ) *sender.Sender {
 	var queueCount, workersPerQueue int
@@ -154,12 +142,10 @@ func tcpSender(
 		cfg,
 		auditor,
 		cfg.GetInt("logs_config.payload_channel_size"),
-		senderDoneChan,
-		flushWg,
+		serverlessMeta,
 		endpoints,
 		destinationsContext,
 		status,
-		serverless,
 		componentName,
 		queueCount,
 		workersPerQueue,
@@ -172,9 +158,7 @@ func httpSender(
 	auditor auditor.Auditor,
 	endpoints *config.Endpoints,
 	destinationsContext *client.DestinationsContext,
-	senderDoneChan chan *sync.WaitGroup,
-	flushWg *sync.WaitGroup,
-	serverless bool,
+	serverlessMeta sender.ServerlessMeta,
 	legacyMode bool,
 ) *sender.Sender {
 	var queueCount, workersPerQueue, minSenderConcurrency, maxSenderConcurrency int
@@ -183,7 +167,7 @@ func httpSender(
 		workersPerQueue = 1
 		minSenderConcurrency = endpoints.BatchMaxConcurrentSend
 		maxSenderConcurrency = endpoints.BatchMaxConcurrentSend
-	} else if serverless {
+	} else if serverlessMeta.IsEnabled() {
 		// Currently the serverless destination is a synchronous entity. All concurrency needs to be in the form
 		// of discrete sender workers, so we spin up one per pipeline.
 		queueCount = sender.DefaultQueuesCount
@@ -210,11 +194,9 @@ func httpSender(
 		cfg,
 		auditor,
 		cfg.GetInt("logs_config.payload_channel_size"),
-		senderDoneChan,
-		flushWg,
+		serverlessMeta,
 		endpoints,
 		destinationsContext,
-		serverless,
 		componentName,
 		http.JSONContentType,
 		queueCount,
@@ -232,8 +214,7 @@ func newProvider(
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader,
 	compression logscompression.Component,
-	flushWg *sync.WaitGroup,
-	serverless bool,
+	serverlessMeta sender.ServerlessMeta,
 	senderImpl sender.PipelineComponent,
 ) Provider {
 	return &provider{
@@ -244,8 +225,7 @@ func newProvider(
 		sender:                    senderImpl,
 		pipelines:                 []*Pipeline{},
 		currentPipelineIndex:      atomic.NewUint32(0),
-		serverless:                serverless,
-		flushWg:                   flushWg,
+		serverlessMeta:            serverlessMeta,
 		hostname:                  hostname,
 		cfg:                       cfg,
 		compression:               compression,
@@ -262,8 +242,7 @@ func (p *provider) Start() {
 			p.endpoints,
 			p.sender,
 			p.diagnosticMessageReceiver,
-			p.serverless,
-			p.flushWg,
+			p.serverlessMeta,
 			p.hostname,
 			p.cfg,
 			p.compression,
@@ -382,8 +361,10 @@ func (p *provider) Flush(ctx context.Context) {
 			p.Flush(ctx)
 		}
 	}
-	if p.serverless {
+	if p.serverlessMeta.IsEnabled() {
+		p.serverlessMeta.Lock()
+		defer p.serverlessMeta.Unlock()
 		// Wait for the logs sender to finish sending payloads to all destinations before allowing the flush to finish
-		p.flushWg.Wait()
+		p.serverlessMeta.WaitGroup().Wait()
 	}
 }
