@@ -634,8 +634,6 @@ linters-settings:
           - "!**/pkg/network/go/lutgen/**"
           - "!$test"
           - "!**/tests/**"
-          # TODO: remove those once migrated
-          - "!**/pkg/dynamicinstrumentation/ebpf/**"
 
   errcheck:
     exclude-functions:
