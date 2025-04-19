@@ -8,7 +8,7 @@
 // Package agentcrashdetect ... /* TODO: detailed doc comment for the component */
 package agentcrashdetect
 
-// team: windows-kernel-integrations
+// team: windows-agent
 
 // Component is the component type.
 type Component interface {
