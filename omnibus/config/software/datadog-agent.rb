@@ -161,17 +161,17 @@ build do
   end
 
   # System-probe
-  if sysprobe_enabled? || (windows_target? && do_windows_sysprobe != "")
-    if windows_target?
-      command "invoke -e system-probe.build #{fips_args}", env: env
-    elsif linux_target?
+  if sysprobe_enabled? || osx_target? || (windows_target? && do_windows_sysprobe != "")
+    if linux_target?
       command "invoke -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: env
       command "!(objdump -p ./bin/system-probe/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])')"
+    else
+      command "invoke -e system-probe.build #{fips_args}", env: env
     end
 
     if windows_target?
       copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
-    elsif linux_target?
+    else
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
     end
 
@@ -251,6 +251,14 @@ build do
         dest: "#{conf_dir}/com.datadoghq.agent.plist.example",
         mode: 0644,
         vars: { install_dir: install_dir }
+
+    erb source: "launchd.sysprobe.plist.example.erb",
+        dest: "#{conf_dir}/com.datadoghq.sysprobe.plist.example",
+        mode: 0644,
+        vars: {
+          install_dir: install_dir,
+          conf_dir: conf_dir,
+        }
 
     erb source: "gui.launchd.plist.erb",
         dest: "#{conf_dir}/com.datadoghq.gui.plist.example",
