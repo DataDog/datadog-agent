@@ -9,8 +9,9 @@ package client
 // Content encapsulates the content types of the Versa API
 type Content interface {
 	ApplianceLiteResponse |
-		ControllerResponse |
-		DirectorStatus
+	ControllerResponse |
+	DirectorStatus |
+	SLAMetricsResponse
 }
 
 // ApplianceLiteResponse /versa/ncs-services/vnms/appliance/appliance/lite
@@ -170,4 +171,31 @@ type DirectorStatus struct {
 		SysProcUptime     string `json:"sysProcUptime"`
 		SysUpTimeDetail   string `json:"sysUpTimeDetail"`
 	} `json:"systemUpTime"`
+}
+
+// SLAMetricsResponse /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+// with query parameters
+type SLAMetricsResponse struct {
+	QTime                int             `json:"qTime"`
+	SEcho                int             `json:"sEcho"`
+	ITotalDisplayRecords int             `json:"iTotalDisplayRecords"`
+	ITotalRecords        int             `json:"iTotalRecords"`
+	AaData               [][]interface{} `json:"aaData"`
+}
+
+// SLAMetrics represents the columns to parse from the SLAMetricsResponse interface/API call
+type SLAMetrics struct {
+	// TODO: utilize this ordered list of fields for AaData
+	DrillKey            string
+	LocalSite           string
+	RemoteSite          string
+	LocalAccessCircuit  string
+	RemoteAccessCircuit string
+	ForwardingClass     string
+	Delay               float64
+	FwdDelayVar         float64
+	RevDelayVar         float64
+	FwdLossRatio        float64
+	RevLossRatio        float64
+	PDULossRatio        float64
 }
