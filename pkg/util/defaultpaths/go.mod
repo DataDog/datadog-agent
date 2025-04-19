@@ -3,15 +3,15 @@ module github.com/DataDog/datadog-agent/pkg/util/defaultpaths
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.65.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/util/log v0.65.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.65.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.65.0-rc.10
+	github.com/DataDog/datadog-agent/pkg/util/log v0.65.0-rc.10
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.65.0-rc.10
 	golang.org/x/sys v0.31.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.65.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.65.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.65.0-rc.10 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.65.0-rc.10 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect

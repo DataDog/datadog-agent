@@ -3,20 +3,20 @@ module github.com/DataDog/datadog-agent/comp/core/tagger/subscriber
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.65.0-rc.9
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.65.0-rc.9
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.65.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.65.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/util/log v0.65.0-rc.9
+	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.65.0-rc.10
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.65.0-rc.10
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.65.0-rc.10
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.65.0-rc.10
+	github.com/DataDog/datadog-agent/pkg/util/log v0.65.0-rc.10
 	github.com/stretchr/testify v1.10.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.65.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.65.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.65.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.65.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.65.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.65.0-rc.10 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.65.0-rc.10 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.65.0-rc.10 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.65.0-rc.10 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.65.0-rc.10 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
