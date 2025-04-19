@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"os/user"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -170,6 +171,8 @@ func run(log log.Component, _ config.Component, telemetry telemetry.Component, s
 
 	// prepare go runtime
 	ddruntime.SetMaxProcs()
+
+	debug.SetGCPercent(50)
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
