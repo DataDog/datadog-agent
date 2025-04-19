@@ -24,15 +24,16 @@ func newInnerNode(children map[string]Node) *innerNode {
 	for k, v := range children {
 		contents[strings.ToLower(k)] = v
 	}
-	node := &innerNode{children: contents}
-	return node
+	alloc := allocateNewInnerNode()
+	alloc.children = contents
+	return alloc
 }
 
 var _ Node = (*innerNode)(nil)
 
 // Clone clones a InnerNode and all its children
 func (n *innerNode) Clone() Node {
-	children := make(map[string]Node)
+	children := make(map[string]Node, len(n.children))
 	for k, node := range n.children {
 		children[k] = node.Clone()
 	}
