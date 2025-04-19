@@ -31,3 +31,229 @@ agent_dmg-x64-a7:
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check"]
   timeout: 6h
+
+.macos_setup_python:
+  # Selecting the current Python version
+  - !reference [.select_python_env_commands]
+  # List Python and Go existing environments and their disk space
+  - !reference [.list_python_versions_commands]
+  - !reference [.install_python_dependencies]
+
+.macos_setup_go:
+  - |
+    echo Setting up Go
+    mkdir -p ~/go
+    export GO_VERSION="$(cat .go-version)"
+    eval "$(gimme $GO_VERSION)"
+    export PATH="$PATH:$GOROOT/bin"
+  - |
+    echo Go version should be $GO_VERSION
+    go version
+  - dda inv check-go-version
+
+# Add certificates to temporary keychain
+.macos_setup_signing:
+  - |
+    if [ "$SIGN" = true ]; then
+      echo "Setting up signing secrets"
+
+      KEYCHAIN_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_KEYCHAIN_PWD password) || exit $?; export KEYCHAIN_PWD
+      CODESIGNING_CERT_BASE64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_APPLICATION_SIGNING certificate) || exit $?; export CODESIGNING_CERT_BASE64
+      CODESIGNING_CERT_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_APPLICATION_SIGNING passphrase) || exit $?; export CODESIGNING_CERT_PASSPHRASE
+      INSTALLER_CERT_BASE64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_INSTALLER_SIGNING certificate) || exit $?; export INSTALLER_CERT_BASE64
+      INSTALLER_CERT_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_INSTALLER_SIGNING passphrase) || exit $?; export INSTALLER_CERT_PASSPHRASE
+
+      NOTARIZATION_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_NOTARIZATION password) || exit $?; export NOTARIZATION_PWD
+      TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT team-id) || exit $?; export TEAM_ID
+      APPLE_ACCOUNT=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT user) || exit $?; export APPLE_ACCOUNT
+
+      # Create temporary build keychain
+      security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
+
+      # Let the keychain stay unlocked for 2 hours, otherwise the OS might lock
+      # it again after a period of inactivity.
+      security set-keychain-settings -lut 7200 "$KEYCHAIN_NAME"
+
+      # Add the build keychain to the list of active keychains
+      security list-keychains -d user -s "$KEYCHAIN_NAME" "login.keychain"
+
+      security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
+
+      # Apple has two different kinds of certificates:
+      # - code signing certificates, to sign binaries.
+      # - installer certificates, to sign the .pkg archive.
+      # We use both, because having signed binaries & a signed installer is a prerequisite to
+      # have an app notarized by Apple.
+      echo "$CODESIGNING_CERT_BASE64" | base64 -d > codesigning_cert.p12
+      echo "$INSTALLER_CERT_BASE64" | base64 -d > installer_cert.p12
+
+      # Import codesigning cert, only allow codesign to use it without confirmation
+      echo Importing codesigning cert
+      security import codesigning_cert.p12 -f pkcs12 -P "$CODESIGNING_CERT_PASSPHRASE" -k "build.keychain" -T "/usr/bin/codesign"
+      rm -f codesigning_cert.p12
+
+      # Import installer cert, only allow productbuild to use it without confirmation
+      echo Importing installer cert
+      security import installer_cert.p12 -f pkcs12 -P "$INSTALLER_CERT_PASSPHRASE" -k "build.keychain" -T "/usr/bin/productbuild"
+      rm -f installer_cert.p12
+
+      # Update the key partition list
+      # Since MacOS Sierra, this line is needed to "apply" the security import changes above
+      # (namely the changes that allow using codesign and productbuild without user prompts)
+      # See: https://stackoverflow.com/questions/39868578/security-codesign-in-sierra-keychain-ignores-access-control-settings-and-ui-p
+      #      https://stackoverflow.com/questions/43002579/after-set-key-partition-list-codesign-still-prompts-for-key-access/43002580
+      # for reference.
+      # Note: this feature is badly documented (and doesn't even appear in the command list if you run security --help...).
+      # Note: we silence the output of this command because it contains metadata about the certificates.
+      security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PWD" "$KEYCHAIN_NAME" &>/dev/null
+    fi
+
+.macos_setup_cache:
+  # Clean up previous builds
+  - sudo bash -c "rm -rf /var/cache/omnibus/src/*" || true
+  # Set bundler install path to cached folder
+  - !reference [.cache_omnibus_ruby_deps, setup]
+  - |
+    export GOMODCACHE=~/gomodcache
+    sudo rm -rf $GOMODCACHE
+    rm -rf $GOMODCACHE
+    mkdir -p $GOMODCACHE
+
+.macos_do_build:
+  - |
+    rm -rf "$INSTALL_DIR" "$CONFIG_DIR"
+    mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
+    rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIBUS_DIR"
+  - |
+    echo Launching omnibus build
+    if [ "$SIGN" = "true" ]; then
+        # Unlock the keychain to get access to the signing certificates
+        security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
+        dda inv -- -e omnibus.build --hardened-runtime --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
+        # Lock the keychain once we're done
+        security lock-keychain "$KEYCHAIN_NAME"
+    else
+        dda inv -- -e omnibus.build --skip-sign --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
+    fi
+    echo Built packages using omnibus
+
+.macos_do_notarization:
+  - |
+    if [ "$SIGN" = true ]; then
+      echo -e "\e[0Ksection_start:`date +%s`:notarization\r\e[0KDoing notarization"
+      export RELEASE_VERSION=${RELEASE_VERSION:-$VERSION}
+      unset LATEST_DMG
+
+      # Find latest .dmg file in $GOPATH/src/github.com/Datadog/datadog-agent/omnibus/pkg
+      for file in "$PWD/omnibus/pkg"/*.dmg; do
+        if [[ -z "$LATEST_DMG" || "$file" -nt "$LATEST_DMG" ]]; then LATEST_DMG="$file"; fi
+      done
+
+      echo "File to upload: $LATEST_DMG"
+
+      # Send package for notarization; retrieve REQUEST_UUID
+      echo "Sending notarization request."
+
+      # Apply timeout / retry
+      for attempt in $(seq 1 $NOTARIZATION_ATTEMPTS); do
+        RESULT=$(timeout "$NOTARIZATION_TIMEOUT" xcrun notarytool submit --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait) || EXIT_CODE=$?
+        echo "Results: $RESULT"
+        SUBMISSION_ID=$(echo "$RESULT" | awk '$1 == "id:"{print $2; exit}')
+        echo "Submission ID: $SUBMISSION_ID"
+        echo "Submission logs:"
+        xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID"
+        if [ -n "$EXIT_CODE" ]; then
+          echo "Notarization attempt #$attempt/$NOTARIZATION_ATTEMPTS failed, retrying in $NOTARIZATION_WAIT_TIME"
+          sleep "$NOTARIZATION_WAIT_TIME"
+        else
+          echo "Successfully notarized the package"
+          break
+        fi
+      done
+      echo -e "\e[0Ksection_end:`date +%s`:notarization\r\e[0K"
+    fi
+
+new-agent_dmg-x64-a7:
+  stage: package_build
+  # TODO(celian): Don't use the test image
+  tags: ["macos:ventura-amd64-test", "specific:true"]
+  needs: ["go_mod_tidy_check"]
+  allow_failure: true
+
+  # TODO(celian): Temporary rules.
+  rules:
+    # This is used to avoid conflicts with the current build job on main / release branches with s3. This will run on dev branches
+    - !reference [.on_main_or_release_branch_or_deploy_manual]
+    - when: on_success
+
+  # TODO(celian): Replace by the following after testing new builds.
+  # rules:
+  #    - !reference [.on_macos_gui_change]
+  #    - !reference [.on_packaging_change]
+  #    - !reference [.on_main_or_release_branch]
+  #    - !reference [.on_all_builds]
+  #    - !reference [.manual]
+  # allow_failure: false  # (remove)
+  timeout: 3h # MacOS builds can take 1h~2h, increase the timeout to avoid timeout flakes
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - omnibus/pkg/*.dmg
+      - omnibus/pkg/version-manifest.json
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    PYTHON_RUNTIMES: 3
+    PYTHON_VERSION: 3.12.6
+    SIGN: true
+    KEYCHAIN_NAME: "build.keychain"
+    INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
+    INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD: true
+    S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
+    S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS: true
+    NOTARIZATION_TIMEOUT: 30m
+    NOTARIZATION_ATTEMPTS: 3
+    NOTARIZATION_WAIT_TIME: 15s
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
+  before_script:
+    - sudo umount /Volumes/Agent || true
+  after_script:
+    # Destroy the keychain used to sign packages
+    - |
+      if [ "$SIGN" = true ]; then
+        security delete-keychain "build.keychain" || true
+      fi
+    - sudo umount /Volumes/Agent
+  script:
+    - set -eo pipefail
+    - |
+      if [ "$SIGN" = true ]; then
+        echo "Signing enabled"
+      else
+        echo "Signing disabled"
+      fi
+    - |
+      unset OMNIBUS_GIT_CACHE_DIR
+      export INSTALL_DIR="$PWD/datadog-agent-build/bin"
+      export CONFIG_DIR="$PWD/datadog-agent-build/config"
+      export OMNIBUS_DIR="$PWD/omnibus_build"
+      unset OMNIBUS_BASE_DIR
+      export OMNIBUS_PACKAGE_DIR="$PWD"/omnibus/pkg
+      # Update the INTEGRATION_CORE_VERSION if requested
+      if [ -n "$INTEGRATIONS_CORE_REF" ]; then
+          export INTEGRATIONS_CORE_VERSION="$INTEGRATIONS_CORE_REF"
+      fi
+    - !reference [.vault_login]
+    - !reference [.macos_setup_python]
+    - !reference [.macos_setup_go]
+    - !reference [.macos_setup_signing]
+    - !reference [.macos_setup_cache]
+    - !reference [.macos_do_build]
+    - !reference [.macos_do_notarization]
+    - !reference [.upload_sbom_artifacts]
+    - |
+      if [ "$SIGN" = true ]; then
+        echo Built signed package
+      else
+        echo Built unsigned package
+      fi
