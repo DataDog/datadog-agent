@@ -149,7 +149,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 
 	endpoint = endpoints.Main
 	suite.True(endpoint.UseCompression)
-	suite.Equal(endpoint.CompressionLevel, 6)
+	suite.Equal(endpoint.CompressionLevel, ZstdCompressionLevel)
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndCompressionAndOverride() {
@@ -157,9 +157,11 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	var endpoint Endpoint
 	var err error
 
+	zstdCompressionLevel := 2
+
 	suite.config.SetWithoutSource("logs_config.use_http", true)
 	suite.config.SetWithoutSource("logs_config.use_compression", true)
-	suite.config.SetWithoutSource("logs_config.compression_level", 1)
+	suite.config.SetWithoutSource("logs_config.zstd_compression_level", zstdCompressionLevel)
 
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
@@ -167,7 +169,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 
 	endpoint = endpoints.Main
 	suite.True(endpoint.UseCompression)
-	suite.Equal(endpoint.CompressionLevel, 1)
+	suite.Equal(endpoint.CompressionLevel, zstdCompressionLevel)
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndOverride() {
