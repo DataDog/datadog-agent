@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package traceutil
+// Package normalize contains functions for normalizing trace data.
+package normalize
 
 import (
 	"errors"
@@ -40,6 +41,8 @@ var (
 
 // NormalizeName normalizes a span name and returns an error describing the reason
 // (if any) why the name was modified.
+//
+//nolint:revive
 func NormalizeName(name string) (string, error) {
 	if name == "" {
 		return DefaultSpanName, ErrEmpty
@@ -58,6 +61,8 @@ func NormalizeName(name string) (string, error) {
 
 // NormalizeService normalizes a span service and returns an error describing the reason
 // (if any) why the name was modified.
+//
+//nolint:revive
 func NormalizeService(svc string, lang string) (string, error) {
 	if svc == "" {
 		return fallbackService(lang), ErrEmpty
@@ -77,6 +82,8 @@ func NormalizeService(svc string, lang string) (string, error) {
 
 // NormalizePeerService normalizes a span's peer.service and returns an error describing the reason
 // (if any) why the name was modified.
+//
+//nolint:revive
 func NormalizePeerService(svc string) (string, error) {
 	if svc == "" {
 		return "", nil
@@ -118,12 +125,16 @@ func fallbackService(lang string) string {
 const maxTagLength = 200
 
 // NormalizeTag applies some normalization to ensure the full tag_key:tag_value string matches the backend requirements.
+//
+//nolint:revive
 func NormalizeTag(v string) string {
 	return normalize(v, true)
 }
 
 // NormalizeTagValue applies some normalization to ensure the tag value matches the backend requirements.
 // It should be used for cases where we have just the tag_value as the input (instead of tag_key:tag_value).
+//
+//nolint:revive
 func NormalizeTagValue(v string) string {
 	return normalize(v, false)
 }

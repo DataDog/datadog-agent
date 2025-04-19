@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/trace/version"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 
@@ -315,7 +316,7 @@ func (a *Agent) Process(p *api.Payload) {
 	sampledChunks := new(writer.SampledChunks)
 	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, p.ProcessTags)
 
-	p.TracerPayload.Env = traceutil.NormalizeTagValue(p.TracerPayload.Env)
+	p.TracerPayload.Env = normalize.NormalizeTagValue(p.TracerPayload.Env)
 
 	a.discardSpans(p)
 
@@ -511,7 +512,7 @@ func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, con
 	if in.Env == "" {
 		in.Env = a.conf.DefaultEnv
 	}
-	in.Env = traceutil.NormalizeTagValue(in.Env)
+	in.Env = normalize.NormalizeTagValue(in.Env)
 	if in.TracerVersion == "" {
 		in.TracerVersion = tracerVersion
 	}

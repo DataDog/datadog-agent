@@ -5,7 +5,7 @@
 
 //go:build go1.18
 
-package traceutil
+package normalize
 
 import (
 	"testing"
