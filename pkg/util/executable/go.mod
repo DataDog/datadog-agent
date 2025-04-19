@@ -2,10 +2,7 @@ module github.com/DataDog/datadog-agent/pkg/util/executable
 
 go 1.23.0
 
-require (
-	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
-	github.com/stretchr/testify v1.10.0
-)
+require github.com/stretchr/testify v1.10.0
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect

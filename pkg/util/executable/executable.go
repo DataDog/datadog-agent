@@ -8,16 +8,13 @@
 package executable
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
-
-	// TODO: Use the built-in "os" package as soon as it implements `Executable()`
-	// consistently across all platforms
-	"github.com/kardianos/osext"
 )
 
 func path(allowSymlinkFailure bool) (string, error) {
-	here, err := osext.Executable()
+	here, err := os.Executable()
 	if err != nil {
 		return "", err
 	}
