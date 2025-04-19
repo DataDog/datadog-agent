@@ -1,6 +1,6 @@
 #!/bin/bash
-
-if [[ -z "${ECS_FARGATE}" ]]; then
+ 
+if [[ "${ECS_FARGATE}" == "true" ]]; then
     exit 0
 fi
 
