@@ -23,6 +23,11 @@ var (
 	//nolint:revive // TODO(AML) Fix revive linter
 	CardinalityTagPrefix = constants.CardinalityTagPrefix
 	jmxCheckNamePrefix   = "dd.internal.jmx_check_name:"
+	// Serverless
+	functionArnTagPrefix = "function_arn:"
+	appServiceTag        = "origin:appservice"
+	containerAppTag      = "origin:containerapp"
+	cloudRunTag          = "origin:cloudrun"
 )
 
 // enrichConfig contains static parameters used in various enrichment
@@ -66,6 +71,9 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 			checkName := tag[len(jmxCheckNamePrefix):]
 			metricSource = metrics.JMXCheckNameToMetricSource(checkName)
 			continue
+		} else if source := getServerlessSourceFromTag(tag); source != 0 {
+			metricSource = source
+			continue
 		}
 		tags[n] = tag
 		n++
@@ -74,6 +82,21 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 	tags = tags[:n]
 
 	return tags, host, origin, metricSource
+}
+
+// getServerlessSourceFromTag returns the metric source from a tag.
+func getServerlessSourceFromTag(tag string) metrics.MetricSource {
+	var metricSource metrics.MetricSource
+	if strings.HasPrefix(tag, functionArnTagPrefix) {
+		metricSource = metrics.MetricSourceAwsLambda
+	} else if tag == appServiceTag {
+		metricSource = metrics.MetricSourceAzureAppService
+	} else if tag == containerAppTag {
+		metricSource = metrics.MetricSourceAzureContainerApp
+	} else if tag == cloudRunTag {
+		metricSource = metrics.MetricSourceGoogleCloudRun
+	}
+	return metricSource
 }
 
 func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {

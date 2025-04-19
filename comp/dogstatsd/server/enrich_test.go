@@ -1559,3 +1559,49 @@ func TestEnrichTagsWithJMXCheckName(t *testing.T) {
 
 	}
 }
+
+func TestGetServerlessSourceFromTag(t *testing.T) {
+	tests := []struct {
+		name           string
+		tag            string
+		expectedSource metrics.MetricSource
+	}{
+		{
+			name:           "AWS Lambda",
+			tag:            "function_arn:test-arn",
+			expectedSource: metrics.MetricSourceAwsLambda,
+		},
+		{
+			name:           "Azure Container App",
+			tag:            "origin:containerapp",
+			expectedSource: metrics.MetricSourceAzureContainerApp,
+		},
+		{
+			name:           "Azure App Service",
+			tag:            "origin:appservice",
+			expectedSource: metrics.MetricSourceAzureAppService,
+		},
+		{
+			name:           "Google Cloud Run",
+			tag:            "origin:cloudrun",
+			expectedSource: metrics.MetricSourceGoogleCloudRun,
+		},
+		{
+			name:           "No change for regular tag",
+			tag:            "some:other:tag",
+			expectedSource: metrics.MetricSourceUnknown,
+		},
+		{
+			name:           "No change for non-matching prefix",
+			tag:            "dd.internal.something_else:value",
+			expectedSource: metrics.MetricSourceUnknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getServerlessSourceFromTag(tt.tag)
+			assert.Equal(t, tt.expectedSource, result)
+		})
+	}
+}

@@ -773,6 +773,16 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		} else {
 			metricSamples[idx].Tags = metricSamples[0].Tags
 		}
+
+		// If we're in serverless mode, we need to determine the metric source from extra tags
+		if s.enrichConfig.serverlessMode {
+			for _, tag := range s.extraTags {
+				if source := getServerlessSourceFromTag(tag); source != 0 {
+					metricSamples[idx].Source = source
+				}
+			}
+		}
+
 		dogstatsdMetricPackets.Add(1)
 		okCnt.Inc()
 	}
