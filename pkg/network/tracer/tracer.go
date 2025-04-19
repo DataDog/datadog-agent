@@ -12,17 +12,21 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cilium/ebpf"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/atomic"
-	"go4.org/intern"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -47,8 +51,44 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
-const tracerModuleName = "network_tracer"
+const (
+	statusEndpoint = "/status"
+	debugEndpoint  = "/debug"
+	connsEndpoint  = "/connections"
+	registerURL    = "/register"
+
+	// maxResponseBytes represents the maximum number of bytes we're willing to read
+	// from the connections endpoint response
+	maxResponseBytes = 10 * 1024 * 1024
+
+	// probeRetryInterval determines the frequency at which we'll attempt to re-initialize
+	// the probes that have previously failed to load
+	probeRetryInterval = 5 * time.Minute
+
+	// headerTruncationSize is the size that we truncate agent headers to
+	headerTruncationSize = 128
+
+	defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
+	tracerModuleName                 = "network_tracer"
+)
+
+//nolint:revive // TODO(NET) Fix revive linter
+var (
+	// ErrTracerNotRunning signals that the tracer is not running
+	ErrTracerNotRunning = errors.New("tracer not running")
+
+	// ErrEBPFUnsupported is returned when eBPF is not supported on the host
+	ErrEBPFUnsupported = errors.New("eBPF not supported")
+
+	// ErrBPFUtilsLoad is returned when /opt/datadog-agent/embedded/bin/bpf-utils fails to load
+	ErrBPFUtilsLoad = errors.New("bpf-utils failed to load")
+
+	// the value of the DD_AGENT_MAJOR_VERSION environment variable
+	// Note: This has to be a string because we use this value for logf arguments
+	agentMajorVersion = fmt.Sprintf("%d", version.AgentVersion.Major)
+
+	baseURL = ""
+)
 
 // Telemetry
 // Will track the count of expired TCP connections
@@ -106,6 +146,24 @@ type Tracer struct {
 
 	// Used for connection_protocol data expiration
 	connectionProtocolMapCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper]
+
+	connsLock         sync.RWMutex
+	connMonitor       *network.Monitor
+	compilationResult network.CompilationResultTracer
+
+	probeRetrier *periodicRetrier
+	stopChan     chan struct{}
+	wg           sync.WaitGroup
+
+	// ebpf checks telemetry
+	ebpfChecksCollector *ebpfcheck.Collector
+
+	// Network driver related flags
+	missingDriver atomic.Bool
+
+	// DNS capture metrics
+	domainLookups *prometheus.CounterVec
+	resolvedDNS   *prometheus.CounterVec
 }
 
 // NewTracer creates a Tracer
@@ -738,7 +796,6 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 			Conns: connections,
 		},
 	}, nil
-
 }
 
 // DebugEBPFMaps returns all maps registered in the eBPF manager
@@ -920,4 +977,522 @@ func setupConnectionProtocolMapCleaner(connectionProtocolMap *ebpf.Map, name str
 	})
 
 	return mapCleaner, nil
+}
+
+// Helper function (placeholder - needs implementation based on actual struct fields)
+// This function converts the internal ConnectionStats struct to the model.Connection struct used for payloads.
+func ToModelConnection(cs *network.ConnectionStats) *model.Connection {
+	// This requires mapping all relevant fields. Example mapping:
+	return &model.Connection{
+		Pid:                     cs.Pid,
+		PidCreateTime:           cs.PidCreateTime,
+		NetNS:                   cs.NetNS,
+		Family:                  model.ConnectionFamily(cs.Family),
+		Type:                    model.ConnectionType(cs.Type),
+		Laddr:                   &model.Addr{Ip: cs.Source.String(), Port: int32(cs.SPort)},
+		Raddr:                   &model.Addr{Ip: cs.Dest.String(), Port: int32(cs.DPort)},
+		Direction:               model.ConnectionDirection(cs.Direction),
+		IntraHost:               cs.IntraHost,
+		DnsSuccessfulResponses:  cs.DNSStatsSuccessfulResponses,
+		DnsFailedResponses:      cs.DNSStatsFailedResponses,
+		DnsTimeouts:             cs.DNSStatsTimeouts,
+		DnsSuccessLatencySum:    cs.DNSStatsSuccessLatencySum,
+		DnsFailureLatencySum:    cs.DNSStatsFailureLatencySum,
+		DnsCountByRcode:         cs.DNSStatsCountByRcode,
+		LastUpdateEpoch:         cs.LastUpdateEpoch,
+		IsAssured:               cs.IsAssured,
+		MonotonicSentBytes:      cs.Monotonic.SentBytes,
+		MonotonicRecvBytes:      cs.Monotonic.RecvBytes,
+		MonotonicSentPackets:    cs.Monotonic.SentPackets,
+		MonotonicRecvPackets:    cs.Monotonic.RecvPackets,
+		MonotonicRetransmits:    uint32(cs.Monotonic.Retransmits),
+		MonotonicTcpEstablished: uint32(cs.Monotonic.TCPEstablished),
+		MonotonicTcpClosed:      uint32(cs.Monotonic.TCPClosed),
+		LastSentBytes:           cs.Last.SentBytes,
+		LastRecvBytes:           cs.Last.RecvBytes,
+		LastSentPackets:         cs.Last.SentPackets,
+		LastRecvPackets:         cs.Last.RecvPackets,
+		LastRetransmits:         uint32(cs.Last.Retransmits),
+		LastTcpEstablished:      uint32(cs.Last.TCPEstablished),
+		LastTcpClosed:           uint32(cs.Last.TCPClosed),
+		RouteIdx:                -1, // RouteIdx is handled later during batching
+		NatRootNetns:            cs.NatRootNetNS,
+		Rtt:                     cs.RTT,
+		RttVar:                  cs.RTTVar,
+		IpTranslation:           toModelIPTranslation(cs.IPTranslation),
+		// ProtocolStack, ContainerID, Tags, DNSStatsByDomain/Offset, TagsIdx are handled later or derived.
+	}
+}
+
+func toModelIPTranslation(ipt *network.IPTranslation) *model.IPTranslation {
+	if ipt == nil {
+		return nil
+	}
+	return &model.IPTranslation{
+		ReplSrcIP:   ipt.ReplSrcIP.String(),
+		ReplDstIP:   ipt.ReplDstIP.String(),
+		ReplSrcPort: int32(ipt.ReplSrcPort),
+		ReplDstPort: int32(ipt.ReplDstPort),
+	}
+}
+
+// GetConnections returns the list of connections collected by the tracer for the given clientID.
+func (t *Tracer) GetConnections(clientID string) (*Connections, error) {
+	if clientID == network.DEBUGCLIENT {
+		return t.getConnectionsSynchronous(clientID)
+	}
+
+	t.connsLock.Lock()
+	defer t.connsLock.Unlock()
+
+	if t.state == nil {
+		return nil, ErrTracerNotRunning
+	}
+
+	// Fetch latest *active* connections from eBPF maps etc.
+	latestActiveConnsResult := t.connMonitor.FlushConnections() // Assuming this returns active connections + metadata
+
+	// Get regular delta. state.GetDelta now resets the near capacity flag for this client.
+	delta := t.state.GetDelta(clientID, latestActiveConnsResult.LastUpdateEpoch, latestActiveConnsResult.Conns, t.getDNSStatsWithLock(), t.getProtocolStatsWithLock())
+
+	// Start building the payload
+	payload := &Connections{
+		BufferedConns: t.getBufferredConnectionsWithLock(),
+		// Adjust slice capacity - emergencyClosedConns is removed
+		Conns:                       make([]*model.Connection, 0, len(delta.Conns)),
+		DNS:                         t.getDNSObjectWithLock(),
+		HTTP:                        delta.HTTP,
+		HTTP2:                       delta.HTTP2,
+		Kafka:                       delta.Kafka,
+		Postgres:                    delta.Postgres,
+		Redis:                       delta.Redis,
+		ConnTelemetryMap:            t.getConnTelemetryWithLock(),
+		CompilationTelemetryByAsset: t.getCompilationTelemetryWithLock(),
+		KernelHeaderFetchResult:     t.getKernelHeaderFetchResultWithLock(),
+		CORETelemetryByAsset:        t.getCORETelemetryWithLock(),
+		PrebuiltEBPFAssets:          t.getPrebuiltAssetsWithLock(),
+	}
+
+	// Convert ConnectionStats from the delta (active + normally closed) to model.Connection
+	for i := range delta.Conns {
+		if !delta.Conns[i].IsEmpty() {
+			payload.Conns = append(payload.Conns, ToModelConnection(&delta.Conns[i]))
+		}
+	}
+
+	return payload, nil
+}
+
+// Add new checkCapacityHandler
+func (t *Tracer) checkCapacityHandler(w http.ResponseWriter, r *http.Request) {
+	if t.state == nil {
+		log.Error("checkCapacityHandler called before tracer state is initialized")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// No client ID needed, checks global flag
+	if t.state.IsClosedConnectionsNearCapacity() {
+		log.Debug("Responding to capacity check: Near capacity (200 OK)")
+		w.WriteHeader(http.StatusOK) // 200 OK indicates near capacity
+	} else {
+		log.Trace("Responding to capacity check: Not near capacity (204 No Content)")
+		w.WriteHeader(http.StatusNoContent) // 204 No Content indicates not near capacity
+	}
+}
+
+// Register add underlying http handlers to the provided serve mux.
+func (t *Tracer) Register(httpMux *http.ServeMux) error {
+	if !t.config.EnableSystemProbeBuiltinEndpoints {
+		log.Debug("Network tracer endpoints disabled")
+		return nil
+	}
+
+	// Existing handlers
+	httpMux.HandleFunc(baseURL+connsEndpoint, otelhttp.WrapHandler(http.HandlerFunc(t.connectionsHandler), "connections_handler"))
+	httpMux.HandleFunc(baseURL+registerURL, otelhttp.WrapHandler(http.HandlerFunc(t.registerHandler), "register_handler"))
+	httpMux.HandleFunc(baseURL+statusEndpoint, otelhttp.WrapHandler(http.HandlerFunc(t.statusHandler), "status_handler"))
+	httpMux.HandleFunc(baseURL+debugEndpoint, otelhttp.WrapHandler(http.HandlerFunc(t.debugHandler), "debug_handler"))
+
+	// Register *new* endpoint for capacity check
+	newEndpointPath := baseURL + "/connections/check_capacity" // Changed path
+	log.Infof("Registering network tracer endpoint: %s", newEndpointPath)
+	httpMux.HandleFunc(newEndpointPath, otelhttp.WrapHandler(http.HandlerFunc(t.checkCapacityHandler), "check_capacity")) // Use new handler
+
+	return nil
+}
+
+func (t *Tracer) GetTelemetry() map[network.ConnTelemetryType]int64 {
+	t.connsLock.RLock()
+	defer t.connsLock.RUnlock()
+	return t.getConnTelemetryWithLock()
+}
+
+// Connections returns the batch of connections ready to be sent to the process-agent
+func (t *Tracer) getConnectionsSynchronous(clientID string) (*Connections, error) {
+	t.connsLock.Lock()
+	defer t.connsLock.Unlock()
+
+	if t.state == nil {
+		return nil, ErrTracerNotRunning
+	}
+
+	now := uint64(time.Now().UnixNano())
+
+	active, closed, telemetryDelta := t.fetchAndProcessConnections(clientID, now)
+
+	// Construct the Connections payload immediately
+	payload := &Connections{
+		BufferedConns:               t.getBufferredConnectionsWithLock(),
+		Conns:                       make([]*model.Connection, 0, len(active)+len(closed)),
+		DNS:                         t.getDNSObjectWithLock(),
+		HTTP:                        t.protocolMonitor.GetHTTPStats(),
+		HTTP2:                       t.protocolMonitor.GetHTTP2Stats(),
+		Kafka:                       t.protocolMonitor.GetKafkaStats(),
+		Postgres:                    t.protocolMonitor.GetPostgresStats(),
+		Redis:                       t.protocolMonitor.GetRedisStats(),
+		ConnTelemetryMap:            telemetryDelta,
+		CompilationTelemetryByAsset: t.getCompilationTelemetryWithLock(),
+		KernelHeaderFetchResult:     t.getKernelHeaderFetchResultWithLock(),
+		CORETelemetryByAsset:        t.getCORETelemetryWithLock(),
+		PrebuiltEBPFAssets:          t.getPrebuiltAssetsWithLock(),
+	}
+
+	for i := range active {
+		payload.Conns = append(payload.Conns, ToModelConnection(&active[i]))
+	}
+	for i := range closed {
+		payload.Conns = append(payload.Conns, ToModelConnection(&closed[i]))
+	}
+
+	return payload, nil
+}
+
+func (t *Tracer) fetchAndProcessConnections(clientID string, latestTime uint64) (active, closed []network.ConnectionStats, telemetry map[network.ConnTelemetryType]int64) {
+	conns := t.connMonitor.FlushConnections()
+
+	// Add active connections to the state
+	active, closed = t.state.StoreConnections(clientID, latestTime, conns)
+
+	// resolve DNS
+	t.reverseDNS.Resolve(closed)
+	t.reverseDNS.Resolve(active)
+
+	telemetry = t.state.GetTelemetryDelta(clientID, t.GetTelemetry())
+
+	return active, closed, telemetry
+}
+
+// run starts the main tracer loop
+func (t *Tracer) run(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("network tracer loop exited abnormally: %s", r)
+		}
+	}()
+
+	ticker := network.NewTimeTicker(t.config.AggregatorFlushInterval)
+	defer ticker.Stop()
+
+	probeRetryTicker := t.probeRetrier.GetTicker()
+	defer t.probeRetrier.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.stopChan:
+			return
+		case <-ticker.C:
+			// this is expected to be low frequency (every 30s by default)
+			t.flushConnections()
+			t.bufferedData.Tick()
+			t.state.RemoveExpiredClients(time.Now())
+		case <-probeRetryTicker:
+			// this is expected to be very low frequency (every 5m by default)
+			t.retryFailedProbes()
+		}
+	}
+}
+
+// start begins the tracer by initializing the BPF maps, starting the perf readers, and launching the periodic flush timer.
+// Must be called before GetConnections.
+func (t *Tracer) start(ctx context.Context) (err error) {
+	t.connsLock.Lock()
+	defer t.connsLock.Unlock()
+
+	if t.state == nil {
+		return ErrTracerNotRunning
+	}
+
+	tracers := map[network.TracerType]struct{}{}
+
+	// Conntracker
+	conntracker, err := network.NewConntracker(t.config)
+	if err != nil {
+		return fmt.Errorf("could not initialize conntracker: %w", err)
+	}
+	t.conntracker = conntracker
+
+	tracers[network.ConntrackTracer] = struct{}{}
+
+	if t.config.EnableRuntimeCompiler {
+		log.Info("runtime compilation is enabled")
+	}
+	if t.config.AllowPrecompiledFallback {
+		log.Info("precompiled fallback is allowed")
+	}
+	if t.config.AllowCOREFallback {
+		log.Info("CORE fallback is allowed")
+	}
+
+	buf, compilationResult, err := network.LoadTracer(t.config)
+	t.compilationResult = compilationResult
+	if err != nil {
+		if errors.Is(err, ebpf.ErrNotSupported) {
+			return ErrEBPFUnsupported
+		}
+
+		// For the offset guesser
+		if errors.Is(err, ebpf.ErrCouldNotAutoload) {
+			// We need to ensure the driver files exist
+			// Note that the offset guesser is *not* compatible with the driver workflow
+			if !driver.PlatformSupportsDefaultDriver() {
+				return fmt.Errorf("could not load module: %w. Kernel headers are likely missing. See our documentation for instructions on how to install them.", err)
+			}
+			// check if the driver is loaded
+			driverInterface, err := driver.NewInterface()
+			if err != nil {
+				return fmt.Errorf("unable to load driver interface: %w", err)
+			}
+
+			if !driverInterface.IsLoaded() {
+				return fmt.Errorf("unable to load module: %w. Ensure the datadog-network-driver has been loaded", err)
+			}
+
+			return fmt.Errorf("unable to load module: %w. Offset guessing failed.", err)
+		}
+
+		// If we get a compilation error, we should try to load the driver
+		if errors.Is(err, ebpf.ErrCompilation) && driver.PlatformSupportsDefaultDriver() {
+			driverInterface, err := driver.NewInterface()
+			if err != nil {
+				return fmt.Errorf("unable to load driver interface: %w", err)
+			}
+
+			if !driverInterface.IsLoaded() {
+				return fmt.Errorf("unable to load module: %w. Ensure the datadog-network-driver has been loaded", err)
+			}
+		}
+
+		// In any case, return the error
+		return fmt.Errorf("unable to load module: %w", err)
+	}
+
+	defer func() {
+		if err != nil {
+			_ = buf.Close()
+		}
+	}()
+
+	tracers[network.TracerType(t.compilationResult.TracerType)] = struct{}{}
+
+	var missingProbes []probes.ProbeFuncName
+	connMonitor, err := network.NewMonitor(t.config, buf.CollectionSpec(), telemetryComponent)
+	if err != nil {
+		var me *network.ErrMissingProbes
+		if errors.As(err, &me) {
+			missingProbes = me.Probes
+		} else {
+			return fmt.Errorf("error initializing network monitor: %w", err)
+		}
+	}
+
+	// Add the compilation result to the state for debugging
+	t.bpfTelemetry.CompilationResult = compilationResult
+
+	// Start the monitor
+	if err := connMonitor.Start(); err != nil {
+		return fmt.Errorf("error starting network monitor: %w", err)
+	}
+	connMonitor.MapCleaner.Register(t.state)
+	t.connMonitor = connMonitor
+	t.mapCleaner = connMonitor.MapCleaner
+
+	// Initialize the protocol monitors
+	protocolMonitor, err := usm.NewMonitor(t.config, t.connMonitor.ConnResolver, t.bpfTelemetry, buf)
+	if err != nil {
+		var me *network.ErrMissingProbes
+		if errors.As(err, &me) {
+			missingProbes = append(missingProbes, me.Probes...)
+		} else {
+			return fmt.Errorf("error initializing protocol monitor: %w", err)
+		}
+	}
+	t.protocolMonitor = protocolMonitor
+
+	if len(missingProbes) > 0 {
+		log.Warnf("network tracer failed to initialize the following probes: %s", strings.Join(probesList(missingProbes), ", "))
+		t.probeRetrier.Start(missingProbes)
+	}
+
+	t.reverseDNS.Start(ctx)
+	go t.run(ctx)
+
+	// initialize the ebpf checks collector
+	t.ebpfChecksCollector = ebpfcheck.NewCollector(t.config, telemetryComponent)
+	go t.ebpfChecksCollector.Run(ctx)
+
+	// update platform specific metadata
+	installinfo.AddModule("npm", t.compilationResult.FullTracerType())
+
+	var tracerTypeList []string
+	for tracerType := range tracers {
+		tracerTypeList = append(tracerTypeList, string(tracerType))
+	}
+	installinfo.AddModule("tracers", strings.Join(tracerTypeList, ","))
+
+	log.Infof("network tracer initialized")
+	return nil
+}
+
+// flushConnections calls the connection monitor to flush the connections
+// and adds the connections to the state.
+func (t *Tracer) flushConnections() {
+	t.connsLock.Lock()
+	defer t.connsLock.Unlock()
+
+	conns := t.connMonitor.FlushConnections()
+
+	// Add active connections to the state
+	active, closed := t.state.StoreConnections(t.bufferedData.GetClients(), uint64(time.Now().UnixNano()), conns)
+
+	// resolve DNS
+	t.reverseDNS.Resolve(closed)
+	t.reverseDNS.Resolve(active)
+
+	// TODO: Add telemetry
+
+	// Flush the connections to the buffered data
+	t.bufferedData.AddConnection(active)
+	t.bufferedData.AddConnection(closed)
+	t.bufferedData.AddProtocols(t.protocolMonitor.GetHTTPStats())
+	t.bufferedData.AddProtocols(t.protocolMonitor.GetHTTP2Stats())
+	t.bufferedData.AddProtocols(t.protocolMonitor.GetKafkaStats())
+	t.bufferedData.AddProtocols(t.protocolMonitor.GetPostgresStats())
+	t.bufferedData.AddProtocols(t.protocolMonitor.GetRedisStats())
+}
+
+func (t *Tracer) retryFailedProbes() {
+	t.connsLock.Lock()
+	defer t.connsLock.Unlock()
+
+	if t.state == nil {
+		return
+	}
+
+	failedProbes := t.probeRetrier.GetFailedProbes()
+	if len(failedProbes) == 0 {
+		return
+	}
+
+	log.Infof("attempting to re-initialize failed probes: %s", strings.Join(probesList(failedProbes), ", "))
+
+	buf, _, err := network.LoadTracer(t.config)
+	if err != nil {
+		log.Warnf("failed to load BPF module: %s", err)
+		return
+	}
+	defer buf.Close()
+
+	var newlyEnabledProbes []probes.ProbeFuncName
+	programs := buf.CollectionSpec().Programs
+
+	newlyEnabledProbes = append(newlyEnabledProbes, t.connMonitor.RetryProbes(programs)...)
+	newlyEnabledProbes = append(newlyEnabledProbes, t.protocolMonitor.RetryProbes(programs)...)
+
+	if len(newlyEnabledProbes) > 0 {
+		log.Infof("successfully re-initialized the following probes: %s", strings.Join(probesList(newlyEnabledProbes), ", "))
+		t.probeRetrier.SuccessfulRetry(newlyEnabledProbes)
+	}
+}
+
+func (t *Tracer) getConnectionsWithLock(clientID string) *network.Connections {
+	// Process buffered data for the given clientID
+	conns := t.bufferedData.GetConnections(clientID)
+	conns.DNS = t.getDNSObjectWithLock()
+	conns.HTTP = t.bufferedData.GetProtocolStats(clientID, protocols.HTTP).(map[http.Key]*http.RequestStats)
+	conns.HTTP2 = t.bufferedData.GetProtocolStats(clientID, protocols.HTTP2).(map[http.Key]*http.RequestStats)
+	conns.Kafka = t.bufferedData.GetProtocolStats(clientID, protocols.Kafka).(map[kafka.Key]*kafka.RequestStats)
+	conns.Postgres = t.bufferedData.GetProtocolStats(clientID, protocols.Postgres).(map[postgres.Key]*postgres.RequestStat)
+	conns.Redis = t.bufferedData.GetProtocolStats(clientID, protocols.Redis).(map[redis.Key]*redis.RequestStat)
+	conns.ConnTelemetryMap = t.getConnTelemetryWithLock()
+	conns.CompilationTelemetryByAsset = t.getCompilationTelemetryWithLock()
+	conns.KernelHeaderFetchResult = t.getKernelHeaderFetchResultWithLock()
+	conns.CORETelemetryByAsset = t.getCORETelemetryWithLock()
+	conns.PrebuiltEBPFAssets = t.getPrebuiltAssetsWithLock()
+	return conns
+}
+
+func (t *Tracer) getDNSObjectWithLock() map[string]*model.DNSEntry {
+	// Fetch reverse DNS entries
+	dnsEntries := t.reverseDNS.GetDNS()
+	// Convert to payload format
+	payloadDNS := make(map[string]*model.DNSEntry, len(dnsEntries))
+	for addr, entry := range dnsEntries {
+		payloadDNS[addr.String()] = &model.DNSEntry{Names: entry}
+	}
+	return payloadDNS
+}
+
+func (t *Tracer) getDNSStatsWithLock() map[network.DNSKey]map[network.DNSHostname]map[network.DNSType]network.DNSStats {
+	return t.reverseDNS.GetStats()
+}
+
+func (t *Tracer) getProtocolStatsWithLock() map[protocols.ProtocolType]interface{} {
+	stats := make(map[protocols.ProtocolType]interface{})
+	stats[protocols.HTTP] = t.protocolMonitor.GetHTTPStats()
+	stats[protocols.HTTP2] = t.protocolMonitor.GetHTTP2Stats()
+	stats[protocols.Kafka] = t.protocolMonitor.GetKafkaStats()
+	stats[protocols.Postgres] = t.protocolMonitor.GetPostgresStats()
+	stats[protocols.Redis] = t.protocolMonitor.GetRedisStats()
+	return stats
+}
+
+func (t *Tracer) getConnTelemetryWithLock() map[string]int64 {
+	// Combine state telemetry with BPF telemetry
+	telemetry := t.state.GetTelemetryDelta(network.ProcessAgentClientID, t.GetTelemetry())
+	connTelemetryMap := make(map[string]int64, len(telemetry))
+	for k, v := range telemetry {
+		connTelemetryMap[string(k)] = v
+	}
+	return connTelemetryMap
+}
+
+func (t *Tracer) getCompilationTelemetryWithLock() map[string]*model.RuntimeCompilationTelemetry {
+	return t.bpfTelemetry.GetCompilationTelemetry()
+}
+
+func (t *Tracer) getKernelHeaderFetchResultWithLock() model.KernelHeaderFetchResult {
+	return t.bpfTelemetry.GetKernelHeaderFetchResult()
+}
+
+func (t *Tracer) getCORETelemetryWithLock() map[string]model.COREResult {
+	return t.bpfTelemetry.GetCORETelemetry()
+}
+
+func (t *Tracer) getPrebuiltAssetsWithLock() []string {
+	return t.bpfTelemetry.GetPrebuiltEBPFAssets()
+}
+
+func (t *Tracer) getBufferredConnectionsWithLock() network.BufferedTicker {
+	return t.bufferedData.GetDeepCopy()
+}
+
+func probesList(probes []probes.ProbeFuncName) []string {
+	list := make([]string, 0, len(probes))
+	for _, p := range probes {
+		list = append(list, string(p))
+	}
+	return list
 }

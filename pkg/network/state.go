@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go4.org/intern"
@@ -284,6 +285,9 @@ type networkState struct {
 	processEventConsumerEnabled bool
 
 	localResolver LocalResolver
+
+	// Flag for handling closed connection capacity pressure
+	closedConnectionsNearCapacity atomic.Bool
 }
 
 // NewState creates a new network state
@@ -370,7 +374,12 @@ func (ns *networkState) GetDelta(
 	// Update the latest known time
 	ns.latestTimeEpoch = latestTime
 
-	client := ns.getClient(id)
+	// Reset the flag for this specific client whenever a regular collection happens,
+	// as this implicitly clears the buffer pressure for this client.
+	ns.resetNearCapacityFlagLocked() // Resets the *global* flag. Might reset even if another client caused it.
+	// Consider if client-specific flags are needed, but global is simpler for now.
+
+	client := ns.getClientLocked(id) // Use locked version
 	defer client.Reset()
 
 	// Update all connections with relevant up-to-date stats for client
@@ -445,7 +454,7 @@ func (ns *networkState) getTelemetryDelta(id string, telemetry map[ConnTelemetry
 	ns.logTelemetry()
 
 	var res = make(map[ConnTelemetryType]int64)
-	client := ns.getClient(id)
+	client := ns.getClientLocked(id)
 	ns.saveTelemetry(telemetry)
 
 	for _, telType := range MonotonicConnTelemetryTypes {
@@ -546,7 +555,7 @@ func (ns *networkState) RegisterClient(id string) {
 	ns.Lock()
 	defer ns.Unlock()
 
-	_ = ns.getClient(id)
+	_ = ns.getClientLocked(id)
 }
 
 // mergeByCookie merges connections with the same cookie and returns an index by cookie
@@ -599,15 +608,28 @@ func (ns *networkState) StoreClosedConnection(closed *ConnectionStats) {
 
 // storeClosedConnection stores the given connection for every client
 func (ns *networkState) storeClosedConnection(c *ConnectionStats) {
-	for _, client := range ns.clients {
+	// This function is called with the lock held
+	for clientID, client := range ns.clients {
 		if i, ok := client.closed.byCookie[c.Cookie]; ok {
 			if ns.mergeConnectionStats(&client.closed.conns[i], c) {
 				stateTelemetry.statsCookieCollisions.Inc()
 				client.closed.replaceAt(i, c)
 			}
+			// No need to check capacity again if we just replaced/merged
 			continue
 		}
+
+		// Insert the connection
 		client.closed.insert(c, ns.maxClosedConns)
+
+		// Check capacity AFTER inserting
+		// Check if the buffer is at least 90% full
+		if uint32(len(client.closed.conns)) >= (ns.maxClosedConns*9)/10 {
+			if !ns.closedConnectionsNearCapacity.Load() { // Avoid logging repeatedly if already set
+				log.Warnf("Closed connections buffer for client %s is nearing capacity (%d/%d). Setting flag.", clientID, len(client.closed.conns), ns.maxClosedConns)
+				ns.closedConnectionsNearCapacity.Store(true)
+			}
+		}
 	}
 }
 
@@ -835,7 +857,7 @@ func (ns *networkState) storeRedisStats(allStats map[redis.Key]*redis.RequestSta
 	}
 }
 
-func (ns *networkState) getClient(clientID string) *client {
+func (ns *networkState) getClientLocked(clientID string) *client {
 	if c, ok := ns.clients[clientID]; ok {
 		return c
 	}
@@ -854,6 +876,13 @@ func (ns *networkState) getClient(clientID string) *client {
 	}
 	ns.clients[clientID] = c
 	return c
+}
+
+// getClient retrieves or creates a client, acquiring the lock
+func (ns *networkState) getClient(clientID string) *client {
+	ns.Lock()
+	defer ns.Unlock()
+	return ns.getClientLocked(clientID)
 }
 
 // mergeConnections return the connections and takes care of updating their last stat counters
@@ -1031,6 +1060,7 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 			}
 		}
 	}
+	data["near_capacity_flag"] = ns.closedConnectionsNearCapacity.Load() // Add flag state
 	return data
 }
 
@@ -1487,4 +1517,19 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 	a.TLSTags.MergeWith(b.TLSTags)
 
 	return false
+}
+
+// New methods for handling capacity flag
+
+// IsClosedConnectionsNearCapacity checks the atomic flag.
+func (ns *networkState) IsClosedConnectionsNearCapacity() bool {
+	return ns.closedConnectionsNearCapacity.Load()
+}
+
+// resetNearCapacityFlagLocked resets the atomic flag, assumes lock is held.
+func (ns *networkState) resetNearCapacityFlagLocked() {
+	if ns.closedConnectionsNearCapacity.Load() {
+		log.Info("Resetting closed connections near capacity flag (triggered by GetDelta).")
+		ns.closedConnectionsNearCapacity.Store(false)
+	}
 }

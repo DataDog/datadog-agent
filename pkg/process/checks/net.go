@@ -7,10 +7,12 @@ package checks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"runtime"
 	"sort"
+	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -76,6 +78,12 @@ type ConnectionsCheck struct {
 	npCollector npcollector.Component
 
 	sysprobeClient *http.Client
+
+	// For periodic capacity check and run triggering
+	stopCh          chan struct{}
+	wg              sync.WaitGroup
+	runLock         sync.Mutex // To prevent concurrent runs
+	groupIDProvider func() int32
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -113,6 +121,20 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	}
 	c.localresolver = resolver.NewLocalResolver(sharedContainerProvider, clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
 	c.localresolver.Run()
+
+	// Start periodic capacity checker *after* other initializations and *if* the check is enabled
+	if c.IsEnabled() && c.sysprobeClient != nil {
+		c.stopCh = make(chan struct{})
+		c.wg.Add(1)
+		go c.periodicCapacityCheck()
+		log.Info("Started periodic connections capacity checker.")
+	} else {
+		if !c.IsEnabled() {
+			log.Info("Connections check disabled, not starting periodic capacity checker.")
+		} else if c.sysprobeClient == nil {
+			log.Warn("System probe client not available, not starting periodic capacity checker.")
+		}
+	}
 
 	return nil
 }
@@ -153,10 +175,25 @@ func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 // that will be bundled up into a `CollectorConnections`.
 // See agent.proto for the schema of the message and models.
 func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
+	// Store the group ID provider function for potential triggered runs
+	c.groupIDProvider = nextGroupID
+
+	// Lock to prevent concurrent runs (scheduled vs triggered)
+	c.runLock.Lock()
+	defer c.runLock.Unlock()
+
 	start := time.Now()
 
 	conns, err := c.getConnections()
 	if err != nil {
+		// Check if the error is ErrNotStartedYet (returned by getConnections on 503 or other client errors)
+		if errors.Is(err, sysprobeclient.ErrNotStartedYet) { // Use the existing error
+			if c.notInitializedLogLimit.ShouldLog() {
+				log.Warnf("system-probe connection endpoint not ready, skipping collection (using ErrNotStartedYet).")
+			}
+			return nil, nil // Skip run, return no error
+		}
+		// For other errors, return them
 		return nil, err
 	}
 
@@ -174,13 +211,19 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	c.npCollector.ScheduleConns(conns.Conns, conns.Dns)
 
-	groupID := nextGroupID()
+	groupID := nextGroupID() // Use the provided function for *this* run
 	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
 	return StandardRunResult(messages), nil
 }
 
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits
 func (c *ConnectionsCheck) Cleanup() {
+	if c.stopCh != nil { // Only act if the channel was initialized (i.e., checker started)
+		log.Info("Stopping periodic connections capacity checker...")
+		close(c.stopCh)
+		c.wg.Wait() // Wait for the goroutine to finish
+		log.Info("Periodic connections capacity checker stopped.")
+	}
 	c.localresolver.Stop()
 }
 
@@ -206,22 +249,31 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/connections?client_id="+ProcessAgentClientID)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, err
+		// If request creation fails, it's unlikely recoverable for this check run
+		return nil, fmt.Errorf("failed to create request for %s: %w", url, err)
 	}
 
 	req.Header.Set("Accept", "application/protobuf")
 	resp, err := c.sysprobeClient.Do(req)
 	if err != nil {
-		return nil, err
+		// Treat most client errors (network unreachable, connection refused, etc.)
+		// as the endpoint not being ready.
+		log.Debugf("System probe client error accessing %s: %v. Returning ErrNotStartedYet.", url, err)
+		return nil, sysprobeclient.ErrNotStartedYet // Return ErrNotStartedYet for client errors
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		// If the endpoint returns 503 Service Unavailable, treat it as ErrNotStartedYet
+		if resp.StatusCode == http.StatusServiceUnavailable {
+			return nil, sysprobeclient.ErrNotStartedYet // Use the existing error
+		}
+		// Other non-200 statuses are treated as errors
 		return nil, fmt.Errorf("conn request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
 	}
 
 	body, err := sysprobeclient.ReadAllResponseBody(resp)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read response body from %s: %w", url, err)
 	}
 
 	contentType := resp.Header.Get("Content-type")
@@ -532,4 +584,83 @@ func getNetworkID(sysProbeClient *http.Client) (string, error) {
 		}
 	}
 	return networkID, err
+}
+
+// periodicCapacityCheck is run in a goroutine to periodically poke the system-probe
+// endpoint that checks for closed connection buffer capacity.
+func (c *ConnectionsCheck) periodicCapacityCheck() {
+	defer c.wg.Done()
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	log.Debug("Periodic capacity check goroutine running.")
+
+	for {
+		select {
+		case <-ticker.C:
+			if c.sysprobeClient == nil {
+				log.Warn("System probe client is nil in periodicCapacityCheck, stopping checker.")
+				return // Exit goroutine
+			}
+
+			// Call the new capacity check endpoint
+			url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/connections/check_capacity") // New path
+			req, err := http.NewRequest("GET", url, nil)                                                  // Use GET, it's read-only
+			if err != nil {
+				log.Warnf("Error creating capacity check request %s: %v", url, err)
+				continue
+			}
+
+			log.Tracef("Calling capacity check endpoint: %s", url)
+			resp, err := c.sysprobeClient.Do(req)
+			if err != nil {
+				log.Debugf("Error calling capacity check endpoint %s: %v", url, err)
+				if resp != nil {
+					resp.Body.Close()
+				}
+				continue
+			}
+
+			statusCode := resp.StatusCode
+			resp.Body.Close() // Close body immediately
+
+			switch statusCode {
+			case http.StatusOK: // 200 OK => Near capacity
+				log.Warnf("System-probe connections buffer nearing capacity. Triggering early check run.")
+				if c.groupIDProvider != nil {
+					go c.triggerRun()
+				} else {
+					log.Warn("Cannot trigger early run: groupIDProvider not set yet.")
+				}
+			case http.StatusNoContent: // 204 No Content => Not near capacity
+				log.Trace("Capacity check OK (204 No Content).")
+			default:
+				log.Warnf("Unexpected status code %d from capacity check endpoint %s", statusCode, url)
+			}
+
+		case <-c.stopCh:
+			log.Debug("Periodic capacity check goroutine stopping.")
+			return // Exit goroutine
+		}
+	}
+}
+
+// triggerRun calls Run in a separate goroutine for early data collection.
+func (c *ConnectionsCheck) triggerRun() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("Recovered from panic during triggered ConnectionsCheck run: %v", r)
+		}
+	}()
+
+	log.Info("Executing triggered ConnectionsCheck run.")
+	// We pass the stored groupIDProvider. RunOptions are nil.
+	// The result is discarded as the main goal is to clear the system-probe buffer.
+	runResult, err := c.Run(c.groupIDProvider, nil)
+	if err != nil {
+		log.Errorf("Error during triggered ConnectionsCheck run: %v", err)
+	} else {
+		// Optional: Log basic info about the result if needed
+		log.Infof("Triggered ConnectionsCheck run completed successfully. Result has %d messages.", len(runResult.Payloads()))
+	}
 }
