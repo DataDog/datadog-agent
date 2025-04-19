@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	entityID        types.EntityID = types.NewEntityID("foo", "bar")
-	anotherEntityID types.EntityID = types.NewEntityID("foo", "quux")
+	entityID        types.EntityID = types.NewEntityID(types.ContainerID, "bar")
+	anotherEntityID types.EntityID = types.NewEntityID(types.ContainerID, "quux")
 )
 
 func TestProcessEvent_AddAndModify(t *testing.T) {
