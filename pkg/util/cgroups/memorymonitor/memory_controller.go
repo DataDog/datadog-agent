@@ -4,9 +4,9 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
-package cgroups
+// Package memorymonitor includes memory monitors and controllers based on cgroup data
+package memorymonitor
 
 import (
 	"fmt"
