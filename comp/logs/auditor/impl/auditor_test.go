@@ -6,6 +6,7 @@
 package auditorimpl
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -120,6 +121,32 @@ func (suite *AuditorTestSuite) TestAuditorCleansupRegistry() {
 	suite.a.cleanupRegistry()
 	suite.Equal(1, len(suite.a.registry))
 	suite.Equal("43", suite.a.registry[otherpath].Offset)
+}
+
+func (suite *AuditorTestSuite) TestAuditorRegistryWriterSelection() {
+	// Test atomic write enabled
+	configComponent := configmock.NewMock(suite.T())
+	logComponent := logmock.New(suite.T())
+	configComponent.SetWithoutSource("logs_config.run_path", suite.testRunPathDir)
+	configComponent.SetWithoutSource("logs_config.atomic_registry_write", true)
+	deps := Dependencies{
+		Config: configComponent,
+		Log:    logComponent,
+	}
+	auditor := newAuditor(deps)
+	suite.Equal("*auditorimpl.atomicRegistryWriter", fmt.Sprintf("%T", auditor.registryWriter))
+
+	// Test atomic write disabled
+	configComponent = configmock.NewMock(suite.T())
+	logComponent = logmock.New(suite.T())
+	configComponent.SetWithoutSource("logs_config.run_path", suite.testRunPathDir)
+	configComponent.SetWithoutSource("logs_config.atomic_registry_write", false)
+	deps = Dependencies{
+		Config: configComponent,
+		Log:    logComponent,
+	}
+	auditor = newAuditor(deps)
+	suite.Equal("*auditorimpl.nonAtomicRegistryWriter", fmt.Sprintf("%T", auditor.registryWriter))
 }
 
 func TestScannerTestSuite(t *testing.T) {
