@@ -20,7 +20,6 @@ PROTO_PKGS = {
     'languagedetection': (False, False),
     'remoteagent': (False, False),
     'autodiscovery': (False, False),
-    'trace/idx': (False, False),
 }
 
 # maybe put this in a separate function
