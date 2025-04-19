@@ -778,7 +778,7 @@ func formatBuildTags(buildTags string) []string {
 	return formattedBuildTags
 }
 
-func newField(allFields map[string]*common.StructField, inputField *common.StructField) string {
+func newField(allFields map[string]*common.StructField, fieldName string, inputField *common.StructField) string {
 	var fieldPath, result string
 	for _, node := range strings.Split(inputField.Name, ".") {
 		if fieldPath != "" {
@@ -789,7 +789,10 @@ func newField(allFields map[string]*common.StructField, inputField *common.Struc
 
 		if field, ok := allFields[fieldPath]; ok {
 			if field.IsOrigTypePtr {
-				result += fmt.Sprintf("if ev.%s == nil { ev.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
+				// process & exec context are set in the template
+				if !strings.HasPrefix(fieldName, "process.") && !strings.HasPrefix(fieldName, "exec.") {
+					result += fmt.Sprintf("if ev.%s == nil { ev.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
+				}
 			} else if field.IsArray && fieldPath != inputField.Name {
 				result += fmt.Sprintf("if len(ev.%s) == 0 { ev.%s = append(ev.%s, %s{}) }\n", field.Name, field.Name, field.Name, field.OrigType)
 			}
@@ -1108,6 +1111,10 @@ func genGetter(getters []string, getter string) bool {
 	return slices.Contains(getters, "*") || slices.Contains(getters, getter)
 }
 
+func upperCase(str string) string {
+	return cases.Title(language.Und).String(str)
+}
+
 var funcMap = map[string]interface{}{
 	"TrimPrefix":               strings.TrimPrefix,
 	"TrimSuffix":               strings.TrimSuffix,
@@ -1128,6 +1135,7 @@ var funcMap = map[string]interface{}{
 	"GetSetHandler":            getSetHandler,
 	"IsReadOnly":               isReadOnly,
 	"GenGetter":                genGetter,
+	"UpperCase":                upperCase,
 }
 
 //go:embed accessors.tmpl
