@@ -283,7 +283,11 @@ type Config struct {
 	// buffers (>=5.8) will result in forcing the use of Perf Maps instead.
 	EnableUSMRingBuffers bool
 
+	// EnableEbpfless enables the use of network tracing without eBPF using packet capture.
 	EnableEbpfless bool
+
+	// EnableFentry enables the experimental fentry tracer (disabled by default)
+	EnableFentry bool
 
 	// EnableUSMEventStream enables USM to use the event stream instead
 	// of netlink for receiving process events.
@@ -395,6 +399,7 @@ func New() *Config {
 		EnableNPMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_connection_rollup")),
 
 		EnableEbpfless: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpfless")),
+		EnableFentry:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_fentry")),
 
 		// Service Monitoring
 		EnableGoTLSSupport:        cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "enabled")),
