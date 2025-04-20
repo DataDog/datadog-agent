@@ -9,13 +9,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"expvar"
-	"html/template"
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	template "github.com/DataDog/datadog-agent/pkg/template/html"
 )
 
 var fmap = status.HTMLFmap()

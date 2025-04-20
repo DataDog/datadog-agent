@@ -19,7 +19,15 @@ from tasks.libs.common.user_interactions import yes_no_question
 
 try:
     import semver
-    from github import Auth, Github, GithubException, GithubIntegration, GithubObject, PullRequest
+    from github import (
+        Auth,
+        Github,
+        GithubException,
+        GithubIntegration,
+        GithubObject,
+        InputGitTreeElement,
+        PullRequest,
+    )
     from github.NamedUser import NamedUser
 except ImportError:
     # PyGithub isn't available on some build images, ignore it for now
@@ -485,6 +493,26 @@ class GithubAPI:
     def is_organization_member(self, user):
         organization = self._repository.organization
         return (user.company and 'datadog' in user.company.casefold()) or organization.has_in_members(user)
+
+    def commit_and_push_signed(self, branch_name: str, commit_message: str, tree: dict[str, dict[str, str]]):
+        # Create a commit from the given tree, see details in https://github.com/orgs/community/discussions/50055
+        base_tree = self._repository.get_git_tree(tree['base_tree'])
+        git_tree = self._repository.create_git_tree(
+            [InputGitTreeElement(**blob) for blob in tree['tree']], base_tree=base_tree
+        )
+        commit = self._repository.create_git_commit(
+            commit_message,
+            git_tree,
+            [self._repository.get_git_commit(tree['base_tree'])],
+        )
+        # The update ref API endpoint is not available in PyGithub, so we need to use the raw API
+        data = {"sha": commit.sha, "force": False}
+        headers = {"Authorization": "Bearer " + self._auth.token, "Content-Type": "application/json"}
+        res = requests.patch(url=f"{self._repository.url}/git/refs/heads/{branch_name}", json=data, headers=headers)
+        if res.status_code == 200:
+            return res.json()
+        else:
+            raise Exit(f"Failed to update the reference {branch_name} with commit {commit.sha}: {res.text}")
 
     def _chose_auth(self, public_repo):
         """

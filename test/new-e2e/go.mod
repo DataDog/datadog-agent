@@ -9,7 +9,7 @@ toolchain go1.23.8
 // TODO: Implement hard check in CI
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.147-0.20250409064727-ec454e8fdf23
+	github.com/DataDog/agent-payload/v5 v5.0.148-0.20250420125839-db16294966bf
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1
@@ -31,7 +31,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.56.12
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/docker/cli v27.5.0+incompatible
-	github.com/docker/docker v27.5.1+incompatible
+	github.com/docker/docker v28.0.4+incompatible
 	github.com/fatih/color v1.18.0
 	github.com/google/uuid v1.6.0
 	github.com/kr/pretty v0.3.1
@@ -154,7 +154,7 @@ require (
 	github.com/moby/spdystream v0.5.0 // indirect
 	github.com/moby/term v0.5.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
