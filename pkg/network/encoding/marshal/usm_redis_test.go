@@ -80,11 +80,11 @@ func (s *RedisSuite) TestFormatRedisStats() {
 		Aggregations: []*model.DatabaseStats{
 			{
 				DbStats: &model.DatabaseStats_Redis{
-					Redis: &model.RedisAggregation{
+					Redis: &model.RedisStats{
 						Command:   model.RedisCommand(int32(dummyKey.Command)),
 						KeyName:   dummyKey.KeyName,
 						Truncated: dummyKey.Truncated,
-						ErrorToStats: map[bool]*model.RedisStats{
+						ErrorToStats: map[bool]*model.RedisStatsEntry{
 							false: {
 								FirstLatencySample: in.Redis[dummyKey].ErrorToStats[false].FirstLatencySample,
 								Count:              uint32(in.Redis[dummyKey].ErrorToStats[false].Count),

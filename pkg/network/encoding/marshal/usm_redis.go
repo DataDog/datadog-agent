@@ -59,7 +59,7 @@ func (e *redisEncoder) encodeData(connectionData *USMConnectionData[redis.Key, *
 		key := kv.Key
 		errorToStats := kv.Value
 		e.redisAggregationsBuilder.AddAggregations(func(builder *model.DatabaseStatsBuilder) {
-			builder.SetRedis(func(aggregationBuilder *model.RedisAggregationBuilder) {
+			builder.SetRedis(func(aggregationBuilder *model.RedisStatsBuilder) {
 				switch key.Command {
 				case redis.GetCommand:
 					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisGetCommand))
@@ -76,9 +76,9 @@ func (e *redisEncoder) encodeData(connectionData *USMConnectionData[redis.Key, *
 						continue
 					}
 					staticTags |= stats.StaticTags
-					aggregationBuilder.AddErrorToStats(func(errorToStatsBuilder *model.RedisAggregation_ErrorToStatsEntryBuilder) {
+					aggregationBuilder.AddErrorToStats(func(errorToStatsBuilder *model.RedisStats_ErrorToStatsEntryBuilder) {
 						errorToStatsBuilder.SetKey(isErr)
-						errorToStatsBuilder.SetValue(func(statsBuilder *model.RedisStatsBuilder) {
+						errorToStatsBuilder.SetValue(func(statsBuilder *model.RedisStatsEntryBuilder) {
 							statsBuilder.SetCount(uint32(stats.Count))
 							if latencies := stats.Latencies; latencies != nil {
 								statsBuilder.SetLatencies(func(b *bytes.Buffer) {
