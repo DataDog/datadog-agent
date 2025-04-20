@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"sync"
 	"time"
 
@@ -24,6 +23,7 @@ import (
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -512,45 +512,25 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 }
 
 func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeCompilationTelemetry {
-	// Attempt to get telemetry from specific tracer components
-	telemetryByAsset := make(map[string]network.RuntimeCompilationTelemetry)
-
-	if t.ebpfTracer != nil {
-		// Assuming ebpfTracer has a GetTelemetry method returning the expected type or convertible
-		// This might need adjustment based on the actual method signature/return type
-		// telemetryByAsset["tracer"] = t.ebpfTracer.GetTelemetry()
+	telemetryByAsset := map[string]runtime.CompilationTelemetry{
+		"tracer":          runtime.Tracer.GetTelemetry(),
+		"conntrack":       runtime.Conntrack.GetTelemetry(),
+		"usm":             runtime.Usm.GetTelemetry(),
+		"oomKill":         runtime.OomKill.GetTelemetry(),
+		"runtimeSecurity": runtime.RuntimeSecurity.GetTelemetry(),
+		"tcpQueueLength":  runtime.TcpQueueLength.GetTelemetry(),
 	}
-	if t.conntracker != nil {
-		// Assuming conntracker has a GetTelemetry method
-		// telemetryByAsset["conntrack"] = t.conntracker.GetTelemetry()
-	}
-	if t.usmMonitor != nil {
-		// Assuming usmMonitor has a GetTelemetry method
-		// telemetryByAsset["usm"] = t.usmMonitor.GetTelemetry()
-	}
-	// Commenting out others as corresponding fields aren't obvious
-	// telemetryByAsset["oomKill"] = runtime.OomKill.GetTelemetry(),
-	// telemetryByAsset["runtimeSecurity"] = runtime.RuntimeSecurity.GetTelemetry(),
-	// telemetryByAsset["tcpQueueLength"] = runtime.TcpQueueLength.GetTelemetry(),
 
-	// The code above is commented out because the GetTelemetry methods might not exist
-	// or might not return the exact `network.RuntimeCompilationTelemetry` type.
-	// We need to verify the actual methods and return types on these components.
-	// For now, return an empty map to avoid compilation errors.
-	return telemetryByAsset
-
-	// Original code causing errors:
-	// telemetryByAsset := map[string]runtime.CompilationTelemetry{
-	// 	"tracer":          runtime.Tracer.GetTelemetry(),
-	// 	"conntrack":       runtime.Conntrack.GetTelemetry(),
-	// 	"usm":             runtime.Usm.GetTelemetry(),
-	// 	"oomKill":         runtime.OomKill.GetTelemetry(),
-	// 	"runtimeSecurity": runtime.RuntimeSecurity.GetTelemetry(),
-	// 	"tcpQueueLength":  runtime.TcpQueueLength.GetTelemetry(),
-	// }
-	// result := make(map[string]network.RuntimeCompilationTelemetry)
-	// ... (conversion logic would go here)
-	// return result
+	result := make(map[string]network.RuntimeCompilationTelemetry)
+	for assetName, telemetry := range telemetryByAsset {
+		tm := network.RuntimeCompilationTelemetry{
+			RuntimeCompilationEnabled:  telemetry.CompilationEnabled(),
+			RuntimeCompilationResult:   telemetry.CompilationResult(),
+			RuntimeCompilationDuration: telemetry.CompilationDurationNS(),
+		}
+		result[assetName] = tm
+	}
+	return result
 }
 
 func (t *Tracer) getCachedConntrack() *cachedConntrack {
@@ -720,9 +700,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		case tracerStats:
 			tracerStats := make(map[string]interface{})
 			tracerStats["last_check"] = t.lastCheck.Load()
-			// Attempt to get telemetry from ebpfTracer field
-			// This might need adjustment based on actual GetTelemetry method signature/return type
-			// tracerStats["runtime"] = t.ebpfTracer.GetTelemetry() // Commented out for now
+			tracerStats["runtime"] = t.ebpfTracer.GetTelemetry()
 			ret["tracer"] = tracerStats
 		case httpStats:
 			ret["universal_service_monitoring"] = t.usmMonitor.GetUSMStats()
@@ -945,20 +923,13 @@ func setupConnectionProtocolMapCleaner(connectionProtocolMap *ebpf.Map, name str
 	return mapCleaner, nil
 }
 
-// Add new CheckCapacityHandler (exported)
-func (t *Tracer) CheckCapacityHandler(w http.ResponseWriter, r *http.Request) {
+// IsClosedConnectionsNearCapacity checks if the closed connections buffer is near capacity.
+// It returns true if near capacity, false otherwise, and an error if the state is not initialized.
+func (t *Tracer) IsClosedConnectionsNearCapacity() (bool, error) {
 	if t.state == nil {
-		log.Error("checkCapacityHandler called before tracer state is initialized")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		log.Error("IsClosedConnectionsNearCapacity called before tracer state is initialized")
+		return false, fmt.Errorf("tracer state not initialized")
 	}
 
-	// No client ID needed, checks global flag
-	if t.state.IsClosedConnectionsNearCapacity() {
-		log.Debug("Responding to capacity check: Near capacity (200 OK)")
-		w.WriteHeader(http.StatusOK) // 200 OK indicates near capacity
-	} else {
-		log.Trace("Responding to capacity check: Not near capacity (204 No Content)")
-		w.WriteHeader(http.StatusNoContent) // 204 No Content indicates not near capacity
-	}
+	return t.state.IsClosedConnectionsNearCapacity(), nil
 }

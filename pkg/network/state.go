@@ -377,12 +377,10 @@ func (ns *networkState) GetDelta(
 	// Update the latest known time
 	ns.latestTimeEpoch = latestTime
 
-	// Reset the flag for this specific client whenever a regular collection happens,
-	// as this implicitly clears the buffer pressure for this client.
-	ns.resetNearCapacityFlagLocked() // Resets the *global* flag. Might reset even if another client caused it.
-	// Consider if client-specific flags are needed, but global is simpler for now.
+	// Resets the global flag.
+	ns.resetNearCapacityFlagLocked()
 
-	client := ns.getClient(id) // Use locked version
+	client := ns.getClient(id)
 	defer client.Reset()
 
 	// Update all connections with relevant up-to-date stats for client
@@ -611,14 +609,12 @@ func (ns *networkState) StoreClosedConnection(closed *ConnectionStats) {
 
 // storeClosedConnection stores the given connection for every client
 func (ns *networkState) storeClosedConnection(c *ConnectionStats) {
-	// This function is called with the lock held
 	for clientID, client := range ns.clients {
 		if i, ok := client.closed.byCookie[c.Cookie]; ok {
 			if ns.mergeConnectionStats(&client.closed.conns[i], c) {
 				stateTelemetry.statsCookieCollisions.Inc()
 				client.closed.replaceAt(i, c)
 			}
-			// No need to check capacity again if we just replaced/merged
 			continue
 		}
 
