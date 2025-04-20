@@ -276,6 +276,8 @@ type OpenLineageProxy struct {
 	APIKey string `json:"-"` // Never marshal this field
 	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
 	AdditionalEndpoints map[string][]string
+	// APIVersion indicates what version the OpenLineageProxy uses for the DO-intake API.
+	APIVersion int
 }
 
 // InstallSignatureConfig contains the information on how the agent was installed
@@ -609,7 +611,8 @@ func New() *AgentConfig {
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 		OpenLineageProxy: OpenLineageProxy{
-			Enabled: true,
+			Enabled:    true,
+			APIVersion: 2,
 		},
 
 		Features:               make(map[string]struct{}),
