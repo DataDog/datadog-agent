@@ -2984,9 +2984,9 @@ func TestNearCapacityFlag_MultipleClients(t *testing.T) {
 	for i := 0; i < capacityThreshold; i++ {
 		// Simulate connections being stored for both clients (as storeClosedConnection iterates)
 		conn := createTestConnectionStats(StatCookie(i))
-		c1 := ns.getClientLocked(client1)
+		c1 := ns.getClient(client1)
 		c1.closed.insert(conn, uint32(maxClosedConns)) // Simulate adding to client 1
-		c2 := ns.getClientLocked(client2)
+		c2 := ns.getClient(client2)
 		_ = c2 // Keep client 2 buffer empty for now
 		if uint32(len(c1.closed.conns)) >= capacityThreshold {
 			ns.closedConnectionsNearCapacity.Store(true)
@@ -3005,9 +3005,9 @@ func TestNearCapacityFlag_MultipleClients(t *testing.T) {
 	ns.Lock()
 	for i := 0; i < capacityThreshold; i++ {
 		conn := createTestConnectionStats(StatCookie(100 + i)) // Use different cookies
-		c1 := ns.getClientLocked(client1)
+		c1 := ns.getClient(client1)
 		_ = c1 // Keep client 1 buffer as is (or empty after GetDelta)
-		c2 := ns.getClientLocked(client2)
+		c2 := ns.getClient(client2)
 		c2.closed.insert(conn, uint32(maxClosedConns)) // Simulate adding to client 2
 		if uint32(len(c2.closed.conns)) >= capacityThreshold {
 			ns.closedConnectionsNearCapacity.Store(true)

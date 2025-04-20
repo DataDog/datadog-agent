@@ -382,7 +382,7 @@ func (ns *networkState) GetDelta(
 	ns.resetNearCapacityFlagLocked() // Resets the *global* flag. Might reset even if another client caused it.
 	// Consider if client-specific flags are needed, but global is simpler for now.
 
-	client := ns.getClientLocked(id) // Use locked version
+	client := ns.getClient(id) // Use locked version
 	defer client.Reset()
 
 	// Update all connections with relevant up-to-date stats for client
@@ -457,7 +457,7 @@ func (ns *networkState) getTelemetryDelta(id string, telemetry map[ConnTelemetry
 	ns.logTelemetry()
 
 	var res = make(map[ConnTelemetryType]int64)
-	client := ns.getClientLocked(id)
+	client := ns.getClient(id)
 	ns.saveTelemetry(telemetry)
 
 	for _, telType := range MonotonicConnTelemetryTypes {
@@ -558,7 +558,7 @@ func (ns *networkState) RegisterClient(id string) {
 	ns.Lock()
 	defer ns.Unlock()
 
-	_ = ns.getClientLocked(id)
+	_ = ns.getClient(id)
 }
 
 // mergeByCookie merges connections with the same cookie and returns an index by cookie
@@ -860,7 +860,7 @@ func (ns *networkState) storeRedisStats(allStats map[redis.Key]*redis.RequestSta
 	}
 }
 
-func (ns *networkState) getClientLocked(clientID string) *client {
+func (ns *networkState) getClient(clientID string) *client {
 	if c, ok := ns.clients[clientID]; ok {
 		return c
 	}
