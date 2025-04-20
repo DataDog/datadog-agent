@@ -7,12 +7,14 @@
 package servicetest
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -387,11 +389,13 @@ func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agen
 
 type baseStartStopSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
-	startAgentCommand   func(host *components.RemoteHost) error
-	stopAgentCommand    func(host *components.RemoteHost) error
-	runningUserServices func() []string
-	runningServices     func() []string
-	dumpFolder          string
+	startAgentCommand         func(host *components.RemoteHost) error
+	stopAgentCommand          func(host *components.RemoteHost) error
+	runningUserServices       func() []string
+	runningServices           func() []string
+	dumpFolder                string
+	cancelMetricCollection    context.CancelFunc
+	waitGroupMetricCollection sync.WaitGroup
 }
 
 // TestAgentStartsAllServices tests that starting the agent starts all services (as enabled)
@@ -495,7 +499,39 @@ func (s *baseStartStopSuite) SetupSuite() {
 	}
 
 	// TODO(WINA-1320): log the system memory to help debug
-	s.sendHostMemoryMetrics(host)
+	// Start in background goroutine to reduce affect on timing of other
+	// commands being run.
+	// Stop the goroutine when the test ends
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancelMetricCollection = cancel
+	s.waitGroupMetricCollection.Add(1)
+	go func() {
+		defer s.waitGroupMetricCollection.Done()
+		// Collect metrics at most every 5 seconds
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				s.T().Log("Stopping host memory metrics collection")
+				return
+			case <-ticker.C:
+				s.sendHostMemoryMetrics(host)
+			}
+		}
+	}()
+}
+
+func (s *baseStartStopSuite) TearDownSuite() {
+	// Must stop metric collector so the host connection is no longer in use
+	// before destroying the environment, else reconnect may fail require() in host.go
+	if s.cancelMetricCollection != nil {
+		s.cancelMetricCollection()
+		s.waitGroupMetricCollection.Wait()
+	}
+
+	s.T().Log("Tearing down environment")
+	s.BaseSuite.TearDownSuite()
 }
 
 func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
@@ -627,8 +663,6 @@ func (s *baseStartStopSuite) assertAllServicesState(expected string) {
 func (s *baseStartStopSuite) assertServiceState(expected string, serviceName string) {
 	host := s.Env().RemoteHost
 	s.Assert().EventuallyWithT(func(c *assert.CollectT) {
-		// TODO(WINA-1320): log the system memory to help debug
-		s.sendHostMemoryMetrics(host)
 		status, err := windowsCommon.GetServiceStatus(host, serviceName)
 		if !assert.NoError(c, err) {
 			return
@@ -651,8 +685,6 @@ func (s *baseStartStopSuite) stopAllServices() {
 	// ensure all services are stopped
 	for _, serviceName := range s.getInstalledServices() {
 		s.Assert().EventuallyWithT(func(c *assert.CollectT) {
-			// TODO(WINA-1320): log the system memory to help debug
-			s.sendHostMemoryMetrics(host)
 			status, err := windowsCommon.GetServiceStatus(host, serviceName)
 			if !assert.NoError(c, err) {
 				return
