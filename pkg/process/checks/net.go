@@ -211,7 +211,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	c.npCollector.ScheduleConns(conns.Conns, conns.Dns)
 
-	groupID := nextGroupID() // Use the provided function for *this* run
+	groupID := nextGroupID()
 	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
 	return StandardRunResult(messages), nil
 }
@@ -256,24 +256,16 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	req.Header.Set("Accept", "application/protobuf")
 	resp, err := c.sysprobeClient.Do(req)
 	if err != nil {
-		// Treat most client errors (network unreachable, connection refused, etc.)
-		// as the endpoint not being ready.
-		log.Debugf("System probe client error accessing %s: %v. Returning ErrNotStartedYet.", url, err)
-		return nil, sysprobeclient.ErrNotStartedYet // Return ErrNotStartedYet for client errors
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		// If the endpoint returns 503 Service Unavailable, treat it as ErrNotStartedYet
-		if resp.StatusCode == http.StatusServiceUnavailable {
-			return nil, sysprobeclient.ErrNotStartedYet // Use the existing error
-		}
-		// Other non-200 statuses are treated as errors
 		return nil, fmt.Errorf("conn request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
 	}
 
 	body, err := sysprobeclient.ReadAllResponseBody(resp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body from %s: %w", url, err)
+		return nil, err
 	}
 
 	contentType := resp.Header.Get("Content-type")
