@@ -105,6 +105,12 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		logRequests(id, count, len(cs.Conns), start)
 	}))
 
+	// Add the new endpoint for checking closed connection buffer capacity
+	httpMux.HandleFunc("/connections/check_capacity", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+		// Delegate to the handler method on the tracer (exported)
+		nt.tracer.CheckCapacityHandler(w, req)
+	}))
+
 	httpMux.HandleFunc("/network_id", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		id, err := nt.tracer.GetNetworkID(req.Context())
 		if err != nil {

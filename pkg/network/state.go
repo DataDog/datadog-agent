@@ -118,6 +118,9 @@ type State interface {
 
 	// DumpState returns a map with the current network state for a client ID
 	DumpState(clientID string) map[string]interface{}
+
+	// IsClosedConnectionsNearCapacity returns true if the closed connections buffer is close to capacity.
+	IsClosedConnectionsNearCapacity() bool
 }
 
 // Delta represents a delta of network data compared to the last call to State.
@@ -1511,8 +1514,6 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 
 	return false
 }
-
-// New methods for handling capacity flag
 
 // IsClosedConnectionsNearCapacity checks the atomic flag.
 func (ns *networkState) IsClosedConnectionsNearCapacity() bool {
