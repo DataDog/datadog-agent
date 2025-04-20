@@ -6,6 +6,7 @@ description "Enforce building dependencies as soon as possible so they can be ca
 if linux_target?
   dependency 'procps-ng'
   dependency 'curl'
+  dependency 'jq'
 end
 if fips_mode?
   dependency 'openssl-fips-provider'
