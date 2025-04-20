@@ -878,13 +878,6 @@ func (ns *networkState) getClientLocked(clientID string) *client {
 	return c
 }
 
-// getClient retrieves or creates a client, acquiring the lock
-func (ns *networkState) getClient(clientID string) *client {
-	ns.Lock()
-	defer ns.Unlock()
-	return ns.getClientLocked(clientID)
-}
-
 // mergeConnections return the connections and takes care of updating their last stat counters
 func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_, closed []ConnectionStats) {
 	now := time.Now()
