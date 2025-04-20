@@ -1,4 +1,3 @@
-#
 # Copyright:: Copyright (c) 2012-2014 Chef Software, Inc.
 # License:: Apache License, Version 2.0
 #
