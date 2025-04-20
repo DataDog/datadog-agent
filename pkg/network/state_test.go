@@ -2877,8 +2877,6 @@ func TestDNSPIDCollision(t *testing.T) {
 	assert.Empty(t, delta.Conns[1].DNSStats, "dns stats should not be empty")
 }
 
-// --- New Tests for Capacity Flag ---
-
 // Helper function to create a unique ConnectionStats
 func createTestConnectionStats(cookie StatCookie) *ConnectionStats {
 	// Nest fields within ConnectionTuple
@@ -2917,25 +2915,25 @@ func TestNearCapacityFlag_SetAndCheck(t *testing.T) {
 		ns.storeClosedConnection(createTestConnectionStats(StatCookie(i)))
 	}
 	ns.Unlock()
-	assert.False(t, ns.IsClosedConnectionsNearCapacity(), "Flag should be false below threshold")
+	assert.False(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should be false below threshold") // Pass clientID
 
 	// Add connection exactly at threshold
 	ns.Lock()
 	ns.storeClosedConnection(createTestConnectionStats(StatCookie(capacityThreshold - 1))) // Add 9th connection
 	ns.Unlock()
-	assert.True(t, ns.IsClosedConnectionsNearCapacity(), "Flag should be true at threshold")
+	assert.True(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should be true at threshold") // Pass clientID
 
 	// Add connection over threshold
 	ns.Lock()
 	ns.storeClosedConnection(createTestConnectionStats(StatCookie(capacityThreshold))) // Add 10th connection
 	ns.Unlock()
-	assert.True(t, ns.IsClosedConnectionsNearCapacity(), "Flag should remain true above threshold")
+	assert.True(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should remain true above threshold") // Pass clientID
 
 	// Add another connection (should trigger drop logic, but flag remains)
 	ns.Lock()
 	ns.storeClosedConnection(createTestConnectionStats(StatCookie(capacityThreshold + 1))) // Add 11th connection
 	ns.Unlock()
-	assert.True(t, ns.IsClosedConnectionsNearCapacity(), "Flag should remain true even when buffer is full/dropping")
+	assert.True(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should remain true even when buffer is full/dropping") // Pass clientID
 }
 
 func TestNearCapacityFlag_ResetByGetDelta(t *testing.T) {
@@ -2954,19 +2952,19 @@ func TestNearCapacityFlag_ResetByGetDelta(t *testing.T) {
 	for i := 0; i < capacityThreshold; i++ { // Add 9 connections
 		ns.storeClosedConnection(createTestConnectionStats(StatCookie(i)))
 	}
-	flagBefore := ns.closedConnectionsNearCapacity.Load()
+	flagBefore := ns.clients[clientID].closedConnectionsNearCapacity.Load() // Check flag on the client struct
 	ns.Unlock()
 	require.True(t, flagBefore, "Flag should be true before GetDelta") // Use require for setup check
 
-	// Call GetDelta for the client - this should reset the flag
+	// Call GetDelta for the client - this should reset the flag via client.Reset()
 	_ = ns.GetDelta(clientID, uint64(time.Now().UnixNano()), []ConnectionStats{}, nil, nil)
 
 	// Check the flag again
-	assert.False(t, ns.IsClosedConnectionsNearCapacity(), "Flag should be reset after GetDelta")
+	assert.False(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should be reset after GetDelta") // Pass clientID
 }
 
 func TestNearCapacityFlag_MultipleClients(t *testing.T) {
-	// Test the behavior with multiple clients and the global flag
+	// Test the behavior with multiple clients and the per-client flag
 	const maxClosedConns = 10
 	const capacityThreshold = (maxClosedConns * 9) / 10
 
@@ -2979,50 +2977,55 @@ func TestNearCapacityFlag_MultipleClients(t *testing.T) {
 	ns.RegisterClient(client1)
 	ns.RegisterClient(client2)
 
-	// Fill client1's buffer to trigger global flag
+	// Fill client1's buffer to trigger its flag
 	ns.Lock()
 	for i := 0; i < capacityThreshold; i++ {
 		// Simulate connections being stored for both clients (as storeClosedConnection iterates)
 		conn := createTestConnectionStats(StatCookie(i))
 		c1 := ns.getClient(client1)
 		c1.closed.insert(conn, uint32(maxClosedConns)) // Simulate adding to client 1
-		c2 := ns.getClient(client2)
-		_ = c2 // Keep client 2 buffer empty for now
+		// Check and set client 1's flag explicitly if needed for test clarity
 		if uint32(len(c1.closed.conns)) >= capacityThreshold {
-			ns.closedConnectionsNearCapacity.Store(true)
+			c1.closedConnectionsNearCapacity.Store(true)
 		}
+		// Keep client 2 buffer empty
+		_ = ns.getClient(client2)
 	}
-	flagSetByClient1 := ns.closedConnectionsNearCapacity.Load()
+	flagSetByClient1 := ns.clients[client1].closedConnectionsNearCapacity.Load() // Check client1's flag
 	ns.Unlock()
-	require.True(t, flagSetByClient1, "Flag should be true after client1 reaches threshold")
+	require.True(t, flagSetByClient1, "Client 1 flag should be true after client1 reaches threshold")
+	require.False(t, ns.IsClosedConnectionsNearCapacity(client2), "Client 2 flag should be false")
 
 	// Call GetDelta for client2 (whose buffer is empty)
-	// This should still reset the *global* flag according to the implementation
+	// This should reset client2's flag (which was already false) but not client1's.
 	_ = ns.GetDelta(client2, uint64(time.Now().UnixNano()), []ConnectionStats{}, nil, nil)
-	assert.False(t, ns.IsClosedConnectionsNearCapacity(), "Flag should be reset by GetDelta for client2, even if client1 triggered it")
+	assert.True(t, ns.IsClosedConnectionsNearCapacity(client1), "Client 1 flag should NOT be reset by GetDelta for client2")
+	assert.False(t, ns.IsClosedConnectionsNearCapacity(client2), "Client 2 flag should remain false after GetDelta for client2")
 
-	// Now fill client2's buffer to trigger the flag
+	// Now fill client2's buffer to trigger its flag
 	ns.Lock()
 	for i := 0; i < capacityThreshold; i++ {
 		conn := createTestConnectionStats(StatCookie(100 + i)) // Use different cookies
-		c1 := ns.getClient(client1)
-		_ = c1 // Keep client 1 buffer as is (or empty after GetDelta)
+		// Keep client 1 buffer as is
+		_ = ns.getClient(client1)
 		c2 := ns.getClient(client2)
 		c2.closed.insert(conn, uint32(maxClosedConns)) // Simulate adding to client 2
+		// Check and set client 2's flag
 		if uint32(len(c2.closed.conns)) >= capacityThreshold {
-			ns.closedConnectionsNearCapacity.Store(true)
+			c2.closedConnectionsNearCapacity.Store(true)
 		}
 	}
-	flagSetByClient2 := ns.closedConnectionsNearCapacity.Load()
+	flagSetByClient2 := ns.clients[client2].closedConnectionsNearCapacity.Load() // Check client2's flag
 	ns.Unlock()
-	require.True(t, flagSetByClient2, "Flag should be true after client2 reaches threshold")
+	require.True(t, flagSetByClient2, "Client 2 flag should be true after client2 reaches threshold")
+	assert.True(t, ns.IsClosedConnectionsNearCapacity(client1), "Client 1 flag should still be true")
 
 	// Call GetDelta for client1
+	// This should reset client1's flag but not client2's.
 	_ = ns.GetDelta(client1, uint64(time.Now().UnixNano()), []ConnectionStats{}, nil, nil)
-	assert.False(t, ns.IsClosedConnectionsNearCapacity(), "Flag should be reset by GetDelta for client1, even if client2 triggered it")
+	assert.False(t, ns.IsClosedConnectionsNearCapacity(client1), "Client 1 flag should be reset by GetDelta for client1")
+	assert.True(t, ns.IsClosedConnectionsNearCapacity(client2), "Client 2 flag should NOT be reset by GetDelta for client1")
 }
-
-// --- End of New Tests ---
 
 func generateRandConnections(n int) []ConnectionStats {
 	cs := make([]ConnectionStats, 0, n)

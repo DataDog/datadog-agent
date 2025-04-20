@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
-
 	"go4.org/intern"
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -530,6 +529,7 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 		}
 		result[assetName] = tm
 	}
+
 	return result
 }
 
@@ -700,7 +700,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		case tracerStats:
 			tracerStats := make(map[string]interface{})
 			tracerStats["last_check"] = t.lastCheck.Load()
-			tracerStats["runtime"] = t.ebpfTracer.GetTelemetry()
+			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
 		case httpStats:
 			ret["universal_service_monitoring"] = t.usmMonitor.GetUSMStats()
@@ -740,6 +740,7 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 			Conns: connections,
 		},
 	}, nil
+
 }
 
 // DebugEBPFMaps returns all maps registered in the eBPF manager
@@ -923,13 +924,13 @@ func setupConnectionProtocolMapCleaner(connectionProtocolMap *ebpf.Map, name str
 	return mapCleaner, nil
 }
 
-// IsClosedConnectionsNearCapacity checks if the closed connections buffer is near capacity.
+// IsClosedConnectionsNearCapacity checks if the closed connections buffer is near capacity for a specific client.
 // It returns true if near capacity, false otherwise, and an error if the state is not initialized.
-func (t *Tracer) IsClosedConnectionsNearCapacity() (bool, error) {
+func (t *Tracer) IsClosedConnectionsNearCapacity(clientID string) (bool, error) {
 	if t.state == nil {
 		log.Error("IsClosedConnectionsNearCapacity called before tracer state is initialized")
 		return false, fmt.Errorf("tracer state not initialized")
 	}
 
-	return t.state.IsClosedConnectionsNearCapacity(), nil
+	return t.state.IsClosedConnectionsNearCapacity(clientID), nil
 }

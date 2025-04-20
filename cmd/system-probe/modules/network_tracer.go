@@ -107,20 +107,29 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 
 	// Add the new endpoint for checking closed connection buffer capacity
 	httpMux.HandleFunc("/connections/check_capacity", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
-		// Call the tracer method to check the capacity status
-		isNearCapacity, err := nt.tracer.IsClosedConnectionsNearCapacity()
+		// Get client ID from request
+		clientID := utils.GetClientID(req)
+		if clientID == "" {
+			log.Warn("Received capacity check request with no client ID.")
+			// Depending on requirements, might return an error or proceed with a default/global check if applicable
+			w.WriteHeader(http.StatusBadRequest) // Indicate bad request due to missing client ID
+			return
+		}
+
+		// Call the tracer method to check the capacity status for the specific client
+		isNearCapacity, err := nt.tracer.IsClosedConnectionsNearCapacity(clientID)
 		if err != nil {
-			log.Errorf("Error checking connection capacity: %v", err)
+			log.Errorf("Error checking connection capacity for client %s: %v", clientID, err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		// Write HTTP status based on the capacity status
 		if isNearCapacity {
-			log.Debug("Responding to capacity check request: Near capacity (200 OK)")
+			log.Debugf("Responding to capacity check request for client %s: Near capacity (200 OK)", clientID)
 			w.WriteHeader(http.StatusOK) // 200 OK indicates near capacity
 		} else {
-			log.Trace("Responding to capacity check request: Not near capacity (204 No Content)")
+			log.Tracef("Responding to capacity check request for client %s: Not near capacity (204 No Content)", clientID)
 			w.WriteHeader(http.StatusNoContent) // 204 No Content indicates not near capacity
 		}
 	}))

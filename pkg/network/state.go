@@ -119,8 +119,8 @@ type State interface {
 	// DumpState returns a map with the current network state for a client ID
 	DumpState(clientID string) map[string]interface{}
 
-	// IsClosedConnectionsNearCapacity returns true if the closed connections buffer is close to capacity.
-	IsClosedConnectionsNearCapacity() bool
+	// IsClosedConnectionsNearCapacity returns true if the closed connections buffer for the given client is close to capacity.
+	IsClosedConnectionsNearCapacity(clientID string) bool
 }
 
 // Delta represents a delta of network data compared to the last call to State.
@@ -248,6 +248,8 @@ type client struct {
 	postgresStatsDelta map[postgres.Key]*postgres.RequestStat
 	redisStatsDelta    map[redis.Key]*redis.RequestStat
 	lastTelemetries    map[ConnTelemetryType]int64
+	// Flag for handling closed connection capacity pressure for this client
+	closedConnectionsNearCapacity atomic.Bool
 }
 
 func (c *client) Reset() {
@@ -264,6 +266,8 @@ func (c *client) Reset() {
 	c.kafkaStatsDelta = make(map[kafka.Key]*kafka.RequestStats)
 	c.postgresStatsDelta = make(map[postgres.Key]*postgres.RequestStat)
 	c.redisStatsDelta = make(map[redis.Key]*redis.RequestStat)
+	// Reset the capacity flag when client state is reset
+	c.closedConnectionsNearCapacity.Store(false)
 }
 
 type networkState struct {
@@ -288,9 +292,6 @@ type networkState struct {
 	processEventConsumerEnabled bool
 
 	localResolver LocalResolver
-
-	// Flag for handling closed connection capacity pressure
-	closedConnectionsNearCapacity atomic.Bool
 }
 
 // NewState creates a new network state
@@ -376,9 +377,6 @@ func (ns *networkState) GetDelta(
 
 	// Update the latest known time
 	ns.latestTimeEpoch = latestTime
-
-	// Resets the global flag.
-	ns.resetNearCapacityFlagLocked()
 
 	client := ns.getClient(id)
 	defer client.Reset()
@@ -618,15 +616,13 @@ func (ns *networkState) storeClosedConnection(c *ConnectionStats) {
 			continue
 		}
 
-		// Insert the connection
 		client.closed.insert(c, ns.maxClosedConns)
 
-		// Check capacity AFTER inserting
 		// Check if the buffer is at least 90% full
 		if uint32(len(client.closed.conns)) >= (ns.maxClosedConns*9)/10 {
-			if !ns.closedConnectionsNearCapacity.Load() { // Avoid logging repeatedly if already set
+			if !client.closedConnectionsNearCapacity.Load() { // Check client-specific flag
 				log.Warnf("Closed connections buffer for client %s is nearing capacity (%d/%d). Setting flag.", clientID, len(client.closed.conns), ns.maxClosedConns)
-				ns.closedConnectionsNearCapacity.Store(true)
+				client.closedConnectionsNearCapacity.Store(true) // Set client-specific flag
 			}
 		}
 	}
@@ -872,6 +868,7 @@ func (ns *networkState) getClient(clientID string) *client {
 		postgresStatsDelta: map[postgres.Key]*postgres.RequestStat{},
 		redisStatsDelta:    map[redis.Key]*redis.RequestStat{},
 		lastTelemetries:    make(map[ConnTelemetryType]int64),
+		// closedConnectionsNearCapacity is initialized to false by default via atomic.Bool zero value
 	}
 	ns.clients[clientID] = c
 	return c
@@ -1041,7 +1038,8 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 	defer ns.Unlock()
 
 	data := map[string]interface{}{}
-	if client, ok := ns.clients[clientID]; ok {
+	client, ok := ns.clients[clientID]
+	if ok {
 		for cookie, s := range client.stats {
 			data[strconv.Itoa(int(cookie))] = map[string]uint64{
 				"total_sent":            s.SentBytes,
@@ -1051,8 +1049,8 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 				"total_tcp_closed":      uint64(s.TCPClosed),
 			}
 		}
+		data["near_capacity_flag"] = client.closedConnectionsNearCapacity.Load() // Add client-specific flag state
 	}
-	data["near_capacity_flag"] = ns.closedConnectionsNearCapacity.Load() // Add flag state
 	return data
 }
 
@@ -1511,15 +1509,14 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 	return false
 }
 
-// IsClosedConnectionsNearCapacity checks the atomic flag.
-func (ns *networkState) IsClosedConnectionsNearCapacity() bool {
-	return ns.closedConnectionsNearCapacity.Load()
-}
-
-// resetNearCapacityFlagLocked resets the atomic flag, assumes lock is held.
-func (ns *networkState) resetNearCapacityFlagLocked() {
-	if ns.closedConnectionsNearCapacity.Load() {
-		log.Info("Resetting closed connections near capacity flag (triggered by GetDelta).")
-		ns.closedConnectionsNearCapacity.Store(false)
+// IsClosedConnectionsNearCapacity checks the atomic flag for a specific client.
+func (ns *networkState) IsClosedConnectionsNearCapacity(clientID string) bool {
+	ns.Lock()
+	defer ns.Unlock()
+	if client, ok := ns.clients[clientID]; ok {
+		return client.closedConnectionsNearCapacity.Load()
 	}
+	// If client doesn't exist (should not happen in normal flow after registration), return false
+	log.Warnf("IsClosedConnectionsNearCapacity called for non-existent client ID: %s", clientID)
+	return false
 }
