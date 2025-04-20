@@ -868,7 +868,6 @@ func (ns *networkState) getClient(clientID string) *client {
 		postgresStatsDelta: map[postgres.Key]*postgres.RequestStat{},
 		redisStatsDelta:    map[redis.Key]*redis.RequestStat{},
 		lastTelemetries:    make(map[ConnTelemetryType]int64),
-		// closedConnectionsNearCapacity is initialized to false by default via atomic.Bool zero value
 	}
 	ns.clients[clientID] = c
 	return c
@@ -1038,8 +1037,7 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 	defer ns.Unlock()
 
 	data := map[string]interface{}{}
-	client, ok := ns.clients[clientID]
-	if ok {
+	if client, ok := ns.clients[clientID]; ok {
 		for cookie, s := range client.stats {
 			data[strconv.Itoa(int(cookie))] = map[string]uint64{
 				"total_sent":            s.SentBytes,
@@ -1049,7 +1047,7 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 				"total_tcp_closed":      uint64(s.TCPClosed),
 			}
 		}
-		data["near_capacity_flag"] = client.closedConnectionsNearCapacity.Load() // Add client-specific flag state
+		data["near_capacity_flag"] = client.closedConnectionsNearCapacity.Load()
 	}
 	return data
 }
