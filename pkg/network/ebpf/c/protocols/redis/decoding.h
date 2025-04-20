@@ -82,6 +82,7 @@ static __always_inline bool read_bulk_string(pktbuf_t pkt, char *buf, u32 buf_le
     }
 
     const s32 original_key_size = key_size;
+    key_size &= 0xFF;
     if (key_size > MAX_KEY_LEN - 1) {
         key_size = MAX_KEY_LEN - 1;
     }
