@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -388,11 +389,13 @@ func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agen
 
 type baseStartStopSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
-	startAgentCommand   func(host *components.RemoteHost) error
-	stopAgentCommand    func(host *components.RemoteHost) error
-	runningUserServices func() []string
-	runningServices     func() []string
-	dumpFolder          string
+	startAgentCommand         func(host *components.RemoteHost) error
+	stopAgentCommand          func(host *components.RemoteHost) error
+	runningUserServices       func() []string
+	runningServices           func() []string
+	dumpFolder                string
+	cancelMetricCollection    context.CancelFunc
+	waitGroupMetricCollection sync.WaitGroup
 }
 
 // TestAgentStartsAllServices tests that starting the agent starts all services (as enabled)
@@ -500,11 +503,13 @@ func (s *baseStartStopSuite) SetupSuite() {
 	// commands being run.
 	// Stop the goroutine when the test ends
 	ctx, cancel := context.WithCancel(context.Background())
-	s.T().Cleanup(cancel)
-	// Collect metrics at most every 5 seconds
-	ticker := time.NewTicker(5 * time.Second)
-	s.T().Cleanup(ticker.Stop)
+	s.cancelMetricCollection = cancel
+	s.waitGroupMetricCollection.Add(1)
 	go func() {
+		defer s.waitGroupMetricCollection.Done()
+		// Collect metrics at most every 5 seconds
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
@@ -515,6 +520,18 @@ func (s *baseStartStopSuite) SetupSuite() {
 			}
 		}
 	}()
+}
+
+func (s *baseStartStopSuite) TearDownSuite() {
+	// Must stop metric collector so the host connection is no longer in use
+	// before destroying the environment, else reconnect may fail require() in host.go
+	if s.cancelMetricCollection != nil {
+		s.cancelMetricCollection()
+		s.waitGroupMetricCollection.Wait()
+	}
+
+	s.T().Log("Tearing down environment")
+	s.BaseSuite.TearDownSuite()
 }
 
 func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
