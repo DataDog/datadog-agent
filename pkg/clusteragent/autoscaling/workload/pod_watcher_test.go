@@ -9,7 +9,6 @@ package workload
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -210,7 +209,7 @@ func TestGetNamespacedPodOwner(t *testing.T) {
 				Kind:      kubernetes.ReplicaSetKind,
 				Name:      "datadog-agent-linux-cluster-agent",
 			},
-			err: errors.New(errDeploymentNotValidOwner),
+			err: errDeploymentNotValidOwner,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

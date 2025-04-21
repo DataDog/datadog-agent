@@ -345,7 +345,7 @@ func TestFindAutoscaler(t *testing.T) {
 				},
 			},
 			expectedAutoscalerID: "",
-			expectedError:        errors.New(errDeploymentNotValidOwner),
+			expectedError:        errDeploymentNotValidOwner,
 		},
 		{
 			name: "Pod with owner but no matching autoscaler should return nil",

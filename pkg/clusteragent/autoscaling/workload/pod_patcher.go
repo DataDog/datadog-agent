@@ -9,7 +9,6 @@ package workload
 
 import (
 	"context"
-	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -142,7 +141,7 @@ func (pa podPatcher) findAutoscaler(pod *corev1.Pod) (*model.PodAutoscalerIntern
 
 	// Ignore pods owned directly by a deployment
 	if ownerRef.Kind == kubernetes.DeploymentKind {
-		return nil, fmt.Errorf(errDeploymentNotValidOwner)
+		return nil, errDeploymentNotValidOwner
 	}
 
 	if ownerRef.Kind == kubernetes.ReplicaSetKind {

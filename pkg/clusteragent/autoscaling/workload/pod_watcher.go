@@ -19,9 +19,9 @@ import (
 
 const (
 	patcherQueueSize = 100
-
-	errDeploymentNotValidOwner = "deployment is not a valid owner"
 )
+
+var errDeploymentNotValidOwner = fmt.Errorf("deployment is not a valid owner")
 
 // NamespacedPodOwner represents a pod owner in a namespace
 type NamespacedPodOwner struct {
@@ -222,7 +222,7 @@ func (pw *PodWatcherImpl) runPatcher(ctx context.Context) {
 
 func getNamespacedPodOwner(ns string, owner *workloadmeta.KubernetesPodOwner) (NamespacedPodOwner, error) {
 	if owner.Kind == kubernetes.DeploymentKind {
-		return NamespacedPodOwner{}, fmt.Errorf(errDeploymentNotValidOwner)
+		return NamespacedPodOwner{}, errDeploymentNotValidOwner
 	}
 
 	res := NamespacedPodOwner{
