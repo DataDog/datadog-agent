@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    fix rare panic in the flush mechanism of the serverless logs pipeline
+    Fix rare panic in the flush mechanism of the serverless logs pipeline
