@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from functools import cached_property, lru_cache
 import json
 import os
 import sys
 import tempfile
+from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -94,12 +94,10 @@ class CompilerImage:
 
     @cached_property
     def host_uid(self):
-        return "1000"
         return cast('Result', self.ctx.run("id -u")).stdout.rstrip()
 
     @cached_property
     def host_gid(self):
-        return "1000"
         return cast('Result', self.ctx.run("id -g")).stdout.rstrip()
 
     def ensure_compiler_user_created(self):
@@ -120,7 +118,10 @@ class CompilerImage:
 
         # Now create the compiler user with same UID and GID as the current user
         self.exec(f"getent group {self.host_gid} || groupadd -f -g {self.host_gid} {compiler_username}", user="root")
-        self.exec(f"getent passwd {self.host_uid} || useradd -m -u {self.host_uid} -g {self.host_gid} {compiler_username}", user="root")
+        self.exec(
+            f"getent passwd {self.host_uid} || useradd -m -u {self.host_uid} -g {self.host_gid} {compiler_username}",
+            user="root",
+        )
 
     def ensure_running(self):
         if not self.is_running:
@@ -200,7 +201,8 @@ class CompilerImage:
 
         if sys.platform != "darwin":  # No need to change permissions in MacOS
             self.exec(
-                f"chown {self.host_uid}:{self.host_gid} {CONTAINER_AGENT_PATH} && chown -R {self.host_uid}:{self.host_gid} {CONTAINER_AGENT_PATH}", user="root"
+                f"chown {self.host_uid}:{self.host_gid} {CONTAINER_AGENT_PATH} && chown -R {self.host_uid}:{self.host_gid} {CONTAINER_AGENT_PATH}",
+                user="root",
             )
 
         cross_arch = ARCH_ARM64 if self.arch == ARCH_AMD64 else ARCH_AMD64
@@ -239,8 +241,14 @@ class CompilerImage:
         )
 
         self.exec("apt-get install -y --no-install-recommends sudo", user="root")
-        self.exec(f"usermod -aG sudo {self.compiler_user} && echo '{self.compiler_user} ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers", user="root")
-        self.exec(f"cp /root/.bashrc /home/{self.compiler_user}/.bashrc && chown {self.host_uid}:{self.host_gid} /home/{self.compiler_user}/.bashrc", user="root")
+        self.exec(
+            f"usermod -aG sudo {self.compiler_user} && echo '{self.compiler_user} ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers",
+            user="root",
+        )
+        self.exec(
+            f"cp /root/.bashrc /home/{self.compiler_user}/.bashrc && chown {self.host_uid}:{self.host_gid} /home/{self.compiler_user}/.bashrc",
+            user="root",
+        )
         self.exec("mkdir ~/.cargo && touch ~/.cargo/env", user=self.compiler_user)
         self.exec("dda self telemetry disable", user=self.compiler_user, force_color=False)
         self.exec(f"install -d -m 0777 -o {self.host_uid} -g {self.host_gid} /go", user="root")
