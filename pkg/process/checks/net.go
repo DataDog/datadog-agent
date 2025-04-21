@@ -582,22 +582,30 @@ func getNetworkID(sysProbeClient *http.Client) (string, error) {
 // endpoint that checks for closed connection buffer capacity.
 func (c *ConnectionsCheck) periodicCapacityCheck() {
 	defer c.wg.Done()
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
 
-	log.Debug("Periodic capacity check goroutine running.")
+	tickerInterval := c.config.GetDuration("process_config.intervals.connections_capacity_check")
+
+	// Enforce a minimum interval of 5 seconds
+	minInterval := 5 * time.Second
+	if tickerInterval < minInterval {
+		log.Warnf("Interval %v for process_config.intervals.connections_capacity_check is below minimum of %v, using minimum value.", tickerInterval, minInterval)
+		tickerInterval = minInterval
+	}
+	log.Infof("Periodic capacity check running every %v", tickerInterval)
+
+	ticker := time.NewTicker(tickerInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
 			if c.sysprobeClient == nil {
 				log.Warn("System probe client is nil in periodicCapacityCheck, stopping checker.")
-				return // Exit goroutine
+				return
 			}
 
-			// Call the new capacity check endpoint
-			url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/connections/check_capacity") // New path
-			req, err := http.NewRequest("GET", url, nil)                                                  // Use GET, it's read-only
+			url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/connections/check_capacity")
+			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
 				log.Warnf("Error creating capacity check request %s: %v", url, err)
 				continue
@@ -614,7 +622,7 @@ func (c *ConnectionsCheck) periodicCapacityCheck() {
 			}
 
 			statusCode := resp.StatusCode
-			resp.Body.Close() // Close body immediately
+			resp.Body.Close()
 
 			switch statusCode {
 			case http.StatusOK: // 200 OK => Near capacity
@@ -632,7 +640,7 @@ func (c *ConnectionsCheck) periodicCapacityCheck() {
 
 		case <-c.stopCh:
 			log.Debug("Periodic capacity check goroutine stopping.")
-			return // Exit goroutine
+			return
 		}
 	}
 }
