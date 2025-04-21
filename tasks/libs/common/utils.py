@@ -5,7 +5,6 @@ Miscellaneous functions, no tasks here
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import platform
 import re
 import shutil
@@ -18,6 +17,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
+from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 

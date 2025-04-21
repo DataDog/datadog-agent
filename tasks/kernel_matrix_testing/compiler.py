@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 import tempfile
 from pathlib import Path
@@ -106,7 +105,9 @@ class CompilerImage:
         repo_root = get_repo_root()
         git_dir = repo_root / ".git"
         if not git_dir.exists():
-            raise Exit(f"[-] .git directory not found in {repo_root}, this command needs to be run from a git repository")
+            raise Exit(
+                f"[-] .git directory not found in {repo_root}, this command needs to be run from a git repository"
+            )
         elif not git_dir.is_dir():
             raise Exit(f"[-] .git directory is not a directory in {repo_root}, git worktrees are not supported")
 
