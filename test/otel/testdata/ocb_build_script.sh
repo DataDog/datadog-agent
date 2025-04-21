@@ -68,24 +68,15 @@ dd_mods=$(find . -type f -name "go.mod" -exec dirname {} \; | sort | sed 's/.//'
 
 
 
-# Use a forked version of the Datadog exporter
-#
-# This change adds a replace directive for the datadog exporter to point to a forked version: GitHub Comparison: https://github.com/open-telemetry/opentelemetry-collector-contrib/compare/main...ogaca-dd:opentelemetry-collector-contrib:olivierg/tmp-fix-ocb
-#
-# Issues Fixed:
-# 	1.	Dependency Mismatch:
-# 	  -	connector/datadogconnector/go.mod does not reference the latest version of exporter/datadogexporter.
-# 	  -	This adjustment is necessary until opentelemetry-collector-contrib v0.122.1 is officially released.
-# 	2.	Compatibility Issue:
-# 	  -	opentelemetry-collector-contrib fails to compile due to recent changes in the Datadog Agent.
-# 	  -	The pkgconfigmodel package was renamed to viperconfig, breaking compatibility with the latest updates.
-echo "- github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter => github.com/ogaca-dd/opentelemetry-collector-contrib/exporter/datadogexporter v0.0.0-20250220150909-786462df4eca" >> /tmp/otel-ci/builder-config.yaml
+# TODO(songy23): remove this once v0.125.0 is brought to Agent
+echo "- github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter => github.com/songy23/opentelemetry-service-contrib/exporter/datadogexporter v0.0.0-20250421165018-f26f9d62977a" >> /tmp/otel-ci/builder-config.yaml
+echo "- github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector => github.com/songy23/opentelemetry-service-contrib/connector/datadogconnector v0.0.0-20250421165018-f26f9d62977a" >> /tmp/otel-ci/builder-config.yaml
 
 
 } >>"$WORK_DIR/builder-config.yaml"
 
 # Install and configure OCB
-OCB_VERSION="0.122.1"
+OCB_VERSION="0.124.0"
 CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" \
 	go.opentelemetry.io/collector/cmd/builder@v${OCB_VERSION}
 mv -v "$(go env GOPATH)/bin/builder" "$WORK_DIR/ocb"
