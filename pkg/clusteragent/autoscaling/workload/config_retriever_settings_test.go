@@ -532,6 +532,7 @@ func TestConfigRetriverAutoscalingSettingsReconcile(t *testing.T) {
 	// Become leader, should reconcile. Unfortunately, as it's another goroutine running the reconcile,
 	// we need to wait for the reconcile to happen.
 	isLeader = true
+	time.Sleep(10 * time.Millisecond)
 	testClock.Step(settingsReconcileInterval)
 	require.Eventually(t, func() bool {
 		return store.Count() == 1
