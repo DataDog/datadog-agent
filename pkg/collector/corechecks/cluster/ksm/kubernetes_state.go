@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/samber/lo"
@@ -239,6 +240,7 @@ type KSMCheck struct {
 	metricTransformers   map[string]metricTransformerFunc
 	metadataMetricsRegex *regexp.Regexp
 	initRetry            retry.Retrier
+	runMutex             sync.Mutex // Mutex to protect Run method from concurrent calls
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -594,6 +596,9 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
+	k.runMutex.Lock()
+	defer k.runMutex.Unlock()
+
 	if err := k.initRetry.TriggerRetry(); err != nil {
 		return err.LastTryError
 	}
