@@ -6,8 +6,6 @@
 package client
 
 import (
-	"context"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,7 +13,23 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server/testutil"
 )
+
+func startTestServer(t *testing.T, handler http.Handler) (string, *httptest.Server) {
+	t.Helper()
+
+	socketPath := testutil.SystemProbeSocketPath(t)
+	server, err := testutil.NewSystemProbeTestServer(handler, socketPath)
+	require.NoError(t, err)
+	if server != nil {
+		server.Start()
+		t.Cleanup(server.Close)
+	}
+
+	return socketPath, server
+}
 
 func TestConstructURL(t *testing.T) {
 	u := constructURL("", "/asdf?a=b")
@@ -50,7 +64,7 @@ func validateTelemetry(t *testing.T, module string, expected expectedTelemetryVa
 }
 
 func TestGetCheck(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	socketPath, server := startTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/test/check" {
 			_, _ = w.Write([]byte(`{"Str": "asdf", "Num": 42}`))
 		} else if r.URL.Path == "/malformed/check" {
@@ -62,12 +76,8 @@ func TestGetCheck(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
-	t.Cleanup(server.Close)
 
-	httpClient := &http.Client{Transport: &http.Transport{DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-		return net.Dial("tcp", server.Listener.Addr().String())
-	}}}
-	client := &CheckClient{client: httpClient}
+	client := &CheckClient{client: Get(socketPath)}
 
 	//test happy flow
 	resp, err := GetCheck[testData](client, "test")
@@ -95,7 +105,7 @@ func TestGetCheck(t *testing.T) {
 
 func TestGetCheckStartup(t *testing.T) {
 	failRequest := true
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	socketPath, _ := startTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if failRequest {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -109,14 +119,9 @@ func TestGetCheckStartup(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
-	t.Cleanup(server.Close)
-
-	httpClient := &http.Client{Transport: &http.Transport{DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-		return net.Dial("tcp", server.Listener.Addr().String())
-	}}}
 
 	client := &CheckClient{
-		client:         httpClient,
+		client:         Get(socketPath),
 		startTime:      time.Now(),
 		startupTimeout: 5 * time.Minute,
 	}
