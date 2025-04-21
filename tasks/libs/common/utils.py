@@ -5,6 +5,7 @@ Miscellaneous functions, no tasks here
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import platform
 import re
 import shutil
@@ -174,6 +175,13 @@ def get_embedded_path(ctx):
             return test_embedded_path
 
     return None
+
+
+def get_repo_root():
+    """
+    Get the root of the repository, where the .git directory is.
+    """
+    return Path(__file__).parent.parent.parent.parent
 
 
 def get_xcode_version(ctx):
