@@ -269,6 +269,10 @@ class CompilerImage:
             user=self.compiler_user,
         )
 
+        info(
+            f"[*] Compiler image {self.name} for {self.arch} started, image {self.image}, compiler user '{self.compiler_user}'"
+        )
+
 
 def get_apt_sources(arch: Arch) -> str:
     apt_uri = APT_URIS[arch.go_arch]
