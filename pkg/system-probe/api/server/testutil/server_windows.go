@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package testutil contains test utilities for the system-probe API server.
 package testutil
 
 import (
