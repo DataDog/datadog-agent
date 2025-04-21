@@ -23,6 +23,7 @@ var (
 	WorkloadMetricStoreOnce sync.Once
 )
 
+// TODO: This needs to be converted to component style
 // GetWorkloadMetricStore returns the workload metric store, init once
 func GetWorkloadMetricStore(ctx context.Context) Store {
 	WorkloadMetricStoreOnce.Do(func() {
