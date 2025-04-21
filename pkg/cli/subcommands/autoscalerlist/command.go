@@ -23,6 +23,7 @@ import (
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	autoscalingWorkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	localautoscalingworkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -31,6 +32,7 @@ import (
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
 	GlobalParams
+	localstore bool
 }
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -47,7 +49,7 @@ type GlobalParams struct {
 func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cliParams := &cliParams{}
 
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "autoscaler-list",
 		Short: "Print the autoscaling store content of a running agent",
 		Long:  ``,
@@ -69,9 +71,19 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			)
 		},
 	}
+	cmd.Flags().BoolVarP(&cliParams.localstore, "localstore", "v", false, "print autoscaling localstore debug info")
+	return cmd
 }
 
 func autoscalerList(_ log.Component, config config.Component, client ipc.HTTPClient, _ *cliParams) error {
+	if cliParams.localstore {
+		err := getLocalAutoscalingWorkloadCheck(color.Output, config)
+		if err != nil {
+			return fmt.Errorf("error getting localstore debug info: %v", err)
+		}
+		return nil
+	}
+
 	url, err := getAutoscalerURL(config)
 	if err != nil {
 		return err
@@ -116,5 +128,35 @@ func getAutoscalerList(client ipc.HTTPClient, w io.Writer, url string) error {
 	}
 
 	autoscalerDump.Print(w)
+	return nil
+}
+
+func getLocalAutoscalingWorkloadCheck(w io.Writer, config config.Component, c ipc.HTTPClient) error {
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
+	if err != nil {
+		return err
+	}
+	urlstr := fmt.Sprintf("https://%v:%v/local-autoscaling-check", ipcAddress, config.GetInt("cluster_agent.cmd_port"))
+
+	r, err := c.Get(urlstr, ipchttp.WithLeaveConnectionOpen)
+	if err != nil {
+		if r != nil && string(r) != "" {
+			return fmt.Errorf("the agent ran into an error while getting local autoscaling workload entities: %s", string(r))
+		}
+
+		return fmt.Errorf("failed to query the agent (running?): %s", err)
+	}
+
+	var response localautoscalingworkload.LocalAutoscalingWorkloadCheckResponse
+
+	err = json.Unmarshal(r, &response)
+	if err != nil {
+		return fmt.Errorf("error unmarshalling json: %s", err)
+	}
+	if w != color.Output {
+		color.NoColor = true
+	}
+	fmt.Fprintf(w, "\n=== Workload Failover Metric Entity List ===\n")
+	response.Dump(w)
 	return nil
 }
