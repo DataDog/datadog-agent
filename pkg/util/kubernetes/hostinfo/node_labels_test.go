@@ -64,6 +64,18 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "clusterName label not set, AKS label set",
+			mockClientFunc: func(ku *kubeUtilMock) {
+				ku.On("GetNodename").Return("node-name", nil)
+			},
+			nodeLabels: map[string]string{
+				"kubernetes.azure.com/cluster": "foo",
+			},
+			ctx:     context.Background(),
+			want:    "foo",
+			wantErr: false,
+		},
+		{
 			name: "cluster-name custom label set",
 			mockClientFunc: func(ku *kubeUtilMock) {
 				ku.On("GetNodename").Return("node-name", nil)
@@ -102,6 +114,19 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			currentClusterName: "bar",
 			nodeLabels: map[string]string{
 				"alpha.eksctl.io/cluster-name": "foo",
+			},
+			ctx:     context.Background(),
+			want:    "bar",
+			wantErr: false,
+		},
+		{
+			name: "a clusterName already discover, AKS label should not override the current clusterName",
+			mockClientFunc: func(ku *kubeUtilMock) {
+				ku.On("GetNodename").Return("node-name", nil)
+			},
+			currentClusterName: "bar",
+			nodeLabels: map[string]string{
+				"kubernetes.azure.com/cluster": "foo",
 			},
 			ctx:     context.Background(),
 			want:    "bar",
