@@ -51,6 +51,12 @@ type WSAPOLLFD struct {
 var (
 	modWS2_32   = windows.NewLazySystemDLL("ws2_32.dll")
 	procWSAPoll = modWS2_32.NewProc("WSAPoll")
+
+	// Mock system calls - these can be overridden in tests
+	connect       = windows.Connect
+	setsockoptInt = windows.SetsockoptInt
+	getsockopt    = windows.Getsockopt
+	wsaPollFunc   = wsaPoll
 )
 
 type (
@@ -126,7 +132,7 @@ func (r *Conn) SetTTL(ttl int) error {
 	if ttl < 0 {
 		return fmt.Errorf("TTL cannot be negative")
 	}
-	return windows.SetsockoptInt(
+	return setsockoptInt(
 		r.Socket,
 		windows.IPPROTO_IP,
 		windows.IP_TTL,
@@ -146,8 +152,7 @@ func (r *Conn) sendConnect(destIP net.IP, destPort uint16) error {
 		Addr: [4]byte{dst[0], dst[1], dst[2], dst[3]},
 	}
 
-	return windows.Connect(r.Socket, sa)
-
+	return connect(r.Socket, sa)
 }
 
 // getHoppAddress gets the address of the hop
@@ -158,7 +163,7 @@ func (r *Conn) getHoppAddress() (net.IP, error) {
 	var errorInfoSize = int32(unsafe.Sizeof(errorInfo))
 	// getsockopt for ICMP_ERROR_INFO
 	// this will have the address of the hop
-	err := windows.Getsockopt(
+	err := getsockopt(
 		r.Socket,
 		windows.IPPROTO_TCP,
 		windows.TCP_ICMP_ERROR_INFO,
@@ -205,7 +210,7 @@ func (r *Conn) poll(ctx context.Context) error {
 				revents: 0,
 			},
 		}
-		ret, err := wsaPoll(fds, 100)
+		ret, err := wsaPollFunc(fds, 100)
 		if err != nil {
 			return fmt.Errorf("failed to poll: %w", err)
 		}
@@ -223,7 +228,7 @@ func (r *Conn) getSocketError() error {
 	var err error
 	var errCode int32
 	var errCodeSize = int32(unsafe.Sizeof(errCode))
-	err = windows.Getsockopt(
+	err = getsockopt(
 		r.Socket,
 		windows.SOL_SOCKET,
 		0x1007, // SO_ERROR
