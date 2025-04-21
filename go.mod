@@ -41,7 +41,8 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	// TODO: pin to an operator released version once there is a release that includes the api module
 	github.com/DataDog/datadog-operator/api v0.0.0-20250218182124-bd4ad0b8d2fd
-	github.com/DataDog/ebpf-manager v0.7.7
+	// https://github.com/DataDog/ebpf-manager/tree/v0.7.7%2Bfixes
+	github.com/DataDog/ebpf-manager v0.7.8-0.20250418192221-da9c1f9926d4
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0
