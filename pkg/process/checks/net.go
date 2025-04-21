@@ -607,7 +607,7 @@ func (c *ConnectionsCheck) periodicCapacityCheck() {
 				return
 			}
 
-			url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/connections/check_capacity")
+			url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/connections/check_capacity?client_id="+ProcessAgentClientID)
 			req, err := http.NewRequest("GET", url, nil)
 			if err != nil {
 				log.Warnf("Error creating capacity check request %s: %v", url, err)
