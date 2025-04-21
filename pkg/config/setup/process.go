@@ -209,6 +209,9 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnvAndSetDefault(config, "process_config.cache_lookupid", false)
 
 	procBindEnvAndSetDefault(config, "process_config.language_detection.grpc_port", DefaultProcessEntityStreamPort)
+
+	// Connection Capacity Check configuration
+	procBindEnvAndSetDefault(config, "process_config.connections_capacity_check.enabled", true)
 	procBindEnvAndSetDefault(config, "process_config.intervals.connections_capacity_check", DefaultProcessConnectionsCapacityCheckInterval)
 
 	processesAddOverrideOnce.Do(func() {

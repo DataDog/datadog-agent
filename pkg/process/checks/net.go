@@ -123,7 +123,8 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.localresolver.Run()
 
 	// Start periodic capacity checker *after* other initializations and *if* the check is enabled
-	if c.IsEnabled() && c.sysprobeClient != nil {
+	capacityCheckEnabled := c.config.GetBool("process_config.connections_capacity_check.enabled")
+	if c.IsEnabled() && c.sysprobeClient != nil && capacityCheckEnabled {
 		c.stopCh = make(chan struct{})
 		c.wg.Add(1)
 		go c.periodicCapacityCheck()
@@ -133,6 +134,8 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 			log.Info("Connections check disabled, not starting periodic capacity checker.")
 		} else if c.sysprobeClient == nil {
 			log.Warn("System probe client not available, not starting periodic capacity checker.")
+		} else if !capacityCheckEnabled {
+			log.Info("Periodic connections capacity checker disabled via process_config.connections_capacity_check.enabled=false.")
 		}
 	}
 
