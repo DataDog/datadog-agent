@@ -201,9 +201,11 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
 
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
-	mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
+	if runtime.GOOS != "darwin" {
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
+		mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
+	}
 
 	profiler := getProfiler(t, mockConfig, mockSysProbeConfig)
 	data, err := profiler.ReadProfileData(10, func(string, ...interface{}) error { return nil })
