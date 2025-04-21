@@ -104,7 +104,7 @@ class CompilerImage:
         # If the compiler user already exists, we don't need to do anything. Note that this might
         # happen even if we have just booted the container, if the UID of the host user is
         # the same as the UID for an already existing user in the container
-        uid_exists = self.exec(f"getent passwd {self.host_uid}", user="root")
+        uid_exists = self.exec(f"getent passwd {self.host_uid}", user="root", allow_fail=True)
         if uid_exists is not None and uid_exists.ok:
             info(f"[*] Compiler user {self.compiler_user} already created")
             return
