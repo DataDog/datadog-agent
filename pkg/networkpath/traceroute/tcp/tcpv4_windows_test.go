@@ -31,22 +31,22 @@ func TestSendAndReceive(t *testing.T) {
 	tcpv4.srcPort = 12345
 	tts := []struct {
 		description     string
-		mockSendError   error
 		mockHopIP       net.IP
 		mockEnd         time.Time
-		mockListenError error
+		mockGetHopError error
+		mockSetTTLError error
 		expected        *common.Hop
 		errMsg          string
 	}{
 		{
-			description:   "send error returns error",
-			mockSendError: errors.New("test send error"),
-			errMsg:        "test send error",
+			description:     "send error returns error",
+			mockSetTTLError: errors.New("test set TTL Error"),
+			errMsg:          "failed to set TTL",
 		},
 		{
-			description:     "listen error returns error",
-			mockListenError: errors.New("test listen error"),
-			errMsg:          "test listen error",
+			description:     "get hop error returns error",
+			mockGetHopError: errors.New("test get hop error"),
+			errMsg:          "failed to get hop",
 		},
 		{
 			description: "successful send and receive, hop not found",
@@ -82,12 +82,13 @@ func TestSendAndReceive(t *testing.T) {
 		t.Run(test.description, func(t *testing.T) {
 			controller := gomock.NewController(t)
 			defer controller.Finish()
-			mockRawConn := winconn.NewMockRawConnWrapper(controller)
-			mockRawConn.EXPECT().SendRawPacket(gomock.Any(), gomock.Any(), gomock.Any()).Return(test.mockSendError)
-			if test.mockSendError == nil { // only expect ListenPackets call if SendRawPacket is successful
-				mockRawConn.EXPECT().ListenPackets(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(test.mockHopIP, test.mockEnd, test.mockListenError)
+			mockConn := winconn.NewMockConnWrapper(controller)
+			mockConn.EXPECT().SetTTL(gomock.Any()).Return(test.mockSetTTLError)
+			if test.mockSetTTLError == nil {
+				mockConn.EXPECT().GetHop(gomock.Any(), gomock.Any(), gomock.Any()).Return(test.mockHopIP, test.mockEnd, test.mockGetHopError)
 			}
-			actual, err := tcpv4.sendAndReceive(mockRawConn, 1, 1*time.Second)
+
+			actual, err := tcpv4.sendAndReceive(mockConn, 1, 1*time.Second)
 			if test.errMsg != "" {
 				require.Error(t, err)
 				assert.True(t, strings.Contains(err.Error(), test.errMsg), "error mismatch: excpected %q, got %q", test.errMsg, err.Error())

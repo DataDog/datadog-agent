@@ -71,8 +71,8 @@ func (t *TCPv4) sendAndReceive(s winconn.ConnWrapper, ttl int, timeout time.Dura
 	start := time.Now() // TODO: is this the best place to start?
 	hopIP, end, err := s.GetHop(timeout, t.Target, t.DestPort)
 	if err != nil {
-		log.Errorf("failed to listen for packets: %s", err.Error())
-		return nil, err
+		log.Errorf("failed to get hop: %s", err.Error())
+		return nil, fmt.Errorf("failed to get hop: %w", err)
 	}
 
 	rtt := time.Duration(0)
