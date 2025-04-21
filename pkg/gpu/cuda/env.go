@@ -49,9 +49,10 @@ func GetVisibleDevicesForProcess(systemDevices []ddnvml.Device, pid int, procfs 
 // the CUDA_VISIBLE_DEVICES environment variable
 func getVisibleDevices(systemDevices []ddnvml.Device, cudaVisibleDevices string) ([]ddnvml.Device, error) {
 	// First, we adjust the list of devices to take into account how CUDA presents MIG devices in order. This
-	// list will not be used when searching by prefix, but it will be used when filtering by index or when
-	// CUDA_VISIBLE_DEVICES is not set.
-	migAdjustedDevices := adjustVisibleDevicesForMigDevices(systemDevices)
+	// list will not be used when searching by prefix because prefix matching is done against *all* devices,
+	// but index filtering is done against the adjusted list where devices with MIG children are replaced by
+	// their first child.
+	migAdjustedDevices := adjustVisibleDevicesForMig(systemDevices)
 
 	if cudaVisibleDevices == "" {
 		return keepEitherFirstMIGOrAllDevices(migAdjustedDevices), nil
@@ -69,6 +70,13 @@ func getVisibleDevices(systemDevices []ddnvml.Device, cudaVisibleDevices string)
 			if err != nil {
 				return filteredDevices, err
 			}
+
+			// Selecting a parent device when there are MIG children just returns the first MIG child,
+			physicalDevice, ok := matchingDevice.(*ddnvml.PhysicalDevice)
+			if ok && physicalDevice.HasMIGFeatureEnabled && len(physicalDevice.MIGChildren) > 0 {
+				matchingDevice = physicalDevice.MIGChildren[0]
+			}
+
 		case strings.HasPrefix(visibleDevice, "MIG-"):
 			matchingDevice, err = getDeviceWithMatchingUUIDPrefix(systemDevices, visibleDevice, true)
 			if err != nil {
@@ -87,9 +95,9 @@ func getVisibleDevices(systemDevices []ddnvml.Device, cudaVisibleDevices string)
 	return keepEitherFirstMIGOrAllDevices(filteredDevices), nil
 }
 
-// adjustVisibleDevicesForMigDevices adjusts the list of visible devices taking into account how CUDA
+// adjustVisibleDevicesForMig adjusts the list of visible devices taking into account how CUDA
 // presents MIG devices in order
-func adjustVisibleDevicesForMigDevices(visibleDevices []ddnvml.Device) []ddnvml.Device {
+func adjustVisibleDevicesForMig(visibleDevices []ddnvml.Device) []ddnvml.Device {
 	// CUDA removes all devices with MIG feature enabled and then appends at the
 	// end of the list the first MIG child of those devices. So we split the
 	// list into two: one with devices without MIG feature enabled (which
