@@ -122,7 +122,7 @@ func (l *LogsConfigKeys) compressionKind() string {
 	// Check if additional endpoints are configured
 	endpoints, _ := l.getAdditionalEndpoints()
 	if len(endpoints) > 0 {
-		log.Debugf("Additional endpoints detected, falling back to gzip compression for compatibility")
+		log.Debugf("Additional endpoints detected, pipeline: %s falling back to gzip compression for compatibility", l.prefix)
 		return GzipCompressionKind
 	}
 
