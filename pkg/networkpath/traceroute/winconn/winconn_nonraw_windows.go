@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+//revive:disable:var-naming These names are intended to match the Windows API names
+
 // SOCKADDR_INET is a struct that encapsulates a socket address
 // for Windows
 type SOCKADDR_INET struct {
@@ -43,6 +45,8 @@ type WSAPOLLFD struct {
 	events  uint16
 	revents uint16
 }
+
+//revive:enable:var-naming
 
 var (
 	modWS2_32   = windows.NewLazySystemDLL("ws2_32.dll")
@@ -119,6 +123,9 @@ func NewConn() (*Conn, error) {
 // SetTTL sets the TTL for the socket
 func (r *Conn) SetTTL(ttl int) error {
 	log.Debugf("setting TTL to %d", ttl)
+	if ttl < 0 {
+		return fmt.Errorf("TTL cannot be negative")
+	}
 	return windows.SetsockoptInt(
 		r.Socket,
 		windows.IPPROTO_IP,
@@ -144,6 +151,8 @@ func (r *Conn) sendConnect(destIP net.IP, destPort uint16) error {
 }
 
 // getHoppAddress gets the address of the hop
+// this will only work if errorInfo is set
+// otherwise it will fail
 func (r *Conn) getHoppAddress() (net.IP, error) {
 	var errorInfo ICMP_ERROR_INFO
 	var errorInfoSize = int32(unsafe.Sizeof(errorInfo))
