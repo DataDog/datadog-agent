@@ -274,7 +274,7 @@ def tag_version(
                 )
 
         if push:
-            push_tags_in_batches(ctx, tags, force=force_option)
+            push_tags_in_batches(ctx, tags, force_option)
             print(f"Created tags for version {agent_version}")
 
     if skip_agent_context:
