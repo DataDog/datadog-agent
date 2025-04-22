@@ -8,18 +8,20 @@ package remoteconfig
 import (
 	"testing"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestRemoteConfigDisabled(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("remote_configuration.enabled", false)
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("remote_configuration.enabled", false)
 	rcService := StartRCService("arn:aws:lambda:sa-east-1:123456789123:function:my-test-func")
 	assert.Nil(t, rcService)
 }
 
 func TestRemoteConfigEnabled(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("remote_configuration.enabled", true)
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("remote_configuration.enabled", true)
 	rcService := StartRCService("arn:aws:lambda:sa-east-1:123456789123:function:my-test-func")
 	assert.NotNil(t, rcService)
 }

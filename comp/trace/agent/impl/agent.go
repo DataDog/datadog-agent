@@ -78,8 +78,8 @@ func (c component) SetOTelAttributeTranslator(attrstrans *attributes.Translator)
 	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
 }
 
-func (c component) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
-	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, nil)
+func (c component) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
+	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, hostFromAttributesHandler)
 }
 
 func (c component) SendStatsPayload(p *pb.StatsPayload) {
@@ -162,10 +162,7 @@ func prepGoRuntime(tracecfg *tracecfg.AgentConfig) {
 		if mp, ok := os.LookupEnv("GOMAXPROCS"); ok {
 			log.Infof("GOMAXPROCS manually set to %v", mp)
 		} else if tracecfg.MaxCPU > 0 {
-			allowedCores := int(tracecfg.MaxCPU / 100)
-			if allowedCores < 1 {
-				allowedCores = 1
-			}
+			allowedCores := max(int(tracecfg.MaxCPU), 1)
 			if allowedCores < runtime.GOMAXPROCS(0) {
 				log.Infof("apm_config.max_cpu is less than current GOMAXPROCS. Setting GOMAXPROCS to (%v) %d\n", allowedCores, allowedCores)
 				runtime.GOMAXPROCS(int(allowedCores))
@@ -256,7 +253,7 @@ func stop(ag component) error {
 	if err := ag.Statsd.Flush(); err != nil {
 		log.Error("Could not flush statsd: ", err)
 	}
-	stopAgentSidekicks(ag.config, ag.Statsd)
+	stopAgentSidekicks(ag.config, ag.Statsd, ag.params.DisableInternalProfiling)
 	if ag.params.CPUProfile != "" {
 		pprof.StopCPUProfile()
 	}

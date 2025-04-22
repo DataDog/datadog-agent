@@ -43,7 +43,7 @@ func putBuffer(buffer *bytes.Buffer) {
 
 // ConfigHandler is the HTTP handler for configs
 func ConfigHandler(r *api.HTTPReceiver, cf rcclient.ConfigFetcher, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) http.Handler {
-	cidProvider := api.NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo)
+	cidProvider := api.NewIDProvider(cfg.ContainerProcRoot, config.NoopContainerIDFromOriginInfoFunc)
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		defer timing.Since("datadog.trace_agent.receiver.config_process_ms", time.Now())
 		tags := r.TagStats(api.V07, req.Header, "").AsTags()
@@ -69,10 +69,7 @@ func ConfigHandler(r *api.HTTPReceiver, cf rcclient.ConfigFetcher, cfg *config.A
 		}
 		if configsRequest.GetClient().GetClientTracer() != nil {
 			normalize(&configsRequest)
-			if configsRequest.Client.ClientTracer.Tags == nil {
-				configsRequest.Client.ClientTracer.Tags = make([]string, 0)
-			}
-			configsRequest.Client.ClientTracer.Tags = append(configsRequest.Client.ClientTracer.Tags, getContainerTags(req, cfg, cidProvider)...)
+			configsRequest.Client.ClientTracer.ContainerTags = getContainerTags(req, cfg, cidProvider)
 		}
 		cfgResponse, err := cf.ClientGetConfigs(req.Context(), &configsRequest)
 		if err != nil {

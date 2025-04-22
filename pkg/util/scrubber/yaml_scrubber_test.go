@@ -35,6 +35,23 @@ func TestScrubDataObj(t *testing.T) {
 			},
 		},
 		{
+			name: "SNMPConfig",
+			input: map[string]interface{}{
+				"community_string": "password123",
+				"authKey":          "password",
+				"authkey":          "password",
+				"privKey":          "password",
+				"privkey":          "password",
+			},
+			expected: map[string]interface{}{
+				"community_string": "********",
+				"authKey":          "********",
+				"authkey":          "********",
+				"privKey":          "********",
+				"privkey":          "********",
+			},
+		},
+		{
 			name: "Scrub sensitive info from nested map",
 			input: map[string]interface{}{
 				"user": map[string]interface{}{

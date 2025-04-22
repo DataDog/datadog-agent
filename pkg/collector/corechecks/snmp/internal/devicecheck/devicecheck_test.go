@@ -55,7 +55,7 @@ profiles:
    definition_file: another_profile.yaml
 `)
 
-	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
@@ -195,7 +195,7 @@ global_metrics:
     OID: 1.2.3.4.5
 `)
 
-	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
@@ -244,7 +244,7 @@ community_string: public
 	rawInitConfig := []byte(`
 `)
 
-	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession, agentconfig.NewMock(t))
@@ -275,7 +275,7 @@ community_string: public
 	rawInitConfig := []byte(`
 `)
 
-	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession, agentconfig.NewMock(t))
@@ -341,7 +341,7 @@ profiles:
    definition_file: f5-big-ip.yaml
 `)
 
-	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
@@ -646,7 +646,7 @@ profiles:
    definition_file: f5-big-ip.yaml
 `)
 
-	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
@@ -693,7 +693,7 @@ profiles:
    definition_file: another_profile.yaml
 `)
 
-	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
@@ -844,7 +844,7 @@ profiles:
    definition_file: another_profile.yaml
 `)
 
-	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
@@ -986,7 +986,7 @@ collect_topology: false
 	// language=yaml
 	rawInitConfig := []byte(``)
 
-	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
 	cfg := agentconfig.NewMock(t)

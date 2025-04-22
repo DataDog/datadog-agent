@@ -77,6 +77,10 @@ type testEvent struct {
 }
 
 func testKey(te testEvent) string {
+	if te.Test == "" {
+		return te.Package
+	}
+
 	return fmt.Sprintf("%s/%s", te.Package, te.Test)
 }
 
@@ -128,6 +132,9 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader, owners *testowners) (*review
 
 	scanner := bufio.NewScanner(jf)
 	testResults := make(map[string]testEvent)
+	failedTests := make(map[string][]string)
+	testsPerPackage := make(map[string]int)
+
 	for scanner.Scan() {
 		var ev testEvent
 		data := scanner.Bytes()
@@ -135,6 +142,14 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader, owners *testowners) (*review
 			return nil, fmt.Errorf("json unmarshal `%s`: %s", string(data), err)
 		}
 		if ev.Test == "" {
+			if ev.Package != "" && ev.Action == "fail" {
+				// This is telling us that a package failed. We need to keep track of it
+				// in case the failure was not related to a test directly (e.g., a runtime failure before running tests)
+				// We create the entry in the map with an empty slice to indicate that the package failed. If there
+				// are failed tests, they will be added to the slice. If not, we will detect this case later as a
+				// package failure without tests
+				failedTests[ev.Package] = nil
+			}
 			continue
 		}
 		if ev.Action == "output" && flake.HasFlakyTestMarker(ev.Output) {
@@ -143,6 +158,10 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader, owners *testowners) (*review
 		if ev.Action != "pass" && ev.Action != "fail" {
 			continue
 		}
+
+		// Keep track of the number of tests per package, so that we know if a package failed without any tests
+		testsPerPackage[ev.Package]++
+
 		if res, ok := testResults[testKey(ev)]; ok {
 			// If the test is already recorded as passed, it means the test
 			// eventually succeeded.
@@ -169,7 +188,6 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader, owners *testowners) (*review
 		return nil, fmt.Errorf("json line scan: %s", err)
 	}
 
-	failedTests := make(map[string][]string)
 	for _, ev := range testResults {
 		if ev.Action == "fail" {
 			failedTests[ev.Package] = append(failedTests[ev.Package], ev.Test)
@@ -182,6 +200,18 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader, owners *testowners) (*review
 	for _, pkg := range sortedFailedPkgs {
 		tests := failedTests[pkg]
 		sort.Strings(tests)
+
+		if testsPerPackage[pkg] == 0 {
+			// This is a package failure without any tests. Possibly a runtime failure
+			// Add it to the failed tests output
+			var owner string
+			if owners != nil {
+				owner = owners.matchTest(testEvent{Package: pkg, Test: ""})
+			}
+
+			failedTestsOut.WriteString(addOwnerInformation(fmt.Sprintf(failFormat, pkg, ""), owner))
+			continue
+		}
 
 		for _, test := range tests {
 			var owner string

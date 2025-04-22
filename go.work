@@ -1,12 +1,17 @@
-go 1.23.3
+go 1.23.7
 
-toolchain go1.23.5
+// Disable experimental post-quantum key exchange mechanism X25519Kyber768Draft00
+// This was causing errors with AWS Network Firewall
+// See https://github.com/DataDog/datadog-agent/issues/34323 for details.
+// This will be revisited once we update to 1.24.x
+godebug tlskyber=0
 
 use (
 	.
 	comp/api/api/def
 	comp/api/authtoken
 	comp/core/config
+	comp/core/configsync
 	comp/core/flare/builder
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface
@@ -40,10 +45,12 @@ use (
 	comp/otelcol/converter/impl
 	comp/otelcol/ddflareextension/def
 	comp/otelcol/ddflareextension/impl
+	comp/otelcol/ddflareextension/types
 	comp/otelcol/ddprofilingextension/def
 	comp/otelcol/ddprofilingextension/impl
 	comp/otelcol/logsagentpipeline
 	comp/otelcol/logsagentpipeline/logsagentpipelineimpl
+	comp/otelcol/otlp/components/connector/datadogconnector
 	comp/otelcol/otlp/components/exporter/datadogexporter
 	comp/otelcol/otlp/components/exporter/logsagentexporter
 	comp/otelcol/otlp/components/exporter/serializerexporter
@@ -51,6 +58,8 @@ use (
 	comp/otelcol/otlp/components/processor/infraattributesprocessor
 	comp/otelcol/otlp/components/statsprocessor
 	comp/otelcol/otlp/testutil
+	comp/otelcol/status/def
+	comp/otelcol/status/impl
 	comp/serializer/logscompression
 	comp/serializer/metricscompression
 	comp/trace/agent/def
@@ -66,6 +75,7 @@ use (
 	pkg/aggregator/ckey
 	pkg/api
 	pkg/collector/check/defaults
+	pkg/config/create
 	pkg/config/env
 	pkg/config/mock
 	pkg/config/model
@@ -75,8 +85,10 @@ use (
 	pkg/config/structure
 	pkg/config/teeconfig
 	pkg/config/utils
+	pkg/config/viperconfig
 	pkg/errors
 	pkg/fips
+	pkg/fleet/installer
 	pkg/gohai
 	pkg/linters/components/pkgconfigusage
 	pkg/logs/auditor
@@ -108,6 +120,7 @@ use (
 	pkg/tagger/types
 	pkg/tagset
 	pkg/telemetry
+	pkg/template
 	pkg/trace
 	pkg/trace/stats/oteltest
 	pkg/util/backoff
@@ -129,7 +142,9 @@ use (
 	pkg/util/log
 	pkg/util/log/setup
 	pkg/util/option
+	pkg/util/otel
 	pkg/util/pointer
+	pkg/util/prometheus
 	pkg/util/scrubber
 	pkg/util/sort
 	pkg/util/startstop

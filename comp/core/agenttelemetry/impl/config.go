@@ -28,6 +28,8 @@ type Config struct {
 	// config-wide and "compiled" fields
 	schedule map[Schedule][]*Profile
 	events   map[string]*Event
+
+	StartupTraceSampling float64 `yaml:"startup_trace_sampling"`
 }
 
 // Profile is a single agent telemetry profile
@@ -187,19 +189,11 @@ var defaultProfiles = `
   profiles:
   - name: checks
     metric:
-      exclude:
-        zero_metric: true
-        tags:
-          - check_name:cpu
-          - check_name:memory
-          - check_name:uptime
-          - check_name:network
-          - check_name:io
-          - check_name:file_handle
       metrics:
         - name: checks.execution_time
           aggregate_tags:
             - check_name
+            - check_loader
         - name: pymem.inuse
     schedule:
       start_after: 30
@@ -218,6 +212,11 @@ var defaultProfiles = `
         - name: logs.dropped
         - name: logs.encoded_bytes_sent
         - name: logs.sender_latency
+        - name: logs.auto_multi_line_aggregator_flush
+          aggregate_tags:
+            - truncated
+            - line_type
+        - name: logs_destination.destination_workers
         - name: point.sent
         - name: point.dropped
         - name: transactions.input_count
@@ -262,6 +261,7 @@ var defaultProfiles = `
             - status_code
             - method
             - path
+            - auth
     schedule:
       start_after: 600
       iterations: 0
@@ -272,6 +272,15 @@ var defaultProfiles = `
         request_type: agent-bsod
         payload_key: agent_bsod
         message: 'Agent BSOD'
+  - name: status
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: status.dce_render_errors
+          aggregate_tags:
+            - kind
+            - template_name
 `
 
 func compileMetricsExclude(p *Profile) error {

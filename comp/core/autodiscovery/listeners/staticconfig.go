@@ -54,6 +54,10 @@ func (l *StaticConfigListener) createServices() {
 			l.newService <- &StaticConfigService{adIdentifier: "_" + staticCheck}
 		}
 	}
+
+	if enabled := pkgconfigsetup.SystemProbe().GetBool("discovery.enabled"); enabled {
+		l.newService <- &StaticConfigService{adIdentifier: "_discovery"}
+	}
 }
 
 // Equal returns whether the two StaticConfigService are equal

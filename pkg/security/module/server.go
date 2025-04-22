@@ -45,7 +45,14 @@ import (
 )
 
 const (
-	maxRetry   = 10
+	// events delay is used for 2 actions: hash and kills:
+	// - for hash actions, the reports will be marked as resolved after MAX 5 sec (so
+	//   it doesn't matter if this retry period lasts for longer)
+	// - for kill actions:
+	//   . a kill can be queued up to the end of the first disarmer period (1min by default)
+	//   . so, we set the server retry period to 1min and 2sec (+2sec to have the
+	//     time to trigger the kill and wait to catch the process exit)
+	maxRetry   = 62
 	retryDelay = time.Second
 )
 
@@ -231,10 +238,21 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 	})
 }
 
-func (a *APIServer) updateMsgTags(msg *api.SecurityEventMessage, includeGlobalTags bool) {
-	// on fargate, append global tags
-	if includeGlobalTags && fargate.IsFargateInstance() {
-		for _, tag := range a.getGlobalTags() {
+func (a *APIServer) updateMsgService(msg *api.SecurityEventMessage) {
+	// look for the service tag if we don't have one yet
+	if len(msg.Service) == 0 {
+		for _, tag := range msg.Tags {
+			if strings.HasPrefix(tag, "service:") {
+				msg.Service = strings.TrimPrefix(tag, "service:")
+				break
+			}
+		}
+	}
+}
+
+func (a *APIServer) updateCustomEventTags(msg *api.SecurityEventMessage) {
+	appendTagsIfNotPresent := func(toAdd []string) {
+		for _, tag := range toAdd {
 			key, _, _ := strings.Cut(tag, ":")
 			if !slices.ContainsFunc(msg.Tags, func(t string) bool {
 				return strings.HasPrefix(t, key+":")
@@ -244,14 +262,15 @@ func (a *APIServer) updateMsgTags(msg *api.SecurityEventMessage, includeGlobalTa
 		}
 	}
 
-	// look for the service tag if we don't have one yet
-	if len(msg.Service) == 0 {
-		for _, tag := range msg.Tags {
-			if strings.HasPrefix(tag, "service:") {
-				msg.Service = strings.TrimPrefix(tag, "service:")
-				break
-			}
-		}
+	// on fargate, append global tags on custom events
+	if fargate.IsFargateInstance() {
+		appendTagsIfNotPresent(a.getGlobalTags())
+	}
+
+	// add agent tags on custom events
+	acc := a.probe.GetAgentContainerContext()
+	if acc != nil && acc.ContainerID != "" {
+		appendTagsIfNotPresent(a.probe.GetEventTags(acc.ContainerID))
 	}
 }
 
@@ -291,7 +310,7 @@ func (a *APIServer) start(ctx context.Context) {
 					Service: msg.service,
 					Tags:    msg.tags,
 				}
-				a.updateMsgTags(m, false)
+				a.updateMsgService(m)
 
 				a.msgSender.Send(m, a.expireEvent)
 
@@ -376,7 +395,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		msg := &pendingMsg{
 			ruleID:          ruleID,
 			backendEvent:    backendEvent,
-			eventSerializer: serializers.NewEventSerializer(ev, rule.Opts),
+			eventSerializer: serializers.NewEventSerializer(ev, rule),
 			extTagsCb:       extTagsCb,
 			service:         service,
 			sendAfter:       time.Now().Add(retention),
@@ -418,7 +437,8 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			Service: service,
 			Tags:    tags,
 		}
-		a.updateMsgTags(m, true)
+		a.updateCustomEventTags(m)
+		a.updateMsgService(m)
 
 		a.msgSender.Send(m, a.expireEvent)
 	}
@@ -543,6 +563,11 @@ func (a *APIServer) ApplyPolicyStates(policies []*monitor.PolicyState) {
 
 		a.policiesStatus = append(a.policiesStatus, &entry)
 	}
+}
+
+// GetSECLVariables returns the SECL variables and their value
+func (a *APIServer) GetSECLVariables() map[string]*api.SECLVariableState {
+	return a.cwsConsumer.ruleEngine.GetSECLVariables()
 }
 
 // Stop stops the API server

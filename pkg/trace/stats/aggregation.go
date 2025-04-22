@@ -7,7 +7,6 @@
 package stats
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"hash/fnv"
 	"sort"
 	"strconv"
@@ -15,6 +14,8 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"google.golang.org/genproto/googleapis/rpc/code"
 )
 
 const (
@@ -31,25 +32,27 @@ type Aggregation struct {
 
 // BucketsAggregationKey specifies the key by which a bucket is aggregated.
 type BucketsAggregationKey struct {
-	Service      string
-	Name         string
-	Resource     string
-	Type         string
-	SpanKind     string
-	StatusCode   uint32
-	Synthetics   bool
-	PeerTagsHash uint64
-	IsTraceRoot  pb.Trilean
+	Service        string
+	Name           string
+	Resource       string
+	Type           string
+	SpanKind       string
+	StatusCode     uint32
+	Synthetics     bool
+	PeerTagsHash   uint64
+	IsTraceRoot    pb.Trilean
+	GRPCStatusCode string
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
 type PayloadAggregationKey struct {
-	Env          string
-	Hostname     string
-	Version      string
-	ContainerID  string
-	GitCommitSha string
-	ImageTag     string
+	Env             string
+	Hostname        string
+	Version         string
+	ContainerID     string
+	GitCommitSha    string
+	ImageTag        string
+	ProcessTagsHash uint64
 }
 
 func getStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
@@ -82,21 +85,29 @@ func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregatio
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:     s.resource,
-			Service:      s.service,
-			Name:         s.name,
-			SpanKind:     s.spanKind,
-			Type:         s.typ,
-			StatusCode:   s.statusCode,
-			Synthetics:   synthetics,
-			IsTraceRoot:  isTraceRoot,
-			PeerTagsHash: peerTagsHash(s.matchingPeerTags),
+			Resource:       s.resource,
+			Service:        s.service,
+			Name:           s.name,
+			SpanKind:       s.spanKind,
+			Type:           s.typ,
+			StatusCode:     s.statusCode,
+			Synthetics:     synthetics,
+			IsTraceRoot:    isTraceRoot,
+			GRPCStatusCode: s.grpcStatusCode,
+			PeerTagsHash:   tagsFnvHash(s.matchingPeerTags),
 		},
 	}
 	return agg
 }
 
-func peerTagsHash(tags []string) uint64 {
+func processTagsHash(processTags string) uint64 {
+	if processTags == "" {
+		return 0
+	}
+	return tagsFnvHash(strings.Split(processTags, ","))
+}
+
+func tagsFnvHash(tags []string) uint64 {
 	if len(tags) == 0 {
 		return 0
 	}
@@ -117,14 +128,70 @@ func peerTagsHash(tags []string) uint64 {
 func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	return Aggregation{
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:     g.Resource,
-			Service:      g.Service,
-			Name:         g.Name,
-			SpanKind:     g.SpanKind,
-			StatusCode:   g.HTTPStatusCode,
-			Synthetics:   g.Synthetics,
-			PeerTagsHash: peerTagsHash(g.PeerTags),
-			IsTraceRoot:  g.IsTraceRoot,
+			Resource:       g.Resource,
+			Service:        g.Service,
+			Name:           g.Name,
+			SpanKind:       g.SpanKind,
+			StatusCode:     g.HTTPStatusCode,
+			Synthetics:     g.Synthetics,
+			PeerTagsHash:   tagsFnvHash(g.PeerTags),
+			IsTraceRoot:    g.IsTraceRoot,
+			GRPCStatusCode: g.GRPCStatusCode,
 		},
 	}
+}
+
+/*
+The gRPC codes Google API checks for "CANCELLED". Sometimes we receive "Canceled" from upstream,
+sometimes "CANCELLED", which is why both spellings appear in the map.
+For multi-word codes, sometimes from upstream we receive them as one word, such as DeadlineExceeded.
+Google's API checks for strings with an underscore and in all caps, and would only recognize codes
+formatted like "ALREADY_EXISTS" or "DEADLINE_EXCEEDED"
+*/
+var grpcStatusMap = map[string]string{
+	"CANCELLED":          "1",
+	"CANCELED":           "1",
+	"INVALIDARGUMENT":    "3",
+	"DEADLINEEXCEEDED":   "4",
+	"NOTFOUND":           "5",
+	"ALREADYEXISTS":      "6",
+	"PERMISSIONDENIED":   "7",
+	"RESOURCEEXHAUSTED":  "8",
+	"FAILEDPRECONDITION": "9",
+	"OUTOFRANGE":         "11",
+	"DATALOSS":           "15",
+}
+
+func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) string {
+	// List of possible keys to check in order
+	statusCodeFields := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
+
+	for _, key := range statusCodeFields {
+		if strC, exists := meta[key]; exists && strC != "" {
+			c, err := strconv.ParseUint(strC, 10, 32)
+			if err == nil {
+				return strconv.FormatUint(c, 10)
+			}
+			strC = strings.TrimPrefix(strC, "StatusCode.") // Some tracers send status code values prefixed by "StatusCode."
+			strCUpper := strings.ToUpper(strC)
+			if statusCode, exists := grpcStatusMap[strCUpper]; exists {
+				return statusCode
+			}
+
+			// If not integer or canceled or multi-word, check for valid gRPC status string
+			if codeNum, found := code.Code_value[strCUpper]; found {
+				return strconv.Itoa(int(codeNum))
+			}
+
+			return ""
+		}
+	}
+
+	for _, key := range statusCodeFields { // Check if gRPC status code is stored in metrics
+		if code, ok := metrics[key]; ok {
+			return strconv.FormatUint(uint64(code), 10)
+		}
+	}
+
+	return ""
 }

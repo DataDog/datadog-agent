@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
@@ -47,7 +48,8 @@ func TestStatusOut(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			provides := NewComponent(Requires{
-				Config: config.NewMock(t),
+				Config:    config.NewMock(t),
+				Authtoken: authtokenmock.New(t),
 			})
 			headerProvider := provides.StatusProvider.Provider
 			test.assertFunc(t, headerProvider)

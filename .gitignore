@@ -53,17 +53,17 @@ Dockerfiles/cluster-agent/dist
 Dockerfiles/cluster-agent/security-agent-policies
 pkg/status/template.go
 
-# gotestsum-generated files
-module_test_output.json
-
 # jetbrains IDE directory
 /.idea/
+
+.cursor
 
 # Ignore debs from the root of the project.
 datadog-agent*_amd64.deb
 
 # Ignore pem created during the tests
 *.pem
+
 pkg/process/config/testdata/secret
 
 auth_token
@@ -158,6 +158,8 @@ devenv/iso
 devenv/output-virtualbox-iso/
 devenv/packer_cache
 test_output.json
+module_test_output.json
+e2e_test_output.json
 
 # doxygen doc & error log
 rtloader/doc

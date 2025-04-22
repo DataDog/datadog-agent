@@ -27,7 +27,7 @@ type kernelTelemetry struct {
 	// endOfStreamRST Count of RST flags seen
 	endOfStreamRST *libtelemetry.TLSAwareCounter
 	// pathSizeBucket Count of path sizes divided into buckets.
-	pathSizeBucket [http2PathBuckets + 1]*libtelemetry.TLSAwareCounter
+	pathSizeBucket [PathBucketsCount + 1]*libtelemetry.TLSAwareCounter
 	// literalValueExceedsFrame Count of times we couldn't retrieve the literal value due to reaching the end of the frame.
 	literalValueExceedsFrame *libtelemetry.TLSAwareCounter
 	// exceedingMaxInterestingFrames Count of times we reached the max number of frames per iteration.
@@ -113,10 +113,10 @@ func (t *HTTP2Telemetry) Sub(other HTTP2Telemetry) *HTTP2Telemetry {
 	}
 }
 
-func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [http2PathBuckets + 1]uint64) [http2PathBuckets + 1]uint64 {
-	var result [http2PathBuckets + 1]uint64
+func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [PathBucketsCount + 1]uint64) [PathBucketsCount + 1]uint64 {
+	var result [PathBucketsCount + 1]uint64
 
-	for i := 0; i < http2PathBuckets+1; i++ {
+	for i := 0; i < PathBucketsCount+1; i++ {
 		result[i] = pathSizeBucket[i] - otherPathSizeBucket[i]
 	}
 

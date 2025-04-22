@@ -22,6 +22,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/zstd"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -29,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
-	"github.com/DataDog/zstd"
 )
 
 // HTTP client mock
@@ -322,7 +323,7 @@ func (p *Payload) UnmarshalJSON(b []byte) (err error) {
 }
 
 func getPayload(a *atel) (*Payload, error) {
-	payloadJSON, err := a.GetAsJSON()
+	payloadJSON, err := a.getAsJSON()
 	if err != nil {
 		return nil, err
 	}
@@ -476,7 +477,8 @@ func TestRun(t *testing.T) {
 	// The order is not deterministic
 	profile0Len := len(r.(*runnerMock).jobs[0].profiles)
 	profile1Len := len(r.(*runnerMock).jobs[1].profiles)
-	assert.True(t, (profile0Len == 1 && profile1Len == 3) || (profile0Len == 3 && profile1Len == 1))
+	t.Logf("%+v", r.(*runnerMock).jobs)
+	assert.True(t, (profile0Len == 1 && profile1Len == 4) || (profile0Len == 4 && profile1Len == 1))
 }
 
 func TestReportMetricBasic(t *testing.T) {
@@ -835,7 +837,7 @@ func TestOneProfileWithOneMetricMultipleContextsGenerateTwoPayloads(t *testing.T
 	a := getTestAtel(t, tel, o, s, nil, r)
 	require.True(t, a.enabled)
 
-	payloadJSON, err := a.GetAsJSON()
+	payloadJSON, err := a.getAsJSON()
 	require.NoError(t, err)
 	var payload map[string]interface{}
 	err = json.Unmarshal(payloadJSON, &payload)

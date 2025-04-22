@@ -18,6 +18,10 @@ var AgentPackageVersion string
 // Commit is populated with the short commit hash from which the Agent was built
 var Commit string
 
+// AgentPayloadVersion is the versions of the agent-payload repository
+// used to serialize to protobuf
+var AgentPayloadVersion string
+
 var agentVersionDefault = "6.0.0"
 
 func init() {

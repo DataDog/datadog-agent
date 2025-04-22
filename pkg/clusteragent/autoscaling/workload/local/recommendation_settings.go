@@ -11,42 +11,59 @@ package local
 import (
 	"fmt"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	corev1 "k8s.io/api/core/v1"
 )
 
 const (
-	watermarkTolerance             = 5
-	containerCPUUsageMetricName    = "container.cpu.usage"
-	containerMemoryUsageMetricName = "container.memory.usage"
+	watermarkTolerance               = 5
+	defaultStaleDataThresholdSeconds = 60 // default time window to look for valid metrics
+	containerCPUUsageMetricName      = "container.cpu.usage"
+	containerMemoryUsageMetricName   = "container.memory.usage"
 )
 
-var (
-	resourceToMetric = map[corev1.ResourceName]string{
-		corev1.ResourceCPU:    containerCPUUsageMetricName,
-		corev1.ResourceMemory: containerMemoryUsageMetricName,
-	}
-)
+var resourceToMetric = map[corev1.ResourceName]string{
+	corev1.ResourceCPU:    containerCPUUsageMetricName,
+	corev1.ResourceMemory: containerMemoryUsageMetricName,
+}
 
 type resourceRecommenderSettings struct {
-	metricName    string
-	containerName string
-	lowWatermark  float64
-	highWatermark float64
+	metricName                 string
+	containerName              string
+	lowWatermark               float64
+	highWatermark              float64
+	fallbackStaleDataThreshold int64
 }
 
-func newResourceRecommenderSettings(target datadoghq.DatadogPodAutoscalerTarget) (*resourceRecommenderSettings, error) {
-	if target.Type == datadoghq.DatadogPodAutoscalerContainerResourceTargetType {
-		return getOptionsFromContainerResource(target.ContainerResource)
+func newResourceRecommenderSettings(fallbackSettings *datadoghq.DatadogFallbackPolicy, objective datadoghqcommon.DatadogPodAutoscalerObjective) (*resourceRecommenderSettings, error) {
+	var recSettings *resourceRecommenderSettings
+	var err error
+
+	if objective.Type == datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType {
+		recSettings, err = getOptionsFromContainerResource(objective.ContainerResource)
+		if err != nil {
+			return nil, err
+		}
+	} else if objective.Type == datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType {
+		recSettings, err = getOptionsFromPodResource(objective.PodResource)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, fmt.Errorf("Invalid target type: %s", objective.Type)
 	}
-	if target.Type == datadoghq.DatadogPodAutoscalerResourceTargetType {
-		return getOptionsFromPodResource(target.PodResource)
+
+	recSettings, err = getOptionsFromFallback(recSettings, fallbackSettings)
+	if err != nil {
+		return nil, err
 	}
-	return nil, fmt.Errorf("Invalid target type: %s", target.Type)
+
+	return recSettings, nil
 }
 
-func getOptionsFromPodResource(target *datadoghq.DatadogPodAutoscalerResourceTarget) (*resourceRecommenderSettings, error) {
+func getOptionsFromPodResource(target *datadoghqcommon.DatadogPodAutoscalerPodResourceObjective) (*resourceRecommenderSettings, error) {
 	if target == nil {
 		return nil, fmt.Errorf("nil target")
 	}
@@ -63,7 +80,7 @@ func getOptionsFromPodResource(target *datadoghq.DatadogPodAutoscalerResourceTar
 	return recSettings, nil
 }
 
-func getOptionsFromContainerResource(target *datadoghq.DatadogPodAutoscalerContainerResourceTarget) (*resourceRecommenderSettings, error) {
+func getOptionsFromContainerResource(target *datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective) (*resourceRecommenderSettings, error) {
 	if target == nil {
 		return nil, fmt.Errorf("nil target")
 	}
@@ -81,8 +98,8 @@ func getOptionsFromContainerResource(target *datadoghq.DatadogPodAutoscalerConta
 	return recSettings, nil
 }
 
-func validateTarget(targetType datadoghq.DatadogPodAutoscalerTargetValueType, name corev1.ResourceName, value datadoghq.DatadogPodAutoscalerTargetValue) error {
-	if targetType != datadoghq.DatadogPodAutoscalerUtilizationTargetValueType {
+func validateTarget(targetType datadoghqcommon.DatadogPodAutoscalerObjectiveValueType, name corev1.ResourceName, value datadoghqcommon.DatadogPodAutoscalerObjectiveValue) error {
+	if targetType != datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType {
 		return fmt.Errorf("invalid value type: %s", targetType)
 	}
 
@@ -98,7 +115,7 @@ func validateTarget(targetType datadoghq.DatadogPodAutoscalerTargetValueType, na
 	return nil
 }
 
-func validateUtilizationValue(value datadoghq.DatadogPodAutoscalerTargetValue) error {
+func validateUtilizationValue(value datadoghqcommon.DatadogPodAutoscalerObjectiveValue) error {
 	if value.Utilization == nil {
 		return fmt.Errorf("missing utilization value")
 	}
@@ -106,4 +123,20 @@ func validateUtilizationValue(value datadoghq.DatadogPodAutoscalerTargetValue) e
 		return fmt.Errorf("utilization value must be between 1 and 100")
 	}
 	return nil
+}
+
+func getOptionsFromFallback(recSettings *resourceRecommenderSettings, fallbackSettings *datadoghq.DatadogFallbackPolicy) (*resourceRecommenderSettings, error) {
+	// If no values are provided, we want to use the default value
+	recSettings.fallbackStaleDataThreshold = defaultStaleDataThresholdSeconds
+
+	if fallbackSettings == nil {
+		return recSettings, nil
+	}
+
+	// Override with custom threshold if provided
+	if fallbackSettings.Horizontal.Triggers.StaleRecommendationThresholdSeconds > 0 {
+		recSettings.fallbackStaleDataThreshold = int64(fallbackSettings.Horizontal.Triggers.StaleRecommendationThresholdSeconds)
+	}
+
+	return recSettings, nil
 }

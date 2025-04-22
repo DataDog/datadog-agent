@@ -94,7 +94,6 @@ func benchmarkOTelObfuscation(b *testing.B, enableObfuscation bool) {
 	conf.Hostname = "agent_host"
 	conf.DefaultEnv = "agent_env"
 	conf.Obfuscation.Redis.Enabled = true
-	conf.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 
 	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
@@ -148,7 +147,6 @@ func BenchmarkOTelContainerTags(b *testing.B) {
 	conf := config.New()
 	conf.Hostname = "agent_host"
 	conf.DefaultEnv = "agent_env"
-	conf.Features["enable_cid_stats"] = struct{}{}
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 
 	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)

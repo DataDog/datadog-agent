@@ -41,8 +41,8 @@ func TestTwoLayersLRU(t *testing.T) {
 	})
 
 	t.Run("remove-key2", func(t *testing.T) {
-		exists := cache.RemoveKey2("a", 2)
-		assert.True(t, exists)
+		removed := cache.RemoveKey2(2, "a")
+		assert.Equal(t, 1, removed)
 		assert.Equal(t, cache.Len(), 1)
 	})
 

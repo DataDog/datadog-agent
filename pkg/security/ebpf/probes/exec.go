@@ -94,6 +94,8 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				// kernels < 4.17 will rely on the tracefs events interface to attach kprobes, which requires event names to be unique
+				// because the setup_new_exec_interp and setup_new_exec_args_envs probes are attached to the same function, we rely on using a secondary uid for that purpose
 				UID:          SecurityAgentUID + "_a",
 				EBPFFuncName: "hook_setup_new_exec_args_envs",
 			},

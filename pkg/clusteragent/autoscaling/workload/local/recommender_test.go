@@ -12,8 +12,10 @@ import (
 	"testing"
 	"time"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/utils/clock"
+
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
@@ -28,11 +30,12 @@ func TestProcessScaleUp(t *testing.T) {
 
 	// setup podwatcher
 	pw := workload.NewPodWatcher(nil, nil)
-	pw.HandleEvent(newPodEvent("default", "test-deployment", "pod1", []string{"container-name1", "container-name2"}))
+	pw.HandleEvent(newFakeWLMPodEvent("default", "test-deployment", "pod1", []string{"container-name1", "container-name2"}))
 
 	// setup store
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
-	store.Set("default/autoscaler1", newAutoscaler(), "")
+	store.Set("default/autoscaler1", newAutoscaler(true), "")
+	store.Set("default/autoscaler2", newAutoscaler(false), "")
 
 	// setup loadstore
 	lStore := loadstore.GetWorkloadMetricStore(ctx)
@@ -52,14 +55,19 @@ func TestProcessScaleUp(t *testing.T) {
 	assert.Len(t, queryResult.Results, 1)
 
 	// test
-	recommender := NewRecommender(pw, store)
+	recommender := NewRecommender(clock.RealClock{}, pw, store)
 	recommender.process(ctx)
 	pai, found := store.Get("default/autoscaler1")
 	assert.True(t, found)
 	assert.Nil(t, pai.FallbackScalingValues().HorizontalError)
-	assert.Equal(t, datadoghq.DatadogPodAutoscalerLocalValueSource, pai.FallbackScalingValues().Horizontal.Source)
+	assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerLocalValueSource, pai.FallbackScalingValues().Horizontal.Source)
 	assert.Equal(t, int32(2), pai.FallbackScalingValues().Horizontal.Replicas) // currently 1 replica, recommending scale up to 2
 	assert.Equal(t, (testTime - 30), pai.FallbackScalingValues().Horizontal.Timestamp.Unix())
+
+	// check that autoscalers without fallback enabled are not processed
+	pai2, found := store.Get("default/autoscaler2")
+	assert.True(t, found)
+	assert.Nil(t, pai2.FallbackScalingValues().Horizontal)
 
 	resetWorkloadMetricStore()
 }
@@ -71,13 +79,14 @@ func TestProcessScaleDown(t *testing.T) {
 
 	// setup podwatcher
 	pw := workload.NewPodWatcher(nil, nil)
-	pw.HandleEvent(newPodEvent("default", "test-deployment", "pod1", []string{"container-name1", "container-name2"}))
-	pw.HandleEvent(newPodEvent("default", "test-deployment", "pod2", []string{"container-name1"}))
-	pw.HandleEvent(newPodEvent("default", "test-deployment", "pod3", []string{"container-name1"}))
+	pw.HandleEvent(newFakeWLMPodEvent("default", "test-deployment", "pod1", []string{"container-name1", "container-name2"}))
+	pw.HandleEvent(newFakeWLMPodEvent("default", "test-deployment", "pod2", []string{"container-name1"}))
+	pw.HandleEvent(newFakeWLMPodEvent("default", "test-deployment", "pod3", []string{"container-name1"}))
 
 	// setup store
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
-	store.Set("default/autoscaler1", newAutoscaler(), "")
+	store.Set("default/autoscaler1", newAutoscaler(true), "")
+	store.Set("default/autoscaler2", newAutoscaler(false), "")
 
 	// setup loadstore
 	lStore := loadstore.GetWorkloadMetricStore(ctx)
@@ -110,14 +119,19 @@ func TestProcessScaleDown(t *testing.T) {
 	assert.Len(t, queryResult.Results, 3)
 
 	// test
-	recommender := NewRecommender(pw, store)
+	recommender := NewRecommender(clock.RealClock{}, pw, store)
 	recommender.process(ctx)
 	pai, found := store.Get("default/autoscaler1")
 	assert.True(t, found)
 	assert.Nil(t, pai.FallbackScalingValues().HorizontalError)
-	assert.Equal(t, datadoghq.DatadogPodAutoscalerLocalValueSource, pai.FallbackScalingValues().Horizontal.Source)
+	assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerLocalValueSource, pai.FallbackScalingValues().Horizontal.Source)
 	assert.Equal(t, int32(2), pai.FallbackScalingValues().Horizontal.Replicas) // currently 3 replicas, recommending scale down to 2
 	assert.Equal(t, (testTime - 30), pai.FallbackScalingValues().Horizontal.Timestamp.Unix())
+
+	// check that autoscalers without fallback enabled are not processed
+	pai2, found := store.Get("default/autoscaler2")
+	assert.True(t, found)
+	assert.Nil(t, pai2.FallbackScalingValues().Horizontal)
 
 	// cleanup
 	resetWorkloadMetricStore()

@@ -40,12 +40,12 @@ func ParseNetpathPayload(payload api.Payload) (netpaths []*Netpath, err error) {
 	if len(payload.Data) == 0 || bytes.Equal(payload.Data, []byte("{}")) {
 		return []*Netpath{}, nil
 	}
-	enflated, err := enflate(payload.Data, payload.Encoding)
+	inflated, err := inflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, err
 	}
 	netpaths = []*Netpath{}
-	err = json.Unmarshal(enflated, &netpaths)
+	err = json.Unmarshal(inflated, &netpaths)
 	if err != nil {
 		return nil, err
 	}

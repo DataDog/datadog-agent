@@ -36,14 +36,14 @@ import (
 
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtrace "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -71,6 +71,7 @@ import (
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -80,7 +81,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) error {
+func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, t *testing.T) error {
 	return fxutil.Run(
 		forwarder.Bundle(defaultforwarder.NewParams()),
 		logtrace.Module(),
@@ -91,7 +92,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 			return statsd.NewOTelStatsd(client)
 		}),
 		sysprobeconfig.NoneModule(),
-		fetchonlyimpl.Module(),
+		fx.Provide(func() authtoken.Component { return authtokenmock.New(t) }),
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
 		converterfx.Module(),
@@ -103,6 +104,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 			if err != nil {
 				return nil, err
 			}
+			c.Set("otelcollector.enabled", true, pkgconfigmodel.SourceFile)
 			pkgconfigenv.DetectFeatures(c)
 			return c, nil
 		}),
@@ -139,7 +141,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		orchestratorimpl.MockModule(),
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component]) {
 		}),
-		taggerfx.Module(tagger.Params{}),
+		taggerfx.Module(),
 		noopsimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
@@ -174,7 +176,7 @@ func TestIntegration(t *testing.T) {
 		LoggerName: "OTELCOL",
 	}
 	go func() {
-		if err := runTestOTelAgent(context.Background(), params); err != nil {
+		if err := runTestOTelAgent(context.Background(), params, t); err != nil {
 			log.Fatal("failed to start otel agent ", err)
 		}
 	}()

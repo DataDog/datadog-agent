@@ -43,6 +43,10 @@ type TracerStatus struct {
 	Rtt_var                         uint32
 	Saddr                           uint32
 	Daddr                           uint32
+	Saddr_fl4                       uint32
+	Daddr_fl4                       uint32
+	Saddr_fl6                       [4]uint32
+	Daddr_fl6                       [4]uint32
 	Sport                           uint16
 	Dport                           uint16
 	Sport_via_sk                    uint16
@@ -50,12 +54,8 @@ type TracerStatus struct {
 	Sport_via_sk_via_sk_buf         uint16
 	Dport_via_sk_via_sk_buf         uint16
 	Family                          uint16
-	Saddr_fl4                       uint32
-	Daddr_fl4                       uint32
 	Sport_fl4                       uint16
 	Dport_fl4                       uint16
-	Saddr_fl6                       [4]uint32
-	Daddr_fl6                       [4]uint32
 	Sport_fl6                       uint16
 	Dport_fl6                       uint16
 	Transport_header                uint16
@@ -64,7 +64,7 @@ type TracerStatus struct {
 	Fl4_offsets                     uint8
 	Fl6_offsets                     uint8
 	Seen_failure                    uint8
-	Pad_cgo_0                       [3]byte
+	Pad_cgo_0                       [5]byte
 }
 
 type State uint8

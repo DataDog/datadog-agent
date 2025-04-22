@@ -169,10 +169,10 @@ func start(
 
 	startPprof(config, telemetry)
 
-	token := authToken.Get()
+	token, err := authToken.Get()
 
-	if token == "" {
-		return fmt.Errorf("unable to fetch authentication token")
+	if err != nil {
+		return fmt.Errorf("unable to fetch authentication token: %w", err)
 	}
 
 	md := metadata.MD{

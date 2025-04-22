@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -220,7 +219,7 @@ func (c *collector) parsePods(
 			continue
 		}
 
-		metadata, err := c.getMetadata(controllers.GetPodMetadataNames, metadataByNsPods, pod)
+		metadata, err := c.getMetadata(apiserver.GetPodMetadataNames, metadataByNsPods, pod)
 		if err != nil {
 			log.Debugf("Could not fetch metadata for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
 		}

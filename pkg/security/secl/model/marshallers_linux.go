@@ -82,13 +82,16 @@ func (e *Process) MarshalProcCache(data []byte, bootTime time.Time) (int, error)
 
 	written := ContainerIDLen + 8
 
-	toAdd, err := e.CGroup.CGroupFile.MarshalBinary()
-	if err != nil {
-		return 0, err
-	}
+	// process without cgroup should be mainly pid 1
+	if !e.CGroup.CGroupFile.IsNull() {
+		toAdd, err := e.CGroup.CGroupFile.MarshalBinary()
+		if err != nil {
+			return 0, err
+		}
 
-	copy(data[written:written+len(toAdd)], toAdd)
-	written += len(toAdd)
+		copy(data[written:written+len(toAdd)], toAdd)
+		written += len(toAdd)
+	}
 
 	added, err := MarshalBinary(data[written:], &e.FileEvent)
 	if err != nil {
@@ -161,7 +164,7 @@ func (e *Process) MarshalPidCache(data []byte, bootTime time.Time) (int, error) 
 
 // MarshalBinary marshals a binary representation of itself
 func (adlc *ActivityDumpLoadConfig) MarshalBinary() ([]byte, error) {
-	raw := make([]byte, 48)
+	raw := make([]byte, 56)
 
 	var eventMask uint64
 	for _, evt := range adlc.TracedEventTypes {
@@ -175,6 +178,8 @@ func (adlc *ActivityDumpLoadConfig) MarshalBinary() ([]byte, error) {
 	binary.NativeEndian.PutUint16(raw[40:42], adlc.Rate)
 	binary.NativeEndian.PutUint16(raw[42:44], 0)
 	binary.NativeEndian.PutUint32(raw[44:48], adlc.Paused)
+	binary.NativeEndian.PutUint32(raw[48:52], uint32(adlc.CGroupFlags))
+	binary.NativeEndian.PutUint32(raw[52:56], 0) // padding
 
 	return raw, nil
 }

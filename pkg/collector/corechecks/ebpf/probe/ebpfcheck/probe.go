@@ -186,9 +186,11 @@ func (k *Probe) attach(collSpec *ebpf.CollectionSpec) (err error) {
 				k.links = append(k.links, l)
 			} else if strings.HasPrefix(spec.SectionName, kretprobePrefix) {
 				attachPoint := spec.SectionName[len(kretprobePrefix):]
+				manager.TraceFSLock.Lock()
 				l, err := link.Kretprobe(attachPoint, prog, &link.KprobeOptions{
 					TraceFSPrefix: "ddebpfc",
 				})
+				manager.TraceFSLock.Unlock()
 				if err != nil {
 					return fmt.Errorf("link kretprobe %s to %s: %s", spec.Name, attachPoint, err)
 				}
@@ -249,7 +251,7 @@ type programKey struct {
 func progKey(ps model.EBPFProgramStats) programKey {
 	return programKey{
 		name:   ps.Name,
-		typ:    ps.Type.String(),
+		typ:    ps.Type,
 		module: ps.Module,
 	}
 }
@@ -301,7 +303,7 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 			Name:            name,
 			Module:          module,
 			Tag:             tag,
-			Type:            ebpf.ProgramType(info.Type),
+			Type:            ebpf.ProgramType(info.Type).String(),
 			XlatedProgLen:   info.XlatedProgLen,
 			RSS:             uint64(roundUp(info.XlatedProgLen, uint32(pageSize))),
 			VerifiedInsns:   info.VerifiedInsns,
@@ -320,7 +322,7 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("found %d programs", len(stats.Programs))
 		for _, ps := range stats.Programs {
-			log.Tracef("name=%s prog_id=%d type=%s", ps.Name, ps.ID, ps.Type.String())
+			log.Tracef("name=%s prog_id=%d type=%s", ps.Name, ps.ID, ps.Type)
 		}
 	}
 
@@ -370,7 +372,7 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 			ID:         uint32(mapid),
 			Name:       name,
 			Module:     module,
-			Type:       info.Type,
+			Type:       info.Type.String(),
 			MaxEntries: info.MaxEntries,
 			Entries:    -1, // Indicates no entries were calculated
 		}

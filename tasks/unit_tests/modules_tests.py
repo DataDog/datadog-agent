@@ -110,6 +110,7 @@ class TestGoModuleSerialization(unittest.TestCase):
             'test_targets': ['.'],
             'lint_targets': ['.'],
             'should_test_condition': 'always',
+            'should_replace_internal_modules': True,
             'should_tag': True,
             'independent': True,
             'used_by_otel': True,

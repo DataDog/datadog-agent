@@ -1,4 +1,5 @@
 import glob
+import json
 import math
 import os
 import types
@@ -31,12 +32,12 @@ def argument_extractor(entry_args, **kwargs) -> SimpleNamespace:
 
 def byte_to_string(size):
     if not size:
-        return "0B"
+        return "0 B"
     size_name = ("B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB")
     i = int(math.log(size, 1024))
     p = math.pow(1024, i)
     s = round(size / p, 2)
-    return f"{s}{size_name[i]}"
+    return f"{s} {size_name[i]}"
 
 
 def string_to_byte(size: str):
@@ -65,10 +66,16 @@ def read_byte_input(byte_input):
         return byte_input
 
 
-def find_package_path(flavor, package_os, arch):
+def is_first_commit_of_the_day(ctx) -> bool:
+    out = ctx.run("git log --since=today.midnight | grep -E \"commit [a-z0-9]+\" | wc -l ")
+    return out.stdout.strip() == "1"
+
+
+def find_package_path(flavor, package_os, arch, extension=None):
     package_dir = os.environ['OMNIBUS_PACKAGE_DIR']
     separator = '_' if package_os == 'debian' else '-'
-    extension = "deb" if package_os == 'debian' else "rpm"
+    if not extension:
+        extension = "deb" if package_os == 'debian' else "rpm"
     glob_pattern = f'{package_dir}/{flavor}{separator}7*{arch}.{extension}'
     package_paths = glob.glob(glob_pattern)
     if len(package_paths) > 1:
@@ -79,11 +86,23 @@ def find_package_path(flavor, package_os, arch):
 
 
 class GateMetricHandler:
-    def __init__(self, git_ref, bucket_branch):
+    # All metric_name -> metric_key
+    METRICS_DICT = {
+        "datadog.agent.static_quality_gate.on_wire_size": "current_on_wire_size",
+        "datadog.agent.static_quality_gate.on_disk_size": "current_on_disk_size",
+        "datadog.agent.static_quality_gate.max_allowed_on_wire_size": "max_on_wire_size",
+        "datadog.agent.static_quality_gate.max_allowed_on_disk_size": "max_on_disk_size",
+    }
+
+    def __init__(self, git_ref, bucket_branch, filename=None):
         self.metrics = {}
         self.metadata = {}
         self.git_ref = git_ref
         self.bucket_branch = bucket_branch
+        self.series_is_complete = True
+
+        if filename is not None:
+            self._load_metrics_report(filename)
 
     def get_formatted_metric(self, gate_name, metric_name):
         return byte_to_string(self.metrics[gate_name][metric_name])
@@ -100,6 +119,22 @@ class GateMetricHandler:
 
         for key in kwargs:
             self.metadata[gate][key] = kwargs[key]
+
+    def _load_metrics_report(self, filename):
+        with open(filename) as f:
+            self.metrics = json.load(f)
+
+    def _add_gauge(self, timestamp, common_tags, gate, metric_name, metric_key):
+        if self.metrics[gate].get(metric_key):
+            return create_gauge(
+                metric_name,
+                timestamp,
+                self.metrics[gate][metric_key],
+                tags=common_tags,
+                metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
+                unit="byte",
+            )
+        return None
 
     def _generate_series(self):
         if not self.git_ref or not self.bucket_branch:
@@ -120,54 +155,42 @@ class GateMetricHandler:
             for tag in self.metadata[gate]:
                 common_tags.append(f"{tag}:{self.metadata[gate][tag]}")
 
-            series.append(
-                create_gauge(
-                    "datadog.agent.static_quality_gate.on_wire_size",
-                    timestamp,
-                    self.metrics[gate]["current_on_wire_size"],
-                    tags=common_tags,
-                    metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
-                    unit="byte",
-                ),
-            )
-            series.append(
-                create_gauge(
-                    "datadog.agent.static_quality_gate.on_disk_size",
-                    timestamp,
-                    self.metrics[gate]["current_on_disk_size"],
-                    tags=common_tags,
-                    metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
-                    unit="byte",
-                ),
-            )
-            series.append(
-                create_gauge(
-                    "datadog.agent.static_quality_gate.max_allowed_on_wire_size",
-                    timestamp,
-                    self.metrics[gate]["max_on_wire_size"],
-                    tags=common_tags,
-                    metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
-                    unit="byte",
-                ),
-            )
-            series.append(
-                create_gauge(
-                    "datadog.agent.static_quality_gate.max_allowed_on_disk_size",
-                    timestamp,
-                    self.metrics[gate]["max_on_disk_size"],
-                    tags=common_tags,
-                    metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
-                    unit="byte",
-                ),
-            )
+            for metric_name, metric_key in self.METRICS_DICT.items():
+                gauge = self._add_gauge(timestamp, common_tags, gate, metric_name, metric_key)
+                if gauge:
+                    series.append(gauge)
+                else:
+                    print(
+                        color_message(
+                            f"[WARN] gate {gate} doesn't have the {metric_name} metric registered ! skipping metric...",
+                            "orange",
+                        )
+                    )
+                    self.series_is_complete = False
         return series
 
     def send_metrics_to_datadog(self):
         series = self._generate_series()
 
-        print(color_message("Data collected:", "blue"))
-        print(series)
         if series:
-            print(color_message("Sending metrics to Datadog", "blue"))
             send_metrics(series=series)
-            print(color_message("Done", "green"))
+        print(color_message("Metric sending finished !", "blue"))
+
+    def generate_metric_reports(self, ctx, filename="static_gate_report.json", branch=None):
+        if not self.series_is_complete:
+            print(
+                color_message(
+                    "[WARN] Some static quality gates are missing some metrics, the generated report might not be trustworthy.",
+                    "orange",
+                )
+            )
+
+        with open(filename, "w") as f:
+            json.dump(self.metrics, f)
+
+        CI_COMMIT_SHA = os.environ.get("CI_COMMIT_SHA")
+        if branch == "main" and CI_COMMIT_SHA:
+            ctx.run(
+                f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {filename} s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/{CI_COMMIT_SHA}/{filename}",
+                hide="stdout",
+            )

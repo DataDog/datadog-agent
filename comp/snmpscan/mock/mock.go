@@ -9,6 +9,7 @@
 package mock
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"testing"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -40,5 +41,8 @@ func (m mock) RunSnmpWalk(_ *gosnmp.GoSNMP, _ string) error {
 	return nil
 }
 func (m mock) SendPayload(_ metadata.NetworkDevicesMetadata) error {
+	return nil
+}
+func (m mock) ScanDeviceAndSendData(_ *snmpparse.SNMPConfig, _ string, _ metadata.ScanType) error {
 	return nil
 }

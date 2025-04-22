@@ -74,7 +74,7 @@ func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
 	detectCloudFoundry(features, cfg)
 	detectPodman(features, cfg)
 	detectPodResources(features, cfg)
-	detectNVML(features)
+	detectNVML(features, cfg)
 }
 
 func detectKubernetes(features FeatureMap, cfg model.Reader) {
@@ -233,8 +233,9 @@ func detectPodman(features FeatureMap, cfg model.Reader) {
 }
 
 func detectPodResources(features FeatureMap, cfg model.Reader) {
-	// We only check the path from config. Default socket path is defined in the config
-	socketPath := getDefaultSocketPrefix() + cfg.GetString("kubernetes_kubelet_podresources_socket")
+	// We only check the path from config. Default socket path is defined in the config,
+	// without the unix:/// prefix, as socket.IsAvailable receives a filesystem path.
+	socketPath := cfg.GetString("kubernetes_kubelet_podresources_socket")
 
 	exists, reachable := socket.IsAvailable(socketPath, socketTimeout)
 	if exists && reachable {
@@ -247,7 +248,11 @@ func detectPodResources(features FeatureMap, cfg model.Reader) {
 	}
 }
 
-func detectNVML(features FeatureMap) {
+func detectNVML(features FeatureMap, cfg model.Reader) {
+	if !cfg.GetBool("enable_nvml_detection") {
+		return
+	}
+
 	// Use dlopen to search for the library to avoid importing the go-nvml package here,
 	// which is 1MB in size and would increase the agent binary size, when we don't really
 	// need it for anything else.

@@ -9,6 +9,7 @@ package listeners
 
 import (
 	"errors"
+	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -25,8 +26,9 @@ import (
 )
 
 const (
-	newIdentifierLabel    = "com.datadoghq.ad.check.id"
-	legacyIdentifierLabel = "com.datadoghq.sd.check.id"
+	newIdentifierLabel        = "com.datadoghq.ad.check.id"
+	legacyIdentifierLabel     = "com.datadoghq.sd.check.id"
+	tolerateUnreadyAnnotation = "ad.datadoghq.com/tolerate-unready"
 )
 
 // ContainerListener listens to container creation through a subscription to the
@@ -114,7 +116,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 
 	svc := &service{
 		entity:   container,
-		tagsHash: l.tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID), l.tagger.ChecksCardinality()),
+		tagsHash: l.tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID), types.ChecksConfigCardinality),
 		adIdentifiers: computeContainerServiceIDs(
 			containers.BuildEntityName(string(container.Runtime), container.ID),
 			containerImg.RawName,
@@ -128,7 +130,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 
 	if pod != nil {
 		svc.hosts = map[string]string{"pod": pod.IP}
-		svc.ready = pod.Ready
+		svc.ready = pod.Ready || shouldSkipPodReadiness(pod)
 
 		svc.metricsExcluded = l.IsExcluded(
 			containers.MetricsFilter,
@@ -151,9 +153,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		}
 
 		hosts := make(map[string]string)
-		for host, ip := range container.NetworkIPs {
-			hosts[host] = ip
-		}
+		maps.Copy(hosts, container.NetworkIPs)
 
 		if rancherIP, ok := docker.FindRancherIPInLabels(container.Labels); ok {
 			hosts["rancher"] = rancherIP
@@ -228,4 +228,12 @@ func computeContainerServiceIDs(entity string, image string, labels map[string]s
 		ids = append(ids, short)
 	}
 	return ids
+}
+
+func shouldSkipPodReadiness(pod *workloadmeta.KubernetesPod) bool {
+	tolerate, ok := pod.Annotations[tolerateUnreadyAnnotation]
+	if !ok {
+		return false
+	}
+	return tolerate == "true"
 }

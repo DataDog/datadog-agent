@@ -13,7 +13,9 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -101,6 +103,74 @@ func TestStatsWriter(t *testing.T) {
 		sw.Write(testSets[1])
 		sw.Stop()
 		assertPayload(assert, testSets, srv.Payloads())
+	})
+
+	t.Run("race", func(_ *testing.T) {
+		sw, _ := testStatsWriter()
+		// Don't start the writer as we're going to call send ourselves to test for a race
+		stopChan := make(chan struct{})
+		wg := sync.WaitGroup{}
+		numRoutines := 5
+		for range numRoutines {
+			wg.Add(1)
+			go func() {
+				testSets := []*pb.StatsPayload{
+					{
+						AgentHostname: "1",
+						AgentEnv:      "1",
+						AgentVersion:  "agent-version",
+						Stats: []*pb.ClientStatsPayload{{
+							Hostname: testHostname,
+							Env:      testEnv,
+							Stats: []*pb.ClientStatsBucket{
+								testutil.RandomBucket(3),
+								testutil.RandomBucket(3),
+								testutil.RandomBucket(3),
+							},
+						}},
+					},
+					{
+						AgentHostname: "2",
+						AgentEnv:      "2",
+						AgentVersion:  "agent-version",
+						Stats: []*pb.ClientStatsPayload{{
+							Hostname: testHostname,
+							Env:      testEnv,
+							Stats: []*pb.ClientStatsBucket{
+								testutil.RandomBucket(3),
+								testutil.RandomBucket(3),
+								testutil.RandomBucket(3),
+							},
+						}},
+					},
+				}
+				defer wg.Done()
+				for {
+					select {
+					case <-stopChan:
+						return
+					default:
+						sw.Write(testSets[0])
+						sw.Write(testSets[1])
+					}
+				}
+			}()
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stopChan:
+					return
+				default:
+					sw.sendPayloads() // send really fast to try and trigger race
+				}
+			}
+		}()
+		time.Sleep(time.Second)
+		close(stopChan)
+		wg.Wait()
 	})
 
 	t.Run("buildPayloads", func(t *testing.T) {

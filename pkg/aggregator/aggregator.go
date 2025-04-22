@@ -864,13 +864,13 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	var tags []string
 
 	var err error
-	tags, err = agg.globalTags(agg.tagger.ChecksCardinality())
+	tags, err = agg.globalTags(types.ChecksConfigCardinality)
 	if err != nil {
 		log.Debugf("Couldn't get Global tags: %v", err)
 	}
 
 	if agg.tlmContainerTagsEnabled {
-		agentTags, err := agg.agentTags(agg.tagger.ChecksCardinality())
+		agentTags, err := agg.agentTags(types.ChecksConfigCardinality)
 		if err == nil {
 			if tags == nil {
 				tags = agentTags
@@ -886,9 +886,6 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		if version.AgentPackageVersion != "" {
 			tags = append(tags, "package_version:"+version.AgentPackageVersion)
 		}
-	}
-	if agg.haAgent.Enabled() {
-		tags = append(tags, "ha_agent_enabled:true")
 	}
 	// nil to empty string
 	// This is expected by other components/tests

@@ -134,19 +134,22 @@ func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) 
 		return nil, err
 	}
 
+	protoAllocatedResources := toProtoAllocatedResources(container.AllocatedResources)
+
 	return &pb.Container{
-		EntityId:      protoEntityID,
-		EntityMeta:    toProtoEntityMetaFromContainer(container),
-		EnvVars:       container.EnvVars,
-		Hostname:      container.Hostname,
-		Image:         toProtoImage(&container.Image),
-		NetworkIps:    container.NetworkIPs,
-		Pid:           int32(container.PID),
-		Ports:         pbContainerPorts,
-		Runtime:       protoRuntime,
-		State:         protoContainerState,
-		CollectorTags: container.CollectorTags,
-		CgroupPath:    container.CgroupPath,
+		EntityId:           protoEntityID,
+		EntityMeta:         toProtoEntityMetaFromContainer(container),
+		EnvVars:            container.EnvVars,
+		Hostname:           container.Hostname,
+		Image:              toProtoImage(&container.Image),
+		NetworkIps:         container.NetworkIPs,
+		Pid:                int32(container.PID),
+		Ports:              pbContainerPorts,
+		Runtime:            protoRuntime,
+		State:              protoContainerState,
+		CollectorTags:      container.CollectorTags,
+		CgroupPath:         container.CgroupPath,
+		AllocatedResources: protoAllocatedResources,
 	}, nil
 }
 
@@ -279,6 +282,18 @@ func toProtoContainerState(state *workloadmeta.ContainerState) (*pb.ContainerSta
 	}
 
 	return res, nil
+}
+
+func toProtoAllocatedResources(resources []workloadmeta.ContainerAllocatedResource) []*pb.ContainerAllocatedResource {
+	var protoAllocatedResources []*pb.ContainerAllocatedResource
+	for _, resource := range resources {
+		protoAllocatedResources = append(protoAllocatedResources, &pb.ContainerAllocatedResource{
+			Name: resource.Name,
+			ID:   resource.ID,
+		})
+	}
+
+	return protoAllocatedResources
 }
 
 func toProtoContainerStatus(status workloadmeta.ContainerStatus) (pb.ContainerStatus, error) {
@@ -600,19 +615,22 @@ func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Contai
 		return nil, err
 	}
 
+	resources := toWorkloadmetaAllocatedResources(protoContainer.AllocatedResources)
+
 	return &workloadmeta.Container{
-		EntityID:      entityID,
-		EntityMeta:    toWorkloadmetaEntityMeta(protoContainer.EntityMeta),
-		EnvVars:       protoContainer.EnvVars,
-		Hostname:      protoContainer.Hostname,
-		Image:         toWorkloadmetaImage(protoContainer.Image),
-		NetworkIPs:    protoContainer.NetworkIps,
-		PID:           int(protoContainer.Pid),
-		Ports:         ports,
-		Runtime:       runtime,
-		State:         state,
-		CollectorTags: protoContainer.CollectorTags,
-		CgroupPath:    protoContainer.CgroupPath,
+		EntityID:           entityID,
+		EntityMeta:         toWorkloadmetaEntityMeta(protoContainer.EntityMeta),
+		EnvVars:            protoContainer.EnvVars,
+		Hostname:           protoContainer.Hostname,
+		Image:              toWorkloadmetaImage(protoContainer.Image),
+		NetworkIPs:         protoContainer.NetworkIps,
+		PID:                int(protoContainer.Pid),
+		Ports:              ports,
+		Runtime:            runtime,
+		State:              state,
+		CollectorTags:      protoContainer.CollectorTags,
+		CgroupPath:         protoContainer.CgroupPath,
+		AllocatedResources: resources,
 	}, nil
 }
 
@@ -622,6 +640,18 @@ func toWorkloadmetaContainerPort(protoPort *pb.ContainerPort) workloadmeta.Conta
 		Port:     int(protoPort.Port),
 		Protocol: protoPort.Protocol,
 	}
+}
+
+func toWorkloadmetaAllocatedResources(protoAllocatedResources []*pb.ContainerAllocatedResource) []workloadmeta.ContainerAllocatedResource {
+	var resources []workloadmeta.ContainerAllocatedResource
+	for _, protoResource := range protoAllocatedResources {
+		resources = append(resources, workloadmeta.ContainerAllocatedResource{
+			Name: protoResource.Name,
+			ID:   protoResource.ID,
+		})
+	}
+
+	return resources
 }
 
 func toWorkloadmetaEntityID(protoEntityID *pb.WorkloadmetaEntityId) (workloadmeta.EntityID, error) {

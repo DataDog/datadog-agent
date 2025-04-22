@@ -56,7 +56,7 @@ func IsUserAnAdmin() (bool, error) {
 		0, 0, 0, 0, 0, 0,
 		&administratorsGroup)
 	if err != nil {
-		return false, fmt.Errorf("could not get local system SID: %w", err)
+		return false, fmt.Errorf("could not get Administrators group SID: %w", err)
 	}
 	defer windows.FreeSid(administratorsGroup)
 

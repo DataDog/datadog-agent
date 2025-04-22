@@ -12,14 +12,17 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type windowsTestSuite struct {
@@ -40,8 +43,57 @@ func TestWindowsTestSuite(t *testing.T) {
 
 func (s *windowsTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	// Start an antivirus scan to use as process for testing
 	s.Env().RemoteHost.MustExecute("Start-MpScan -ScanType FullScan -AsJob")
+	// Install chocolatey - https://chocolatey.org/install
+	// This may be due to choco rate limits - https://datadoghq.atlassian.net/browse/ADXT-950
+	stdout, err := s.Env().RemoteHost.Execute("Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iwr https://community.chocolatey.org/install.ps1 -UseBasicParsing | iex")
+	if err != nil {
+		s.T().Logf("Failed to install chocolatey: %s, err: %s", stdout, err)
+	}
+	// Install diskspd for IO tests - https://learn.microsoft.com/en-us/azure/azure-local/manage/diskspd-overview
+	stdout, err = s.Env().RemoteHost.Execute("C:\\ProgramData\\chocolatey\\bin\\choco.exe install -y diskspd")
+	if err != nil {
+		s.T().Logf("Failed to install diskspd: %s, err: %s", stdout, err)
+	}
+}
+
+func (s *windowsTestSuite) TestAPIKeyRefresh() {
+	t := s.T()
+
+	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, `C:\TestFolder`)
+	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
+
+	agentParams := []func(*agentparams.Params) error{
+		agentparams.WithSkipAPIKeyInConfig(),
+		agentparams.WithAgentConfig(processAgentWinRefreshStr),
+	}
+	agentParams = append(agentParams, secretsutils.WithWindowsSetupScript("C:/TestFolder/wrapper.bat", true)...)
+
+	s.UpdateEnv(
+		awshost.Provisioner(
+			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+			awshost.WithAgentOptions(
+				agentParams...,
+			),
+		),
+	)
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assertAPIKey(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().Agent.Client, s.Env().FakeIntake.Client(), false)
+	}, 2*time.Minute, 10*time.Second)
+
+	// API key refresh
+	secretClient.SetSecret("api_key", "123456abcdefghijklmnopqrstuvwxyz")
+	secretRefreshOutput := s.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
+	require.Contains(t, secretRefreshOutput, "api_key")
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assertAPIKey(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().Agent.Client, s.Env().FakeIntake.Client(), false)
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func assertProcessCheck(t *testing.T, env *environments.Host) {
@@ -63,6 +115,10 @@ func assertProcessCheck(t *testing.T, env *environments.Host) {
 }
 
 func (s *windowsTestSuite) TestProcessCheck() {
+	s.UpdateEnv(awshost.Provisioner(
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)),
+	))
 	assertProcessCheck(s.T(), s.Env())
 }
 
@@ -103,8 +159,6 @@ func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 
 func (s *windowsTestSuite) TestProcessCheckIO() {
 	t := s.T()
-	// https://datadoghq.atlassian.net/browse/CTK-3960
-	flake.Mark(t)
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
@@ -117,7 +171,8 @@ func (s *windowsTestSuite) TestProcessCheckIO() {
 		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, true)
 	}, 1*time.Minute, 5*time.Second)
 
-	// s.Env().VM.Execute("Start-MpScan -ScanType FullScan")
+	err := runDiskSpd(s.T(), s.Env().RemoteHost)
+	require.NoError(s.T(), err)
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -125,18 +180,11 @@ func (s *windowsTestSuite) TestProcessCheckIO() {
 		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
-		// Wait for two payloads, as processes must be detected in two check runs to be returned
-		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
+		assertProcessCollectedNew(c, payloads, true, "diskspd.exe")
 	}, 2*time.Minute, 10*time.Second)
-
-	assertProcessCollected(t, payloads, true, "MsMpEng.exe")
 }
 
 func (s *windowsTestSuite) TestManualProcessCheck() {
-	// Responses with more than 100 processes end up being chunked, which fails JSON unmarshalling
-	// Fix tracked in https://datadoghq.atlassian.net/browse/PROCS-3613
-	flake.Mark(s.T())
-
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
 
@@ -144,32 +192,49 @@ func (s *windowsTestSuite) TestManualProcessCheck() {
 }
 
 func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
-	// Responses with more than 100 processes end up being chunked, which fails JSON unmarshalling
-	// Fix tracked in https://datadoghq.atlassian.net/browse/PROCS-3613
-	flake.Mark(s.T())
-
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process_discovery --json")
 	assertManualProcessDiscoveryCheck(s.T(), check, "MsMpEng.exe")
 }
 
 func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
-	s.T().Skip("skipping due to flakiness")
-	// MsMpEng.exe process missing IO stats, agent process does not always have CPU stats populated as it is restarted multiple times during the test suite run
-	// Investigation & fix tracked in https://datadoghq.atlassian.net/browse/PROCS-3757
-
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
 	))
 
-	// Flush fake intake to remove payloads that won't have IO stats
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	err := runDiskSpd(s.T(), s.Env().RemoteHost)
+	require.NoError(s.T(), err)
 
-	check := s.Env().RemoteHost.
-		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
+	// Try multiple times as all the I/O data may not be available in a given instant
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		check := s.Env().RemoteHost.
+			MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
+		assertManualProcessCheck(c, check, true, "diskspd.exe")
+	}, 1*time.Minute, 5*time.Second)
+}
 
-	// Check stats for Datadog agent process as it has IO stats more reliably populated than MsMpEng.exe
-	agentExe := "\"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\""
-	assertManualProcessCheck(s.T(), check, true, agentExe)
+// Runs Diskspd in another ssh session
+// https://github.com/Microsoft/diskspd/wiki/Command-line-and-parameters
+func runDiskSpd(t *testing.T, remoteHost *components.RemoteHost) error {
+	// Disk speed parameters
+	// -d120: Duration of the test in seconds
+	// -c128M: Size of the test file in bytes
+	// -t2: Number of threads
+	// -o4: Number of outstanding I/O requests per thread
+	// -b8k: Block size in bytes
+	// -L: Use large pages
+	// -r: Random I/O
+	// -Sh: Disable both software caching and hardware write caching.
+	// -w50: Write percentage
+	session, stdin, _, err := remoteHost.Start("diskspd -d120 -c128M -t2 -o4 -b8k -L -r -Sh -w50 disk-speed-test.dat")
+	if err != nil {
+		return err
+	}
+
+	t.Cleanup(func() {
+		_ = session.Close()
+		_ = stdin.Close()
+	})
+	return nil
 }

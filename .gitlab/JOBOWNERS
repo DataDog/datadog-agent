@@ -1,13 +1,12 @@
-*                                    @DataDog/agent-devx-infra
+*                                    @DataDog/agent-devx
 
 # CI / DevX
-test_gitlab*                         @DataDog/agent-devx-infra
-invoke_unit_tests                    @DataDog/agent-devx-infra
-skip-ci-check                        @DataDog/agent-devx-infra
-slack_teams_channels_check           @DataDog/agent-devx-infra
-lint*                                @DataDog/agent-devx-infra
-notify*                              @DataDog/agent-devx-infra
-create_release_qa_cards              @DataDog/agent-devx-infra
+test_gitlab*                         @DataDog/agent-devx
+invoke_unit_tests                    @DataDog/agent-devx
+skip-ci-check                        @DataDog/agent-devx
+slack_teams_channels_check           @DataDog/agent-devx
+lint*                                @DataDog/agent-devx
+notify*                              @DataDog/agent-devx
 
 # Deps build
 build_clang_*                        @DataDog/ebpf-platform
@@ -20,6 +19,7 @@ fetch_openjdk                        @DataDog/agent-metric-pipelines
 # Notifications are handled separately for more fine-grained control on go tests
 tests_*                                 @DataDog/multiple
 tests_ebpf*                             @DataDog/ebpf-platform
+tests_serverless                        @DataDog/serverless
 tests_windows_sysprobe*                 @DataDog/windows-kernel-integrations
 security_go_generate_check              @DataDog/agent-security
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
@@ -36,6 +36,7 @@ golang_deps_commenter                @DataDog/ebpf-platform
 build_system-probe*                  @DataDog/ebpf-platform
 cluster_agent_cloudfoundry-build*    @Datadog/agent-integrations
 cluster_agent-build*                 @DataDog/container-integrations
+cluster_agent_fips-build*            @DataDog/container-integrations
 cws_instrumentation-build*           @DataDog/agent-security
 build_serverless*                    @DataDog/serverless
 build_windows_container_entrypoint   @DataDog/windows-agent
@@ -54,6 +55,7 @@ agent_suse*                          @DataDog/agent-delivery
 windows-installer*                   @DataDog/windows-agent
 windows_*                            @DataDog/windows-agent
 powershell_script_signing            @DataDog/windows-agent
+datadog-otel-agent-*                 @DataDog/agent-delivery
 
 # Packaging
 agent_deb*                           @DataDog/agent-delivery
@@ -95,15 +97,14 @@ cws_instrumentation_dev_branch*        @DataDog/agent-security
 dev_branch*                            @Datadog/agent-delivery
 dev_master*                            @Datadog/agent-delivery
 dev_nightly*                           @Datadog/agent-delivery
-qa_agent*                              @DataDog/agent-devx-loops
-qa_cws_instrumentation*                @DataDog/agent-devx-loops
-qa_dca*                                @DataDog/agent-devx-loops
-qa_dogstatsd*                          @DataDog/agent-devx-loops
+qa_agent*                              @DataDog/agent-devx
+qa_cws_instrumentation*                @DataDog/agent-devx
+qa_dca*                                @DataDog/agent-devx
+qa_dogstatsd*                          @DataDog/agent-devx
 
 # Internal image deploy
 docker_trigger_internal*                     @Datadog/agent-delivery
 docker_trigger_cluster_agent_internal*       @Datadog/agent-delivery
-docker_trigger_cws_instrumentation_internal* @DataDog/agent-security
 
 # Internal kubernetes deploy
 internal_kubernetes_deploy*            @Datadog/agent-delivery
@@ -126,8 +127,8 @@ deploy_containers*                     @Datadog/agent-delivery
 deploy_containers-cws-instrumentation* @DataDog/agent-security
 
 # Trigger release
-trigger_manual_prod_release            @DataDog/agent-delivery
-trigger_auto_staging_release           @DataDog/agent-delivery
+trigger_manual_prod_release*            @DataDog/agent-delivery
+trigger_auto_staging_release*           @DataDog/agent-delivery
 generate_windows_gitlab_runner_bump_pr* @DataDog/agent-delivery
 
 # Integration test
@@ -137,6 +138,7 @@ docker_image_build_otel       @DataDog/opentelemetry
 datadog_otel_components_ocb_build  @DataDog/opentelemetry
 agent_integration_tests       @DataDog/container-integrations
 docker_integration_tests      @DataDog/container-integrations
+trace_agent_integration_tests @DataDog/agent-apm
 
 # Functional test
 serverless_cold_start_performance-deb_x64      @DataDog/serverless
@@ -149,7 +151,7 @@ k8s-e2e-otlp-*                    @DataDog/opentelemetry
 k8s-e2e-cspm-*                    @DataDog/agent-security
 
 # New E2E
-e2e_pre_test*                     @DataDog/agent-devx-loops
+e2e_pre_test*                     @DataDog/agent-devx
 new-e2e*                          @DataDog/multiple
 
 
@@ -167,3 +169,9 @@ single_machine_performance*       @DataDog/single-machine-performance
 
 # Dependency Security
 software_composition_analysis*    @DataDog/sdlc-security
+
+# CodeQL
+run_codeql_scan                   @DataDog/sdlc-security
+
+# Experiment systemd units
+validate_experiment_systemd_units @DataDog/fleet

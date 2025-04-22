@@ -10,12 +10,14 @@ import (
 	"os"
 	"strings"
 
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
+
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 )
 
 type installScriptDefaultSuite struct {
@@ -32,6 +34,11 @@ func testDefaultScript(os e2eos.Descriptor, arch e2eos.Architecture) installerSc
 	return s
 }
 
+func (s *installScriptDefaultSuite) RunInstallScript(url string, params ...string) {
+	params = append(params, "DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE=installtesting.datad0g.com")
+	s.installerScriptBaseSuite.RunInstallScript(url, params...)
+}
+
 func (s *installScriptDefaultSuite) TestInstall() {
 	defer s.Purge()
 
@@ -43,7 +50,6 @@ func (s *installScriptDefaultSuite) TestInstall() {
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
 		"DD_SBOM_CONTAINER_IMAGE_ENABLED=true",
 		"DD_SBOM_HOST_ENABLED=true",
-		"DD_REMOTE_POLICIES=false",
 		"DD_REMOTE_UPDATES=true",
 		"DD_ENV=env",
 		"DD_HOSTNAME=hostname",
@@ -54,7 +60,6 @@ func (s *installScriptDefaultSuite) TestInstall() {
 	// Packages installed
 	s.host.AssertPackageInstalledByInstaller(
 		"datadog-agent",
-		"datadog-installer",
 		"datadog-apm-inject",
 		"datadog-apm-library-java",
 		"datadog-apm-library-python",
@@ -64,16 +69,15 @@ func (s *installScriptDefaultSuite) TestInstall() {
 
 	// Config files exist
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
-	state.AssertFileExists("/etc/datadog-agent/system-probe.yaml", 0640, "root", "dd-agent")
-	state.AssertFileExists("/etc/datadog-agent/security-agent.yaml", 0640, "root", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent/system-probe.yaml", 0440, "dd-agent", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent/security-agent.yaml", 0440, "dd-agent", "dd-agent")
 	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-library-ruby") // Not in DD_APM_INSTRUMENTATION_LIBRARIES
 
 	// Units started
 	state.AssertUnitsRunning(
-		"datadog-installer.service",
 		"datadog-agent.service",
+		// "datadog-agent-installer.service", FIXME: uncomment when an agent+installer is released
 		"datadog-agent-trace.service",
-		"datadog-agent-process.service",
 		"datadog-agent-sysprobe.service",
 		"datadog-agent-security.service",
 	)
@@ -98,7 +102,6 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
 		"DD_SBOM_CONTAINER_IMAGE_ENABLED=true",
 		"DD_SBOM_HOST_ENABLED=true",
-		"DD_REMOTE_POLICIES=true",
 		"DD_REMOTE_UPDATES=true",
 		"DD_ENV=env",
 		"DD_HOSTNAME=hostname",
@@ -154,4 +157,51 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 		}
 		require.Equal(s.T(), len(installerScriptConfig), len(agent7Config), "config lengths in file %s differs", file)
 	}
+}
+
+// TestUpgradeInstallerAgent tests that the installer install script properly upgrades customers
+// from installer / agent as separate packages to a single package
+func (s *installScriptDefaultSuite) TestUpgradeInstallerAgent() {
+	params := []string{
+		"DD_API_KEY=" + s.getAPIKey(),
+		"DD_REMOTE_UPDATES=true",
+		"DD_AGENT_MAJOR_VERSION=7",
+		"DD_AGENT_MINOR_VERSION=60.0",
+	}
+
+	// 1. Install installer / agent as separate packages using older agent 7 install script & an older agent version (7.60)
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh?versionId=c0vg6qmhxYnt3he9iRph2BsRN0p026pf)"`, strings.Join(params, " ")))
+	require.NoErrorf(s.T(), err, "installer / agent not properly installed through agent 7 install script")
+
+	// 2. Run the installer install script with the same older agent version (7.60)
+	defer s.Purge()
+	s.RunInstallScript(s.url, params...)
+
+	// 3. Check the installer deb / rpm isn't there anymore
+	s.host.AssertPackageNotInstalledByPackageManager("datadog-installer")
+
+	// 4. Check the installer is present in the agent
+	state := s.host.State()
+	state.AssertFileExists("/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer", 0755, "dd-agent", "dd-agent")
+
+	// 5. Assert the installer unit is not loaded
+	state.AssertUnitsNotLoaded("datadog-installer.service")
+	state.AssertUnitsLoaded("datadog-agent-installer.service")
+}
+
+// TestInstallIgnoreMajorMinor tests that the installer install script properly ignores
+// the major / minor version when installing the agent
+func (s *installScriptDefaultSuite) TestInstallIgnoreMajorMinor() {
+	params := []string{
+		"DD_API_KEY=" + s.getAPIKey(),
+		"DD_REMOTE_UPDATES=true",
+		"DD_AGENT_MAJOR_VERSION=7",
+		"DD_AGENT_MINOR_VERSION=60.0",
+	}
+	defer s.Purge()
+	s.RunInstallScript(s.url, params...)
+
+	// Check the agent version is the latest one
+	installedVersion := s.host.AgentStableVersion()
+	assert.NotEqual(s.T(), "7.60.0", installedVersion, "agent version should not be 7.60.0")
 }
