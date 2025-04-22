@@ -8,13 +8,17 @@
 package model
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	"github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 )
 
 func (p *PodAutoscalerInternal) String(verbose bool) string {
@@ -30,20 +34,22 @@ func (p *PodAutoscalerInternal) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Creation Timestamp:", p.CreationTimestamp())
 	_, _ = fmt.Fprintln(&sb, "Generation:", p.Generation())
 	_, _ = fmt.Fprintln(&sb, "Settings Timestamp:", p.SettingsTimestamp())
-	_, _ = fmt.Fprintln(&sb, "----------- PodAutoscaler Spec -----------")
-	_, _ = fmt.Fprintln(&sb, "Target Ref:", p.Spec().TargetRef)
-	_, _ = fmt.Fprintln(&sb, "Owner:", p.Spec().Owner)
-	_, _ = fmt.Fprintln(&sb, "Remote Version:", p.Spec().RemoteVersion)
-	if p.Spec().ApplyPolicy != nil {
-		_, _ = fmt.Fprint(&sb, formatPolicy(p.Spec().ApplyPolicy))
-	}
-	_, _ = fmt.Fprintln(&sb, "----------- PodAutoscaler Local Fallback -----------")
-	_, _ = fmt.Fprint(&sb, formatFallback(p.Spec().Fallback))
-	_, _ = fmt.Fprintln(&sb, "----------- PodAutoscaler Constraints -----------")
-	_, _ = fmt.Fprint(&sb, formatConstraints(p.Spec().Constraints))
-	_, _ = fmt.Fprintln(&sb, "----------- PodAutoscaler Objectives -----------")
-	for _, objective := range p.Spec().Objectives {
-		_, _ = fmt.Fprintln(&sb, formatObjective(&objective))
+	if p.Spec() != nil {
+		_, _ = fmt.Fprintln(&sb, "----------- PodAutoscaler Spec -----------")
+		_, _ = fmt.Fprintln(&sb, "Target Ref:", p.Spec().TargetRef)
+		_, _ = fmt.Fprintln(&sb, "Owner:", p.Spec().Owner)
+		_, _ = fmt.Fprintln(&sb, "Remote Version:", p.Spec().RemoteVersion)
+		if p.Spec().ApplyPolicy != nil {
+			_, _ = fmt.Fprint(&sb, formatPolicy(p.Spec().ApplyPolicy))
+		}
+		_, _ = fmt.Fprintln(&sb, "----------- PodAutoscaler Local Fallback -----------")
+		_, _ = fmt.Fprint(&sb, formatFallback(p.Spec().Fallback))
+		_, _ = fmt.Fprintln(&sb, "----------- PodAutoscaler Constraints -----------")
+		_, _ = fmt.Fprint(&sb, formatConstraints(p.Spec().Constraints))
+		_, _ = fmt.Fprintln(&sb, "----------- PodAutoscaler Objectives -----------")
+		for _, objective := range p.Spec().Objectives {
+			_, _ = fmt.Fprintln(&sb, formatObjective(&objective))
+		}
 	}
 
 	_, _ = fmt.Fprintln(&sb, "----------- PodAutoscaler Scaling Values -----------")
@@ -212,4 +218,125 @@ func toResourceQuantityMap(resourceList corev1.ResourceList) map[string]string {
 		quantities[string(name)] = quantity.String()
 	}
 	return quantities
+}
+
+// MarshalJSON implements the json.Marshaler interface for PodAutoscalerInternal
+func (p *PodAutoscalerInternal) MarshalJSON() ([]byte, error) {
+	// Create a map with all the fields we want to include in the JSON
+	return json.Marshal(map[string]interface{}{
+		"id":                 p.ID(),
+		"namespace":          p.namespace,
+		"name":               p.name,
+		"generation":         p.generation,
+		"creation_timestamp": p.creationTimestamp,
+		"settings_timestamp": p.settingsTimestamp,
+		"spec":               p.spec,
+		"deleted":            p.deleted,
+
+		// Scaling values
+		"scaling_values": map[string]interface{}{
+			"horizontal":       p.scalingValues.Horizontal,
+			"vertical":         p.scalingValues.Vertical,
+			"error":            errorToString(p.scalingValues.Error),
+			"horizontal_error": errorToString(p.scalingValues.HorizontalError),
+			"vertical_error":   errorToString(p.scalingValues.VerticalError),
+		},
+
+		"main_scaling_values": map[string]interface{}{
+			"horizontal":       p.mainScalingValues.Horizontal,
+			"vertical":         p.mainScalingValues.Vertical,
+			"error":            errorToString(p.mainScalingValues.Error),
+			"horizontal_error": errorToString(p.mainScalingValues.HorizontalError),
+			"vertical_error":   errorToString(p.mainScalingValues.VerticalError),
+		},
+
+		"fallback_scaling_values": map[string]interface{}{
+			"horizontal":       p.fallbackScalingValues.Horizontal,
+			"vertical":         p.fallbackScalingValues.Vertical,
+			"error":            errorToString(p.fallbackScalingValues.Error),
+			"horizontal_error": errorToString(p.fallbackScalingValues.HorizontalError),
+			"vertical_error":   errorToString(p.fallbackScalingValues.VerticalError),
+		},
+
+		// Current state
+		"current_replicas": p.currentReplicas,
+		"scaled_replicas":  p.scaledReplicas,
+		"error":            errorToString(p.error),
+
+		// Action history
+		"horizontal_last_actions":      p.horizontalLastActions,
+		"horizontal_last_limit_reason": p.horizontalLastLimitReason,
+		"horizontal_last_action_error": errorToString(p.horizontalLastActionError),
+		"vertical_last_action":         p.verticalLastAction,
+		"vertical_last_action_error":   errorToString(p.verticalLastActionError),
+
+		// Computed fields
+		"target_gvk":                       p.targetGVK,
+		"horizontal_events_retention":      p.horizontalEventsRetention,
+		"custom_recommender_configuration": p.customRecommenderConfiguration,
+	})
+}
+
+// Helper function to handle potential nil errors
+func errorToString(err error) interface{} {
+	if err == nil {
+		return nil
+	}
+	return err.Error()
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface for PodAutoscalerInternal
+func (p *PodAutoscalerInternal) UnmarshalJSON(data []byte) error {
+	// Create a temporary struct to unmarshal into
+	var temp struct {
+		ID                    string                              `json:"id"`
+		Namespace             string                              `json:"namespace"`
+		Name                  string                              `json:"name"`
+		Generation            int64                               `json:"generation"`
+		CreationTimestamp     time.Time                           `json:"creation_timestamp"`
+		SettingsTimestamp     time.Time                           `json:"settings_timestamp"`
+		Spec                  *datadoghq.DatadogPodAutoscalerSpec `json:"spec"`
+		Deleted               bool                                `json:"deleted"`
+		ScalingValues         ScalingValues                       `json:"scaling_values"`
+		MainScalingValues     ScalingValues                       `json:"main_scaling_values"`
+		FallbackScalingValues ScalingValues                       `json:"fallback_scaling_values"`
+		CurrentReplicas       *int32                              `json:"current_replicas"`
+		ScaledReplicas        *int32                              `json:"scaled_replicas"`
+
+		// Action history
+		HorizontalLastActions     []datadoghqcommon.DatadogPodAutoscalerHorizontalAction `json:"horizontal_last_actions"`
+		HorizontalLastLimitReason string                                                 `json:"horizontal_last_limit_reason"`
+		VerticalLastAction        *datadoghqcommon.DatadogPodAutoscalerVerticalAction    `json:"vertical_last_action"`
+
+		// Computed fields
+		TargetGVK                      schema.GroupVersionKind   `json:"target_gvk"`
+		HorizontalEventsRetention      time.Duration             `json:"horizontal_events_retention"`
+		CustomRecommenderConfiguration *RecommenderConfiguration `json:"custom_recommender_configuration"`
+	}
+
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	// Copy the values to our PodAutoscalerInternal
+	p.namespace = temp.Namespace
+	p.name = temp.Name
+	p.generation = temp.Generation
+	p.creationTimestamp = temp.CreationTimestamp
+	p.settingsTimestamp = temp.SettingsTimestamp
+	p.spec = temp.Spec
+	p.deleted = temp.Deleted
+	p.scalingValues = temp.ScalingValues
+	p.mainScalingValues = temp.MainScalingValues
+	p.fallbackScalingValues = temp.FallbackScalingValues
+	p.currentReplicas = temp.CurrentReplicas
+	p.scaledReplicas = temp.ScaledReplicas
+	p.horizontalLastActions = temp.HorizontalLastActions
+	p.horizontalLastLimitReason = temp.HorizontalLastLimitReason
+	p.verticalLastAction = temp.VerticalLastAction
+	p.targetGVK = temp.TargetGVK
+	p.horizontalEventsRetention = temp.HorizontalEventsRetention
+	p.customRecommenderConfiguration = temp.CustomRecommenderConfiguration
+
+	return nil
 }
