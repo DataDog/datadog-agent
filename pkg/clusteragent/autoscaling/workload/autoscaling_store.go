@@ -22,6 +22,8 @@ var (
 	AutoscalingStoreOnce sync.Once
 )
 
+type autoscalingStore = autoscaling.Store[model.PodAutoscalerInternal]
+
 // GetAutoscalingStore returns the autoscaling store, init once
 func GetAutoscalingStore(ctx context.Context) *autoscaling.Store[model.PodAutoscalerInternal] {
 	AutoscalingStoreOnce.Do(func() {

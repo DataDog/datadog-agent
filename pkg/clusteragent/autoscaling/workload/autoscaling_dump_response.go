@@ -1,0 +1,49 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+//go:build kubeapiserver
+
+package workload
+
+import (
+	"context"
+	"fmt"
+	"io"
+
+	"github.com/fatih/color"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+)
+
+// AutoscalingDumpResponse is used to dump the autoscaling store content
+type AutoscalingDumpResponse struct {
+	PodAutoscalers []model.PodAutoscalerInternal `json:"pod_autoscalers"`
+}
+
+func Dump() AutoscalingDumpResponse {
+	datadogPodAutoscalers := GetAutoscalingStore(context.Background()).GetAll()
+
+	response := AutoscalingDumpResponse{
+		PodAutoscalers: datadogPodAutoscalers,
+	}
+
+	return response
+}
+
+// Write writes the store content to a given writer
+func (adr AutoscalingDumpResponse) Write(writer io.Writer) {
+	if writer != color.Output {
+		color.NoColor = true
+	}
+
+	for _, autoscaler := range adr.PodAutoscalers {
+		fmt.Fprintf(writer, "\n=== PodAutoscaler %s ===\n", color.GreenString(autoscaler.ID()))
+
+		// Use the String() method of PodAutoscalerInternal
+		fmt.Fprintln(writer, autoscaler.String(true))
+
+		fmt.Fprintln(writer, "===")
+	}
+}
