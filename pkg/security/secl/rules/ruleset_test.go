@@ -31,7 +31,7 @@ func (f *testHandler) Reset() {
 	f.filters = make(map[eval.EventType]testFieldValues)
 }
 
-func (f *testHandler) RuleMatch(_ *Rule, _ eval.Event) bool {
+func (f *testHandler) RuleMatch(_ *eval.Context, _ *Rule, _ eval.Event) bool {
 	return true
 }
 
@@ -48,7 +48,7 @@ func (f *testHandler) EventDiscarderFound(_ *RuleSet, event eval.Event, field ev
 	}
 
 	var m model.Model
-	evaluator, _ := m.GetEvaluator(field, "")
+	evaluator, _ := m.GetEvaluator(field, "", 0)
 
 	ctx := eval.NewContext(event)
 

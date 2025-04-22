@@ -119,6 +119,9 @@ func convertArgs(definitions []*ditypes.Parameter, captures []*ditypes.Param) ma
 			break
 		}
 		definition := definitions[definitionCounter]
+		if definition == nil || captures[i] == nil {
+			continue
+		}
 		if definition.Kind != uint(captures[i].Kind) || definition.DoNotCapture {
 			// definition is not present in captures, put it in the map and move on
 			args[definition.Name] = &ditypes.CapturedValue{

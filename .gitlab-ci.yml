@@ -37,7 +37,8 @@ include:
   - .gitlab/post_rc_build/post_rc_tasks.yml
   - .gitlab/setup/setup.yml
   - .gitlab/source_test/include.yml
-  - .gitlab/trigger_release/trigger_release.yml
+  - .gitlab/trigger_release/agent.yml
+  - .gitlab/trigger_release/installer.yml
 
 default:
   retry:
@@ -168,45 +169,45 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v61255107-8d593c89
+  DATADOG_AGENT_BUILDIMAGES: v62029117-1ba50f31
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v61255107-8d593c89
+  DATADOG_AGENT_WINBUILDIMAGES: v62029117-1ba50f31
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v61255107-8d593c89
+  DATADOG_AGENT_ARMBUILDIMAGES: v62029117-1ba50f31
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v61255107-8d593c89
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v62029117-1ba50f31
   # New images to enable different version per image - not used yet
-  CI_IMAGE_BTF_GEN: v61255107-8d593c89
+  CI_IMAGE_BTF_GEN: v62029117-1ba50f31
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DEB_X64: v61255107-8d593c89
+  CI_IMAGE_DEB_X64: v62029117-1ba50f31
   CI_IMAGE_DEB_X64_SUFFIX: ""
-  CI_IMAGE_DEB_ARM64: v61255107-8d593c89
+  CI_IMAGE_DEB_ARM64: v62029117-1ba50f31
   CI_IMAGE_DEB_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v61255107-8d593c89
+  CI_IMAGE_DEB_ARMHF: v62029117-1ba50f31
   CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_DD_AGENT_TESTING: v61255107-8d593c89
+  CI_IMAGE_DD_AGENT_TESTING: v62029117-1ba50f31
   CI_IMAGE_DD_AGENT_TESTING_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v61255107-8d593c89
+  CI_IMAGE_DOCKER_X64: v62029117-1ba50f31
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v61255107-8d593c89
+  CI_IMAGE_DOCKER_ARM64: v62029117-1ba50f31
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v61255107-8d593c89
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v62029117-1ba50f31
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_17_X64: v61255107-8d593c89
+  CI_IMAGE_LINUX_GLIBC_2_17_X64: v62029117-1ba50f31
   CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v61255107-8d593c89
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v62029117-1ba50f31
   CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_X64: v61255107-8d593c89
+  CI_IMAGE_SYSTEM_PROBE_X64: v62029117-1ba50f31
   CI_IMAGE_SYSTEM_PROBE_X64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_ARM64: v61255107-8d593c89
+  CI_IMAGE_SYSTEM_PROBE_ARM64: v62029117-1ba50f31
   CI_IMAGE_SYSTEM_PROBE_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v61255107-8d593c89
+  CI_IMAGE_RPM_X64: v62029117-1ba50f31
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v61255107-8d593c89
+  CI_IMAGE_RPM_ARM64: v62029117-1ba50f31
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v61255107-8d593c89
+  CI_IMAGE_RPM_ARMHF: v62029117-1ba50f31
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v61255107-8d593c89
+  CI_IMAGE_WIN_LTSC2022_X64: v62029117-1ba50f31
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -228,10 +229,10 @@ variables:
 
   # Start aws ssm variables
   # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
-  API_KEY_ORG2: ci.datadog-agent.datadog_api_key_org2  # agent-devx-infra
-  CHANGELOG_COMMIT_SHA: ci.datadog-agent.gitlab_changelog_commit_sha  # agent-devx-infra
+  API_KEY_ORG2: ci.datadog-agent.datadog_api_key_org2  # agent-devx
+  CHANGELOG_COMMIT_SHA: ci.datadog-agent.gitlab_changelog_commit_sha  # agent-devx
   CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key  # windows-agent
-  CODECOV_TOKEN: ci.datadog-agent.codecov_token  # agent-devx-infra
+  CODECOV_TOKEN: ci.datadog-agent.codecov_token  # agent-devx
   DEB_GPG_KEY: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}  # agent-delivery
   DEB_SIGNING_PASSPHRASE: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}  # agent-delivery
   DOCKER_REGISTRY_LOGIN: ci.datadog-agent.docker_hub_login  # container-integrations
@@ -243,20 +244,20 @@ variables:
   # End aws ssm variables
 
   # Start vault variables
-  AGENT_API_KEY_ORG2: agent-api-key-org-2  # agent-devx-infra
-  AGENT_APP_KEY_ORG2: agent-ci-app-key-org-2  # agent-devx-infra
-  AGENT_GITHUB_APP: agent-github-app  # agent-devx-infra
-  AGENT_QA_E2E: agent-qa-e2e  # agent-devx-loops
-  ATLASSIAN_WRITE: atlassian-write  # agent-devx-infra
-  CODECOV: codecov  # agent-devx-infra
+  AGENT_API_KEY_ORG2: agent-api-key-org-2  # agent-devx
+  AGENT_APP_KEY_ORG2: agent-ci-app-key-org-2  # agent-devx
+  AGENT_GITHUB_APP: agent-github-app  # agent-devx
+  AGENT_QA_E2E: agent-qa-e2e  # agent-devx
+  ATLASSIAN_WRITE: atlassian-write  # agent-devx
+  CODECOV: codecov  # agent-devx
   DOCKER_REGISTRY_RO: dockerhub-readonly  # agent-delivery
-  E2E_AZURE: e2e-azure  # agent-devx-loops
-  E2E_GCP: e2e-gcp  # agent-devx-loops
-  GITLAB_TOKEN: gitlab-token  # agent-devx-infra
-  INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx-infra
-  MACOS_GITHUB_APP_1: macos-github-app-one  # agent-devx-infra
-  MACOS_GITHUB_APP_2: macos-github-app-two  # agent-devx-infra
-  SLACK_AGENT: slack-agent-ci  # agent-devx-infra
+  E2E_AZURE: e2e-azure  # agent-devx
+  E2E_GCP: e2e-gcp  # agent-devx
+  GITLAB_TOKEN: gitlab-token  # agent-devx
+  INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx
+  MACOS_GITHUB_APP_1: macos-github-app-one  # agent-devx
+  MACOS_GITHUB_APP_2: macos-github-app-two  # agent-devx
+  SLACK_AGENT: slack-agent-ci  # agent-devx
   SMP_ACCOUNT: smp  # single-machine-performance
   # End vault variables
 
@@ -296,6 +297,12 @@ variables:
 
 .if_deploy_installer: &if_deploy_installer
   if: $DEPLOY_INSTALLER == "true" || $DDR_WORKFLOW_ID != null
+
+.if_deploy_installer_stable: &if_deploy_installer_stable
+  if: ($DEPLOY_INSTALLER == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "stable"
+
+.if_not_deploy_installer: &if_not_deploy_installer
+  if: $DEPLOY_INSTALLER != "true" && $DDR_WORKFLOW_ID == null
 
 .if_tagged_commit: &if_tagged_commit
   if: $CI_COMMIT_TAG != null
@@ -440,6 +447,10 @@ workflow:
   - <<: *if_deploy
     when: on_failure
 
+.on_deploy_installer_failure:
+  - <<: *if_deploy_installer
+    when: on_failure
+
 .on_deploy_rc:
   - <<: *if_not_deploy
     when: never
@@ -580,6 +591,25 @@ workflow:
 # for stable branches in case of failure in any previous job
 .on_deploy_stable_on_failure:
   - <<: *if_deploy_stable
+    when: on_failure
+
+# This rule will add the job as manual when running on beta deploy branch
+# and will add it as a regular automatically running job when running
+# on stable deploy branch.
+.on_deploy_installer_stable_or_beta_manual_auto_on_stable:
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_not_deploy_installer
+    when: never
+  - <<: *if_not_stable_repo_branch
+    when: manual
+    allow_failure: true
+  - when: on_success
+
+# Alternative of the above to have an agent-release-management trigger
+# for stable branches in case of failure in any previous job
+.on_deploy_installer_stable_on_failure:
+  - <<: *if_deploy_installer_stable
     when: on_failure
 
 .except_deploy:
@@ -741,6 +771,7 @@ workflow:
         - test/new-e2e/pkg/**/*
         - test/new-e2e/go.mod
         - flakes.yaml
+        - release.json
       compare_to: $COMPARE_TO_BRANCH
 
 .on_e2e_or_windows_installer_changes:
@@ -917,6 +948,7 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - comp/forwarder/defaultforwarder/**/*
         - pkg/collector/corechecks/cluster/orchestrator/**/*
         - pkg/collector/corechecks/orchestrator/**/*
         - test/new-e2e/tests/orchestrator/**/*

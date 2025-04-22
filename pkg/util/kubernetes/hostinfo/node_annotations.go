@@ -16,7 +16,7 @@ import (
 )
 
 // GetNodeAnnotations returns node labels for this host
-func GetNodeAnnotations(ctx context.Context) (map[string]string, error) {
+func GetNodeAnnotations(ctx context.Context, filter ...string) (map[string]string, error) {
 	ku, err := kubelet.GetKubeUtil()
 	if err != nil {
 		return nil, err
@@ -32,7 +32,7 @@ func GetNodeAnnotations(ctx context.Context) (map[string]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		return cl.GetNodeAnnotations(nodeName)
+		return cl.GetNodeAnnotations(nodeName, filter...)
 	}
 	return apiserverNodeAnnotations(ctx, nodeName)
 }

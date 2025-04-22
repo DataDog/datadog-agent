@@ -60,12 +60,36 @@ static __always_inline bool has_sequence_seen_before(conn_tuple_t *tup, skb_info
     // check if we've seen this TCP segment before. this can happen in the
     // context of localhost traffic where the same TCP segment can be seen
     // multiple times coming in and out from different interfaces
-    if (tcp_seq != NULL && *tcp_seq == skb_info->tcp_seq) {
-        return true;
-    }
+    return tcp_seq != NULL && *tcp_seq == skb_info->tcp_seq;
+}
 
-    bpf_map_update_with_telemetry(connection_states, tup, &skb_info->tcp_seq, BPF_ANY);
-    return false;
+// Saves the current TCP sequence number in the connection states map. This is used to prevent
+// dispatching the same packet multiple times. The sequence number is only saved if the packet is not
+// a TCP termination packet. This is to avoid saving the sequence number of packets that are not
+// part of the connection anymore.
+static __always_inline void cache_tcp_seq(conn_tuple_t *tup, skb_info_t *skb_info) {
+    if (skb_info && skb_info->tcp_seq && !is_tcp_termination(skb_info)) {
+        bpf_map_update_with_telemetry(connection_states, tup, &skb_info->tcp_seq, BPF_ANY);
+    }
+}
+
+// Checks if the protocol is supported and enabled by the dispatcher. This is used to determine if we should
+// dispatch the packet to the protocol dispatcher or not.
+static __always_inline bool is_protocol_supported_for_dispatcher(protocol_t proto) {
+    switch (proto) {
+    case PROTOCOL_HTTP:
+        return is_http_monitoring_enabled();
+    case PROTOCOL_HTTP2:
+        return is_http2_monitoring_enabled();
+    case PROTOCOL_POSTGRES:
+        return is_postgres_monitoring_enabled();
+    case PROTOCOL_REDIS:
+        return is_redis_monitoring_enabled();
+    case PROTOCOL_KAFKA:
+        return is_kafka_monitoring_enabled();
+    default:
+        return false;
+    }
 }
 
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param
@@ -116,21 +140,19 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
 
     // Making sure we've not processed the same tcp segment, which can happen when a single packet travels different
     // interfaces.
-    if (has_sequence_seen_before(&skb_tup, &skb_info)) {
-        return;
-    }
-
-    if (tcp_termination) {
-        bpf_map_delete_elem(&connection_states, &skb_tup);
-    }
-
+    bool processed_packet = has_sequence_seen_before(&skb_tup, &skb_info);
     protocol_stack_t *stack = get_protocol_stack_if_exists(&skb_tup);
 
     protocol_t cur_fragment_protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     if (tcp_termination) {
+        bpf_map_delete_elem(&connection_states, &skb_tup);
         dispatcher_delete_protocol_stack(&skb_tup, stack);
     } else if (is_protocol_layer_known(stack, LAYER_ENCRYPTION)) {
         // If we have a TLS connection and we're not in the middle of a TCP termination, we can skip the packet.
+        return;
+    }
+
+    if (processed_packet) {
         return;
     }
 
@@ -162,7 +184,10 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         }
     }
 
-    if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+    if (is_protocol_supported_for_dispatcher(cur_fragment_protocol)) {
+        // We need to make sure we don't dispatch the same packet multiple times.
+        cache_tcp_seq(&skb_tup, &skb_info);
+
         // dispatch if possible
         const u32 zero = 0;
         dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
@@ -199,6 +224,8 @@ static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
     }
 
     if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+        // We need to make sure we don't dispatch the same packet multiple times.
+        cache_tcp_seq(&skb_tup, &skb_info);
         // dispatch if possible
         const u32 zero = 0;
         dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
