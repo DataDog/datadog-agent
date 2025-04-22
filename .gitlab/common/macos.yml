@@ -23,13 +23,19 @@
     export PATH="$(pyenv root)/shims:$PATH"
     eval "$(pyenv init -)"
     eval "$(pyenv virtualenv-init -)"
-  - PYTHON_VERSION=$(python3 --version | awk '{print $2}')
+  - PYTHON_VERSION=3.12.6
   - VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
   - VENV_PATH="$(pyenv root)/versions/$VENV_NAME"
   - echo "Using Python $PYTHON_VERSION..."
   - |
     # Check if the virtual environment directory exists
     if [ ! -d "$VENV_PATH" ]; then
+      # Install target python if necessary
+      if [ ! -d "$(pyenv root)/versions/$PYTHON_VERSION" ]; then
+        echo "Installing Python $PYTHON_VERSION..."
+        pyenv install "$PYTHON_VERSION"
+      fi
+
       echo "Creating virtual environment '$VENV_NAME'..."
       pyenv virtualenv "$PYTHON_VERSION" "$VENV_NAME"
     else
