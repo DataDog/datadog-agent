@@ -129,13 +129,12 @@ func (m *Check) calculateCPUPercentage(currentTimes *cpu.TimesStat) float64 {
 func (m *Check) Run() error {
 	// Don't run again if the flare has already been generated
 	if m.flareGenerated {
-		log.Debugf("Flare with profiles already attempted to generate, skipping further check runs.")
 		return nil
 	}
 
 	// Exit early if both thresholds are disabled
 	if m.memoryThreshold == 0 && m.instance.CPUThreshold <= 0 {
-		c.Warn("Memory and CPU profile thresholds are disabled, skipping check.")
+		m.Warn("Memory and CPU profile thresholds are disabled, skipping check.")
 		return nil
 	}
 
@@ -151,7 +150,7 @@ func (m *Check) Run() error {
 		// Get process memory info
 		memInfo, err := p.MemoryInfo()
 		if err != nil {
-			return fmt.Errorf("Failed to get agent memory info: %s", err)
+			return fmt.Errorf("Failed to get agent memory info: %w", err)
 		}
 
 		// RSS (Resident Set Size) represents the total memory allocated to the process
@@ -165,13 +164,13 @@ func (m *Check) Run() error {
 		// Get the current process (agent)
 		p, err := process.NewProcess(int32(os.Getpid()))
 		if err != nil {
-			return fmt.Errorf("Failed to get agent process: %s", err)
+			return fmt.Errorf("Failed to get agent process: %w", err)
 		}
 
 		// Get the total CPU time used by the process
 		cpuTimes, err := p.Times()
 		if err != nil {
-			return fmt.Errorf("Failed to get agent CPU times: %s", err)
+			return fmt.Errorf("Failed to get agent CPU times: %w", err)
 		}
 
 		// Calculate CPU percentage since last check
@@ -221,13 +220,12 @@ func (m *Check) generateFlare() error {
 		userHandle := m.instance.UserEmail
 		response, err := m.flareComponent.Send(flarePath, caseID, userHandle, helpers.NewLocalFlareSource())
 		if err != nil {
-			// Add debugging logs to capture the response from Datadog backend
-			log.Errorf("Datadog backend response: %s", response)
-			return fmt.Errorf("Failed to send flare: %w", err)
+			// Include the user-friendly response message in the error
+			return fmt.Errorf("Failed to send flare: %s (%w)", response, err)
 		}
-		log.Infof("Flare sent with case ID %s", m.instance.TicketID)
+		log.Infof("Flare sent with case ID %q", m.instance.TicketID)
 	} else {
-		log.Infof("Flare generated locally at %s", flarePath)
+		log.Infof("Flare generated locally at %q", flarePath)
 	}
 
 	// Mark flare as generated to stop future runs
