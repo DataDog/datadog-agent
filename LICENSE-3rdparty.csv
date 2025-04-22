@@ -1302,7 +1302,6 @@ core,github.com/judwhite/go-svc,MIT,Copyright (c) 2016 Jud White
 core,github.com/julienschmidt/httprouter,BSD-3-Clause,"Copyright (c) 2013, Julien Schmidt"
 core,github.com/justincormack/go-memfd,MIT,Copyright (c) 2017 Justin Cormack
 core,github.com/justincormack/go-memfd/msyscall,MIT,Copyright (c) 2017 Justin Cormack
-core,github.com/kardianos/osext,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved
 core,github.com/kballard/go-shellquote,MIT,Copyright (C) 2014 Kevin Ballard
 core,github.com/kjk/lzma,BSD-3-Clause,"Copyright (c) 2010, Andrei Vieru. All rights reserved"
 core,github.com/klauspost/compress,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company

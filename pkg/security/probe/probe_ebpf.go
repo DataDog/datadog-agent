@@ -2349,7 +2349,9 @@ func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
 
 // initManagerOptions initializes the eBPF manager options
 func (p *EBPFProbe) initManagerOptions() error {
-	p.managerOptions = ebpf.NewDefaultOptions()
+	kretprobeMaxActive := p.config.Probe.EventStreamKretprobeMaxActive
+
+	p.managerOptions = ebpf.NewDefaultOptions(kretprobeMaxActive)
 	p.initManagerOptionsActivatedProbes()
 	p.initManagerOptionsConstants()
 	p.initManagerOptionsTailCalls()
