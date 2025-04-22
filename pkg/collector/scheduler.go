@@ -195,7 +195,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 		if config.Name == "snmp" && selectedInstanceLoader == "" {
 			loaderList = slices.Clone(s.loaders)
 			if len(loaderList) == 2 && loaderList[0].Name() == "python" && loaderList[1].Name() == "core" {
-				loaderList[0], loaderList[1] = loaderList[1], loaderList[0]
+				loaderList = []check.Loader{loaderList[1], loaderList[0]}
 			}
 		}
 
