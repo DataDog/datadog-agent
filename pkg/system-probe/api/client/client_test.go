@@ -23,10 +23,9 @@ func startTestServer(t *testing.T, handler http.Handler) (string, *httptest.Serv
 	socketPath := testutil.SystemProbeSocketPath(t)
 	server, err := testutil.NewSystemProbeTestServer(handler, socketPath)
 	require.NoError(t, err)
-	if server != nil {
-		server.Start()
-		t.Cleanup(server.Close)
-	}
+	require.NotNil(t, server)
+	server.Start()
+	t.Cleanup(server.Close)
 
 	return socketPath, server
 }
