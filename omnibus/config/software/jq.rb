@@ -39,7 +39,6 @@ build do
 
   # Configure with standard options
   configure_options = [
-    "--prefix=#{install_dir}/embedded",
     "--disable-maintainer-mode",
     "--disable-dependency-tracking",
     "--disable-silent-rules",
