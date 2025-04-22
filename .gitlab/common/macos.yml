@@ -19,19 +19,38 @@
 
 .select_python_env_commands:
   # Select the virtualenv using the current Python version. Create it if it doesn't exist.
-  - PYTHON_VERSION=$(python3 --version | awk '{print $2}')
+  - |
+    export PATH="$(pyenv root)/shims:$PATH"
+    eval "$(pyenv init -)"
+    eval "$(pyenv virtualenv-init -)"
+  - PYTHON_VERSION=3.12.6
   - VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
   - VENV_PATH="$(pyenv root)/versions/$VENV_NAME"
   - echo "Using Python $PYTHON_VERSION..."
   - |
     # Check if the virtual environment directory exists
     if [ ! -d "$VENV_PATH" ]; then
+      # Install target python if necessary
+      if [ ! -d "$(pyenv root)/versions/$PYTHON_VERSION" ]; then
+        echo "Installing Python $PYTHON_VERSION..."
+        pyenv install "$PYTHON_VERSION"
+      fi
+
       echo "Creating virtual environment '$VENV_NAME'..."
       pyenv virtualenv "$PYTHON_VERSION" "$VENV_NAME"
     else
       echo "Virtual environment '$VENV_NAME' already exists. Skipping creation."
     fi
   - pyenv activate $VENV_NAME
+
+.install_python_dependencies:
+  # Python 3.12 changes default behavior how packages are installed.
+  # In particular, --break-system-packages command line option is
+  # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
+  - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
+  - pyenv rehash
+  - python3 -m dda self dep sync -f legacy-tasks
+  - pyenv rehash
 
 .vault_login:
   # Point the CLI to our internal vault
@@ -46,16 +65,10 @@
       export GOPATH=$GOROOT
     # Selecting the current Python version
     - !reference [.select_python_env_commands]
+    - !reference [.install_python_dependencies]
     # List Python and Go existing environments and their disk space
     - !reference [.list_go_versions_commands]
     - !reference [.list_python_versions_commands]
-    # Installing the job dependencies
-    # Python 3.12 changes default behavior how packages are installed.
-    # In particular, --break-system-packages command line option is
-    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
-    - python3 -m dda self dep sync -f legacy-tasks
-    - pyenv rehash
-    - dda inv -e rtloader.make
-    - dda inv -e rtloader.install
-    - dda inv -e install-tools
+    - dda inv -- -e rtloader.make
+    - dda inv -- -e rtloader.install
+    - dda inv -- -e install-tools
