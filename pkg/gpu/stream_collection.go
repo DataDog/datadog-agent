@@ -250,8 +250,8 @@ func cleanHandlerMap[K comparable](sc *streamCollection, handlerMap map[K]*Strea
 	for key, handler := range handlerMap {
 		deleteReason := ""
 
-		if handler.processEnded {
-			deleteReason = "process_ended"
+		if handler.ended {
+			deleteReason = "ended"
 		} else if handler.isInactive(nowKtime, sc.maxStreamInactivity) {
 			deleteReason = "inactive"
 		}

@@ -12,7 +12,7 @@ target:
   memory_allotment: 850 MiB
 
   environment:
-    DD_API_KEY: 00000001
+    DD_API_KEY: a0000001
     DD_HOSTNAME: smp-regression
 
   profiling_environment:

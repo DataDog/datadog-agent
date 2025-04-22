@@ -20,9 +20,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"text/template"
 	"time"
 
+	"go.uber.org/atomic"
+
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -71,7 +73,7 @@ const (
   From {{if $ts.Tags.Lang}}{{ $ts.Tags.Lang }} {{ $ts.Tags.LangVersion }} ({{ $ts.Tags.Interpreter }}), client {{ $ts.Tags.TracerVersion }}{{else}}unknown clients{{end}}
     Traces received: {{ $ts.Stats.TracesReceived }} ({{ $ts.Stats.TracesBytes }} bytes)
     Spans received: {{ $ts.Stats.SpansReceived }}
-    {{ with $ts.WarnString }}
+    {{ with WarnString $ts }}
     WARNING: {{ . }}
     {{end}}
 
@@ -87,10 +89,10 @@ const (
 
   --- Writer stats (1 min) ---
 
-  Traces: {{.Status.TraceWriter.Payloads}} payloads, {{.Status.TraceWriter.Traces}} traces, {{if gt .Status.TraceWriter.Events.Load 0}}{{.Status.TraceWriter.Events.Load}} events, {{end}}{{.Status.TraceWriter.Bytes}} bytes
-  {{if gt .Status.TraceWriter.Errors.Load 0}}WARNING: Traces API errors (1 min): {{.Status.TraceWriter.Errors.Load}}{{end}}
-  Stats: {{.Status.StatsWriter.Payloads.Load}} payloads, {{.Status.StatsWriter.StatsBuckets.Load}} stats buckets, {{.Status.StatsWriter.Bytes.Load}} bytes
-  {{if gt .Status.StatsWriter.Errors.Load 0}}WARNING: Stats API errors (1 min): {{.Status.StatsWriter.Errors.Load}}{{end}}
+  Traces: {{.Status.TraceWriter.Payloads}} payloads, {{.Status.TraceWriter.Traces}} traces, {{if gt (Load .Status.TraceWriter.Events) 0}}{{Load .Status.TraceWriter.Events}} events, {{end}}{{.Status.TraceWriter.Bytes}} bytes
+  {{if gt (Load .Status.TraceWriter.Errors) 0}}WARNING: Traces API errors (1 min): {{Load .Status.TraceWriter.Errors}}{{end}}
+  Stats: {{Load .Status.StatsWriter.Payloads}} payloads, {{Load .Status.StatsWriter.StatsBuckets}} stats buckets, {{Load .Status.StatsWriter.Bytes}} bytes
+  {{if gt (Load .Status.StatsWriter.Errors) 0}}WARNING: Stats API errors (1 min): {{Load .Status.StatsWriter.Errors}}{{end}}
 `
 
 	notRunningTmplSrc = `{{.Banner}}
@@ -329,6 +331,8 @@ func initInfo(conf *config.AgentConfig) error {
 		"percent": func(v float64) string {
 			return fmt.Sprintf("%02.1f", v*100)
 		},
+		"WarnString": func(ts *TagStats) string { return ts.WarnString() },
+		"Load":       func(i atomic.Int64) int64 { return i.Load() },
 	}
 	expvar.NewString("pid").Set(strconv.Itoa(os.Getpid()))
 	expvar.Publish("uptime", expvar.Func(publishUptime))

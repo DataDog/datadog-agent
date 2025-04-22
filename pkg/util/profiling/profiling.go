@@ -117,7 +117,6 @@ func GetBaseProfilingTags(extraTags []string) []string {
 	tags := make([]string, 0, len(extraTags)+2)
 	tags = append(tags, extraTags...)
 	tags = append(tags, fmt.Sprintf("version:%v", version.AgentVersion))
-	// Tag __dd_internal_profiling:datadog-agent is used to waive costs for internal profiling
 	tags = append(tags, "__dd_internal_profiling:datadog-agent")
 	return tags
 }

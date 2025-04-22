@@ -219,7 +219,7 @@ func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, _ *prob
 			return true
 		}
 
-		s := serializers.NewEventSerializer(ev, rule.Opts)
+		s := serializers.NewEventSerializer(ev, rule)
 		if s == nil {
 			return false
 		}

@@ -1746,6 +1746,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			if tt.wantSkipInjection {
 				return
 			}
+
 			c.Mutators = mutator.core.newInitContainerMutators(requirements)
 			initalInitContainerCount := len(tt.pod.Spec.InitContainers)
 			err = c.mutatePod(tt.pod)
@@ -1892,7 +1893,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 		setupConfig               funcs
 	}{
 		{
-			name: "inject all with dotnet-profiler",
+			name: "inject all with dotnet-profiler no service name when SSI disabled",
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
@@ -2516,10 +2517,15 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				ParentKind: "replicaset",
 				ParentName: "test-deployment-123",
 			}.Create(),
-			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...), corev1.EnvVar{
-				Name:  "DD_SERVICE",
-				Value: "test-deployment",
-			},
+			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
+				corev1.EnvVar{
+					Name:  "DD_SERVICE",
+					Value: "test-deployment",
+				},
+				corev1.EnvVar{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-deployment",
+				},
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_single_step",
@@ -2545,10 +2551,15 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				ParentKind: "statefulset",
 				ParentName: "test-statefulset-123",
 			}.Create(),
-			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...), corev1.EnvVar{
-				Name:  "DD_SERVICE",
-				Value: "test-statefulset-123",
-			},
+			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
+				corev1.EnvVar{
+					Name:  "DD_SERVICE",
+					Value: "test-statefulset-123",
+				},
+				corev1.EnvVar{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-statefulset-123",
+				},
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_single_step",
@@ -2610,6 +2621,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				corev1.EnvVar{
 					Name:  "DD_SERVICE",
 					Value: "test-app",
+				},
+				corev1.EnvVar{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-app",
 				},
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
@@ -2794,6 +2809,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 					Value: "test-app",
 				},
 				{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-app",
+				},
+				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
 					Value: "true",
 				},
@@ -2862,6 +2881,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 					Value: "test-app",
 				},
 				{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-app",
+				},
+				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
 					Value: "true",
 				},
@@ -2928,6 +2951,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 					Value: "test-app",
 				},
 				corev1.EnvVar{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-app",
+				},
+				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
 					Value: installTime,
 				},
@@ -2963,6 +2990,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				corev1.EnvVar{
 					Name:  "DD_SERVICE",
 					Value: "test-app",
+				},
+				corev1.EnvVar{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-app",
 				},
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
@@ -3002,6 +3033,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 					Value: "test-app",
 				},
 				corev1.EnvVar{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-app",
+				},
+				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
 					Value: installTime,
 				},
@@ -3037,6 +3072,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				corev1.EnvVar{
 					Name:  "DD_SERVICE",
 					Value: "test-app",
+				},
+				corev1.EnvVar{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-app",
 				},
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
@@ -3412,7 +3451,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 					}
 				}
 				if !found {
-					require.Failf(t, "Unexpected env var injected in container", contEnv.Name)
+					require.Failf(t, "Unexpected env var injected in container", "env=%+v", contEnv)
 				}
 			}
 
