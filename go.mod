@@ -112,7 +112,6 @@ require (
 	github.com/invopop/jsonschema v0.12.0
 	github.com/itchyny/gojq v0.12.16
 	github.com/json-iterator/go v1.1.12
-	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/mailru/easyjson v0.9.0
