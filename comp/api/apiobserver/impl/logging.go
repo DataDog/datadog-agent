@@ -31,13 +31,8 @@ func getLogFunc(code int) logFunc {
 	return func(format string, args ...interface{}) { log.Errorf(format, args...) }
 }
 
-// LogResponseHandler is a middleware that logs the response code and other various information about the request
-func LogResponseHandler(servername string) mux.MiddlewareFunc {
-	return logResponseHandler(servername, getLogFunc, clock.New())
-}
-
-// logResponseHandler takes getLogFunc as a parameter to allow for testing
-func logResponseHandler(serverName string, getLogFunc func(int) logFunc, clock clock.Clock) mux.MiddlewareFunc {
+// LogResponseMiddleware takes getLogFunc as a parameter to allow for testing
+func LogResponseMiddleware(serverName string, getLogFunc func(int) logFunc, clock clock.Clock) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var statusCode int

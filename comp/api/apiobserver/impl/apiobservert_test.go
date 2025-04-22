@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apiobserver "github.com/DataDog/datadog-agent/comp/api/apiobserver/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -57,7 +58,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 			clock := clock.NewMock()
 			telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 			tm := newComponentWithClock(telemetry, clock)
-			telemetryHandler := tm.Comp.Middleware(serverName, NoopAuthTagGetter)
+			telemetryHandler := tm.Comp.TelemetryMiddleware(serverName, NoopAuthTagGetter)
 
 			var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {
 				clock.Add(tc.duration)
@@ -79,7 +80,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 			require.NoError(t, err)
 			resp.Body.Close()
 
-			observabilityMetric, err := telemetry.GetHistogramMetric(MetricSubsystem, MetricName)
+			observabilityMetric, err := telemetry.GetHistogramMetric(apiobserver.MetricSubsystem, apiobserver.MetricName)
 			require.NoError(t, err)
 
 			require.Len(t, observabilityMetric, 1)
@@ -103,7 +104,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 
 func TestTelemetryMiddlewareDuration(t *testing.T) {
 	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	telemetryHandler := NewComponent(Requires{telemetry}).Comp.Middleware("test", NoopAuthTagGetter)
+	telemetryHandler := NewComponent(Requires{telemetry}).Comp.TelemetryMiddleware("test", NoopAuthTagGetter)
 
 	var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -128,8 +129,8 @@ func TestTelemetryMiddlewareTwice(t *testing.T) {
 	// test that we can create multiple middleware instances
 	// Prometheus metrics can be registered only once, this test enforces that the metric
 	// is not created in the Middleware itself
-	_ = tm.Comp.Middleware("test1", NoopAuthTagGetter)
-	_ = tm.Comp.Middleware("test2", NoopAuthTagGetter)
+	_ = tm.Comp.TelemetryMiddleware("test1", NoopAuthTagGetter)
+	_ = tm.Comp.TelemetryMiddleware("test2", NoopAuthTagGetter)
 }
 
 func NoopAuthTagGetter(_ *http.Request) string {

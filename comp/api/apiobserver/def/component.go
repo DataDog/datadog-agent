@@ -14,7 +14,15 @@ import (
 
 // team: agent-runtimes
 
+const (
+	// MetricSubsystem is the subsystem for the metric
+	MetricSubsystem = "api_server"
+	// MetricName is the name of the metric
+	MetricName = "request_duration_seconds"
+)
+
 // Component is the component type.
 type Component interface {
-	Middleware(serverName string, authTagGetter func(r *http.Request) string) mux.MiddlewareFunc
+	TelemetryMiddleware(serverName string, authTagGetter func(r *http.Request) string) mux.MiddlewareFunc
+	LogResponseMiddleware(servername string) mux.MiddlewareFunc
 }

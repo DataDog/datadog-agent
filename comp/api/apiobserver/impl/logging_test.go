@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLogResponseHandlerCallsNext(t *testing.T) {
+func TestLogResponseMiddlewareCallsNext(t *testing.T) {
 	var testStatusCodes = []int{
 		http.StatusContinue,
 		http.StatusOK,
@@ -37,7 +37,7 @@ func TestLogResponseHandlerCallsNext(t *testing.T) {
 				w.WriteHeader(code)
 			})
 
-			handler := LogResponseHandler("TestServer")(nextHandler)
+			handler := LogResponseMiddleware("TestServer", getLogFunc, clock.New())(nextHandler)
 			handler.ServeHTTP(rr, req)
 
 			assert.Equal(t, code, rr.Code)
@@ -45,7 +45,7 @@ func TestLogResponseHandlerCallsNext(t *testing.T) {
 	}
 }
 
-func TestLogResponseHandlerLogging(t *testing.T) {
+func TestLogResponseMiddlewareLogging(t *testing.T) {
 	serverName := "TestServer"
 
 	testCases := []struct {
@@ -127,7 +127,7 @@ func TestLogResponseHandlerLogging(t *testing.T) {
 				w.WriteHeader(tt.statusCode)
 			})
 
-			logHandler := logResponseHandler(serverName, getLogFunc, clock)
+			logHandler := LogResponseMiddleware(serverName, getLogFunc, clock)
 			handler := http.StripPrefix(tt.stripPrefix, logHandler(next))
 
 			rr := httptest.NewRecorder()
