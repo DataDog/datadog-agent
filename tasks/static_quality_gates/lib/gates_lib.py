@@ -33,11 +33,15 @@ def argument_extractor(entry_args, **kwargs) -> SimpleNamespace:
 def byte_to_string(size):
     if not size:
         return "0 B"
+    sign = ""
+    if size < 0:
+        size *= -1
+        sign = "-"
     size_name = ("B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB")
     i = int(math.log(size, 1024))
     p = math.pow(1024, i)
     s = round(size / p, 2)
-    return f"{s} {size_name[i]}"
+    return f"{sign}{s} {size_name[i]}"
 
 
 def string_to_byte(size: str):
