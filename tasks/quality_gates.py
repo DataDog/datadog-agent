@@ -99,7 +99,7 @@ def _print_quality_gates_report(gate_states: list[dict[str, typing.Any]]):
 
 
 @task
-def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
+def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH, threshold_update_run=False):
     """
     Parse and executes static quality gates
     :param ctx: Invoke context
@@ -120,13 +120,8 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
     final_state = "success"
     gate_states = []
 
-    threshold_update_run = False
     nightly_run = False
     branch = os.environ["CI_COMMIT_BRANCH"]
-    bucket_branch = os.environ["BUCKET_BRANCH"]
-    # we avoid nightly pipelines because they have different package size than the main branch
-    if branch == "main" and bucket_branch != "nightly" and is_first_commit_of_the_day(ctx):
-        threshold_update_run = True
 
     DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")
     if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
@@ -169,7 +164,7 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
         display_pr_comment(ctx, final_state == "success", gate_states, metric_handler)
 
     # Generate PR to update static quality gates threshold once per day (scheduled main pipeline by conductor)
-    if threshold_update_run or True:
+    if threshold_update_run:
         pr_url = update_quality_gates_threshold(ctx, metric_handler, github)
         notify_threshold_update(pr_url)
 
