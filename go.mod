@@ -33,13 +33,13 @@ require (
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0
 	github.com/DataDog/datadog-agent/pkg/trace v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.64.3
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.64.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.3
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	// TODO: pin to an operator released version once there is a release that includes the api module
 	github.com/DataDog/datadog-operator/api v0.0.0-20250417130148-1aa8dc0fc964
-	github.com/DataDog/ebpf-manager v0.7.10
+	github.com/DataDog/ebpf-manager v0.7.11
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0
@@ -68,7 +68,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.17.4-0.20250317113418-0bfb15fb2261
+	github.com/cilium/ebpf v0.18.0
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/containerd v1.7.27
 	github.com/containernetworking/cni v1.2.3
@@ -645,8 +645,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.64.1
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.64.1
-	github.com/DataDog/datadog-agent/pkg/version v0.64.1
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.64.3
+	github.com/DataDog/datadog-agent/pkg/version v0.64.3
 	github.com/DataDog/go-libddwaf/v3 v3.5.2
 	github.com/DataDog/go-sqllexer v0.1.3
 	github.com/Datadog/dublin-traceroute v0.0.2
