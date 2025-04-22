@@ -8,4 +8,4 @@
 ---
 upgrade:
   - |
-    Update go-sqllexer to 0.1.6
+    Update go-sqllexer to 0.1.6.
