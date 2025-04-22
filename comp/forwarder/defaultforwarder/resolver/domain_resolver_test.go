@@ -12,6 +12,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSingleDomainResolverDedupedKey(t *testing.T) {
@@ -21,7 +22,8 @@ func TestSingleDomainResolverDedupedKey(t *testing.T) {
 		utils.NewAPIKeys("multi_region_failover.api_key", "key2"),
 	}
 
-	resolver := NewSingleDomainResolver("example.com", apiKeys)
+	resolver, err := NewSingleDomainResolver("example.com", apiKeys)
+	require.NoError(t, err)
 
 	assert.Equal(t, resolver.dedupedAPIKeys,
 		[]string{"key1", "key2"})
@@ -33,7 +35,8 @@ func TestSingleDomainUpdateAPIKeys(t *testing.T) {
 		utils.NewAPIKeys("additional_endpoints", "key1", "key2", "key3"),
 	}
 
-	resolver := NewSingleDomainResolver("example.com", apiKeys)
+	resolver, err := NewSingleDomainResolver("example.com", apiKeys)
+	require.NoError(t, err)
 
 	resolver.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", "key4", "key2", "key3")})
 

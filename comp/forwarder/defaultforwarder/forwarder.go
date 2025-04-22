@@ -54,9 +54,16 @@ func createOptions(params Params, config config.Component, log log.Component) *O
 	}
 
 	if !params.withResolver {
-		options = NewOptions(config, log, keysPerDomain)
+		options, err = NewOptions(config, log, keysPerDomain)
+		if err != nil {
+			log.Error("Error creating forwarder options: ", err)
+		}
 	} else {
-		options = NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))
+		r, err := resolver.NewSingleDomainResolvers(keysPerDomain)
+		if err != nil {
+			log.Error("Error creating resolver: ", err)
+		}
+		options = NewOptionsWithResolvers(config, log, r)
 	}
 	// Override the DisableAPIKeyChecking only if WithFeatures was called
 	if disableAPIKeyChecking, ok := params.disableAPIKeyCheckingOverride.Get(); ok {
@@ -98,7 +105,8 @@ func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, i
 }
 
 func newMockForwarder(config config.Component, log log.Component) provides {
+	options, _ := NewOptions(config, log, nil)
 	return provides{
-		Comp: NewDefaultForwarder(config, log, NewOptions(config, log, nil)),
+		Comp: NewDefaultForwarder(config, log, options),
 	}
 }
