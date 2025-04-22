@@ -4345,9 +4345,9 @@ api_key:
 
 ## @param config_id - string - optional
 ## The config_id configuration is used by Fleet Automation and High Availability Agent
-## to assign specific Config ID to an Agent.
-## For High Availability, all agents with the same config_id with be part of the same group of agents;
-## meaning that, one agent within this group will be designated as primary and others as standby.
+## to assign a specific config ID to an Agent.
+## For High Availability, all Agents with the same config_id with be part of the same group of Agents;
+## meaning that, one Agent within this group is designated as primary and others as standby.
 #
 # config_id:
 
