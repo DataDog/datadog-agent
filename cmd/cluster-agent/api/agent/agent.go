@@ -23,7 +23,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
-	localrecommender "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/local"
+	localautoscalingworkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -215,7 +215,7 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 
 // TODO: This needs to be converted to component style by passing a autoscaling component here
 func getAutoscalingCheck(w http.ResponseWriter, r *http.Request) {
-	response := localrecommender.GetLocalAutoscalingCheck(r.Context())
+	response := localautoscalingworkload.GetAutoscalingWorkloadCheck(r.Context())
 	if response == nil {
 		log.Debugf("No local autoscaling entities found")
 		w.WriteHeader(http.StatusNoContent)

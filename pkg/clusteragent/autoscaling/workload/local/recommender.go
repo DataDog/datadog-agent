@@ -11,14 +11,13 @@ import (
 	"context"
 	"time"
 
+	"k8s.io/utils/clock"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"k8s.io/utils/clock"
 )
 
 const (
@@ -110,48 +109,4 @@ func (r *Recommender) updateAutoscaler(key string, horizontalRecommendation *mod
 	}
 	podAutoscalerInternal.UpdateFromLocalValues(recommendation)
 	r.store.UnlockSet(podAutoscalerInternal.ID(), podAutoscalerInternal, localRecommenderID)
-}
-
-type LocalAutoscalingCheckResponse []*LocalAutoscalingListEntity
-
-type LocalAutoscalingListEntity struct {
-	EntityStatus map[string]interface{} `json:",omitempty"`
-}
-
-func defaultDisabledNamespaces() map[string]struct{} {
-	disabledNamespaces := make(map[string]struct{})
-	disabledNamespaces["kube-system"] = struct{}{}
-	disabledNamespaces["kube-public"] = struct{}{}
-	disabledNamespaces[apiServerCommon.GetResourcesNamespace()] = struct{}{}
-	return disabledNamespaces
-}
-
-// TODO: This needs to be converted to component style
-func GetLocalAutoscalingCheck(ctx context.Context) *LocalAutoscalingCheckResponse {
-	if ctx == nil || !pkgconfigsetup.Datadog().GetBool("autoscaling.failover.enabled") {
-		return nil
-	}
-	resp := LocalAutoscalingCheckResponse{}
-	lStore := loadstore.GetWorkloadMetricStore(ctx)
-	lStoreInfo := lStore.GetStoreInfo()
-	if len(lStoreInfo.StatsResults) == 0 {
-		log.Infof("No local autoscaling entities found")
-		return &resp
-	}
-	for _, statsResult := range lStoreInfo.StatsResults {
-		// Skip the disabled namespaces
-		if _, ok := defaultDisabledNamespaces()[statsResult.Namespace]; ok {
-			log.Debugf("Skipping local autoscaling entity in disabled namespace: %s", statsResult.Namespace)
-			continue
-		}
-		entity := LocalAutoscalingListEntity{
-			EntityStatus: make(map[string]interface{}),
-		}
-		entity.EntityStatus["Namespace"] = statsResult.Namespace
-		entity.EntityStatus["PodOwner"] = statsResult.PodOwner
-		entity.EntityStatus["MetricName"] = statsResult.MetricName
-		entity.EntityStatus["Datapoints(PodLevel)"] = statsResult.Count
-		resp = append(resp, &entity)
-	}
-	return &resp
 }

@@ -21,11 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestProcessScaleUp(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.failover.enabled", true)
 	testTime := time.Now().Unix()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -71,19 +69,10 @@ func TestProcessScaleUp(t *testing.T) {
 	assert.True(t, found)
 	assert.Nil(t, pai2.FallbackScalingValues().Horizontal)
 
-	localAutoscalingCheckResponse := GetLocalAutoscalingCheck(ctx)
-	assert.NotNil(t, localAutoscalingCheckResponse)
-	assert.Len(t, *localAutoscalingCheckResponse, 1)
-	entity := (*localAutoscalingCheckResponse)[0]
-	assert.Equal(t, "default", entity.EntityStatus["Namespace"].(string))
-	assert.Equal(t, "test-deployment", entity.EntityStatus["PodOwner"].(string))
-	assert.Equal(t, "container.cpu.usage", entity.EntityStatus["MetricName"].(string))
-	assert.Equal(t, 2, entity.EntityStatus["Datapoints(PodLevel)"].(int))
 	resetWorkloadMetricStore()
 }
 
 func TestProcessScaleDown(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.failover.enabled", true)
 	testTime := time.Now().Unix()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
