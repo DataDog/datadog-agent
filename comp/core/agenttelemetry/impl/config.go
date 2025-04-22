@@ -283,6 +283,14 @@ var defaultProfiles = `
           aggregate_tags:
             - kind
             - template_name
+  - name: service-discovery
+    metric:
+      metrics:
+        - name: service_discovery.discovered_services
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
 `
 
 func compileMetricsExclude(p *Profile) error {
