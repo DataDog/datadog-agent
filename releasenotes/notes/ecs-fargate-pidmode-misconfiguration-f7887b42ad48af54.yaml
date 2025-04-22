@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    ECS Linux Fargate: added one-time warning when "pidMode" is not set to "task"
