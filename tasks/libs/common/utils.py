@@ -181,7 +181,9 @@ def get_repo_root():
     """
     Get the root of the repository, where the .git directory is.
     """
-    return Path(__file__).parent.parent.parent.parent
+    import tasks
+
+    return Path(tasks.__file__).parent.parent
 
 
 def get_xcode_version(ctx):
