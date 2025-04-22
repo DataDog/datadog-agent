@@ -46,7 +46,7 @@ if windows_target?
   end
 end
 
-do build
+build do
     # Delete empty folders that can still be present when building
     # without the omnibus cache.
     # When the cache gets used, git will transparently remove empty dirs for us
