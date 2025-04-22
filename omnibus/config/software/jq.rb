@@ -48,9 +48,9 @@ build do
     "--with-oniguruma=builtin"
   ]
 
-  command "./configure #{configure_options.join(' ')}", env: env
+  configure(*configure_options, env: env)
 
   # Build and install
   command "make -j #{workers}", env: env
   command "make install", env: env
-end 
+end
