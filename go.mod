@@ -33,13 +33,13 @@ require (
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0
 	github.com/DataDog/datadog-agent/pkg/trace v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.64.3
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.64.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.3
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	// TODO: pin to an operator released version once there is a release that includes the api module
-	github.com/DataDog/datadog-operator/api v0.0.0-20250218182124-bd4ad0b8d2fd
-	github.com/DataDog/ebpf-manager v0.7.10
+	github.com/DataDog/datadog-operator/api v0.0.0-20250417130148-1aa8dc0fc964
+	github.com/DataDog/ebpf-manager v0.7.11
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0
@@ -68,7 +68,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.17.4-0.20250317113418-0bfb15fb2261
+	github.com/cilium/ebpf v0.18.0
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/containerd v1.7.27
 	github.com/containernetworking/cni v1.2.3
@@ -77,7 +77,7 @@ require (
 	github.com/cri-o/ocicni v0.4.3
 	github.com/cyphar/filepath-securejoin v0.4.1
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/docker/docker v27.5.1+incompatible
+	github.com/docker/docker v28.0.4+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-libaudit/v2 v2.5.0
@@ -333,7 +333,7 @@ require (
 	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/sys/signal v0.7.1 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/mostynb/go-grpc-compression v1.2.3 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
@@ -364,9 +364,9 @@ require (
 	github.com/tklauser/numcpus v0.9.0 // indirect
 	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc // indirect
 	github.com/twitchtv/twirp v8.1.3+incompatible // indirect
-	github.com/twmb/franz-go v1.18.1
+	github.com/twmb/franz-go v1.18.2-0.20250413173443-1d5a55fa468d
 	github.com/twmb/franz-go/pkg/kadm v1.12.0
-	github.com/twmb/franz-go/pkg/kmsg v1.9.0
+	github.com/twmb/franz-go/pkg/kmsg v1.11.2-0.20250413173443-1d5a55fa468d
 	github.com/ugorji/go/codec v1.2.11 // indirect
 	github.com/ulikunitz/xz v0.5.12 // indirect
 	github.com/vbatts/tar-split v0.11.6 // indirect
@@ -552,7 +552,7 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.146
+	github.com/DataDog/agent-payload/v5 v5.0.147
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.1
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.64.1
@@ -594,6 +594,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/api v0.63.0
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.64.1
+	github.com/DataDog/datadog-agent/pkg/config/create v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/env v0.64.1
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.64.1
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1
@@ -623,7 +624,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/status/health v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.64.1
 	github.com/DataDog/datadog-agent/pkg/tagset v0.64.1
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1
+	github.com/DataDog/datadog-agent/pkg/template v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/common v0.63.2
@@ -643,8 +645,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.64.1
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.64.1
-	github.com/DataDog/datadog-agent/pkg/version v0.64.1
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.64.3
+	github.com/DataDog/datadog-agent/pkg/version v0.64.3
 	github.com/DataDog/go-libddwaf/v3 v3.5.2
 	github.com/DataDog/go-sqllexer v0.1.3
 	github.com/Datadog/dublin-traceroute v0.0.2
@@ -660,6 +662,7 @@ require (
 	github.com/glaslos/ssdeep v0.4.0
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
 	github.com/godror/godror v0.37.0
+	github.com/gorilla/handlers v1.5.2
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/judwhite/go-svc v1.2.1
@@ -712,7 +715,6 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.3.3 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.64.0-rc.12 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/create v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.64.1 // indirect
@@ -1116,6 +1118,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ./pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ./pkg/tagset
 	github.com/DataDog/datadog-agent/pkg/telemetry => ./pkg/telemetry
+	github.com/DataDog/datadog-agent/pkg/template => ./pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
 	github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest => ./pkg/trace/stats/oteltest
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ./pkg/util/backoff
