@@ -265,7 +265,7 @@ def tag_version(
         if is_agent6(ctx) and (start_qual or is_qualification(ctx, "6.53.x")):
             # remove all the qualification tags if it is the final version
             if FINAL_VERSION_RE.match(agent_version):
-                qualification_tags = get_qualification_tags(ctx, release_branch)
+                qualification_tags = [tag for _, tag in get_qualification_tags(ctx, release_branch)]
                 push_tags_in_batches(ctx, qualification_tags, delete=True)
             # create or update the qualification tag on the current commit
             else:
@@ -545,9 +545,10 @@ def is_qualification(ctx, release_branch, output=False):
     return False
 
 
-def qualification_tag_query(ctx, release_branch):
+def qualification_tag_query(ctx, release_branch, sort=False):
     with agent_context(ctx, release_branch):
-        res = ctx.run(f"git ls-remote origin --tags --refs {QUALIFICATION_TAG}-*", hide=True)
+        sort_option = " --sort=-refname" if sort else ""
+        res = ctx.run(f"git ls-remote --tags{sort_option} origin '{QUALIFICATION_TAG}-*^{{}}'", hide=True)
         if res.stdout:
             return res.stdout.splitlines()
         return None
@@ -560,18 +561,11 @@ def get_qualification_tags(ctx, release_branch, latest_tag=False):
     Args:
         latest_tag: if True, only return the latest commit and tag
     """
-    tags = []
-    latest_ref = (0, None, None)
-    for ref in qualification_tag_query(ctx, release_branch):
-        if ref.endswith("^{}"):
-            commit, tag = ref.replace("^{}", "").split("\t")
-            if latest_tag:
-                _, timestamp = tag.split("-")
-                if int(timestamp) > latest_ref[0]:
-                    latest_ref = (int(timestamp), commit, tag)
-            else:
-                tags.append(tag)
-    return (latest_ref[1], latest_ref[2]) if latest_tag else tags
+    qualification_tags = qualification_tag_query(ctx, release_branch, sort=True)
+    if latest_tag:
+        qualification_tags = [qualification_tags[0]]
+
+    return [ref.replace("^{}", "").split("\t") for ref in qualification_tags]
 
 
 @task
@@ -655,7 +649,7 @@ def get_qualification_rc_tag(ctx, release_branch):
     with agent_context(ctx, release_branch):
         err_msg = "Error: Expected exactly one release candidate tag associated with the qualification tag commit. Tags found:"
         try:
-            latest_commit, _ = get_qualification_tags(ctx, release_branch, latest_tag=True)
+            latest_commit, _ = get_qualification_tags(ctx, release_branch, latest_tag=True)[0]
             res = ctx.run(f"git tag --points-at {latest_commit} | grep 6.53")
         except Failure as err:
             raise Exit(message=f"{err_msg} []", code=1) from err
