@@ -19,7 +19,7 @@ import (
 )
 
 // runRealtime runs the realtime ProcessCheck to collect statistics about the running processes.
-// Underying procutil.Probe is responsible for the actual implementation
+// Underlying procutil.Probe is responsible for the actual implementation
 func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 	cpuTimes, err := cpu.Times(false)
 	if err != nil {
@@ -62,7 +62,7 @@ func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 		return CombinedRunResult{}, nil
 	}
 
-	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, p.getLastConnRates())
+	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun)
 	groupSize := len(chunkedStats)
 	chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
@@ -96,7 +96,6 @@ func fmtProcessStats(
 	pidToCid map[int]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
-	connRates ProcessConnRates,
 ) [][]*model.ProcessStat {
 	chunked := make([][]*model.ProcessStat, 0)
 	chunk := make([]*model.ProcessStat, 0, maxBatchSize)
@@ -133,9 +132,6 @@ func fmtProcessStats(
 			VoluntaryCtxSwitches:   uint64(fp.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.CtxSwitches.Involuntary),
 			ContainerId:            pidToCid[int(pid)],
-		}
-		if connRates != nil {
-			stat.Networks = connRates[pid]
 		}
 
 		chunk = append(chunk, stat)

@@ -352,5 +352,10 @@ const (
 	SysLsmGetSelfAttr           Syscall = 459
 	SysLsmSetSelfAttr           Syscall = 460
 	SysLsmListModules           Syscall = 461
-	SysSyscalls                 Syscall = 462
+	SysMseal                    Syscall = 462
+	SysSetxattrat               Syscall = 463
+	SysGetxattrat               Syscall = 464
+	SysListxattrat              Syscall = 465
+	SysRemovexattrat            Syscall = 466
+	SysSyscalls                 Syscall = 467
 )

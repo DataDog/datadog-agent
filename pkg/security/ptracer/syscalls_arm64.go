@@ -15,9 +15,9 @@ import (
 
 const (
 	OpenatNr         = unix.SYS_OPENAT            // OpenatNr defines the syscall ID for arm64
-	Openat2Nr        = unix.SYS_OPENAT2           // Openat2Nr defines the syscall ID for amd64
-	NameToHandleAtNr = unix.SYS_NAME_TO_HANDLE_AT // NameToHandleAtNr defines the syscall ID for amd64
-	OpenByHandleAtNr = unix.SYS_OPEN_BY_HANDLE_AT // OpenByHandleAtNr defines the syscall ID for amd64
+	Openat2Nr        = unix.SYS_OPENAT2           // Openat2Nr defines the syscall ID for arm64
+	NameToHandleAtNr = unix.SYS_NAME_TO_HANDLE_AT // NameToHandleAtNr defines the syscall ID for arm64
+	OpenByHandleAtNr = unix.SYS_OPEN_BY_HANDLE_AT // OpenByHandleAtNr defines the syscall ID for arm64
 	ExecveNr         = unix.SYS_EXECVE            // ExecveNr defines the syscall ID for arm64
 	ExecveatNr       = unix.SYS_EXECVEAT          // ExecveatNr defines the syscall ID for arm64
 	CloneNr          = unix.SYS_CLONE             // CloneNr defines the syscall ID for arm64
@@ -58,6 +58,11 @@ const (
 	MountNr          = unix.SYS_MOUNT             // MountNr defines the syscall ID for arm64
 	Umount2Nr        = unix.SYS_UMOUNT2           // Umount2Nr defines the syscall ID for arm64
 	Pipe2Nr          = unix.SYS_PIPE2             // Pipe2Nr defines the syscall ID for arm64
+	ConnectNr        = unix.SYS_CONNECT           // ConnectNr defines the syscall ID for arm64
+	BindNr           = unix.SYS_BIND              // BindNr defines the syscall ID for arm64
+	AcceptNr         = unix.SYS_ACCEPT            // AcceptNr defines the syscall ID for arm64
+	Accept4Nr        = unix.SYS_ACCEPT4           // Accept4Nr defines the syscall ID for arm64
+	SocketNr         = unix.SYS_SOCKET            // SocketNr defines the syscall ID for arm64
 
 	OpenNr      = -1  // OpenNr not available on arm64
 	ForkNr      = -2  // ForkNr not available on arm64

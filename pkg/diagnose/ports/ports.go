@@ -8,27 +8,25 @@ package ports
 
 import (
 	"fmt"
-	"path"
 	"strings"
 
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/port"
 )
 
 var agentNames = map[string]struct{}{
-	"datadog-agent": {}, "agent": {}, "trace-agent": {},
-	"process-agent": {}, "system-probe": {}, "security-agent": {},
-	"dogstatsd": {},
+	"agent": {}, "trace-agent": {}, "process-agent": {},
+	"system-probe": {}, "security-agent": {},
 }
 
 // DiagnosePortSuite displays information about the ports used in the agent configuration
-func DiagnosePortSuite() []diagnosis.Diagnosis {
+func DiagnosePortSuite() []diagnose.Diagnosis {
 	ports, err := port.GetUsedPorts()
 	if err != nil {
-		return []diagnosis.Diagnosis{{
+		return []diagnose.Diagnosis{{
 			Name:      "ports",
-			Result:    diagnosis.DiagnosisUnexpectedError,
+			Status:    diagnose.DiagnosisUnexpectedError,
 			Diagnosis: fmt.Sprintf("Unable to get the list of used ports: %v", err),
 		}}
 	}
@@ -38,7 +36,7 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 		portMap[port.Port] = port
 	}
 
-	var diagnoses []diagnosis.Diagnosis
+	var diagnoses []diagnose.Diagnosis
 	for _, key := range pkgconfigsetup.Datadog().AllKeysLowercased() {
 		splitKey := strings.Split(key, ".")
 		keyName := splitKey[len(splitKey)-1]
@@ -54,19 +52,20 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 		port, ok := portMap[uint16(value)]
 		// if the port is used for several protocols, add a diagnose for each
 		if !ok {
-			diagnoses = append(diagnoses, diagnosis.Diagnosis{
+			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Name:      key,
-				Result:    diagnosis.DiagnosisSuccess,
+				Status:    diagnose.DiagnosisSuccess,
 				Diagnosis: fmt.Sprintf("Required port %d is not used", value),
 			})
 			continue
 		}
 
 		// TODO: check process user/group
-		if processName, ok := isAgentProcess(port.Process); ok {
-			diagnoses = append(diagnoses, diagnosis.Diagnosis{
+		processName, ok := isAgentProcess(port.Pid, port.Process)
+		if ok {
+			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Name:      key,
-				Result:    diagnosis.DiagnosisSuccess,
+				Status:    diagnose.DiagnosisSuccess,
 				Diagnosis: fmt.Sprintf("Required port %d is used by '%s' process (PID=%d) for %s", value, processName, port.Pid, port.Proto),
 			})
 			continue
@@ -74,26 +73,30 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 
 		// if the port is used by a process that is not run by the same user as the agent, we cannot retrieve the proc id
 		if port.Pid == 0 {
-			diagnoses = append(diagnoses, diagnosis.Diagnosis{
+			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Name:      key,
-				Result:    diagnosis.DiagnosisWarning,
+				Status:    diagnose.DiagnosisWarning,
 				Diagnosis: fmt.Sprintf("Required port %d is already used by an another process. Ensure this is the expected process.", value),
 			})
 			continue
 		}
 
-		diagnoses = append(diagnoses, diagnosis.Diagnosis{
+		diagnoses = append(diagnoses, diagnose.Diagnosis{
 			Name:      key,
-			Result:    diagnosis.DiagnosisFail,
-			Diagnosis: fmt.Sprintf("Required port %d is already used by '%s' process (PID=%d) for %s.", value, port.Process, port.Pid, port.Proto),
+			Status:    diagnose.DiagnosisFail,
+			Diagnosis: fmt.Sprintf("Required port %d is already used by '%s' process (PID=%d) for %s.", value, processName, port.Pid, port.Proto),
 		})
 	}
 
 	return diagnoses
 }
 
-func isAgentProcess(processName string) (string, bool) {
-	processName = path.Base(processName)
+// isAgentProcess checks if the given pid corresponds to an agent process
+func isAgentProcess(pid int, processName string) (string, bool) {
+	processName, err := RetrieveProcessName(pid, processName)
+	if err != nil {
+		return "", false
+	}
 	_, ok := agentNames[processName]
 	return processName, ok
 }

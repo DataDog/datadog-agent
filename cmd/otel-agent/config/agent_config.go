@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
@@ -181,7 +182,10 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 
 	if pkgconfig.Get("apm_config.features") == nil {
-		apmConfigFeatures := []string{"enable_receive_resource_spans_v2", "enable_operation_and_resource_name_logic_v2"}
+		apmConfigFeatures := []string{}
+		if !pkgdatadog.OperationAndResourceNameV2FeatureGate.IsEnabled() {
+			apmConfigFeatures = append(apmConfigFeatures, "disable_operation_and_resource_name_logic_v2")
+		}
 		if ddc.Traces.ComputeTopLevelBySpanKind {
 			apmConfigFeatures = append(apmConfigFeatures, "enable_otlp_compute_top_level_by_span_kind")
 		}
@@ -210,21 +214,20 @@ func getServiceConfig(cfg *confmap.Conf) (*service.Config, error) {
 
 func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
 	var configs []*datadogconfig.Config
-	var err error
 	for k, v := range cfg.ToStringMap() {
 		if k != "exporters" {
 			continue
 		}
 		exporters, ok := v.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("invalid exporters config")
+			return nil, errors.New("invalid exporters config")
 		}
 		for k, v := range exporters {
 			if strings.HasPrefix(k, "datadog") {
 				ddcfg := datadogexporter.CreateDefaultConfig().(*datadogconfig.Config)
-				m, ok := v.(map[string]any)
-				if !ok {
-					return nil, fmt.Errorf("invalid datadog exporter config")
+				m, err := setSiteIfEmpty(v)
+				if err != nil {
+					return nil, err
 				}
 				err = confmap.NewFromStringMap(m).Unmarshal(&ddcfg)
 				if err != nil {
@@ -252,4 +255,29 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
 
 	datadogConfig := configs[0]
 	return datadogConfig, nil
+}
+
+// setSiteIfEmpty sets datadog::api::site to datadoghq.com if it is an empty string (default in helm)
+// Returns an error if the input datadog exporter config is invalid
+func setSiteIfEmpty(ddcfg any) (map[string]any, error) {
+	if ddcfg == nil {
+		return nil, nil // OK if datadog section is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
+	}
+	ddcfgMap, ok := ddcfg.(map[string]any)
+	if !ok {
+		return nil, errors.New("invalid datadog exporter config")
+	}
+	apicfg, ok := ddcfgMap["api"]
+	if !ok || apicfg == nil {
+		return ddcfgMap, nil // OK if datadog::api is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
+	}
+	apicfgMap, ok := apicfg.(map[string]any)
+	if !ok {
+		return nil, errors.New("invalid datadog exporter config")
+	}
+	apiSite, ok := apicfgMap["site"]
+	if !ok || apiSite == "" {
+		apicfgMap["site"] = "datadoghq.com"
+	}
+	return ddcfgMap, nil
 }

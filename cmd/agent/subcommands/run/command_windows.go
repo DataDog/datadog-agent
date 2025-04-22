@@ -61,6 +61,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
@@ -116,6 +117,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ inventoryagent.Component,
 			_ inventoryhost.Component,
 			_ inventoryotel.Component,
+			_ haagentmetadata.Component,
 			_ secrets.Component,
 			invChecks inventorychecks.Component,
 			logsReceiver option.Option[integrations.Component],
@@ -131,7 +133,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			jmxlogger jmxlogger.Component,
 			settings settings.Component,
 			_ option.Option[gui.Component],
-			_ agenttelemetry.Component,
+			agenttelemetryComponent agenttelemetry.Component,
 		) error {
 			defer StopAgentWithDefaults()
 
@@ -160,6 +162,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				cloudfoundrycontainer,
 				jmxlogger,
 				settings,
+				agenttelemetryComponent,
 			)
 			if err != nil {
 				return err

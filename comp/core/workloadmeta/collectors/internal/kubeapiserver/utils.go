@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/discovery"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,19 +26,17 @@ import (
 // a group version resource string is in the form `{group}/{version}/{resource}` (example: apps/v1/deployments)
 // if the groupResource argument is not in the correct format, an empty string is returned
 func groupResourceToGVRString(groupResource string) string {
-	parts := strings.Split(groupResource, ".")
-
-	if len(parts) > 2 {
-		// incorrect format
-		log.Errorf("unexpected group resource format %q. correct format should be `{resource}.{group}` or `{resource}`", groupResource)
-	} else if len(parts) == 1 {
+	if len(validation.IsDNS1123Label(groupResource)) == 0 {
 		// format is `{resource}`
-		return parts[0]
-	} else {
-		// format is `{resource}/{group}`
-		return fmt.Sprintf("%s//%s", parts[1], parts[0])
+		return groupResource
+	} else if len(validation.IsDNS1123Subdomain(groupResource)) == 0 {
+		resource, group, _ := strings.Cut(groupResource, ".")
+		// format is `{group}/{version}/{resource}`
+		return fmt.Sprintf("%s//%s", group, resource)
 	}
 
+	// invalid group resource format
+	log.Errorf("invalid group resource %q. must be a valid RFC1123 subdomain in the format `{resource}.{group}` or `{resource}`", groupResource)
 	return ""
 }
 

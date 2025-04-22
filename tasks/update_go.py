@@ -7,7 +7,6 @@ from invoke.context import Context
 from invoke.tasks import task
 
 from tasks.go import tidy
-from tasks.libs.ciproviders.circleci import update_circleci_config
 from tasks.libs.ciproviders.gitlab_api import update_gitlab_config
 from tasks.libs.common.color import color_message
 from tasks.libs.common.gomodules import get_default_modules
@@ -27,14 +26,12 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     ("./devenv/scripts/Install-DevEnv.ps1", '$go_version = "', '"', True),
     ("./docs/dev/agent_dev_env.md", "[install Golang](https://golang.org/doc/install) version `", "`", True),
     ("./tasks/go.py", '"go version go', ' linux/amd64"', True),
-    ("./README.md", "[Go](https://golang.org/doc/install) ", " or later", False),
+    ("./README.md", "[Go](https://golang.org/doc/install) ", ".", False),
     ("./test/fakeintake/docs/README.md", "[Golang ", "]", False),
     ("./cmd/process-agent/README.md", "`go >= ", "`", False),
     ("./pkg/logs/launchers/windowsevent/README.md", "install go ", "+,", False),
     ("./.wwhrd.yml", "raw.githubusercontent.com/golang/go/go", "/LICENSE", True),
-    ("./docs/public/setup.md", "version `", "` or later", True),
     ("./go.work", "go ", "", False),
-    ("./go.work", "toolchain go", "", True),
 ]
 
 PATTERN_MAJOR_MINOR = r'1\.\d+'
@@ -91,14 +88,6 @@ def update_go(
             else:
                 raise
 
-        try:
-            update_circleci_config(".circleci/config.yml", image_tag, test=test)
-        except RuntimeError as e:
-            if warn:
-                print(color_message(f"WARNING: {str(e)}", "orange"))
-            else:
-                raise
-
     _update_references(warn, version)
     _update_go_mods(warn, version, include_otel_modules)
 
@@ -109,7 +98,7 @@ def update_go(
     else:
         print(
             color_message(
-                "WARNING: did not run `inv tidy` as the version of your `go` binary doesn't match the requested version",
+                "WARNING: did not run `dda inv tidy` as the version of your `go` binary doesn't match the requested version",
                 "orange",
             )
         )
@@ -134,7 +123,7 @@ def update_go(
 
 
 # replace the given pattern with the given string in the file
-def _update_file(warn: bool, path: str, pattern: str, replace: str, expected_match: int = 1, dry_run: bool = False):
+def update_file(warn: bool, path: str, pattern: str, replace: str, expected_match: int = 1, dry_run: bool = False):
     # newline='' keeps the file's newline character(s)
     # meaning it keeps '\n' for most files and '\r\n' for windows specific files
 
@@ -189,7 +178,7 @@ def _update_references(warn: bool, version: str, dry_run: bool = False):
         new_version = version if is_bugfix else new_major_minor
         replace = rf'\g<1>{new_version}\g<2>'
 
-        _update_file(warn, path, pattern, replace, dry_run=dry_run)
+        update_file(warn, path, pattern, replace, dry_run=dry_run)
 
 
 def _update_go_mods(warn: bool, version: str, include_otel_modules: bool, dry_run: bool = False):
@@ -202,7 +191,7 @@ def _update_go_mods(warn: bool, version: str, include_otel_modules: bool, dry_ru
         major_minor = _get_major_minor_version(version)
         major_minor_zero = f"{major_minor}.0"
         # $ only matches \n, not \r\n, so we need to use \r?$ to make it work on Windows
-        _update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$", f"go {major_minor_zero}", dry_run=dry_run)
+        update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$", f"go {major_minor_zero}", dry_run=dry_run)
 
 
 def _create_releasenote(ctx: Context, version: str):

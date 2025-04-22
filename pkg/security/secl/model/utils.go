@@ -22,8 +22,24 @@ func SliceToArray(src []byte, dst []byte) {
 
 // UnmarshalStringArray extract array of string for array of byte
 func UnmarshalStringArray(data []byte) ([]string, error) {
-	var result []string
 	length := uint32(len(data))
+
+	prealloc := 0
+	for i := uint32(0); i < length; {
+		if i+4 >= length {
+			break
+		}
+		// size of arg
+		n := binary.NativeEndian.Uint32(data[i : i+4])
+		if n == 0 {
+			break
+		}
+		i += 4
+		i += n
+		prealloc++
+	}
+
+	result := make([]string, 0, prealloc)
 
 	for i := uint32(0); i < length; {
 		if i+4 >= length {

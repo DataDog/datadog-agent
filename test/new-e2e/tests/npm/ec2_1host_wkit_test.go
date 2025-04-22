@@ -34,6 +34,8 @@ func TestEC2VMWKitSuite(t *testing.T) {
 // SetupSuite
 func (v *ec2VMWKitSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer v.CleanupOnSetupFailure()
 
 	v.Env().RemoteHost.MustExecute("Invoke-WebRequest -UseBasicParsing http://s3.amazonaws.com/dd-agent-mstesting/windows/pvt/nplanel/httpd-2.4.59-240404-win64-VS17.zip -OutFile httpd.zip")
 	v.Env().RemoteHost.MustExecute("Expand-Archive httpd.zip")
@@ -73,7 +75,7 @@ func (v *ec2VMWKitSuite) Test00FakeIntakeNPM_HostRequests() {
 // TestFakeIntakeNPM600cnxBucket_HostRequests Validate the agent can communicate with the (fake) backend and send connections
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
-//   - looking for n payloads and check if the last 2 have a maximum span of 100ms
+//   - looking for n payloads and check if the last 2 have a maximum span of 200ms
 func (v *ec2VMWKitSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 

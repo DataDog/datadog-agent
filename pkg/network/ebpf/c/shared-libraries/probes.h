@@ -74,7 +74,9 @@ static __always_inline void push_event_if_relevant(void *ctx, lib_path_t *path, 
     if (!is_shared_library) {
         return;
     }
-
+    if (i + LIB_SO_SUFFIX_SIZE > path->len) {
+        return;
+    }
     u64 crypto_libset_enabled = 0;
     LOAD_CONSTANT("crypto_libset_enabled", crypto_libset_enabled);
 

@@ -16,15 +16,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/otelcol"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
 
 func TestGetComponents(t *testing.T) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	_, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
 	// No duplicate component
@@ -32,7 +32,7 @@ func TestGetComponents(t *testing.T) {
 }
 
 func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
 	require.NoError(t, err)
@@ -59,7 +59,7 @@ func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 }
 
 func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
 	require.NoError(t, err)
@@ -70,16 +70,16 @@ func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
 }
 
 func TestStartPipeline(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
-	defer pkgconfigsetup.Datadog().SetWithoutSource("hostname", "")
+	cfg := pkgconfigmock.New(t)
+	cfg.SetWithoutSource("hostname", "otlp-testhostname")
 
 	pcfg := getTestPipelineConfig()
 	AssertSucessfulRun(t, pcfg)
 }
 
 func TestStartPipelineFromConfig(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
-	defer pkgconfigsetup.Datadog().SetWithoutSource("hostname", "")
+	cfg := pkgconfigmock.New(t)
+	cfg.SetWithoutSource("hostname", "otlp-testhostname")
 
 	tests := []struct {
 		path string

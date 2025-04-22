@@ -95,6 +95,11 @@ message ContainerState {
   int64 exitCode = 7;
 }
 
+message ContainerAllocatedResource {
+  string Name = 1;
+  string ID = 2;
+}
+
 message Container {
   WorkloadmetaEntityId entityId = 1;
   EntityMeta entityMeta = 2;
@@ -108,6 +113,7 @@ message Container {
   ContainerState state = 10;
   repeated string collectorTags = 11;
   string cgroupPath = 12;
+  repeated ContainerAllocatedResource allocatedResources = 13;
 }
 
 message KubernetesPodOwner {

@@ -5,13 +5,14 @@
 
 //go:build linux_bpf
 
-// Package diconfig provides utlity that allows dynamic instrumentation to receive and
+// Package diconfig provides utilities that allows dynamic instrumentation to receive and
 // manage probe configurations from users
 package diconfig
 
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/google/uuid"
@@ -58,6 +59,7 @@ type ConfigManager interface {
 
 // RCConfigManager is the configuration manager which utilizes remote-config
 type RCConfigManager struct {
+	sync.RWMutex
 	procTracker *proctracker.ProcessTracker
 
 	diProcs  ditypes.DIProcs
@@ -80,15 +82,19 @@ func NewRCConfigManager() (*RCConfigManager, error) {
 	return cm, nil
 }
 
-// GetProcInfos returns the state of the RCConfigManager
+// GetProcInfos returns a copy of the state of the RCConfigManager
 func (cm *RCConfigManager) GetProcInfos() ditypes.DIProcs {
+	cm.RLock()
+	defer cm.RUnlock()
 	return cm.diProcs
 }
 
 // Stop closes the config and proc trackers used by the RCConfigManager
 func (cm *RCConfigManager) Stop() {
+	cm.Lock()
+	defer cm.Unlock()
 	cm.procTracker.Stop()
-	for _, procInfo := range cm.GetProcInfos() {
+	for _, procInfo := range cm.diProcs {
 		procInfo.CloseAllUprobeLinks()
 	}
 }
@@ -99,6 +105,8 @@ func (cm *RCConfigManager) Stop() {
 // It compares the previously known state of services on the machine and creates a hook on the remote-config
 // callback for configurations on new ones, and deletes the hook on old ones.
 func (cm *RCConfigManager) updateProcesses(runningProcs ditypes.DIProcs) {
+	cm.Lock()
+	defer cm.Unlock()
 	// Remove processes that are no longer running from state and close their uprobe links
 	for pid, procInfo := range cm.diProcs {
 		_, ok := runningProcs[pid]
@@ -126,19 +134,20 @@ func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) err
 
 	svcConfigProbe := *configProbe
 	svcConfigProbe.ServiceName = procInfo.ServiceName
-	procInfo.ProbesByID[configProbe.ID] = &svcConfigProbe
+	procInfo.ProbesByID.Set(configProbe.ID, &svcConfigProbe)
+
 	log.Infof("Installing config probe for service: %s", svcConfigProbe.ServiceName)
-	err = AnalyzeBinary(procInfo)
-	if err != nil {
-		return fmt.Errorf("could not analyze binary for config probe: %w", err)
+	procInfo.TypeMap = &ditypes.TypeMap{
+		Functions: make(map[string][]*ditypes.Parameter),
 	}
+	procInfo.TypeMap.Functions[ditypes.RemoteConfigCallback] = remoteConfigCallbackTypeMapEntry
 
 	err = codegen.GenerateBPFParamsCode(procInfo, configProbe)
 	if err != nil {
 		return fmt.Errorf("could not generate bpf code for config probe: %w", err)
 	}
 
-	err = ebpf.CompileBPFProgram(procInfo, configProbe)
+	err = ebpf.CompileBPFProgram(configProbe)
 	if err != nil {
 		return fmt.Errorf("could not compile bpf code for config probe: %w", err)
 	}
@@ -182,25 +191,27 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 		}
 		configEventParams := configEvent.Argdata
 		if len(configEventParams) != 3 {
-			log.Errorf("error parsing configuration for PID: %d: not enough arguments", procInfo.PID)
+			log.Errorf("error parsing configuration for PID: %d: not enough arguments (got %d): %s", procInfo.PID, len(configEventParams), string(record.RawSample))
 			continue
 		}
 
 		runtimeID, err := uuid.ParseBytes([]byte(configEventParams[0].ValueStr))
 		if err != nil {
-			log.Errorf("Runtime ID \"%s\" is not a UUID: %v)", runtimeID, err)
+			log.Errorf("Runtime ID \"%s\" is not a UUID: %v)", configEventParams[0].ValueStr, err)
 			continue
 		}
 
 		configPath, err := ditypes.ParseConfigPath(string(configEventParams[1].ValueStr))
 		if err != nil {
-			log.Errorf("couldn't parse config path: %v", err)
+			log.Errorf("couldn't parse config path (%s): %v", string(configEventParams[1].ValueStr), err)
 			continue
 		}
 
 		// An empty config means that this probe has been removed for this process
 		if configEventParams[2].ValueStr == "" {
+			cm.Lock()
 			cm.diProcs.DeleteProbe(procInfo.PID, configPath.ProbeUUID.String())
+			cm.Unlock()
 			continue
 		}
 
@@ -226,75 +237,100 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 			MaxFieldCount:     conf.Capture.MaxFieldCount,
 		}
 
-		probe, probeExists := procInfo.ProbesByID[configPath.ProbeUUID.String()]
-		if !probeExists {
+		cm.Lock()
+		probe := procInfo.ProbesByID.Get(configPath.ProbeUUID.String())
+		if probe == nil {
 			cm.diProcs.SetProbe(procInfo.PID, procInfo.ServiceName, conf.Where.TypeName, conf.Where.MethodName, configPath.ProbeUUID, runtimeID, opts)
 			diagnostics.Diagnostics.SetStatus(procInfo.ServiceName, runtimeID.String(), configPath.ProbeUUID.String(), ditypes.StatusReceived)
-			probe = procInfo.ProbesByID[configPath.ProbeUUID.String()]
+			probe = procInfo.ProbesByID.Get(configPath.ProbeUUID.String())
 		}
 
 		// Check hash to see if the configuration changed
 		if configPath.Hash != probe.InstrumentationInfo.ConfigurationHash {
+			err := AnalyzeBinary(procInfo)
+			if err != nil {
+				log.Errorf("couldn't inspect binary (%s): %v\n", procInfo.BinaryPath, err)
+				cm.Unlock()
+				continue
+			}
+
 			probe.InstrumentationInfo.ConfigurationHash = configPath.Hash
 			applyConfigUpdate(procInfo, probe)
 		}
+		cm.Unlock()
 	}
 }
 
 func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
-	log.Tracef("Applying config update: %v\n", probe)
-	err := AnalyzeBinary(procInfo)
-	if err != nil {
-		log.Errorf("couldn't inspect binary: %v\n", err)
-		return
-	}
-
-generateCompileAttach:
-	err = codegen.GenerateBPFParamsCode(procInfo, probe)
-	if err != nil {
-		log.Info("Couldn't generate BPF programs", err)
-		if !probe.InstrumentationInfo.AttemptedRebuild {
-			log.Info("Removing parameters and attempting to rebuild BPF object", err)
-			probe.InstrumentationInfo.AttemptedRebuild = true
-			probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters = false
-			goto generateCompileAttach
+	log.Debugf("Applying config update for: %s in %s (ID: %s)\n", probe.FuncName, probe.ServiceName, probe.ID)
+	for {
+		if err := tryGenerateAndAttach(procInfo, probe); err == nil {
+			return
 		}
-		return
 	}
+}
 
-	err = ebpf.CompileBPFProgram(procInfo, probe)
+// tryGenerateAndAttach attempts to generate and attach the BPF program for the probe
+// it will decrement the reference depth of the probe if it fails to generate and attach
+// the BPF program and try again until the reference depth is 0
+func tryGenerateAndAttach(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error {
+	err := codegen.GenerateBPFParamsCode(procInfo, probe)
 	if err != nil {
-		// TODO: Emit diagnostic?
-		log.Info("Couldn't compile BPF object", err)
-		if !probe.InstrumentationInfo.AttemptedRebuild {
-			log.Info("Removing parameters and attempting to rebuild BPF object", err)
-			probe.InstrumentationInfo.AttemptedRebuild = true
-			probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters = false
-			goto generateCompileAttach
+		log.Errorf("Couldn't generate BPF programs for %s: %v", probe.FuncName, err)
+		if !haveExhaustedReferenceDepthDecrementing(probe) {
+			return err
 		}
-		return
+		return nil
+	}
+	err = ebpf.CompileBPFProgram(probe)
+	if err != nil {
+		log.Errorf("Couldn't compile BPF object for function %s (ID: %s): %v", probe.FuncName, probe.ID, err)
+		if !haveExhaustedReferenceDepthDecrementing(probe) {
+			return err
+		}
+		return nil
 	}
 	err = ebpf.AttachBPFUprobe(procInfo, probe)
 	if err != nil {
-		log.Info("Couldn't load and attach bpf programs", err)
-		if !probe.InstrumentationInfo.AttemptedRebuild {
-			log.Info("Removing parameters and attempting to rebuild BPF object", err)
-			probe.InstrumentationInfo.AttemptedRebuild = true
-			probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters = false
-			goto generateCompileAttach
+		log.Errorf("Couldn't load and attach bpf programs for function %s (ID: %s): %v", probe.FuncName, probe.ID, err)
+		if !haveExhaustedReferenceDepthDecrementing(probe) {
+			return err
 		}
-		return
+		return nil
 	}
+	return nil
+}
+
+// haveExhaustedReferenceDepthDecrementing checks if the reference depth has been exhausted
+// in the process of decrementing itand if so, marks all parameters as not captured
+func haveExhaustedReferenceDepthDecrementing(probe *ditypes.Probe) bool {
+	if !checkAndDecrementReferenceDepth(probe) {
+		probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters = false
+		return true
+	}
+	return false
+}
+
+// checkAndDecrementReferenceDepth decrements the reference depth of the probe
+// and returns true if the reference depth is still greater than 0
+func checkAndDecrementReferenceDepth(probe *ditypes.Probe) bool {
+	if !probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters ||
+		probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth <= 0 {
+		return false
+	}
+	probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth--
+	log.Tracef("Retrying after decrementing capture depth to: %d", probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth)
+	return true
 }
 
 func newConfigProbe() *ditypes.Probe {
 	return &ditypes.Probe{
 		ID:       ditypes.ConfigBPFProbeID,
-		FuncName: "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.passProbeConfiguration",
+		FuncName: ditypes.RemoteConfigCallback,
 		InstrumentationInfo: &ditypes.InstrumentationInfo{
 			InstrumentationOptions: &ditypes.InstrumentationOptions{
-				ArgumentsMaxSize:  50000,
-				StringMaxSize:     10000,
+				ArgumentsMaxSize:  ConfigProbeArgumentsMaxSize,
+				StringMaxSize:     ConfigProbeStringMaxSize,
 				MaxFieldCount:     int(ditypes.MaxFieldCount),
 				MaxReferenceDepth: 8,
 				CaptureParameters: true,
@@ -303,3 +339,10 @@ func newConfigProbe() *ditypes.Probe {
 		RateLimiter: ratelimiter.NewSingleEventRateLimiter(0),
 	}
 }
+
+const (
+	// ConfigProbeArgumentsMaxSize is the maximum size of the raw argument buffer
+	ConfigProbeArgumentsMaxSize = 50000
+	// ConfigProbeStringMaxSize is the maximum allowed size of instrumented string parameters/fields
+	ConfigProbeStringMaxSize = 10000
+)

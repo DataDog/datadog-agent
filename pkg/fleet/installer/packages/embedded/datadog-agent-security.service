@@ -1,7 +1,8 @@
 [Unit]
 Description=Datadog Security Agent
-After=network.target datadog-agent.service
+After=network.target datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent.service
+Conflicts=datadog-agent-security-exp.service
 ConditionPathExists=|/etc/datadog-agent/security-agent.yaml
 ConditionPathExists=|/etc/datadog-agent/managed/datadog-agent/stable/security-agent.yaml
 

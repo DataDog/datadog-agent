@@ -44,6 +44,7 @@ func TestObfuscateStatsGroup(t *testing.T) {
 		{statsGroup("sql", "SELECT 1 FROM db"), "SELECT ? FROM db"},
 		{statsGroup("sql", "SELECT 1\nFROM Blogs AS [b\nORDER BY [b]"), textNonParsable},
 		{statsGroup("redis", "ADD 1, 2"), "ADD"},
+		{statsGroup("valkey", "ADD 1, 2"), "ADD"},
 		{statsGroup("other", "ADD 1, 2"), "ADD 1, 2"},
 	} {
 		agnt, stop := agentWithDefaults()
@@ -67,6 +68,20 @@ func TestObfuscateDefaults(t *testing.T) {
 		defer stop()
 		agnt.obfuscateSpan(span)
 		assert.Equal(t, cmd, span.Meta["redis.raw_command"])
+		assert.Equal(t, "SET GET", span.Resource)
+	})
+
+	t.Run("valkey", func(t *testing.T) {
+		cmd := "SET k v\nGET k"
+		span := &pb.Span{
+			Type:     "valkey",
+			Resource: cmd,
+			Meta:     map[string]string{"valkey.raw_command": cmd},
+		}
+		agnt, stop := agentWithDefaults()
+		defer stop()
+		agnt.obfuscateSpan(span)
+		assert.Equal(t, cmd, span.Meta["valkey.raw_command"])
 		assert.Equal(t, "SET GET", span.Resource)
 	})
 
@@ -138,6 +153,33 @@ func TestObfuscateConfig(t *testing.T) {
 	t.Run("redis/disabled", testConfig(
 		"redis",
 		"redis.raw_command",
+		"SET key val",
+		"SET key val",
+		&config.ObfuscationConfig{},
+	))
+
+	t.Run("valkey/enabled", testConfig(
+		"valkey",
+		"valkey.raw_command",
+		"SET key val",
+		"SET key ?",
+		&config.ObfuscationConfig{Valkey: obfuscate.ValkeyConfig{Enabled: true}},
+	))
+
+	t.Run("valkey/remove_all_args", testConfig(
+		"valkey",
+		"valkey.raw_command",
+		"SET key val",
+		"SET ?",
+		&config.ObfuscationConfig{Valkey: obfuscate.ValkeyConfig{
+			Enabled:       true,
+			RemoveAllArgs: true,
+		}},
+	))
+
+	t.Run("valkey/disabled", testConfig(
+		"valkey",
+		"valkey.raw_command",
 		"SET key val",
 		"SET key val",
 		&config.ObfuscationConfig{},

@@ -26,7 +26,8 @@ import (
 
 const probeUID = "net"
 
-var ErrorNotSupported = errors.New("fentry tracer is only supported on Fargate") //nolint:revive // TODO
+// ErrorNotSupported is the error when entry tracer is not supported on an environment
+var ErrorNotSupported = errors.New("fentry tracer is only supported on Fargate")
 
 // LoadTracer loads a new tracer
 func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), error) {

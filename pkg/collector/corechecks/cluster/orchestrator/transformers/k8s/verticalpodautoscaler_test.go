@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	"sort"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	v1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 )
 
 func TestExtractVerticalPodAutoscaler(t *testing.T) {
@@ -28,8 +30,10 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 	controlledValues := v1.ContainerControlledValuesRequestsAndLimits
 
 	tests := map[string]struct {
-		input    v1.VerticalPodAutoscaler
-		expected model.VerticalPodAutoscaler
+		input             v1.VerticalPodAutoscaler
+		labelsAsTags      map[string]string
+		annotationsAsTags map[string]string
+		expected          model.VerticalPodAutoscaler
 	}{
 		"standard": {
 			input: v1.VerticalPodAutoscaler{
@@ -115,6 +119,12 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 						},
 					},
 				},
+			},
+			labelsAsTags: map[string]string{
+				"app": "application",
+			},
+			annotationsAsTags: map[string]string{
+				"annotation": "annotation_key",
 			},
 			expected: model.VerticalPodAutoscaler{
 				Metadata: &model.Metadata{
@@ -211,6 +221,8 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 				Tags: []string{
 					"kube_condition_recommendationprovided:true",
 					"kube_condition_nopodsmatched:true",
+					"application:my-app",
+					"annotation_key:my-annotation",
 				},
 			},
 		},
@@ -348,7 +360,14 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, &tc.expected, ExtractVerticalPodAutoscaler(&tc.input))
+			pctx := &processors.K8sProcessorContext{
+				LabelsAsTags:      tc.labelsAsTags,
+				AnnotationsAsTags: tc.annotationsAsTags,
+			}
+			actual := ExtractVerticalPodAutoscaler(pctx, &tc.input)
+			sort.Strings(actual.Tags)
+			sort.Strings(tc.expected.Tags)
+			assert.Equal(t, &tc.expected, actual)
 		})
 	}
 }

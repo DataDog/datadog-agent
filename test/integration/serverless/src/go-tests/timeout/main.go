@@ -29,5 +29,5 @@ func testHandler(_ context.Context, _ events.APIGatewayProxyRequest) (testRespon
 }
 
 func main() {
-	lambda.Start(ddlambda.WrapHandler(testHandler, nil))
+	lambda.Start(ddlambda.WrapFunction(testHandler, nil))
 }

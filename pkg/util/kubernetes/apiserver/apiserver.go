@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"sync"
@@ -206,7 +207,8 @@ func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
 	}
 }
 
-func getClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Config, error) {
+// GetClientConfig returns a REST client configuration
+func GetClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Config, error) {
 	var clientConfig *rest.Config
 	var err error
 	cfgPath := pkgconfigsetup.Datadog().GetString("kubernetes_kubeconfig_path")
@@ -253,7 +255,7 @@ func getClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Confi
 func GetKubeClient(timeout time.Duration, qps float32, burst int) (kubernetes.Interface, error) {
 	// TODO: Remove custom warning logger when we remove usage of ComponentStatus
 	rest.SetDefaultWarningHandler(CustomWarningLogger{})
-	clientConfig, err := getClientConfig(timeout, qps, burst)
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +264,7 @@ func GetKubeClient(timeout time.Duration, qps float32, burst int) (kubernetes.In
 }
 
 func getKubeDynamicClient(timeout time.Duration, qps float32, burst int) (dynamic.Interface, error) {
-	clientConfig, err := getClientConfig(timeout, qps, burst)
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +273,7 @@ func getKubeDynamicClient(timeout time.Duration, qps float32, burst int) (dynami
 }
 
 func getCRDClient(timeout time.Duration, qps float32, burst int) (*clientset.Clientset, error) {
-	clientConfig, err := getClientConfig(timeout, qps, burst)
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
 	}
@@ -280,7 +282,7 @@ func getCRDClient(timeout time.Duration, qps float32, burst int) (*clientset.Cli
 }
 
 func getAPISClient(timeout time.Duration, qps float32, burst int) (*apiregistrationclient.ApiregistrationV1Client, error) {
-	clientConfig, err := getClientConfig(timeout, qps, burst)
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +290,7 @@ func getAPISClient(timeout time.Duration, qps float32, burst int) (*apiregistrat
 }
 
 func getKubeVPAClient(timeout time.Duration, qps float32, burst int) (vpa.Interface, error) {
-	clientConfig, err := getClientConfig(timeout, qps, burst)
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +299,7 @@ func getKubeVPAClient(timeout time.Duration, qps float32, burst int) (vpa.Interf
 }
 
 func getScaleClient(discoveryCl discovery.ServerResourcesInterface, restMapper meta.RESTMapper, timeout time.Duration, qps float32, burst int) (scale.ScalesGetter, error) {
-	clientConfig, err := getClientConfig(timeout, qps, burst)
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
 	}
@@ -585,6 +587,29 @@ func GetMetadataMapBundleOnNode(nodeName string) (*apiv1.MetadataResponse, error
 	return stats, nil
 }
 
+// GetPodMetadataNames is used when the API endpoint of the DCA to get the metadata of a pod is hit.
+func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
+	metaBundle, err := getMetadataMapBundle(nodeName)
+	if err != nil {
+		log.Tracef("no metadata was found for the pod %s on node %s", podName, nodeName)
+		return nil, nil
+	}
+
+	// The list of metadata collected in the metaBundle is extensible and is handled here.
+	// If new cluster level tags need to be collected by the agent, only this needs to be modified.
+	serviceList, foundServices := metaBundle.ServicesForPod(ns, podName)
+	if !foundServices {
+		log.Tracef("no cached services list found for the pod %s on the node %s", podName, nodeName)
+		return nil, nil
+	}
+	log.Tracef("found %d services for the pod %s on the node %s", len(serviceList), podName, nodeName)
+	var metaList []string
+	for _, s := range serviceList {
+		metaList = append(metaList, fmt.Sprintf("kube_service:%s", s))
+	}
+	return metaList, nil
+}
+
 func getMetadataMapBundle(nodeName string) (*MetadataMapperBundle, error) {
 	nodeNameCacheKey := cache.BuildAgentKey(MetadataMapperCachePrefix, nodeName)
 	metaBundle, found := cache.Cache.Get(nodeNameCacheKey)
@@ -636,9 +661,7 @@ func convertmetadataMapperBundleToAPI(input *MetadataMapperBundle) *apiv1.Metada
 	if input == nil {
 		return output
 	}
-	for key, val := range input.Services {
-		output.Services[key] = val
-	}
+	maps.Copy(output.Services, input.Services)
 	return output
 }
 
@@ -661,7 +684,7 @@ func (c *APIClient) GetARandomNodeName(ctx context.Context) (string, error) {
 
 // RESTClient returns a new REST client
 func (c *APIClient) RESTClient(apiPath string, groupVersion *schema.GroupVersion, negotiatedSerializer runtime.NegotiatedSerializer) (*rest.RESTClient, error) {
-	clientConfig, err := getClientConfig(c.defaultClientTimeout, standardClientQPSLimit, standardClientQPSBurst)
+	clientConfig, err := GetClientConfig(c.defaultClientTimeout, standardClientQPSLimit, standardClientQPSBurst)
 	if err != nil {
 		return nil, err
 	}
@@ -675,7 +698,7 @@ func (c *APIClient) RESTClient(apiPath string, groupVersion *schema.GroupVersion
 
 // MetadataClient returns a new kubernetes metadata client
 func (c *APIClient) MetadataClient() (metadata.Interface, error) {
-	clientConfig, err := getClientConfig(c.defaultInformerTimeout, standardClientQPSLimit, standardClientQPSBurst)
+	clientConfig, err := GetClientConfig(c.defaultInformerTimeout, standardClientQPSLimit, standardClientQPSBurst)
 	if err != nil {
 		return nil, err
 	}
@@ -686,7 +709,7 @@ func (c *APIClient) MetadataClient() (metadata.Interface, error) {
 
 // NewSPDYExecutor returns a new SPDY executor for the provided method and URL
 func (c *APIClient) NewSPDYExecutor(apiPath string, groupVersion *schema.GroupVersion, negotiatedSerializer runtime.NegotiatedSerializer, method string, url *url.URL) (remotecommand.Executor, error) {
-	clientConfig, err := getClientConfig(c.defaultClientTimeout, standardClientQPSLimit, standardClientQPSBurst)
+	clientConfig, err := GetClientConfig(c.defaultClientTimeout, standardClientQPSLimit, standardClientQPSBurst)
 	if err != nil {
 		return nil, err
 	}

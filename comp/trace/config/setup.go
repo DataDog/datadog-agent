@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
@@ -45,6 +46,8 @@ import (
 const (
 	// apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
 	apiEndpointPrefix = "https://trace.agent."
+	// mrfPrefix is the MRF site prefix.
+	mrfPrefix = "mrf."
 	// rcClientName is the default name for remote configuration clients in the trace agent
 	rcClientName = "trace-agent"
 )
@@ -58,14 +61,14 @@ const (
 func setupConfigCommon(deps Dependencies, _ string) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
-	return LoadConfigFile(confFilePath, deps.Config, deps.Tagger)
+	return LoadConfigFile(confFilePath, deps.Config, deps.Tagger, deps.At)
 }
 
 // LoadConfigFile returns a new configuration based on the given path. The path must not necessarily exist
 // and a valid configuration can be returned based on defaults and environment variables. If a
 // valid configuration can not be obtained, an error is returned.
-func LoadConfigFile(path string, c corecompcfg.Component, tagger tagger.Component) (*config.AgentConfig, error) {
-	cfg, err := prepareConfig(c, tagger)
+func LoadConfigFile(path string, c corecompcfg.Component, tagger tagger.Component, at authtoken.Component) (*config.AgentConfig, error) {
+	cfg, err := prepareConfig(c, tagger, at)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
@@ -82,7 +85,7 @@ func LoadConfigFile(path string, c corecompcfg.Component, tagger tagger.Componen
 	return cfg, validate(cfg, c)
 }
 
-func prepareConfig(c corecompcfg.Component, tagger tagger.Component) (*config.AgentConfig, error) {
+func prepareConfig(c corecompcfg.Component, tagger tagger.Component, at authtoken.Component) (*config.AgentConfig, error) {
 	cfg := config.New()
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
@@ -112,7 +115,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component) (*config.Ag
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
 	if pkgconfigsetup.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote(c, ipcAddress)
+		client, err := remote(c, ipcAddress, at)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
@@ -129,6 +132,10 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component) (*config.Ag
 	cfg.GetAgentAuthToken = apiutil.GetAuthToken
 	cfg.HTTPTransportFunc = func() *http.Transport {
 		return httputils.CreateHTTPTransport(coreConfigObject)
+	}
+
+	cfg.IsMRFEnabled = func() bool {
+		return coreConfigObject.GetBool("multi_region_failover.enabled") && coreConfigObject.GetBool("multi_region_failover.failover_apm")
 	}
 	return cfg, nil
 }
@@ -176,6 +183,22 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	} else {
 		c.Endpoints[0].Host = utils.GetMainEndpoint(pkgconfigsetup.Datadog(), apiEndpointPrefix, "apm_config.apm_dd_url")
 	}
+
+	// Add MRF endpoint, if enabled
+	if core.GetBool("multi_region_failover.enabled") {
+		prefix := apiEndpointPrefix + mrfPrefix
+		mrfURL, err := utils.GetMRFEndpoint(core, prefix, "multi_region_failover.dd_url")
+		if err != nil {
+			return fmt.Errorf("cannot construct MRF endpoint: %s", err)
+		}
+
+		c.Endpoints = append(c.Endpoints, &config.Endpoint{
+			Host:   mrfURL,
+			APIKey: utils.SanitizeAPIKey(core.GetString("multi_region_failover.api_key")),
+			IsMRF:  true,
+		})
+	}
+
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
 	if core.IsSet("proxy.no_proxy") {
@@ -214,7 +237,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	prevEnv := c.DefaultEnv
-	c.DefaultEnv = traceutil.NormalizeTag(c.DefaultEnv)
+	c.DefaultEnv = traceutil.NormalizeTagValue(c.DefaultEnv)
 	if c.DefaultEnv != prevEnv {
 		log.Debugf("Normalized DefaultEnv from %q to %q", prevEnv, c.DefaultEnv)
 	}
@@ -229,6 +252,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if core.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
+	}
+	if core.IsSet("apm_config.sql_obfuscation_mode") {
+		c.SQLObfuscationMode = core.GetString("apm_config.sql_obfuscation_mode")
 	}
 
 	/**
@@ -376,13 +402,15 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	c.OTLPReceiver = &config.OTLP{
-		BindHost:               c.ReceiverHost,
-		GRPCPort:               grpcPort,
-		MaxRequestBytes:        c.MaxRequestBytes,
-		SpanNameRemappings:     pkgconfigsetup.Datadog().GetStringMapString("otlp_config.traces.span_name_remappings"),
-		SpanNameAsResourceName: core.GetBool("otlp_config.traces.span_name_as_resource_name"),
-		ProbabilisticSampling:  core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
-		AttributesTranslator:   attributesTranslator,
+		BindHost:                   c.ReceiverHost,
+		GRPCPort:                   grpcPort,
+		MaxRequestBytes:            c.MaxRequestBytes,
+		SpanNameRemappings:         pkgconfigsetup.Datadog().GetStringMapString("otlp_config.traces.span_name_remappings"),
+		SpanNameAsResourceName:     core.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		IgnoreMissingDatadogFields: core.GetBool("otlp_config.traces.ignore_missing_datadog_fields"),
+		ProbabilisticSampling:      core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
+		AttributesTranslator:       attributesTranslator,
+		GrpcMaxRecvMsgSizeMib:      core.GetInt("otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib"),
 	}
 
 	if core.IsSet("apm_config.install_id") {
@@ -438,6 +466,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.Obfuscation.Memcached.KeepCommand = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.keep_command")
 	c.Obfuscation.Redis.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.redis.enabled")
 	c.Obfuscation.Redis.RemoveAllArgs = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.redis.remove_all_args")
+	c.Obfuscation.Valkey.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.enabled")
+	c.Obfuscation.Valkey.RemoveAllArgs = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.remove_all_args")
 	c.Obfuscation.CreditCards.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.credit_cards.enabled")
 	c.Obfuscation.CreditCards.Luhn = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.credit_cards.luhn")
 	c.Obfuscation.CreditCards.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.credit_cards.keep_values")
@@ -608,6 +638,18 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if k := "evp_proxy_config.receiver_timeout"; core.IsSet(k) {
 		c.EVPProxy.ReceiverTimeout = core.GetInt(k)
+	}
+	if k := "ol_proxy_config.enabled"; core.IsSet(k) {
+		c.OpenLineageProxy.Enabled = core.GetBool(k)
+	}
+	if k := "ol_proxy_config.dd_url"; core.IsSet(k) {
+		c.OpenLineageProxy.DDURL = core.GetString(k)
+	}
+	if k := "ol_proxy_config.api_key"; core.IsSet(k) {
+		c.OpenLineageProxy.APIKey = core.GetString(k)
+	}
+	if k := "ol_proxy_config.additional_endpoints"; core.IsSet(k) {
+		c.OpenLineageProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
 	return nil

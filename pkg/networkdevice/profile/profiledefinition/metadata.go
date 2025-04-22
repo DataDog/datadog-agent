@@ -5,16 +5,46 @@
 
 package profiledefinition
 
+import "github.com/invopop/jsonschema"
+
 // MetadataDeviceResource is the device resource name
 const MetadataDeviceResource = "device"
 
 // MetadataConfig holds configs per resource type
-type MetadataConfig map[string]MetadataResourceConfig
+type MetadataConfig ListMap[MetadataResourceConfig]
+
+// JSONSchema defines the JSON schema for MetadataConfig
+func (mc MetadataConfig) JSONSchema() *jsonschema.Schema {
+	return ListMap[MetadataResourceConfig](mc).JSONSchema()
+}
+
+// MarshalJSON marshals the metadata config
+func (mc MetadataConfig) MarshalJSON() ([]byte, error) {
+	return ListMap[MetadataResourceConfig](mc).MarshalJSON()
+}
+
+// UnmarshalJSON unmarshals the metadata config
+func (mc *MetadataConfig) UnmarshalJSON(data []byte) error {
+	return (*ListMap[MetadataResourceConfig])(mc).UnmarshalJSON(data)
+}
+
+// Clone duplicates this MetadataConfig
+func (mc MetadataConfig) Clone() MetadataConfig {
+	return CloneMap(mc)
+}
 
 // MetadataResourceConfig holds configs for a metadata resource
 type MetadataResourceConfig struct {
-	Fields map[string]MetadataField `yaml:"fields" json:"fields"`
-	IDTags MetricTagConfigList      `yaml:"id_tags,omitempty" json:"id_tags,omitempty"`
+	Fields ListMap[MetadataField] `yaml:"fields" json:"fields"`
+	IDTags MetricTagConfigList    `yaml:"id_tags,omitempty" json:"id_tags,omitempty"`
+}
+
+// Clone duplicates this MetadataResourceConfig
+func (c MetadataResourceConfig) Clone() MetadataResourceConfig {
+	return MetadataResourceConfig{
+		Fields: CloneMap(c.Fields),
+		IDTags: CloneSlice(c.IDTags),
+	}
 }
 
 // MetadataField holds configs for a metadata field
@@ -22,6 +52,15 @@ type MetadataField struct {
 	Symbol  SymbolConfig   `yaml:"symbol,omitempty" json:"symbol,omitempty"`
 	Symbols []SymbolConfig `yaml:"symbols,omitempty" json:"symbols,omitempty"`
 	Value   string         `yaml:"value,omitempty" json:"value,omitempty"`
+}
+
+// Clone duplicates this MetadataField
+func (c MetadataField) Clone() MetadataField {
+	return MetadataField{
+		Symbol:  c.Symbol.Clone(),
+		Symbols: CloneSlice(c.Symbols),
+		Value:   c.Value,
+	}
 }
 
 // NewMetadataResourceConfig returns a new metadata resource config

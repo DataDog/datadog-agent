@@ -40,7 +40,7 @@ type dependencies struct {
 
 func newAuthToken(deps dependencies) (authtoken.Component, error) {
 	if err := util.CreateAndSetAuthToken(deps.Conf); err != nil {
-		deps.Log.Error("could not create auth_token: %s", err)
+		deps.Log.Errorf("could not create auth_token: %s", err)
 		return nil, err
 	}
 
@@ -48,8 +48,8 @@ func newAuthToken(deps dependencies) (authtoken.Component, error) {
 }
 
 // Get returns the session token
-func (at *authToken) Get() string {
-	return util.GetAuthToken()
+func (at *authToken) Get() (string, error) {
+	return util.GetAuthToken(), nil
 }
 
 // GetTLSServerConfig return a TLS configuration with the IPC certificate for http.Server

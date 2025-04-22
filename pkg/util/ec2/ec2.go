@@ -8,97 +8,41 @@ package ec2
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // declare these as vars not const to ease testing
 var (
-	metadataURL        = "http://169.254.169.254/latest/meta-data"
-	tokenURL           = "http://169.254.169.254/latest/api/token"
 	oldDefaultPrefixes = []string{"ip-", "domu"}
 	defaultPrefixes    = []string{"ip-", "domu", "ec2amaz-"}
 
-	token              *httputils.APIToken
-	tokenRenewalWindow = 15 * time.Second
-
-	// CloudProviderName contains the inventory name of for EC2
-	CloudProviderName = "AWS"
-	// DMIBoardVendor contains the DMI board vendor for EC2
-	DMIBoardVendor = "Amazon EC2"
-
-	ec2IMDSv2TransitionPayloadConfigFlag = "ec2_imdsv2_transition_payload_enabled"
-
-	currentMetadataSource      = metadataSourceNone
-	currentMetadataSourceMutex sync.Mutex
+	imdsInstanceID = "/instance-id"
 )
-
-func init() {
-	token = httputils.NewAPIToken(getToken)
-}
 
 const (
-	metadataSourceNone = iota
-	metadataSourceUUID
-	metadataSourceDMI
-	metadataSourceIMDSv1
-	metadataSourceIMDSv2
+	// CloudProviderName contains the inventory name of for EC2
+	CloudProviderName = ec2internal.CloudProviderName
+	// DMIBoardVendor contains the DMI board vendor for EC2
+	DMIBoardVendor = ec2internal.DMIBoardVendor
+
+	ec2IMDSv2TransitionPayloadConfigFlag = "ec2_imdsv2_transition_payload_enabled"
 )
-
-// setCloudProviderSource set the best source available for EC2 metadata to the inventories payload.
-//
-// The different sources that can be used to know if we are running on EC2. This data is registered in the
-// inventories metadata payload.
-//
-// We current have 3 ways to know we're on EC2 (if one fails we fallback to the next):
-// - we succeed in reaching IMDS v1 or v2 metadata API.
-// - the DMI information match EC2 and we can get the instanceID from it.
-// - the product UUID or hypervisor UUID match EC2 (we know we're on EC2 but can't fetch the instance ID).
-//
-// Since some ways can temporary fail, we always register the "best" that worked at some point. This is mainly aimed at
-// IMDS which is sometimes unavailable at startup.
-func setCloudProviderSource(source int) {
-	currentMetadataSourceMutex.Lock()
-	defer currentMetadataSourceMutex.Unlock()
-
-	if source <= currentMetadataSource {
-		return
-	}
-
-	currentMetadataSource = source
-}
 
 // GetSourceName returns the source used to pull information for EC2 (UUID, DMI, IMDSv1 or IMDSv2)
 func GetSourceName() string {
-	currentMetadataSourceMutex.Lock()
-	defer currentMetadataSourceMutex.Unlock()
-
-	switch currentMetadataSource {
-	case metadataSourceUUID:
-		return "UUID"
-	case metadataSourceDMI:
-		return "DMI"
-	case metadataSourceIMDSv1:
-		return "IMDSv1"
-	case metadataSourceIMDSv2:
-		return "IMDSv2"
-	}
-	return ""
+	return ec2internal.GetSourceName()
 }
 
 var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "EC2 or DMI InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		hostname, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, useIMDSv2(), true)
+		hostname, err := ec2internal.GetMetadataItemWithMaxLength(ctx, imdsInstanceID, ec2internal.UseIMDSv2(), true)
 		if err != nil {
 			if pkgconfigsetup.Datadog().GetBool(ec2IMDSv2TransitionPayloadConfigFlag) {
 				log.Debugf("Failed to get instance ID from IMDSv2 - ec2_imdsv2_transition_payload_enabled is set, falling back on DMI: %s", err.Error())
@@ -112,14 +56,14 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 var imdsv2InstanceIDFetcher = cachedfetch.Fetcher{
 	Name: "EC2 IMDSv2 InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, imdsV2, true)
+		return ec2internal.GetMetadataItemWithMaxLength(ctx, imdsInstanceID, ec2internal.ImdsV2, true)
 	},
 }
 
 var legacyInstanceIDFetcher = cachedfetch.Fetcher{
 	Name: "EC2 no IMDSv2 no DMI InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, imdsV1, false)
+		return ec2internal.GetMetadataItemWithMaxLength(ctx, imdsInstanceID, ec2internal.ImdsV1, false)
 	},
 }
 
@@ -140,7 +84,7 @@ func GetIDMSv2InstanceID(ctx context.Context) (string, error) {
 
 // GetHostID returns the instanceID for the current EC2 host using IMDSv2 only.
 func GetHostID(ctx context.Context) string {
-	instanceID, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, imdsV2, true)
+	instanceID, err := ec2internal.GetMetadataItemWithMaxLength(ctx, imdsInstanceID, ec2internal.ImdsV2, true)
 	log.Debugf("instanceID from IMDSv2 '%s' (error: %v)", instanceID, err)
 
 	if err == nil {
@@ -177,7 +121,7 @@ func GetHostAliases(ctx context.Context) ([]string, error) {
 	log.Debugf("failed to get instance ID from DMI for Host Alias: %s", err)
 
 	// Try to use IMSDv2 if GetInstanceID didn't try it already
-	if useIMDSv2() == imdsV1 {
+	if ec2internal.UseIMDSv2() == ec2internal.ImdsV1 {
 		imsdv2InstanceID, err := GetIDMSv2InstanceID(ctx)
 		if err == nil {
 			return []string{imsdv2InstanceID}, nil
@@ -192,7 +136,7 @@ func GetHostAliases(ctx context.Context) ([]string, error) {
 var hostnameFetcher = cachedfetch.Fetcher{
 	Name: "EC2 Hostname",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		return getMetadataItemWithMaxLength(ctx, imdsHostname, useIMDSv2(), true)
+		return ec2internal.GetMetadataItemWithMaxLength(ctx, imdsHostname, ec2internal.UseIMDSv2(), true)
 	},
 }
 
@@ -209,36 +153,6 @@ func GetNTPHosts(ctx context.Context) []string {
 	}
 
 	return nil
-}
-
-// GetClusterName returns the name of the cluster containing the current EC2 instance
-func GetClusterName(ctx context.Context) (string, error) {
-	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
-	}
-	tags, err := fetchTagsFromCache(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	return extractClusterName(tags)
-}
-
-func extractClusterName(tags []string) (string, error) {
-	var clusterName string
-	for _, tag := range tags {
-		if strings.HasPrefix(tag, "kubernetes.io/cluster/") { // tag key format: kubernetes.io/cluster/clustername"
-			key := strings.Split(tag, ":")[0]
-			clusterName = strings.Split(key, "/")[2] // rely on ec2 tag format to extract clustername
-			break
-		}
-	}
-
-	if clusterName == "" {
-		return "", errors.New("unable to parse cluster name from EC2 tags")
-	}
-
-	return clusterName, nil
 }
 
 // IsDefaultHostname returns whether the given hostname is a default one for EC2

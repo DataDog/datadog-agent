@@ -9,6 +9,16 @@ type receiver struct {
 	u uint
 }
 
+type hasUnsupportedFields struct {
+	b int
+	c float32
+	d []uint8
+}
+
+//nolint:all
+//go:noinline
+func test_struct_with_unsupported_fields(a hasUnsupportedFields) {}
+
 //nolint:all
 //go:noinline
 func (r *receiver) test_pointer_method_receiver(a int) {}
@@ -27,6 +37,14 @@ func test_struct_with_a_slice(s structWithASlice) {}
 
 //nolint:all
 //go:noinline
+func test_struct_with_an_empty_slice(s structWithASlice) {}
+
+//nolint:all
+//go:noinline
+func test_struct_with_a_nil_slice(s structWithASlice) {}
+
+//nolint:all
+//go:noinline
 func test_pointer_to_struct_with_a_slice(s *structWithASlice) {}
 
 //nolint:all
@@ -36,6 +54,10 @@ func test_pointer_to_struct_with_a_string(s *structWithAString) {}
 //nolint:all
 //go:noinline
 func test_struct(x aStruct) {}
+
+//nolint:all
+//go:noinline
+func test_struct_with_arrays(s structWithTwoArrays) {}
 
 //nolint:all
 //go:noinline
@@ -99,8 +121,10 @@ func ExecuteStructFuncs() {
 	test_ten_strings(tenStrings{})
 	test_struct_and_byte('a', s)
 	test_struct_with_array(structWithAnArray{[5]uint8{1, 2, 3, 4, 5}})
-	test_struct_with_a_slice(structWithASlice{1, []uint8{2, 3, 4}})
-	test_pointer_to_struct_with_a_slice(&structWithASlice{5, []uint8{2, 3, 4}})
+	test_struct_with_a_slice(structWithASlice{1, []uint8{2, 3, 4}, 5})
+	test_struct_with_an_empty_slice(structWithASlice{9, []uint8{}, 5})
+	test_struct_with_a_nil_slice(structWithASlice{9, nil, 5})
+	test_pointer_to_struct_with_a_slice(&structWithASlice{5, []uint8{2, 3, 4}, 5})
 	test_pointer_to_struct_with_a_string(&structWithAString{5, "abcdef"})
 
 	tenStr := tenStrings{
@@ -143,6 +167,18 @@ func ExecuteStructFuncs() {
 	ptrRcvr := &receiver{3}
 	ptrRcvr.test_pointer_method_receiver(4)
 
+	sta := structWithTwoArrays{
+		a: [3]uint64{1, 2, 3},
+		b: 4,
+		c: [5]int64{6, 7, 8, 9, 10},
+	}
+	test_struct_with_arrays(sta)
+
+	test_struct_with_unsupported_fields(hasUnsupportedFields{
+		b: 1,
+		c: 2.0,
+		d: []uint8{3, 4, 5},
+	})
 }
 
 type emptyStruct struct{}
@@ -189,6 +225,12 @@ type aStruct struct {
 	nested  nestedStruct
 }
 
+type structWithTwoArrays struct {
+	a [3]uint64
+	b byte
+	c [5]int64
+}
+
 type bStruct struct {
 	aInt16 int16
 	nested aStruct
@@ -214,6 +256,7 @@ type structWithAnArray struct {
 type structWithASlice struct {
 	x     int
 	slice []uint8
+	z     uint64
 }
 
 type structWithAString struct {

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"runtime"
 	"strings"
@@ -50,9 +51,7 @@ func (m mockProvider) JSON(_ bool, stats map[string]interface{}) error {
 		return fmt.Errorf("JSON error")
 	}
 
-	for key, value := range m.data {
-		stats[key] = value
-	}
+	maps.Copy(stats, m.data)
 
 	return nil
 }
@@ -97,9 +96,7 @@ func (m mockHeaderProvider) JSON(_ bool, stats map[string]interface{}) error {
 		return fmt.Errorf("JSON error")
 	}
 
-	for key, value := range m.data {
-		stats[key] = value
-	}
+	maps.Copy(stats, m.data)
 
 	return nil
 }
@@ -272,6 +269,7 @@ func TestGetStatus(t *testing.T) {
   Python Version: n/a
   Build arch: %s
   Agent flavor: %s
+  FIPS Mode: not available
   Log Level: info
 
   Paths
@@ -324,6 +322,7 @@ X Section
   Python Version: n/a
   Build arch: %s
   Agent flavor: %s
+  FIPS Mode: not available
   Log Level: info
 
   Paths
@@ -374,6 +373,7 @@ X Section
     Flavor: %s<br>
     PID: %d<br>
     Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
+    FIPS Mode: not available<br>
     Log Level: info<br>
     Config File: There is no config file<br>
     Conf.d Path: %s<br>
@@ -428,6 +428,7 @@ X Section
     Flavor: %s<br>
     PID: %d<br>
     Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
+    FIPS Mode: not available<br>
     Log Level: info<br>
     Config File: There is no config file<br>
     Conf.d Path: %s<br>
@@ -515,6 +516,7 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
   Python Version: n/a
   Build arch: %s
   Agent flavor: %s
+  FIPS Mode: not available
   Log Level: info
 
   Paths
@@ -602,6 +604,7 @@ func TestGetStatusWithErrors(t *testing.T) {
   Python Version: n/a
   Build arch: %s
   Agent flavor: agent
+  FIPS Mode: not available
   Log Level: info
 
   Paths
@@ -915,6 +918,7 @@ Status render errors
   Python Version: n/a
   Build arch: %s
   Agent flavor: agent
+  FIPS Mode: not available
   Log Level: info
 
   Paths

@@ -73,10 +73,7 @@ func newWorkloadmetaListener(
 	wmeta workloadmeta.Component,
 	telemetryStore *telemetry.Store,
 ) (workloadmetaListener, error) {
-	containerFilters, err := newContainerFilters()
-	if err != nil {
-		return nil, err
-	}
+	containerFilters := newContainerFilters()
 
 	return &workloadmetaListenerImpl{
 		name: name,

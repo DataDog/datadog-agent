@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -75,7 +76,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	registerRecorder := new(utils.CallbackRecorder)
 	unregisterRecorder := new(utils.CallbackRecorder)
 
-	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerRecorder.Callback(),
@@ -152,7 +153,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryIgnoreWrite() {
 			registerRecorder := new(utils.CallbackRecorder)
 			unregisterRecorder := new(utils.CallbackRecorder)
 
-			watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+			watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 				Rule{
 					Re:           regexp.MustCompile(`foo-libssl.so`),
 					RegisterCB:   registerRecorder.Callback(),
@@ -199,7 +200,7 @@ func (s *SharedLibrarySuite) TestLongPath() {
 	registerRecorder := new(utils.CallbackRecorder)
 	unregisterRecorder := new(utils.CallbackRecorder)
 
-	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerRecorder.Callback(),
@@ -261,7 +262,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionPeriodic() {
 
 	registerCallback := registerRecorder.Callback()
 
-	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 		Rule{
 			Re: regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB: func(fp utils.FilePath) error {
@@ -361,7 +362,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDAndRootNamespace()
 		return nil
 	}
 
-	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 		Rule{
 			Re:           regexp.MustCompile(`fooroot-crypto.so`),
 			RegisterCB:   callback,
@@ -410,7 +411,7 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 	registerRecorder := new(utils.CallbackRecorder)
 	unregisterRecorder := new(utils.CallbackRecorder)
 
-	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerRecorder.Callback(),
@@ -451,7 +452,7 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	registerCB := registerRecorder.Callback()
 	unregisterCB := unregisterRecorder.Callback()
 
-	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerCB,
@@ -517,7 +518,7 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	registerCB := registerRecorder.Callback()
 	unregisterCB := unregisterRecorder.Callback()
 
-	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerCB,
@@ -569,6 +570,126 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	assert.Len(t, watcher.registry.GetRegisteredProcesses(), 0)
 }
 
+func zeroPages(data []byte) {
+	for i := range data {
+		data[i] = 0
+	}
+}
+
+// This test ensures that the shared library watcher correctly identifies and processes the first file path in memory,
+// even when a second path is present, particularly in scenarios where the first path crosses a memory page boundary.
+// The goal is to verify that the presence of the second path does not inadvertently cause the watcher to send to the
+// user mode the first path. Before each iteration, the memory-mapped pages are zeroed to ensure consistent and isolated
+// test conditions.
+func (s *SharedLibrarySuite) TestValidPathExistsInTheMemory() {
+	t := s.T()
+
+	pageSize := os.Getpagesize()
+
+	// We want to allocate two contiguous pages and ensure that the address
+	// after the two pages is inaccessible. So allocate 3 pages and change the
+	// protection of the last one with mprotect(2). If we only map two pages the
+	// kernel may merge this mmaping with another existing mapping after it.
+	data, err := syscall.Mmap(-1, 0, 3*pageSize, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANON|syscall.MAP_PRIVATE)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = syscall.Munmap(data) })
+
+	err = syscall.Mprotect(data[2*pageSize:], 0)
+	require.NoError(t, err)
+	// Truncate the size so that the range loop on it in zeroPages() does not
+	// access the memory we've disabled access to.
+	data = data[:2*pageSize]
+
+	dummyPath, dummyPathID := createTempTestFile(t, "dummy.text")
+	soPath, soPathID := createTempTestFile(t, "foo-libssl.so")
+
+	tests := []struct {
+		name       string
+		writePaths func(data []byte, textFilePath, soPath string) int
+	}{
+		{
+			// Paths are written consecutively in memory, without crossing a page boundary.
+			name: "sanity",
+			writePaths: func(data []byte, textFilePath, soPath string) int {
+				copy(data, textFilePath)
+				data[len(textFilePath)] = 0 // Null-terminate the first path
+				copy(data[len(textFilePath)+1:], soPath)
+
+				return 0
+			},
+		},
+		{
+			// Paths are written consecutively in memory, at the end of a page.
+			name: "end of a page",
+			writePaths: func(data []byte, textFilePath, soPath string) int {
+				offset := 2*pageSize - len(textFilePath) - 1 - len(soPath) - 1
+				copy(data[offset:], textFilePath)
+				data[offset+len(textFilePath)] = 0 // Null-terminate the first path
+				copy(data[offset+len(textFilePath)+1:], soPath)
+				data[offset+len(textFilePath)+1+len(soPath)] = 0 // Null-terminate the second path
+
+				return offset
+			},
+		},
+		{
+			// The first path is written at the end of the first page, and the second path is written at the beginning
+			// of the second page.
+			name: "cross pages",
+			writePaths: func(data []byte, textFilePath, soPath string) int {
+				// Ensure the first path ends near the end of the first page, crossing into the second page
+				offset := pageSize - len(textFilePath) - 1
+				copy(data[offset:], textFilePath)
+				data[offset+len(textFilePath)] = 0 // Null-terminate the first path
+				copy(data[pageSize:], soPath)
+
+				return offset
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			zeroPages(data)
+
+			// Ensure the first path ends near the end of the first page, crossing into the second page
+			offset := tt.writePaths(data, dummyPath, soPath)
+
+			registerRecorder := new(utils.CallbackRecorder)
+			unregisterRecorder := new(utils.CallbackRecorder)
+
+			watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
+				Rule{
+					Re:           regexp.MustCompile(`foo-libssl.so`),
+					RegisterCB:   registerRecorder.Callback(),
+					UnregisterCB: unregisterRecorder.Callback(),
+				},
+			)
+			require.NoError(t, err)
+			watcher.Start()
+			t.Cleanup(watcher.Stop)
+			// the counter may be retrieved from the global registry, it must be reset.
+			watcher.libMatches.Set(0)
+
+			// Overriding PID, to allow the watcher to watch the test process
+			watcher.thisPID = 0
+
+			pathPtr := uintptr(unsafe.Pointer(&data[offset]))
+			dirfd := int(unix.AT_FDCWD)
+			fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, uintptr(dirfd), pathPtr, uintptr(os.O_RDONLY), 0644, 0, 0)
+			require.Zero(t, errno)
+			t.Cleanup(func() { _ = syscall.Close(int(fd)) })
+			// Since we want to verify that the write _hasn't_ been detected, we need to try it multiple times
+			// to avoid race conditions.
+			for i := 0; i < 10; i++ {
+				time.Sleep(100 * time.Millisecond)
+				// the 'watcher.libHits' counter is incremented before rule matching and may be > 0, do not check it.
+				assert.Zero(t, watcher.libMatches.Get())
+				assert.Zero(t, registerRecorder.CallsForPathID(dummyPathID))
+				assert.Zero(t, registerRecorder.CallsForPathID(soPathID))
+			}
+		})
+	}
+}
+
 func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier) {
 	fullPath := filepath.Join(t.TempDir(), name)
 
@@ -587,7 +708,7 @@ func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier
 }
 
 func BenchmarkScanSOWatcherNew(b *testing.B) {
-	w, _ := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+	w, _ := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 		Rule{
 			Re: regexp.MustCompile(`libssl.so`),
 		},

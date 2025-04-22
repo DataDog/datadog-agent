@@ -9,6 +9,7 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -17,7 +18,7 @@ import (
 
 // ExtractServiceAccount returns the protobuf model corresponding to a
 // Kubernetes ServiceAccount resource.
-func ExtractServiceAccount(sa *corev1.ServiceAccount) *model.ServiceAccount {
+func ExtractServiceAccount(ctx processors.ProcessorContext, sa *corev1.ServiceAccount) *model.ServiceAccount {
 	serviceAccount := &model.ServiceAccount{
 		Metadata: extractMetadata(&sa.ObjectMeta),
 	}
@@ -43,7 +44,9 @@ func ExtractServiceAccount(sa *corev1.ServiceAccount) *model.ServiceAccount {
 		})
 	}
 
+	pctx := ctx.(*processors.K8sProcessorContext)
 	serviceAccount.Tags = append(serviceAccount.Tags, transformers.RetrieveUnifiedServiceTags(sa.ObjectMeta.Labels)...)
+	serviceAccount.Tags = append(serviceAccount.Tags, transformers.RetrieveMetadataTags(sa.ObjectMeta.Labels, sa.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 
 	return serviceAccount
 }

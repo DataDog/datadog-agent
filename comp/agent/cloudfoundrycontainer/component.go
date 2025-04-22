@@ -6,7 +6,7 @@
 // Package cloudfoundrycontainer provides the cloud foundry container component.
 package cloudfoundrycontainer
 
-// team: platform-integrations
+// team: agent-integrations
 
 // Component is the component type.
 type Component interface{}

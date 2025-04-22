@@ -90,6 +90,8 @@ type Check struct {
 	cdbName                                 string
 	statementMetricsMonotonicCountsPrevious map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB
 	dbHostname                              string
+	dbResolvedHostname                      string
+	dbInstanceIdentifier                    string
 	dbVersion                               string
 	driver                                  string
 	metricLastRun                           time.Time
@@ -114,6 +116,7 @@ type Check struct {
 	legacyIntegrationCompatibilityMode      bool
 	clock                                   clock.Clock
 	lastSampleID                            uint64
+	obfuscator                              *obfuscate.Obfuscator
 }
 
 type vDatabase struct {

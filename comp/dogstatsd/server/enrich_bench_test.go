@@ -35,7 +35,7 @@ func BenchmarkExtractTagsMetadata(b *testing.B) {
 			sb.ResetTimer()
 
 			for n := 0; n < sb.N; n++ {
-				tags, _, _, _ = extractTagsMetadata(baseTags, "", origindetection.LocalData{}, origindetection.ExternalData{}, conf)
+				tags, _, _, _ = extractTagsMetadata(baseTags, "", 0, origindetection.LocalData{}, origindetection.ExternalData{}, "", conf)
 			}
 		})
 	}
@@ -52,7 +52,7 @@ func BenchmarkMetricsExclusion(b *testing.B) {
 
 	b.Run("none", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			enrichMetricSample(out, sample, "", "", conf)
+			enrichMetricSample(out, sample, "", 0, "", conf)
 		}
 	})
 
@@ -66,7 +66,7 @@ func BenchmarkMetricsExclusion(b *testing.B) {
 		b.Run(fmt.Sprintf("%d-exact", i),
 			func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
-					enrichMetricSample(out, sample, "", "", conf)
+					enrichMetricSample(out, sample, "", 0, "", conf)
 				}
 			})
 	}

@@ -7,10 +7,14 @@
 package converterimpl
 
 import (
+	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	"go.opentelemetry.io/collector/confmap"
 )
 
 func changeDefaultConfigsForDatadogConnector(conf *confmap.Conf) {
+	if pkgdatadog.OperationAndResourceNameV2FeatureGate.IsEnabled() {
+		return
+	}
 	stringMapConf := conf.ToStringMap()
 	connectors, ok := stringMapConf["connectors"]
 	if !ok {

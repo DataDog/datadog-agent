@@ -41,7 +41,7 @@ func parseAndEnrichSingleMetricMessage(t *testing.T, message []byte, conf enrich
 	}
 
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", "", conf)
+	samples = enrichMetricSample(samples, parsed, "", 0, "", conf)
 	if len(samples) != 1 {
 		return metrics.MetricSample{}, fmt.Errorf("wrong number of metrics parsed")
 	}
@@ -58,7 +58,7 @@ func parseAndEnrichMultipleMetricMessage(t *testing.T, message []byte, conf enri
 	}
 
 	samples := []metrics.MetricSample{}
-	return enrichMetricSample(samples, parsed, "", "", conf), nil
+	return enrichMetricSample(samples, parsed, "", 0, "", conf), nil
 }
 
 func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrichConfig) (*servicecheck.ServiceCheck, error) {
@@ -69,7 +69,7 @@ func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrich
 	if err != nil {
 		return nil, err
 	}
-	return enrichServiceCheck(parsed, "", conf), nil
+	return enrichServiceCheck(parsed, "", 0, conf), nil
 }
 
 func parseAndEnrichEventMessage(t *testing.T, message []byte, conf enrichConfig) (*event.Event, error) {
@@ -80,7 +80,7 @@ func parseAndEnrichEventMessage(t *testing.T, message []byte, conf enrichConfig)
 	if err != nil {
 		return nil, err
 	}
-	return enrichEvent(parsed, "", conf), nil
+	return enrichEvent(parsed, "", 0, conf), nil
 }
 
 func TestConvertParseMultiple(t *testing.T) {
@@ -1005,7 +1005,7 @@ func TestMetricBlocklistShouldBlock(t *testing.T) {
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", "", conf)
+	samples = enrichMetricSample(samples, parsed, "", 0, "", conf)
 
 	assert.Equal(t, 0, len(samples))
 }
@@ -1023,7 +1023,7 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", "", conf)
+	samples = enrichMetricSample(samples, parsed, "", 0, "", conf)
 
 	assert.Equal(t, 1, len(samples))
 	assert.Equal(t, "", samples[0].Host)
@@ -1044,7 +1044,7 @@ func TestMetricBlocklistShouldNotBlock(t *testing.T) {
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", "", conf)
+	samples = enrichMetricSample(samples, parsed, "", 0, "", conf)
 
 	assert.Equal(t, 1, len(samples))
 }
@@ -1115,6 +1115,7 @@ func TestEnrichTags(t *testing.T) {
 		originFromMsg []byte
 		localData     origindetection.LocalData
 		externalData  origindetection.ExternalData
+		cardinality   string
 		conf          enrichConfig
 	}
 	tests := []struct {
@@ -1463,12 +1464,46 @@ func TestEnrichTags(t *testing.T) {
 			},
 			wantedMetricSource: metrics.MetricSourceDogstatsd,
 		},
+		{
+			name: "cardinality field as none",
+			args: args{
+				cardinality: types.NoneCardinalityString,
+			},
+			wantedTags: nil,
+			wantedOrigin: taggertypes.OriginInfo{
+				Cardinality: "none",
+			},
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
+		},
+		{
+			name: "cardinality field as high",
+			args: args{
+				cardinality: types.HighCardinalityString,
+			},
+			wantedTags: nil,
+			wantedOrigin: taggertypes.OriginInfo{
+				Cardinality: "high",
+			},
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
+		},
+		{
+			name: "cardinality field with dd.internal.card",
+			args: args{
+				tags:        []string{"env:prod", "dd.internal.card:high"},
+				cardinality: types.NoneCardinalityString,
+			},
+			wantedTags: []string{"env:prod", "dd.internal.card:high"},
+			wantedOrigin: taggertypes.OriginInfo{
+				Cardinality: "none",
+			},
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
+		},
 	}
 	for _, tt := range tests {
 		tt.wantedOrigin.ProductOrigin = origindetection.ProductOriginDogStatsD
 
 		t.Run(tt.name, func(t *testing.T) {
-			tags, host, origin, metricSource := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, tt.args.localData, tt.args.externalData, tt.args.conf)
+			tags, host, origin, metricSource := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, 0, tt.args.localData, tt.args.externalData, tt.args.cardinality, tt.args.conf)
 			assert.Equal(t, tt.wantedTags, tags)
 			assert.Equal(t, tt.wantedHost, host)
 			assert.Equal(t, tt.wantedOrigin, origin)
@@ -1516,7 +1551,7 @@ func TestEnrichTagsWithJMXCheckName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tags, _, _, metricSource := extractTagsMetadata(tt.tags, "", origindetection.LocalData{}, origindetection.ExternalData{}, enrichConfig{})
+			tags, _, _, metricSource := extractTagsMetadata(tt.tags, "", 0, origindetection.LocalData{}, origindetection.ExternalData{}, "", enrichConfig{})
 			assert.Equal(t, tt.wantedTags, tags)
 			assert.Equal(t, tt.wantedMetricSource, metricSource)
 			assert.NotContains(t, tags, tt.jmxCheckName)

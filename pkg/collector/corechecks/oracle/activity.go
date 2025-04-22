@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
-	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -65,11 +64,12 @@ func sendPayload(c *Check, sessionRows []OracleActivityRow, timestamp float64) e
 	payload := ActivitySnapshot{
 		Metadata: Metadata{
 			//Timestamp:      float64(c.clock.Now().UnixMilli()),
-			Timestamp:      ts,
-			Host:           c.dbHostname,
-			Source:         common.IntegrationName,
-			DBMType:        "activity",
-			DDAgentVersion: c.agentVersion,
+			Timestamp:        ts,
+			Host:             c.dbHostname,
+			DatabaseInstance: c.dbInstanceIdentifier,
+			Source:           common.IntegrationName,
+			DBMType:          "activity",
+			DDAgentVersion:   c.agentVersion,
 		},
 		CollectionInterval: collectionInterval,
 		Tags:               c.tags,
@@ -157,8 +157,7 @@ AND status = 'ACTIVE'`)
 		return fmt.Errorf("failed to collect session sampling activity: %w \n%s", err, activityQuery)
 	}
 
-	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
-	defer o.Stop()
+	o := c.LazyInitObfuscator()
 	var payloadSent bool
 	var lastNow string
 	for _, sample := range sessionSamples {

@@ -11,9 +11,9 @@ import (
 	"errors"
 	"expvar"
 
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
 var (
@@ -56,7 +56,7 @@ func init() {
 type Compressor struct {
 	input               *bytes.Buffer // temporary buffer for data that has not been compressed yet
 	compressed          *bytes.Buffer // output buffer containing the compressed payload
-	strategy            compression.Component
+	strategy            metricscompression.Component
 	zipper              compression.StreamCompressor
 	header              []byte // json header to print at the beginning of the payload
 	footer              []byte // json footer to append at the end of the payload
@@ -71,7 +71,7 @@ type Compressor struct {
 }
 
 // NewCompressor returns a new instance of a Compressor
-func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte, compressor compression.Component) (*Compressor, error) {
+func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte, compressor compression.Compressor) (*Compressor, error) {
 	c := &Compressor{
 		header:              header,
 		footer:              footer,

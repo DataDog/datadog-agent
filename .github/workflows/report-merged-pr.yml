@@ -24,18 +24,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Python3
-        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+      - name: Install dda
+        uses: ./.github/actions/install-dda
         with:
-          python-version-file: .python-version
-          cache: "pip"
-          cache-dependency-path: '**/requirements*.txt'
-
-      - name: Install python dependencies
-        run: pip3 install -r requirements.txt
+          features: legacy-tasks
 
       - name: Send merge event to Datadog
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          invoke -e github.pr-merge-dd-event-sender -p "$PR_NUMBER"
+          dda inv -- -e github.pr-merge-dd-event-sender -p "$PR_NUMBER"

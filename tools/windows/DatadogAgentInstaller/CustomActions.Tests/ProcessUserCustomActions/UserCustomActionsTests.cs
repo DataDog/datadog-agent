@@ -94,6 +94,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
 
             Test.Properties.Should()
                 .Contain("DDAGENTUSER_FOUND", "true").And
+                .Contain("DDAGENTUSER_IS_SERVICE_ACCOUNT", "true").And
                 .Contain("DDAGENTUSER_SID", new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null).Value).And
                 .Contain("DDAGENTUSER_PROCESSED_NAME", "SYSTEM").And
                 .Contain("DDAGENTUSER_PROCESSED_DOMAIN", "NT AUTHORITY").And
@@ -178,6 +179,19 @@ namespace CustomActions.Tests.ProcessUserCustomActions
                 .ProcessDdAgentUserCredentials()
                 .Should()
                 .Be(ActionResult.Failure);
+        }
+
+        [Fact]
+        public void ProcessDdAgentUserCredentials_Handles_Lanmanserver_Not_Availabile()
+        {
+            // IsDomainController throws an exception if the Lanmanserver service is not available
+            Test.NativeMethods
+                .Setup(n => n.IsDomainController()).Throws<Exception>();
+
+            Test.Create()
+                .ProcessDdAgentUserCredentials()
+                .Should()
+                .Be(ActionResult.Success);
         }
     }
 }

@@ -7,13 +7,14 @@
 package djm
 
 import (
-	"cloud.google.com/go/compute/metadata"
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
+
+	"cloud.google.com/go/compute/metadata"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/stretchr/testify/assert"
@@ -64,6 +65,7 @@ func TestSetupDataproc(t *testing.T) {
 		{
 			name: "master node",
 			wantTags: []string{
+				"data_workload_monitoring_trial:true",
 				"cluster_id:test-cluster-uuid",
 				"dataproc_cluster_id:test-cluster-uuid",
 				"cluster_name:test-cluster-name",

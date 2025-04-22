@@ -2318,6 +2318,21 @@
           "architecture": "all"
         }
       ]
+    },
+    {
+      "name": "Network directions",
+      "link": "network-directions",
+      "description": "Network directions are the supported directions of network packets.",
+      "all": [
+        {
+          "name": "INGRESS",
+          "architecture": "all"
+        },
+        {
+          "name": "EGRESS",
+          "architecture": "all"
+        }
+      ]
     }
   ]
 }

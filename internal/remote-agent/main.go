@@ -32,6 +32,7 @@ import (
 
 type remoteAgentServer struct {
 	started time.Time
+	pbcore.UnimplementedRemoteAgentServer
 }
 
 func (s *remoteAgentServer) GetStatusDetails(_ context.Context, req *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
@@ -57,6 +58,22 @@ func (s *remoteAgentServer) GetFlareFiles(_ context.Context, req *pbcore.GetFlar
 
 	return &pbcore.GetFlareFilesResponse{
 		Files: files,
+	}, nil
+}
+
+func (s *remoteAgentServer) GetTelemetry(_ context.Context, req *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {
+	log.Printf("Got request for telemetry: %v", req)
+
+	var prometheusText = `
+# TYPE remote_agent_test_foo counter
+remote_agent_test_foo 62
+# TYPE remote_agent_test_bar gauge
+remote_agent_test_bar{tag_one="1",tag_two="two"} 3
+`
+	return &pbcore.GetTelemetryResponse{
+		Payload: &pbcore.GetTelemetryResponse_PromText{
+			PromText: prometheusText,
+		},
 	}, nil
 }
 

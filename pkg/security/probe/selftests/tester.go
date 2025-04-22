@@ -182,7 +182,7 @@ func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) (
 		policyDef.Rules[i] = selfTest.GetRuleDefinition()
 	}
 
-	policy, err := rules.LoadPolicyFromDefinition(policyName, policySource, policyDef, nil, nil)
+	policy, err := rules.LoadPolicyFromDefinition(policyName, policySource, rules.SelftestPolicy, policyDef, nil, nil)
 	if err != nil {
 		return nil, multierror.Append(nil, err)
 	}
@@ -219,7 +219,7 @@ func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, _ *prob
 			return true
 		}
 
-		s := serializers.NewEventSerializer(ev, rule.Opts)
+		s := serializers.NewEventSerializer(ev, rule)
 		if s == nil {
 			return false
 		}

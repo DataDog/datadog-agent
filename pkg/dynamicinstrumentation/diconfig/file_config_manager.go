@@ -14,7 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func NewFileConfigManager(configFile string) (*ReaderConfigManager, func(), error) { //nolint:revive // TODO
+// NewFileConfigManager creates a new FileConfigManager
+func NewFileConfigManager(configFile string) (*ReaderConfigManager, func(), error) {
 	stopChan := make(chan bool)
 	stop := func() {
 		stopChan <- true
@@ -35,7 +36,10 @@ func NewFileConfigManager(configFile string) (*ReaderConfigManager, func(), erro
 		for {
 			select {
 			case rawBytes := <-updateChan:
-				cm.ConfigWriter.Write(rawBytes) //nolint:errcheck // TODO
+				_, err := cm.ConfigWriter.Write(rawBytes)
+				if err != nil {
+					log.Errorf("Error writing config file %s: %s", configFile, err)
+				}
 			case <-stopChan:
 				log.Info("stopping file config manager")
 				fw.Stop()

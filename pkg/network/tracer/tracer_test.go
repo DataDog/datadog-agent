@@ -21,6 +21,7 @@ import (
 	"net/netip"
 	"os"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -63,24 +64,31 @@ type TracerSuite struct {
 	suite.Suite
 }
 
+func SupportedNetworkBuildModes() []ebpftest.BuildMode {
+	modes := ebpftest.SupportedBuildModes()
+	if !slices.Contains(modes, ebpftest.Ebpfless) {
+		modes = append(modes, ebpftest.Ebpfless)
+	}
+	return modes
+}
+
 func TestTracerSuite(t *testing.T) {
-	ebpftest.TestBuildModes(t, ebpftest.SupportedBuildModes(), "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, SupportedNetworkBuildModes(), "", func(t *testing.T) {
 		suite.Run(t, new(TracerSuite))
 	})
 }
 
-func isFentry() bool {
-	return ebpftest.GetBuildMode() == ebpftest.Fentry
-}
-
 func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
-	if isFentry() {
+	if ebpftest.GetBuildMode() == ebpftest.Ebpfless {
 		env.SetFeatures(t, env.ECSFargate)
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
 	}
+	if ebpftest.GetBuildMode() == ebpftest.Fentry {
+		cfg.ProtocolClassificationEnabled = false
+	}
 
-	tr, err := NewTracer(cfg, nil)
+	tr, err := NewTracer(cfg, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 
@@ -168,22 +176,22 @@ func (s *TracerSuite) TestTCPSendAndReceive() {
 				break
 			}
 		}
-		c.Close()
+		testutil.GracefulCloseTCP(c)
 	})
 	t.Cleanup(server.Shutdown)
 	err := server.Run()
 	require.NoError(t, err)
 
-	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+	c, err := server.Dial()
 	require.NoError(t, err)
-	defer c.Close()
+	defer testutil.GracefulCloseTCP(c)
 
 	// Connect to server 10 times
 	wg := new(errgroup.Group)
 	for i := 0; i < 10; i++ {
 		wg.Go(func() error {
 			// Write clientMessageSize to server, and read response
-			if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
+			if _, err := c.Write(genPayload(clientMessageSize)); err != nil {
 				return err
 			}
 
@@ -199,7 +207,8 @@ func (s *TracerSuite) TestTCPSendAndReceive() {
 	var conn *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		// Iterate through active connections until we find connection created above, and confirm send + recv counts
-		connections := getConnections(collect, tr)
+		connections, cleanup := getConnections(collect, tr)
+		defer cleanup()
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 		require.True(collect, ok)
@@ -233,7 +242,7 @@ func (s *TracerSuite) TestTCPShortLived() {
 	require.NoError(t, server.Run())
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+	c, err := server.Dial()
 	require.NoError(t, err)
 
 	// Write clientMessageSize to server, and read response
@@ -248,7 +257,9 @@ func (s *TracerSuite) TestTCPShortLived() {
 	var conn *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		var ok bool
-		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(collect, tr))
+		connections, cleanup := getConnections(collect, tr)
+		defer cleanup()
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 		require.True(collect, ok)
 	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 
@@ -267,7 +278,9 @@ func (s *TracerSuite) TestTCPShortLived() {
 	assert.Equal(t, uint16(1), m.TCPEstablished)
 	assert.Equal(t, uint16(1), m.TCPClosed)
 
-	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+	connections, cleanup := getConnections(t, tr)
+	defer cleanup()
+	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	assert.False(t, ok)
 }
 
@@ -297,12 +310,12 @@ func (s *TracerSuite) TestTCPOverIPv6() {
 			r := bufio.NewReader(c)
 			r.ReadBytes(byte('\n'))
 			c.Write(genPayload(serverMessageSize))
-			c.Close()
+			testutil.GracefulCloseTCP(c)
 		}
 	}()
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp6", ln.Addr().String(), 50*time.Millisecond)
+	c, err := testutil.DialTCP("tcp6", ln.Addr().String())
 	require.NoError(t, err)
 
 	// Write clientMessageSize to server, and read response
@@ -312,7 +325,8 @@ func (s *TracerSuite) TestTCPOverIPv6() {
 	r := bufio.NewReader(c)
 	r.ReadBytes(byte('\n'))
 
-	connections := getConnections(t, tr)
+	connections, cleanup := getConnections(t, tr)
+	defer cleanup()
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
@@ -346,17 +360,18 @@ func (s *TracerSuite) TestTCPCollectionDisabled() {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
-		c.Close()
+		testutil.GracefulCloseTCP(c)
 	})
 
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+	c, err := server.Dial()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer testutil.GracefulCloseTCP(c)
 
 	// Write clientMessageSize to server, and read response
 	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
@@ -365,7 +380,8 @@ func (s *TracerSuite) TestTCPCollectionDisabled() {
 	r := bufio.NewReader(c)
 	r.ReadBytes(byte('\n'))
 
-	connections := getConnections(t, tr)
+	connections, cleanup := getConnections(t, tr)
+	defer cleanup()
 
 	// Confirm that we could not find connection created above
 	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
@@ -390,30 +406,40 @@ func (s *TracerSuite) TestTCPConnsReported() {
 	require.NoError(t, server.Run())
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+	c, err := server.Dial()
 	require.NoError(t, err)
-	defer c.Close()
 	<-processedChan
+	c.Close()
 
 	var forward *network.ConnectionStats
 	var reverse *network.ConnectionStats
-	var okForward, okReverse bool
 	// for ebpfless, it takes time for the packet capture to arrive, so poll
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		// Test
-		connections := getConnections(collect, tr)
-		// Server-side
-		forward, okForward = findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-		require.True(collect, okForward)
-		// Client-side
-		reverse, okReverse = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		require.True(collect, okReverse)
-	}, 3*time.Second, 100*time.Millisecond, "connection not found")
+		connections, cleanup := getConnections(collect, tr)
+		defer cleanup()
 
-	assert.Equal(t, network.INCOMING, forward.Direction)
-	assert.Equal(t, network.OUTGOING, reverse.Direction)
-	assert.Equal(t, network.StatCounters{TCPEstablished: 1, TCPClosed: 1}, forward.Monotonic)
-	assert.Equal(t, network.StatCounters{TCPEstablished: 1, TCPClosed: 0}, reverse.Monotonic)
+		// Server-side
+		newForward, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		if newForward != nil {
+			forward = newForward
+		}
+		// Client-side
+		newReverse, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		if newReverse != nil {
+			reverse = newReverse
+		}
+
+		require.NotNil(collect, forward)
+		require.NotNil(collect, reverse)
+
+		require.Equal(collect, network.INCOMING, forward.Direction)
+		require.Equal(collect, network.OUTGOING, reverse.Direction)
+		require.Equal(collect, uint16(1), forward.Monotonic.TCPEstablished)
+		require.Equal(collect, uint16(1), forward.Monotonic.TCPClosed)
+		require.Equal(collect, uint16(1), reverse.Monotonic.TCPEstablished)
+		require.Equal(collect, uint16(1), reverse.Monotonic.TCPClosed)
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 
 }
 
@@ -427,7 +453,7 @@ func (s *TracerSuite) TestUDPSendAndReceive() {
 			t.Skip("UDPv4 disabled")
 		}
 		t.Run("fixed port", func(t *testing.T) {
-			testUDPSendAndReceive(t, tr, "127.0.0.1:8081")
+			testUDPSendAndReceive(t, tr, "udp", "127.0.0.1:8081")
 		})
 	})
 	t.Run("v6", func(t *testing.T) {
@@ -435,15 +461,16 @@ func (s *TracerSuite) TestUDPSendAndReceive() {
 			t.Skip("UDPv6 disabled")
 		}
 		t.Run("fixed port", func(t *testing.T) {
-			testUDPSendAndReceive(t, tr, "[::1]:8081")
+			testUDPSendAndReceive(t, tr, "udp6", "[::1]:8081")
 		})
 	})
 }
 
-func testUDPSendAndReceive(t *testing.T, tr *Tracer, addr string) {
+func testUDPSendAndReceive(t *testing.T, tr *Tracer, ntwk, addr string) {
 	tr.removeClient(clientID)
 
 	server := &UDPServer{
+		network: ntwk,
 		address: addr,
 		onMessage: func(_ []byte, _ int) []byte {
 			return genPayload(serverMessageSize)
@@ -457,7 +484,7 @@ func testUDPSendAndReceive(t *testing.T, tr *Tracer, addr string) {
 	initTracerState(t, tr)
 
 	// Connect to server
-	c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
+	c, err := server.Dial()
 	require.NoError(t, err)
 	defer c.Close()
 
@@ -471,7 +498,8 @@ func testUDPSendAndReceive(t *testing.T, tr *Tracer, addr string) {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		// use t instead of ct because getConnections uses require (not assert), and we get a better error message
-		connections := getConnections(ct, tr)
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
 		incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 		if assert.True(ct, ok, "unable to find incoming connection") {
 			assert.Equal(ct, network.INCOMING, incoming.Direction)
@@ -504,6 +532,7 @@ func (s *TracerSuite) TestUDPDisabled() {
 
 	// Create UDP Server which sends back serverMessageSize bytes
 	server := &UDPServer{
+		network: "udp",
 		onMessage: func([]byte, int) []byte {
 			return genPayload(serverMessageSize)
 		},
@@ -514,7 +543,7 @@ func (s *TracerSuite) TestUDPDisabled() {
 	t.Cleanup(server.Shutdown)
 
 	// Connect to server
-	c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
+	c, err := server.Dial()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -525,10 +554,12 @@ func (s *TracerSuite) TestUDPDisabled() {
 		t.Fatal(err)
 	}
 
-	c.Read(make([]byte, serverMessageSize))
+	_, err = c.Read(make([]byte, serverMessageSize))
+	require.NoError(t, err)
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections := getConnections(t, tr)
+	connections, cleanup := getConnections(t, tr)
+	defer cleanup()
 
 	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.False(t, ok)
@@ -542,10 +573,7 @@ func (s *TracerSuite) TestLocalDNSCollectionDisabled() {
 	tr := setupTracer(t, config)
 
 	// Connect to local DNS
-	addr, err := net.ResolveUDPAddr("udp", "localhost:53")
-	assert.NoError(t, err)
-
-	cn, err := net.DialUDP("udp", nil, addr)
+	cn, err := dialUDP("udp", "127.0.0.1:53")
 	assert.NoError(t, err)
 	defer cn.Close()
 
@@ -554,7 +582,9 @@ func (s *TracerSuite) TestLocalDNSCollectionDisabled() {
 	assert.NoError(t, err)
 
 	// Iterate through active connections making sure there are no local DNS calls
-	for _, c := range getConnections(t, tr).Conns {
+	connections, cleanup := getConnections(t, tr)
+	defer cleanup()
+	for _, c := range connections.Conns {
 		assert.False(t, isLocalDNS(c))
 	}
 }
@@ -568,10 +598,7 @@ func (s *TracerSuite) TestLocalDNSCollectionEnabled() {
 	tr := setupTracer(t, cfg)
 
 	// Connect to local DNS
-	addr, err := net.ResolveUDPAddr("udp", "localhost:53")
-	assert.NoError(t, err)
-
-	cn, err := net.DialUDP("udp", nil, addr)
+	cn, err := dialUDP("udp", "127.0.0.1:53")
 	assert.NoError(t, err)
 	defer cn.Close()
 
@@ -581,7 +608,9 @@ func (s *TracerSuite) TestLocalDNSCollectionEnabled() {
 
 	// Iterate through active connections making sure theres at least one connection
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		for _, c := range getConnections(collect, tr).Conns {
+		connections, cleanup := getConnections(collect, tr)
+		defer cleanup()
+		for _, c := range connections.Conns {
 			if isLocalDNS(c) {
 				return
 			}
@@ -605,10 +634,7 @@ func (s *TracerSuite) TestShouldSkipExcludedConnection() {
 	tr := setupTracer(t, cfg)
 
 	// Connect to 127.0.0.1:80
-	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:80")
-	assert.NoError(t, err)
-
-	cn, err := net.DialUDP("udp", nil, addr)
+	cn, err := dialUDP("udp", "127.0.0.1:80")
 	assert.NoError(t, err)
 	defer cn.Close()
 
@@ -616,22 +642,26 @@ func (s *TracerSuite) TestShouldSkipExcludedConnection() {
 	_, err = cn.Write([]byte("test"))
 	assert.NoError(t, err)
 
-	// Make sure we're not picking up 127.0.0.1:80
-	cxs := getConnections(t, tr)
-	for _, c := range cxs.Conns {
-		assert.False(t, c.Source.String() == "127.0.0.1" && c.SPort == 80, "connection %s should be excluded", c)
-		assert.False(t, c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.TCP, "connection %s should be excluded", c)
-	}
-
-	// ensure one of the connections is UDP to 127.0.0.1:80
-	assert.Condition(t, func() bool {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		// Make sure we're not picking up 127.0.0.1:80
+		cxs, cleanup := getConnections(collect, tr)
+		defer cleanup()
 		for _, c := range cxs.Conns {
-			if c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.UDP {
-				return true
-			}
+			assert.False(collect, c.Source.String() == "127.0.0.1" && c.SPort == 80, "connection %s should be excluded", c)
+			assert.False(collect, c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.TCP, "connection %s should be excluded", c)
 		}
-		return false
-	}, "Unable to find UDP connection to 127.0.0.1:80")
+
+		// ensure one of the connections is UDP to 127.0.0.1:80
+		assert.Condition(collect, func() bool {
+			for _, c := range cxs.Conns {
+				if c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.UDP {
+					return true
+				}
+			}
+			return false
+		}, "Unable to find UDP connection to 127.0.0.1:80")
+
+	}, 2*time.Second, 100*time.Millisecond)
 }
 
 func (s *TracerSuite) TestShouldExcludeEmptyStatsConnection() {
@@ -640,10 +670,7 @@ func (s *TracerSuite) TestShouldExcludeEmptyStatsConnection() {
 	tr := setupTracer(t, cfg)
 
 	// Connect to 127.0.0.1:80
-	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:80")
-	assert.NoError(t, err)
-
-	cn, err := net.DialUDP("udp", nil, addr)
+	cn, err := dialUDP("udp", "127.0.0.1:80")
 	assert.NoError(t, err)
 	defer cn.Close()
 
@@ -653,7 +680,8 @@ func (s *TracerSuite) TestShouldExcludeEmptyStatsConnection() {
 
 	var zeroConn network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		cxs := getConnections(collect, tr)
+		cxs, cleanup := getConnections(collect, tr)
+		defer cleanup()
 		for _, c := range cxs.Conns {
 			if c.Dest.String() == "127.0.0.1" && c.DPort == 80 {
 				zeroConn = c
@@ -664,7 +692,8 @@ func (s *TracerSuite) TestShouldExcludeEmptyStatsConnection() {
 	}, 2*time.Second, 100*time.Millisecond)
 
 	// next call should not have the same connection
-	cxs := getConnections(t, tr)
+	cxs, cleanup := getConnections(t, tr)
+	defer cleanup()
 	found := false
 	for _, c := range cxs.Conns {
 		if c.Source == zeroConn.Source && c.SPort == zeroConn.SPort &&
@@ -764,12 +793,15 @@ func benchEchoUDP(size int) func(b *testing.B) {
 	}
 
 	return func(b *testing.B) {
-		server := &UDPServer{onMessage: echoOnMessage}
+		server := &UDPServer{
+			network:   "udp",
+			onMessage: echoOnMessage,
+		}
 		err := server.Run(size)
 		require.NoError(b, err)
 		defer server.Shutdown()
 
-		c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
+		c, err := server.Dial()
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -813,7 +845,7 @@ func benchEchoTCP(size int) func(b *testing.B) {
 		for {
 			buf, err := r.ReadBytes(byte('\n'))
 			if err == io.EOF {
-				c.Close()
+				testutil.GracefulCloseTCP(c)
 				return
 			}
 			c.Write(buf)
@@ -825,11 +857,11 @@ func benchEchoTCP(size int) func(b *testing.B) {
 		b.Cleanup(server.Shutdown)
 		require.NoError(b, server.Run())
 
-		c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+		c, err := server.Dial()
 		if err != nil {
 			b.Fatal(err)
 		}
-		defer c.Close()
+		defer testutil.GracefulCloseTCP(c)
 		r := bufio.NewReader(c)
 
 		b.ResetTimer()
@@ -852,7 +884,7 @@ func benchSendTCP(size int) func(b *testing.B) {
 		for { // Drop all payloads received
 			_, err := r.Discard(r.Buffered() + 1)
 			if err == io.EOF {
-				c.Close()
+				testutil.GracefulCloseTCP(c)
 				return
 			}
 		}
@@ -863,11 +895,11 @@ func benchSendTCP(size int) func(b *testing.B) {
 		b.Cleanup(server.Shutdown)
 		require.NoError(b, server.Run())
 
-		c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+		c, err := server.Dial()
 		if err != nil {
 			b.Fatal(err)
 		}
-		defer c.Close()
+		defer testutil.GracefulCloseTCP(c)
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ { // Send-heavy workload
@@ -889,18 +921,22 @@ type UDPServer struct {
 }
 
 func (s *UDPServer) Run(payloadSize int) error {
-	networkType := "udp"
-	if s.network != "" {
-		networkType = s.network
+	if s.network == "" {
+		return fmt.Errorf("must set network for UDPServer.Run()")
 	}
 	var err error
 	var ln net.PacketConn
 	if s.lc != nil {
-		ln, err = s.lc.ListenPacket(context.Background(), networkType, s.address)
+		ln, err = s.lc.ListenPacket(context.Background(), s.network, s.address)
 	} else {
-		ln, err = net.ListenPacket(networkType, s.address)
+		ln, err = net.ListenPacket(s.network, s.address)
 	}
 	if err != nil {
+		return err
+	}
+	err = ln.SetDeadline(time.Now().Add(time.Minute))
+	if err != nil {
+		ln.Close()
 		return err
 	}
 
@@ -933,11 +969,31 @@ func (s *UDPServer) Run(payloadSize int) error {
 	return nil
 }
 
+func (s *UDPServer) Dial() (net.Conn, error) {
+	return dialUDP(s.network, s.address)
+}
+
 func (s *UDPServer) Shutdown() {
 	if s.ln != nil {
 		_ = s.ln.Close()
 		s.ln = nil
 	}
+}
+
+func dialUDP(network, address string) (net.Conn, error) {
+	if network == "" {
+		return nil, fmt.Errorf("must set network to dialUDP")
+	}
+	conn, err := net.DialTimeout(network, address, 50*time.Millisecond)
+	if err != nil {
+		return nil, err
+	}
+	err = testutil.SetTestDeadline(conn)
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return conn, nil
 }
 
 var letterBytes = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -966,11 +1022,11 @@ func initTracerState(t testing.TB, tr *Tracer) {
 	require.NoError(t, err)
 }
 
-func getConnections(t require.TestingT, tr *Tracer) *network.Connections {
+func getConnections(t require.TestingT, tr *Tracer) (*network.Connections, func()) {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections, err := tr.GetActiveConnections(clientID)
+	connections, cleanup, err := tr.GetActiveConnections(clientID)
 	require.NoError(t, err)
-	return connections
+	return connections, cleanup
 }
 
 func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, timeout int, serverIP string) {
@@ -1008,7 +1064,8 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 		}
 
 		// Iterate through active connections until we find connection created above, and confirm send + recv counts
-		connections := getConnections(c, tr)
+		connections, cleanup := getConnections(c, tr)
+		defer cleanup()
 		conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
 		if passed := assert.True(c, ok); !passed {
 			return
@@ -1084,7 +1141,7 @@ func (s *TracerSuite) TestTCPEstablished() {
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+	c, err := server.Dial()
 	require.NoError(t, err)
 
 	laddr, raddr := c.LocalAddr(), c.RemoteAddr()
@@ -1095,7 +1152,9 @@ func (s *TracerSuite) TestTCPEstablished() {
 
 	// for ebpfless, wait for the packet capture to appear
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		conn, ok = findConnection(laddr, raddr, getConnections(collect, tr))
+		connections, cleanup := getConnections(collect, tr)
+		defer cleanup()
+		conn, ok = findConnection(laddr, raddr, connections)
 		require.True(collect, ok)
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
 
@@ -1108,7 +1167,9 @@ func (s *TracerSuite) TestTCPEstablished() {
 	// Wait for the connection to be sent from the perf buffer
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		var ok bool
-		conn, ok = findConnection(laddr, raddr, getConnections(collect, tr))
+		connections, cleanup := getConnections(collect, tr)
+		defer cleanup()
+		conn, ok = findConnection(laddr, raddr, connections)
 		require.True(collect, ok)
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
 
@@ -1126,7 +1187,7 @@ func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+	c, err := server.Dial()
 	require.NoError(t, err)
 	laddr, raddr := c.LocalAddr(), c.RemoteAddr()
 	t.Logf("laddr=%s raddr=%s", laddr, raddr)
@@ -1143,7 +1204,9 @@ func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
 	var conn *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		var ok bool
-		conn, ok = findConnection(laddr, raddr, getConnections(collect, tr))
+		connections, cleanup := getConnections(collect, tr)
+		defer cleanup()
+		conn, ok = findConnection(laddr, raddr, connections)
 		require.True(collect, ok)
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
 
@@ -1163,12 +1226,15 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv4() {
 	conn, err := net.ListenUDP("udp4", nil)
 	require.NoError(t, err)
 	defer conn.Close()
+	err = testutil.SetTestDeadline(conn)
+	require.NoError(t, err)
 	message := []byte("payload")
 	bytesSent, err := conn.WriteTo(message, remoteAddr)
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		connections := getConnections(ct, tr)
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
 		outgoing := network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
 			return cs.DPort == uint16(remotePort)
 		})
@@ -1190,7 +1256,7 @@ func (s *TracerSuite) TestConnectedUDPSendIPv6() {
 
 	remotePort := rand.Int()%5000 + 15000
 	remoteAddr := &net.UDPAddr{IP: net.IPv6loopback, Port: remotePort}
-	conn, err := net.DialUDP("udp6", nil, remoteAddr)
+	conn, err := dialUDP("udp6", remoteAddr.String())
 	require.NoError(t, err)
 	defer conn.Close()
 	message := []byte("payload")
@@ -1199,7 +1265,8 @@ func (s *TracerSuite) TestConnectedUDPSendIPv6() {
 
 	var outgoing []network.ConnectionStats
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		connections := getConnections(ct, tr)
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
 		outgoing = network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
 			return cs.DPort == uint16(remotePort)
 		})
@@ -1249,7 +1316,8 @@ func (s *TracerSuite) TestTCPDirection() {
 	var outgoingConns []network.ConnectionStats
 	var incomingConns []network.ConnectionStats
 	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
-		conns := getConnections(collect, tr)
+		conns, cleanup := getConnections(collect, tr)
+		defer cleanup()
 		if len(outgoingConns) == 0 {
 			outgoingConns = network.FilterConnections(conns, func(cs network.ConnectionStats) bool {
 				return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr
@@ -1283,7 +1351,7 @@ func (s *TracerSuite) TestTCPFailureConnectionRefused() {
 
 	// try to connect to a port where no server is accepting connections
 	srvAddr := "127.0.0.1:9998"
-	conn, err := net.Dial("tcp", srvAddr)
+	conn, err := testutil.DialTCP("tcp", srvAddr)
 	if err == nil {
 		conn.Close() // If the connection unexpectedly succeeds, close it immediately.
 		require.Fail(t, "expected connection to be refused, but it succeeded")
@@ -1293,7 +1361,8 @@ func (s *TracerSuite) TestTCPFailureConnectionRefused() {
 	// Check if the connection was recorded as refused
 	var foundConn *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		conns := getConnections(collect, tr)
+		conns, cleanup := getConnections(collect, tr)
+		defer cleanup()
 		// Check for the refusal record
 		foundConn = findFailedConnectionByRemoteAddr(srvAddr, conns, 111)
 		require.NotNil(collect, foundConn)
@@ -1329,7 +1398,7 @@ func (s *TracerSuite) TestTCPFailureConnectionResetWithData() {
 	t.Cleanup(srv.Shutdown)
 
 	serverAddr := srv.Address()
-	c, err := net.Dial("tcp", serverAddr)
+	c, err := testutil.DialTCP("tcp", serverAddr)
 	require.NoError(t, err, "could not connect to server: ", err)
 
 	// Write to the server and expect a reset
@@ -1345,9 +1414,11 @@ func (s *TracerSuite) TestTCPFailureConnectionResetWithData() {
 	// Check if the connection was recorded as reset
 	var conn *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		connections, cleanup := getConnections(collect, tr)
+		defer cleanup()
 		// 104 is the errno for ECONNRESET
 		// findFailedConnection needs `t` for logging, hence no need to pass `collect`.
-		conn = findFailedConnection(t, c.LocalAddr().String(), serverAddr, getConnections(collect, tr), 104)
+		conn = findFailedConnection(t, c.LocalAddr().String(), serverAddr, connections, 104)
 		require.NotNil(collect, conn)
 	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
 
@@ -1382,7 +1453,7 @@ func (s *TracerSuite) TestTCPFailureConnectionResetNoData() {
 	t.Cleanup(srv.Shutdown)
 
 	serverAddr := srv.Address()
-	c, err := net.Dial("tcp", serverAddr)
+	c, err := testutil.DialTCP("tcp", serverAddr)
 	require.NoError(t, err, "could not connect to server: ", err)
 
 	// Wait briefly to give the server time to close the connection
@@ -1395,7 +1466,8 @@ func (s *TracerSuite) TestTCPFailureConnectionResetNoData() {
 	// Check if the connection was recorded as reset
 	var conn *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		conns := getConnections(collect, tr)
+		conns, cleanup := getConnections(collect, tr)
+		defer cleanup()
 		// 104 is the errno for ECONNRESET
 		// findFailedConnection needs `t` for logging, hence no need to pass `collect`.
 		conn = findFailedConnection(t, c.LocalAddr().String(), serverAddr, conns, 104)
@@ -1446,8 +1518,7 @@ func BenchmarkGetActiveConnections(b *testing.B) {
 	cfg := testConfig()
 	tr := setupTracer(b, cfg)
 	server := testutil.NewTCPServer(func(c net.Conn) {
-		io.Copy(io.Discard, c)
-		c.Close()
+		testutil.GracefulCloseTCP(c)
 	})
 	b.Cleanup(server.Shutdown)
 	require.NoError(b, server.Run())
@@ -1456,22 +1527,23 @@ func BenchmarkGetActiveConnections(b *testing.B) {
 	b.ResetTimer()
 
 	for range b.N {
-		c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+		c, err := server.Dial()
 		require.NoError(b, err)
 		laddr, raddr := c.LocalAddr(), c.RemoteAddr()
 		c.Write([]byte("hello"))
-		connections := getConnections(b, tr)
+		connections, _ := getConnections(b, tr)
 		conn, ok := findConnection(laddr, raddr, connections)
 
 		require.True(b, ok)
 		assert.Equal(b, uint32(1), conn.Last.TCPEstablished)
 		assert.Equal(b, uint32(0), conn.Last.TCPClosed)
-		c.Close()
+		testutil.GracefulCloseTCP(c)
 
 		// Wait for the connection to be sent from the perf buffer
 		require.Eventually(b, func() bool {
 			var ok bool
-			conn, ok = findConnection(laddr, raddr, getConnections(b, tr))
+			connections, _ := getConnections(b, tr)
+			conn, ok = findConnection(laddr, raddr, connections)
 			return ok
 		}, 3*time.Second, 10*time.Millisecond, "couldn't find connection")
 

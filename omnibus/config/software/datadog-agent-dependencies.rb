@@ -6,9 +6,9 @@ description "Enforce building dependencies as soon as possible so they can be ca
 if linux_target?
   dependency 'procps-ng'
   dependency 'curl'
-  if fips_mode?
-    dependency 'openssl-fips-provider'
-  end
+end
+if fips_mode?
+  dependency 'openssl-fips-provider'
 end
 
 # Bundled cacerts file (is this a good idea?)
@@ -20,9 +20,6 @@ dependency 'jmxfetch'
 if linux_target?
   dependency 'sds'
 end
-
-# version manifest file
-dependency 'version-manifest'
 
 # Used for memory profiling with the `status py` agent subcommand
 dependency 'pympler'
@@ -49,3 +46,12 @@ if windows_target?
   end
 end
 
+build do
+    # Delete empty folders that can still be present when building
+    # without the omnibus cache.
+    # When the cache gets used, git will transparently remove empty dirs for us
+    # We do this here since we are done building our dependencies, but haven't
+    # started creating the agent directories, which might be empty but that we
+    # still want to keep
+    command "find #{install_dir} -type d -empty -delete"
+end

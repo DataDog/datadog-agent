@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
 //go:embed testdata/emrInstance.json
@@ -33,10 +33,10 @@ var emrDescribeClusterResponse string
 func TestSetupEmr(t *testing.T) {
 
 	// Mock AWS emr describe command
-	originalExecuteCommand := executeCommandWithTimeout
-	defer func() { executeCommandWithTimeout = originalExecuteCommand }() // Restore original after test
+	originalExecuteCommand := common.ExecuteCommandWithTimeout
+	defer func() { common.ExecuteCommandWithTimeout = originalExecuteCommand }() // Restore original after test
 
-	executeCommandWithTimeout = func(s *common.Setup, command string, args ...string) (output []byte, err error) {
+	common.ExecuteCommandWithTimeout = func(s *common.Setup, command string, args ...string) (output []byte, err error) {
 		span, _ := telemetry.StartSpanFromContext(s.Ctx, "setup.command")
 		span.SetResourceName(command)
 		defer func() { span.Finish(err) }()
@@ -60,6 +60,7 @@ func TestSetupEmr(t *testing.T) {
 		{
 			name: "basic fields json",
 			wantTags: []string{
+				"data_workload_monitoring_trial:true",
 				"instance_group_id:ig-123",
 				"is_master_node:true",
 				"job_flow_id:j-456",

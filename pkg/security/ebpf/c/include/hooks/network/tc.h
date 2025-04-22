@@ -1,9 +1,9 @@
 #ifndef _HOOKS_NETWORK_TC_H_
 #define _HOOKS_NETWORK_TC_H_
 
-#include "helpers/network.h"
-
-#include "router.h"
+#include "helpers/network/parser.h"
+#include "helpers/network/router.h"
+#include "helpers/network/pid_resolver.h"
 #include "raw.h"
 
 SEC("classifier/ingress")
@@ -12,6 +12,7 @@ int classifier_ingress(struct __sk_buff *skb) {
     if (!pkt) {
         return ACT_OK;
     }
+    resolve_pid(pkt);
 
     return route_pkt(skb, pkt, INGRESS);
 };
@@ -22,6 +23,7 @@ int classifier_egress(struct __sk_buff *skb) {
     if (!pkt) {
         return ACT_OK;
     }
+    resolve_pid(pkt);
 
     return route_pkt(skb, pkt, EGRESS);
 };
@@ -51,7 +53,7 @@ __attribute__((always_inline)) int prepare_raw_packet_event(struct __sk_buff *sk
 
     return ACT_OK;
 }
- 
+
 __attribute__((always_inline)) int is_raw_packet_enabled() {
     u32 key = 0;
     u32 *enabled = bpf_map_lookup_elem(&raw_packet_enabled, &key);
@@ -68,6 +70,7 @@ int classifier_raw_packet_ingress(struct __sk_buff *skb) {
     if (!pkt) {
         return ACT_OK;
     }
+    resolve_pid(pkt);
 
     // do not handle packet without process context
     if (pkt->pid < 0) {
@@ -93,6 +96,7 @@ int classifier_raw_packet_egress(struct __sk_buff *skb) {
     if (!pkt) {
         return ACT_OK;
     }
+    resolve_pid(pkt);
 
     // do not handle packet without process context
     if (pkt->pid < 0) {

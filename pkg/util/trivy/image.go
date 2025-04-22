@@ -5,7 +5,7 @@
 
 // Imported from https://github.com/aquasecurity/trivy/blob/main/pkg/fanal/image/daemon/image.go
 
-//go:build trivy
+//go:build trivy && (docker || containerd || crio)
 
 package trivy
 
@@ -18,10 +18,9 @@ import (
 	"sync"
 	"time"
 
-	fimage "github.com/aquasecurity/trivy/pkg/fanal/image"
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	dimage "github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/client"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/samber/lo"
@@ -33,7 +32,7 @@ var mu sync.Mutex
 
 type opener func() (v1.Image, error)
 
-type imageSave func(context.Context, []string) (io.ReadCloser, error)
+type imageSave func(context.Context, []string, ...client.ImageSaveOption) (io.ReadCloser, error)
 
 func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSave imageSave) opener {
 	return func() (v1.Image, error) {
@@ -64,12 +63,12 @@ func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSa
 // image is a wrapper for github.com/google/go-containerregistry/pkg/v1/daemon.Image
 // daemon.Image loads the entire image into the memory at first,
 // but it doesn't need to load it if the information is already in the persistentCache,
-// To avoid entire loading, this wrapper uses ImageInspectWithRaw and checks image ID and layer IDs.
+// To avoid entire loading, this wrapper uses ImageInspect and checks image ID and layer IDs.
 type image struct {
 	v1.Image
 	name    string
 	opener  opener
-	inspect types.ImageInspect
+	inspect dimage.InspectResponse
 	history []v1.History
 }
 
@@ -297,7 +296,12 @@ func (img *image) Name() string {
 }
 
 func (img *image) ID() (string, error) {
-	return fimage.ID(img)
+	// github.com/aquasecurity/trivy/pkg/fanal/image.ID(img)
+	h, err := img.ConfigName()
+	if err != nil {
+		return "", fmt.Errorf("unable to get the image ID: %w", err)
+	}
+	return h.String(), nil
 }
 
 func (img *image) Layers() ([]v1.Layer, error) {

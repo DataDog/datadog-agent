@@ -74,12 +74,14 @@ func (b *bucket) flush() *message.Message {
 		content = append(content, message.TruncatedFlag...)
 	}
 
-	msg := message.NewRawMessage(content, b.message.Status, b.originalDataLen, b.message.ParsingExtra.Timestamp)
+	msg := b.message
+	msg.SetContent(content)
+	msg.RawDataLen = b.originalDataLen
 	tlmTags := []string{"false", "single_line"}
 
 	if b.lineCount > 1 {
 		msg.ParsingExtra.IsMultiLine = true
-		tlmTags[1] = "multi_line"
+		tlmTags[1] = "auto_multi_line"
 		if b.tagMultiLineLogs {
 			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.MultiLineSourceTag("auto_multiline"))
 		}

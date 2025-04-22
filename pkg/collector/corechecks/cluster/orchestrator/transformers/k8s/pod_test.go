@@ -10,10 +10,12 @@ package k8s
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"testing"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -70,11 +72,14 @@ func getExpectedModelResourceRequirements() []*model.ResourceRequirements {
 func TestExtractPod(t *testing.T) {
 	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
 
+	restartPolicyAlways := v1.ContainerRestartPolicyAlways
 	parseRequests := resource.MustParse("250M")
 	parseLimits := resource.MustParse("550M")
 	tests := map[string]struct {
-		input    v1.Pod
-		expected model.Pod
+		input             v1.Pod
+		labelsAsTags      map[string]string
+		annotationsAsTags map[string]string
+		expected          model.Pod
 	}{
 		"full pod with containers without resourceRequirements": {
 			input: v1.Pod{
@@ -143,10 +148,10 @@ func TestExtractPod(t *testing.T) {
 					Namespace:         "namespace",
 					CreationTimestamp: timestamp,
 					Labels: map[string]string{
-						"label": "foo",
+						"app": "my-app",
 					},
 					Annotations: map[string]string{
-						"annotation": "bar",
+						"annotation": "my-annotation",
 					},
 					OwnerReferences: []metav1.OwnerReference{
 						{
@@ -166,14 +171,21 @@ func TestExtractPod(t *testing.T) {
 					},
 					PriorityClassName: "high-priority",
 				},
-			}, expected: model.Pod{
+			},
+			labelsAsTags: map[string]string{
+				"app": "application",
+			},
+			annotationsAsTags: map[string]string{
+				"annotation": "annotation_key",
+			},
+			expected: model.Pod{
 				Metadata: &model.Metadata{
 					Name:              "pod",
 					Namespace:         "namespace",
 					Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
 					CreationTimestamp: 1389744000,
-					Labels:            []string{"label:foo"},
-					Annotations:       []string{"annotation:bar"},
+					Labels:            []string{"app:my-app"},
+					Annotations:       []string{"annotation:my-annotation"},
 					OwnerReferences: []*model.OwnerReference{
 						{
 							Name: "test-controller",
@@ -231,7 +243,12 @@ func TestExtractPod(t *testing.T) {
 						LastTransitionTime: timestamp.Unix(),
 					},
 				},
-				Tags: []string{"kube_condition_ready:true", "kube_condition_podscheduled:true"},
+				Tags: []string{
+					"kube_condition_ready:true",
+					"kube_condition_podscheduled:true",
+					"application:my-app",
+					"annotation_key:my-annotation",
+				},
 				ResourceRequirements: []*model.ResourceRequirements{
 					{
 						Limits:   map[string]int64{},
@@ -521,10 +538,44 @@ func TestExtractPod(t *testing.T) {
 				Tags: []string{"kube_condition_ready:true"},
 			},
 		},
+		"sidecar pod": {
+			input: v1.Pod{
+				Spec: v1.PodSpec{
+					InitContainers: []v1.Container{
+						{
+							Name:          "sidecar-container",
+							RestartPolicy: &restartPolicyAlways,
+							Resources: v1.ResourceRequirements{
+								Limits:   map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: parseLimits},
+								Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: parseRequests},
+							},
+						},
+					},
+				},
+			},
+			expected: model.Pod{
+				Metadata: &model.Metadata{},
+				ResourceRequirements: []*model.ResourceRequirements{
+					{
+						Name:     "sidecar-container",
+						Type:     model.ResourceRequirementsType_nativeSidecar,
+						Limits:   map[string]int64{v1.ResourceMemory.String(): parseLimits.Value()},
+						Requests: map[string]int64{v1.ResourceMemory.String(): parseRequests.Value()},
+					},
+				},
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, &tc.expected, ExtractPod(&tc.input))
+			pctx := &processors.K8sProcessorContext{
+				LabelsAsTags:      tc.labelsAsTags,
+				AnnotationsAsTags: tc.annotationsAsTags,
+			}
+			actual := ExtractPod(pctx, &tc.input)
+			sort.Strings(actual.Tags)
+			sort.Strings(tc.expected.Tags)
+			assert.Equal(t, &tc.expected, actual)
 		})
 	}
 }
@@ -1199,6 +1250,94 @@ func TestConvertNodeSelectorRequirements(t *testing.T) {
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("convertNodeSelectorRequirements() = %#v, want %#v", got, tt.want)
 			}
+		})
+	}
+}
+
+func TestExtractPodResourceRequirementsSidecar(t *testing.T) {
+	restartAlways := v1.ContainerRestartPolicy("Always")
+	tests := map[string]struct {
+		input    []v1.Container
+		expected []*model.ResourceRequirements
+	}{
+		"sidecar pod": {
+			input: []v1.Container{
+				{
+					Name:          "sidecar",
+					RestartPolicy: &restartAlways,
+					Resources: v1.ResourceRequirements{
+						Limits: map[v1.ResourceName]resource.Quantity{
+							v1.ResourceCPU:    resource.MustParse("100m"),
+							v1.ResourceMemory: resource.MustParse("200Mi"),
+						},
+						Requests: map[v1.ResourceName]resource.Quantity{
+							v1.ResourceCPU:    resource.MustParse("50m"),
+							v1.ResourceMemory: resource.MustParse("100Mi"),
+						},
+					},
+				},
+				{
+					Name: "main",
+					Resources: v1.ResourceRequirements{
+						Limits: map[v1.ResourceName]resource.Quantity{
+							v1.ResourceCPU:    resource.MustParse("100m"),
+							v1.ResourceMemory: resource.MustParse("200Mi"),
+						},
+						Requests: map[v1.ResourceName]resource.Quantity{
+							v1.ResourceCPU:    resource.MustParse("50m"),
+							v1.ResourceMemory: resource.MustParse("100Mi"),
+						},
+					},
+				},
+			},
+			expected: []*model.ResourceRequirements{
+				{
+					Name: "sidecar",
+					Type: model.ResourceRequirementsType_nativeSidecar,
+					Limits: map[string]int64{
+						v1.ResourceCPU.String():    100,
+						v1.ResourceMemory.String(): 209715200,
+					},
+					Requests: map[string]int64{
+						v1.ResourceCPU.String():    50,
+						v1.ResourceMemory.String(): 104857600,
+					},
+				},
+				{
+					Name: "main",
+					Type: model.ResourceRequirementsType_initContainer,
+					Limits: map[string]int64{
+						v1.ResourceCPU.String():    100,
+						v1.ResourceMemory.String(): 209715200,
+					},
+					Requests: map[string]int64{
+						v1.ResourceCPU.String():    50,
+						v1.ResourceMemory.String(): 104857600,
+					},
+				},
+			},
+		},
+		"sidecar pod with no resources": {
+			input: []v1.Container{
+				{
+					Name:          "sidecar",
+					RestartPolicy: &restartAlways,
+				},
+			},
+			expected: []*model.ResourceRequirements{
+				{
+					Name:     "sidecar",
+					Type:     model.ResourceRequirementsType_nativeSidecar,
+					Limits:   map[string]int64{},
+					Requests: map[string]int64{},
+				},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			actual := extractPodResourceRequirements(nil, tc.input)
+			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }

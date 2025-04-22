@@ -7,20 +7,21 @@ package statusimpl
 
 import (
 	"fmt"
-	htmlTemplate "html/template"
 	"io"
 	"maps"
 	"os"
 	"path"
 	"runtime"
 	"strings"
-	textTemplate "text/template"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/fips"
+	htmlTemplate "github.com/DataDog/datadog-agent/pkg/template/html"
+	textTemplate "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -34,6 +35,7 @@ type headerProvider struct {
 	textTemplatesFunctions textTemplate.FuncMap
 	htmlTemplatesFunctions htmlTemplate.FuncMap
 	config                 config.Component
+	params                 status.Params
 }
 
 func (h *headerProvider) Index() int {
@@ -45,9 +47,7 @@ func (h *headerProvider) Name() string {
 }
 
 func (h *headerProvider) JSON(_ bool, stats map[string]interface{}) error {
-	for k, v := range h.data() {
-		stats[k] = v
-	}
+	maps.Copy(stats, h.data())
 
 	return nil
 }
@@ -74,6 +74,9 @@ func (h *headerProvider) data() map[string]interface{} {
 	data := maps.Clone(h.constdata)
 	data["time_nano"] = nowFunc().UnixNano()
 	data["config"] = populateConfig(h.config)
+	data["fips_status"] = populateFIPSStatus(h.config)
+	pythonVersion := h.params.PythonVersionGetFunc()
+	data["python_version"] = strings.Split(pythonVersion, " ")[0]
 	return data
 }
 
@@ -87,8 +90,6 @@ func newCommonHeaderProvider(params status.Params, config config.Component) stat
 	data["pid"] = os.Getpid()
 	data["go_version"] = runtime.Version()
 	data["agent_start_nano"] = startTimeProvider.UnixNano()
-	pythonVersion := params.PythonVersionGetFunc()
-	data["python_version"] = strings.Split(pythonVersion, " ")[0]
 	data["build_arch"] = runtime.GOARCH
 
 	return &headerProvider{
@@ -97,6 +98,7 @@ func newCommonHeaderProvider(params status.Params, config config.Component) stat
 		textTemplatesFunctions: status.TextFmap(),
 		htmlTemplatesFunctions: status.HTMLFmap(),
 		config:                 config,
+		params:                 params,
 	}
 }
 
@@ -112,4 +114,12 @@ func populateConfig(config config.Component) map[string]string {
 	conf["fips_port_range_start"] = config.GetString("fips.port_range_start")
 
 	return conf
+}
+
+func populateFIPSStatus(config config.Component) string {
+	fipsStatus := fips.Status()
+	if fipsStatus == "not available" && config.GetString("fips.enabled") == "true" {
+		return "proxy"
+	}
+	return fipsStatus
 }

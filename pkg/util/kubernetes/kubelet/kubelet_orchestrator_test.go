@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
@@ -49,7 +48,7 @@ func (suite *KubeletOrchestratorTestSuite) TestGetRawLocalPodList() {
 	ctx := context.Background()
 	mockConfig := configmock.New(suite.T())
 
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json", "")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	require.Nil(suite.T(), err)
@@ -86,6 +85,7 @@ func (suite *KubeletOrchestratorTestSuite) TestGetRawLocalPodList() {
 }
 
 func TestKubeletOrchestratorTestSuite(t *testing.T) {
+	cfg := configmock.New(t)
 	pkglogsetup.SetupLogger(
 		pkglogsetup.LoggerName("test"),
 		"trace",
@@ -94,7 +94,7 @@ func TestKubeletOrchestratorTestSuite(t *testing.T) {
 		false,
 		true,
 		false,
-		pkgconfigsetup.Datadog(),
+		cfg,
 	)
 	suite.Run(t, new(KubeletOrchestratorTestSuite))
 }

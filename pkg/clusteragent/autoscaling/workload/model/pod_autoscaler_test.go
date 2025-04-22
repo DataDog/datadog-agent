@@ -15,7 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 )
 
 func TestAddHorizontalAction(t *testing.T) {
@@ -23,7 +24,7 @@ func TestAddHorizontalAction(t *testing.T) {
 
 	// Test no retention, should move back to keep a single action
 	var horizontalEventsRetention time.Duration
-	horizontalLastActions := []datadoghq.DatadogPodAutoscalerHorizontalAction{
+	horizontalLastActions := []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
 		{
 			Time: metav1.Time{Time: testTime.Add(-10 * time.Minute)},
 		},
@@ -31,19 +32,19 @@ func TestAddHorizontalAction(t *testing.T) {
 			Time: metav1.Time{Time: testTime.Add(-8 * time.Minute)},
 		},
 	}
-	addedAction1 := &datadoghq.DatadogPodAutoscalerHorizontalAction{
+	addedAction1 := &datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
 		Time: metav1.Time{Time: testTime},
 	}
 	horizontalLastActions = addHorizontalAction(testTime, horizontalEventsRetention, horizontalLastActions, addedAction1)
-	assert.Equal(t, []datadoghq.DatadogPodAutoscalerHorizontalAction{*addedAction1}, horizontalLastActions)
+	assert.Equal(t, []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{*addedAction1}, horizontalLastActions)
 
 	// Add another event, should still keep one
 	horizontalLastActions = addHorizontalAction(testTime, horizontalEventsRetention, horizontalLastActions, addedAction1)
-	assert.Equal(t, []datadoghq.DatadogPodAutoscalerHorizontalAction{*addedAction1}, horizontalLastActions)
+	assert.Equal(t, []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{*addedAction1}, horizontalLastActions)
 
 	// 15 minutes retention, should keep everything
 	horizontalEventsRetention = 15 * time.Minute
-	horizontalLastActions = []datadoghq.DatadogPodAutoscalerHorizontalAction{
+	horizontalLastActions = []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
 		{
 			Time: metav1.Time{Time: testTime.Add(-10 * time.Minute)},
 		},
@@ -54,7 +55,7 @@ func TestAddHorizontalAction(t *testing.T) {
 	// Adding two fake events
 	horizontalLastActions = addHorizontalAction(testTime, horizontalEventsRetention, horizontalLastActions, addedAction1)
 	horizontalLastActions = addHorizontalAction(testTime, horizontalEventsRetention, horizontalLastActions, addedAction1)
-	assert.Equal(t, []datadoghq.DatadogPodAutoscalerHorizontalAction{
+	assert.Equal(t, []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
 		{
 			Time: metav1.Time{Time: testTime.Add(-10 * time.Minute)},
 		},
@@ -67,11 +68,11 @@ func TestAddHorizontalAction(t *testing.T) {
 
 	// Moving time forward, should keep only the last two events
 	testTime = testTime.Add(10 * time.Minute)
-	addedAction2 := &datadoghq.DatadogPodAutoscalerHorizontalAction{
+	addedAction2 := &datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
 		Time: metav1.Time{Time: testTime},
 	}
 	horizontalLastActions = addHorizontalAction(testTime, horizontalEventsRetention, horizontalLastActions, addedAction2)
-	assert.Equal(t, []datadoghq.DatadogPodAutoscalerHorizontalAction{
+	assert.Equal(t, []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
 		*addedAction1,
 		*addedAction1,
 		*addedAction2,
@@ -81,7 +82,7 @@ func TestAddHorizontalAction(t *testing.T) {
 func TestGetHorizontalEventsRetention(t *testing.T) {
 	tests := []struct {
 		name                   string
-		policy                 *datadoghq.DatadogPodAutoscalerPolicy
+		policy                 *datadoghq.DatadogPodAutoscalerApplyPolicy
 		longestLookbackAllowed time.Duration
 		expectedRetention      time.Duration
 	}{
@@ -98,10 +99,10 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 			expectedRetention:      0,
 		},
 		{
-			name: "Upscale policy with rules, 30 minutes retention",
-			policy: &datadoghq.DatadogPodAutoscalerPolicy{
-				Upscale: &datadoghq.DatadogPodAutoscalerScalingPolicy{
-					Rules: []datadoghq.DatadogPodAutoscalerScalingRule{
+			name: "Scale up policy with rules, 30 minutes retention",
+			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 						{
 							Type:          "Pods",
 							PeriodSeconds: 900,
@@ -114,10 +115,10 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 			expectedRetention:      15 * time.Minute,
 		},
 		{
-			name: "Upscale policy with rules, 10 minutes max retention",
-			policy: &datadoghq.DatadogPodAutoscalerPolicy{
-				Upscale: &datadoghq.DatadogPodAutoscalerScalingPolicy{
-					Rules: []datadoghq.DatadogPodAutoscalerScalingRule{
+			name: "Scale up policy with rules, 10 minutes max retention",
+			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 						{
 							Type:          "Pods",
 							PeriodSeconds: 900,
@@ -130,10 +131,10 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 			expectedRetention:      10 * time.Minute,
 		},
 		{
-			name: "Upscale and downscale policy with rules, 30 minutes retention",
-			policy: &datadoghq.DatadogPodAutoscalerPolicy{
-				Upscale: &datadoghq.DatadogPodAutoscalerScalingPolicy{
-					Rules: []datadoghq.DatadogPodAutoscalerScalingRule{
+			name: "Scale up and scale down policy with rules, 30 minutes retention",
+			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 						{
 							Type:          "Pods",
 							PeriodSeconds: 900,
@@ -141,8 +142,8 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 						},
 					},
 				},
-				Downscale: &datadoghq.DatadogPodAutoscalerScalingPolicy{
-					Rules: []datadoghq.DatadogPodAutoscalerScalingRule{
+				ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 						{
 							Type:          "Pods",
 							PeriodSeconds: 960,
@@ -155,10 +156,10 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 			expectedRetention:      16 * time.Minute,
 		},
 		{
-			name: "Upscale and downscale policy with rules, 10 minutes max retention",
-			policy: &datadoghq.DatadogPodAutoscalerPolicy{
-				Upscale: &datadoghq.DatadogPodAutoscalerScalingPolicy{
-					Rules: []datadoghq.DatadogPodAutoscalerScalingRule{
+			name: "Scale up and scale down policy with rules, 10 minutes max retention",
+			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 						{
 							Type:          "Pods",
 							PeriodSeconds: 900,
@@ -166,8 +167,8 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 						},
 					},
 				},
-				Downscale: &datadoghq.DatadogPodAutoscalerScalingPolicy{
-					Rules: []datadoghq.DatadogPodAutoscalerScalingRule{
+				ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 						{
 							Type:          "Pods",
 							PeriodSeconds: 960,
@@ -180,10 +181,10 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 			expectedRetention:      10 * time.Minute,
 		},
 		{
-			name: "Upscale stabilization window 5 minutes",
-			policy: &datadoghq.DatadogPodAutoscalerPolicy{
-				Upscale: &datadoghq.DatadogPodAutoscalerScalingPolicy{
-					Rules: []datadoghq.DatadogPodAutoscalerScalingRule{
+			name: "Scale up stabilization window 5 minutes",
+			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 						{
 							Type:          "Pods",
 							PeriodSeconds: 180,
@@ -192,8 +193,8 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 					},
 					StabilizationWindowSeconds: 300,
 				},
-				Downscale: &datadoghq.DatadogPodAutoscalerScalingPolicy{
-					Rules: []datadoghq.DatadogPodAutoscalerScalingRule{
+				ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 						{
 							Type:          "Pods",
 							PeriodSeconds: 180,
@@ -206,10 +207,10 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 			expectedRetention:      5 * time.Minute,
 		},
 		{
-			name: "Downscale stabilization window 5 minutes",
-			policy: &datadoghq.DatadogPodAutoscalerPolicy{
-				Upscale: &datadoghq.DatadogPodAutoscalerScalingPolicy{
-					Rules: []datadoghq.DatadogPodAutoscalerScalingRule{
+			name: "Scale down stabilization window 5 minutes",
+			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 						{
 							Type:          "Pods",
 							PeriodSeconds: 180,
@@ -217,8 +218,8 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 						},
 					},
 				},
-				Downscale: &datadoghq.DatadogPodAutoscalerScalingPolicy{
-					Rules: []datadoghq.DatadogPodAutoscalerScalingRule{
+				ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 						{
 							Type:          "Pods",
 							PeriodSeconds: 180,
@@ -233,9 +234,9 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 		},
 		{
 			name: "Stabilization, rules, max retention",
-			policy: &datadoghq.DatadogPodAutoscalerPolicy{
-				Upscale: &datadoghq.DatadogPodAutoscalerScalingPolicy{
-					Rules: []datadoghq.DatadogPodAutoscalerScalingRule{
+			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 						{
 							Type:          "Pods",
 							PeriodSeconds: 360,
@@ -244,8 +245,8 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 					},
 					StabilizationWindowSeconds: 300,
 				},
-				Downscale: &datadoghq.DatadogPodAutoscalerScalingPolicy{
-					Rules: []datadoghq.DatadogPodAutoscalerScalingRule{
+				ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 						{
 							Type:          "Pods",
 							PeriodSeconds: 420,

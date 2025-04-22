@@ -1,6 +1,9 @@
 import os
-import pwd
-import grp
+if not os.name == 'nt':
+    import pwd
+    import grp
+else:
+    import win32security
 import importlib.metadata
 import packaging
 import subprocess
@@ -10,28 +13,27 @@ import packaging.version
 
 DO_NOT_REMOVE_WARNING_HEADER = "# DO NOT REMOVE/MODIFY - used internally by installation process\n"
 
-def run_command(command):
+def run_command(args):
     """
     Execute a shell command and return its output and errors.
     """
     try:
-        print(f"Running command: '{command}'")
-        result = subprocess.run(command, shell=True, text=True, capture_output=True, check=True)
+        print(f"Running command: '{' '.join(args)}'")
+        result = subprocess.run(args, text=True, capture_output=True, check=True)
         return result.stdout, result.stderr
     except subprocess.CalledProcessError as e:
         print(f"Command '{e.cmd}' failed with return code: {e.returncode}")
         print(f"Error: {e.stderr}")
         return e.stdout, e.stderr
 
-def extract_version(specifier):
+def extract_version(req):
     """
     Extract version from the specifier string using packaging.
     """
     try:
         # Parse the specifier and get the first version from the specifier set
-        requirement = packaging.requirements.Requirement(specifier)
-        version = next(iter(requirement.specifier), None)
-        return str(version) if version else None
+        version_spec = next(iter(req.specifier), None)
+        return str(version_spec.version) if version_spec else None
     except Exception as e:
         print(f"Error parsing specifier: {e}")
         return None
@@ -60,6 +62,50 @@ def requirements_agent_release_file(directory):
     """
     return os.path.join(directory, 'requirements-agent-release.txt')
 
+def check_file_owner_system_windows(filename):
+    """
+    Check if the file is owned by the SYSTEM or Administrators user on Windows.
+    """
+    # check if file exists
+    if not os.path.exists(filename):
+        return True
+    
+    # get NT System account SID
+    system_sid = win32security.ConvertStringSidToSid("S-1-5-18")
+
+    # get administator SID
+    administrators_sid = win32security.ConvertStringSidToSid("S-1-5-32-544")
+
+    # get owner of file
+    sd = win32security.GetFileSecurity(filename, win32security.OWNER_SECURITY_INFORMATION)
+    owner_sid = sd.GetSecurityDescriptorOwner()
+
+    # print owner SID
+    print(f"{filename}: SID: {win32security.ConvertSidToStringSid(owner_sid)}")
+
+    return owner_sid == system_sid or owner_sid == administrators_sid
+
+def check_all_files_owner_system_windows(directory):
+    """
+    Check if all files used by this feature are owned by SYSTEM or Administrators.
+    This prevents issues with files created prior to first install by unauthorized users
+    being used to install arbitrary packaged at install time.
+    The MSI sets the datadirectory permissions before running this script so we
+    don't have to worry about TOCTOU.
+    """
+    files = []
+    files.append(directory)
+    files.append(pre_python_installed_packages_file(directory))
+    files.append(post_python_installed_packages_file(directory))
+    files.append(diff_python_installed_packages_file(directory))
+
+    for file in files:
+        if not check_file_owner_system_windows(file):
+            print(f"{file} is not owned by SYSTEM or Administrators, it may have come from an untrusted source, aborting installation.")
+            return False
+    return True
+    
+
 def create_python_installed_packages_file(filename):
     """
     Create a file listing the currently installed Python dependencies.
@@ -70,7 +116,8 @@ def create_python_installed_packages_file(filename):
         installed_packages = importlib.metadata.distributions()
         for dist in installed_packages:
             f.write(f"{dist.metadata['Name']}=={dist.version}\n")
-    os.chown(filename, pwd.getpwnam('dd-agent').pw_uid, grp.getgrnam('dd-agent').gr_gid)
+    if not os.name == 'nt':
+        os.chown(filename, pwd.getpwnam('dd-agent').pw_uid, grp.getgrnam('dd-agent').gr_gid)
 
 def create_diff_installed_packages_file(directory, old_file, new_file):
     """
@@ -87,34 +134,47 @@ def create_diff_installed_packages_file(directory, old_file, new_file):
             if old_req:
                 _, old_req_value = old_req
                 # Extract and compare versions
-                old_version_str = extract_version(str(old_req_value.specifier))
-                new_version_str = extract_version(str(new_req_value.specifier))
+                old_version_str = extract_version(old_req_value)
+                new_version_str = extract_version(new_req_value)
                 if old_version_str and new_version_str:
                     if packaging.version.parse(new_version_str) > packaging.version.parse(old_version_str):
                         f.write(f"{new_req_value}\n")
             else:
                 # Package is new in the new file; include it
                 f.write(f"{new_req_value}\n")
-    os.chown(diff_file, pwd.getpwnam('dd-agent').pw_uid, grp.getgrnam('dd-agent').gr_gid)
+    if not os.name == 'nt':
+        os.chown(diff_file, pwd.getpwnam('dd-agent').pw_uid, grp.getgrnam('dd-agent').gr_gid)
 
-def install_datadog_package(package):
+def install_datadog_package(package, install_directory):
     """
     Install Datadog integrations running datadog-agent command
     """
-    print(f"Installing datadog integration: '{package}'")
-    run_command(f'datadog-agent integration install -t {package} -r')
+    if os.name == 'nt':
+        agent_cmd = os.path.join(install_directory, 'bin', 'agent.exe')
+        args = [agent_cmd, 'integration', 'install', '-t', package, '-r']
+    else:
+        args = ['datadog-agent', 'integration', 'install', '-t', package, '-r']
+    
+    run_command(args)
 
 def install_dependency_package(pip, package):
     """
     Install python dependency running pip install command
     """
     print(f"Installing python dependency: '{package}'")
-    run_command(f'{pip} install {package}')
+    command = pip.copy()
+    command.extend(['install', package])
+    run_command(command)
 
-def install_diff_packages_file(pip, filename, exclude_filename):
+def install_diff_packages_file(install_directory, filename, exclude_filename):
     """
     Install all Datadog integrations and python dependencies from a file
     """
+    if os.name == 'nt':
+        python_path = os.path.join(install_directory, "embedded3", "python.exe")
+        pip = [python_path, '-m', 'pip']
+    else:
+        pip = [os.path.join(install_directory, "embedded", "bin", "pip")]
     print(f"Installing python packages from: '{filename}'")
     install_packages = load_requirements(filename)
     exclude_packages = load_requirements(exclude_filename)
@@ -123,7 +183,7 @@ def install_diff_packages_file(pip, filename, exclude_filename):
             print(f"Skipping '{install_package_name}' as it's already included in '{exclude_filename}' file")
         else:
             if install_package_line.startswith('datadog-'):
-                install_datadog_package(install_package_line)
+                install_datadog_package(install_package_line, install_directory)
             else:
                 install_dependency_package(pip, install_package_line)
 

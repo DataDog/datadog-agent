@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
@@ -61,6 +62,22 @@ func TestPodParser(t *testing.T) {
 								"nvidia.com/gpu": resource.Quantity{
 									Format: "1",
 								},
+								"cpu": resource.MustParse("100m"),
+							},
+						},
+						Env: []kubelet.EnvVar{
+							{
+								Name:  "DD_ENV",
+								Value: "prod",
+							},
+							{
+								Name:  "OTEL_SERVICE_NAME",
+								Value: "$(DD_ENV)-$(DD_SERVICE)",
+							},
+							{
+								Name:      "DD_SERVICE",
+								Value:     "",
+								ValueFrom: &struct{}{},
 							},
 						},
 					},
@@ -113,13 +130,16 @@ func TestPodParser(t *testing.T) {
 		Runtime: "docker",
 		Resources: workloadmeta.ContainerResources{
 			GPUVendorList: []string{"nvidia"},
+			CPURequest:    pointer.Ptr(10.0),
 		},
 		Owner: &workloadmeta.EntityID{
 			Kind: "kubernetes_pod",
 			ID:   "uniqueIdentifier",
 		},
-		Ports:   []workloadmeta.ContainerPort{},
-		EnvVars: map[string]string{},
+		Ports: []workloadmeta.ContainerPort{},
+		EnvVars: map[string]string{
+			"DD_ENV": "prod",
+		},
 		State: workloadmeta.ContainerState{
 			Health: "healthy",
 		},

@@ -49,11 +49,14 @@ func TestAcceptEvent(t *testing.T) {
 	const MIX = 4000
 	const MAX = 5000
 
-	t.Run("accept-af-inet-any-tcp-success", func(t *testing.T) {
+	t.Run("accept-af-inet-any-tcp-success-no-sockaddrin", func(t *testing.T) {
+		if ebpfLessEnabled {
+			t.Skip("Not available for ebpfLess")
+		}
 		port := rand.IntN(MAX-MIX) + MIX
 
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET", "0.0.0.0", "127.0.0.1", strconv.Itoa(port))
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET", "0.0.0.0", "127.0.0.1", strconv.Itoa(port), "false")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_accept_af_inet")
 			assert.Equal(t, "accept", event.GetType(), "wrong event type")
@@ -65,7 +68,27 @@ func TestAcceptEvent(t *testing.T) {
 		})
 	})
 
-	t.Run("accept-af-inet6-any-tcp-success", func(t *testing.T) {
+	t.Run("accept-af-inet-any-tcp-success-sockaddrin", func(t *testing.T) {
+
+		port := rand.IntN(MAX-MIX) + MIX
+
+		test.WaitSignal(t, func() error {
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET", "0.0.0.0", "127.0.0.1", strconv.Itoa(port), "true")
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_accept_af_inet")
+			assert.Equal(t, "accept", event.GetType(), "wrong event type")
+			assert.Equal(t, uint16(unix.AF_INET), event.Accept.AddrFamily, "wrong address family")
+			assert.Equal(t, "127.0.0.1", event.Accept.Addr.IPNet.IP.String(), "wrong address")
+			assert.LessOrEqual(t, int64(0), event.Accept.Retval, "wrong retval")
+			test.validateAcceptSchema(t, event)
+		})
+	})
+
+	t.Run("accept-af-inet6-any-tcp-success-no-sockaddrin", func(t *testing.T) {
+		if ebpfLessEnabled {
+			t.Skip("Not available for ebpfLess")
+		}
+
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -73,12 +96,31 @@ func TestAcceptEvent(t *testing.T) {
 		port := rand.IntN(MAX-MIX) + MIX
 
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET6", "::", "::1", strconv.Itoa(port))
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET6", "::", "::1", strconv.Itoa(port), "false")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_accept_af_inet6")
 			assert.Equal(t, "accept", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET6), event.Accept.AddrFamily, "wrong address family")
 			assert.Equal(t, uint16(port), event.Accept.Addr.Port, "wrong address port")
+			assert.Equal(t, "::1", event.Accept.Addr.IPNet.IP.String(), "wrong address")
+			assert.LessOrEqual(t, int64(0), event.Accept.Retval, "wrong retval")
+			test.validateAcceptSchema(t, event)
+		})
+	})
+
+	t.Run("accept-af-inet6-any-tcp-success-sockaddrin", func(t *testing.T) {
+		if !nettest.SupportsIPv6() {
+			t.Skip("IPv6 is not supported")
+		}
+
+		port := rand.IntN(MAX-MIX) + MIX
+
+		test.WaitSignal(t, func() error {
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET6", "::", "::1", strconv.Itoa(port), "true")
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_accept_af_inet6")
+			assert.Equal(t, "accept", event.GetType(), "wrong event type")
+			assert.Equal(t, uint16(unix.AF_INET6), event.Accept.AddrFamily, "wrong address family")
 			assert.Equal(t, "::1", event.Accept.Addr.IPNet.IP.String(), "wrong address")
 			assert.LessOrEqual(t, int64(0), event.Accept.Retval, "wrong retval")
 			test.validateAcceptSchema(t, event)

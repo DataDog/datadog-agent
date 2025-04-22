@@ -10,11 +10,10 @@ import (
 	replayfx "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-metrics-logs
+// team: agent-metric-pipelines
 
 // Bundle defines the fx options for this bundle.
 func Bundle(params server.Params) fxutil.BundleOptions {
@@ -24,8 +23,3 @@ func Bundle(params server.Params) fxutil.BundleOptions {
 		pidmapimpl.Module(),
 		server.Module(params))
 }
-
-// ClientBundle defines the fx options for this bundle.
-var ClientBundle = fxutil.Bundle(
-	statsd.Module(),
-)

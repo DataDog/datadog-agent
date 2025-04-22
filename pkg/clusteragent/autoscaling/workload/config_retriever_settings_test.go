@@ -13,12 +13,16 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	clock "k8s.io/utils/clock/testing"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghqv1alpha1 "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -27,18 +31,19 @@ import (
 
 func TestConfigRetriverAutoscalingSettingsFollower(t *testing.T) {
 	testTime := time.Now()
-	cr, mockRCClient := newMockConfigRetriever(t, false, clock.NewFakeClock(testTime))
+	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	_, mockRCClient := newMockConfigRetriever(t, func() bool { return false }, store, clock.NewFakeClock(testTime))
 
 	// Dummy objects in store
 	dummy2 := model.NewFakePodAutoscalerInternal("ns", "name2", nil)
 	dummy3 := model.NewFakePodAutoscalerInternal("ns", "name3", nil)
 
-	cr.store.Set("ns/name2", dummy2, "unittest")
-	cr.store.Set("ns/name3", dummy3, "unittest")
+	store.Set("ns/name2", dummy2, "unittest")
+	store.Set("ns/name3", dummy3, "unittest")
 
 	// Object specs
 	object1Spec := &datadoghq.DatadogPodAutoscalerSpec{
-		Owner: datadoghq.DatadogPodAutoscalerRemoteOwner,
+		Owner: datadoghqcommon.DatadogPodAutoscalerRemoteOwner,
 		TargetRef: autoscalingv2.CrossVersionObjectReference{
 			APIVersion: "v1",
 			Kind:       "Deployment",
@@ -57,7 +62,9 @@ func TestConfigRetriverAutoscalingSettingsFollower(t *testing.T) {
 						{
 							Namespace: "ns",
 							Name:      "name1",
-							Spec:      object1Spec,
+							Specs: &model.AutoscalingSpecs{
+								V1Alpha2: object1Spec,
+							},
 						},
 					},
 				}),
@@ -65,24 +72,25 @@ func TestConfigRetriverAutoscalingSettingsFollower(t *testing.T) {
 		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
-				State: state.ApplyStateUnacknowledged,
+				State: state.ApplyStateAcknowledged,
 				Error: "",
 			})
 		},
 	)
 
 	assert.Equal(t, 1, stateCallbackCalled)
-	podAutoscalers := cr.store.GetAll()
+	podAutoscalers := store.GetAll()
 	model.AssertPodAutoscalersEqual(t, []model.PodAutoscalerInternal{dummy2, dummy3}, podAutoscalers)
 }
 
 func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 	testTime := time.Now()
-	cr, mockRCClient := newMockConfigRetriever(t, true, clock.NewFakeClock(testTime))
+	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	_, mockRCClient := newMockConfigRetriever(t, func() bool { return true }, store, clock.NewFakeClock(testTime))
 
 	// Object specs
 	object1Spec := &datadoghq.DatadogPodAutoscalerSpec{
-		Owner: datadoghq.DatadogPodAutoscalerRemoteOwner,
+		Owner: datadoghqcommon.DatadogPodAutoscalerRemoteOwner,
 		TargetRef: autoscalingv2.CrossVersionObjectReference{
 			APIVersion: "v1",
 			Kind:       "Deployment",
@@ -90,7 +98,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 		},
 	}
 	object2Spec := &datadoghq.DatadogPodAutoscalerSpec{
-		Owner: datadoghq.DatadogPodAutoscalerRemoteOwner,
+		Owner: datadoghqcommon.DatadogPodAutoscalerRemoteOwner,
 		TargetRef: autoscalingv2.CrossVersionObjectReference{
 			APIVersion: "v1",
 			Kind:       "Deployment",
@@ -98,16 +106,16 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 		},
 	}
 	object3Spec := &datadoghq.DatadogPodAutoscalerSpec{
-		Owner: datadoghq.DatadogPodAutoscalerRemoteOwner,
+		Owner: datadoghqcommon.DatadogPodAutoscalerRemoteOwner,
 		TargetRef: autoscalingv2.CrossVersionObjectReference{
 			APIVersion: "v1",
 			Kind:       "Deployment",
 			Name:       "deploy3",
 		},
-		Policy: &datadoghq.DatadogPodAutoscalerPolicy{
-			ApplyMode: datadoghq.DatadogPodAutoscalerNoneApplyMode,
-			Update: &datadoghq.DatadogPodAutoscalerUpdatePolicy{
-				Strategy: datadoghq.DatadogPodAutoscalerAutoUpdateStrategy,
+		ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+			Mode: datadoghq.DatadogPodAutoscalerApplyModePreview,
+			Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
+				Strategy: datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy,
 			},
 		},
 	}
@@ -118,12 +126,16 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 			{
 				Namespace: "ns",
 				Name:      "name1",
-				Spec:      object1Spec,
+				Specs: &model.AutoscalingSpecs{
+					V1Alpha2: object1Spec,
+				},
 			},
 			{
 				Namespace: "ns",
 				Name:      "name2",
-				Spec:      object2Spec,
+				Specs: &model.AutoscalingSpecs{
+					V1Alpha2: object2Spec,
+				},
 			},
 		},
 	}
@@ -133,7 +145,9 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 			{
 				Namespace: "ns",
 				Name:      "name3",
-				Spec:      object3Spec,
+				Specs: &model.AutoscalingSpecs{
+					V1Alpha2: object3Spec,
+				},
 			},
 		},
 	}
@@ -156,12 +170,12 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 	)
 
 	assert.Equal(t, 2, stateCallbackCalled)
-	podAutoscalers := cr.store.GetAll()
+	podAutoscalers := store.GetAll()
 
 	// Set expected versions
-	object1Spec.RemoteVersion = pointer.Ptr[uint64](1)
-	object2Spec.RemoteVersion = pointer.Ptr[uint64](1)
-	object3Spec.RemoteVersion = pointer.Ptr[uint64](10)
+	object1Spec.RemoteVersion = pointer.Ptr[uint64](versionOffset + 1)
+	object2Spec.RemoteVersion = pointer.Ptr[uint64](versionOffset + 1)
+	object3Spec.RemoteVersion = pointer.Ptr[uint64](versionOffset + 10)
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace:         "ns",
@@ -186,19 +200,19 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 	// Update to existing autoscalingsettings received
 	// Update the settings for object3
 	// Both adding and removing fields
-	object3Spec.Targets = []datadoghq.DatadogPodAutoscalerTarget{
+	object3Spec.Objectives = []datadoghqcommon.DatadogPodAutoscalerObjective{
 		{
-			Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
-			PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
-				Name: v1.ResourceCPU,
-				Value: datadoghq.DatadogPodAutoscalerTargetValue{
-					Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+			Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+			PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
+				Name: corev1.ResourceCPU,
+				Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+					Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 					Utilization: pointer.Ptr[int32](80),
 				},
 			},
 		},
 	}
-	object3Spec.Policy = nil
+	object3Spec.ApplyPolicy = nil
 
 	stateCallbackCalled = 0
 	mockRCClient.triggerUpdate(
@@ -217,10 +231,10 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 	)
 
 	assert.Equal(t, 2, stateCallbackCalled)
-	podAutoscalers = cr.store.GetAll()
+	podAutoscalers = store.GetAll()
 
 	// Set expected versions: only one change for for foo2
-	object3Spec.RemoteVersion = pointer.Ptr[uint64](11)
+	object3Spec.RemoteVersion = pointer.Ptr[uint64](versionOffset + 11)
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace:         "ns",
@@ -259,7 +273,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 	)
 
 	assert.Equal(t, 1, stateCallbackCalled)
-	podAutoscalers = cr.store.GetAll()
+	podAutoscalers = store.GetAll()
 
 	// No changes in expected versions
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
@@ -280,6 +294,258 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 			Name:              "name3",
 			Spec:              object3Spec,
 			SettingsTimestamp: testTime,
+		},
+	}, podAutoscalers)
+}
+
+func TestConfigRetrieverAutoscalingSettingOldVersions(t *testing.T) {
+	testTime := time.Now()
+	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	_, mockRCClient := newMockConfigRetriever(t, func() bool { return true }, store, clock.NewFakeClock(testTime))
+
+	// Object specs from different versions
+	objectv1alpha1Spec := &datadoghqv1alpha1.DatadogPodAutoscalerSpec{
+		Owner: datadoghqcommon.DatadogPodAutoscalerRemoteOwner,
+		TargetRef: autoscalingv2.CrossVersionObjectReference{
+			APIVersion: "v1",
+			Kind:       "Deployment",
+			Name:       "deploy1",
+		},
+		Targets: []datadoghqcommon.DatadogPodAutoscalerObjective{
+			{
+				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
+					Name: corev1.ResourceCPU,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
+						Utilization: pointer.Ptr[int32](80),
+					},
+				},
+			},
+		},
+		Policy: &datadoghqv1alpha1.DatadogPodAutoscalerPolicy{
+			ApplyMode: datadoghqv1alpha1.DatadogPodAutoscalerManualApplyMode,
+			Upscale: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+				Strategy: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerMinChangeStrategySelect),
+			},
+		},
+	}
+
+	settingsList1 := model.AutoscalingSettingsList{
+		Settings: []model.AutoscalingSettings{
+			{
+				Namespace: "ns",
+				Name:      "name1",
+				// Old .Spec field
+				Spec: objectv1alpha1Spec,
+			},
+			{
+				Namespace: "ns",
+				Name:      "name2",
+				Specs: &model.AutoscalingSpecs{
+					V1Alpha1: objectv1alpha1Spec,
+				},
+			},
+		},
+	}
+
+	// New Autoscaling settings received
+	stateCallbackCalled := 0
+	mockRCClient.triggerUpdate(
+		data.ProductContainerAutoscalingSettings,
+		map[string]state.RawConfig{
+			"foo1": buildAutoscalingSettingsRawConfig(t, 1, settingsList1),
+		},
+		func(_ string, applyState state.ApplyStatus) {
+			stateCallbackCalled++
+			assert.Equal(t, applyState, state.ApplyStatus{
+				State: state.ApplyStateAcknowledged,
+				Error: "",
+			})
+		},
+	)
+
+	assert.Equal(t, 1, stateCallbackCalled)
+	podAutoscalers := store.GetAll()
+
+	// Expected v1alpha2 version output
+	objectv1alpha2Spec := &datadoghq.DatadogPodAutoscalerSpec{
+		Owner: datadoghqcommon.DatadogPodAutoscalerRemoteOwner,
+		TargetRef: autoscalingv2.CrossVersionObjectReference{
+			APIVersion: "v1",
+			Kind:       "Deployment",
+			Name:       "deploy1",
+		},
+		Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+			{
+				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
+					Name: corev1.ResourceCPU,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
+						Utilization: pointer.Ptr[int32](80),
+					},
+				},
+			},
+		},
+		ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+			Mode: datadoghq.DatadogPodAutoscalerApplyModePreview,
+			ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+				Strategy: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerMinChangeStrategySelect),
+			},
+		},
+	}
+
+	// Copy with RemoteVersion set
+	expected := objectv1alpha2Spec.DeepCopy()
+	expected.RemoteVersion = pointer.Ptr[uint64](versionOffset + 1)
+	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
+		{
+			Namespace:         "ns",
+			Name:              "name1",
+			Spec:              expected,
+			SettingsTimestamp: testTime,
+		},
+		{
+			Namespace:         "ns",
+			Name:              "name2",
+			Spec:              expected,
+			SettingsTimestamp: testTime,
+		},
+	}, podAutoscalers)
+
+	// Now the backend has upgraded to v2alpha1 keeping old v1alpha1 for old Cluster Agents
+	// v1alpha2 should be prioritized, creating a small diff to check output
+	objectv1alpha2Spec.TargetRef.Name = "deploy2"
+	settingsList1 = model.AutoscalingSettingsList{
+		Settings: []model.AutoscalingSettings{
+			{
+				Namespace: "ns",
+				Name:      "name1",
+				Specs: &model.AutoscalingSpecs{
+					V1Alpha1: objectv1alpha1Spec,
+					V1Alpha2: objectv1alpha2Spec,
+				},
+			},
+			{
+				Namespace: "ns",
+				Name:      "name2",
+				Spec:      objectv1alpha1Spec,
+				Specs: &model.AutoscalingSpecs{
+					V1Alpha2: objectv1alpha2Spec,
+				},
+			},
+		},
+	}
+
+	// New Autoscaling settings received (version 2)
+	stateCallbackCalled = 0
+	mockRCClient.triggerUpdate(
+		data.ProductContainerAutoscalingSettings,
+		map[string]state.RawConfig{
+			"foo1": buildAutoscalingSettingsRawConfig(t, 2, settingsList1),
+		},
+		func(_ string, applyState state.ApplyStatus) {
+			stateCallbackCalled++
+			assert.Equal(t, applyState, state.ApplyStatus{
+				State: state.ApplyStateAcknowledged,
+				Error: "",
+			})
+		},
+	)
+
+	assert.Equal(t, 1, stateCallbackCalled)
+	podAutoscalers = store.GetAll()
+
+	// Copy with RemoteVersion set
+	expected = objectv1alpha2Spec.DeepCopy()
+	expected.RemoteVersion = pointer.Ptr[uint64](versionOffset + 2)
+	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
+		{
+			Namespace:         "ns",
+			Name:              "name1",
+			Spec:              expected,
+			SettingsTimestamp: testTime,
+		},
+		{
+			Namespace:         "ns",
+			Name:              "name2",
+			Spec:              expected,
+			SettingsTimestamp: testTime,
+		},
+	}, podAutoscalers)
+}
+
+func TestConfigRetriverAutoscalingSettingsReconcile(t *testing.T) {
+	testClock := clock.NewFakeClock(time.Now())
+	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	isLeader := false
+	isLeaderFunc := func() bool {
+		return isLeader
+	}
+
+	_, mockRCClient := newMockConfigRetriever(t, isLeaderFunc, store, testClock)
+
+	// Object specs
+	object1Spec := &datadoghq.DatadogPodAutoscalerSpec{
+		Owner: datadoghqcommon.DatadogPodAutoscalerRemoteOwner,
+		TargetRef: autoscalingv2.CrossVersionObjectReference{
+			APIVersion: "v1",
+			Kind:       "Deployment",
+			Name:       "deploy1",
+		},
+	}
+
+	// New Autoscaling settings received, should not update store as we are not the leader
+	callbackTimestamp := testClock.Now()
+	stateCallbackCalled := 0
+	mockRCClient.triggerUpdate(
+		data.ProductContainerAutoscalingSettings,
+		map[string]state.RawConfig{
+			"foo1": buildAutoscalingSettingsRawConfig(t, 1,
+				model.AutoscalingSettingsList{
+					Settings: []model.AutoscalingSettings{
+						{
+							Namespace: "ns",
+							Name:      "name1",
+							Specs: &model.AutoscalingSpecs{
+								V1Alpha2: object1Spec,
+							},
+						},
+					},
+				}),
+		},
+		func(_ string, applyState state.ApplyStatus) {
+			stateCallbackCalled++
+			assert.Equal(t, applyState, state.ApplyStatus{
+				State: state.ApplyStateAcknowledged,
+				Error: "",
+			})
+		},
+	)
+
+	// Nothing in the store as we are not the leader
+	assert.Equal(t, 1, stateCallbackCalled)
+	podAutoscalers := store.GetAll()
+	model.AssertPodAutoscalersEqual(t, []model.PodAutoscalerInternal{}, podAutoscalers)
+
+	// Become leader, should reconcile. Unfortunately, as it's another goroutine running the reconcile,
+	// we need to wait for the reconcile to happen.
+	isLeader = true
+	testClock.Step(settingsReconcileInterval)
+	require.Eventually(t, func() bool {
+		return store.Count() == 1
+	}, 1*time.Minute, 200*time.Millisecond)
+
+	// Copy with RemoteVersion set
+	object1Spec.RemoteVersion = pointer.Ptr[uint64](versionOffset + 1)
+	podAutoscalers = store.GetAll()
+	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
+		{
+			Namespace:         "ns",
+			Name:              "name1",
+			Spec:              object1Spec,
+			SettingsTimestamp: callbackTimestamp,
 		},
 	}, podAutoscalers)
 }

@@ -6,16 +6,14 @@
 package profile
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"testing"
 
-	assert "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -30,8 +28,9 @@ func getMetricFromProfile(p profiledefinition.ProfileDefinition, metricName stri
 }
 
 func Test_resolveProfileDefinitionPath(t *testing.T) {
+	mockConfig := configmock.New(t)
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", defaultTestConfdPath)
+	mockConfig.SetWithoutSource("confd_path", defaultTestConfdPath)
 
 	absPath, _ := filepath.Abs(filepath.Join("tmp", "myfile.yaml"))
 	tests := []struct {
@@ -47,17 +46,17 @@ func Test_resolveProfileDefinitionPath(t *testing.T) {
 		{
 			name:               "relative path with default profile",
 			definitionFilePath: "p2.yaml",
-			expectedPath:       filepath.Join(pkgconfigsetup.Datadog().Get("confd_path").(string), "snmp.d", "default_profiles", "p2.yaml"),
+			expectedPath:       filepath.Join(mockConfig.Get("confd_path").(string), "snmp.d", "default_profiles", "p2.yaml"),
 		},
 		{
 			name:               "relative path with user profile",
 			definitionFilePath: "p3.yaml",
-			expectedPath:       filepath.Join(pkgconfigsetup.Datadog().Get("confd_path").(string), "snmp.d", "profiles", "p3.yaml"),
+			expectedPath:       filepath.Join(mockConfig.Get("confd_path").(string), "snmp.d", "profiles", "p3.yaml"),
 		},
 		{
 			name:               "relative path with user profile precedence",
 			definitionFilePath: "p1.yaml",
-			expectedPath:       filepath.Join(pkgconfigsetup.Datadog().Get("confd_path").(string), "snmp.d", "profiles", "p1.yaml"),
+			expectedPath:       filepath.Join(mockConfig.Get("confd_path").(string), "snmp.d", "profiles", "p1.yaml"),
 		},
 	}
 	for _, tt := range tests {
@@ -80,9 +79,10 @@ func Test_loadYamlProfiles(t *testing.T) {
 }
 
 func Test_loadYamlProfiles_withUserProfiles(t *testing.T) {
+	mockConfig := configmock.New(t)
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
 	SetGlobalProfileConfigMap(nil)
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", defaultTestConfdPath)
+	mockConfig.SetWithoutSource("confd_path", defaultTestConfdPath)
 
 	defaultProfiles, err := loadYamlProfiles()
 	assert.Nil(t, err)
@@ -110,8 +110,9 @@ func Test_loadYamlProfiles_withUserProfiles(t *testing.T) {
 }
 
 func Test_loadYamlProfiles_invalidDir(t *testing.T) {
+	mockConfig := configmock.New(t)
 	invalidPath, _ := filepath.Abs(filepath.Join(".", "tmp", "invalidPath"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", invalidPath)
+	mockConfig.SetWithoutSource("confd_path", invalidPath)
 	SetGlobalProfileConfigMap(nil)
 
 	defaultProfiles, err := loadYamlProfiles()
@@ -120,71 +121,57 @@ func Test_loadYamlProfiles_invalidDir(t *testing.T) {
 }
 
 func Test_loadYamlProfiles_invalidExtendProfile(t *testing.T) {
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
+	mockConfig := configmock.New(t)
+	logs := TrapLogs(t, log.DebugLvl)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
+	mockConfig.SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
 	SetGlobalProfileConfigMap(nil)
 
 	defaultProfiles, err := loadYamlProfiles()
+	require.NoError(t, err)
 
-	w.Flush()
-	logs := b.String()
-	assert.Nil(t, err)
-
-	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadResolveProfiles: failed to expand profile \"f5-big-ip\""), logs)
+	logs.AssertPresent(t, "failed to expand profile \"f5-big-ip\"")
 	assert.Equal(t, ProfileConfigMap{}, defaultProfiles)
 }
 
 func Test_loadYamlProfiles_userAndDefaultProfileFolderDoesNotExist(t *testing.T) {
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
+	mockConfig := configmock.New(t)
+	logs := TrapLogs(t, log.DebugLvl)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "does-not-exist.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
+	mockConfig.SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
 	SetGlobalProfileConfigMap(nil)
 
 	defaultProfiles, err := loadYamlProfiles()
+	require.NoError(t, err)
 
-	w.Flush()
-	logs := b.String()
-	assert.Nil(t, err)
+	logs.AssertPresent(t,
+		"[WARN] getYamlUserProfiles: failed to load user profile definitions",
+		"[WARN] getYamlDefaultProfiles: failed to load default profile definitions",
+	)
 
-	assert.Equal(t, 1, strings.Count(logs, "[WARN] getYamlUserProfiles: failed to load user profile definitions"), logs)
-	assert.Equal(t, 1, strings.Count(logs, "[WARN] getYamlDefaultProfiles: failed to load default profile definitions"), logs)
 	assert.Equal(t, ProfileConfigMap{}, defaultProfiles)
 }
 
 func Test_loadYamlProfiles_validAndInvalidProfiles(t *testing.T) {
+	mockConfig := configmock.New(t)
 	// Valid profiles should be returned even if some profiles are invalid
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
+	logs := TrapLogs(t, log.DebugLvl)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "valid_invalid.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
+	mockConfig.SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
 	SetGlobalProfileConfigMap(nil)
 
 	defaultProfiles, err := loadYamlProfiles()
+	require.NoError(t, err)
 
 	for _, profile := range defaultProfiles {
 		profiledefinition.NormalizeMetrics(profile.Definition.Metrics)
 	}
 
-	w.Flush()
-	logs := b.String()
-	assert.Nil(t, err)
+	logs.AssertPresent(t, "unmarshal errors")
 
-	assert.Equal(t, 1, strings.Count(logs, "unmarshal errors"), logs)
 	assert.Contains(t, defaultProfiles, "f5-big-ip")
 	assert.NotContains(t, defaultProfiles, "f5-invalid")
 }

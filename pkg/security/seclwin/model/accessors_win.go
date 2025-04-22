@@ -18,7 +18,7 @@ import (
 var _ = math.MaxUint16
 var _ = net.IP{}
 
-func (m *Model) GetEventTypes() []eval.EventType {
+func (_ *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
 		eval.EventType("change_permission"),
 		eval.EventType("create"),
@@ -33,12 +33,12 @@ func (m *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("write"),
 	}
 }
-func (m *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
+func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	switch field {
 	}
 	return nil
 }
-func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
+func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int) (eval.Evaluator, error) {
 	switch field {
 	case "change_permission.new_sd":
 		return &eval.StringEvaluator{
@@ -49,6 +49,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "change_permission.old_sd":
 		return &eval.StringEvaluator{
@@ -59,6 +60,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "change_permission.path":
 		return &eval.StringEvaluator{
@@ -69,6 +71,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "change_permission.type":
 		return &eval.StringEvaluator{
@@ -79,6 +82,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "change_permission.user_domain":
 		return &eval.StringEvaluator{
@@ -89,6 +93,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "change_permission.username":
 		return &eval.StringEvaluator{
@@ -99,6 +104,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "container.created_at":
 		return &eval.IntEvaluator{
@@ -109,6 +115,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "container.id":
 		return &eval.StringEvaluator{
@@ -119,6 +126,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "container.runtime":
 		return &eval.StringEvaluator{
@@ -129,6 +137,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "container.tags":
 		return &eval.StringArrayEvaluator{
@@ -139,6 +148,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 9999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "create.file.device_path":
 		return &eval.StringEvaluator{
@@ -150,6 +160,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "create.file.device_path.length":
 		return &eval.IntEvaluator{
@@ -161,6 +172,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "create.file.name":
 		return &eval.StringEvaluator{
@@ -172,6 +184,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "create.file.name.length":
 		return &eval.IntEvaluator{
@@ -183,6 +196,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "create.file.path":
 		return &eval.StringEvaluator{
@@ -194,6 +208,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "create.file.path.length":
 		return &eval.IntEvaluator{
@@ -205,6 +220,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "create.registry.key_name":
 		return &eval.StringEvaluator{
@@ -215,6 +231,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "create.registry.key_name.length":
 		return &eval.IntEvaluator{
@@ -225,6 +242,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "create.registry.key_path":
 		return &eval.StringEvaluator{
@@ -236,6 +254,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "create.registry.key_path.length":
 		return &eval.IntEvaluator{
@@ -247,6 +266,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "create_key.registry.key_name":
 		return &eval.StringEvaluator{
@@ -257,6 +277,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "create_key.registry.key_name.length":
 		return &eval.IntEvaluator{
@@ -267,6 +288,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "create_key.registry.key_path":
 		return &eval.StringEvaluator{
@@ -278,6 +300,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "create_key.registry.key_path.length":
 		return &eval.IntEvaluator{
@@ -289,6 +312,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "delete.file.device_path":
 		return &eval.StringEvaluator{
@@ -300,6 +324,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "delete.file.device_path.length":
 		return &eval.IntEvaluator{
@@ -311,6 +336,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "delete.file.name":
 		return &eval.StringEvaluator{
@@ -322,6 +348,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "delete.file.name.length":
 		return &eval.IntEvaluator{
@@ -333,6 +360,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "delete.file.path":
 		return &eval.StringEvaluator{
@@ -344,6 +372,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "delete.file.path.length":
 		return &eval.IntEvaluator{
@@ -355,6 +384,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "delete.registry.key_name":
 		return &eval.StringEvaluator{
@@ -365,6 +395,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "delete.registry.key_name.length":
 		return &eval.IntEvaluator{
@@ -375,6 +406,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "delete.registry.key_path":
 		return &eval.StringEvaluator{
@@ -386,6 +418,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "delete.registry.key_path.length":
 		return &eval.IntEvaluator{
@@ -397,6 +430,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "delete_key.registry.key_name":
 		return &eval.StringEvaluator{
@@ -407,6 +441,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "delete_key.registry.key_name.length":
 		return &eval.IntEvaluator{
@@ -417,6 +452,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "delete_key.registry.key_path":
 		return &eval.StringEvaluator{
@@ -428,6 +464,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "delete_key.registry.key_path.length":
 		return &eval.IntEvaluator{
@@ -439,6 +476,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "event.hostname":
 		return &eval.StringEvaluator{
@@ -449,6 +487,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "event.origin":
 		return &eval.StringEvaluator{
@@ -459,6 +498,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "event.os":
 		return &eval.StringEvaluator{
@@ -469,6 +509,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "event.service":
 		return &eval.StringEvaluator{
@@ -479,6 +520,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "event.timestamp":
 		return &eval.IntEvaluator{
@@ -489,6 +531,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.cmdline":
 		return &eval.StringEvaluator{
@@ -500,6 +543,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 200 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.container.id":
 		return &eval.StringEvaluator{
@@ -510,6 +554,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.created_at":
 		return &eval.IntEvaluator{
@@ -520,6 +565,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.envp":
 		return &eval.StringArrayEvaluator{
@@ -530,6 +576,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.envs":
 		return &eval.StringArrayEvaluator{
@@ -540,6 +587,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.name":
 		return &eval.StringEvaluator{
@@ -551,6 +599,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.name.length":
 		return &eval.IntEvaluator{
@@ -562,6 +611,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.path":
 		return &eval.StringEvaluator{
@@ -573,6 +623,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.path.length":
 		return &eval.IntEvaluator{
@@ -584,6 +635,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.pid":
 		return &eval.IntEvaluator{
@@ -594,6 +646,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.ppid":
 		return &eval.IntEvaluator{
@@ -604,6 +657,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.user":
 		return &eval.StringEvaluator{
@@ -614,6 +668,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.user_sid":
 		return &eval.StringEvaluator{
@@ -624,6 +679,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.cause":
 		return &eval.IntEvaluator{
@@ -634,6 +690,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.cmdline":
 		return &eval.StringEvaluator{
@@ -645,6 +702,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 200 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.code":
 		return &eval.IntEvaluator{
@@ -655,6 +713,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.container.id":
 		return &eval.StringEvaluator{
@@ -665,6 +724,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.created_at":
 		return &eval.IntEvaluator{
@@ -675,6 +735,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.envp":
 		return &eval.StringArrayEvaluator{
@@ -685,6 +746,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.envs":
 		return &eval.StringArrayEvaluator{
@@ -695,6 +757,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.name":
 		return &eval.StringEvaluator{
@@ -706,6 +769,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.name.length":
 		return &eval.IntEvaluator{
@@ -717,6 +781,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.path":
 		return &eval.StringEvaluator{
@@ -728,6 +793,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.path.length":
 		return &eval.IntEvaluator{
@@ -739,6 +805,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.pid":
 		return &eval.IntEvaluator{
@@ -749,6 +816,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.ppid":
 		return &eval.IntEvaluator{
@@ -759,6 +827,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.user":
 		return &eval.StringEvaluator{
@@ -769,6 +838,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.user_sid":
 		return &eval.StringEvaluator{
@@ -779,6 +849,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "open.registry.key_name":
 		return &eval.StringEvaluator{
@@ -789,6 +860,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "open.registry.key_name.length":
 		return &eval.IntEvaluator{
@@ -799,6 +871,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "open.registry.key_path":
 		return &eval.StringEvaluator{
@@ -810,6 +883,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "open.registry.key_path.length":
 		return &eval.IntEvaluator{
@@ -821,6 +895,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "open_key.registry.key_name":
 		return &eval.StringEvaluator{
@@ -831,6 +906,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "open_key.registry.key_name.length":
 		return &eval.IntEvaluator{
@@ -841,6 +917,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "open_key.registry.key_path":
 		return &eval.StringEvaluator{
@@ -852,6 +929,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "open_key.registry.key_path.length":
 		return &eval.IntEvaluator{
@@ -863,6 +941,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.cmdline":
 		return &eval.StringArrayEvaluator{
@@ -870,139 +949,130 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveProcessCmdLine(ev, &element.ProcessContext.Process)
+					return []string{result}
+				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
-				var results []string
-				iterator := &ProcessAncestorsIterator{}
-				if regID != "" {
-					value := iterator.At(ctx, regID, ctx.Registers[regID])
-					if value == nil {
-						return results
-					}
-					element := value
-					result := ev.FieldHandlers.ResolveProcessCmdLine(ev, &element.ProcessContext.Process)
-					results = append(results, result)
-					return results
-				}
-				results = newAncestorsIterator(iterator, ctx, ev, func(ev *Event, pce *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveProcessCmdLine(ev, &pce.ProcessContext.Process)
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveProcessCmdLine(ev, &current.ProcessContext.Process)
 				})
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: 200 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.ContainerID
+					return []string{result}
+				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
-				var results []string
-				iterator := &ProcessAncestorsIterator{}
-				if regID != "" {
-					value := iterator.At(ctx, regID, ctx.Registers[regID])
-					if value == nil {
-						return results
-					}
-					element := value
-					result := element.ProcessContext.Process.ContainerID
-					results = append(results, result)
-					return results
-				}
-				results = newAncestorsIterator(iterator, ctx, nil, func(ev *Event, pce *ProcessCacheEntry) string {
-					return pce.ProcessContext.Process.ContainerID
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.ContainerID
 				})
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.created_at":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &element.ProcessContext.Process))
+					return []int{result}
+				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
-				var results []int
-				iterator := &ProcessAncestorsIterator{}
-				if regID != "" {
-					value := iterator.At(ctx, regID, ctx.Registers[regID])
-					if value == nil {
-						return results
-					}
-					element := value
-					result := int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &element.ProcessContext.Process))
-					results = append(results, result)
-					return results
-				}
-				results = newAncestorsIterator(iterator, ctx, ev, func(ev *Event, pce *ProcessCacheEntry) int {
-					return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &pce.ProcessContext.Process))
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &current.ProcessContext.Process))
 				})
 				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.envp":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveProcessEnvp(ev, &element.ProcessContext.Process)
+					return result
+				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
-				var results []string
-				iterator := &ProcessAncestorsIterator{}
-				if regID != "" {
-					value := iterator.At(ctx, regID, ctx.Registers[regID])
-					if value == nil {
-						return results
-					}
-					element := value
-					result := ev.FieldHandlers.ResolveProcessEnvp(ev, &element.ProcessContext.Process)
-					results = append(results, result...)
-					return results
-				}
-				results = newAncestorsIteratorArray(iterator, ctx, ev, func(ev *Event, pce *ProcessCacheEntry) []string {
-					return ev.FieldHandlers.ResolveProcessEnvp(ev, &pce.ProcessContext.Process)
+				results := newIteratorArray(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
+					return ev.FieldHandlers.ResolveProcessEnvp(ev, &current.ProcessContext.Process)
 				})
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.envs":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveProcessEnvs(ev, &element.ProcessContext.Process)
+					return result
+				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
-				var results []string
-				iterator := &ProcessAncestorsIterator{}
-				if regID != "" {
-					value := iterator.At(ctx, regID, ctx.Registers[regID])
-					if value == nil {
-						return results
-					}
-					element := value
-					result := ev.FieldHandlers.ResolveProcessEnvs(ev, &element.ProcessContext.Process)
-					results = append(results, result...)
-					return results
-				}
-				results = newAncestorsIteratorArray(iterator, ctx, ev, func(ev *Event, pce *ProcessCacheEntry) []string {
-					return ev.FieldHandlers.ResolveProcessEnvs(ev, &pce.ProcessContext.Process)
+				results := newIteratorArray(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
+					return ev.FieldHandlers.ResolveProcessEnvs(ev, &current.ProcessContext.Process)
 				})
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
@@ -1010,28 +1080,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveFileBasename(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
-				var results []string
-				iterator := &ProcessAncestorsIterator{}
-				if regID != "" {
-					value := iterator.At(ctx, regID, ctx.Registers[regID])
-					if value == nil {
-						return results
-					}
-					element := value
-					result := ev.FieldHandlers.ResolveFileBasename(ev, &element.ProcessContext.Process.FileEvent)
-					results = append(results, result)
-					return results
-				}
-				results = newAncestorsIterator(iterator, ctx, ev, func(ev *Event, pce *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveFileBasename(ev, &pce.ProcessContext.Process.FileEvent)
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveFileBasename(ev, &current.ProcessContext.Process.FileEvent)
 				})
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.name.length":
 		return &eval.IntArrayEvaluator{
@@ -1039,28 +1107,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := len(ev.FieldHandlers.ResolveFileBasename(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
-				var results []int
-				iterator := &ProcessAncestorsIterator{}
-				if regID != "" {
-					value := iterator.At(ctx, regID, ctx.Registers[regID])
-					if value == nil {
-						return results
-					}
-					element := value
-					result := len(ev.FieldHandlers.ResolveFileBasename(ev, &element.ProcessContext.Process.FileEvent))
-					results = append(results, result)
-					return results
-				}
-				results = newAncestorsIterator(iterator, ctx, ev, func(ev *Event, pce *ProcessCacheEntry) int {
-					return len(ev.FieldHandlers.ResolveFileBasename(ev, &pce.ProcessContext.Process.FileEvent))
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					return len(ev.FieldHandlers.ResolveFileBasename(ev, &current.ProcessContext.Process.FileEvent))
 				})
 				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
@@ -1068,28 +1134,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
-				var results []string
-				iterator := &ProcessAncestorsIterator{}
-				if regID != "" {
-					value := iterator.At(ctx, regID, ctx.Registers[regID])
-					if value == nil {
-						return results
-					}
-					element := value
-					result := ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent)
-					results = append(results, result)
-					return results
-				}
-				results = newAncestorsIterator(iterator, ctx, ev, func(ev *Event, pce *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveFilePath(ev, &pce.ProcessContext.Process.FileEvent)
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveFilePath(ev, &current.ProcessContext.Process.FileEvent)
 				})
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.path.length":
 		return &eval.IntArrayEvaluator{
@@ -1097,28 +1161,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
-				var results []int
-				iterator := &ProcessAncestorsIterator{}
-				if regID != "" {
-					value := iterator.At(ctx, regID, ctx.Registers[regID])
-					if value == nil {
-						return results
-					}
-					element := value
-					result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent))
-					results = append(results, result)
-					return results
-				}
-				results = newAncestorsIterator(iterator, ctx, ev, func(ev *Event, pce *ProcessCacheEntry) int {
-					return len(ev.FieldHandlers.ResolveFilePath(ev, &pce.ProcessContext.Process.FileEvent))
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					return len(ev.FieldHandlers.ResolveFilePath(ev, &current.ProcessContext.Process.FileEvent))
 				})
 				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.length":
 		return &eval.IntEvaluator{
@@ -1129,115 +1191,111 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.Pid)
+					return []int{result}
+				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
-				var results []int
-				iterator := &ProcessAncestorsIterator{}
-				if regID != "" {
-					value := iterator.At(ctx, regID, ctx.Registers[regID])
-					if value == nil {
-						return results
-					}
-					element := value
-					result := int(element.ProcessContext.Process.PIDContext.Pid)
-					results = append(results, result)
-					return results
-				}
-				results = newAncestorsIterator(iterator, ctx, nil, func(ev *Event, pce *ProcessCacheEntry) int {
-					return int(pce.ProcessContext.Process.PIDContext.Pid)
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.Pid)
 				})
 				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.ppid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
 				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PPid)
+					return []int{result}
+				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
-				var results []int
-				iterator := &ProcessAncestorsIterator{}
-				if regID != "" {
-					value := iterator.At(ctx, regID, ctx.Registers[regID])
-					if value == nil {
-						return results
-					}
-					element := value
-					result := int(element.ProcessContext.Process.PPid)
-					results = append(results, result)
-					return results
-				}
-				results = newAncestorsIterator(iterator, ctx, nil, func(ev *Event, pce *ProcessCacheEntry) int {
-					return int(pce.ProcessContext.Process.PPid)
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PPid)
 				})
 				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.user":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveUser(ev, &element.ProcessContext.Process)
+					return []string{result}
+				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
-				var results []string
-				iterator := &ProcessAncestorsIterator{}
-				if regID != "" {
-					value := iterator.At(ctx, regID, ctx.Registers[regID])
-					if value == nil {
-						return results
-					}
-					element := value
-					result := ev.FieldHandlers.ResolveUser(ev, &element.ProcessContext.Process)
-					results = append(results, result)
-					return results
-				}
-				results = newAncestorsIterator(iterator, ctx, ev, func(ev *Event, pce *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveUser(ev, &pce.ProcessContext.Process)
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveUser(ev, &current.ProcessContext.Process)
 				})
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.user_sid":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.OwnerSidString
+					return []string{result}
+				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
-				var results []string
-				iterator := &ProcessAncestorsIterator{}
-				if regID != "" {
-					value := iterator.At(ctx, regID, ctx.Registers[regID])
-					if value == nil {
-						return results
-					}
-					element := value
-					result := element.ProcessContext.Process.OwnerSidString
-					results = append(results, result)
-					return results
-				}
-				results = newAncestorsIterator(iterator, ctx, nil, func(ev *Event, pce *ProcessCacheEntry) string {
-					return pce.ProcessContext.Process.OwnerSidString
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.OwnerSidString
 				})
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.cmdline":
 		return &eval.StringEvaluator{
@@ -1249,6 +1307,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 200 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.container.id":
 		return &eval.StringEvaluator{
@@ -1259,6 +1318,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.created_at":
 		return &eval.IntEvaluator{
@@ -1269,6 +1329,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.envp":
 		return &eval.StringArrayEvaluator{
@@ -1279,6 +1340,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.envs":
 		return &eval.StringArrayEvaluator{
@@ -1289,6 +1351,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.name":
 		return &eval.StringEvaluator{
@@ -1300,6 +1363,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.name.length":
 		return &eval.IntEvaluator{
@@ -1311,6 +1375,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.path":
 		return &eval.StringEvaluator{
@@ -1322,6 +1387,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.path.length":
 		return &eval.IntEvaluator{
@@ -1333,6 +1399,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.cmdline":
 		return &eval.StringEvaluator{
@@ -1347,6 +1414,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 200 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.container.id":
 		return &eval.StringEvaluator{
@@ -1360,6 +1428,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.created_at":
 		return &eval.IntEvaluator{
@@ -1373,6 +1442,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.envp":
 		return &eval.StringArrayEvaluator{
@@ -1386,6 +1456,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.envs":
 		return &eval.StringArrayEvaluator{
@@ -1399,6 +1470,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.name":
 		return &eval.StringEvaluator{
@@ -1413,6 +1485,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.name.length":
 		return &eval.IntEvaluator{
@@ -1424,6 +1497,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.path":
 		return &eval.StringEvaluator{
@@ -1438,6 +1512,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.path.length":
 		return &eval.IntEvaluator{
@@ -1449,6 +1524,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.pid":
 		return &eval.IntEvaluator{
@@ -1462,6 +1538,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.ppid":
 		return &eval.IntEvaluator{
@@ -1475,6 +1552,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.user":
 		return &eval.StringEvaluator{
@@ -1488,6 +1566,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.user_sid":
 		return &eval.StringEvaluator{
@@ -1501,6 +1580,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.pid":
 		return &eval.IntEvaluator{
@@ -1511,6 +1591,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.ppid":
 		return &eval.IntEvaluator{
@@ -1521,6 +1602,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.user":
 		return &eval.StringEvaluator{
@@ -1531,6 +1613,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.user_sid":
 		return &eval.StringEvaluator{
@@ -1541,6 +1624,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.device_path":
 		return &eval.StringEvaluator{
@@ -1552,6 +1636,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.device_path.length":
 		return &eval.IntEvaluator{
@@ -1563,6 +1648,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.name":
 		return &eval.StringEvaluator{
@@ -1574,6 +1660,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.name.length":
 		return &eval.IntEvaluator{
@@ -1585,6 +1672,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.path":
 		return &eval.StringEvaluator{
@@ -1596,6 +1684,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.path.length":
 		return &eval.IntEvaluator{
@@ -1607,6 +1696,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.device_path":
 		return &eval.StringEvaluator{
@@ -1618,6 +1708,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.device_path.length":
 		return &eval.IntEvaluator{
@@ -1629,6 +1720,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.name":
 		return &eval.StringEvaluator{
@@ -1640,6 +1732,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.name.length":
 		return &eval.IntEvaluator{
@@ -1651,6 +1744,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.path":
 		return &eval.StringEvaluator{
@@ -1662,6 +1756,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.path.length":
 		return &eval.IntEvaluator{
@@ -1673,6 +1768,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "set.registry.key_name":
 		return &eval.StringEvaluator{
@@ -1683,6 +1779,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "set.registry.key_name.length":
 		return &eval.IntEvaluator{
@@ -1693,6 +1790,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "set.registry.key_path":
 		return &eval.StringEvaluator{
@@ -1704,6 +1802,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "set.registry.key_path.length":
 		return &eval.IntEvaluator{
@@ -1715,6 +1814,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "set.registry.value_name":
 		return &eval.StringEvaluator{
@@ -1725,6 +1825,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "set.registry.value_name.length":
 		return &eval.IntEvaluator{
@@ -1735,6 +1836,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "set.value_name":
 		return &eval.StringEvaluator{
@@ -1745,6 +1847,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "set_key_value.registry.key_name":
 		return &eval.StringEvaluator{
@@ -1755,6 +1858,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "set_key_value.registry.key_name.length":
 		return &eval.IntEvaluator{
@@ -1765,6 +1869,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "set_key_value.registry.key_path":
 		return &eval.StringEvaluator{
@@ -1776,6 +1881,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "set_key_value.registry.key_path.length":
 		return &eval.IntEvaluator{
@@ -1787,6 +1893,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "set_key_value.registry.value_name":
 		return &eval.StringEvaluator{
@@ -1797,6 +1904,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "set_key_value.registry.value_name.length":
 		return &eval.IntEvaluator{
@@ -1807,6 +1915,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "set_key_value.value_name":
 		return &eval.StringEvaluator{
@@ -1817,6 +1926,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "write.file.device_path":
 		return &eval.StringEvaluator{
@@ -1828,6 +1938,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "write.file.device_path.length":
 		return &eval.IntEvaluator{
@@ -1839,6 +1950,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "write.file.name":
 		return &eval.StringEvaluator{
@@ -1850,6 +1962,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "write.file.name.length":
 		return &eval.IntEvaluator{
@@ -1861,6 +1974,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "write.file.path":
 		return &eval.StringEvaluator{
@@ -1872,6 +1986,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "write.file.path.length":
 		return &eval.IntEvaluator{
@@ -1883,6 +1998,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	}
 	return nil, &eval.ErrFieldNotFound{Field: field}
@@ -2043,763 +2159,321 @@ func (ev *Event) GetFields() []eval.Field {
 	}
 }
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
-	switch field {
-	case "change_permission.new_sd":
-		return ev.FieldHandlers.ResolveNewSecurityDescriptor(ev, &ev.ChangePermission), nil
-	case "change_permission.old_sd":
-		return ev.FieldHandlers.ResolveOldSecurityDescriptor(ev, &ev.ChangePermission), nil
-	case "change_permission.path":
-		return ev.ChangePermission.ObjectName, nil
-	case "change_permission.type":
-		return ev.ChangePermission.ObjectType, nil
-	case "change_permission.user_domain":
-		return ev.ChangePermission.UserDomain, nil
-	case "change_permission.username":
-		return ev.ChangePermission.UserName, nil
-	case "container.created_at":
-		return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)), nil
-	case "container.id":
-		return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext), nil
-	case "container.runtime":
-		return ev.FieldHandlers.ResolveContainerRuntime(ev, ev.BaseEvent.ContainerContext), nil
-	case "container.tags":
-		return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext), nil
-	case "create.file.device_path":
-		return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.CreateNewFile.File), nil
-	case "create.file.device_path.length":
-		return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.CreateNewFile.File), nil
-	case "create.file.name":
-		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.CreateNewFile.File), nil
-	case "create.file.name.length":
-		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.CreateNewFile.File), nil
-	case "create.file.path":
-		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File), nil
-	case "create.file.path.length":
-		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File), nil
-	case "create.registry.key_name":
-		return ev.CreateRegistryKey.Registry.KeyName, nil
-	case "create.registry.key_name.length":
-		return len(ev.CreateRegistryKey.Registry.KeyName), nil
-	case "create.registry.key_path":
-		return ev.CreateRegistryKey.Registry.KeyPath, nil
-	case "create.registry.key_path.length":
-		return len(ev.CreateRegistryKey.Registry.KeyPath), nil
-	case "create_key.registry.key_name":
-		return ev.CreateRegistryKey.Registry.KeyName, nil
-	case "create_key.registry.key_name.length":
-		return len(ev.CreateRegistryKey.Registry.KeyName), nil
-	case "create_key.registry.key_path":
-		return ev.CreateRegistryKey.Registry.KeyPath, nil
-	case "create_key.registry.key_path.length":
-		return len(ev.CreateRegistryKey.Registry.KeyPath), nil
-	case "delete.file.device_path":
-		return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.DeleteFile.File), nil
-	case "delete.file.device_path.length":
-		return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.DeleteFile.File), nil
-	case "delete.file.name":
-		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.DeleteFile.File), nil
-	case "delete.file.name.length":
-		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.DeleteFile.File), nil
-	case "delete.file.path":
-		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.DeleteFile.File), nil
-	case "delete.file.path.length":
-		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.DeleteFile.File), nil
-	case "delete.registry.key_name":
-		return ev.DeleteRegistryKey.Registry.KeyName, nil
-	case "delete.registry.key_name.length":
-		return len(ev.DeleteRegistryKey.Registry.KeyName), nil
-	case "delete.registry.key_path":
-		return ev.DeleteRegistryKey.Registry.KeyPath, nil
-	case "delete.registry.key_path.length":
-		return len(ev.DeleteRegistryKey.Registry.KeyPath), nil
-	case "delete_key.registry.key_name":
-		return ev.DeleteRegistryKey.Registry.KeyName, nil
-	case "delete_key.registry.key_name.length":
-		return len(ev.DeleteRegistryKey.Registry.KeyName), nil
-	case "delete_key.registry.key_path":
-		return ev.DeleteRegistryKey.Registry.KeyPath, nil
-	case "delete_key.registry.key_path.length":
-		return len(ev.DeleteRegistryKey.Registry.KeyPath), nil
-	case "event.hostname":
-		return ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent), nil
-	case "event.origin":
-		return ev.BaseEvent.Origin, nil
-	case "event.os":
-		return ev.BaseEvent.Os, nil
-	case "event.service":
-		return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent), nil
-	case "event.timestamp":
-		return int(ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)), nil
-	case "exec.cmdline":
-		return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exec.Process), nil
-	case "exec.container.id":
-		return ev.Exec.Process.ContainerID, nil
-	case "exec.created_at":
-		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exec.Process)), nil
-	case "exec.envp":
-		return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process), nil
-	case "exec.envs":
-		return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process), nil
-	case "exec.file.name":
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent), nil
-	case "exec.file.name.length":
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent), nil
-	case "exec.file.path":
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent), nil
-	case "exec.file.path.length":
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent), nil
-	case "exec.pid":
-		return int(ev.Exec.Process.PIDContext.Pid), nil
-	case "exec.ppid":
-		return int(ev.Exec.Process.PPid), nil
-	case "exec.user":
-		return ev.FieldHandlers.ResolveUser(ev, ev.Exec.Process), nil
-	case "exec.user_sid":
-		return ev.Exec.Process.OwnerSidString, nil
-	case "exit.cause":
-		return int(ev.Exit.Cause), nil
-	case "exit.cmdline":
-		return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exit.Process), nil
-	case "exit.code":
-		return int(ev.Exit.Code), nil
-	case "exit.container.id":
-		return ev.Exit.Process.ContainerID, nil
-	case "exit.created_at":
-		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exit.Process)), nil
-	case "exit.envp":
-		return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process), nil
-	case "exit.envs":
-		return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process), nil
-	case "exit.file.name":
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.FileEvent), nil
-	case "exit.file.name.length":
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.FileEvent), nil
-	case "exit.file.path":
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent), nil
-	case "exit.file.path.length":
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent), nil
-	case "exit.pid":
-		return int(ev.Exit.Process.PIDContext.Pid), nil
-	case "exit.ppid":
-		return int(ev.Exit.Process.PPid), nil
-	case "exit.user":
-		return ev.FieldHandlers.ResolveUser(ev, ev.Exit.Process), nil
-	case "exit.user_sid":
-		return ev.Exit.Process.OwnerSidString, nil
-	case "open.registry.key_name":
-		return ev.OpenRegistryKey.Registry.KeyName, nil
-	case "open.registry.key_name.length":
-		return len(ev.OpenRegistryKey.Registry.KeyName), nil
-	case "open.registry.key_path":
-		return ev.OpenRegistryKey.Registry.KeyPath, nil
-	case "open.registry.key_path.length":
-		return len(ev.OpenRegistryKey.Registry.KeyPath), nil
-	case "open_key.registry.key_name":
-		return ev.OpenRegistryKey.Registry.KeyName, nil
-	case "open_key.registry.key_name.length":
-		return len(ev.OpenRegistryKey.Registry.KeyName), nil
-	case "open_key.registry.key_path":
-		return ev.OpenRegistryKey.Registry.KeyPath, nil
-	case "open_key.registry.key_path.length":
-		return len(ev.OpenRegistryKey.Registry.KeyPath), nil
-	case "process.ancestors.cmdline":
-		var values []string
-		ctx := eval.NewContext(ev)
-		iterator := &ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := ptr
-			result := ev.FieldHandlers.ResolveProcessCmdLine(ev, &element.ProcessContext.Process)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "process.ancestors.container.id":
-		var values []string
-		ctx := eval.NewContext(ev)
-		iterator := &ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := ptr
-			result := element.ProcessContext.Process.ContainerID
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "process.ancestors.created_at":
-		var values []int
-		ctx := eval.NewContext(ev)
-		iterator := &ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := ptr
-			result := int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &element.ProcessContext.Process))
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "process.ancestors.envp":
-		var values []string
-		ctx := eval.NewContext(ev)
-		iterator := &ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := ptr
-			result := ev.FieldHandlers.ResolveProcessEnvp(ev, &element.ProcessContext.Process)
-			values = append(values, result...)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "process.ancestors.envs":
-		var values []string
-		ctx := eval.NewContext(ev)
-		iterator := &ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := ptr
-			result := ev.FieldHandlers.ResolveProcessEnvs(ev, &element.ProcessContext.Process)
-			values = append(values, result...)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "process.ancestors.file.name":
-		var values []string
-		ctx := eval.NewContext(ev)
-		iterator := &ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := ptr
-			result := ev.FieldHandlers.ResolveFileBasename(ev, &element.ProcessContext.Process.FileEvent)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "process.ancestors.file.name.length":
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent), nil
-	case "process.ancestors.file.path":
-		var values []string
-		ctx := eval.NewContext(ev)
-		iterator := &ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := ptr
-			result := ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "process.ancestors.file.path.length":
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent), nil
-	case "process.ancestors.length":
-		ctx := eval.NewContext(ev)
-		iterator := &ProcessAncestorsIterator{}
-		return iterator.Len(ctx), nil
-	case "process.ancestors.pid":
-		var values []int
-		ctx := eval.NewContext(ev)
-		iterator := &ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := ptr
-			result := int(element.ProcessContext.Process.PIDContext.Pid)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "process.ancestors.ppid":
-		var values []int
-		ctx := eval.NewContext(ev)
-		iterator := &ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := ptr
-			result := int(element.ProcessContext.Process.PPid)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "process.ancestors.user":
-		var values []string
-		ctx := eval.NewContext(ev)
-		iterator := &ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := ptr
-			result := ev.FieldHandlers.ResolveUser(ev, &element.ProcessContext.Process)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "process.ancestors.user_sid":
-		var values []string
-		ctx := eval.NewContext(ev)
-		iterator := &ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := ptr
-			result := element.ProcessContext.Process.OwnerSidString
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
-	case "process.cmdline":
-		return ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.BaseEvent.ProcessContext.Process), nil
-	case "process.container.id":
-		return ev.BaseEvent.ProcessContext.Process.ContainerID, nil
-	case "process.created_at":
-		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process)), nil
-	case "process.envp":
-		return ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process), nil
-	case "process.envs":
-		return ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process), nil
-	case "process.file.name":
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent), nil
-	case "process.file.name.length":
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent), nil
-	case "process.file.path":
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent), nil
-	case "process.file.path.length":
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent), nil
-	case "process.parent.cmdline":
-		if !ev.BaseEvent.ProcessContext.HasParent() {
-			return "", &eval.ErrNotSupported{Field: field}
-		}
-		return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.BaseEvent.ProcessContext.Parent), nil
-	case "process.parent.container.id":
-		if !ev.BaseEvent.ProcessContext.HasParent() {
-			return "", &eval.ErrNotSupported{Field: field}
-		}
-		return ev.BaseEvent.ProcessContext.Parent.ContainerID, nil
-	case "process.parent.created_at":
-		if !ev.BaseEvent.ProcessContext.HasParent() {
-			return 0, &eval.ErrNotSupported{Field: field}
-		}
-		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.BaseEvent.ProcessContext.Parent)), nil
-	case "process.parent.envp":
-		if !ev.BaseEvent.ProcessContext.HasParent() {
-			return []string{}, &eval.ErrNotSupported{Field: field}
-		}
-		return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent), nil
-	case "process.parent.envs":
-		if !ev.BaseEvent.ProcessContext.HasParent() {
-			return []string{}, &eval.ErrNotSupported{Field: field}
-		}
-		return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent), nil
-	case "process.parent.file.name":
-		if !ev.BaseEvent.ProcessContext.HasParent() {
-			return "", &eval.ErrNotSupported{Field: field}
-		}
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent), nil
-	case "process.parent.file.name.length":
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent), nil
-	case "process.parent.file.path":
-		if !ev.BaseEvent.ProcessContext.HasParent() {
-			return "", &eval.ErrNotSupported{Field: field}
-		}
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent), nil
-	case "process.parent.file.path.length":
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent), nil
-	case "process.parent.pid":
-		if !ev.BaseEvent.ProcessContext.HasParent() {
-			return 0, &eval.ErrNotSupported{Field: field}
-		}
-		return int(ev.BaseEvent.ProcessContext.Parent.PIDContext.Pid), nil
-	case "process.parent.ppid":
-		if !ev.BaseEvent.ProcessContext.HasParent() {
-			return 0, &eval.ErrNotSupported{Field: field}
-		}
-		return int(ev.BaseEvent.ProcessContext.Parent.PPid), nil
-	case "process.parent.user":
-		if !ev.BaseEvent.ProcessContext.HasParent() {
-			return "", &eval.ErrNotSupported{Field: field}
-		}
-		return ev.FieldHandlers.ResolveUser(ev, ev.BaseEvent.ProcessContext.Parent), nil
-	case "process.parent.user_sid":
-		if !ev.BaseEvent.ProcessContext.HasParent() {
-			return "", &eval.ErrNotSupported{Field: field}
-		}
-		return ev.BaseEvent.ProcessContext.Parent.OwnerSidString, nil
-	case "process.pid":
-		return int(ev.BaseEvent.ProcessContext.Process.PIDContext.Pid), nil
-	case "process.ppid":
-		return int(ev.BaseEvent.ProcessContext.Process.PPid), nil
-	case "process.user":
-		return ev.FieldHandlers.ResolveUser(ev, &ev.BaseEvent.ProcessContext.Process), nil
-	case "process.user_sid":
-		return ev.BaseEvent.ProcessContext.Process.OwnerSidString, nil
-	case "rename.file.destination.device_path":
-		return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.New), nil
-	case "rename.file.destination.device_path.length":
-		return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.New), nil
-	case "rename.file.destination.name":
-		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.New), nil
-	case "rename.file.destination.name.length":
-		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.New), nil
-	case "rename.file.destination.path":
-		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.New), nil
-	case "rename.file.destination.path.length":
-		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.New), nil
-	case "rename.file.device_path":
-		return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.Old), nil
-	case "rename.file.device_path.length":
-		return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.Old), nil
-	case "rename.file.name":
-		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.Old), nil
-	case "rename.file.name.length":
-		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.Old), nil
-	case "rename.file.path":
-		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.Old), nil
-	case "rename.file.path.length":
-		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.Old), nil
-	case "set.registry.key_name":
-		return ev.SetRegistryKeyValue.Registry.KeyName, nil
-	case "set.registry.key_name.length":
-		return len(ev.SetRegistryKeyValue.Registry.KeyName), nil
-	case "set.registry.key_path":
-		return ev.SetRegistryKeyValue.Registry.KeyPath, nil
-	case "set.registry.key_path.length":
-		return len(ev.SetRegistryKeyValue.Registry.KeyPath), nil
-	case "set.registry.value_name":
-		return ev.SetRegistryKeyValue.ValueName, nil
-	case "set.registry.value_name.length":
-		return len(ev.SetRegistryKeyValue.ValueName), nil
-	case "set.value_name":
-		return ev.SetRegistryKeyValue.ValueName, nil
-	case "set_key_value.registry.key_name":
-		return ev.SetRegistryKeyValue.Registry.KeyName, nil
-	case "set_key_value.registry.key_name.length":
-		return len(ev.SetRegistryKeyValue.Registry.KeyName), nil
-	case "set_key_value.registry.key_path":
-		return ev.SetRegistryKeyValue.Registry.KeyPath, nil
-	case "set_key_value.registry.key_path.length":
-		return len(ev.SetRegistryKeyValue.Registry.KeyPath), nil
-	case "set_key_value.registry.value_name":
-		return ev.SetRegistryKeyValue.ValueName, nil
-	case "set_key_value.registry.value_name.length":
-		return len(ev.SetRegistryKeyValue.ValueName), nil
-	case "set_key_value.value_name":
-		return ev.SetRegistryKeyValue.ValueName, nil
-	case "write.file.device_path":
-		return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.WriteFile.File), nil
-	case "write.file.device_path.length":
-		return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.WriteFile.File), nil
-	case "write.file.name":
-		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.WriteFile.File), nil
-	case "write.file.name.length":
-		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.WriteFile.File), nil
-	case "write.file.path":
-		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.WriteFile.File), nil
-	case "write.file.path.length":
-		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.WriteFile.File), nil
+	m := &Model{}
+	evaluator, err := m.GetEvaluator(field, "", 0)
+	if err != nil {
+		return nil, err
 	}
-	return nil, &eval.ErrFieldNotFound{Field: field}
+	ctx := eval.NewContext(ev)
+	value := evaluator.Eval(ctx)
+	return value, nil
 }
-func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, error) {
+func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
 	switch field {
 	case "change_permission.new_sd":
-		return "change_permission", reflect.String, nil
+		return "change_permission", reflect.String, "string", nil
 	case "change_permission.old_sd":
-		return "change_permission", reflect.String, nil
+		return "change_permission", reflect.String, "string", nil
 	case "change_permission.path":
-		return "change_permission", reflect.String, nil
+		return "change_permission", reflect.String, "string", nil
 	case "change_permission.type":
-		return "change_permission", reflect.String, nil
+		return "change_permission", reflect.String, "string", nil
 	case "change_permission.user_domain":
-		return "change_permission", reflect.String, nil
+		return "change_permission", reflect.String, "string", nil
 	case "change_permission.username":
-		return "change_permission", reflect.String, nil
+		return "change_permission", reflect.String, "string", nil
 	case "container.created_at":
-		return "", reflect.Int, nil
+		return "", reflect.Int, "int", nil
 	case "container.id":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "container.runtime":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "container.tags":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "create.file.device_path":
-		return "create", reflect.String, nil
+		return "create", reflect.String, "string", nil
 	case "create.file.device_path.length":
-		return "create", reflect.Int, nil
+		return "create", reflect.Int, "int", nil
 	case "create.file.name":
-		return "create", reflect.String, nil
+		return "create", reflect.String, "string", nil
 	case "create.file.name.length":
-		return "create", reflect.Int, nil
+		return "create", reflect.Int, "int", nil
 	case "create.file.path":
-		return "create", reflect.String, nil
+		return "create", reflect.String, "string", nil
 	case "create.file.path.length":
-		return "create", reflect.Int, nil
+		return "create", reflect.Int, "int", nil
 	case "create.registry.key_name":
-		return "create_key", reflect.String, nil
+		return "create_key", reflect.String, "string", nil
 	case "create.registry.key_name.length":
-		return "create_key", reflect.Int, nil
+		return "create_key", reflect.Int, "int", nil
 	case "create.registry.key_path":
-		return "create_key", reflect.String, nil
+		return "create_key", reflect.String, "string", nil
 	case "create.registry.key_path.length":
-		return "create_key", reflect.Int, nil
+		return "create_key", reflect.Int, "int", nil
 	case "create_key.registry.key_name":
-		return "create_key", reflect.String, nil
+		return "create_key", reflect.String, "string", nil
 	case "create_key.registry.key_name.length":
-		return "create_key", reflect.Int, nil
+		return "create_key", reflect.Int, "int", nil
 	case "create_key.registry.key_path":
-		return "create_key", reflect.String, nil
+		return "create_key", reflect.String, "string", nil
 	case "create_key.registry.key_path.length":
-		return "create_key", reflect.Int, nil
+		return "create_key", reflect.Int, "int", nil
 	case "delete.file.device_path":
-		return "delete", reflect.String, nil
+		return "delete", reflect.String, "string", nil
 	case "delete.file.device_path.length":
-		return "delete", reflect.Int, nil
+		return "delete", reflect.Int, "int", nil
 	case "delete.file.name":
-		return "delete", reflect.String, nil
+		return "delete", reflect.String, "string", nil
 	case "delete.file.name.length":
-		return "delete", reflect.Int, nil
+		return "delete", reflect.Int, "int", nil
 	case "delete.file.path":
-		return "delete", reflect.String, nil
+		return "delete", reflect.String, "string", nil
 	case "delete.file.path.length":
-		return "delete", reflect.Int, nil
+		return "delete", reflect.Int, "int", nil
 	case "delete.registry.key_name":
-		return "delete_key", reflect.String, nil
+		return "delete_key", reflect.String, "string", nil
 	case "delete.registry.key_name.length":
-		return "delete_key", reflect.Int, nil
+		return "delete_key", reflect.Int, "int", nil
 	case "delete.registry.key_path":
-		return "delete_key", reflect.String, nil
+		return "delete_key", reflect.String, "string", nil
 	case "delete.registry.key_path.length":
-		return "delete_key", reflect.Int, nil
+		return "delete_key", reflect.Int, "int", nil
 	case "delete_key.registry.key_name":
-		return "delete_key", reflect.String, nil
+		return "delete_key", reflect.String, "string", nil
 	case "delete_key.registry.key_name.length":
-		return "delete_key", reflect.Int, nil
+		return "delete_key", reflect.Int, "int", nil
 	case "delete_key.registry.key_path":
-		return "delete_key", reflect.String, nil
+		return "delete_key", reflect.String, "string", nil
 	case "delete_key.registry.key_path.length":
-		return "delete_key", reflect.Int, nil
+		return "delete_key", reflect.Int, "int", nil
 	case "event.hostname":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "event.origin":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "event.os":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "event.service":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "event.timestamp":
-		return "", reflect.Int, nil
+		return "", reflect.Int, "int", nil
 	case "exec.cmdline":
-		return "exec", reflect.String, nil
+		return "exec", reflect.String, "string", nil
 	case "exec.container.id":
-		return "exec", reflect.String, nil
+		return "exec", reflect.String, "string", nil
 	case "exec.created_at":
-		return "exec", reflect.Int, nil
+		return "exec", reflect.Int, "int", nil
 	case "exec.envp":
-		return "exec", reflect.String, nil
+		return "exec", reflect.String, "string", nil
 	case "exec.envs":
-		return "exec", reflect.String, nil
+		return "exec", reflect.String, "string", nil
 	case "exec.file.name":
-		return "exec", reflect.String, nil
+		return "exec", reflect.String, "string", nil
 	case "exec.file.name.length":
-		return "exec", reflect.Int, nil
+		return "exec", reflect.Int, "int", nil
 	case "exec.file.path":
-		return "exec", reflect.String, nil
+		return "exec", reflect.String, "string", nil
 	case "exec.file.path.length":
-		return "exec", reflect.Int, nil
+		return "exec", reflect.Int, "int", nil
 	case "exec.pid":
-		return "exec", reflect.Int, nil
+		return "exec", reflect.Int, "int", nil
 	case "exec.ppid":
-		return "exec", reflect.Int, nil
+		return "exec", reflect.Int, "int", nil
 	case "exec.user":
-		return "exec", reflect.String, nil
+		return "exec", reflect.String, "string", nil
 	case "exec.user_sid":
-		return "exec", reflect.String, nil
+		return "exec", reflect.String, "string", nil
 	case "exit.cause":
-		return "exit", reflect.Int, nil
+		return "exit", reflect.Int, "int", nil
 	case "exit.cmdline":
-		return "exit", reflect.String, nil
+		return "exit", reflect.String, "string", nil
 	case "exit.code":
-		return "exit", reflect.Int, nil
+		return "exit", reflect.Int, "int", nil
 	case "exit.container.id":
-		return "exit", reflect.String, nil
+		return "exit", reflect.String, "string", nil
 	case "exit.created_at":
-		return "exit", reflect.Int, nil
+		return "exit", reflect.Int, "int", nil
 	case "exit.envp":
-		return "exit", reflect.String, nil
+		return "exit", reflect.String, "string", nil
 	case "exit.envs":
-		return "exit", reflect.String, nil
+		return "exit", reflect.String, "string", nil
 	case "exit.file.name":
-		return "exit", reflect.String, nil
+		return "exit", reflect.String, "string", nil
 	case "exit.file.name.length":
-		return "exit", reflect.Int, nil
+		return "exit", reflect.Int, "int", nil
 	case "exit.file.path":
-		return "exit", reflect.String, nil
+		return "exit", reflect.String, "string", nil
 	case "exit.file.path.length":
-		return "exit", reflect.Int, nil
+		return "exit", reflect.Int, "int", nil
 	case "exit.pid":
-		return "exit", reflect.Int, nil
+		return "exit", reflect.Int, "int", nil
 	case "exit.ppid":
-		return "exit", reflect.Int, nil
+		return "exit", reflect.Int, "int", nil
 	case "exit.user":
-		return "exit", reflect.String, nil
+		return "exit", reflect.String, "string", nil
 	case "exit.user_sid":
-		return "exit", reflect.String, nil
+		return "exit", reflect.String, "string", nil
 	case "open.registry.key_name":
-		return "open_key", reflect.String, nil
+		return "open_key", reflect.String, "string", nil
 	case "open.registry.key_name.length":
-		return "open_key", reflect.Int, nil
+		return "open_key", reflect.Int, "int", nil
 	case "open.registry.key_path":
-		return "open_key", reflect.String, nil
+		return "open_key", reflect.String, "string", nil
 	case "open.registry.key_path.length":
-		return "open_key", reflect.Int, nil
+		return "open_key", reflect.Int, "int", nil
 	case "open_key.registry.key_name":
-		return "open_key", reflect.String, nil
+		return "open_key", reflect.String, "string", nil
 	case "open_key.registry.key_name.length":
-		return "open_key", reflect.Int, nil
+		return "open_key", reflect.Int, "int", nil
 	case "open_key.registry.key_path":
-		return "open_key", reflect.String, nil
+		return "open_key", reflect.String, "string", nil
 	case "open_key.registry.key_path.length":
-		return "open_key", reflect.Int, nil
+		return "open_key", reflect.Int, "int", nil
 	case "process.ancestors.cmdline":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.ancestors.container.id":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.ancestors.created_at":
-		return "", reflect.Int, nil
+		return "", reflect.Int, "int", nil
 	case "process.ancestors.envp":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.ancestors.envs":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.ancestors.file.name":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.ancestors.file.name.length":
-		return "", reflect.Int, nil
+		return "", reflect.Int, "int", nil
 	case "process.ancestors.file.path":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.ancestors.file.path.length":
-		return "", reflect.Int, nil
+		return "", reflect.Int, "int", nil
 	case "process.ancestors.length":
-		return "", reflect.Int, nil
+		return "", reflect.Int, "int", nil
 	case "process.ancestors.pid":
-		return "", reflect.Int, nil
+		return "", reflect.Int, "int", nil
 	case "process.ancestors.ppid":
-		return "", reflect.Int, nil
+		return "", reflect.Int, "int", nil
 	case "process.ancestors.user":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.ancestors.user_sid":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.cmdline":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.container.id":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.created_at":
-		return "", reflect.Int, nil
+		return "", reflect.Int, "int", nil
 	case "process.envp":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.envs":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.file.name":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.file.name.length":
-		return "", reflect.Int, nil
+		return "", reflect.Int, "int", nil
 	case "process.file.path":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.file.path.length":
-		return "", reflect.Int, nil
+		return "", reflect.Int, "int", nil
 	case "process.parent.cmdline":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.parent.container.id":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.parent.created_at":
-		return "", reflect.Int, nil
+		return "", reflect.Int, "int", nil
 	case "process.parent.envp":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.parent.envs":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.parent.file.name":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.parent.file.name.length":
-		return "", reflect.Int, nil
+		return "", reflect.Int, "int", nil
 	case "process.parent.file.path":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.parent.file.path.length":
-		return "", reflect.Int, nil
+		return "", reflect.Int, "int", nil
 	case "process.parent.pid":
-		return "", reflect.Int, nil
+		return "", reflect.Int, "int", nil
 	case "process.parent.ppid":
-		return "", reflect.Int, nil
+		return "", reflect.Int, "int", nil
 	case "process.parent.user":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.parent.user_sid":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.pid":
-		return "", reflect.Int, nil
+		return "", reflect.Int, "int", nil
 	case "process.ppid":
-		return "", reflect.Int, nil
+		return "", reflect.Int, "int", nil
 	case "process.user":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "process.user_sid":
-		return "", reflect.String, nil
+		return "", reflect.String, "string", nil
 	case "rename.file.destination.device_path":
-		return "rename", reflect.String, nil
+		return "rename", reflect.String, "string", nil
 	case "rename.file.destination.device_path.length":
-		return "rename", reflect.Int, nil
+		return "rename", reflect.Int, "int", nil
 	case "rename.file.destination.name":
-		return "rename", reflect.String, nil
+		return "rename", reflect.String, "string", nil
 	case "rename.file.destination.name.length":
-		return "rename", reflect.Int, nil
+		return "rename", reflect.Int, "int", nil
 	case "rename.file.destination.path":
-		return "rename", reflect.String, nil
+		return "rename", reflect.String, "string", nil
 	case "rename.file.destination.path.length":
-		return "rename", reflect.Int, nil
+		return "rename", reflect.Int, "int", nil
 	case "rename.file.device_path":
-		return "rename", reflect.String, nil
+		return "rename", reflect.String, "string", nil
 	case "rename.file.device_path.length":
-		return "rename", reflect.Int, nil
+		return "rename", reflect.Int, "int", nil
 	case "rename.file.name":
-		return "rename", reflect.String, nil
+		return "rename", reflect.String, "string", nil
 	case "rename.file.name.length":
-		return "rename", reflect.Int, nil
+		return "rename", reflect.Int, "int", nil
 	case "rename.file.path":
-		return "rename", reflect.String, nil
+		return "rename", reflect.String, "string", nil
 	case "rename.file.path.length":
-		return "rename", reflect.Int, nil
+		return "rename", reflect.Int, "int", nil
 	case "set.registry.key_name":
-		return "set_key_value", reflect.String, nil
+		return "set_key_value", reflect.String, "string", nil
 	case "set.registry.key_name.length":
-		return "set_key_value", reflect.Int, nil
+		return "set_key_value", reflect.Int, "int", nil
 	case "set.registry.key_path":
-		return "set_key_value", reflect.String, nil
+		return "set_key_value", reflect.String, "string", nil
 	case "set.registry.key_path.length":
-		return "set_key_value", reflect.Int, nil
+		return "set_key_value", reflect.Int, "int", nil
 	case "set.registry.value_name":
-		return "set_key_value", reflect.String, nil
+		return "set_key_value", reflect.String, "string", nil
 	case "set.registry.value_name.length":
-		return "set_key_value", reflect.Int, nil
+		return "set_key_value", reflect.Int, "int", nil
 	case "set.value_name":
-		return "set_key_value", reflect.String, nil
+		return "set_key_value", reflect.String, "string", nil
 	case "set_key_value.registry.key_name":
-		return "set_key_value", reflect.String, nil
+		return "set_key_value", reflect.String, "string", nil
 	case "set_key_value.registry.key_name.length":
-		return "set_key_value", reflect.Int, nil
+		return "set_key_value", reflect.Int, "int", nil
 	case "set_key_value.registry.key_path":
-		return "set_key_value", reflect.String, nil
+		return "set_key_value", reflect.String, "string", nil
 	case "set_key_value.registry.key_path.length":
-		return "set_key_value", reflect.Int, nil
+		return "set_key_value", reflect.Int, "int", nil
 	case "set_key_value.registry.value_name":
-		return "set_key_value", reflect.String, nil
+		return "set_key_value", reflect.String, "string", nil
 	case "set_key_value.registry.value_name.length":
-		return "set_key_value", reflect.Int, nil
+		return "set_key_value", reflect.Int, "int", nil
 	case "set_key_value.value_name":
-		return "set_key_value", reflect.String, nil
+		return "set_key_value", reflect.String, "string", nil
 	case "write.file.device_path":
-		return "write", reflect.String, nil
+		return "write", reflect.String, "string", nil
 	case "write.file.device_path.length":
-		return "write", reflect.Int, nil
+		return "write", reflect.Int, "int", nil
 	case "write.file.name":
-		return "write", reflect.String, nil
+		return "write", reflect.String, "string", nil
 	case "write.file.name.length":
-		return "write", reflect.Int, nil
+		return "write", reflect.Int, "int", nil
 	case "write.file.path":
-		return "write", reflect.String, nil
+		return "write", reflect.String, "string", nil
 	case "write.file.path.length":
-		return "write", reflect.Int, nil
+		return "write", reflect.Int, "int", nil
 	}
-	return "", reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
+	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {

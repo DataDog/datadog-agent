@@ -18,12 +18,12 @@ import (
 
 type testMirrorServer struct {
 	s *httptest.Server
-	u *fixtures.Server
+	u string
 
 	contentTypeRemap map[string]string
 }
 
-func newTestMirrorServer(upstream *fixtures.Server) *testMirrorServer {
+func newTestMirrorServer(upstream string) *testMirrorServer {
 	s := &testMirrorServer{
 		u:                upstream,
 		contentTypeRemap: map[string]string{},
@@ -49,7 +49,7 @@ func (t *testMirrorServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
-	url := t.u.URL() + strings.TrimPrefix(r.URL.Path, "/mirror")
+	url := t.u + strings.TrimPrefix(r.URL.Path, "/mirror")
 	resp, err := http.Get(url)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -84,7 +84,7 @@ func TestMirrorTransport(t *testing.T) {
 		Transport: http.DefaultTransport,
 	}
 
-	mirror := newTestMirrorServer(upstream)
+	mirror := newTestMirrorServer(upstream.URL())
 	defer mirror.Close()
 	client.Transport = mirror.WrapTransport(client.Transport)
 
@@ -102,7 +102,7 @@ func TestMirrorTransportContentTypeRemap(t *testing.T) {
 		Transport: http.DefaultTransport,
 	}
 
-	mirror := newTestMirrorServer(upstream)
+	mirror := newTestMirrorServer(upstream.URL())
 	defer mirror.Close()
 	client.Transport = mirror.WrapTransport(client.Transport)
 	mirror.SetContentTypeRemap("application/vnd.oci.image.index.v1+json", "application/broken")
@@ -113,4 +113,24 @@ func TestMirrorTransportContentTypeRemap(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.Equal(t, "application/vnd.oci.image.index.v1+json", resp.Header.Get("Content-Type"))
+}
+
+func TestMirrorManifestPathWithError(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "not found", http.StatusNotFound)
+	}))
+	defer upstream.Close()
+	client := &http.Client{
+		Transport: http.DefaultTransport,
+	}
+
+	mirror := newTestMirrorServer(upstream.URL)
+	defer mirror.Close()
+	client.Transport = mirror.WrapTransport(client.Transport)
+
+	resp, err := client.Get(upstream.URL + "/v2/agent-package/manifests/invalid-404")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusNotFound, resp.StatusCode)
 }

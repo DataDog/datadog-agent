@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
+	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -39,10 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -53,9 +51,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -66,9 +61,8 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -172,18 +166,20 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(defaults.DefaultParams()),
 				apiimpl.Module(),
+				grpcNonefx.Module(),
 				authtokenimpl.Module(),
 				fx.Supply(context.Background()),
 				dualTaggerfx.Module(common.DualTaggerParams()),
 				autodiscoveryimpl.Module(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithNoopForwarder())),
 				inventorychecksimpl.Module(),
+				logscompression.Module(),
+				metricscompression.Module(),
 				// inventorychecksimpl depends on a collector and serializer when created to send payload.
 				// Here we just want to collect metadata to be displayed, so we don't need a collector.
 				collector.NoneModule(),
 				fx.Supply(status.NewInformationProvider(statuscollector.Provider{})),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
-				compressionfx.Module(),
 				// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithFlushInterval(0))),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewNoopParams()),
@@ -195,21 +191,11 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					},
 				),
 				statusimpl.Module(),
-				// The check command do not have settings that change are runtime
-				// still, we need to pass it to ensure the API server is proprely initialized
-				settingsimpl.Module(),
-				fx.Supply(settings.Params{}),
 				// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
 				// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
 				// in others commands such as run.
-				fx.Supply(option.None[rcservice.Component]()),
-				fx.Supply(option.None[rcservicemrf.Component]()),
 				fx.Supply(option.None[logagent.Component]()),
 				fx.Supply(option.None[integrations.Component]()),
-				fx.Provide(func() server.Component { return nil }),
-				fx.Provide(func() replay.Component { return nil }),
-				fx.Provide(func() pidmap.Component { return nil }),
-				fx.Provide(func() remoteagentregistry.Component { return nil }),
 
 				getPlatformModules(),
 				jmxloggerimpl.Module(jmxloggerimpl.NewDisabledParams()),
@@ -288,11 +274,15 @@ func run(
 		cliParams.cmd.Help() //nolint:errcheck
 		return nil
 	}
-
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
-	pkgcollector.InitPython(common.GetPythonPaths()...)
-	commonchecks.RegisterChecks(wmeta, tagger, config, telemetry)
+	if !config.GetBool("python_lazy_loading") {
+		python.InitPython(common.GetPythonPaths()...)
+	}
+	// TODO Ideally we would support RC in the check subcommand,
+	//  but at the moment this is not possible - only one process can access the RC database at a time,
+	//  so the subcommand can't read the RC database if the agent is also running.
+	commonchecks.RegisterChecks(wmeta, tagger, config, telemetry, nil)
 
 	common.LoadComponents(secretResolver, wmeta, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
@@ -646,7 +636,7 @@ func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *
 		err := c.Run()
 		warnings := c.GetWarnings()
 		sStats, _ := c.GetSenderStats()
-		s.Add(time.Since(t0), err, warnings, sStats)
+		s.Add(time.Since(t0), err, warnings, sStats, nil)
 		if pause > 0 && i < times-1 {
 			time.Sleep(time.Duration(pause) * time.Millisecond)
 		}
@@ -767,5 +757,6 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 // Ideally, the server wouldn't start up at all, but this workaround has been
 // in place for some time.
 func disableCmdPort() {
-	os.Setenv("DD_CMD_PORT", "0") // 0 indicates the OS should pick an unused port
+	os.Setenv("DD_CMD_PORT", "0")       // 0 indicates the OS should pick an unused port
+	os.Setenv("DD_AGENT_IPC_PORT", "0") // force disable the IPC server
 }

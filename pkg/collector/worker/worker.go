@@ -141,7 +141,7 @@ func (w *Worker) Run() {
 		checkLogger := CheckLogger{Check: check}
 		longRunning := check.Interval() == 0
 
-		if !w.haAgent.ShouldRunIntegration(check.String()) {
+		if w.haAgent.Enabled() && check.IsHASupported() && !w.haAgent.IsActive() {
 			checkLogger.Debug("Check is an HA integration and current agent is not leader, skipping execution...")
 			continue
 		}
@@ -213,7 +213,7 @@ func (w *Worker) Run() {
 			// otherwise only do so if the check is in the scheduler
 			if w.shouldAddCheckStatsFunc(check.ID()) {
 				sStats, _ := check.GetSenderStats()
-				expvars.AddCheckStats(check, time.Since(checkStartTime), checkErr, checkWarnings, sStats)
+				expvars.AddCheckStats(check, time.Since(checkStartTime), checkErr, checkWarnings, sStats, w.haAgent)
 			}
 		}
 

@@ -5,12 +5,23 @@
 
 //go:build linux_bpf || (windows && npm)
 
-// Package tracer contains implementation for NPM's tracer.
 package tracer
 
 import (
+	"net/netip"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
+	filter "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 )
+
+func convertToFilterable(conn *network.ConnectionStats) filter.FilterableConnection {
+	return filter.FilterableConnection{
+		Type:   marshal.FormatType(conn.Type),
+		Source: netip.AddrPortFrom(conn.Source.Addr, conn.SPort),
+		Dest:   netip.AddrPortFrom(conn.Dest.Addr, conn.DPort),
+	}
+}
 
 // shouldSkipConnection returns whether or not the tracer should ignore a given connection:
 //   - Local DNS (*:53) requests if configured (default: true)
@@ -18,7 +29,7 @@ func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {
 	isDNSConnection := conn.DPort == 53 || conn.SPort == 53
 	if !t.config.CollectLocalDNS && isDNSConnection && conn.Dest.IsLoopback() {
 		return true
-	} else if network.IsExcludedConnection(t.sourceExcludes, t.destExcludes, conn) {
+	} else if filter.IsExcludedConnection(t.sourceExcludes, t.destExcludes, convertToFilterable(conn)) {
 		return true
 	}
 	return false

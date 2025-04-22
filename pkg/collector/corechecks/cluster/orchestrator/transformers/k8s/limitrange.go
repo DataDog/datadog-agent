@@ -8,6 +8,8 @@
 package k8s
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -15,7 +17,7 @@ import (
 )
 
 // ExtractLimitRange returns the protobuf model corresponding to a Kubernetes LimitRange resource.
-func ExtractLimitRange(lr *corev1.LimitRange) *model.LimitRange {
+func ExtractLimitRange(ctx processors.ProcessorContext, lr *corev1.LimitRange) *model.LimitRange {
 	msg := &model.LimitRange{
 		Metadata: extractMetadata(&lr.ObjectMeta),
 		Spec:     &model.LimitRangeSpec{},
@@ -33,6 +35,9 @@ func ExtractLimitRange(lr *corev1.LimitRange) *model.LimitRange {
 		msg.LimitTypes = append(msg.LimitTypes, limit.Type)
 		msg.Spec.Limits = append(msg.Spec.Limits, limit)
 	}
+
+	pctx := ctx.(*processors.K8sProcessorContext)
+	msg.Tags = append(msg.Tags, transformers.RetrieveMetadataTags(lr.ObjectMeta.Labels, lr.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 
 	return msg
 }

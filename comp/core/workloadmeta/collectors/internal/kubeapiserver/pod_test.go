@@ -20,6 +20,7 @@ import (
 )
 
 func Test_PodsFakeKubernetesClient(t *testing.T) {
+	t.Parallel()
 	objectMeta := metav1.ObjectMeta{
 		Name:   "test-pod",
 		Labels: map[string]string{"test-label": "test-value"},
@@ -35,6 +36,7 @@ func Test_PodsFakeKubernetesClient(t *testing.T) {
 			{
 				Type: workloadmeta.EventTypeSet,
 				Entity: &workloadmeta.KubernetesPod{
+					Containers: ([]workloadmeta.OrchestratorContainer{}),
 					EntityID: workloadmeta.EntityID{
 						ID:   string(objectMeta.UID),
 						Kind: workloadmeta.KindKubernetesPod,

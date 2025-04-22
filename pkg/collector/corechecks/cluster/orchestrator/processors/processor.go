@@ -31,6 +31,8 @@ type ProcessorContext interface {
 	GetNodeType() pkgorchestratormodel.NodeType
 	GetMsgGroupID() int32
 	IsManifestProducer() bool
+	GetKind() string
+	GetAPIVersion() string
 }
 
 // BaseProcessorContext is the base context for all processors
@@ -40,6 +42,8 @@ type BaseProcessorContext struct {
 	MsgGroupID       int32
 	ClusterID        string
 	ManifestProducer bool
+	Kind             string
+	APIVersion       string
 }
 
 // GetOrchestratorConfig returns the orchestrator config
@@ -67,6 +71,16 @@ func (c *BaseProcessorContext) IsManifestProducer() bool {
 	return c.ManifestProducer
 }
 
+// GetKind returns the kind
+func (c *BaseProcessorContext) GetKind() string {
+	return c.Kind
+}
+
+// GetAPIVersion returns the version
+func (c *BaseProcessorContext) GetAPIVersion() string {
+	return c.APIVersion
+}
+
 // K8sProcessorContext holds k8s resource processing attributes
 type K8sProcessorContext struct {
 	BaseProcessorContext
@@ -75,6 +89,9 @@ type K8sProcessorContext struct {
 	//nolint:revive // TODO(CAPP) Fix revive linter
 	ApiGroupVersionTag string
 	SystemInfo         *model.SystemInfo
+	ResourceType       string
+	LabelsAsTags       map[string]string
+	AnnotationsAsTags  map[string]string
 }
 
 // ECSProcessorContext holds ECS resource processing attributes
@@ -212,7 +229,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 		// Marshal the resource to generate the YAML field.
 		yaml, err := json.Marshal(resource)
 		if err != nil {
-			log.Warnc(newMarshallingError(err).Error(), orchestrator.ExtraLogContext...)
+			log.Warnc(NewMarshallingError(err).Error(), orchestrator.ExtraLogContext...)
 			continue
 		}
 

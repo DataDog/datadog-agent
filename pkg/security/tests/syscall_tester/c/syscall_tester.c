@@ -21,7 +21,8 @@
 #include <arpa/inet.h>
 #include <linux/un.h>
 #include <err.h>
-#include <errno.h>
+#include <limits.h>
+#include <sys/time.h>
 
 #define RPC_CMD 0xdeadc001
 #define REGISTER_SPAN_TLS_OP 6
@@ -387,17 +388,28 @@ void* connect_thread_ipv4(void *arg) {
 int test_accept_af_inet(int argc, char** argv) {
     pthread_t thread;
 
-    if (argc != 4) {
+    if (argc != 5) {
         fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
         fprintf(stderr, "Arg1: IP address where the socket should bind to\n");
         fprintf(stderr, "Arg2: IP address where the socket should connect to\n");
         fprintf(stderr, "Arg3: Port to bind\n");
+        fprintf(stderr, "Arg4: Pass sockaddr_in <true/false>\n");
         return EXIT_FAILURE;
     }
 
     const char* bind_to = argv[1];
     const char* connect_to = argv[2];
     int port = atoi(argv[3]);
+
+    struct sockaddr_in *sockAddrPtr = NULL;
+    struct sockaddr_in sockAddr;
+    memset(&sockAddr, 0, sizeof(struct sockaddr_in));
+
+    socklen_t sockLen = sizeof(struct sockaddr_in);
+
+    if (strcmp(argv[4], "true") == 0) {
+        sockAddrPtr = &sockAddr;
+    }
 
     int s;
     s = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -443,13 +455,13 @@ int test_accept_af_inet(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    pthread_create(&thread, NULL, connect_thread_ipv4, (void*) &connectAddr);
+    pthread_create(&thread, NULL, connect_thread_ipv4, (void*)&connectAddr);
 
-    if (accept(s, NULL, NULL) < 0) {
+    if (accept(s, (struct sockaddr*)sockAddrPtr, &sockLen) < 0) {
         perror("Failed to accept");
     }
 
-    close (s);
+    close(s);
     pthread_join(thread, NULL);
     return EXIT_SUCCESS;
 }
@@ -464,17 +476,28 @@ void* connect_thread_ipv6(void *arg) {
 int test_accept_af_inet6(int argc, char** argv) {
     pthread_t thread;
 
-    if (argc != 4) {
+    if (argc != 5) {
         fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
         fprintf(stderr, "Arg1: IP address where the socket should bind to\n");
         fprintf(stderr, "Arg2: IP address where the socket should connect to\n");
         fprintf(stderr, "Arg3: Port to bind\n");
+        fprintf(stderr, "Arg4: Pass sockaddr_in <true/false>\n");
         return EXIT_FAILURE;
     }
 
     const char* bind_to = argv[1];
     const char* connect_to = argv[2];
     int port = atoi(argv[3]);
+
+    struct sockaddr_in6 *sockAddrPtr = NULL;
+    struct sockaddr_in6 sockAddr;
+    memset(&sockAddr, 0, sizeof(struct sockaddr_in6));
+
+    socklen_t sockLen = sizeof(struct sockaddr_in6);
+
+    if (strcmp(argv[4], "true") == 0) {
+        sockAddrPtr = &sockAddr;
+    }
 
     int s;
     s = socket(PF_INET6, SOCK_STREAM, IPPROTO_TCP);
@@ -520,7 +543,7 @@ int test_accept_af_inet6(int argc, char** argv) {
 
     pthread_create(&thread, NULL, connect_thread_ipv6, (void*)&connectAddr);
 
-    if (accept(s, NULL, NULL) < 0) {
+    if (accept(s, (struct sockaddr*)sockAddrPtr, &sockLen) < 0) {
         perror("Failed to accept");
     }
 
@@ -1034,6 +1057,180 @@ int test_new_netns_exec(int argc, char **argv) {
     return EXIT_FAILURE;
 }
 
+int test_network_flow_send_udp4(int argc, char **argv) {
+    if (argc < 3) {
+        fprintf(stderr, "Please specify the remote IP address and port\n");
+        return EXIT_FAILURE;
+    }
+
+    int sockfd;
+    struct sockaddr_in server_addr;
+    const char *message = "DATA";
+
+    // Create a DGRAM socket
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) {
+        fprintf(stderr, "Socket creation failed\n");
+        return EXIT_FAILURE;
+    }
+
+    // Configure server address structure
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(atoi(argv[2]));
+    server_addr.sin_addr.s_addr = inet_addr(argv[1]);
+
+    // Send the message
+    if (sendto(sockfd, message, strlen(message), 0, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        fprintf(stderr, "Failed to send data\n");
+        close(sockfd);
+        return EXIT_FAILURE;
+    }
+
+    printf("Message sent: %s\n", message);
+    pid_t pid;
+
+    // Get the process ID
+    pid = getpid();
+    printf("Process ID: %d\n", pid);
+
+    // Close the socket
+    close(sockfd);
+    printf("Socket closed.\n");
+    return EXIT_SUCCESS;
+}
+
+int test_chmod(int argc, char **argv) {
+    if (argc != 3) {
+        fprintf(stderr, "Please specify a file name and a mode\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *filename = argv[1];
+
+    char *end;
+    unsigned long mode = strtoul(argv[2], &end, 8);
+    if (end == argv[2]) {
+        fprintf(stderr, "Invalid mode: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (*end != '\0') {
+        fprintf(stderr, "Invalid mode: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (errno == ERANGE && mode == ULONG_MAX) {
+        fprintf(stderr, "Invalid mode: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (mode > 0777) {
+        fprintf(stderr, "Invalid mode: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+    if (chmod(filename, mode) < 0) {
+        perror("chmod");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_chown(int argc, char **argv) {
+    if (argc != 4) {
+        fprintf(stderr, "Please specify a file name, a user ID, and a group ID\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *filename = argv[1];
+
+    char *end;
+    unsigned long owner = strtoul(argv[2], &end, 10);
+    if (end == argv[2]) {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (*end != '\0') {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (errno == ERANGE && owner == ULONG_MAX) {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if ((uid_t)owner != owner) {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+
+    unsigned long group = strtoul(argv[3], &end, 10);
+    if (end == argv[3]) {
+        fprintf(stderr, "Invalid group ID: %s\n", argv[3]);
+        return EXIT_FAILURE;
+    } else if (*end != '\0') {
+        fprintf(stderr, "Invalid group ID: %s\n", argv[3]);
+        return EXIT_FAILURE;
+    } else if (errno == ERANGE && group == ULONG_MAX) {
+        fprintf(stderr, "Invalid group ID: %s\n", argv[3]);
+        return EXIT_FAILURE;
+    } else if ((gid_t)group != group) {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+    if (chown(filename, (uid_t)owner, (gid_t)group) < 0) {
+        perror("chown");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_rename(int argc, char **argv) {
+    if (argc != 3) {
+        fprintf(stderr, "Please specify a source and a destination file name\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *oldpath = argv[1];
+    const char *newpath = argv[2];
+
+    if (rename(oldpath, newpath) < 0) {
+        perror("rename");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_utimes(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Please specify a file name and a time\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *filename = argv[1];
+
+    struct timeval times[2] = {0, 0};
+    if (utimes(filename, times) < 0) {
+        perror("utimes");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_link(int argc, char **argv) {
+    if (argc != 3) {
+        fprintf(stderr, "Please specify a source and a destination file name\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *oldpath = argv[1];
+    const char *newpath = argv[2];
+
+    if (link(oldpath, newpath) < 0) {
+        perror("link");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
@@ -1115,6 +1312,18 @@ int main(int argc, char **argv) {
             exit_code = test_slow_cat(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-write") == 0) {
             exit_code = test_slow_write(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "network_flow_send_udp4") == 0) {
+            exit_code = test_network_flow_send_udp4(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "chmod") == 0) {
+            exit_code = test_chmod(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "chown") == 0) {
+            exit_code = test_chown(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "rename") == 0) {
+            return test_rename(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "utimes") == 0) {
+            return test_utimes(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "link") == 0) {
+            return test_link(sub_argc, sub_argv);
         }
         else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);

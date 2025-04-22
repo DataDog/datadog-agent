@@ -17,23 +17,25 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // TestDeps contains dependencies for InitAndStartAgentDemultiplexerForTest
 type TestDeps struct {
 	fx.In
-	Log             log.Component
-	Hostname        hostname.Component
-	SharedForwarder defaultforwarder.Component
-	Compressor      compression.Component
-	HaAgent         haagent.Component
+	Log                log.Component
+	Hostname           hostname.Component
+	SharedForwarder    defaultforwarder.Component
+	LogsCompression    logscompression.Component
+	MetricsCompression metricscompression.Component
+	HaAgent            haagent.Component
 }
 
 // InitAndStartAgentDemultiplexerForTest initializes an aggregator for tests.
 func InitAndStartAgentDemultiplexerForTest(deps TestDeps, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname))
-	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, deps.HaAgent, deps.Compressor, nooptagger.NewComponent(), hostname)
+	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, deps.LogsCompression))
+	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, deps.HaAgent, deps.MetricsCompression, nooptagger.NewComponent(), hostname)
 }

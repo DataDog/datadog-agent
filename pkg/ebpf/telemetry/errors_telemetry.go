@@ -103,15 +103,13 @@ func (e *ebpfTelemetry) fill(maps []names.MapName, mn names.ModuleName, mapErrMa
 
 	if _, ok := e.mapErrMapsByModule[mn]; ok {
 		return fmt.Errorf("eBPF map for map-operation errors for module %s already exists", mn.Name())
-	} else { //nolint:revive // TODO
-		e.mapErrMapsByModule[mn] = mapErrMap
 	}
+	e.mapErrMapsByModule[mn] = mapErrMap
 
 	if _, ok := e.helperErrMapsByModule[mn]; ok {
 		return fmt.Errorf("eBPF map for helper-operation errors for module %s already exists", mn.Name())
-	} else { //nolint:revive // TODO
-		e.helperErrMapsByModule[mn] = helperErrMap
 	}
+	e.helperErrMapsByModule[mn] = helperErrMap
 
 	e.initialized = true
 
@@ -154,6 +152,8 @@ func (e *ebpfTelemetry) cleanup(maps []names.MapName, mn names.ModuleName, mapEr
 }
 
 func (e *ebpfTelemetry) setProbe(key telemetryKey, hash uint64) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
 	e.probeKeys[key] = hash
 }
 

@@ -202,11 +202,7 @@ func (r *Rule) Parse(parsingContext *ast.ParsingContext) error {
 
 // NewRuleEvaluator returns a new evaluator for a rule
 func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, error) {
-	macros := make(map[MacroID]*MacroEvaluator)
-	for _, macro := range opts.MacroStore.List() {
-		macros[macro.ID] = macro.evaluator
-	}
-	state := NewState(model, "", macros)
+	state := NewState(model, "", opts.MacroStore)
 
 	eval, _, err := nodeToEvaluator(rule.BooleanExpression, opts, state)
 	if err != nil {
@@ -239,7 +235,7 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 		}
 
 		regID, field := state.registers[0].ID, state.registers[0].Field
-		lenEval, err := model.GetEvaluator(field+".length", regID)
+		lenEval, err := model.GetEvaluator(field+".length", regID, 0)
 		if err != nil {
 			return nil, &ErrIteratorVariable{Err: err}
 		}
@@ -248,10 +244,7 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 
 		// eval with each possible value of the registers
 		evalBool.EvalFnc = func(ctx *Context) bool {
-			size := lenEval.Eval(ctx).(int)
-			if size > maxRegisterIteration {
-				size = maxRegisterIteration
-			}
+			size := min(lenEval.Eval(ctx).(int), maxRegisterIteration)
 
 			for i := 0; i != size; i++ {
 				ctx.Registers[regID] = i
@@ -331,7 +324,7 @@ func (r *Rule) genPartials(field Field) error {
 		return err
 	}
 
-	state := NewState(r.Model, field, macroPartial)
+	state := NewState(r.Model, field, partialMacroEvaluatorGetter(macroPartial))
 	pEval, _, err := nodeToEvaluator(r.ast.BooleanExpression, r.Opts, state)
 	if err != nil {
 		return fmt.Errorf("couldn't generate partial for field %s and rule %s: %w", field, r.ID, err)
@@ -351,4 +344,11 @@ func (r *Rule) genPartials(field Field) error {
 	r.evaluator.setPartial(field, pEvalBool.EvalFnc)
 
 	return nil
+}
+
+type partialMacroEvaluatorGetter map[MacroID]*MacroEvaluator
+
+func (p partialMacroEvaluatorGetter) GetMacroEvaluator(macroID string) (*MacroEvaluator, bool) {
+	v, ok := p[macroID]
+	return v, ok
 }

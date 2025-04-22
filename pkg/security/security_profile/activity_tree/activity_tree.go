@@ -156,11 +156,12 @@ func (cs *cookieSelector) fillFromEntry(entry *model.ProcessCacheEntry) {
 type ActivityTree struct {
 	Stats *Stats
 
-	treeType          string
+	treeType  string
+	validator Owner
+
 	differentiateArgs bool
 	DNSMatchMaxDepth  int
 
-	validator    Owner
 	pathsReducer *PathsReducer
 
 	CookieToProcessNode *simplelru.LRU[cookieSelector, *ProcessNode]
@@ -187,6 +188,12 @@ func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType strin
 		SyscallsMask:        make(map[int]int),
 		DNSNames:            utils.NewStringKeys(nil),
 	}
+}
+
+// SetType changes the type and owner of the ActivityTree
+func (at *ActivityTree) SetType(treeType string, validator Owner) {
+	at.treeType = treeType
+	at.validator = validator
 }
 
 // GetChildren returns the list of root ProcessNodes from the ActivityTree
@@ -403,6 +410,8 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return node.InsertBindEvent(event, imageTag, generationType, at.Stats, dryRun), nil
 	case model.SyscallsEventType:
 		return node.InsertSyscalls(event, imageTag, at.SyscallsMask, at.Stats, dryRun), nil
+	case model.NetworkFlowMonitorEventType:
+		return node.InsertNetworkFlowMonitorEvent(event, imageTag, generationType, at.Stats, dryRun), nil
 	case model.ExitEventType:
 		// Update the exit time of the process (this is purely informative, do not rely on timestamps to detect
 		// execed children)

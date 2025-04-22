@@ -42,8 +42,9 @@ func processActivityNodeToProto(pan *ProcessNode) *adproto.ProcessActivityNode {
 		DnsNames:       make([]*adproto.DNSNode, 0, len(pan.DNSNames)),
 		ImdsEvents:     make([]*adproto.IMDSNode, 0, len(pan.IMDSEvents)),
 		Sockets:        make([]*adproto.SocketNode, 0, len(pan.Sockets)),
-		Syscalls:       make([]uint32, 0, len(pan.Syscalls)),
 		ImageTags:      pan.ImageTags,
+		SyscallNodes:   make([]*adproto.SyscallNode, 0, len(pan.Syscalls)),
+		NetworkDevices: make([]*adproto.NetworkDeviceNode, 0, len(pan.NetworkDevices)),
 	}
 
 	for _, rule := range pan.MatchedRules {
@@ -71,10 +72,81 @@ func processActivityNodeToProto(pan *ProcessNode) *adproto.ProcessActivityNode {
 	}
 
 	for _, sysc := range pan.Syscalls {
-		ppan.Syscalls = append(ppan.Syscalls, uint32(sysc.Syscall)) // nolint:staticcheck // TODO: update syscall functionality
+		ppan.SyscallNodes = append(ppan.SyscallNodes, syscallNodeToProto(sysc))
+	}
+
+	for _, networkDevice := range pan.NetworkDevices {
+		ppan.NetworkDevices = append(ppan.NetworkDevices, networkDeviceToProto(networkDevice))
 	}
 
 	return ppan
+}
+
+func networkDeviceToProto(device *NetworkDeviceNode) *adproto.NetworkDeviceNode {
+	if device == nil {
+		return nil
+	}
+
+	ndn := &adproto.NetworkDeviceNode{
+		MatchedRules: make([]*adproto.MatchedRule, 0, len(device.MatchedRules)),
+		Netns:        device.Context.NetNS,
+		Ifindex:      device.Context.IfIndex,
+		Ifname:       device.Context.IfName,
+		FlowNodes:    make([]*adproto.FlowNode, 0, len(device.FlowNodes)),
+	}
+
+	for _, rule := range device.MatchedRules {
+		ndn.MatchedRules = append(ndn.MatchedRules, matchedRuleToProto(rule))
+	}
+
+	for _, flowNode := range device.FlowNodes {
+		ndn.FlowNodes = append(ndn.FlowNodes, flowNodeToProto(flowNode.Flow, flowNode.ImageTags))
+	}
+
+	return ndn
+}
+
+func flowNodeToProto(flow model.Flow, tags []string) *adproto.FlowNode {
+	return &adproto.FlowNode{
+		ImageTags:   tags,
+		L3Protocol:  uint32(flow.L3Protocol),
+		L4Protocol:  uint32(flow.L4Protocol),
+		Source:      ipPortContextToProto(&flow.Source),
+		Destination: ipPortContextToProto(&flow.Destination),
+		Ingress:     networkStatsToProto(&flow.Ingress),
+		Egress:      networkStatsToProto(&flow.Egress),
+	}
+}
+
+func ipPortContextToProto(ipPort *model.IPPortContext) *adproto.IPPortContext {
+	if ipPort == nil {
+		return nil
+	}
+	return &adproto.IPPortContext{
+		Ip:   ipPort.IPNet.IP.String(),
+		Port: uint32(ipPort.Port),
+	}
+}
+
+func networkStatsToProto(stats *model.NetworkStats) *adproto.NetworkStats {
+	if stats == nil {
+		return nil
+	}
+	return &adproto.NetworkStats{
+		DataSize:    stats.DataSize,
+		PacketCount: stats.PacketCount,
+	}
+}
+
+func syscallNodeToProto(sysc *SyscallNode) *adproto.SyscallNode {
+	if sysc == nil {
+		return nil
+	}
+
+	return &adproto.SyscallNode{
+		ImageTags: sysc.ImageTags,
+		Syscall:   int32(sysc.Syscall),
+	}
 }
 
 func processNodeToProto(p *model.Process) *adproto.ProcessInfo {

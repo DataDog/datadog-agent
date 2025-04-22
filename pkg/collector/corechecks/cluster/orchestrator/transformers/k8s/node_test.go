@@ -8,10 +8,12 @@
 package k8s
 
 import (
+	"sort"
 	"testing"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -23,8 +25,10 @@ import (
 func TestExtractNode(t *testing.T) {
 	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
 	tests := map[string]struct {
-		input    corev1.Node
-		expected model.Node
+		input             corev1.Node
+		labelsAsTags      map[string]string
+		annotationsAsTags map[string]string
+		expected          model.Node
 	}{
 		"full node": {
 			input: corev1.Node{
@@ -34,9 +38,10 @@ func TestExtractNode(t *testing.T) {
 					CreationTimestamp: timestamp,
 					Labels: map[string]string{
 						"kubernetes.io/role": "data",
+						"app":                "my-app",
 					},
 					Annotations: map[string]string{
-						"annotation": "bar",
+						"annotation": "my-annotation",
 					},
 					ResourceVersion: "1234",
 				},
@@ -86,13 +91,20 @@ func TestExtractNode(t *testing.T) {
 						Message:            "ready",
 					}},
 				},
-			}, expected: model.Node{
+			},
+			labelsAsTags: map[string]string{
+				"app": "application",
+			},
+			annotationsAsTags: map[string]string{
+				"annotation": "annotation_key",
+			},
+			expected: model.Node{
 				Metadata: &model.Metadata{
 					Name:              "node",
 					Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
 					CreationTimestamp: 1389744000,
-					Labels:            []string{"kubernetes.io/role:data"},
-					Annotations:       []string{"annotation:bar"},
+					Labels:            []string{"kubernetes.io/role:data", "app:my-app"},
+					Annotations:       []string{"annotation:my-annotation"},
 					ResourceVersion:   "1234",
 				},
 				Status: &model.NodeStatus{
@@ -128,7 +140,13 @@ func TestExtractNode(t *testing.T) {
 				},
 				PodCIDR:       "1234-5678-90",
 				Unschedulable: true,
-				Tags:          []string{"node_status:ready", "node_schedulable:false", "kube_node_role:data"},
+				Tags: []string{
+					"node_status:ready",
+					"node_schedulable:false",
+					"kube_node_role:data",
+					"application:my-app",
+					"annotation_key:my-annotation",
+				},
 				Taints: []*model.Taint{{
 					Key:    "taint2NoTimeStamp",
 					Value:  "val1",
@@ -209,7 +227,16 @@ func TestExtractNode(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, &tc.expected, ExtractNode(&tc.input))
+			pctx := &processors.K8sProcessorContext{
+				LabelsAsTags:      tc.labelsAsTags,
+				AnnotationsAsTags: tc.annotationsAsTags,
+			}
+			actual := ExtractNode(pctx, &tc.input)
+			sort.Strings(actual.Tags)
+			sort.Strings(tc.expected.Tags)
+			sort.Strings(actual.Metadata.Labels)
+			sort.Strings(tc.expected.Metadata.Labels)
+			assert.Equal(t, &tc.expected, actual)
 		})
 	}
 }

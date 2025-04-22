@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build trivy
+//go:build trivy && docker
 
 package trivy
 
@@ -33,10 +33,10 @@ func convertDockerImage(ctx context.Context, client client.ImageAPIClient, imgMe
 	// or
 	// <image_name>@<digest> pattern like "alpine@sha256:21a3deaa0d32a8057914f36584b5288d2e5ecc984380bc0118285c70fa8c9300"
 	imageID := imgMeta.Name
-	inspect, _, err := client.ImageInspectWithRaw(ctx, imageID)
+	inspect, err := client.ImageInspect(ctx, imageID)
 	if err != nil {
 		imageID = imgMeta.ID // <image_id> pattern like `5ac716b05a9c`
-		inspect, _, err = client.ImageInspectWithRaw(ctx, imageID)
+		inspect, err = client.ImageInspect(ctx, imageID)
 		if err != nil {
 			return nil, cleanup, fmt.Errorf("unable to inspect the image (%s): %w", imageID, err)
 		}
@@ -83,8 +83,8 @@ func (c *fakeDockerContainer) Layers() (layers []ftypes.LayerPath) {
 	return c.fakeContainer.Layers()
 }
 
-// ScanDockerImageFromGraphDriver scans a docker image directly from the graph driver
-func (c *Collector) ScanDockerImageFromGraphDriver(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client client.ImageAPIClient, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+// ScanDockerImage scans a docker image by exporting it and scanning the tarball
+func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client client.ImageAPIClient, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	fanalImage, cleanup, err := convertDockerImage(ctx, client, imgMeta)
 	if cleanup != nil {
 		defer cleanup()
@@ -94,7 +94,7 @@ func (c *Collector) ScanDockerImageFromGraphDriver(ctx context.Context, imgMeta 
 		return nil, fmt.Errorf("unable to convert docker image, err: %w", err)
 	}
 
-	if fanalImage.inspect.GraphDriver.Name == "overlay2" {
+	if scanOptions.OverlayFsScan && fanalImage.inspect.GraphDriver.Name == "overlay2" {
 		var layers []string
 		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["LowerDir"]; ok {
 			layers = append(layers, strings.Split(layerDirs, ":")...)
@@ -120,20 +120,6 @@ func (c *Collector) ScanDockerImageFromGraphDriver(ctx context.Context, imgMeta 
 		}
 
 		return c.scanOverlayFS(ctx, layers, fakeContainer, imgMeta, scanOptions)
-	}
-
-	return nil, fmt.Errorf("unsupported graph driver: %s", fanalImage.inspect.GraphDriver.Name)
-}
-
-// ScanDockerImage scans a docker image by exporting it and scanning the tarball
-func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client client.ImageAPIClient, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	fanalImage, cleanup, err := convertDockerImage(ctx, client, imgMeta)
-	if cleanup != nil {
-		defer cleanup()
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("unable to convert docker image, err: %w", err)
 	}
 
 	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)

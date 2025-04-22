@@ -10,7 +10,6 @@ package crio
 import (
 	"context"
 	"fmt"
-	"reflect"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -73,16 +72,17 @@ func (c *Collector) Init(cfg config.Component, wmeta option.Option[workloadmeta.
 	}
 	c.wmeta = wmeta
 	c.trivyCollector = trivyCollector
-	c.opts = sbom.ScanOptionsFromConfig(cfg, true)
+	c.opts = sbom.ScanOptionsFromConfigForContainers(cfg)
 	return nil
 }
 
 // Scan performs the scan using CRI-O methods
 func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.ScanResult {
-	crioScanRequest, ok := request.(scanRequest)
-	if !ok {
-		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for CRI-O collector", reflect.TypeOf(request))}
+	if !c.opts.OverlayFsScan {
+		return sbom.ScanResult{Error: fmt.Errorf("overlayfs direct scan is not enabled, but required to scan CRI-O images")}
 	}
+
+	imageID := request.ID()
 
 	if c.crioClient == nil {
 		cl, err := crioUtil.NewCRIOClient()
@@ -97,9 +97,9 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 		return sbom.ScanResult{Error: fmt.Errorf("workloadmeta store is not initialized")}
 	}
 
-	imageMeta, err := wmeta.GetImage(crioScanRequest.ID())
+	imageMeta, err := wmeta.GetImage(imageID)
 	if err != nil {
-		return sbom.ScanResult{Error: fmt.Errorf("image metadata not found for image ID %s: %w", crioScanRequest.ID(), err)}
+		return sbom.ScanResult{Error: fmt.Errorf("image metadata not found for image ID %s: %w", imageID, err)}
 	}
 
 	scanner := c.trivyCollector.ScanCRIOImageFromOverlayFS

@@ -15,7 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -80,14 +81,14 @@ func createServiceCheck(checkName string) *servicecheck.ServiceCheck {
 }
 
 func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler, cfg pkgconfigmodel.Config) [][]byte {
-	strategy := selector.NewCompressor(cfg)
-	builder := stream.NewJSONPayloadBuilder(true, cfg, strategy)
+	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
+	builder := stream.NewJSONPayloadBuilder(true, cfg, compressor, logmock.New(t))
 	payloads, err := stream.BuildJSONPayload(builder, m)
 	assert.NoError(t, err)
 	var uncompressedPayloads [][]byte
 
 	for _, compressedPayload := range payloads {
-		payload, err := strategy.Decompress(compressedPayload.GetContent())
+		payload, err := compressor.Decompress(compressedPayload.GetContent())
 		assert.NoError(t, err)
 
 		uncompressedPayloads = append(uncompressedPayloads, payload)
@@ -159,7 +160,8 @@ func createServiceChecks(numberOfItem int) ServiceChecks {
 
 func benchmarkJSONPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
 	mockConfig := mock.New(b)
-	payloadBuilder := stream.NewJSONPayloadBuilder(true, mockConfig, selector.NewCompressor(mockConfig))
+	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
+	payloadBuilder := stream.NewJSONPayloadBuilder(true, mockConfig, compressor, logmock.New(b))
 	serviceChecks := createServiceChecks(numberOfItem)
 
 	b.ResetTimer()
@@ -200,9 +202,10 @@ func benchmarkPayloadsServiceCheck(b *testing.B, numberOfItem int) {
 	b.ResetTimer()
 
 	mockConfig := mock.New(b)
-	strategy := selector.NewCompressor(mockConfig)
+	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
+	logger := logmock.New(b)
 	for n := 0; n < b.N; n++ {
-		split.Payloads(serviceChecks, true, split.JSONMarshalFct, strategy)
+		split.Payloads(serviceChecks, true, split.JSONMarshalFct, compressor, logger)
 	}
 }
 
