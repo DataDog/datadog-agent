@@ -58,7 +58,7 @@ def string_to_byte(size: str):
     if value:
         return int(value * math.pow(1024, power))
     elif "B" in size:
-        return int(size.replace("B", "").strip())
+        return int(float(size.replace("B", "")))
     else:
         return int(size)
 
