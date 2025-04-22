@@ -31,8 +31,8 @@ build do
   env = with_standard_compiler_flags(with_embedded_path)
 
   # Download and extract oniguruma
-  command "mkdir -p modules/oniguruma", env: env
-  command "cd modules/oniguruma && curl -L https://github.com/kkos/oniguruma/archive/refs/tags/v6.9.8.tar.gz | tar xz --strip-components=1", env: env
+    #   command "mkdir -p modules/oniguruma", env: env
+    #   command "cd modules/oniguruma && curl -L https://github.com/kkos/oniguruma/archive/refs/tags/v6.9.8.tar.gz | tar xz --strip-components=1", env: env
 
   # Generate configure script
   command "autoreconf -i", env: env
@@ -44,12 +44,14 @@ build do
     "--disable-silent-rules",
     "--disable-docs",
     "--disable-valgrind",
-    "--with-oniguruma=builtin"
+    "--with-oniguruma=no",
+    "--disable-shared",
+    "--enable-static"
   ]
 
   configure(*configure_options, env: env)
 
   # Build and install
   command "make -j #{workers}", env: env
-  command "make install", env: env
+  command "make install-binPROGRAMS", env: env
 end
