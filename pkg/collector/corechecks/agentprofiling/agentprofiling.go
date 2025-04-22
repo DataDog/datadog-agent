@@ -232,7 +232,7 @@ func (m *Check) generateFlare() error {
 
 	// Mark flare as generated to stop future runs
 	m.flareGenerated = true
-	log.Infof("Flare generation complete. No more flares will be generated until the Agent is restarted.")
+	log.Info("Flare generation complete. No more flares will be generated until the Agent is restarted.")
 
 	return nil
 }
