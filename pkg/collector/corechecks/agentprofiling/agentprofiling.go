@@ -135,7 +135,7 @@ func (m *Check) Run() error {
 
 	// Exit early if both thresholds are disabled
 	if m.memoryThreshold == 0 && m.instance.CPUThreshold <= 0 {
-		log.Warnf("Memory and CPU profile thresholds are disabled, skipping check.")
+		c.Warn("Memory and CPU profile thresholds are disabled, skipping check.")
 		return nil
 	}
 
