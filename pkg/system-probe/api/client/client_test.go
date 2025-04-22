@@ -76,7 +76,7 @@ func TestGetCheck(t *testing.T) {
 		}
 	}))
 
-	client := &CheckClient{client: Get(socketPath), startupClient: Get(socketPath)}
+	client := getCheckClient(socketPath)
 
 	//test happy flow
 	resp, err := GetCheck[testData](client, "test")
@@ -119,12 +119,8 @@ func TestGetCheckStartup(t *testing.T) {
 		}
 	}))
 
-	client := &CheckClient{
-		client:         Get(socketPath),
-		startupClient:  Get(socketPath),
-		startTime:      time.Now(),
-		startupTimeout: 5 * time.Minute,
-	}
+	client := getCheckClient(socketPath)
+
 	_, err := GetCheck[testData](client, "test")
 	require.Error(t, err)
 	require.ErrorIs(t, err, ErrNotStartedYet)
