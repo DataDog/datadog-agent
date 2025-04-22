@@ -1270,7 +1270,7 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 	etwNotificationSize := config.RuntimeSecurity.ETWEventsChannelSize
 	log.Infof("Setting ETW channel size to %d", etwNotificationSize)
 
-	processKiller, err := NewProcessKiller(config)
+	processKiller, err := NewProcessKiller(config, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1475,9 +1475,7 @@ func (p *WindowsProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return
 			}
 
-			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev, func(pid uint32, sig uint32) error {
-				return p.processKiller.KillFromUserspace(pid, sig, ev)
-			}) {
+			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		}

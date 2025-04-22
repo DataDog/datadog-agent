@@ -2,10 +2,7 @@ module github.com/DataDog/datadog-agent/pkg/util/executable
 
 go 1.23.0
 
-require (
-	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
-	github.com/stretchr/testify v1.10.0
-)
+require github.com/stretchr/testify v1.10.0
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -80,6 +77,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/create => ../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../pkg/config/model
@@ -124,6 +122,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../../pkg/tagset
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../pkg/telemetry
+	github.com/DataDog/datadog-agent/pkg/template => ../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest => ../../../pkg/trace/stats/oteltest
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../pkg/util/backoff

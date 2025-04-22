@@ -67,6 +67,8 @@ func (s *packageAgentSuite) TestInstall() {
 	state.AssertFileExists(path.Join(agentDir, "embedded/share/system-probe/ebpf/dns.o"), 0644, "root", "root")
 
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentDir, "root", "root")
+	state.AssertSymlinkExists("/usr/bin/datadog-agent", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", "root", "root")
+	state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer", "root", "root")
 	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
 }
 

@@ -27,8 +27,9 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/sys v0.32.0 // indirect
+	golang.org/x/text v0.24.0 // indirect
+	golang.org/x/time v0.11.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
@@ -97,6 +98,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/create => ../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../pkg/config/model
@@ -140,6 +142,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../../pkg/tagset
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../pkg/telemetry
+	github.com/DataDog/datadog-agent/pkg/template => ../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest => ../../../pkg/trace/stats/oteltest
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../pkg/util/backoff

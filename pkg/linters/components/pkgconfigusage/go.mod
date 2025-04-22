@@ -5,7 +5,7 @@ go 1.23.0
 require (
 	github.com/golangci/plugin-module-register v0.1.1
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/tools v0.31.0
+	golang.org/x/tools v0.32.0
 )
 
 require (
@@ -15,7 +15,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	golang.org/x/mod v0.24.0 // indirect
-	golang.org/x/sync v0.12.0 // indirect
+	golang.org/x/sync v0.13.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
@@ -84,6 +84,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/create => ../../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../../pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model
@@ -127,6 +128,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../../../pkg/tagset
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
+	github.com/DataDog/datadog-agent/pkg/template => ../../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest => ../../../../pkg/trace/stats/oteltest
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../pkg/util/backoff

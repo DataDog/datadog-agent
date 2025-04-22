@@ -37,24 +37,28 @@ type PodWatcher interface {
 	Run(ctx context.Context)
 	// GetPodsForOwner returns the pods for the given owner.
 	GetPodsForOwner(NamespacedPodOwner) []*workloadmeta.KubernetesPod
+	// GetReadyPodsForOwner returns the number of ready pods for the given owner.
+	GetReadyPodsForOwner(NamespacedPodOwner) int32
 }
 
 // PodWatcherImpl is the implementation of the autoscaling PodWatcher
 type PodWatcherImpl struct {
 	mutex sync.RWMutex
 
-	wlm             workloadmeta.Component
-	patcher         PodPatcher
-	patcherChan     chan *workloadmeta.KubernetesPod
-	podsPerPodOwner map[NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod
+	wlm                  workloadmeta.Component
+	patcher              PodPatcher
+	patcherChan          chan *workloadmeta.KubernetesPod
+	podsPerPodOwner      map[NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod
+	readyPodsPerPodOwner map[NamespacedPodOwner]int32
 }
 
 // NewPodWatcher creates a new PodWatcher
 func NewPodWatcher(wlm workloadmeta.Component, patcher PodPatcher) *PodWatcherImpl {
 	return &PodWatcherImpl{
-		wlm:             wlm,
-		patcher:         patcher,
-		podsPerPodOwner: make(map[NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod),
+		wlm:                  wlm,
+		patcher:              patcher,
+		podsPerPodOwner:      make(map[NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod),
+		readyPodsPerPodOwner: make(map[NamespacedPodOwner]int32),
 	}
 }
 
@@ -71,6 +75,13 @@ func (pw *PodWatcherImpl) GetPodsForOwner(owner NamespacedPodOwner) []*workloadm
 		res = append(res, pod)
 	}
 	return res
+}
+
+// GetReadyPodsForOwner returns the number of ready pods for the given owner.
+func (pw *PodWatcherImpl) GetReadyPodsForOwner(owner NamespacedPodOwner) int32 {
+	pw.mutex.RLock()
+	defer pw.mutex.RUnlock()
+	return pw.readyPodsPerPodOwner[owner]
 }
 
 // Run subscribes to workloadmeta events and indexes pods by their owner.
@@ -137,6 +148,17 @@ func (pw *PodWatcherImpl) handleSetEvent(pod *workloadmeta.KubernetesPod) {
 	if _, ok := pw.podsPerPodOwner[podOwner]; !ok {
 		pw.podsPerPodOwner[podOwner] = make(map[string]*workloadmeta.KubernetesPod)
 	}
+
+	// Update ready pods count
+	oldPod, exists := pw.podsPerPodOwner[podOwner][pod.ID]
+	if exists && oldPod.Ready && !pod.Ready {
+		// Pod was ready and is no longer ready
+		pw.readyPodsPerPodOwner[podOwner]--
+	} else if (!exists || !oldPod.Ready) && pod.Ready {
+		// Pod is new and ready, or was not ready and is now ready
+		pw.readyPodsPerPodOwner[podOwner]++
+	}
+
 	pw.podsPerPodOwner[podOwner][pod.ID] = pod
 
 	// Write to patcher channel if POD is managed by an autoscaler, just to not pollute queue with non-autoscaler PODs.
@@ -160,9 +182,16 @@ func (pw *PodWatcherImpl) handleUnsetEvent(pod *workloadmeta.KubernetesPod) {
 	if _, ok := pw.podsPerPodOwner[podOwner]; !ok {
 		return
 	}
+
+	// Update ready replicas count if pod was ready
+	if pod.Ready {
+		pw.readyPodsPerPodOwner[podOwner]--
+	}
+
 	delete(pw.podsPerPodOwner[podOwner], pod.ID)
 	if len(pw.podsPerPodOwner[podOwner]) == 0 {
 		delete(pw.podsPerPodOwner, podOwner)
+		delete(pw.readyPodsPerPodOwner, podOwner)
 	}
 }
 

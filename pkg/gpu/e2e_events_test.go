@@ -14,10 +14,11 @@ package gpu
 import (
 	"testing"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -44,10 +45,15 @@ func injectEventsToConsumer(tb testing.TB, consumer *cudaEventConsumer, events *
 func TestPytorchBatchedKernels(t *testing.T) {
 	cfg := config.New()
 	telemetryMock := testutil.GetTelemetryMock(t)
-	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), telemetryMock)
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ctx, err := getSystemContext(
+		withProcRoot(kernel.ProcFSRoot()),
+		withWorkloadMeta(testutil.GetWorkloadMetaMock(t)),
+		withTelemetry(telemetryMock),
+	)
 	require.NoError(t, err)
 
-	handlers := newStreamCollection(ctx, telemetryMock)
+	handlers := newStreamCollection(ctx, telemetryMock, cfg)
 	consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, telemetryMock)
 	require.NotNil(t, consumer)
 
@@ -56,7 +62,7 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	// Setup the visibleDevicesCache so that we don't get warnings
 	// about missing devices
 	executingPID := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
-	ctx.visibleDevicesCache[executingPID] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
+	ctx.visibleDevicesCache[executingPID] = nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1)
 
 	injectEventsToConsumer(t, consumer, events, 0)
 
@@ -126,7 +132,8 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	statsGen.currGenerationKTime = int64(startTs - 1)
 
 	// And get the stats for the full interval
-	stats := statsGen.getStats(int64(endTs + 1))
+	stats, err := statsGen.getStats(int64(endTs + 1))
+	require.NoError(t, err)
 	require.NotNil(t, stats)
 	require.Len(t, stats.Metrics, 1)
 

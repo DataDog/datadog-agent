@@ -57,7 +57,25 @@ func GetFilePath(conf model.Reader) string {
 
 // Get returns information about how the Agent was installed.
 func Get(conf model.Reader) (*InstallInfo, error) {
+	if installInfo, ok := getFromEnvVars(); ok {
+		return installInfo, nil
+	}
 	return getFromPath(GetFilePath(conf))
+}
+
+func getFromEnvVars() (*InstallInfo, bool) {
+	tool, okTool := os.LookupEnv("DD_INSTALL_INFO_TOOL")
+	toolVersion, okToolVersion := os.LookupEnv("DD_INSTALL_INFO_TOOL_VERSION")
+	installerVersion, okInstallerVersion := os.LookupEnv("DD_INSTALL_INFO_INSTALLER_VERSION")
+
+	if !okTool || !okToolVersion || !okInstallerVersion {
+		if okTool || okToolVersion || okInstallerVersion {
+			log.Warnf("install info partially set through environment, ignoring: tool %t, version %t, installer %t", okTool, okToolVersion, okInstallerVersion)
+		}
+		return nil, false
+	}
+
+	return &InstallInfo{Tool: tool, ToolVersion: toolVersion, InstallerVersion: installerVersion}, true
 }
 
 func getFromPath(path string) (*InstallInfo, error) {
@@ -109,9 +127,10 @@ func logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, agentV
 		Version:   agentVersion,
 		Timestamp: timestamp,
 	}
-	info, err := getFromPath(installInfoFilePath)
-	if err == nil {
-		newEntry.InstallMethod = *info
+	if installInfo, ok := getFromEnvVars(); ok {
+		newEntry.InstallMethod = *installInfo
+	} else if installInfo, err := getFromPath(installInfoFilePath); err == nil {
+		newEntry.InstallMethod = *installInfo
 	} else {
 		log.Infof("Cannot read %s: %s", installInfoFilePath, err)
 	}
