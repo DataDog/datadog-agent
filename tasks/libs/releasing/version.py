@@ -374,10 +374,11 @@ def get_version_numeric_only(ctx, major_version='7'):
 def load_dependencies(_):
     with open("release.json") as f:
         versions = json.load(f)
+        if RELEASE_JSON_DEPENDENCIES not in versions:
+            raise Exception(f"Could not find '{RELEASE_JSON_DEPENDENCIES}' in release.json")
         # windows runners don't accepts anything else than strings in the
         # environment when running a subprocess.
         return {str(k): str(v) for k, v in versions[RELEASE_JSON_DEPENDENCIES].items()}
-    raise Exception(f"Could not find '{RELEASE_JSON_DEPENDENCIES}' in release.json")
 
 
 def create_version_json(ctx, git_sha_length=7):
