@@ -18,12 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 
@@ -59,10 +58,8 @@ type Agent struct {
 	intakeOrigin config.IntakeOrigin
 
 	endpoints        *config.Endpoints
-	auditor          auditor.Auditor
 	destinationsCtx  *client.DestinationsContext
 	pipelineProvider pipeline.Provider
-	health           *health.Handle
 }
 
 // NewLogsAgentComponent returns a new instance of Agent as a Component
@@ -149,7 +146,6 @@ func (a *Agent) setupAgent() error {
 func (a *Agent) startPipeline() {
 	starter := startstop.NewStarter(
 		a.destinationsCtx,
-		a.auditor,
 		a.pipelineProvider,
 	)
 	starter.Start()
@@ -161,7 +157,6 @@ func (a *Agent) Stop(context.Context) error {
 
 	stopper := startstop.NewSerialStopper(
 		a.pipelineProvider,
-		a.auditor,
 		a.destinationsCtx,
 	)
 
@@ -207,19 +202,12 @@ func (a *Agent) GetPipelineProvider() pipeline.Provider {
 func (a *Agent) SetupPipeline(
 	processingRules []*config.ProcessingRule,
 ) {
-	health := health.RegisterLiveness("logs-agent")
-
-	// setup the auditor
-	// We pass the health handle to the auditor because it's the end of the pipeline and the most
-	// critical part. Arguably it could also be plugged to the destination.
-	auditorTTL := time.Duration(a.config.GetInt("logs_config.auditor_ttl")) * time.Hour
-	auditor := auditor.New(a.config.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(
 		a.config.GetInt("logs_config.pipelines"),
-		auditor,
+		&sender.NoopSink{},
 		&diagnostic.NoopMessageReceiver{},
 		processingRules,
 		a.endpoints,
@@ -232,10 +220,8 @@ func (a *Agent) SetupPipeline(
 		false, // serverless
 	)
 
-	a.auditor = auditor
 	a.destinationsCtx = destinationsCtx
 	a.pipelineProvider = pipelineProvider
-	a.health = health
 }
 
 // buildEndpoints builds endpoints for the logs agent
