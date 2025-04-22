@@ -27,7 +27,7 @@
     # Find appropriate python version from major version
     PYTHON_VERSION="$(cat .python-version)"
     versionmatches="$(ls "$(pyenv root)/versions" | grep -E "^${PYTHON_VERSION}.[0-9]+\$")"
-    if [ -n "$versionmatches" ]; then
+    if [ -z "$versionmatches" ]; then
       echo "Installing Python $PYTHON_VERSION..."
       pyenv install "$PYTHON_VERSION"
 
