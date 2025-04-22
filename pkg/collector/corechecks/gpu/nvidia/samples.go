@@ -8,7 +8,6 @@
 package nvidia
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 
@@ -59,10 +58,11 @@ func (c *samplesCollector) DeviceUUID() string {
 
 func (c *samplesCollector) removeUnsupportedSamples() {
 	metricsToRemove := common.StringSet{}
-	unsupportedErr := &ddnvml.ErrNotSupported{}
+
 	for _, metric := range c.samplesToCollect {
 		_, _, err := c.device.GetSamples(metric.samplingType, 0)
-		if errors.As(err, &unsupportedErr) {
+		if err != nil && ddnvml.IsUnsupported(err) {
+			// Only remove metrics if the API is not supported or symbol not found
 			metricsToRemove.Add(metric.name)
 		}
 	}

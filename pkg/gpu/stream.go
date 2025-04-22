@@ -40,7 +40,7 @@ type StreamHandler struct {
 	memAllocEvents   *lru.LRU[uint64, gpuebpf.CudaMemEvent] // holds the memory allocations for the stream, will evict the oldest allocation if the cache is full
 	kernelSpans      []*kernelSpan
 	allocations      []*memoryAllocation
-	processEnded     bool // A marker to indicate that the process has ended, and this handler should be flushed
+	ended            bool // A marker to indicate that the stream has ended, and this handler should be flushed
 	sysCtx           *systemContext
 	limits           streamLimits
 	telemetry        *streamTelemetry // shared telemetry objects for stream-specific telemetry
@@ -380,7 +380,7 @@ func (sh *StreamHandler) markEnd() error {
 		return err
 	}
 
-	sh.processEnded = true
+	sh.ended = true
 	sh.markSynchronization(uint64(nowTs))
 
 	// Close all allocations. Treat them as leaks, as they weren't freed properly

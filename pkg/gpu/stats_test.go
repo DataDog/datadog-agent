@@ -89,7 +89,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	pidTgid := uint64(pid)<<32 + uint64(pid)
 	shmemSize := uint64(10)
 	stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
-	stream.processEnded = false
+	stream.ended = false
 	stream.kernelLaunches = []enrichedKernelLaunch{
 		{
 			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
@@ -105,7 +105,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 
 	allocSize := uint64(10)
 	stream = addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
-	stream.processEnded = false
+	stream.ended = false
 	stream.memAllocEvents.Add(0, gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{Ktime_ns: uint64(startKtime), Pid_tgid: pidTgid, Stream_id: streamID},
 		Addr:   0,
@@ -140,7 +140,7 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	streamID := uint64(120)
 	numThreads := uint64(5)
 	stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
-	stream.processEnded = false
+	stream.ended = false
 	stream.kernelSpans = []*kernelSpan{
 		{
 			startKtime:     uint64(startKtime),
@@ -152,7 +152,7 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 
 	allocSize := uint64(10)
 	stream = addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
-	stream.processEnded = false
+	stream.ended = false
 	stream.allocations = []*memoryAllocation{
 		{
 			startKtime: uint64(startKtime),
@@ -192,7 +192,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	numThreads := uint64(5)
 	shmemSize := uint64(10)
 	stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
-	stream.processEnded = false
+	stream.ended = false
 	stream.kernelLaunches = []enrichedKernelLaunch{
 		{
 			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
@@ -217,7 +217,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 
 	allocSize := uint64(10)
 	stream = addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
-	stream.processEnded = false
+	stream.ended = false
 	stream.allocations = []*memoryAllocation{
 		{
 			startKtime: uint64(startKtime),
@@ -267,7 +267,7 @@ func TestGetStatsMultiGPU(t *testing.T) {
 	for i, uuid := range testutil.GPUUUIDs {
 		streamID := uint64(i)
 		stream := addStream(t, streamHandlers, pid, streamID, uuid, "")
-		stream.processEnded = false
+		stream.ended = false
 		stream.kernelSpans = []*kernelSpan{
 			{
 				startKtime:     uint64(startKtime),
@@ -355,7 +355,7 @@ func TestGetStatsNormalization(t *testing.T) {
 	for _, pid := range []uint32{pid1, pid2} {
 		streamID := uint64(pid)
 		stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
-		stream.processEnded = false
+		stream.ended = false
 		stream.kernelSpans = []*kernelSpan{
 			{
 				startKtime:     uint64(startKtime),
@@ -367,7 +367,7 @@ func TestGetStatsNormalization(t *testing.T) {
 
 		// Add memory allocations
 		globalStream := addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
-		globalStream.processEnded = false
+		globalStream.ended = false
 		globalStream.allocations = []*memoryAllocation{
 			{
 				startKtime: uint64(startKtime),

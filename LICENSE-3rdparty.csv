@@ -895,6 +895,7 @@ core,github.com/docker/docker/api,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/blkiodev,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/checkpoint,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/docker/docker/api/types/common,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/container,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/events,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/filters,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
@@ -902,6 +903,7 @@ core,github.com/docker/docker/api/types/image,Apache-2.0,"Copyright 2012-2017 Do
 core,github.com/docker/docker/api/types/mount,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/network,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/registry,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/docker/docker/api/types/storage,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/strslice,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/swarm,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/swarm/runtime,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
@@ -911,6 +913,7 @@ core,github.com/docker/docker/api/types/versions,Apache-2.0,"Copyright 2012-2017
 core,github.com/docker/docker/api/types/volume,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/client,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/errdefs,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/docker/docker/internal/lazyregexp,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/internal/multierror,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/pkg/system,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-connections/nat,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
@@ -1297,7 +1300,6 @@ core,github.com/judwhite/go-svc,MIT,Copyright (c) 2016 Jud White
 core,github.com/julienschmidt/httprouter,BSD-3-Clause,"Copyright (c) 2013, Julien Schmidt"
 core,github.com/justincormack/go-memfd,MIT,Copyright (c) 2017 Justin Cormack
 core,github.com/justincormack/go-memfd/msyscall,MIT,Copyright (c) 2017 Justin Cormack
-core,github.com/kardianos/osext,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved
 core,github.com/kballard/go-shellquote,MIT,Copyright (C) 2014 Kevin Ballard
 core,github.com/kjk/lzma,BSD-3-Clause,"Copyright (c) 2010, Andrei Vieru. All rights reserved"
 core,github.com/klauspost/compress,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company

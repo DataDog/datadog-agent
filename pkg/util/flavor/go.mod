@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/util/flavor
 go 1.23.0
 
 require (
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0
 	github.com/stretchr/testify v1.10.0
 )
@@ -39,7 +40,6 @@ require (
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
-	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect
 	github.com/magiconair/properties v1.8.9 // indirect
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect

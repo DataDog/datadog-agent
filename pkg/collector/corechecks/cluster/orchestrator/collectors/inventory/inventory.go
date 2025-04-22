@@ -17,7 +17,32 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	k8sCollectors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// defaultGenericResource is a list of generic resources that are collected by default.
+var defaultGenericResource = []k8sCollectors.GenericResource{
+	{
+		Name:         "endpointslices",
+		GroupVersion: "discovery.k8s.io/v1",
+		NodeType:     orchestrator.K8sEndpointSlice,
+		Stable:       false,
+	},
+}
+
+// getGenericCollectorVersions returns a list of collector versions for the default generic resources.
+func getGenericCollectorVersions() []collectors.CollectorVersions {
+	cvs := make([]collectors.CollectorVersions, 0, len(defaultGenericResource))
+	for _, resource := range defaultGenericResource {
+		cv, err := resource.NewCollectorVersions()
+		if err != nil {
+			log.Warnf("failed to create collector for resource %s: %s", resource.Name, err)
+		}
+		cvs = append(cvs, cv)
+	}
+	return cvs
+}
 
 // CollectorInventory is used to store and retrieve available collectors.
 type CollectorInventory struct {
@@ -29,7 +54,7 @@ type CollectorInventory struct {
 func NewCollectorInventory(cfg config.Component, store workloadmeta.Component, tagger tagger.Component) *CollectorInventory {
 	metadataAsTags := utils.GetMetadataAsTags(cfg)
 	return &CollectorInventory{
-		collectors: []collectors.CollectorVersions{
+		collectors: append([]collectors.CollectorVersions{
 			k8sCollectors.NewCRDCollectorVersions(),
 			k8sCollectors.NewClusterCollectorVersions(),
 			k8sCollectors.NewClusterRoleBindingCollectorVersions(metadataAsTags),
@@ -57,7 +82,7 @@ func NewCollectorInventory(cfg config.Component, store workloadmeta.Component, t
 			k8sCollectors.NewUnassignedPodCollectorVersions(cfg, store, tagger, metadataAsTags),
 			k8sCollectors.NewTerminatedPodCollectorVersions(cfg, store, tagger, metadataAsTags),
 			k8sCollectors.NewVerticalPodAutoscalerCollectorVersions(metadataAsTags),
-		},
+		}, getGenericCollectorVersions()...),
 	}
 }
 
