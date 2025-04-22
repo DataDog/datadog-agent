@@ -145,6 +145,8 @@ func (e *UnknownAttachmentError) Unwrap() error {
 	return e.Err
 }
 
+// NewUnknownAttachmentError creates a new `UnknownAttachmentError` instance wrapping
+// the given error.
 func NewUnknownAttachmentError(err error) *UnknownAttachmentError {
 	return &UnknownAttachmentError{Err: err}
 }
