@@ -76,7 +76,7 @@ func TestGetCheck(t *testing.T) {
 		}
 	}))
 
-	client := &CheckClient{client: Get(socketPath)}
+	client := &CheckClient{client: Get(socketPath), startupClient: Get(socketPath)}
 
 	//test happy flow
 	resp, err := GetCheck[testData](client, "test")
@@ -121,6 +121,7 @@ func TestGetCheckStartup(t *testing.T) {
 
 	client := &CheckClient{
 		client:         Get(socketPath),
+		startupClient:  Get(socketPath),
 		startTime:      time.Now(),
 		startupTimeout: 5 * time.Minute,
 	}
