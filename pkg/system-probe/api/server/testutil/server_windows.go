@@ -9,6 +9,7 @@
 package testutil
 
 import (
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,14 +17,15 @@ import (
 	sysprobeserver "github.com/DataDog/datadog-agent/pkg/system-probe/api/server"
 )
 
-const (
-	// systemProbeTestPipeName is the test named pipe for system-probe
-	systemProbeTestPipeName = `\\.\pipe\dd_system_probe_flare_test`
-)
-
-// SystemProbeSocketPath returns a temporary socket path for testing.
+// SystemProbeSocketPath returns a temporary named pipe for testing. Name
+// generation borrowed from pkg/kubelet/cri/remote/util/util_windows_test.go
 func SystemProbeSocketPath(_ *testing.T) string {
-	return systemProbeTestPipeName
+	letter := []rune("abcdef0123456789")
+	b := make([]rune, 4)
+	for i := range b {
+		b[i] = letter[rand.Intn(len(letter))]
+	}
+	return `\\.\pipe\dd_system_probe_test_` + string(b)
 }
 
 // NewSystemProbeTestServer starts a new mock server to handle System Probe requests.
