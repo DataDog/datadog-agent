@@ -23,7 +23,7 @@
     export PATH="$(pyenv root)/shims:$PATH"
     eval "$(pyenv init -)"
     eval "$(pyenv virtualenv-init -)"
-  - PYTHON_VERSION=$(python3 --version | awk '{print $2}')
+  - PYTHON_VERSION=3.12.6
   - VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
   - VENV_PATH="$(pyenv root)/versions/$VENV_NAME"
   - echo "Using Python $PYTHON_VERSION..."
