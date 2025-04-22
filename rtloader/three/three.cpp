@@ -57,22 +57,15 @@ Three::~Three()
 
 bool Three::init()
 {
-    std::function<bool(const PyStatus &, const std::string &)> checkConfigStatus
-        = [this](const PyStatus &status, const std::string &message) -> bool {
-        if (PyStatus_Exception(status)) {
-            setError(message + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
-            return false;
-        }
-        return true;
-    };
-
     // Initialize UTF-8 mode
     {
         PyPreConfig preconfig;
         PyPreConfig_InitPythonConfig(&preconfig);
         preconfig.utf8_mode = 1;
 
-        if (!checkConfigStatus(Py_PreInitialize(&preconfig), "Failed to pre-initialize Python")) {
+        PyStatus status = Py_PreInitialize(&preconfig);
+        if (PyStatus_Exception(status)) {
+            setError("Failed to pre-initialize Python" + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
             return false;
         }
     }
@@ -83,18 +76,26 @@ bool Three::init()
     _config.install_signal_handlers = 1;
 
     // Set Python home
-    if (!checkConfigStatus(PyConfig_SetBytesString(&_config, &_config.home, _pythonHome.c_str()),
-                           "Failed to set python home")) {
+    PyStatus status = PyConfig_SetBytesString(&_config, &_config.home, _pythonHome.c_str());
+    if (PyStatus_Exception(status)) {
+        setError("Failed to set python home" + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
         PyConfig_Clear(&_config);
         return false;
     }
 
     // Configure Python executable if provided
     if (!_pythonExe.empty()) {
-        if (!checkConfigStatus(PyConfig_SetBytesString(&_config, &_config.executable, _pythonExe.c_str()),
-                               "Failed to set executable path")
-            || !checkConfigStatus(PyConfig_SetBytesString(&_config, &_config.program_name, _pythonExe.c_str()),
-                                  "Failed to set program name")) {
+        status = PyConfig_SetBytesString(&_config, &_config.program_name, _pythonExe.c_str());
+        if (PyStatus_Exception(status)) {
+            setError("Failed to set program name" + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
+            PyConfig_Clear(&_config);
+            return false;
+        }
+
+        // Set the executable path
+        status = PyConfig_SetBytesString(&_config, &_config.executable, _pythonExe.c_str());
+        if (PyStatus_Exception(status)) {
+            setError("Failed to set executable path" + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
             PyConfig_Clear(&_config);
             return false;
         }
@@ -111,7 +112,9 @@ bool Three::init()
     PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
 
     // Initialize Python with our configuration
-    if (!checkConfigStatus(Py_InitializeFromConfig(&_config), "Failed to initialize Python")) {
+    status = Py_InitializeFromConfig(&_config);
+    if (PyStatus_Exception(status)) {
+        setError("Failed to initialize Python" + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
         PyConfig_Clear(&_config);
         return false;
     }
