@@ -30,6 +30,12 @@
   - |
     # Check if the virtual environment directory exists
     if [ ! -d "$VENV_PATH" ]; then
+      # Install target python if necessary
+      if [ ! -d "$(pyenv root)/versions/$PYTHON_VERSION" ]; then
+        echo "Installing Python $PYTHON_VERSION..."
+        pyenv install "$PYTHON_VERSION"
+      fi
+
       echo "Creating virtual environment '$VENV_NAME'..."
       pyenv virtualenv "$PYTHON_VERSION" "$VENV_NAME"
     else
