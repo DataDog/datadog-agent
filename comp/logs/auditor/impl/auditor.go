@@ -76,7 +76,7 @@ type Provides struct {
 	Comp auditor.Component
 }
 
-// newAuditor is the public constructor for the auditor
+// NewAuditor is the public constructor for the auditor
 func newAuditor(deps Dependencies) *registryAuditor {
 	runPath := deps.Config.GetString("logs_config.run_path")
 	// filename := deps.Config.GetString("logs_config.registry_filename")
