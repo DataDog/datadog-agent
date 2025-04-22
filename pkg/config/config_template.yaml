@@ -4332,24 +4332,24 @@ api_key:
     ## be increased by 200 every 5 seconds until reaching 1000.
     # recovery_interval: 5s
 
-  ## @param ha_agent - custom object - optional
-  ## This section configures High Availability Agent feature.
+## @param ha_agent - custom object - optional
+## This section configures High Availability Agent feature.
+#
+# ha_agent:
+
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable High Availability Agent feature.
   #
-  # ha_agent:
-
-    ## @param enabled - boolean - optional - default: false
-    ## Set to true to enable High Availability Agent feature.
-    #
-    # enabled: false
+  # enabled: false
 
 
-  ## @param config_id - string - optional
-  ## The config_id configuration is used by Fleet Automation and High Availability Agent
-  ## to assign specific Config ID to an Agent.
-  ## For High Availability, all agents with the same config_id with be part of the same group of agents;
-  ## meaning that, one agent within this group will be designated as primary and others as standby.
-  #
-  # config_id:
+## @param config_id - string - optional
+## The config_id configuration is used by Fleet Automation and High Availability Agent
+## to assign specific Config ID to an Agent.
+## For High Availability, all agents with the same config_id with be part of the same group of agents;
+## meaning that, one agent within this group will be designated as primary and others as standby.
+#
+# config_id:
 
 
 {{end -}}
