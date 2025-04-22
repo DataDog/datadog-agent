@@ -9,6 +9,7 @@ package workload
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -209,7 +210,7 @@ func TestDump(t *testing.T) {
 	_, found := f.store.Get("default/dpa-0")
 	assert.True(t, found)
 
-	dump := Dump()
+	dump := Dump(context.Background())
 	var buf bytes.Buffer
 	dump.Write(&buf)
 	output := buf.String()

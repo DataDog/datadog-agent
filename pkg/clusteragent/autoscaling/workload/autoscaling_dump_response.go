@@ -15,18 +15,27 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // AutoscalingDumpResponse is used to dump the autoscaling store content
 type AutoscalingDumpResponse struct {
-	PodAutoscalers []model.PodAutoscalerInternal `json:"pod_autoscalers"`
+	PodAutoscalers []*model.PodAutoscalerInternal `json:"pod_autoscalers"`
 }
 
-func Dump() AutoscalingDumpResponse {
-	datadogPodAutoscalers := GetAutoscalingStore(context.Background()).GetAll()
+func Dump(ctx context.Context) AutoscalingDumpResponse {
+	datadogPodAutoscalers := GetAutoscalingStore(ctx).GetAll()
+
+	datadogPodAutoscalerAddr := []*model.PodAutoscalerInternal{}
+
+	log.Debugf("Found %d pod autoscalers", len(datadogPodAutoscalers))
+	for _, podAutoscaler := range datadogPodAutoscalers {
+		log.Debugf("GOT podAutoscaler: %s", podAutoscaler.ID())
+		datadogPodAutoscalerAddr = append(datadogPodAutoscalerAddr, &podAutoscaler)
+	}
 
 	response := AutoscalingDumpResponse{
-		PodAutoscalers: datadogPodAutoscalers,
+		PodAutoscalers: datadogPodAutoscalerAddr,
 	}
 
 	return response
