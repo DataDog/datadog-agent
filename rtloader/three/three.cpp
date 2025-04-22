@@ -85,6 +85,8 @@ bool Three::init()
 
     // Configure Python executable if provided
     if (!_pythonExe.empty()) {
+        // Note: While PyConfig provides the necessary functionality, we maintain this additional configuration
+        // to ensure consistent behavior across all platforms, including Windows.
         status = PyConfig_SetBytesString(&_config, &_config.program_name, _pythonExe.c_str());
         if (PyStatus_Exception(status)) {
             setError("Failed to set program name" + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
