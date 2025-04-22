@@ -25,9 +25,3 @@ lint_macos_gitlab_arm64:
     - !reference [.on_main]
     - !reference [.manual]
   tags: ["macos:ventura-arm64", "specific:true"]
-
-celian:
-  extends: .lint_macos_gitlab
-  allow_failure: true
-  tags: ["macos:ventura-arm64", "specific:true"]
-  needs: []
