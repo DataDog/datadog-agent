@@ -125,7 +125,7 @@ func remoteConfigCallback(_ delve.GoVersion, goarch string) ([]bininspect.Parame
 }
 
 func (pt *ProcessTracker) inspectBinary(exePath string, pid uint32) {
-	log.Infof("Inspecting binary for %d %s", pid, exePath)
+	log.Tracef("Inspecting binary for %d %s", pid, exePath)
 	// Avoid self-inspection.
 	if int(pid) == os.Getpid() {
 		log.Infof("Skipping self-inspection for %d %s", pid, exePath)
@@ -134,7 +134,7 @@ func (pt *ProcessTracker) inspectBinary(exePath string, pid uint32) {
 
 	serviceName, diEnabled := getEnvVars(pid)
 	if serviceName == "" || !diEnabled {
-		log.Infof("Skipping binary inspection for %d %s", pid, exePath)
+		log.Tracef("Skipping binary inspection for %d %s", pid, exePath)
 		// if the expected env vars are not set we don't inspect the binary
 		return
 	}
