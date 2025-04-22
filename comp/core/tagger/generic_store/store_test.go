@@ -95,9 +95,11 @@ func TestObjectStore_ForEach(t *testing.T) {
 	store := NewObjectStore[any]()
 
 	// add some items
+	entityID1 := types.NewEntityID(types.EntityIDPrefix(types.ContainerID), "id1")
+	entityID2 := types.NewEntityID(types.EntityIDPrefix(types.KubernetesDeployment), "id2")
 	ids := []types.EntityID{
-		types.NewEntityID(types.EntityIDPrefix(types.ContainerID), "id1"),
-		types.NewEntityID(types.EntityIDPrefix(types.KubernetesDeployment), "id2"),
+		entityID1,
+		entityID2,
 		types.NewEntityID(types.EntityIDPrefix(types.KubernetesPodUID), "id3"),
 		types.NewEntityID(types.EntityIDPrefix(types.ECSTask), "id4"),
 	}
@@ -115,5 +117,5 @@ func TestObjectStore_ForEach(t *testing.T) {
 
 	// only elements matching the filter should be included in the accumulator
 	store.ForEach(filter, func(id types.EntityID, _ any) { accumulator = append(accumulator, id.String()) })
-	assert.ElementsMatch(t, accumulator, []string{"prefix1://id1", "prefix2://id2"})
+	assert.ElementsMatch(t, accumulator, []string{entityID1.String(), entityID2.String()})
 }
