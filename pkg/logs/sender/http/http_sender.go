@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -22,7 +21,7 @@ import (
 // NewHTTPSender returns a new http sender.
 func NewHTTPSender(
 	config pkgconfigmodel.Reader,
-	auditor auditor.Auditor,
+	sink sender.Sink,
 	bufferSize int,
 	serverlessMeta sender.ServerlessMeta,
 	endpoints *config.Endpoints,
@@ -58,7 +57,7 @@ func NewHTTPSender(
 
 	return sender.NewSender(
 		config,
-		auditor,
+		sink,
 		destinationFactory,
 		bufferSize,
 		serverlessMeta,

@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -42,7 +41,6 @@ func TestNewSenderWorkerDistribution(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup
 			config := configmock.New(t)
-			auditor := auditor.NewNullAuditor()
 			destinations := &client.Destinations{}
 			destFactory := func() *client.Destinations { return destinations }
 			bufferSize := 100
@@ -51,7 +49,7 @@ func TestNewSenderWorkerDistribution(t *testing.T) {
 			// Create sender
 			sender := NewSender(
 				config,
-				auditor,
+				&NoopSink{},
 				destFactory,
 				bufferSize,
 				NewMockServerlessMeta(false),
