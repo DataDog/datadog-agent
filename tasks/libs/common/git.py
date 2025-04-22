@@ -350,7 +350,6 @@ def push_tags_in_batches(ctx, tags, force_option="", delete=False):
 
     for idx in range(0, len(tags), TAG_BATCH_SIZE):
         batch_tags = tags[idx : idx + TAG_BATCH_SIZE]
-        print(f"git {command} origin {' '.join(batch_tags)}{force_option}")
-        # ctx.run(f"git {command} origin {' '.join(batch_tags)}{force_option}")
+        ctx.run(f"git {command} origin {' '.join(batch_tags)}{force_option}")
 
     print(f"{'Deleted' if delete else 'Pushed'} tags: {tags_list}")
