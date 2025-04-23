@@ -71,7 +71,7 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 			checkName := tag[len(jmxCheckNamePrefix):]
 			metricSource = metrics.JMXCheckNameToMetricSource(checkName)
 			continue
-		} else if source := getServerlessSourceFromTag(tag); source != 0 {
+		} else if source := getServerlessSourceFromTag(tag, false); source != 0 {
 			metricSource = source
 			continue
 		}
@@ -85,16 +85,30 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 }
 
 // getServerlessSourceFromTag returns the metric source from a tag.
-func getServerlessSourceFromTag(tag string) metrics.MetricSource {
+func getServerlessSourceFromTag(tag string, isRuntime bool) metrics.MetricSource {
 	var metricSource metrics.MetricSource
 	if strings.HasPrefix(tag, functionArnTagPrefix) {
-		metricSource = metrics.MetricSourceAwsLambda
+		metricSource = metrics.MetricSourceAwsLambdaCustom
 	} else if tag == appServiceTag {
-		metricSource = metrics.MetricSourceAzureAppService
+		metricSource = metrics.MetricSourceAzureAppServiceCustom
 	} else if tag == containerAppTag {
-		metricSource = metrics.MetricSourceAzureContainerApp
+		metricSource = metrics.MetricSourceAzureContainerAppCustom
 	} else if tag == cloudRunTag {
-		metricSource = metrics.MetricSourceGoogleCloudRun
+		metricSource = metrics.MetricSourceGoogleCloudRunCustom
+	}
+
+	if isRuntime {
+		// Convert custom metric source to its corresponding runtime metric source
+		switch metricSource {
+		case metrics.MetricSourceAwsLambdaCustom:
+			metricSource = metrics.MetricSourceAwsLambdaRuntime
+		case metrics.MetricSourceAzureAppServiceCustom:
+			metricSource = metrics.MetricSourceAzureAppServiceRuntime
+		case metrics.MetricSourceAzureContainerAppCustom:
+			metricSource = metrics.MetricSourceAzureContainerAppRuntime
+		case metrics.MetricSourceGoogleCloudRunCustom:
+			metricSource = metrics.MetricSourceGoogleCloudRunRuntime
+		}
 	}
 	return metricSource
 }

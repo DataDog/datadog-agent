@@ -1567,24 +1567,24 @@ func TestGetServerlessSourceFromTag(t *testing.T) {
 		expectedSource metrics.MetricSource
 	}{
 		{
-			name:           "AWS Lambda",
+			name:           "AWS Lambda Custom",
 			tag:            "function_arn:test-arn",
-			expectedSource: metrics.MetricSourceAwsLambda,
+			expectedSource: metrics.MetricSourceAwsLambdaCustom,
 		},
 		{
-			name:           "Azure Container App",
+			name:           "Azure Container App Custom",
 			tag:            "origin:containerapp",
-			expectedSource: metrics.MetricSourceAzureContainerApp,
+			expectedSource: metrics.MetricSourceAzureContainerAppCustom,
 		},
 		{
-			name:           "Azure App Service",
+			name:           "Azure App Service Custom",
 			tag:            "origin:appservice",
-			expectedSource: metrics.MetricSourceAzureAppService,
+			expectedSource: metrics.MetricSourceAzureAppServiceCustom,
 		},
 		{
-			name:           "Google Cloud Run",
+			name:           "Google Cloud Run Custom",
 			tag:            "origin:cloudrun",
-			expectedSource: metrics.MetricSourceGoogleCloudRun,
+			expectedSource: metrics.MetricSourceGoogleCloudRunCustom,
 		},
 		{
 			name:           "No change for regular tag",
@@ -1600,7 +1600,47 @@ func TestGetServerlessSourceFromTag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := getServerlessSourceFromTag(tt.tag)
+			result := getServerlessSourceFromTag(tt.tag, false)
+			assert.Equal(t, tt.expectedSource, result)
+		})
+	}
+}
+
+func TestGetServerlessSourceFromTagRuntime(t *testing.T) {
+	tests := []struct {
+		name           string
+		tag            string
+		expectedSource metrics.MetricSource
+	}{
+		{
+			name:           "AWS Lambda Runtime",
+			tag:            "function_arn:test-arn",
+			expectedSource: metrics.MetricSourceAwsLambdaRuntime,
+		},
+		{
+			name:           "Azure Container App Runtime",
+			tag:            "origin:containerapp",
+			expectedSource: metrics.MetricSourceAzureContainerAppRuntime,
+		},
+		{
+			name:           "Azure App Service Runtime",
+			tag:            "origin:appservice",
+			expectedSource: metrics.MetricSourceAzureAppServiceRuntime,
+		},
+		{
+			name:           "Google Cloud Run Runtime",
+			tag:            "origin:cloudrun",
+			expectedSource: metrics.MetricSourceGoogleCloudRunRuntime,
+		},
+		{
+			name:           "No change for regular tag",
+			tag:            "some:other:tag",
+			expectedSource: metrics.MetricSourceUnknown,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getServerlessSourceFromTag(tt.tag, true)
 			assert.Equal(t, tt.expectedSource, result)
 		})
 	}

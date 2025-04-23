@@ -363,10 +363,18 @@ const (
 	MetricSourceOpenTelemetryCollectorCouchdbReceiver
 
 	// Serverless
-	MetricSourceAwsLambda
-	MetricSourceAzureContainerApp
-	MetricSourceAzureAppService
-	MetricSourceGoogleCloudRun
+	MetricSourceAwsLambdaCustom
+	MetricSourceAwsLambdaEnhanced
+	MetricSourceAwsLambdaRuntime
+	MetricSourceAzureContainerAppCustom
+	MetricSourceAzureContainerAppEnhanced
+	MetricSourceAzureContainerAppRuntime
+	MetricSourceAzureAppServiceCustom
+	MetricSourceAzureAppServiceEnhanced
+	MetricSourceAzureAppServiceRuntime
+	MetricSourceGoogleCloudRunCustom
+	MetricSourceGoogleCloudRunEnhanced
+	MetricSourceGoogleCloudRunRuntime
 )
 
 // String returns a string representation of MetricSource

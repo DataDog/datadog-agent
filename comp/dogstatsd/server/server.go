@@ -776,8 +776,9 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 
 		// If we're in serverless mode, we need to determine the metric source from extra tags
 		if s.enrichConfig.serverlessMode {
+			isRuntime := strings.HasPrefix(metricSamples[idx].Name, "runtime.")
 			for _, tag := range s.extraTags {
-				if source := getServerlessSourceFromTag(tag); source != 0 {
+				if source := getServerlessSourceFromTag(tag, isRuntime); source != 0 {
 					metricSamples[idx].Source = source
 				}
 			}
