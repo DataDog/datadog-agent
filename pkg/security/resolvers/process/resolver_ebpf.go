@@ -566,12 +566,20 @@ func (p *EBPFResolver) RetrieveFileFieldsFromProcfs(filename string) (*model.Fil
 
 func (p *EBPFResolver) insertEntry(entry, prev *model.ProcessCacheEntry, source uint64) {
 	entry.Source = source
+
+	prevEntry := p.entryCache[entry.Pid]
+	if prevEntry != prev {
+		seclog.Errorf("pid %d already exists in the cache with a different entry", entry.Pid)
+		if prevEntry != nil {
+			prevEntry.Release()
+		}
+		if prev != nil {
+			prev.Release()
+		}
+	}
+
 	p.entryCache[entry.Pid] = entry
 	entry.Retain()
-
-	if prev != nil {
-		prev.Release()
-	}
 
 	if p.cgroupResolver != nil && entry.CGroup.CGroupID != "" {
 		// add the new PID in the right cgroup_resolver bucket
@@ -1302,8 +1310,6 @@ func (p *EBPFResolver) newEntryFromProcfsAndSyncKernelMaps(proc *process.Process
 
 	// update the cache entry
 	if err := p.enrichEventFromProcfs(entry, proc, filledProc); err != nil {
-		entry.Release()
-
 		seclog.Trace(err)
 		return nil
 	}
