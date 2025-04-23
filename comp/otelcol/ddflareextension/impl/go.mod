@@ -85,7 +85,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/ipc/http v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/fx v0.0.0-20250129172314-517df3f51a84 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.64.1 // indirect
@@ -482,7 +482,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../comp/core/hostname/hostnameinterface
 	github.com/DataDog/datadog-agent/comp/core/ipc/def => ../../../../comp/core/ipc/def
-	github.com/DataDog/datadog-agent/comp/core/ipc/http => ../../../../comp/core/ipc/http
+	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers => ../../../../comp/core/ipc/httphelpers
 	github.com/DataDog/datadog-agent/comp/core/ipc/impl => ../../../../comp/core/ipc/impl
 	github.com/DataDog/datadog-agent/comp/core/ipc/mock => ../../../../comp/core/ipc/mock
 	github.com/DataDog/datadog-agent/comp/core/log/def => ../../../../comp/core/log/def
