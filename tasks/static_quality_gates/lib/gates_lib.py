@@ -65,6 +65,7 @@ def read_byte_input(byte_input):
     else:
         return byte_input
 
+
 def find_package_path(flavor, package_os, arch, extension=None):
     package_dir = os.environ['OMNIBUS_PACKAGE_DIR']
     separator = '_' if package_os == 'debian' else '-'
