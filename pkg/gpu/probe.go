@@ -95,15 +95,6 @@ type ProbeDependencies struct {
 	WorkloadMeta workloadmeta.Component
 }
 
-// NewProbeDependencies creates a new ProbeDependencies instance
-func NewProbeDependencies(telemetry telemetry.Component, processMonitor uprobes.ProcessMonitor, workloadMeta workloadmeta.Component) (ProbeDependencies, error) {
-	return ProbeDependencies{
-		Telemetry:      telemetry,
-		ProcessMonitor: processMonitor,
-		WorkloadMeta:   workloadMeta,
-	}, nil
-}
-
 // Probe represents the GPU monitoring probe
 type Probe struct {
 	m                *ddebpf.Manager
@@ -234,16 +225,21 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error getting current time: %w", err)
 	}
-	stats := p.statsGenerator.getStats(now)
+
+	stats, err := p.statsGenerator.getStats(now)
+	if err != nil {
+		return nil, err
+	}
+
 	p.telemetry.sentEntries.Add(float64(len(stats.Metrics)))
-	p.cleanupFinished()
+	p.cleanupFinished(now)
 
 	return stats, nil
 }
 
-func (p *Probe) cleanupFinished() {
+func (p *Probe) cleanupFinished(nowKtime int64) {
 	p.statsGenerator.cleanupFinishedAggregators()
-	p.streamHandlers.clean()
+	p.streamHandlers.clean(nowKtime)
 }
 
 func (p *Probe) initRCGPU(cfg *config.Config) error {
@@ -387,7 +383,7 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 		SharedLibsLibset:               sharedlibraries.LibsetGPU,
 		ScanProcessesInterval:          cfg.ScanProcessesInterval,
 		EnablePeriodicScanNewProcesses: true,
-		EnableDetailedLogging:          true,
+		EnableDetailedLogging:          false,
 	}
 }
 

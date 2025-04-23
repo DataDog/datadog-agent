@@ -4,13 +4,15 @@ go 1.23.0
 
 require (
 	cloud.google.com/go/compute/metadata v0.6.0
+	github.com/DataDog/datadog-agent/pkg/template v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel.0.20250129111638-01c8fb06949e
-	github.com/DataDog/datadog-agent/pkg/version v0.63.0
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.64.3
+	github.com/DataDog/datadog-agent/pkg/version v0.64.3
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/fatih/color v1.18.0
 	github.com/google/go-containerregistry v0.20.3
 	github.com/google/uuid v1.6.0
-	github.com/shirou/gopsutil/v4 v4.25.2
+	github.com/shirou/gopsutil/v4 v4.25.3
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
 	go.etcd.io/bbolt v1.4.0
@@ -24,7 +26,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.63.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.3 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -46,6 +48,7 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.9.0 // indirect
 	github.com/vbatts/tar-split v0.11.6 // indirect
@@ -58,7 +61,10 @@ require (
 )
 
 replace (
+	github.com/DataDog/datadog-agent/pkg/template => ../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/version => ../../../pkg/version
 )
+
+replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil

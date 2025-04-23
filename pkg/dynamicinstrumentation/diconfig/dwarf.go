@@ -237,7 +237,7 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[st
 	}
 
 	v, typeParsedAlready := seenTypes[typeHeader.Type]
-	if typeParsedAlready {
+	if typeParsedAlready && typeHeader.Kind != uint(reflect.Pointer) {
 		v.count++
 		if v.count > ditypes.MaxReferenceDepth {
 			return &ditypes.Parameter{}, nil

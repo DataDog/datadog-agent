@@ -410,6 +410,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		IgnoreMissingDatadogFields: core.GetBool("otlp_config.traces.ignore_missing_datadog_fields"),
 		ProbabilisticSampling:      core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
 		AttributesTranslator:       attributesTranslator,
+		GrpcMaxRecvMsgSizeMib:      core.GetInt("otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib"),
 	}
 
 	if core.IsSet("apm_config.install_id") {
@@ -649,6 +650,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if k := "ol_proxy_config.additional_endpoints"; core.IsSet(k) {
 		c.OpenLineageProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
+	}
+	if k := "ol_proxy_config.api_version"; core.IsSet(k) {
+		c.OpenLineageProxy.APIVersion = core.GetInt(k)
 	}
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
 	return nil

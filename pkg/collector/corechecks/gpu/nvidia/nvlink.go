@@ -13,26 +13,25 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
 
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 type nvlinkCollector struct {
-	device       nvml.Device
+	device       ddnvml.SafeDevice
 	totalNVLinks int
 }
 
-func newNVLinkCollector(device nvml.Device) (Collector, error) {
+func newNVLinkCollector(device ddnvml.SafeDevice) (Collector, error) {
 	fields := []nvml.FieldValue{
 		{
 			FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT,
 			ScopeId: 0,
 		},
 	}
-	err := device.GetFieldValues(fields)
-	if err == nvml.ERROR_NOT_SUPPORTED {
-		return nil, errUnsupportedDevice
-	} else if err != nvml.SUCCESS {
-		return nil, fmt.Errorf("failed to get total number of nvlinks: %s", nvml.ErrorString(err))
+
+	if err := device.GetFieldValues(fields); err != nil {
+		return nil, fmt.Errorf("%w : %w", errUnsupportedDevice, err)
 	}
 
 	linksCount, convErr := fieldValueToNumber[int](nvml.ValueType(fields[0].ValueType), fields[0].Value)
@@ -56,15 +55,15 @@ func (c *nvlinkCollector) Name() CollectorName {
 }
 
 func (c *nvlinkCollector) Collect() ([]Metric, error) {
-	var err error
+	var multiErr error
 
 	active, inactive := 0, 0
 
 	// iterate over all existing nvlinks for the device
 	for i := 0; i < c.totalNVLinks; i++ {
-		state, ret := c.device.GetNvLinkState(i)
-		if ret != nvml.SUCCESS {
-			err = multierror.Append(err, fmt.Errorf("failed to get NVLink state for link %d: %s", i, nvml.ErrorString(ret)))
+		state, err := c.device.GetNvLinkState(i)
+		if err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to get NVLink state for link %d: %w", i, err))
 			continue
 		}
 
@@ -97,5 +96,5 @@ func (c *nvlinkCollector) Collect() ([]Metric, error) {
 		},
 	}
 
-	return allMetrics[:], err
+	return allMetrics[:], multiErr
 }
