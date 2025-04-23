@@ -1107,6 +1107,7 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
             "prefetch_file",
             "fake_server",
             "sample_service",
+            "standalone_attacher",
         ]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
             if not is_windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):

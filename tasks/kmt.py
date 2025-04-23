@@ -23,7 +23,11 @@ from invoke.tasks import task
 
 from tasks.kernel_matrix_testing import selftest as selftests
 from tasks.kernel_matrix_testing import stacks, vmconfig
-from tasks.kernel_matrix_testing.ci import KMTTestRunJob, get_all_jobs_for_pipeline, get_test_results_from_tarfile
+from tasks.kernel_matrix_testing.ci import (
+    KMTTestRunJob,
+    get_all_jobs_for_pipeline,
+    get_test_results_from_tarfile,
+)
 from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, get_compiler
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.download import update_rootfs
@@ -43,7 +47,14 @@ from tasks.kernel_matrix_testing.kmt_os import flare as flare_kmt_os
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
-from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
+from tasks.kernel_matrix_testing.tool import (
+    Exit,
+    ask,
+    error,
+    get_binary_target_arch,
+    info,
+    warn,
+)
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
@@ -175,7 +186,19 @@ def gen_config(
             )
 
         vmconfig.gen_config(
-            ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
+            ctx,
+            stack,
+            vms,
+            sets,
+            init_stack,
+            vcpu,
+            memory,
+            new,
+            ci,
+            arch,
+            output_file,
+            vmconfig_template,
+            yes=yes,
         )
 
 
@@ -284,7 +307,19 @@ def gen_config_from_ci_pipeline(
     vcpu = DEFAULT_VCPU if vcpu is None else vcpu
     memory = DEFAULT_MEMORY if memory is None else memory
     vmconfig.gen_config(
-        ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
+        ctx,
+        stack,
+        ",".join(vms),
+        "",
+        init_stack,
+        vcpu,
+        memory,
+        new,
+        ci,
+        arch,
+        output_file,
+        vmconfig_template,
+        yes=yes,
     )
     info("[+] You can run the following command to execute only packages with failed tests")
     print(f"dda inv -- kmt.test --packages=\"{','.join(failed_packages)}\" --run='^{'|'.join(failed_tests)}$'")
@@ -350,10 +385,22 @@ def ls(_, distro=True, custom=False):
         raise Exit("tabulate module is not installed, please install it to continue")
 
     print("\nAll Available Images:")
-    print(tabulate(vmconfig.get_image_list(distro, custom), headers='firstrow', tablefmt='fancy_grid'))
+    print(
+        tabulate(
+            vmconfig.get_image_list(distro, custom),
+            headers="firstrow",
+            tablefmt="fancy_grid",
+        )
+    )
 
     print("\nLocally Downloaded Images:")
-    print(tabulate(vmconfig.get_local_image_list(distro, custom), headers='firstrow', tablefmt='fancy_grid'))
+    print(
+        tabulate(
+            vmconfig.get_local_image_list(distro, custom),
+            headers="firstrow",
+            tablefmt="fancy_grid",
+        )
+    )
 
 
 @task(
@@ -418,20 +465,20 @@ def config_ssh_key(ctx: Context):
         if aws_config_name.strip() == "":
             aws_config_name = name
 
-        ssh_key = {'path': ssh_key_path, 'name': name, 'aws_key_name': aws_config_name}
+        ssh_key = {"path": ssh_key_path, "name": name, "aws_key_name": aws_config_name}
     else:
         info("[+] Finding SSH keys to use...")
         ssh_keys: list[SSHKey]
         if method == "1password":
             agent_keys = get_ssh_agent_key_names(ctx)
-            ssh_keys = [{'path': None, 'name': key, 'aws_key_name': key} for key in agent_keys]
+            ssh_keys = [{"path": None, "name": key, "aws_key_name": key} for key in agent_keys]
         else:
             ssh_key_files = [Path(f[: -len(".pub")]) for f in glob(os.path.expanduser("~/.ssh/*.pub"))]
             ssh_keys = []
 
             for f in ssh_key_files:
                 key_name = get_ssh_key_name(f.with_suffix(".pub")) or f.name
-                ssh_keys.append({'path': os.fspath(f), 'name': key_name, 'aws_key_name': ''})
+                ssh_keys.append({"path": os.fspath(f), "name": key_name, "aws_key_name": ""})
 
         keys_str = "\n".join([f" - [{i + 1}] {key['name']} (path: {key['path']})" for i, key in enumerate(ssh_keys)])
         result = ask(f"[?] Found these valid key files:\n{keys_str}\nChoose one of these files (1-{len(ssh_keys)}): ")
@@ -450,9 +497,9 @@ def config_ssh_key(ctx: Context):
             f"Enter the key name configured in AWS for this key (leave blank to set the same as the local key name '{ssh_key['name']}'): "
         )
         if aws_key_name.strip() != "":
-            ssh_key['aws_key_name'] = aws_key_name.strip()
+            ssh_key["aws_key_name"] = aws_key_name.strip()
         else:
-            ssh_key['aws_key_name'] = ssh_key['name']
+            ssh_key["aws_key_name"] = ssh_key["name"]
 
         ensure_key_in_ec2(ctx, ssh_key)
 
@@ -473,7 +520,10 @@ def config_ssh_key(ctx: Context):
     }
 )
 def update_resources(
-    ctx: Context, vmconfig_template="system-probe", all_archs: bool = False, images: str | None = None
+    ctx: Context,
+    vmconfig_template="system-probe",
+    all_archs: bool = False,
+    images: str | None = None,
 ):
     kmt_os = get_kmt_os()
 
@@ -560,7 +610,7 @@ def ninja_define_rules(nw: NinjaWriter):
 
     nw.rule(
         name="gotestsuite",
-        command="$env $go test -mod=readonly -v $timeout -tags \"$build_tags\" $extra_arguments -c -o $out $in",
+        command='$env $go test -mod=readonly -v $timeout -tags "$build_tags" $extra_arguments -c -o $out $in',
     )
     nw.rule(name="copyextra", command="cp -r $in $out")
     nw.rule(
@@ -577,7 +627,7 @@ def ninja_define_rules(nw: NinjaWriter):
 
 def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths, go_path: str, arch: Arch):
     _, _, env = get_build_flags(ctx, arch=arch)
-    env_str = " ".join([f"{k}=\"{v.strip()}\"" for k, v in env.items()])
+    env_str = " ".join([f'{k}="{v.strip()}"' for k, v in env.items()])
 
     test_runner_files = glob("test/new-e2e/system-probe/test-runner/*.go")
     nw.build(
@@ -631,7 +681,7 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
         pool="gobuild",
         variables={
             "go": go_path,
-            "ldflags": "-ldflags=\"-s -w\"",
+            "ldflags": '-ldflags="-s -w"',
             "chdir": "true",
             "tool": "cmd/test2json",
             "env": f"{env_str} CGO_ENABLED=0",
@@ -683,7 +733,12 @@ def ninja_copy_ebpf_files(
     to_copy += [(p, output / "runtime" / p.relative_to(runtime_dir)) for p in runtime_dir.glob("**/*.c") if filter(p)]
 
     for source, target in to_copy:
-        nw.build(inputs=[os.fspath(source)], outputs=[os.fspath(target)], rule="copyfiles", variables={"mode": "-m744"})
+        nw.build(
+            inputs=[os.fspath(source)],
+            outputs=[os.fspath(target)],
+            rule="copyfiles",
+            variables={"mode": "-m744"},
+        )
 
 
 @task
@@ -718,7 +773,7 @@ def kmt_secagent_prepare(
         go_path = os.path.join(go_root, "bin", "go")
 
     nf_path = kmt_paths.arch_dir / "kmt-secagent.ninja"
-    with open(nf_path, 'w') as ninja_file:
+    with open(nf_path, "w") as ninja_file:
         nw = NinjaWriter(ninja_file)
 
         ninja_define_rules(nw)
@@ -768,7 +823,17 @@ def prepare(
         domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
         assert len(domains) > 0, err_msg
 
-    _prepare(ctx, stack, component, arch_obj, packages, verbose, ci, compile_only, domains=domains)
+    _prepare(
+        ctx,
+        stack,
+        component,
+        arch_obj,
+        packages,
+        verbose,
+        ci,
+        compile_only,
+        domains=domains,
+    )
 
 
 def _prepare(
@@ -921,8 +986,11 @@ def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: 
     pkg_deps: dict[str, set[str]] = defaultdict(set)
 
     packages_list = " ".join(packages)
-    list_format = "{{ .ImportPath }}: {{ join .Deps \" \" }}"
-    res = ctx.run(f"go list -test -f '{list_format}' -tags \"{build_tags}\" {packages_list}", hide=True)
+    list_format = '{{ .ImportPath }}: {{ join .Deps " " }}'
+    res = ctx.run(
+        f"go list -test -f '{list_format}' -tags \"{build_tags}\" {packages_list}",
+        hide=True,
+    )
     if res is None or not res.ok:
         raise Exit("Failed to get dependencies for system-probe")
 
@@ -988,7 +1056,7 @@ def kmt_sysprobe_prepare(
     pkg_deps = compute_package_dependencies(ctx, target_packages, build_tags)
 
     info("[+] Generating build instructions..")
-    with open(nf_path, 'w') as ninja_file:
+    with open(nf_path, "w") as ninja_file:
         nw = NinjaWriter(ninja_file)
 
         _, _, env = get_build_flags(ctx, arch=arch)
@@ -996,7 +1064,7 @@ def kmt_sysprobe_prepare(
 
         env_str = ""
         for key, val in env.items():
-            new_val = val.replace('\n', ' ')
+            new_val = val.replace("\n", " ")
             env_str += f"{key}='{new_val}' "
         env_str = env_str.rstrip()
 
@@ -1045,7 +1113,11 @@ def kmt_sysprobe_prepare(
 
             testdata = os.path.join(pkg, "testdata")
             if os.path.exists(testdata):
-                nw.build(inputs=[testdata], outputs=[os.path.join(target_path, "testdata")], rule="copyextra")
+                nw.build(
+                    inputs=[testdata],
+                    outputs=[os.path.join(target_path, "testdata")],
+                    rule="copyextra",
+                )
 
             for gobin in [
                 "gotls_client",
@@ -1056,6 +1128,7 @@ def kmt_sysprobe_prepare(
                 "prefetch_file",
                 "fake_server",
                 "sample_service",
+                "standalone_attacher",
             ]:
                 src_file_path = os.path.join(pkg, f"{gobin}.go")
                 if os.path.isdir(pkg) and os.path.isfile(src_file_path):
@@ -1068,7 +1141,7 @@ def kmt_sysprobe_prepare(
                         variables={
                             "go": go_path,
                             "chdir": "true",
-                            "tags": "-tags=\"test\"",
+                            "tags": '-tags="test,linux_bpf"',
                             "ldflags": "-ldflags=\"-extldflags '-static'\"",
                             "env": env_str,
                         },
@@ -1116,7 +1189,7 @@ def images_matching_ci(_: Context, domains: list[LibvirtDomain]):
         if not check_tag:
             continue
 
-        manifest_file = '.'.join(platinfo["image"].split('.')[:-2]) + ".manifest"
+        manifest_file = ".".join(platinfo["image"].split(".")[:-2]) + ".manifest"
 
         if not (kmt_os.rootfs_dir / manifest_file).exists():
             not_matches.append(platinfo["image"])
@@ -1124,11 +1197,11 @@ def images_matching_ci(_: Context, domains: list[LibvirtDomain]):
 
         with open(kmt_os.rootfs_dir / manifest_file) as f:
             for line in f:
-                key, value = line.strip().split('=', 1)
+                key, value = line.strip().split("=", 1)
                 if key != "IMAGE_VERSION":
                     continue
 
-                value = value.replace('"', '')
+                value = value.replace('"', "")
                 if value != platinfo["image_version"]:
                     not_matches.append(platinfo["image"])
 
@@ -1214,7 +1287,15 @@ def test(
     if not quick:
         for arch in used_archs:
             info(f"[+] Preparing {component} for {arch}")
-            _prepare(ctx, stack, component, arch, packages=packages, verbose=verbose, domains=domains)
+            _prepare(
+                ctx,
+                stack,
+                component,
+                arch,
+                packages=packages,
+                verbose=verbose,
+                domains=domains,
+            )
 
     pkgs = []
     if packages is not None:
@@ -1224,7 +1305,7 @@ def test(
     shutil.rmtree(paths.test_results, ignore_errors=True)  # Reset test-results folder
 
     run_config = build_run_config(run, pkgs)
-    with tempfile.NamedTemporaryFile(mode='w') as tmp:
+    with tempfile.NamedTemporaryFile(mode="w") as tmp:
         json.dump(run_config, tmp)
         tmp.flush()
         remote_tmp = "/tmp"
@@ -1236,17 +1317,27 @@ def test(
             "-verbose" if test_logs else "",
             f"-run-count {run_count}",
             f"-test-root /opt/{component}-tests",
-            f"-extra-params {test_extra_arguments}" if test_extra_arguments is not None else "",
+            (f"-extra-params {test_extra_arguments}" if test_extra_arguments is not None else ""),
             f"-extra-env {test_extra_env}" if test_extra_env is not None else "",
             "-test-tools /opt/testing-tools",
         ]
         for d in domains:
             info(f"[+] Running tests on {d}")
             d.copy(ctx, f"{tmp.name}", remote_tmp)
-            d.run_cmd(ctx, f"/opt/micro-vm-init.sh {' '.join(args)}", verbose=verbose, allow_fail=True)
+            d.run_cmd(
+                ctx,
+                f"/opt/micro-vm-init.sh {' '.join(args)}",
+                verbose=verbose,
+                allow_fail=True,
+            )
 
             info(f"[+] Showing summary of results for {d}")
-            d.run_cmd(ctx, "/opt/testing-tools/test-json-review", verbose=verbose, allow_fail=True)
+            d.run_cmd(
+                ctx,
+                "/opt/testing-tools/test-json-review",
+                verbose=verbose,
+                allow_fail=True,
+            )
 
             info(f"[+] Tests completed on {d}, downloading results...")
             target_folder = paths.vm_test_results(d.name)
@@ -1259,14 +1350,14 @@ def test(
 
 def build_layout(ctx, domains, layout: str, verbose: bool):
     with open(layout) as lf:
-        todo: DependenciesLayout = cast('DependenciesLayout', json.load(lf))
+        todo: DependenciesLayout = cast("DependenciesLayout", json.load(lf))
 
     for d in domains:
         info(f"[+] apply layout to vm {d.name}")
 
-        cmd = ' && '.join(f'mkdir -p {dirs}' for dirs in todo["layout"])
+        cmd = " && ".join(f"mkdir -p {dirs}" for dirs in todo["layout"])
         if len(cmd) > 0:
-            d.run_cmd(ctx, cmd.rstrip('&'), verbose)
+            d.run_cmd(ctx, cmd.rstrip("&"), verbose)
 
         for src, dst in todo["copy"].items():
             if not os.path.exists(src):
@@ -1361,8 +1452,16 @@ def build(
         d.copy(ctx, clang_path, embedded_remote_path / clang_path.name, verbose=verbose)
 
         if override_agent:
-            d.run_cmd(ctx, f"[ -f /opt/datadog-agent/embedded/bin/{component} ]", verbose=False)
-            d.copy(ctx, f"./bin/{component}/{component}", f"/opt/datadog-agent/embedded/bin/{component}")
+            d.run_cmd(
+                ctx,
+                f"[ -f /opt/datadog-agent/embedded/bin/{component} ]",
+                verbose=False,
+            )
+            d.copy(
+                ctx,
+                f"./bin/{component}/{component}",
+                f"/opt/datadog-agent/embedded/bin/{component}",
+            )
         else:
             d.copy(ctx, f"./bin/{component}", "/root/")
 
@@ -1383,7 +1482,7 @@ def clean(ctx: Context, stack: str | None = None, container=False, image=False):
     ctx.run(f"rm {get_kmt_os().shared_dir}/*.tar.gz", warn=True)
 
     if container:
-        ctx.run("docker rm -f $(docker ps -aqf \"name=kmt-compiler\")")
+        ctx.run('docker rm -f $(docker ps -aqf "name=kmt-compiler")')
     if image:
         ctx.run("docker image rm kmt:compile")
 
@@ -1426,8 +1525,8 @@ def ssh_config(
         if not output.exists():
             continue  # Invalid/removed stack, ignore it
 
-        stack_name = stack_dir.name.replace('-ddvm', '')
-        if len(stack) > 0 and 'all' not in stack and stack_name not in stack and stack_dir.name not in stack:
+        stack_name = stack_dir.name.replace("-ddvm", "")
+        if len(stack) > 0 and "all" not in stack and stack_name not in stack and stack_dir.name not in stack:
             continue
 
         for _, instance in build_infrastructure(stack_dir.name, try_get_ssh_key(ctx, None)).items():
@@ -1447,7 +1546,7 @@ def ssh_config(
             for domain in instance.microvms:
                 domain_name = domain.tag
                 if multiple_instances_with_same_tag:
-                    id_parts = domain.name.split('-')
+                    id_parts = domain.name.split("-")
                     mem = id_parts[-1]
                     cpu = id_parts[-2]
                     domain_name += f"-mem{mem}-cpu{cpu}"
@@ -1499,7 +1598,7 @@ def status(ctx: Context, stack: str | None = None, all=False, ssh_key: str | Non
         vms_up = 0
 
         for arch, instance in infrastructure.items():
-            if arch == 'local':
+            if arch == "local":
                 status[stack].append("· Local VMs")
                 instances_up += 1
             else:
@@ -1607,9 +1706,9 @@ def update_platform_info(
                 keyvals = {line.split("=")[0]: line.split("=")[1].strip().strip('"') for line in options}
 
             try:
-                arch = Arch.from_str(keyvals['ARCH'])
-                image_name = keyvals['IMAGE_NAME']
-                image_filename = keyvals['IMAGE_FILENAME']
+                arch = Arch.from_str(keyvals["ARCH"])
+                image_name = keyvals["IMAGE_NAME"]
+                image_filename = keyvals["IMAGE_FILENAME"]
             except KeyError as e:
                 raise Exit(f"[!] Invalid manifest {manifest}") from e
 
@@ -1626,10 +1725,10 @@ def update_platform_info(
                 continue
 
             manifest_to_platinfo_keys = {
-                'NAME': 'os_name',
-                'ID': 'os_id',
-                'KERNEL_VERSION': 'kernel',
-                'VERSION_ID': 'os_version',
+                "NAME": "os_name",
+                "ID": "os_id",
+                "KERNEL_VERSION": "kernel",
+                "VERSION_ID": "os_version",
             }
 
             if image_name not in platforms[arch.kmt_arch]:
@@ -1640,17 +1739,17 @@ def update_platform_info(
                 if mkey in keyvals:
                     img_data[pkey] = keyvals[mkey]
 
-            img_data['image'] = image_filename + ".xz"
-            img_data['image_version'] = version
+            img_data["image"] = image_filename + ".xz"
+            img_data["image_version"] = version
 
-            if 'VERSION_CODENAME' in keyvals:
-                altname = keyvals['VERSION_CODENAME']
+            if "VERSION_CODENAME" in keyvals:
+                altname = keyvals["VERSION_CODENAME"]
                 # Do not modify existing altnames
-                altnames = img_data.get('alt_version_names', [])
+                altnames = img_data.get("alt_version_names", [])
                 if altname not in altnames:
                     altnames.append(altname)
 
-                img_data['alt_version_names'] = altnames
+                img_data["alt_version_names"] = altnames
 
     info(f"[+] Writing output to {platforms_file}...")
 
@@ -1663,7 +1762,7 @@ def update_platform_info(
             if exclude_matching is not None and re.search(exclude_matching, image_name) is not None:
                 continue
 
-            version_from_file = platinfo.get('image_version')
+            version_from_file = platinfo.get("image_version")
             if version_from_file != version:
                 warn(
                     f"[!] Image {image_name} ({kmt_arch}) has version {version_from_file} but we are updating to {version}, manifest file may be missing?"
@@ -1681,13 +1780,13 @@ def validate_platform_info(ctx: Context):
 
     for arch in KMT_SUPPORTED_ARCHS:
         for image_name, platinfo in platforms[arch].items():
-            image = platinfo.get('image')
+            image = platinfo.get("image")
             if image is None:
                 warn(f"[!] {image_name} does not have an image filename")
                 errors.add(image_name)
                 continue
 
-            version = platinfo.get('image_version')
+            version = platinfo.get("image_version")
             if version is None:
                 warn(f"[!] {image_name} does not have an image version")
                 errors.add(image_name)
@@ -1906,7 +2005,13 @@ def explain_ci_failure(ctx: Context, pipeline: str | None = None):
         print(
             tabulate(
                 infra_fail_table,
-                headers=["Distro", "Login prompt found", "setup-ddvm ok", "Assigned IP", "Downloaded boot log"],
+                headers=[
+                    "Distro",
+                    "Login prompt found",
+                    "setup-ddvm ok",
+                    "Assigned IP",
+                    "Downloaded boot log",
+                ],
             )
         )
 
@@ -1919,7 +2024,7 @@ def tmux(ctx: Context, stack: str | None = None):
     config to have been generated with the kmt.ssh-config task.
     """
     stack = check_and_get_stack(stack)
-    stack_name = stack.replace('-ddvm', '')
+    stack_name = stack.replace("-ddvm", "")
 
     ctx.run(f"tmux kill-session -t kmt-{stack_name} || true")
     ctx.run(f"tmux new-session -d -s kmt-{stack_name}")
@@ -1937,7 +2042,7 @@ def tmux(ctx: Context, stack: str | None = None):
         for domain in instance.microvms:
             domain_name = domain.tag
             if multiple_instances_with_same_tag:
-                id_parts = domain.name.split('-')
+                id_parts = domain.name.split("-")
                 mem = id_parts[-1]
                 cpu = id_parts[-2]
                 domain_name += f"-mem{mem}-cpu{cpu}"
@@ -1985,7 +2090,7 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
         if not vm_folder.is_dir():
             continue
 
-        vm_name = "-".join(vm_folder.name.split('-')[:2])
+        vm_name = "-".join(vm_folder.name.split("-")[:2])
         vm_list.append(vm_name)
         test_results: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
 
@@ -2167,7 +2272,13 @@ def tag_ci_job(ctx: Context):
 
 
 @task
-def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, component: Component, timeout_sec: int = 3600):
+def wait_for_setup_job(
+    ctx: Context,
+    pipeline_id: int,
+    arch: str | Arch,
+    component: Component,
+    timeout_sec: int = 3600,
+):
     """Wait for the setup job to finish corresponding to the given pipeline, arch and component"""
     arch = Arch.from_str(arch)
     setup_jobs, _ = get_all_jobs_for_pipeline(pipeline_id)
@@ -2262,7 +2373,7 @@ def install_ddagent(
             # hostnames with '_' are not accepted according to RFC1123
             ddyaml["hostname"] = f"{getpass.getuser()}_{d.tag}".replace("_", "-")
             ddyaml["api_key"] = api_key
-            with tempfile.NamedTemporaryFile(mode='w') as tmp:
+            with tempfile.NamedTemporaryFile(mode="w") as tmp:
                 yaml.dump(ddyaml, tmp, Dumper=IndentedDumper, default_flow_style=False)
                 tmp.flush()
                 d.copy(ctx, tmp.name, "/etc/datadog-agent/datadog.yaml")
@@ -2278,13 +2389,18 @@ def install_ddagent(
         "keep_compressed_archives": "Keep the compressed archives after extracting the data. Useful for testing, as it replicates the exact state of the artifacts in CI",
     }
 )
-def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, keep_compressed_archives: bool = False):
+def download_complexity_data(
+    ctx: Context,
+    commit: str,
+    dest_path: str | Path,
+    keep_compressed_archives: bool = False,
+):
     gitlab = get_gitlab_repo()
     dest_path = Path(dest_path)
 
     # We can't get all the pipelines associated with a commit directly, so we get it by the commit statuses
     commit_statuses = gitlab.commits.get(commit, lazy=True).statuses.list(all=True)
-    pipeline_ids = {status.pipeline_id for status in commit_statuses if 'pipeline_id' in status.asdict()}
+    pipeline_ids = {status.pipeline_id for status in commit_statuses if "pipeline_id" in status.asdict()}
     print(f"Found pipelines {pipeline_ids}")
 
     for pipeline_id in pipeline_ids:
@@ -2314,7 +2430,11 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, k
 
 
 @task
-def flare(ctx: Context, dest_folder: Path | str | None = None, keep_uncompressed_files: bool = False):
+def flare(
+    ctx: Context,
+    dest_folder: Path | str | None = None,
+    keep_uncompressed_files: bool = False,
+):
     if dest_folder is None:
         dest_folder = "."
     dest_folder = Path(dest_folder)
