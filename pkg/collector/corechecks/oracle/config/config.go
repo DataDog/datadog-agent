@@ -39,6 +39,10 @@ type InitConfig struct {
 	Loader                string        `yaml:"loader"`
 }
 
+type DatabaseIdentifierConfig struct {
+	Template string `yaml:"template"`
+}
+
 //nolint:revive // TODO(DBM) Fix revive linter
 type QuerySamplesConfig struct {
 	Enabled              bool `yaml:"enabled"`
@@ -158,34 +162,36 @@ func (c ConnectionConfig) QueryTimeoutString() string {
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
 	ConnectionConfig                   `yaml:",inline"`
-	User                               string                 `yaml:"user"`
-	DBM                                bool                   `yaml:"dbm"`
-	PropagateAgentTags                 *bool                  `yaml:"propagate_agent_tags"`
-	Tags                               []string               `yaml:"tags"`
-	LogUnobfuscatedQueries             bool                   `yaml:"log_unobfuscated_queries"`
-	ObfuscatorOptions                  obfuscate.SQLConfig    `yaml:"obfuscator_options"`
-	InstantClient                      bool                   `yaml:"instant_client"`
-	ReportedHostname                   string                 `yaml:"reported_hostname"`
-	QuerySamples                       QuerySamplesConfig     `yaml:"query_samples"`
-	QueryMetrics                       QueryMetricsConfig     `yaml:"query_metrics"`
-	SysMetrics                         SysMetricsConfig       `yaml:"sysmetrics"`
-	Tablespaces                        TablespacesConfig      `yaml:"tablespaces"`
-	ProcessMemory                      ProcessMemoryConfig    `yaml:"process_memory"`
-	InactiveSessions                   inactiveSessionsConfig `yaml:"inactive_sessions"`
-	UserSessionsCount                  userSessionsCount      `yaml:"user_sessions_count"`
-	SharedMemory                       SharedMemoryConfig     `yaml:"shared_memory"`
-	ExecutionPlans                     ExecutionPlansConfig   `yaml:"execution_plans"`
-	AgentSQLTrace                      AgentSQLTrace          `yaml:"agent_sql_trace"`
-	UseGlobalCustomQueries             string                 `yaml:"use_global_custom_queries"`
-	CustomQueries                      []CustomQuery          `yaml:"custom_queries"`
-	MetricCollectionInterval           int64                  `yaml:"metric_collection_interval"`
-	DatabaseInstanceCollectionInterval int64                  `yaml:"database_instance_collection_interval"`
-	Asm                                asmConfig              `yaml:"asm"`
-	ResourceManager                    resourceManagerConfig  `yaml:"resource_manager"`
-	Locks                              locksConfig            `yaml:"locks"`
-	OnlyCustomQueries                  bool                   `yaml:"only_custom_queries"`
-	Service                            string                 `yaml:"service"`
-	Loader                             string                 `yaml:"loader"`
+	User                               string                   `yaml:"user"`
+	DBM                                bool                     `yaml:"dbm"`
+	PropagateAgentTags                 *bool                    `yaml:"propagate_agent_tags"`
+	Tags                               []string                 `yaml:"tags"`
+	LogUnobfuscatedQueries             bool                     `yaml:"log_unobfuscated_queries"`
+	ObfuscatorOptions                  obfuscate.SQLConfig      `yaml:"obfuscator_options"`
+	InstantClient                      bool                     `yaml:"instant_client"`
+	ExcludeHostname                    bool                     `yaml:"exclude_hostname"`
+	DatabaseIdentifier                 DatabaseIdentifierConfig `yaml:"database_identifier"`
+	ReportedHostname                   string                   `yaml:"reported_hostname"`
+	QuerySamples                       QuerySamplesConfig       `yaml:"query_samples"`
+	QueryMetrics                       QueryMetricsConfig       `yaml:"query_metrics"`
+	SysMetrics                         SysMetricsConfig         `yaml:"sysmetrics"`
+	Tablespaces                        TablespacesConfig        `yaml:"tablespaces"`
+	ProcessMemory                      ProcessMemoryConfig      `yaml:"process_memory"`
+	InactiveSessions                   inactiveSessionsConfig   `yaml:"inactive_sessions"`
+	UserSessionsCount                  userSessionsCount        `yaml:"user_sessions_count"`
+	SharedMemory                       SharedMemoryConfig       `yaml:"shared_memory"`
+	ExecutionPlans                     ExecutionPlansConfig     `yaml:"execution_plans"`
+	AgentSQLTrace                      AgentSQLTrace            `yaml:"agent_sql_trace"`
+	UseGlobalCustomQueries             string                   `yaml:"use_global_custom_queries"`
+	CustomQueries                      []CustomQuery            `yaml:"custom_queries"`
+	MetricCollectionInterval           int64                    `yaml:"metric_collection_interval"`
+	DatabaseInstanceCollectionInterval int64                    `yaml:"database_instance_collection_interval"`
+	Asm                                asmConfig                `yaml:"asm"`
+	ResourceManager                    resourceManagerConfig    `yaml:"resource_manager"`
+	Locks                              locksConfig              `yaml:"locks"`
+	OnlyCustomQueries                  bool                     `yaml:"only_custom_queries"`
+	Service                            string                   `yaml:"service"`
+	Loader                             string                   `yaml:"loader"`
 }
 
 // QueryTimeoutDuration returns query_timeout as time.Duration.
@@ -238,6 +244,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	initCfg := InitConfig{}
 
 	// Defaults begin
+	instance.DatabaseIdentifier = DatabaseIdentifierConfig{Template: "$resolved_hostname"}
+
 	var defaultMetricCollectionInterval int64 = 60
 	instance.MetricCollectionInterval = defaultMetricCollectionInterval
 
