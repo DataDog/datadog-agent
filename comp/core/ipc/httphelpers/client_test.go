@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package http
+package httphelpers
 
 import (
 	"context"
@@ -136,6 +136,39 @@ func TestDoGet(t *testing.T) {
 		_, err := client.Get(ts.URL, WithContext(ctx))
 		require.Error(t, err)
 	})
+}
+
+func TestPostChunk(t *testing.T) {
+	handler := func(w http.ResponseWriter, _ *http.Request) {
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.WriteHeader(http.StatusOK)
+
+		for _, chunk := range []string{"chunk1", "chunk2", "chunk3"} {
+			_, err := fmt.Fprint(w, chunk)
+			require.NoError(t, err)
+			flusher.Flush()
+		}
+	}
+	client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler))
+
+	var receivedChunks [][]byte
+	onChunk := func(chunk []byte) {
+		// Copy chunk as the buffer might be reused
+		copiedChunk := make([]byte, len(chunk))
+		copy(copiedChunk, chunk)
+		receivedChunks = append(receivedChunks, copiedChunk)
+	}
+
+	err := client.PostChunk(ts.URL, "application/json", nil, onChunk)
+	require.NoError(t, err)
+
+	expectedChunks := [][]byte{[]byte("chunk1"), []byte("chunk2"), []byte("chunk3")}
+	require.Equal(t, expectedChunks, receivedChunks)
 }
 
 func TestNewIPCEndpoint(t *testing.T) {

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package http implements helpers for HTTP communication between Agent processes
-package http
+// Package httphelpers implements helpers for HTTP communication between Agent processes
+package httphelpers
 
 import (
 	"context"
@@ -18,7 +18,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -45,76 +44,13 @@ func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmo
 	}
 }
 
-func (s *ipcClient) Do(req *http.Request, opts ...ipc.RequestOption) (resp []byte, err error) {
-	var cb []func()
-	onEnded := func(fn func()) {
-		cb = append(cb, fn)
-	}
-	defer func() {
-		for _, fn := range cb {
-			fn()
-		}
-	}()
-
-	for _, opt := range opts {
-		req = opt(req, onEnded)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+s.authToken)
-
-	r, err := s.Client.Do(req)
-
-	if err != nil {
-		return resp, err
-	}
-	body, err := io.ReadAll(r.Body)
-	r.Body.Close()
-	if err != nil {
-		return body, err
-	}
-	if r.StatusCode >= 400 {
-		return body, errors.New(string(body))
-	}
-	return body, nil
-}
-
 func (s *ipcClient) Get(url string, opts ...ipc.RequestOption) (resp []byte, err error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var cb []func()
-	onEnded := func(fn func()) {
-		cb = append(cb, fn)
-	}
-	defer func() {
-		for _, fn := range cb {
-			fn()
-		}
-	}()
-
-	for _, opt := range opts {
-		req = opt(req, onEnded)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+s.authToken)
-	r, err := s.Client.Do(req)
-
-	if err != nil {
-		return resp, err
-	}
-	body, err := io.ReadAll(r.Body)
-	r.Body.Close()
-	if err != nil {
-		return body, err
-	}
-	if r.StatusCode >= 400 {
-		return body, errors.New(string(body))
-	}
-	return body, nil
+	return s.Do(req, opts...)
 }
 
 func (s *ipcClient) Head(url string, opts ...ipc.RequestOption) (resp []byte, err error) {
@@ -123,36 +59,11 @@ func (s *ipcClient) Head(url string, opts ...ipc.RequestOption) (resp []byte, er
 		return nil, err
 	}
 
-	var cb []func()
-	onEnded := func(fn func()) {
-		cb = append(cb, fn)
-	}
-	defer func() {
-		for _, fn := range cb {
-			fn()
-		}
-	}()
+	return s.Do(req, opts...)
+}
 
-	for _, opt := range opts {
-		req = opt(req, onEnded)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+s.authToken)
-	r, err := s.Client.Do(req)
-
-	if err != nil {
-		return resp, err
-	}
-	body, err := io.ReadAll(r.Body)
-	r.Body.Close()
-	if err != nil {
-		return body, err
-	}
-	if r.StatusCode >= 400 {
-		return body, errors.New(string(body))
-	}
-	return body, nil
+func (s *ipcClient) Do(req *http.Request, opts ...ipc.RequestOption) (resp []byte, err error) {
+	return s.do(req, "application/json", nil, opts...)
 }
 
 func (s *ipcClient) Post(url string, contentType string, body io.Reader, opts ...ipc.RequestOption) (resp []byte, err error) {
@@ -161,36 +72,7 @@ func (s *ipcClient) Post(url string, contentType string, body io.Reader, opts ..
 		return nil, err
 	}
 
-	var cb []func()
-	onEnded := func(fn func()) {
-		cb = append(cb, fn)
-	}
-	defer func() {
-		for _, fn := range cb {
-			fn()
-		}
-	}()
-
-	for _, opt := range opts {
-		req = opt(req, onEnded)
-	}
-
-	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("Authorization", "Bearer "+s.authToken)
-	r, err := s.Client.Do(req)
-
-	if err != nil {
-		return resp, err
-	}
-	respBody, err := io.ReadAll(r.Body)
-	r.Body.Close()
-	if err != nil {
-		return respBody, err
-	}
-	if r.StatusCode >= 400 {
-		return respBody, errors.New(string(respBody))
-	}
-	return respBody, nil
+	return s.do(req, contentType, nil, opts...)
 }
 
 func (s *ipcClient) PostChunk(url string, contentType string, body io.Reader, onChunk func([]byte), opts ...ipc.RequestOption) (err error) {
@@ -199,47 +81,59 @@ func (s *ipcClient) PostChunk(url string, contentType string, body io.Reader, on
 		return err
 	}
 
-	var cb []func()
-	onEnded := func(fn func()) {
-		cb = append(cb, fn)
-	}
-	defer func() {
-		for _, fn := range cb {
-			fn()
-		}
-	}()
-
-	for _, opt := range opts {
-		req = opt(req, onEnded)
-	}
-
-	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("Authorization", "Bearer "+s.authToken)
-	r, err := s.Client.Do(req)
-
-	if err != nil {
-		return err
-	}
-	defer r.Body.Close()
-
-	var m int
-	buf := make([]byte, 4096)
-	for {
-		m, err = r.Body.Read(buf)
-		if m < 0 || err != nil {
-			break
-		}
-		onChunk(buf[:m])
-	}
-
-	if r.StatusCode == 200 {
-		return nil
-	}
+	_, err = s.do(req, contentType, onChunk, opts...)
 	return err
 }
 
 func (s *ipcClient) PostForm(url string, data url.Values, opts ...ipc.RequestOption) (resp []byte, err error) {
 	return s.Post(url, "application/x-www-form-urlencoded", strings.NewReader(data.Encode()), opts...)
+}
+
+func (s *ipcClient) do(req *http.Request, contentType string, onChunk func([]byte), opts ...ipc.RequestOption) (resp []byte, err error) {
+
+	// Apply all options to the request
+	for _, opt := range opts {
+		req = opt(req)
+	}
+
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Authorization", "Bearer "+s.authToken)
+
+	r, err := s.Client.Do(req)
+
+	if err != nil {
+		return resp, err
+	}
+
+	// If onChunk is provided, read the body and call the callback for each chunk
+	if onChunk != nil {
+		var m int
+		buf := make([]byte, 4096)
+		for {
+			m, err = r.Body.Read(buf)
+			if m < 0 || err != nil {
+				break
+			}
+			onChunk(buf[:m])
+		}
+		r.Body.Close()
+		if r.StatusCode == 200 {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	// If onChunk is not provided, read the body and return it
+	body, err := io.ReadAll(r.Body)
+	r.Body.Close()
+	if err != nil {
+		return body, err
+	}
+
+	if r.StatusCode >= 400 {
+		return body, errors.New(string(body))
+	}
+	return body, nil
 }
 
 // IPCEndpoint section
@@ -308,40 +202,28 @@ func (end *IPCEndpoint) DoGet(options ...ipc.RequestOption) ([]byte, error) {
 }
 
 // WithCloseConnection is a request option that closes the connection after the request
-func WithCloseConnection(req *http.Request, _ func(func())) *http.Request {
+func WithCloseConnection(req *http.Request) *http.Request {
 	req.Close = true
 	return req
 }
 
 // WithLeaveConnectionOpen is a request option that leaves the connection open after the request
-func WithLeaveConnectionOpen(req *http.Request, _ func(func())) *http.Request {
+func WithLeaveConnectionOpen(req *http.Request) *http.Request {
 	req.Close = false
 	return req
 }
 
 // WithContext is a request option that sets the context for the request
 func WithContext(ctx context.Context) ipc.RequestOption {
-	return func(req *http.Request, _ func(func())) *http.Request {
-		return req.WithContext(ctx)
-	}
-}
-
-// WithTimeout is a request option that sets the timeout for the request
-func WithTimeout(to time.Duration) ipc.RequestOption {
-	return func(req *http.Request, onEnding func(func())) *http.Request {
-		if to == 0 {
-			return req
-		}
-
-		ctx, cncl := context.WithTimeout(context.Background(), to) // TODO IPC: handle call of WithContext and WithTimeout in the same time
-		onEnding(cncl)
-		return req.WithContext(ctx)
+	return func(req *http.Request) *http.Request {
+		req = req.WithContext(ctx)
+		return req
 	}
 }
 
 // WithValues is a request option that sets the values for the request
 func WithValues(values url.Values) ipc.RequestOption {
-	return func(req *http.Request, _ func(func())) *http.Request {
+	return func(req *http.Request) *http.Request {
 		req.URL.RawQuery = values.Encode()
 		return req
 	}

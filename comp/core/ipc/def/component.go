@@ -54,7 +54,7 @@ type Component interface {
 }
 
 // RequestOption allows to specify custom behavior for requests
-type RequestOption func(req *http.Request, onEnding func(func())) *http.Request
+type RequestOption func(req *http.Request) *http.Request
 
 // HTTPClient is a HTTP client that abstracts communications between Agent processes
 type HTTPClient interface {
