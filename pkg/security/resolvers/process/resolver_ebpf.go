@@ -573,9 +573,9 @@ func (p *EBPFResolver) insertEntry(entry, prev *model.ProcessCacheEntry, source 
 		if prevEntry != nil {
 			prevEntry.Release()
 		}
-		if prev != nil {
-			prev.Release()
-		}
+	}
+	if prev != nil {
+		prev.Release()
 	}
 
 	p.entryCache[entry.Pid] = entry
@@ -714,7 +714,7 @@ func (p *EBPFResolver) resolve(pid, tid uint32, inode uint64, useProcFS bool, ne
 
 	if p.procFallbackLimiter.Allow(pid) {
 		// fallback to /proc, the in-kernel LRU may have deleted the entry
-		if entry := p.resolveFromProcfs(pid, procResolveMaxDepth, newEntryCb); entry != nil {
+		if entry := p.resolveFromProcfs(pid, inode, procResolveMaxDepth, newEntryCb); entry != nil {
 			p.hitsStats[metrics.ProcFSTag].Inc()
 			return entry
 		}
@@ -958,13 +958,13 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 }
 
 // ResolveFromProcfs resolves the entry from procfs
-func (p *EBPFResolver) ResolveFromProcfs(pid uint32, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
+func (p *EBPFResolver) ResolveFromProcfs(pid uint32, inode uint64, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
-	return p.resolveFromProcfs(pid, procResolveMaxDepth, newEntryCb)
+	return p.resolveFromProcfs(pid, inode, procResolveMaxDepth, newEntryCb)
 }
 
-func (p *EBPFResolver) resolveFromProcfs(pid uint32, maxDepth int, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
+func (p *EBPFResolver) resolveFromProcfs(pid uint32, inode uint64, maxDepth int, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
 	if maxDepth < 1 {
 		seclog.Tracef("max depth reached during procfs resolution: %d", pid)
 		return nil
@@ -994,10 +994,12 @@ func (p *EBPFResolver) resolveFromProcfs(pid uint32, maxDepth int, newEntryCb fu
 
 	ppid := uint32(filledProc.Ppid)
 	if ppid != 0 && p.entryCache[ppid] == nil {
-		p.resolveFromProcfs(ppid, maxDepth-1, newEntryCb)
+		// do not use the inode from the pid context on the parent
+		// it may be a different process
+		p.resolveFromProcfs(ppid, 0, maxDepth-1, newEntryCb)
 	}
 
-	return p.newEntryFromProcfsAndSyncKernelMaps(proc, filledProc, model.ProcessCacheEntryFromProcFS, newEntryCb)
+	return p.newEntryFromProcfsAndSyncKernelMaps(proc, filledProc, inode, model.ProcessCacheEntryFromProcFS, newEntryCb)
 }
 
 // SetProcessArgs set arguments to cache entry
@@ -1292,7 +1294,7 @@ func (p *EBPFResolver) SyncCache(proc *process.Process) {
 		return
 	}
 
-	p.newEntryFromProcfsAndSyncKernelMaps(proc, filledProc, model.ProcessCacheEntryFromSnapshot, nil)
+	p.newEntryFromProcfsAndSyncKernelMaps(proc, filledProc, 0, model.ProcessCacheEntryFromSnapshot, nil)
 }
 
 func (p *EBPFResolver) setAncestor(pce *model.ProcessCacheEntry) {
@@ -1303,7 +1305,7 @@ func (p *EBPFResolver) setAncestor(pce *model.ProcessCacheEntry) {
 }
 
 // newEntryFromProcfsAndSyncKernelMaps snapshots /proc for the provided pid and sync the kernel maps
-func (p *EBPFResolver) newEntryFromProcfsAndSyncKernelMaps(proc *process.Process, filledProc *utils.FilledProcess, source uint64, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
+func (p *EBPFResolver) newEntryFromProcfsAndSyncKernelMaps(proc *process.Process, filledProc *utils.FilledProcess, inode uint64, source uint64, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
 	pid := uint32(proc.Pid)
 
 	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
@@ -1314,6 +1316,13 @@ func (p *EBPFResolver) newEntryFromProcfsAndSyncKernelMaps(proc *process.Process
 		return nil
 	}
 
+	// use the inode from the pid context if set
+	if inode != 0 {
+		if entry.FileEvent.Inode != inode {
+			seclog.Errorf("inode mismatch, using inode from pid context: %d != %d", entry.FileEvent.Inode, inode)
+		}
+		entry.FileEvent.Inode = inode
+	}
 	entry.IsKworker = filledProc.Ppid == 0 && filledProc.Pid != 1
 
 	parent := p.entryCache[entry.PPid]
