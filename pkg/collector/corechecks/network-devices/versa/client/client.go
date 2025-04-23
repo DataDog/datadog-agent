@@ -256,46 +256,9 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 	return appliances, nil
 }
 
-// GetAppliancesLite retrieves a list of appliances in a paginated manner
-// func (client *Client) GetAppliancesLite() ([]ApplianceLite, error) {
-// 	var appliances []ApplianceLite
-
-// 	params := map[string]string{
-// 		"limit":  client.maxCount,
-// 		"offset": "0",
-// 	}
-
-// 	resp, err := get[ApplianceLiteResponse](client, "/versa/ncs-services/vnms/appliance/appliance/lite", params)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to get appliance lite response: %v", err)
-// 	}
-// 	appliances = resp.Appliances
-
-// 	for len(appliances) < resp.TotalCount {
-// 		params["offset"] = fmt.Sprintf("%d", len(appliances))
-// 		resp, err = get[ApplianceLiteResponse](client, "/versa/ncs-services/vnms/appliance/appliance/lite", params)
-// 		if err != nil {
-// 			return nil, fmt.Errorf("failed to get appliance lite response: %v", err)
-// 		}
-// 		appliances = append(appliances, resp.Appliances...)
-// 	}
-
-// 	return appliances, nil
-// }
-
-// GetControllerMetadata retrieves the controller metadata
-func (client *Client) GetControllerMetadata() ([]ControllerStatus, error) {
-	resp, err := get[ControllerResponse](client, "/versa/ncs-services/vnms/dashboard/status/headEnds", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get controller metadata: %v", err)
-	}
-
-	return resp.ControllerStatuses, nil
-}
-
 // GetDirectorStatus retrieves the director status
 func (client *Client) GetDirectorStatus() (*DirectorStatus, error) {
-	resp, err := get[DirectorStatus](client, "/versa/ncs-services/vnms/dashboard/status/director", nil)
+	resp, err := get[DirectorStatus](client, "/vnms/dashboard/vdStatus", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get director status: %v", err)
 	}

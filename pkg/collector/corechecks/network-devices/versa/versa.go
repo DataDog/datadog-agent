@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/payload"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/report"
+	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -72,11 +73,16 @@ func (v *VersaCheck) Run() error {
 		return fmt.Errorf("error creating Versa client: %w", err)
 	}
 
+	// Get all the organizations, so we can get the appliances
+	// for each. We should only need to get the top level organizations
+	// which act as tenants. Appliances of child tennants should be part
+	// of the parent tenant.
 	organizations, err := c.GetOrganizations()
 	if err != nil {
 		return fmt.Errorf("error getting organizations from Versa client: %w", err)
 	}
 
+	// Gather appliances for each organization
 	var appliances []client.Appliance
 	for _, org := range organizations {
 		orgAppliances, err := c.GetChildAppliancesDetail(org.Name)
@@ -90,10 +96,26 @@ func (v *VersaCheck) Run() error {
 		appliances = append(appliances, orgAppliances...)
 	}
 
-	devicesMetadata := payload.GetDevicesMetadata(v.config.Namespace, appliances)
+	// Get director status
+	directorStatus, err := c.GetDirectorStatus()
+	if err != nil {
+		return fmt.Errorf("error getting director status from Versa client: %w", err)
+	}
 
+	// Convert Versa objects to device metadata
+	deviceMetadata := make([]devicemetadata.DeviceMetadata, len(appliances)+1)
+	deviceMetadata = append(deviceMetadata, payload.GetDeviceMetadataFromAppliances(v.config.Namespace, appliances)...)
+
+	directorDeviceMetdata, err := payload.GetDeviceMetadataFromDirector(v.config.Namespace, directorStatus)
+	if err != nil {
+		log.Errorf("error getting director device metadata: %v", err)
+	} else {
+		deviceMetadata = append(deviceMetadata, directorDeviceMetdata)
+	}
+
+	// Send the metadata to the metrics sender
 	if *v.config.SendNDMMetadata {
-		v.metricsSender.SendMetadata(devicesMetadata, nil, nil)
+		v.metricsSender.SendMetadata(deviceMetadata, nil, nil)
 	}
 
 	// TODO: send metrics from the appliance detail call

@@ -9,32 +9,10 @@ package client
 // Content encapsulates the content types of the Versa API
 type Content interface {
 	[]Appliance |
-		ControllerResponse |
-		DirectorStatus |
 		int | // for row counts
 		[]TenantConfig |
-		OrganizationListResponse
-}
-
-// ControllerResponse /versa/ncs-services/vnms/dashboard/status/headEnds
-type ControllerResponse struct {
-	ControllerStatuses []ControllerStatus `json:"applianceStatus"`
-	HAStatus           ControllerHAStatus `json:"haStatus"`
-}
-
-// HAStatus encapsulates HA status metadata for a headend
-type ControllerHAStatus struct {
-	Enabled bool `json:"enabled"`
-}
-
-// ControllerStatus encapsulates metadata for a controller
-type ControllerStatus struct {
-	Name       string `json:"name"`
-	UUID       string `json:"uuid"`
-	Status     string `json:"status"`
-	LockStatus string `json:"lockStatus"`
-	SyncStatus string `json:"syncStatus"`
-	IPAddress  string `json:"ip-address"`
+		OrganizationListResponse |
+		DirectorStatus
 }
 
 // DirectorStatus /versa/ncs-services/vnms/dashboard/vdStatus
