@@ -78,6 +78,11 @@ func (m *MockSender) AssertMetricWithTimestamp(t *testing.T, method string, metr
 	return m.Mock.AssertCalled(t, method, metric, value, hostname, MatchTagsContains(tags), ts)
 }
 
+// AssertMetricMissing assert the expected metric  was never emitted
+func (m *MockSender) AssertMetricMissing(t *testing.T, method string, metric string) bool {
+	return m.Mock.AssertNotCalled(t, method, metric, mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+}
+
 // AssertEvent assert the expectedEvent was emitted with the following values:
 // AggregationKey, Priority, SourceTypeName, EventType, Host and a Ts range weighted with the parameter allowedDelta
 func (m *MockSender) AssertEvent(t *testing.T, expectedEvent event.Event, allowedDelta time.Duration) bool {

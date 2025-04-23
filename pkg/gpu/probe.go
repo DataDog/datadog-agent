@@ -16,11 +16,10 @@ import (
 	"regexp"
 	"time"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -30,16 +29,13 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	gpuAttacherName    = GpuModuleName
-	gpuTelemetryModule = GpuModuleName
-
 	// consumerChannelSize controls the size of the go channel that buffers ringbuffer
 	// events (*ddebpf.RingBufferHandler).
 	// This value must be multiplied by the single event size and the result will represent the heap memory pre-allocated in Go runtime
@@ -61,6 +57,7 @@ const (
 	cudaSetDeviceCacheMap  bpfMapName = "cuda_set_device_cache"
 	cudaEventStreamMap     bpfMapName = "cuda_event_to_stream"
 	cudaEventQueryCacheMap bpfMapName = "cuda_event_query_cache"
+	cudaMemcpyCacheMap     bpfMapName = "cuda_memcpy_cache"
 )
 
 // probeFuncName stores the ebpf hook function name
@@ -81,6 +78,8 @@ const (
 	cudaEventSynchronizeProbe    probeFuncName = "uprobe__cudaEventSynchronize"
 	cudaEventSynchronizeRetProbe probeFuncName = "uretprobe__cudaEventSynchronize"
 	cudaEventDestroyProbe        probeFuncName = "uprobe__cudaEventDestroy"
+	cudaMemcpyProbe              probeFuncName = "uprobe__cudaMemcpy"
+	cudaMemcpyRetProbe           probeFuncName = "uretprobe__cudaMemcpy"
 )
 
 // ProbeDependencies holds the dependencies for the probe
@@ -88,30 +87,12 @@ type ProbeDependencies struct {
 	// Telemetry is the telemetry component
 	Telemetry telemetry.Component
 
-	// NvmlLib is the NVML library interface
-	NvmlLib nvml.Interface
-
 	// ProcessMonitor is the process monitor interface
 	ProcessMonitor uprobes.ProcessMonitor
 
 	// WorkloadMeta used to retrieve data about workloads (containers, processes) running
 	// on the host
 	WorkloadMeta workloadmeta.Component
-}
-
-// NewProbeDependencies creates a new ProbeDependencies instance
-func NewProbeDependencies(telemetry telemetry.Component, processMonitor uprobes.ProcessMonitor, workloadMeta workloadmeta.Component) (ProbeDependencies, error) {
-	nvmlLib, err := ddnvml.GetNvmlLib()
-	if err != nil {
-		return ProbeDependencies{}, fmt.Errorf("unable to get NVML library: %w", err)
-	}
-
-	return ProbeDependencies{
-		Telemetry:      telemetry,
-		NvmlLib:        nvmlLib,
-		ProcessMonitor: processMonitor,
-		WorkloadMeta:   workloadMeta,
-	}, nil
 }
 
 // Probe represents the GPU monitoring probe
@@ -134,7 +115,7 @@ type probeTelemetry struct {
 }
 
 func newProbeTelemetry(tm telemetry.Component) *probeTelemetry {
-	subsystem := gpuTelemetryModule + "__probe"
+	subsystem := consts.GpuTelemetryModule + "__probe"
 
 	return &probeTelemetry{
 		sentEntries: tm.NewCounter(subsystem, "sent_entries", nil, "Number of GPU events sent to the agent"),
@@ -154,13 +135,16 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		return nil, fmt.Errorf("%s probe supports CO-RE or Runtime Compilation modes, but none of them are enabled", sysconfig.GPUMonitoringModule)
 	}
 
-	attachCfg := getAttacherConfig(cfg)
-	sysCtx, err := getSystemContext(deps.NvmlLib, cfg.ProcRoot, deps.WorkloadMeta, deps.Telemetry)
+	sysCtx, err := getSystemContext(
+		withProcRoot(cfg.ProcRoot),
+		withWorkloadMeta(deps.WorkloadMeta),
+		withTelemetry(deps.Telemetry),
+		withFatbinParsingEnabled(cfg.EnableFatbinParsing),
+		withConfig(cfg),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
-
-	sysCtx.fatbinParsingEnabled = cfg.EnableFatbinParsing
 
 	p := &Probe{
 		cfg:       cfg,
@@ -193,12 +177,13 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		}
 	}
 
-	p.attacher, err = uprobes.NewUprobeAttacher(GpuModuleName, gpuAttacherName, attachCfg, p.m, nil, &uprobes.NativeBinaryInspector{}, deps.ProcessMonitor)
+	attachCfg := getAttacherConfig(cfg)
+	p.attacher, err = uprobes.NewUprobeAttacher(consts.GpuModuleName, consts.GpuAttacherName, attachCfg, p.m, nil, &uprobes.NativeBinaryInspector{}, deps.ProcessMonitor)
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
 
-	p.streamHandlers = newStreamCollection(sysCtx, deps.Telemetry)
+	p.streamHandlers = newStreamCollection(sysCtx, deps.Telemetry, cfg)
 	p.consumer = newCudaEventConsumer(sysCtx, p.streamHandlers, p.eventHandler, p.cfg, deps.Telemetry)
 	p.statsGenerator = newStatsGenerator(sysCtx, p.streamHandlers, deps.Telemetry)
 
@@ -217,7 +202,7 @@ func (p *Probe) start() error {
 	if err := p.m.Start(); err != nil {
 		return fmt.Errorf("failed to start manager: %w", err)
 	}
-	ddebpf.AddNameMappings(p.m.Manager, GpuModuleName)
+	ddebpf.AddNameMappings(p.m.Manager, consts.GpuModuleName)
 
 	if err := p.attacher.Start(); err != nil {
 		return fmt.Errorf("error starting uprobes attacher: %w", err)
@@ -229,7 +214,7 @@ func (p *Probe) start() error {
 func (p *Probe) Close() {
 	p.attacher.Stop()
 	_ = p.m.Stop(manager.CleanAll)
-	ddebpf.ClearNameMappings(GpuModuleName)
+	ddebpf.ClearNameMappings(consts.GpuModuleName)
 	p.consumer.Stop()
 	p.eventHandler.Stop()
 }
@@ -240,16 +225,21 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error getting current time: %w", err)
 	}
-	stats := p.statsGenerator.getStats(now)
+
+	stats, err := p.statsGenerator.getStats(now)
+	if err != nil {
+		return nil, err
+	}
+
 	p.telemetry.sentEntries.Add(float64(len(stats.Metrics)))
-	p.cleanupFinished()
+	p.cleanupFinished(now)
 
 	return stats, nil
 }
 
-func (p *Probe) cleanupFinished() {
+func (p *Probe) cleanupFinished(nowKtime int64) {
 	p.statsGenerator.cleanupFinishedAggregators()
-	p.streamHandlers.clean()
+	p.streamHandlers.clean(nowKtime)
 }
 
 func (p *Probe) initRCGPU(cfg *config.Config) error {
@@ -294,6 +284,7 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 			{Name: cudaSetDeviceCacheMap},
 			{Name: cudaEventStreamMap},
 			{Name: cudaEventQueryCacheMap},
+			{Name: cudaMemcpyCacheMap},
 		}}, "gpu", &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	if opts.MapSpecEditors == nil {
@@ -380,6 +371,8 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventSynchronizeProbe}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventSynchronizeRetProbe}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventDestroyProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaMemcpyProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaMemcpyRetProbe}},
 						},
 					},
 				},
@@ -390,7 +383,7 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 		SharedLibsLibset:               sharedlibraries.LibsetGPU,
 		ScanProcessesInterval:          cfg.ScanProcessesInterval,
 		EnablePeriodicScanNewProcesses: true,
-		EnableDetailedLogging:          true,
+		EnableDetailedLogging:          false,
 	}
 }
 
@@ -400,7 +393,7 @@ func (p *Probe) setupMapCleaner() error {
 		return fmt.Errorf("error getting %s map: %w", cudaEventStreamMap, err)
 	}
 
-	p.mapCleanerEvents, err = ddebpf.NewMapCleaner[gpuebpf.CudaEventKey, gpuebpf.CudaEventValue](eventsMap, defaultMapCleanerBatchSize, cudaEventStreamMap, GpuModuleName)
+	p.mapCleanerEvents, err = ddebpf.NewMapCleaner[gpuebpf.CudaEventKey, gpuebpf.CudaEventValue](eventsMap, defaultMapCleanerBatchSize, cudaEventStreamMap, consts.GpuModuleName)
 	if err != nil {
 		return fmt.Errorf("error creating map cleaner: %w", err)
 	}

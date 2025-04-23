@@ -37,7 +37,8 @@ include:
   - .gitlab/post_rc_build/post_rc_tasks.yml
   - .gitlab/setup/setup.yml
   - .gitlab/source_test/include.yml
-  - .gitlab/trigger_release/trigger_release.yml
+  - .gitlab/trigger_release/agent.yml
+  - .gitlab/trigger_release/installer.yml
 
 default:
   retry:
@@ -159,6 +160,7 @@ variables:
   S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
   S3_DD_AGENT_OMNIBUS_JAVA_URI: s3://dd-agent-omnibus/openjdk
   BTFHUB_ARCHIVE_BRANCH: main
+  COMPARE_TO_BRANCH: main
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION: nightly
@@ -167,45 +169,45 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v60734531-407a0ea8
+  DATADOG_AGENT_BUILDIMAGES: v62994096-9c8f38f2
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v60734531-407a0ea8
+  DATADOG_AGENT_WINBUILDIMAGES: v62994096-9c8f38f2
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v60734531-407a0ea8
+  DATADOG_AGENT_ARMBUILDIMAGES: v62994096-9c8f38f2
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v60734531-407a0ea8
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v62994096-9c8f38f2
   # New images to enable different version per image - not used yet
-  CI_IMAGE_BTF_GEN: v60734531-407a0ea8
+  CI_IMAGE_BTF_GEN: v62994096-9c8f38f2
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DEB_X64: v60734531-407a0ea8
+  CI_IMAGE_DEB_X64: v62994096-9c8f38f2
   CI_IMAGE_DEB_X64_SUFFIX: ""
-  CI_IMAGE_DEB_ARM64: v60734531-407a0ea8
+  CI_IMAGE_DEB_ARM64: v62994096-9c8f38f2
   CI_IMAGE_DEB_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v60734531-407a0ea8
+  CI_IMAGE_DEB_ARMHF: v62994096-9c8f38f2
   CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_DD_AGENT_TESTING: v60734531-407a0ea8
+  CI_IMAGE_DD_AGENT_TESTING: v62994096-9c8f38f2
   CI_IMAGE_DD_AGENT_TESTING_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v60734531-407a0ea8
+  CI_IMAGE_DOCKER_X64: v62994096-9c8f38f2
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v60734531-407a0ea8
+  CI_IMAGE_DOCKER_ARM64: v62994096-9c8f38f2
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v60734531-407a0ea8
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v62994096-9c8f38f2
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_17_X64: v60734531-407a0ea8
+  CI_IMAGE_LINUX_GLIBC_2_17_X64: v62994096-9c8f38f2
   CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v60734531-407a0ea8
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v62994096-9c8f38f2
   CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_X64: v60734531-407a0ea8
+  CI_IMAGE_SYSTEM_PROBE_X64: v62994096-9c8f38f2
   CI_IMAGE_SYSTEM_PROBE_X64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_ARM64: v60734531-407a0ea8
+  CI_IMAGE_SYSTEM_PROBE_ARM64: v62994096-9c8f38f2
   CI_IMAGE_SYSTEM_PROBE_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v60734531-407a0ea8
+  CI_IMAGE_RPM_X64: v62994096-9c8f38f2
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v60734531-407a0ea8
+  CI_IMAGE_RPM_ARM64: v62994096-9c8f38f2
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v60734531-407a0ea8
+  CI_IMAGE_RPM_ARMHF: v62994096-9c8f38f2
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v60734531-407a0ea8
+  CI_IMAGE_WIN_LTSC2022_X64: v62994096-9c8f38f2
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -227,10 +229,10 @@ variables:
 
   # Start aws ssm variables
   # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
-  API_KEY_ORG2: ci.datadog-agent.datadog_api_key_org2  # agent-devx-infra
-  CHANGELOG_COMMIT_SHA: ci.datadog-agent.gitlab_changelog_commit_sha  # agent-devx-infra
+  API_KEY_ORG2: ci.datadog-agent.datadog_api_key_org2  # agent-devx
+  CHANGELOG_COMMIT_SHA: ci.datadog-agent.gitlab_changelog_commit_sha  # agent-devx
   CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key  # windows-agent
-  CODECOV_TOKEN: ci.datadog-agent.codecov_token  # agent-devx-infra
+  CODECOV_TOKEN: ci.datadog-agent.codecov_token  # agent-devx
   DEB_GPG_KEY: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}  # agent-delivery
   DEB_SIGNING_PASSPHRASE: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}  # agent-delivery
   DOCKER_REGISTRY_LOGIN: ci.datadog-agent.docker_hub_login  # container-integrations
@@ -242,20 +244,20 @@ variables:
   # End aws ssm variables
 
   # Start vault variables
-  AGENT_API_KEY_ORG2: agent-api-key-org-2  # agent-devx-infra
-  AGENT_APP_KEY_ORG2: agent-ci-app-key-org-2  # agent-devx-infra
-  AGENT_GITHUB_APP: agent-github-app  # agent-devx-infra
-  AGENT_QA_E2E: agent-qa-e2e  # agent-devx-loops
-  ATLASSIAN_WRITE: atlassian-write  # agent-devx-infra
-  CODECOV: codecov  # agent-devx-infra
+  AGENT_API_KEY_ORG2: agent-api-key-org-2  # agent-devx
+  AGENT_APP_KEY_ORG2: agent-ci-app-key-org-2  # agent-devx
+  AGENT_GITHUB_APP: agent-github-app  # agent-devx
+  AGENT_QA_E2E: agent-qa-e2e  # agent-devx
+  ATLASSIAN_WRITE: atlassian-write  # agent-devx
+  CODECOV: codecov  # agent-devx
   DOCKER_REGISTRY_RO: dockerhub-readonly  # agent-delivery
-  E2E_AZURE: e2e-azure  # agent-devx-loops
-  E2E_GCP: e2e-gcp  # agent-devx-loops
-  GITLAB_TOKEN: gitlab-token  # agent-devx-infra
-  INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx-infra
-  MACOS_GITHUB_APP_1: macos-github-app-one  # agent-devx-infra
-  MACOS_GITHUB_APP_2: macos-github-app-two  # agent-devx-infra
-  SLACK_AGENT: slack-agent-ci  # agent-devx-infra
+  E2E_AZURE: e2e-azure  # agent-devx
+  E2E_GCP: e2e-gcp  # agent-devx
+  GITLAB_TOKEN: gitlab-token  # agent-devx
+  INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx
+  MACOS_GITHUB_APP_1: macos-github-app-one  # agent-devx
+  MACOS_GITHUB_APP_2: macos-github-app-two  # agent-devx
+  SLACK_AGENT: slack-agent-ci  # agent-devx
   SMP_ACCOUNT: smp  # single-machine-performance
   # End vault variables
 
@@ -295,6 +297,12 @@ variables:
 
 .if_deploy_installer: &if_deploy_installer
   if: $DEPLOY_INSTALLER == "true" || $DDR_WORKFLOW_ID != null
+
+.if_deploy_installer_stable: &if_deploy_installer_stable
+  if: ($DEPLOY_INSTALLER == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "stable"
+
+.if_not_deploy_installer: &if_not_deploy_installer
+  if: $DEPLOY_INSTALLER != "true" && $DDR_WORKFLOW_ID == null
 
 .if_tagged_commit: &if_tagged_commit
   if: $CI_COMMIT_TAG != null
@@ -439,6 +447,10 @@ workflow:
   - <<: *if_deploy
     when: on_failure
 
+.on_deploy_installer_failure:
+  - <<: *if_deploy_installer
+    when: on_failure
+
 .on_deploy_rc:
   - <<: *if_not_deploy
     when: never
@@ -581,6 +593,25 @@ workflow:
   - <<: *if_deploy_stable
     when: on_failure
 
+# This rule will add the job as manual when running on beta deploy branch
+# and will add it as a regular automatically running job when running
+# on stable deploy branch.
+.on_deploy_installer_stable_or_beta_manual_auto_on_stable:
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_not_deploy_installer
+    when: never
+  - <<: *if_not_stable_repo_branch
+    when: manual
+    allow_failure: true
+  - when: on_success
+
+# Alternative of the above to have an agent-release-management trigger
+# for stable branches in case of failure in any previous job
+.on_deploy_installer_stable_on_failure:
+  - <<: *if_deploy_installer_stable
+    when: on_failure
+
 .except_deploy:
   - <<: *if_deploy
     when: never
@@ -666,7 +697,7 @@ workflow:
   - <<: *if_run_all_kmt_tests
   - changes:
       paths: *security_agent_change_paths
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true
 
@@ -684,7 +715,7 @@ workflow:
         - omnibus/config/software/**/*
         - omnibus/config/templates/**/*
         - release.json
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .except_windows_installer_changes:
   - <<: *if_windows_installer_changes
@@ -718,7 +749,7 @@ workflow:
   - <<: *if_run_all_kmt_tests
   - changes:
       paths: *system_probe_change_paths
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 # New E2E related rules
 
@@ -740,7 +771,8 @@ workflow:
         - test/new-e2e/pkg/**/*
         - test/new-e2e/go.mod
         - flakes.yaml
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+        - release.json
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_e2e_or_windows_installer_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -751,14 +783,14 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       <<: *fakeintake_paths
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
     variables:
       FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
     when: on_success
   - changes:
       paths:
         - test/new-e2e/test-infra-definition/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
     when: on_success
   - when: manual
     allow_failure: true
@@ -789,7 +821,7 @@ workflow:
         - pkg/util/trivy/**/*
         - test/new-e2e/tests/containers/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_rc_or_e2e_changes:
@@ -799,7 +831,7 @@ workflow:
         - pkg/config/remote/**/*
         - comp/remote-config/**/*
         - test/new-e2e/tests/remote-config/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_arun_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -809,7 +841,7 @@ workflow:
         - pkg/**/*
         - comp/**/*
         - test/new-e2e/tests/agent-runtimes/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_acfg_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -819,7 +851,7 @@ workflow:
         - pkg/**/*
         - comp/**/*
         - test/new-e2e/tests/agent-configuration//**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_subcommands_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -829,7 +861,7 @@ workflow:
         - pkg/**/*
         - comp/**/*
         - test/new-e2e/tests/agent-subcommands/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_language-detection_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -837,7 +869,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for language detection
         - test/new-e2e/tests/language-detection/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_npm_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -846,7 +878,7 @@ workflow:
         # TODO: Add paths that should trigger tests for npm
         - pkg/network/**/*
         - test/new-e2e/tests/npm/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_discovery_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -856,7 +888,7 @@ workflow:
         - test/new-e2e/tests/discovery/**/*
         - pkg/collector/corechecks/servicediscovery/**/*
         - pkg/discovery/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_amp_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -880,7 +912,7 @@ workflow:
         - pkg/persistentcache/**/*
         - pkg/serializer/**/*
         - rtloader/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_alp_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -893,13 +925,13 @@ workflow:
         - comp/core/autodiscovery/providers/file*.go
         - comp/logs/**/*
         - pkg/logs/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_cws_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths: *security_agent_change_paths
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_process_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -910,16 +942,17 @@ workflow:
         - comp/process/**/*
         - pkg/process/**/*
         - pkg/config/setup/process.go
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_orchestrator_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - comp/forwarder/defaultforwarder/**/*
         - pkg/collector/corechecks/cluster/orchestrator/**/*
         - pkg/collector/corechecks/orchestrator/**/*
         - test/new-e2e/tests/orchestrator/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_apm_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
@@ -930,7 +963,7 @@ workflow:
         - comp/trace/**/*
         - test/new-e2e/tests/apm/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_installer_or_e2e_changes:
@@ -943,7 +976,7 @@ workflow:
         - cmd/installer/**/*
         - test/new-e2e/tests/installer/**/*
         - tasks/installer.py
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_ndm_netflow_or_e2e_changes:
@@ -953,7 +986,7 @@ workflow:
         - comp/netflow/**/*
         - test/new-e2e/tests/ndm/netflow/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_ndm_snmp_or_e2e_changes:
@@ -963,7 +996,7 @@ workflow:
         - pkg/collector/corechecks/snmp/**/*
         - test/new-e2e/tests/ndm/snmp/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
     when: on_success
   - when: manual
     allow_failure: true
@@ -976,7 +1009,7 @@ workflow:
         - pkg/aggregator/**/*
         - test/new-e2e/tests/ha-agent/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_netpath_or_e2e_changes:
@@ -986,7 +1019,7 @@ workflow:
         - pkg/collector/corechecks/networkpath/**/*
         - test/new-e2e/tests/netpath/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_otel_or_e2e_changes:
@@ -999,7 +1032,7 @@ workflow:
         - pkg/trace/stats/otel_util.go
         - pkg/trace/transform/transform.go
         - test/new-e2e/tests/otel/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_windows_service_or_e2e_changes:
@@ -1011,7 +1044,7 @@ workflow:
         - pkg/util/winutil/messagestrings/**/*
         - tasks/windows_resources.py
         - test/new-e2e/tests/windows/service-test/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_trace_agent_changes_or_manual:
@@ -1020,7 +1053,7 @@ workflow:
       paths:
         - pkg/trace/**/*
         - .gitlab/benchmarks/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
     when: on_success
   - when: manual
     allow_failure: true
@@ -1031,7 +1064,7 @@ workflow:
       paths:
         - pkg/security/**/*
         - test/new-e2e/tests/cspm/**/* #TODO: Add other paths that should trigger the execution of CSPM e2e tests
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_windows_systemprobe_or_e2e_changes:
@@ -1043,7 +1076,7 @@ workflow:
         - pkg/process/monitor/*
         - pkg/util/kernel/**/*
         - test/new-e2e/tests/sysprobe-functional/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_windows_security_or_e2e_changes:
@@ -1053,7 +1086,7 @@ workflow:
         - pkg/security/**/*
         - pkg/eventmonitor/**/*
         - test/new-e2e/tests/security-agent-functional/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_scheduled_main:
@@ -1083,7 +1116,7 @@ workflow:
   - changes:
       paths:
         - comp/core/gui/guiimpl/systray/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_packaging_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
@@ -1093,19 +1126,19 @@ workflow:
         - .gitlab-ci.yml
         - release.json
         - .gitlab/package_build/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_go-version_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
       paths:
         - .go-version
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_fakeintake_changes:
   - changes:
       <<: *fakeintake_paths
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_fakeintake_changes_on_main:
   - changes:
@@ -1145,7 +1178,7 @@ workflow:
       - .gitlab-ci.yml
       - .gitlab/**/*
       - .gitlab/**/.*
-    compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    compare_to: $COMPARE_TO_BRANCH
 
 .on_gitlab_changes_or_mergequeue_or_main:
   - !reference [.on_gitlab_changes]
@@ -1157,14 +1190,14 @@ workflow:
   - changes:
       paths:
         - tasks/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_powershell_module_or_e2e_changes_or_manual:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - test/new-e2e/tests/windows/powershell-module-test/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true
 
@@ -1178,7 +1211,7 @@ workflow:
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
         - comp/core/autodiscovery/providers/gpu.go
         - pkg/config/autodiscovery/autodiscovery.go
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_installer_systemd_changes:
   - <<: *if_main_branch
@@ -1186,7 +1219,7 @@ workflow:
   - changes:
       paths:
         - pkg/fleet/installer/packages/embedded/*.service
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true
 

@@ -237,7 +237,7 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[st
 	}
 
 	v, typeParsedAlready := seenTypes[typeHeader.Type]
-	if typeParsedAlready {
+	if typeParsedAlready && typeHeader.Kind != uint(reflect.Pointer) {
 		v.count++
 		if v.count > ditypes.MaxReferenceDepth {
 			return &ditypes.Parameter{}, nil
@@ -271,6 +271,12 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[st
 		// pointers have a unique ID so we only capture the address once when generating
 		// location expressions
 		typeHeader.ID = randomLabel()
+	}
+
+	for k := range seenTypes {
+		if seenTypes[k].count > 0 {
+			seenTypes[k].count--
+		}
 	}
 
 	return &typeHeader, nil

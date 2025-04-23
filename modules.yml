@@ -147,6 +147,8 @@ modules:
     used_by_otel: true
   pkg/collector/check/defaults:
     used_by_otel: true
+  pkg/config/create:
+    used_by_otel: true
   pkg/config/env:
     used_by_otel: true
   pkg/config/mock:
@@ -229,6 +231,10 @@ modules:
   pkg/tagset:
     used_by_otel: true
   pkg/telemetry:
+    used_by_otel: true
+  pkg/template:
+    should_replace_internal_modules: false
+    should_test_condition: never
     used_by_otel: true
   pkg/trace:
     used_by_otel: true

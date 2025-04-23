@@ -9,15 +9,11 @@ package gpu
 
 import (
 	"fmt"
-	"net/http"
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -29,8 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -48,16 +46,15 @@ const (
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	config         *CheckConfig            // config for the check
-	sysProbeClient *http.Client            // sysProbeClient is used to communicate with system probe
-	activeMetrics  map[model.StatsKey]bool // activeMetrics is a set of metrics that have been seen in the current check run
-	collectors     []nvidia.Collector      // collectors for NVML metrics
-	nvmlLib        nvml.Interface          // NVML library interface
-	tagger         tagger.Component        // Tagger instance to add tags to outgoing metrics
-	telemetry      *checkTelemetry         // Telemetry component to emit internal telemetry
-	wmeta          workloadmeta.Component  // Workloadmeta store to get the list of containers
-	deviceTags     map[string][]string     // deviceTags is a map of device UUID to tags
-	deviceCache    ddnvml.DeviceCache      // deviceCache is a cache of GPU devices
+	config         *CheckConfig                // config for the check
+	sysProbeClient *sysprobeclient.CheckClient // sysProbeClient is used to communicate with system probe
+	activeMetrics  map[model.StatsKey]bool     // activeMetrics is a set of metrics that have been seen in the current check run
+	collectors     []nvidia.Collector          // collectors for NVML metrics
+	tagger         tagger.Component            // Tagger instance to add tags to outgoing metrics
+	telemetry      *checkTelemetry             // Telemetry component to emit internal telemetry
+	wmeta          workloadmeta.Component      // Workloadmeta store to get the list of containers
+	deviceTags     map[string][]string         // deviceTags is a map of device UUID to tags
+	deviceCache    ddnvml.DeviceCache          // deviceCache is a cache of GPU devices
 }
 
 type checkTelemetry struct {
@@ -103,21 +100,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("invalid gpu check config: %w", err)
 	}
 
-	c.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
-	return nil
-}
-
-func (c *Check) ensureInitNVML() error {
-	if c.nvmlLib != nil {
-		return nil
-	}
-
-	nvmlLib, err := ddnvml.GetNvmlLib()
-	if err != nil {
-		return fmt.Errorf("failed to get NVML library: %w", err)
-	}
-
-	c.nvmlLib = nvmlLib
+	c.sysProbeClient = sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	return nil
 }
 
@@ -126,12 +109,8 @@ func (c *Check) ensureInitDeviceCache() error {
 		return nil
 	}
 
-	if err := c.ensureInitNVML(); err != nil {
-		return err
-	}
-
 	var err error
-	c.deviceCache, err = ddnvml.NewDeviceCacheWithOptions(c.nvmlLib)
+	c.deviceCache, err = ddnvml.NewDeviceCache()
 	if err != nil {
 		return fmt.Errorf("failed to initialize device cache: %w", err)
 	}
@@ -153,7 +132,7 @@ func (c *Check) ensureInitCollectors() error {
 		return err
 	}
 
-	collectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{NVML: c.nvmlLib, DeviceCache: c.deviceCache})
+	collectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{DeviceCache: c.deviceCache})
 	if err != nil {
 		return fmt.Errorf("failed to build NVML collectors: %w", err)
 	}
@@ -165,8 +144,8 @@ func (c *Check) ensureInitCollectors() error {
 
 // Cancel stops the check
 func (c *Check) Cancel() {
-	if c.nvmlLib != nil {
-		_ = c.nvmlLib.Shutdown()
+	if lib, err := ddnvml.GetSafeNvmlLib(); err == nil {
+		_ = lib.Shutdown()
 	}
 
 	c.CheckBase.Cancel()
@@ -203,6 +182,9 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 
 	stats, err := sysprobeclient.GetCheck[model.GPUStats](c.sysProbeClient, sysconfig.GPUMonitoringModule)
 	if err != nil {
+		if sysprobeclient.IgnoreStartupError(err) == nil {
+			return nil
+		}
 		return fmt.Errorf("cannot get data from system-probe: %w", err)
 	}
 
@@ -403,10 +385,7 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender, gpuToContainersMap map[string
 
 func (c *Check) emitGlobalNvmlMetrics(snd sender.Sender) error {
 	// Collect global metrics such as device count
-	devCount, ret := c.nvmlLib.DeviceGetCount()
-	if ret != nvml.SUCCESS {
-		return fmt.Errorf("failed to get device count: %s", nvml.ErrorString(ret))
-	}
+	devCount := c.deviceCache.Count()
 
 	snd.Gauge(metricNameDeviceTotal, float64(devCount), "", nil)
 
