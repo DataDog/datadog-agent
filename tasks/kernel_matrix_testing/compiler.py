@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 import tempfile
 from functools import cached_property
@@ -14,6 +13,7 @@ from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.tool import Exit, info, warn
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
+from tasks.libs.common.utils import get_repo_root
 from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
 
 if TYPE_CHECKING:
@@ -140,6 +140,18 @@ class CompilerImage:
             warn(f"[!] Running compiler image {image_used} is different from the expected {self.image}, will restart")
             self.start()
 
+    def ensure_in_git_repo(self):
+        # The compiler requires a .git directory to be present and valid, so if we're running in a git worktree
+        # we'll get failures as it cannot find the root .git directory.
+        repo_root = get_repo_root()
+        git_dir = repo_root / ".git"
+        if not git_dir.exists():
+            raise Exit(
+                f"[-] .git directory not found in {repo_root}, this command needs to be run from a git repository"
+            )
+        elif not git_dir.is_dir():
+            raise Exit(f"[-] .git directory is not a directory in {repo_root}, git worktrees are not supported")
+
     def exec(
         self,
         cmd: str,
@@ -158,6 +170,7 @@ class CompilerImage:
             user = self.compiler_user
 
         self.ensure_running()
+        self.ensure_in_git_repo()
         color_env = "-e FORCE_COLOR=1"
         if not force_color:
             color_env = ""
@@ -177,6 +190,8 @@ class CompilerImage:
         if self.is_loaded:
             self.stop()
 
+        self.ensure_in_git_repo()
+
         # Check if the image exists
         res = self.ctx.run(f"docker image inspect {self.image}", hide=True, warn=True)
         if res is None or not res.ok:
@@ -188,7 +203,7 @@ class CompilerImage:
             platform = f"--platform linux/{self.arch.go_arch}"
         res = self.ctx.run(
             f"docker run {platform} -d --restart always --name {self.name} "
-            f"--mount type=bind,source={os.getcwd()},target={CONTAINER_AGENT_PATH} "
+            f"--mount type=bind,source={get_repo_root()},target={CONTAINER_AGENT_PATH} "
             f"{self.image} sleep \"infinity\"",
             warn=True,
         )
