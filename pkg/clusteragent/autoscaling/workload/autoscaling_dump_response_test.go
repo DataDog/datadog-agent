@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
 //go:build kubeapiserver
 
@@ -176,7 +176,7 @@ Settings: map[key:value]
 
 func TestMarshalUnmarshal(t *testing.T) {
 	// json serialization drops nanoseconds; strip it here
-	testTime := time.Unix(time.Now().Unix(), 0)
+	testTime := time.Unix(time.Now().UTC().Unix(), 0)
 	fakeDpai := createFakePodAutoscaler(testTime)
 	realDpai := fakeDpai.Build()
 	jsonDpai, err := json.Marshal(&realDpai)
