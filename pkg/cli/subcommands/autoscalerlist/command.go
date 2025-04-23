@@ -24,7 +24,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	logger "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // cliParams are the command-line arguments for this subcommand
@@ -116,14 +115,12 @@ func getAutoscalerList(w io.Writer, url string) error {
 		}
 	}
 
-	logger.Debugf("GOT autoscaler list: %s", string(r))
 	adr := autoscalingWorkload.AutoscalingDumpResponse{}
 	err = json.Unmarshal(r, &adr)
 	if err != nil {
 		return err
 	}
 
-	logger.Debugf("Writing autoscaler list: %v", adr)
 	adr.Write(w)
 	return nil
 }
