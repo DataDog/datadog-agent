@@ -33,7 +33,7 @@
   - |
     if [ -n "$PYTHON_VERSION" ]; then
       # 1. Use PYTHON_VERSION if set
-      if ! [[ "$PYTHON_VERSION" =~ /[0-9]+\\.[0-9]+\\.[0-9]+/ ]]; then
+      if ! [[ "$PYTHON_VERSION" =~ "^[0-9]+\\.[0-9]+\\.[0-9]+$" ]]; then
         echo "Invalid Python version format (should be X.Y.Z): $PYTHON_VERSION" >& 2
         exit 1
       fi
