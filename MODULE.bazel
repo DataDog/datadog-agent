@@ -85,7 +85,34 @@ git_override(
 )
 
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
-go_sdk.download(version = "1.23.5")
+
+GO_VERSION = "1.23.8"
+
+MSGO_PATCH = "1"
+
+go_sdk.download(version = GO_VERSION)
+
+# MS Go for FIPS Agent
+# Add `--@rules_go//go/toolchain:sdk_name=msgo_sdk` flag to bazel to use it
+go_sdk.download(
+    name = "msgo_sdk",
+    sdks = {
+        "linux_amd64": (
+            "go{0}-{1}.linux-amd64.tar.gz".format(GO_VERSION, MSGO_PATCH),
+            "e08de24661de3351bf216ab3f875377391a182ca0b1b3ee64d91fb64f8dcf10f",
+        ),
+        "linux_arm64": (
+            "go{0}-{1}.linux-arm64.tar.gz".format(GO_VERSION, MSGO_PATCH),
+            "6367764f5e2886e6e3a32c986d7d426f500423cb4c06ea80d844bd4013b96e62",
+        ),
+        "windows_amd64": (
+            "go{0}-{1}.windows-amd64.tar.gz".format(GO_VERSION, MSGO_PATCH),
+            "2a3340a260dcc389213d23985c7477646561df67bb056bb8f668388f47253532",
+        ),
+    },
+    urls = ["https://aka.ms/golang/release/latest/{}"],
+    version = GO_VERSION,
+)
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 go_deps.from_file(go_work = "//:go.work")
