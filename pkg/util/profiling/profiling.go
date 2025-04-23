@@ -7,11 +7,13 @@
 package profiling
 
 import (
+	"fmt"
 	"sync"
 
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
@@ -108,4 +110,13 @@ func IsRunning() bool {
 	v := running
 	mu.RUnlock()
 	return v
+}
+
+// GetBaseProfilingTags returns the standard tags that should be included in all internal profiling
+func GetBaseProfilingTags(extraTags []string) []string {
+	tags := make([]string, 0, len(extraTags)+2)
+	tags = append(tags, extraTags...)
+	tags = append(tags, fmt.Sprintf("version:%v", version.AgentVersion))
+	tags = append(tags, "__dd_internal_profiling:datadog-agent")
+	return tags
 }

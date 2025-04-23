@@ -8,14 +8,12 @@
 package modules
 
 import (
-	"errors"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
-
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
@@ -26,11 +24,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ErrProcessUnsupported is an error type indicating that the process module is not support in the running environment
-var ErrProcessUnsupported = errors.New("process module unsupported")
+func init() { registerModule(Process) }
 
 // Process is a module that fetches process level data
-var Process = module.Factory{
+var Process = &module.Factory{
 	Name:             config.ProcessModule,
 	ConfigNamespaces: []string{},
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
@@ -39,8 +36,7 @@ var Process = module.Factory{
 		// we disable returning zero values for stats to reduce parsing work on process-agent side
 		p := procutil.NewProcessProbe(procutil.WithReturnZeroPermStats(false))
 		return &process{
-			probe:     p,
-			lastCheck: atomic.NewInt64(0),
+			probe: p,
 		}, nil
 	},
 	NeedsEBPF: func() bool {
@@ -52,7 +48,7 @@ var _ module.Module = &process{}
 
 type process struct {
 	probe     procutil.Probe
-	lastCheck *atomic.Int64
+	lastCheck atomic.Int64
 }
 
 // GetStats returns stats for the module
@@ -64,7 +60,7 @@ func (t *process) GetStats() map[string]interface{} {
 
 // Register registers endpoints for the module to expose data
 func (t *process) Register(httpMux *module.Router) error {
-	runCounter := atomic.NewUint64(0)
+	var runCounter atomic.Uint64
 	httpMux.HandleFunc("/stats", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		t.lastCheck.Store(start.Unix())
@@ -85,7 +81,7 @@ func (t *process) Register(httpMux *module.Router) error {
 		marshaler := encoding.GetMarshaler(contentType)
 		writeStats(w, marshaler, stats)
 
-		count := runCounter.Inc()
+		count := runCounter.Add(1)
 		logProcTracerRequests(count, len(stats), start)
 	}).Methods("POST")
 

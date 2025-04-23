@@ -34,17 +34,31 @@ import (
 // Comparison test to ensure APM stats generated from 2 different OTel ingestion paths are consistent.
 func TestOTelAPMStatsMatch(t *testing.T) {
 	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
-		t.Parallel()
-		testOTelAPMStatsMatch(false, t)
+		t.Run("OperationNameV1", func(t *testing.T) {
+			t.Parallel()
+			testOTelAPMStatsMatch(false, false, t)
+		})
+
+		t.Run("OperationNameV2", func(t *testing.T) {
+			t.Parallel()
+			testOTelAPMStatsMatch(false, true, t)
+		})
 	})
 
 	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
-		t.Parallel()
-		testOTelAPMStatsMatch(true, t)
+		t.Run("OperationNameV1", func(t *testing.T) {
+			t.Parallel()
+			testOTelAPMStatsMatch(true, false, t)
+		})
+
+		t.Run("OperationNameV2", func(t *testing.T) {
+			t.Parallel()
+			testOTelAPMStatsMatch(true, true, t)
+		})
 	})
 }
 
-func testOTelAPMStatsMatch(enableReceiveResourceSpansV2 bool, t *testing.T) {
+func testOTelAPMStatsMatch(enableReceiveResourceSpansV2 bool, enableOperationNameLogicV2 bool, t *testing.T) {
 	ctx := context.Background()
 	set := componenttest.NewNopTelemetrySettings()
 	set.MeterProvider = noop.NewMeterProvider()
@@ -54,6 +68,9 @@ func testOTelAPMStatsMatch(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	peerTagKeys := tcfg.ConfiguredPeerTags()
 	if !enableReceiveResourceSpansV2 {
 		tcfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+	}
+	if !enableOperationNameLogicV2 {
+		tcfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
 
 	metricsClient := &statsd.NoOpClient{}

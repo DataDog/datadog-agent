@@ -74,7 +74,7 @@ func (t *SelfTester) Type() string {
 }
 
 // RuleMatch implement the rule engine interface
-func (t *SelfTester) RuleMatch(rule *rules.Rule, event eval.Event) bool {
+func (t *SelfTester) RuleMatch(_ *eval.Context, rule *rules.Rule, event eval.Event) bool {
 	// send if not selftest related events
 	return !t.IsExpectedEvent(rule, event, t.probe)
 }

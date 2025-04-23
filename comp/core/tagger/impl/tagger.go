@@ -309,11 +309,6 @@ func (t *localTagger) Subscribe(subscriptionID string, filter *types.Filter) (ty
 	return t.tagStore.Subscribe(subscriptionID, filter)
 }
 
-// GetTaggerTelemetryStore returns tagger telemetry tagStore
-func (t *localTagger) GetTaggerTelemetryStore() *telemetry.Store {
-	return t.telemetryStore
-}
-
 // GetEntityHash returns the hash for the tags associated with the given entity.
 // Returns an empty string if the tags lookup fails.
 func (t *localTagger) GetEntityHash(entityID types.EntityID, cardinality types.TagCardinality) string {
