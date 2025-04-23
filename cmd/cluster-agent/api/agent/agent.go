@@ -184,7 +184,11 @@ func getConfigCheck(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Com
 
 func getAutoscalerList(w http.ResponseWriter, r *http.Request) {
 	autoscalerList := autoscalingWorkload.Dump(r.Context())
-	autoscalerListBytes, err := json.Marshal(autoscalerList)
+	if autoscalerList == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	autoscalerListBytes, err := json.Marshal(*autoscalerList)
 	if err != nil {
 		log.Errorf("Unable to marshal autoscaler list response: %s", err)
 		httputils.SetJSONError(w, log.Errorf("Unable to marshal autoscaler list response: %s", err), 500)
