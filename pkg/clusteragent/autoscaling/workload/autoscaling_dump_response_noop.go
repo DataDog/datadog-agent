@@ -20,6 +20,4 @@ func Dump() *AutoscalingDumpResponse {
 }
 
 // Write is a noop function that does nothing
-func (_ *AutoscalingDumpResponse) Write(_ io.Writer) {
-	return
-}
+func (*AutoscalingDumpResponse) Write(io.Writer) {}
