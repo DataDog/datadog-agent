@@ -26,12 +26,12 @@
   - |
     # Find appropriate python version from major version
     PYTHON_VERSION="$(cat .python-version)"
-    versionmatches="$(ls "$(pyenv root)/versions" | grep -E "^${PYTHON_VERSION}.[0-9]+\$")"
+    versionmatches="$(ls "$(pyenv root)/versions" | grep -E "^${PYTHON_VERSION}.[0-9]+$")"
     if [ -z "$versionmatches" ]; then
       echo "Installing Python $PYTHON_VERSION..."
       pyenv install "$PYTHON_VERSION"
 
-      versionmatches="$(ls "$(pyenv root)/versions" | grep -E "^${PYTHON_VERSION}.[0-9]+\$")"
+      versionmatches="$(ls "$(pyenv root)/versions" | grep -E "^${PYTHON_VERSION}.[0-9]+$")"
 
       if [ -z "$versionmatches" ]; then
         echo "No matching Python version found for $PYTHON_VERSION"
