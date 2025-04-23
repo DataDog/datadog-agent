@@ -28,8 +28,6 @@
   # 2. If PYTHON_VERSION is not set, use a version matching the one in .python-version
   #   2.a If there is a 3.M.x version (or multiple matches) that is already installed on the runner, select the latest version in this list
   #   2.b If there is no match, download and install the latest one
-  # TODO
-  - PYTHON_VERSION=3.11.6
   - |
     if [ -n "$PYTHON_VERSION" ]; then
       # 1. Use PYTHON_VERSION if set
