@@ -79,17 +79,18 @@ func (p *autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Workl
 		return nil
 	}
 
-	// Ignore values if the PodAutoscaler has a custom recommender configuration
-	if podAutoscaler.CustomRecommenderConfiguration() != nil {
-		return nil
-	}
-
 	// Update PodAutoscaler values with received values
 	// Even on error, the PodAutoscaler can be partially updated, always setting it
 	defer func() {
 		p.processed[id] = struct{}{}
 		p.store.UnlockSet(id, podAutoscaler, configRetrieverStoreID)
 	}()
+
+	// Ignore values if the PodAutoscaler has a custom recommender configuration
+	if podAutoscaler.CustomRecommenderConfiguration() != nil {
+		return nil
+	}
+
 	scalingValues, err := parseAutoscalingValues(timestamp, values)
 	if err != nil {
 		return fmt.Errorf("failed to parse scaling values for PodAutoscaler %s: %w", id, err)

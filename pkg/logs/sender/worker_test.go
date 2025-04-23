@@ -62,7 +62,7 @@ func TestSender(t *testing.T) {
 	destinations := client.NewDestinations([]client.Destination{destination}, nil)
 
 	cfg := configmock.New(t)
-	worker := newWorker(cfg, input, auditor, destinations, 0, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	worker := newWorker(cfg, input, auditor, destinations, 0, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""))
 	worker.start()
 
 	expectedMessage := newMessage([]byte("fake line"), source, "")
@@ -92,7 +92,7 @@ func TestSenderSingleDestination(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{server.Destination}, nil)
 
-	worker := newWorker(cfg, input, auditor, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	worker := newWorker(cfg, input, auditor, destinations, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""))
 	worker.start()
 
 	input <- &message.Payload{}
@@ -124,7 +124,7 @@ func TestSenderDualReliableDestination(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{server1.Destination, server2.Destination}, nil)
 
-	worker := newWorker(cfg, input, auditor, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	worker := newWorker(cfg, input, auditor, destinations, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""))
 	worker.start()
 
 	input <- &message.Payload{}
@@ -161,7 +161,7 @@ func TestSenderUnreliableAdditionalDestination(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{server1.Destination}, []client.Destination{server2.Destination})
 
-	worker := newWorker(cfg, input, auditor, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	worker := newWorker(cfg, input, auditor, destinations, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""))
 	worker.start()
 
 	input <- &message.Payload{}
@@ -195,7 +195,7 @@ func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer.Destination}, []client.Destination{unreliableServer.Destination})
 
-	worker := newWorker(cfg, input, auditor, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	worker := newWorker(cfg, input, auditor, destinations, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""))
 	worker.start()
 
 	input <- &message.Payload{}
@@ -246,7 +246,7 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
 
-	worker := newWorker(cfg, input, auditor, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	worker := newWorker(cfg, input, auditor, destinations, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""))
 	worker.start()
 
 	input <- &message.Payload{}
@@ -294,7 +294,7 @@ func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
 
-	worker := newWorker(cfg, input, auditor, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	worker := newWorker(cfg, input, auditor, destinations, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""))
 	worker.start()
 
 	input <- &message.Payload{}

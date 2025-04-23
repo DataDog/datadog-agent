@@ -100,6 +100,9 @@ type Config struct {
 	// EventStreamUseKprobeFallback specifies whether to use fentry fallback can be used
 	EventStreamUseKprobeFallback bool
 
+	// EventStreamKretprobeMaxActive specifies the maximum number of active kretprobe at a given time
+	EventStreamKretprobeMaxActive int
+
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
 
@@ -200,6 +203,7 @@ func NewConfig() (*Config, error) {
 		EventStreamBufferSize:              getInt("event_stream.buffer_size"),
 		EventStreamUseFentry:               getBool("event_stream.use_fentry"),
 		EventStreamUseKprobeFallback:       getBool("event_stream.use_kprobe_fallback"),
+		EventStreamKretprobeMaxActive:      getInt("event_stream.kretprobe_max_active"),
 
 		EnvsWithValue:               getStringSlice("envs_with_value"),
 		NetworkEnabled:              getBool("network.enabled"),
