@@ -172,8 +172,6 @@ func (wp *WindowsProbe) _parseCreateArgs(e *etw.DDEventRecord) (*createArgs, err
 
 	// invalidate the path resolver entry and other cache entries
 	wp.discardedFileHandles.Remove(fileObjectPointer(ca.fileObject))
-	wp.filePathResolver.Remove(ca.fileObject)
-	wp.createArgsCache.Remove(ca.irp)
 
 	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
 
@@ -206,6 +204,8 @@ func (wp *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNew
 	if err != nil {
 		return nil, err
 	}
+	wp.createArgsCache.Remove(ca.irp)
+
 	return (*createNewFileArgs)(ca), nil
 }
 

@@ -238,13 +238,13 @@ func testSimpleCreate(t *testing.T, et *etwTester, testfilename string) {
 	if c, ok := et.notifications[0].(*createArgs); ok {
 		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
 	} else {
-		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+		t.Errorf("expected createArgs, got %T", et.notifications[0])
 	}
 
 	if cf, ok := et.notifications[1].(*createNewFileArgs); ok {
 		assert.True(t, isSameFile(testfilename, cf.fileName), "expected %s, got %s", testfilename, cf.fileName)
 	} else {
-		t.Errorf("expected CreateArgs, got %T", et.notifications[1])
+		t.Errorf("expected createNewFileArgs, got %T", et.notifications[1])
 	}
 
 	if cu, ok := et.notifications[2].(*cleanupArgs); ok {
@@ -318,7 +318,7 @@ func testSimpleFileWrite(t *testing.T, et *etwTester, testfilename string) {
 	if c, ok := et.notifications[0].(*createArgs); ok {
 		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
 	} else {
-		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+		t.Errorf("expected createArgs, got %T", et.notifications[0])
 	}
 
 	if wa, ok := et.notifications[1].(*writeArgs); ok {
@@ -382,7 +382,7 @@ func testSimpleFileDelete(t *testing.T, et *etwTester, testfilename string) {
 	if c, ok := et.notifications[0].(*createArgs); ok {
 		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
 	} else {
-		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+		t.Errorf("expected createArgs, got %T", et.notifications[0])
 	}
 
 	if wa, ok := et.notifications[1].(*setDeleteArgs); ok {
@@ -440,7 +440,7 @@ func testSimpleFileRename(t *testing.T, et *etwTester, testfilename, testfileren
 	if c, ok := et.notifications[0].(*createArgs); ok {
 		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
 	} else {
-		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+		t.Errorf("expected createArgs, got %T", et.notifications[0])
 	}
 
 	// there are a variable number of notifications depending on OS.  FOr some reason, at least on Win11
@@ -514,7 +514,7 @@ func testFileOpen(t *testing.T, et *etwTester, testfilename string) {
 		assert.Equal(t, expectedCreateOptions, c.createOptions, "Create options did not match")
 
 	} else {
-		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+		t.Errorf("expected createArgs, got %T", et.notifications[0])
 	}
 
 	if cu, ok := et.notifications[1].(*cleanupArgs); ok {
