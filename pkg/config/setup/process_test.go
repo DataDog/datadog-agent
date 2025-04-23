@@ -47,10 +47,6 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: false,
 		},
 		{
-			key:          "process_config.remote_workloadmeta",
-			defaultValue: false,
-		},
-		{
 			key:          "process_config.process_discovery.enabled",
 			defaultValue: true,
 		},

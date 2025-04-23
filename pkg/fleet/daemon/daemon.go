@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -108,7 +109,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 	if err != nil {
 		return nil, fmt.Errorf("could not get resolve installer executable path: %w", err)
 	}
-	dbPath := filepath.Join(config.GetString("run_path"), "installer_tasks.db")
+	dbPath := filepath.Join(paths.RunPath, "installer_tasks.db")
 	taskDB, err := newTaskDB(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not create task DB: %w", err)
