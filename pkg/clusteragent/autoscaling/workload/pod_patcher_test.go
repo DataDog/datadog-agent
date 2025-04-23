@@ -330,6 +330,24 @@ func TestFindAutoscaler(t *testing.T) {
 			expectedError:        nil,
 		},
 		{
+			name: "Pod with directly deployment owner should return nil",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns",
+					Name:      "pod1",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							Kind:       "Deployment",
+							Name:       "deployment",
+							APIVersion: "apps/v1",
+						},
+					},
+				},
+			},
+			expectedAutoscalerID: "",
+			expectedError:        errDeploymentNotValidOwner,
+		},
+		{
 			name: "Pod with owner but no matching autoscaler should return nil",
 			pod: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{

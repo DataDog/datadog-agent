@@ -47,7 +47,7 @@ WINDOWS_MAX_CLI_LENGTH = 8000  # Windows has a max command line length of 8192 c
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
 # TODO(songy23): contrib and OCB versions do not match in 0.122. Revert this once 0.123 is released
 OTEL_UPSTREAM_GO_MOD_PATH = (
-    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v0.122.0/go.mod"
+    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v0.123.0/go.mod"
 )
 
 
