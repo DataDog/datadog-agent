@@ -156,13 +156,14 @@ func (pt *ProcessTracker) inspectBinary(exePath string, pid uint32) {
 		return
 	}
 	noStructs := make(map[bininspect.FieldIdentifier]bininspect.StructLookupFunction)
-	var functionsConfig = map[string]bininspect.FunctionConfiguration{
-		ditypes.RemoteConfigCallback: {
-			IncludeReturnLocations: false,
-			ParamLookupFunction:    remoteConfigCallback,
-		},
-	}
-	_, err = bininspect.InspectNewProcessBinary(elfFile, functionsConfig, noStructs)
+	//var functionsConfig = map[string]bininspect.FunctionConfiguration{
+	//	ditypes.RemoteConfigCallback: {
+	//		IncludeReturnLocations: false,
+	//		ParamLookupFunction:    remoteConfigCallback,
+	//	},
+	//}
+	noFuncs := make(map[string]bininspect.FunctionConfiguration)
+	_, err = bininspect.InspectNewProcessBinary(elfFile, noFuncs, noStructs)
 	if err != nil {
 		log.Infof("error reading exe: %s", err)
 		return

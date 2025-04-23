@@ -173,7 +173,8 @@ var (
 	g_cmd                *exec.Cmd
 	DEBUG                bool = true
 	TRACE                bool = false
-	NUMBER_OF_PROBES     int  = 10
+	NUMBER_OF_PROBES     int  = 100
+	processedPids        map[int]bool
 
 	explorationTestConfigTemplateText = `
     {{- range $index, $target := .}}
@@ -500,16 +501,13 @@ func isAlreadyProcessed(binaryPath string) (bool, error) {
 	return false, nil
 }
 
-func getBinaryPath(pid int) string {
-	path, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid))
+func getBinaryPath(pid int) (string, error) {
+	exePath := fmt.Sprintf("/proc/%d/exe", pid)
+	binaryPath, err := filepath.EvalSymlinks(exePath)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("failed to resolve executable path: %v", err)
 	}
-	realPath, err := filepath.EvalSymlinks(path)
-	if err == nil {
-		path = realPath
-	}
-	return path
+	return binaryPath, nil
 }
 
 func getParentPID(pid int) int {
@@ -606,7 +604,8 @@ func (pt *ProcessTracker) addProcess(pid int, parentPID int) *ProcessInfo {
 		return proc
 	}
 
-	binaryPath := getBinaryPath(pid)
+	binaryPath, _ := getBinaryPath(pid)
+
 	proc := &ProcessInfo{
 		PID:        pid,
 		ParentPID:  parentPID,
@@ -684,7 +683,11 @@ func (pt *ProcessTracker) scanProcessTree() error {
 		if ourProcessTree[pid] {
 			continue
 		}
-		binaryPath := getBinaryPath(pid)
+		binaryPath, err := getBinaryPath(pid)
+		if err != nil {
+			continue
+		}
+
 		if binaryPath == "" {
 			continue
 		}
@@ -700,8 +703,8 @@ func (pt *ProcessTracker) scanProcessTree() error {
 			shouldAnalyze = true
 			pt.LogTrace("Found build binary: %s (PID=%d)", binaryPath, pid)
 		} else {
-			parentPath := getBinaryPath(ppid)
-			if strings.HasSuffix(parentPath, ".test") {
+			parentPath, err := getBinaryPath(ppid)
+			if err == nil && strings.HasSuffix(parentPath, ".test") {
 				shouldAnalyze = true
 				pt.LogTrace("Found child of test: %s (PID=%d, Parent=%d)", binaryPath, pid, ppid)
 			}
@@ -794,6 +797,301 @@ func (pt *ProcessTracker) logProcessTree() {
 	}
 }
 
+// isGoBinary determines if a binary was built with Go
+func isGoBinary(t *testing.T, binaryPath string) bool {
+	// Method 1: Check for Go build info (most reliable)
+	cmd := exec.Command("go", "version", "-m", binaryPath)
+	output, err := cmd.CombinedOutput()
+	if err == nil && strings.Contains(string(output), "go") {
+		return true
+	}
+
+	// Method 2: Fallback to checking ELF headers for Go-specific sections
+	file, err := elf.Open(binaryPath)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+
+	// Look for Go-specific sections
+	for _, section := range file.Sections {
+		if section.Name == ".gopclntab" || section.Name == ".go.buildinfo" {
+			return true
+		}
+	}
+
+	// Method 3: Fallback to string search for common Go signatures
+	data, err := os.ReadFile(binaryPath)
+	if err != nil {
+		return false
+	}
+
+	// Check for common Go runtime strings
+	goSignatures := [][]byte{
+		[]byte("runtime.findrunnable"),
+		[]byte("runtime.main"),
+		[]byte("golang.org"),
+		[]byte("go.builtin"),
+	}
+
+	for _, sig := range goSignatures {
+		if bytes.Contains(data, sig) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func traceChildProcesses(t *testing.T, parentPid int) {
+	if processedPids == nil {
+		processedPids = make(map[int]bool)
+	}
+
+	t.Logf("Starting ptrace monitor for children of PID %d", parentPid)
+	//startTime := time.Now()
+
+	// Keep track of processes we're tracing
+	tracedPids := make(map[int]bool)
+
+	// Create a ticker for finding new processes to trace
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	// Track when parent exits
+	parentAlive := true
+	var parentExitTime time.Time
+
+	for {
+		// Check parent status
+		if parentAlive && !isProcessAlive(parentPid) {
+			parentAlive = false
+			parentExitTime = time.Now()
+			t.Logf("Parent process %d is no longer alive, will stop monitoring after grace period", parentPid)
+		}
+
+		// Exit after grace period if parent is gone and we're not tracing anything
+		if !parentAlive && len(tracedPids) == 0 && time.Since(parentExitTime) > 3*time.Second {
+			t.Logf("Parent gone and no processes being traced, stopping monitor")
+			return
+		}
+
+		// Look for new child processes to trace
+		select {
+		case <-ticker.C:
+			// Find new children that aren't being traced yet
+			children := findAllChildren(parentPid)
+			for _, pid := range children {
+				// Skip if already processed or being traced
+				if processedPids[pid] || tracedPids[pid] {
+					continue
+				}
+
+				// Try to trace this process
+				if err := syscall.PtraceAttach(pid); err != nil {
+					// Process might have exited or can't be traced, skip
+					continue
+				}
+
+				// Wait for the process to stop
+				var status syscall.WaitStatus
+				if _, err := syscall.Wait4(pid, &status, 0, nil); err != nil {
+					// Failed to wait, detach and skip
+					syscall.PtraceDetach(pid)
+					continue
+				}
+
+				// Check if it's a Go binary before proceeding
+				binaryPath, err := getBinaryPath(pid)
+				if err != nil || !isGoBinary(t, binaryPath) {
+					// Not a Go binary or can't get path, detach and mark as processed
+					processedPids[pid] = true
+					syscall.PtraceDetach(pid)
+					continue
+				}
+
+				t.Logf("Successfully attached to new Go process: PID=%d (%s)", pid, binaryPath)
+
+				// Set options to trace child processes
+				if err := syscall.PtraceSetOptions(pid,
+					syscall.PTRACE_O_TRACECLONE|
+						syscall.PTRACE_O_TRACEFORK|
+						syscall.PTRACE_O_TRACEVFORK|
+						syscall.PTRACE_O_TRACEEXEC); err != nil {
+					t.Logf("Failed to set ptrace options for %d: %v", pid, err)
+					syscall.PtraceDetach(pid)
+					continue
+				}
+
+				// Process is now halted, inspect the binary
+				t.Logf("Inspecting halted Go binary: PID=%d (%s)", pid, binaryPath)
+				InspectBinary(t, binaryPath, pid)
+				processedPids[pid] = true
+
+				// Add to traced processes and continue
+				tracedPids[pid] = true
+
+				// Resume the process
+				if err := syscall.PtraceCont(pid, 0); err != nil {
+					t.Logf("Failed to continue process %d: %v", pid, err)
+					delete(tracedPids, pid)
+					continue
+				}
+
+				t.Logf("Process %d resumed after inspection", pid)
+			}
+
+		default:
+			// Non-blocking check for events from traced processes
+			for pid := range tracedPids {
+				var status syscall.WaitStatus
+				wpid, err := syscall.Wait4(pid, &status, syscall.WNOHANG, nil)
+
+				if wpid == 0 {
+					// No events from this process yet
+					continue
+				}
+
+				if err != nil {
+					// Error waiting for process, remove from traced
+					t.Logf("Error waiting for process %d: %v", pid, err)
+					delete(tracedPids, pid)
+					continue
+				}
+
+				if status.Exited() {
+					t.Logf("Traced process %d exited", pid)
+					delete(tracedPids, pid)
+					continue
+				}
+
+				if status.Stopped() {
+					signal := status.StopSignal()
+
+					if signal == syscall.SIGTRAP {
+						eventType := ((status.StopSignal() >> 8) & 0xff)
+
+						switch eventType {
+						case syscall.PTRACE_EVENT_FORK, syscall.PTRACE_EVENT_VFORK, syscall.PTRACE_EVENT_CLONE:
+							// A new process is being created
+							newPid, err := syscall.PtraceGetEventMsg(pid)
+							if err != nil {
+								t.Logf("Failed to get new PID: %v", err)
+							} else {
+								childPid := int(newPid)
+								t.Logf("Process %d created new process: PID=%d", pid, childPid)
+
+								// Child will automatically stop, we'll handle it when finding children
+							}
+
+						case syscall.PTRACE_EVENT_EXEC:
+							t.Logf("Process %d executed a new program", pid)
+
+							// Re-check if it's a Go binary after exec
+							binaryPath, err := getBinaryPath(pid)
+							if err == nil && isGoBinary(t, binaryPath) {
+								t.Logf("Inspecting Go binary after exec: PID=%d (%s)", pid, binaryPath)
+								InspectBinary(t, binaryPath, pid)
+							}
+						}
+					}
+
+					// Continue the process with the appropriate signal
+					var sigToDeliver syscall.Signal
+					if signal != syscall.SIGTRAP {
+						sigToDeliver = signal
+					}
+
+					if err := syscall.PtraceCont(pid, int(sigToDeliver)); err != nil {
+						t.Logf("Failed to continue process %d: %v", pid, err)
+						delete(tracedPids, pid)
+					}
+				}
+			}
+
+			// Sleep a tiny bit to avoid burning CPU
+			time.Sleep(1 * time.Millisecond)
+		}
+	}
+}
+
+// Helper function for non-blocking wait
+func nonBlockingWait4(pid int, status *syscall.WaitStatus, options int, rusage *syscall.Rusage, done chan struct{}) (int, error) {
+	// Try a non-blocking wait first
+	wpid, err := syscall.Wait4(pid, status, options|syscall.WNOHANG, rusage)
+	if wpid != 0 || err != nil {
+		return wpid, err
+	}
+
+	// If no processes are ready, wait a bit and try again
+	select {
+	case <-done:
+		// Context is done, return gracefully
+		return 0, nil
+	case <-time.After(10 * time.Millisecond):
+		return 0, nil
+	}
+}
+
+// Find all children of a PID recursively
+func findAllChildren(parentPid int) []int {
+	result := []int{}
+
+	// Read all processes in /proc
+	procEntries, err := os.ReadDir("/proc")
+	if err != nil {
+		return result
+	}
+
+	for _, entry := range procEntries {
+		// Check if this is a process directory (numeric name)
+		pid := 0
+		_, err := fmt.Sscanf(entry.Name(), "%d", &pid)
+		if err != nil || pid == 0 {
+			continue
+		}
+
+		// Check if this is a child of our parent
+		statusPath := fmt.Sprintf("/proc/%d/status", pid)
+		statusContent, err := os.ReadFile(statusPath)
+		if err != nil {
+			continue
+		}
+
+		// Find the PPid line
+		statusText := string(statusContent)
+		var ppid int
+		for _, line := range strings.Split(statusText, "\n") {
+			if strings.HasPrefix(line, "PPid:") {
+				fmt.Sscanf(line, "PPid:\t%d", &ppid)
+				break
+			}
+		}
+
+		// Add this and any children to our result
+		if ppid == parentPid {
+			result = append(result, pid)
+			// Recursively find children of this child
+			childResults := findAllChildren(pid)
+			result = append(result, childResults...)
+		}
+	}
+
+	return result
+}
+
+func isProcessAlive(pid int) bool {
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+
+	// On Unix, FindProcess always succeeds, so we need to send signal 0
+	// to test if the process actually exists
+	err = process.Signal(syscall.Signal(0))
+	return err == nil
+}
+
 func (pt *ProcessTracker) StartTracking(command string, args []string, dir string) error {
 	cmd := exec.Command(command, args...)
 	g_cmd = cmd
@@ -815,8 +1113,10 @@ func (pt *ProcessTracker) StartTracking(command string, args []string, dir strin
 	pt.mainPID = cmd.Process.Pid
 	pt.addProcess(pt.mainPID, os.Getpid())
 
+	//go traceChildProcesses(pt.t, cmd.Process.Pid)
+
 	go func() {
-		initialTicker := time.NewTicker(1 * time.Millisecond)
+		initialTicker := time.NewTicker(10 * time.Millisecond)
 		defer initialTicker.Stop()
 		logTicker := time.NewTicker(10 * time.Second)
 		defer logTicker.Stop()
@@ -981,15 +1281,15 @@ func InspectBinary(t *testing.T, binaryPath string, pid int) error {
 }
 
 // TestExplorationGoDI is the entrypoint of the integration test of Go DI. The idea is to
-// test Go DI systematically and in exploratory manner. In high level, here are the steps this test takes:
+// test Go DI in exploratory manner. In high level, here are the steps this test takes:
 // 1. Clones protobuf and applies patches.
-// 2. Figuring out the 1st party packages involved with the cloned project (to avoid 3rd party/std libs)
+// 2. Figuring out the 1st party packages involved with the cloned project (to avoid instrumenting 3rd party/std libs)
 // 3. Compiles the test
 // 4. Runs the test in a supervised environment, spawning processes as a group.
 // 5. Periodically pauses and resumes the process group to analyze each binary unique.
 // 6. Invoke Go DI to put probes in top X functions defined by `NUMBER_OF_RROBES` const.
 //
-//	The goal is to exercise as many code paths as possible of the Go DI system.
+//	The goal is to exercise as many code paths as possible of the Go DI code base.
 func TestExplorationGoDI(t *testing.T) {
 	require.NoError(t, rlimit.RemoveMemlock(), "Failed to remove memlock limit")
 	if features.HaveMapType(ebpf.RingBuf) != nil {
