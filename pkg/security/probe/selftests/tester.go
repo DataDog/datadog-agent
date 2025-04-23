@@ -7,6 +7,8 @@
 package selftests
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -27,7 +29,7 @@ import (
 // SelfTest represent one self test
 type SelfTest interface {
 	GetRuleDefinition() *rules.RuleDefinition
-	GenerateEvent() error
+	GenerateEvent(_ context.Context) error
 	HandleEvent(selfTestEvent)
 	IsSuccess() bool
 }
@@ -53,14 +55,20 @@ type SelfTester struct {
 var _ rules.PolicyProvider = (*SelfTester)(nil)
 
 // RunSelfTest runs the self test and return the result
-func (t *SelfTester) RunSelfTest(timeout time.Duration) error {
+func (t *SelfTester) RunSelfTest(ctx context.Context, timeout time.Duration) error {
 	t.Lock()
 	defer t.Unlock()
 
-	t.beginSelfTests(timeout)
+	if err := t.beginSelfTests(timeout); err != nil {
+		return err
+	}
+
+	// allow 5 seconds for the self test event to be generated
+	ctx, cancelFnc := context.WithTimeout(ctx, 5*time.Second)
+	defer cancelFnc()
 
 	for _, selfTest := range t.selfTests {
-		if err := selfTest.GenerateEvent(); err != nil {
+		if err := selfTest.GenerateEvent(ctx); err != nil {
 			log.Errorf("self test failed (%s): %v", selfTest.GetRuleDefinition().ID, err)
 		}
 	}
@@ -191,14 +199,20 @@ func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) (
 	return []*rules.Policy{policy}, nil
 }
 
-func (t *SelfTester) beginSelfTests(timeout time.Duration) {
+func (t *SelfTester) beginSelfTests(timeout time.Duration) error {
 	// t.Lock is held here
 	if t.isClosed {
-		return
+		return nil
 	}
 
+	select {
+	case t.selfTestRunning <- timeout:
+	default:
+		return fmt.Errorf("channel is already full, self test is already running")
+	}
 	t.waitingForEvent.Store(true)
-	t.selfTestRunning <- timeout
+
+	return nil
 }
 
 func (t *SelfTester) endSelfTests() {
