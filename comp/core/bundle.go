@@ -17,8 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
@@ -48,7 +46,5 @@ func Bundle() fxutil.BundleOptions {
 		telemetryimpl.Module(),
 		hostnameimpl.Module(),
 		pidimpl.Module(), // You must supply pidimpl.NewParams in order to use it
-		fx.Provide(func(params BundleParams) ipc.Params { return params.IPCParams }),
-		ipcfx.Module(),
 	)
 }
