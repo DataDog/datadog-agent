@@ -7,55 +7,40 @@
 package fx
 
 import (
-	"go.uber.org/fx"
-
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcimpl "github.com/DataDog/datadog-agent/comp/core/ipc/impl"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// Module defines the fx options for this component
-func Module() fxutil.Module {
+// ModuleForDaemon defines the fx options for this component for the daemon commands.
+// It is using the NewReadWriteComponent constructor under the hood.
+func ModuleForDaemon() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			ipcimpl.NewComponent,
+			ipcimpl.NewReadWriteComponent,
 		),
-		fx.Provide(unwrapIPCComp),
-		fx.Provide(newIPCClient),
-		fx.Provide(newOptionalIPCClient),
 	)
 }
 
-type optionalIPCComp struct {
-	fx.In
-	IPC option.Option[ipc.Component]
-	Log log.Component
+// ModuleForOneshot defines the fx options for this component for the one-shot commands.
+// It is using the NewReadOnlyComponent constructor under the hood.
+func ModuleForOneshot() fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(
+			ipcimpl.NewReadOnlyComponent,
+		),
+	)
 }
 
-func unwrapIPCComp(deps optionalIPCComp) (ipc.Component, error) {
-	ipc, ok := deps.IPC.Get()
-	if !ok {
-		return nil, deps.Log.Errorf("ipc component has not been initialized")
-	}
-	return ipc, nil
-}
-
-// newIPCClient allow to use ipc.HTTPClient as dependency instead of using option.Option[ipc.Component].
-func newIPCClient(deps optionalIPCComp) (ipc.HTTPClient, error) {
-	ipc, ok := deps.IPC.Get()
-	if !ok {
-		return nil, deps.Log.Errorf("ipc client not found")
-	}
-	return ipc.GetClient(), nil
-}
-
-// newOptionalIPCClient allow to use option.Option[authtoken.IPCClient] as dependency instead of using option.Option[ipc.Component].
-func newOptionalIPCClient(deps optionalIPCComp) option.Option[ipc.HTTPClient] {
-	ipcComp, ok := deps.IPC.Get()
-	if !ok {
-		return option.None[ipc.HTTPClient]()
-	}
-	return option.New(ipcComp.GetClient())
+// ModuleForDebug defines the fx options for this component for commands that should work
+// even if the agent is not running or IPC artifacts are not initialized.
+// WARNING: This module should not be used outside of the flare and diagnose commands.
+// This module covers cases where it is acceptable to not have initialized IPC component.
+// This is typically the case for commands that MUST work no matter the coreAgent is running or not, if the auth artifacts are not found/initialized.
+// A good example is the `flare` command, which should return a flare even if the IPC component is not initialized.
+func ModuleForDebug() fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(
+			ipcimpl.NewDebugOnlyComponent,
+		),
+	)
 }

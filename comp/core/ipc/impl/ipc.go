@@ -11,25 +11,23 @@ import (
 	"net/http"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/http"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // Requires defines the dependencies for the ipc component
 type Requires struct {
-	Conf   config.Component
-	Log    log.Component
-	Params ipc.Params
+	Conf config.Component
+	Log  log.Component
 }
 
 // Provides defines the output of the ipc component
 type Provides struct {
-	Comp option.Option[ipc.Component]
+	Comp       ipc.Component
+	HTTPClient ipc.HTTPClient
 }
 
 type ipcComp struct {
@@ -38,31 +36,67 @@ type ipcComp struct {
 	client ipc.HTTPClient
 }
 
-// NewComponent creates a new ipc component
-func NewComponent(reqs Requires) Provides {
-	var initFunc func(model.Reader) error
+// NewReadOnlyComponent creates a new ipc component by trying to read the auth artifacts on filesystem.
+// If the auth artifacts are not found, it will return an error.
+func NewReadOnlyComponent(reqs Requires) (Provides, error) {
+	reqs.Log.Infof("Load IPC artifacts")
 
-	if reqs.Params.AllowWriteArtifacts {
-		reqs.Log.Infof("Load or create IPC artifacts")
-		initFunc = util.CreateAndSetAuthToken
-	} else {
-		reqs.Log.Infof("Load IPC artifacts")
-		initFunc = util.SetAuthToken
+	if err := util.SetAuthToken(reqs.Conf); err != nil {
+		return Provides{}, err
 	}
 
-	if err := initFunc(reqs.Conf); err != nil {
-		reqs.Log.Errorf("could not load IPC artifacts: %s", err)
-		return Provides{
-			Comp: option.None[ipc.Component](),
-		}
-	}
+	httpClient := ipchttp.NewClient(util.GetAuthToken(), util.GetTLSClientConfig(), reqs.Conf)
 
 	return Provides{
-		Comp: option.New[ipc.Component](&ipcComp{
+		Comp: &ipcComp{
 			logger: reqs.Log,
 			conf:   reqs.Conf,
-			client: ipchttp.NewClient(util.GetAuthToken(), util.GetTLSClientConfig(), reqs.Conf),
-		}),
+			client: httpClient,
+		},
+		HTTPClient: httpClient,
+	}, nil
+}
+
+// NewReadWriteComponent creates a new ipc component by trying to read the auth artifacts on filesystem,
+// and if they are not found, it will create them.
+func NewReadWriteComponent(reqs Requires) (Provides, error) {
+	if err := util.CreateAndSetAuthToken(reqs.Conf); err != nil {
+		return Provides{}, err
+	}
+
+	httpClient := ipchttp.NewClient(util.GetAuthToken(), util.GetTLSClientConfig(), reqs.Conf)
+
+	return Provides{
+		Comp: &ipcComp{
+			logger: reqs.Log,
+			conf:   reqs.Conf,
+			client: httpClient,
+		},
+		HTTPClient: httpClient,
+	}, nil
+}
+
+// NewDebugOnlyComponent returns a new ipc component even if the auth artifacts are not found/initialized.
+// This constructor covers cases where it is acceptable to not have initialized IPC component.
+// This is typically the case for commands that MUST work no matter the coreAgent is running or not, if the auth artifacts are not found/initialized.
+// A good example is the `flare` command, which should return a flare even if the IPC component is not initialized.
+func NewDebugOnlyComponent(reqs Requires) Provides {
+	provides, err := NewReadOnlyComponent(reqs)
+	if err == nil {
+		return provides
+	}
+
+	reqs.Log.Warnf("Failed to create ipc component: %v", err)
+
+	httpClient := ipchttp.NewClient("", &tls.Config{}, reqs.Conf)
+
+	return Provides{
+		Comp: &ipcComp{
+			logger: reqs.Log,
+			conf:   reqs.Conf,
+			client: httpClient,
+		},
+		HTTPClient: httpClient,
 	}
 }
 

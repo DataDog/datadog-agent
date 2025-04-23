@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -27,18 +26,15 @@ func TestBothModes(t *testing.T) {
 	mockConfig.SetWithoutSource("ipc_cert_file_path", ipcPath)
 
 	reqs := Requires{
-		Log:    logmock.New(t),
-		Conf:   mockConfig,
-		Params: ipc.ForOneShot(),
+		Log:  logmock.New(t),
+		Conf: mockConfig,
 	}
-	_, err := NewComponent(reqs)
+	_, err := NewReadOnlyComponent(reqs)
 	require.Error(t, err)
 
 	// Simulate a daemon created the auth artifact
 	{
-		daemonReqs := reqs
-		daemonReqs.Params = ipc.ForDaemon()
-		provides, err := NewComponent(daemonReqs)
+		provides, err := NewReadWriteComponent(reqs)
 		require.NoError(t, err)
 
 		// Check that the auth token is set
@@ -50,7 +46,7 @@ func TestBothModes(t *testing.T) {
 	}
 
 	// re-create the component
-	provides, err := NewComponent(reqs)
+	provides, err := NewReadOnlyComponent(reqs)
 	require.NoError(t, err)
 
 	// Check that the auth token is set
