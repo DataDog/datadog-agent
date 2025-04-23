@@ -63,16 +63,16 @@ agent_dmg-x64-a7:
       INSTALLER_CERT_BASE64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_INSTALLER_SIGNING certificate) || exit $?; export INSTALLER_CERT_BASE64
       INSTALLER_CERT_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_INSTALLER_SIGNING passphrase) || exit $?; export INSTALLER_CERT_PASSPHRASE
 
-      NOTARIZATION_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_NOTARIZATION password) || exit $?; export NOTARIZATION_PWD
+      NOTARIZATION_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT notarization-password) || exit $?; export NOTARIZATION_PWD
       TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT team-id) || exit $?; export TEAM_ID
       APPLE_ACCOUNT=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT user) || exit $?; export APPLE_ACCOUNT
 
       # Create temporary build keychain
       security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
 
-      # Let the keychain stay unlocked for 2 hours, otherwise the OS might lock
+      # Let the keychain stay unlocked for 1 hour, otherwise the OS might lock
       # it again after a period of inactivity.
-      security set-keychain-settings -lut 7200 "$KEYCHAIN_NAME"
+      security set-keychain-settings -lut 3600 "$KEYCHAIN_NAME"
 
       # Add the build keychain to the list of active keychains
       security list-keychains -d user -s "$KEYCHAIN_NAME" "login.keychain"
@@ -129,11 +129,11 @@ agent_dmg-x64-a7:
     if [ "$SIGN" = "true" ]; then
         # Unlock the keychain to get access to the signing certificates
         security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
-        dda inv -- -e omnibus.build --hardened-runtime --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
+        dda inv -- -e omnibus.build --hardened-runtime --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
         # Lock the keychain once we're done
         security lock-keychain "$KEYCHAIN_NAME"
     else
-        dda inv -- -e omnibus.build --skip-sign --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
+        dda inv -- -e omnibus.build --skip-sign --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
     fi
     echo Built packages using omnibus
 
@@ -194,16 +194,12 @@ new-agent_dmg-x64-a7:
   #    - !reference [.on_all_builds]
   #    - !reference [.manual]
   # allow_failure: false  # (remove)
-  timeout: 3h # MacOS builds can take 1h~2h, increase the timeout to avoid timeout flakes
   artifacts:
     expire_in: 2 weeks
     paths:
       - omnibus/pkg/*.dmg
       - omnibus/pkg/version-manifest.json
   variables:
-    AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: 3
-    PYTHON_VERSION: 3.12.6
     SIGN: true
     KEYCHAIN_NAME: "build.keychain"
     INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
