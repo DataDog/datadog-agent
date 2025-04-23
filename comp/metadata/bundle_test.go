@@ -12,6 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
@@ -32,6 +34,7 @@ func TestBundleDependencies(t *testing.T) {
 		}),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		haagentmock.Module(),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	)
 
 }

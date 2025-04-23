@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -113,7 +113,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 			SecretParams: secrets.NewEnabledParams(),
 			LogParams:    log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false),
-			IPCParams:    ipc.ForDaemon(),
 		}
 		if cliParams.logFile != "" {
 			params.LogParams.LogToFile(cliParams.logFile)
@@ -147,6 +146,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			haagentfx.Module(),
 			logscompression.Module(),
 			metricscompression.Module(),
+			ipcfx.ModuleForDaemon(),
 		)
 	}
 

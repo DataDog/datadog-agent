@@ -38,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtrace "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
@@ -92,7 +91,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 			return statsd.NewOTelStatsd(client)
 		}),
 		sysprobeconfig.NoneModule(),
-		ipcfx.Module(ipc.ForDaemon()),
+		ipcfx.ModuleForDaemon(),
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
 		converterfx.Module(),

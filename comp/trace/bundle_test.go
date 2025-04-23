@@ -46,6 +46,7 @@ func TestBundleDependencies(t *testing.T) {
 		zstdfx.Module(),
 		taggerfx.Module(),
 		fx.Supply(&traceagentimpl.Params{}),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	)
 }
 

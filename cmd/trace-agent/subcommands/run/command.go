@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
@@ -112,8 +111,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		}),
 		zstdfx.Module(),
 		trace.Bundle(),
-		ipcfx.Module(),
-		fx.Supply(ipc.ForDaemon()),
+		ipcfx.ModuleForDaemon(),
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ traceagent.Component, _ autoexit.Component) {}),

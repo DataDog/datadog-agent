@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
@@ -109,7 +109,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 				SecretParams: secrets.NewEnabledParams(),
 				LogParams:    DaemonLogParams,
-				IPCParams:    ipc.ForDaemon(),
 			},
 		),
 		fx.Supply(
@@ -241,6 +240,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			}
 		}),
 		settingsimpl.Module(),
+		ipcfx.ModuleForDaemon(),
 	)
 
 	err := app.Start(ctx)

@@ -120,8 +120,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadmetafx.Module(workloadmeta.Params{
 					AgentType: workloadmeta.Remote,
 				}),
-				ipcfx.Module(),
-				fx.Supply(ipc.ForDaemon()),
+				ipcfx.ModuleForDaemon(),
 				// Provide tagger module
 				remoteTaggerFx.Module(tagger.RemoteParams{
 					RemoteTarget: func(c config.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
@@ -297,8 +296,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
 		}),
-		ipcfx.Module(),
-		fx.Supply(ipc.ForDaemon()),
+		ipcfx.ModuleForDaemon(),
 		// Provide tagger module
 		remoteTaggerFx.Module(tagger.RemoteParams{
 			RemoteTarget: func(c config.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },

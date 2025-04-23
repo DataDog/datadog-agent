@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
@@ -52,8 +51,7 @@ func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) err
 		coreconfig.Module(),
 		secretsimpl.Module(),
 		nooptagger.Module(),
-		ipcfx.Module(),
-		fx.Supply(ipc.ForOneShot()),
+		ipcfx.ModuleForOneshot(),
 		logfx.Module(),
 	)
 }

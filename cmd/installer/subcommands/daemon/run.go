@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -50,7 +50,6 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 			LogParams:            log.ForDaemon("INSTALLER", "installer.log_file", pkgconfigsetup.DefaultUpdaterLogFile),
-			IPCParams:            ipc.ForDaemon(),
 		}),
 		core.Bundle(),
 		fx.Supply(&rcservice.Params{
@@ -64,5 +63,6 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 		localapiimpl.Module(),
 		telemetryimpl.Module(),
 		fx.Supply(pidimpl.NewParams(global.PIDFilePath)),
+		ipcfx.ModuleForDaemon(),
 	)
 }

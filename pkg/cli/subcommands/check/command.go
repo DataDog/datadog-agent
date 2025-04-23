@@ -38,7 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -160,7 +160,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					SecretParams:         secrets.NewEnabledParams(),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true),
-					IPCParams:            ipc.ForDaemon(),
 				}),
 				core.Bundle(),
 
@@ -201,6 +200,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				getPlatformModules(),
 				jmxloggerimpl.Module(jmxloggerimpl.NewDisabledParams()),
 				haagentfx.Module(),
+				ipcfx.ModuleForDaemon(),
 			)
 		},
 	}

@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	flareprofilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	flareprofilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
@@ -169,6 +170,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				logscompressorfx.Module(),
 				metricscompressorfx.Module(),
 				diagnosefx.Module(),
+				ipcfx.ModuleForDebug(),
 			)
 		},
 	}
