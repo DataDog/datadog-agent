@@ -61,7 +61,7 @@ func (t *SelfTester) RunSelfTest(timeout time.Duration) error {
 
 	for _, selfTest := range t.selfTests {
 		if err := selfTest.GenerateEvent(); err != nil {
-			log.Errorf("self test failed: %s", selfTest.GetRuleDefinition().ID)
+			log.Errorf("self test failed (%s): %v", selfTest.GetRuleDefinition().ID, err)
 		}
 	}
 
