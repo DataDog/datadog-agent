@@ -10,28 +10,12 @@ package start
 
 import (
 	"fmt"
-	"net"
-	"net/http"
 	_ "net/http/pprof"
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
-
-func startPprof(config config.Component, telemetry telemetry.Component) {
-	go func() {
-		port := config.GetString("checks_agent_debug_port")
-		addr := net.JoinHostPort("localhost", port)
-		http.Handle("/telemetry", telemetry.Handler())
-		err := http.ListenAndServe(addr, nil)
-		if err != nil {
-			log.Warnf("pprof server: %s", err)
-		}
-	}()
-}
 
 func setupInternalProfiling(config config.Component) error {
 	runtime.MemProfileRate = 1

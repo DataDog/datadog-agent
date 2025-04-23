@@ -11,6 +11,8 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -165,7 +167,7 @@ func start(
 
 	defer StopAgent(cancel, log)
 
-	startPprof(config, telemetry)
+	startPprof(config, telemetry, log)
 
 	token, err := authToken.Get()
 
@@ -360,4 +362,16 @@ func setupInternalProfiling(_ config.Component) error {
 	return nil
 }
 
-func startPprof(_ config.Component, _ telemetry.Component) {}
+func startPprof(config config.Component, telemetry telemetry.Component, log log.Component) {
+	go func() {
+		port := config.GetString("checks_agent_debug_port")
+		addr := net.JoinHostPort("localhost", port)
+		if config.GetBool("telemetry.enabled") {
+			http.Handle("/telemetry", telemetry.Handler())
+		}
+		err := http.ListenAndServe(addr, nil)
+		if err != nil {
+			log.Warnf("pprof server: %s", err)
+		}
+	}()
+}
