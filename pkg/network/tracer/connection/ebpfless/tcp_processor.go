@@ -443,5 +443,6 @@ func (t *TCPProcessor) removeRecentlyClosed(tuple PCAPTuple) bool {
 }
 
 func (t *TCPProcessor) isRecentlyClosed(tuple PCAPTuple) bool {
-	return t.recentlyClosed.Contains(tuple)
+	_, ok := t.recentlyClosed.Peek(tuple)
+	return ok
 }
