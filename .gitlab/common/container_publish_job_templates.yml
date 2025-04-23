@@ -29,7 +29,7 @@
       --variable IMG_DESTINATIONS
       --variable IMG_SIGNING
       --variable IMG_TAG_REFERENCE
-      --variable IMG_NEW_TAG
+      --variable IMG_NEW_TAGS
       --variable APPS
       --variable BAZEL_TARGET
       --variable DDR
