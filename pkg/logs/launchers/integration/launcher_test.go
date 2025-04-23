@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsmock "github.com/DataDog/datadog-agent/comp/logs/integrations/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -44,6 +44,8 @@ type LauncherTestSuite struct {
 }
 
 func (suite *LauncherTestSuite) SetupTest() {
+	cfg := configmock.New(suite.T())
+
 	suite.fs = afero.NewMemMapFs()
 	suite.pipelineProvider = mock.NewMockProvider()
 	suite.outputChan = suite.pipelineProvider.NextPipelineChan()
@@ -54,11 +56,11 @@ func (suite *LauncherTestSuite) SetupTest() {
 	suite.source = sources.NewLogSource(suite.T().Name(), &config.LogsConfig{Type: config.IntegrationType, Path: suite.testPath})
 	// Override `logs_config.run_path` before calling `sources.NewLogSources()` as otherwise
 	// it will try and create `/opt/datadog` directory and fail
-	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.run_path", suite.testDir)
+	cfg.SetWithoutSource("logs_config.run_path", suite.testDir)
 
 	suite.s = NewLauncher(suite.fs, sources.NewLogSources(), suite.integrationsComp)
 	suite.s.fileSizeMax = 10 * 1024 * 1024
-	status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources([]*sources.LogSource{suite.source}))
+	status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{suite.source}))
 	suite.s.runPath = suite.testDir
 }
 
@@ -552,11 +554,13 @@ func TestLauncherTestSuite(t *testing.T) {
 // TestReadOnlyFileSystem ensures the launcher doesn't panic in a read-only
 // file system. There will be errors but it should handle them gracefully.
 func TestReadOnlyFileSystem(t *testing.T) {
+	cfg := configmock.New(t)
+
 	fs := afero.NewMemMapFs()
 	readOnlyDir, err := afero.TempDir(fs, "readonly", t.Name())
 	assert.NoError(t, err, "Unable to make tempdir readonly")
 
-	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.run_path", readOnlyDir)
+	cfg.SetWithoutSource("logs_config.run_path", readOnlyDir)
 
 	integrationsComp := integrationsmock.Mock()
 	s := NewLauncher(afero.NewReadOnlyFs(fs), sources.NewLogSources(), integrationsComp)
@@ -580,9 +584,10 @@ func TestReadOnlyFileSystem(t *testing.T) {
 // TestCombinedDiskUsageFallback ensures the launcher falls back to the
 // logsTotalUsageSetting if there is an error in the logsUsageRatio
 func TestCombinedDiskUsageFallback(t *testing.T) {
+	cfg := configmock.New(t)
 	totalUsage := 100
-	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.integrations_logs_disk_ratio", -1)
-	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.integrations_logs_total_usage", totalUsage)
+	cfg.SetWithoutSource("logs_config.integrations_logs_disk_ratio", -1)
+	cfg.SetWithoutSource("logs_config.integrations_logs_total_usage", totalUsage)
 
 	integrationsComp := integrationsmock.Mock()
 	s := NewLauncher(afero.NewOsFs(), sources.NewLogSources(), integrationsComp)

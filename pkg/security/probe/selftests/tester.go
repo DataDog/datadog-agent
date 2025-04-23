@@ -61,7 +61,7 @@ func (t *SelfTester) RunSelfTest(timeout time.Duration) error {
 
 	for _, selfTest := range t.selfTests {
 		if err := selfTest.GenerateEvent(); err != nil {
-			log.Errorf("self test failed: %s", selfTest.GetRuleDefinition().ID)
+			log.Errorf("self test failed (%s): %v", selfTest.GetRuleDefinition().ID, err)
 		}
 	}
 
@@ -219,7 +219,7 @@ func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, _ *prob
 			return true
 		}
 
-		s := serializers.NewEventSerializer(ev, rule.Opts)
+		s := serializers.NewEventSerializer(ev, rule)
 		if s == nil {
 			return false
 		}

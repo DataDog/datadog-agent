@@ -33,12 +33,6 @@ datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
-agents:
-  containers:
-    traceAgent:
-      env:
-        - name: DD_APM_FEATURES
-          value: 'enable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
 	e2e.Run(t, &otlpIngestOpNameV2RecvrV1TestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)))))
@@ -73,12 +67,6 @@ datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
-agents:
-  containers:
-    traceAgent:
-      env:
-        - name: DD_APM_FEATURES
-          value: 'enable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
 	e2e.Run(t, &otlpIngestOpNameV2RecvrV2TestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)))))
@@ -117,8 +105,6 @@ agents:
   containers:
     traceAgent:
       env:
-        - name: DD_APM_FEATURES
-          value: 'enable_operation_and_resource_name_logic_v2'
         - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_AS_RESOURCE_NAME
           value: 'true'
 `
@@ -159,8 +145,6 @@ agents:
   containers:
     traceAgent:
       env:
-        - name: DD_APM_FEATURES
-          value: 'enable_operation_and_resource_name_logic_v2'
         - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_REMAPPINGS
           value: '{"calendar-rest-go.client":"mapping.output","go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.server":"calendar.server"}'
 `
