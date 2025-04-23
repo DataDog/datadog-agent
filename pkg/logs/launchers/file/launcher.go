@@ -160,6 +160,7 @@ func (s *Launcher) runScanner() {
 			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
 			s.scan()
 		case <-s.stopScan:
+			s.done <- struct{}{}
 			return
 		}
 	}
