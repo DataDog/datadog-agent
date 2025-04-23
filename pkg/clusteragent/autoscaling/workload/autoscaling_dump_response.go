@@ -30,7 +30,6 @@ func Dump(ctx context.Context) AutoscalingDumpResponse {
 
 	log.Debugf("Found %d pod autoscalers", len(datadogPodAutoscalers))
 	for _, podAutoscaler := range datadogPodAutoscalers {
-		log.Debugf("GOT podAutoscaler: %s", podAutoscaler.ID())
 		datadogPodAutoscalerAddr = append(datadogPodAutoscalerAddr, &podAutoscaler)
 	}
 
