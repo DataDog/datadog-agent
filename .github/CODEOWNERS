@@ -587,8 +587,18 @@
 /pkg/snmp/                              @DataDog/ndm-core
 /pkg/tagger/                            @DataDog/container-platform
 /pkg/windowsdriver/                     @DataDog/windows-kernel-integrations
-/comp/core/workloadmeta/collectors/internal/cloudfoundry @DataDog/agent-integrations
-/comp/core/workloadmeta/collectors/internal/nvml @DataDog/ebpf-platform
+/comp/core/workloadmeta/collectors/internal/cloudfoundry  @DataDog/agent-integrations
+/comp/core/workloadmeta/collectors/internal/containerd    @DataDog/container-platform @DataDog/container-integrations
+/comp/core/workloadmeta/collectors/internal/crio          @DataDog/container-platform @DataDog/container-integrations
+/comp/core/workloadmeta/collectors/internal/docker        @DataDog/container-platform @DataDog/container-integrations
+/comp/core/workloadmeta/collectors/internal/ecs           @DataDog/container-platform @DataDog/container-integrations
+/comp/core/workloadmeta/collectors/internal/ecsfargate    @DataDog/container-platform @DataDog/container-integrations
+/comp/core/workloadmeta/collectors/internal/kubeapiserver @DataDog/container-platform @DataDog/container-integrations
+/comp/core/workloadmeta/collectors/internal/kubelet       @DataDog/container-platform @DataDog/container-integrations
+/comp/core/workloadmeta/collectors/internal/kubemetadata  @DataDog/container-platform @DataDog/container-integrations
+/comp/core/workloadmeta/collectors/internal/nvml          @DataDog/ebpf-platform
+/comp/core/workloadmeta/collectors/internal/podman        @DataDog/container-platform @DataDog/container-integrations
+/comp/core/tagger/collectors            @DataDog/container-platform @DataDog/container-integrations
 /pkg/sbom/                              @DataDog/agent-security @DataDog/container-integrations
 /pkg/networkpath/                       @DataDog/Networks
 /pkg/collector/corechecks/networkpath/  @DataDog/Networks
