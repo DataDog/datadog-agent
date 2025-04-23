@@ -55,6 +55,7 @@ type Launcher struct {
 	scanPeriod             time.Duration
 	flarecontroller        *flareController.FlareController
 	tagger                 tagger.Component
+	stopScan               chan struct{}
 }
 
 // NewLauncher returns a new launcher.
@@ -83,6 +84,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		scanPeriod:             scanPeriod,
 		flarecontroller:        flarecontroller,
 		tagger:                 tagger,
+		stopScan:               make(chan struct{}),
 	}
 }
 
@@ -104,11 +106,12 @@ func (s *Launcher) Stop() {
 
 // run checks periodically if there are new files to tail and the state of its tailers until stop
 func (s *Launcher) run() {
-	scanTicker := time.NewTicker(s.scanPeriod)
+	// Start scanner goroutine
 	defer func() {
-		scanTicker.Stop()
 		close(s.done)
 	}()
+
+	go s.runScanner()
 
 	for {
 		select {
@@ -116,13 +119,11 @@ func (s *Launcher) run() {
 			s.addSource(source)
 		case source := <-s.removedSources:
 			s.removeSource(source)
-		case <-scanTicker.C:
-			s.cleanUpRotatedTailers()
-			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
-			s.scan()
 		case <-s.stop:
 			// no more file should be tailed
 			s.cleanup()
+			s.stopScan <- struct{}{} // Signal scanner to stop
+			<-s.done                 // Wait for scanner to finish
 			return
 		}
 	}
@@ -142,6 +143,26 @@ func (s *Launcher) cleanup() {
 		s.tailers.Remove(tailer)
 	}
 	stopper.Stop()
+}
+
+// runScanner runs the scanner in a separate goroutine
+func (s *Launcher) runScanner() {
+	ticker := time.NewTicker(s.scanPeriod)
+	defer func() {
+		ticker.Stop()
+		close(s.stopScan)
+	}()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.cleanUpRotatedTailers()
+			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
+			s.scan()
+		case <-s.stopScan:
+			return
+		}
+	}
 }
 
 // scan checks all the files we're expected to tail, compares them to the currently tailed files,
@@ -224,8 +245,6 @@ func (s *Launcher) scan() {
 				continue
 			}
 			tailersLen++
-			filesTailed[scanKey] = true
-			continue
 		}
 	}
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
