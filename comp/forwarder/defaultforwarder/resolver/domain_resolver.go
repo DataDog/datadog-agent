@@ -358,21 +358,6 @@ func (r *MultiDomainResolver) GetAlternateDomains() []string {
 	return r.alternateDomainList
 }
 
-// UpdateAPIKeys updates the api keys at the given config path and sets the deduped keys to the new list.
-func (r *MultiDomainResolver) UpdateAPIKeys(configPath string, newKeys []utils.APIKeys) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	newAPIKeys := make([]utils.APIKeys, 0)
-	for idx := range r.apiKeys {
-		if r.apiKeys[idx].ConfigSettingPath != configPath {
-			newAPIKeys = append(newAPIKeys, r.apiKeys[idx])
-		}
-	}
-
-	r.apiKeys = append(newAPIKeys, newKeys...)
-	r.dedupedAPIKeys = utils.DedupAPIKeys(r.apiKeys)
-}
-
 // UpdateAPIKey replaces instances of the oldKey with the newKey
 func (r *MultiDomainResolver) UpdateAPIKey(configPath, oldKey, newKey string) {
 	r.mu.Lock()

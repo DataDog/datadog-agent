@@ -48,7 +48,8 @@ func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 		utils.NewAPIKeys("api_key", "key1"),
 		utils.NewAPIKeys("additional_endpoints", "key1", "key2", "key3"),
 	}
-	resolver := NewSingleDomainResolver("example.com", apiKeys)
+	resolver, err := NewSingleDomainResolver("example.com", apiKeys)
+	require.NoError(t, err)
 
 	// The duplicate key between the main endpoint and additional_endpoints is removed
 	assert.Equal(t, []string{"key1", "key2", "key3"}, resolver.GetAPIKeys())
@@ -79,7 +80,8 @@ func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 		utils.NewAPIKeys("api_key", "key1"),
 		utils.NewAPIKeys("additional_endpoints", "key1", "key2", "key3"),
 	}
-	resolver := NewMultiDomainResolver("example.com", apiKeys)
+	resolver, err := NewMultiDomainResolver("example.com", apiKeys)
+	require.NoError(t, err)
 
 	// The duplicate key between the main endpoint and additional_endpoints is removed
 	assert.Equal(t, []string{"key1", "key2", "key3"}, resolver.GetAPIKeys())
