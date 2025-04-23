@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import tempfile
+from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -82,6 +83,46 @@ class CompilerImage:
     def is_loaded(self):
         return self._check_container_exists(allow_stopped=True)
 
+    @cached_property
+    def compiler_user(self):
+        # Get the user name from the uid in the container
+        result = self.exec(f"getent passwd {self.host_uid}", user="root")
+        if result is not None and result.ok:
+            return result.stdout.rstrip().split(":")[0]
+
+        raise ValueError(f"Failed to get compiler user for uid {self.host_uid}")
+
+    @cached_property
+    def host_uid(self):
+        return cast('Result', self.ctx.run("id -u")).stdout.rstrip()
+
+    @cached_property
+    def host_gid(self):
+        return cast('Result', self.ctx.run("id -g")).stdout.rstrip()
+
+    def ensure_compiler_user_created(self):
+        # If the compiler user already exists, we don't need to do anything. Note that this might
+        # happen even if we have just booted the container, if the UID of the host user is
+        # the same as the UID for an already existing user in the container
+        uid_exists = self.exec(f"getent passwd {self.host_uid}", user="root", allow_fail=True)
+        if uid_exists is not None and uid_exists.ok:
+            info(f"[*] Compiler user {self.compiler_user} already created")
+            return
+
+        compiler_username = "compiler"
+
+        if self.host_uid == "0":
+            # If we're starting the compiler as root, we won't be able to create the compiler user
+            # and we will get weird failures later on, as the user 'compiler' won't exist in the container
+            raise ValueError("Cannot start compiler as root, we need to run as a non-root user")
+
+        # Now create the compiler user with same UID and GID as the current user
+        self.exec(f"getent group {self.host_gid} || groupadd -f -g {self.host_gid} {compiler_username}", user="root")
+        self.exec(
+            f"getent passwd {self.host_uid} || useradd -m -u {self.host_uid} -g {self.host_gid} {compiler_username}",
+            user="root",
+        )
+
     def ensure_running(self):
         if not self.is_running:
             info(f"[*] Compiler for {self.arch} not running, starting it...")
@@ -102,7 +143,7 @@ class CompilerImage:
     def exec(
         self,
         cmd: str,
-        user="compiler",
+        user: str = "compiler",
         verbose=True,
         run_dir: PathOrStr | None = None,
         allow_fail=False,
@@ -110,6 +151,11 @@ class CompilerImage:
     ):
         if run_dir:
             cmd = f"cd {run_dir} && {cmd}"
+
+        # Replace the user with the real compiler username, as it might be named
+        # differently in the container
+        if user == "compiler":
+            user = self.compiler_user
 
         self.ensure_running()
         color_env = "-e FORCE_COLOR=1"
@@ -151,21 +197,12 @@ class CompilerImage:
 
         # Due to permissions issues, we do not want to compile with the root user in the Docker image. We create a user
         # inside there with the same UID and GID as the current user
-        uid = cast('Result', self.ctx.run("id -u")).stdout.rstrip()
-        gid = cast('Result', self.ctx.run("id -g")).stdout.rstrip()
-
-        if uid == 0:
-            # If we're starting the compiler as root, we won't be able to create the compiler user
-            # and we will get weird failures later on, as the user 'compiler' won't exist in the container
-            raise ValueError("Cannot start compiler as root, we need to run as a non-root user")
-
-        # Now create the compiler user with same UID and GID as the current user
-        self.exec(f"getent group {gid} || groupadd -f -g {gid} compiler", user="root")
-        self.exec(f"getent passwd {uid} || useradd -m -u {uid} -g {gid} compiler", user="root")
+        self.ensure_compiler_user_created()
 
         if sys.platform != "darwin":  # No need to change permissions in MacOS
             self.exec(
-                f"chown {uid}:{gid} {CONTAINER_AGENT_PATH} && chown -R {uid}:{gid} {CONTAINER_AGENT_PATH}", user="root"
+                f"chown {self.host_uid}:{self.host_gid} {CONTAINER_AGENT_PATH} && chown -R {self.host_uid}:{self.host_gid} {CONTAINER_AGENT_PATH}",
+                user="root",
             )
 
         cross_arch = ARCH_ARM64 if self.arch == ARCH_AMD64 else ARCH_AMD64
@@ -204,26 +241,36 @@ class CompilerImage:
         )
 
         self.exec("apt-get install -y --no-install-recommends sudo", user="root")
-        self.exec("usermod -aG sudo compiler && echo 'compiler ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers", user="root")
-        self.exec(f"cp /root/.bashrc /home/compiler/.bashrc && chown {uid}:{gid} /home/compiler/.bashrc", user="root")
-        self.exec("mkdir ~/.cargo && touch ~/.cargo/env", user="compiler")
-        self.exec("dda self telemetry disable", user="compiler", force_color=False)
-        self.exec(f"install -d -m 0777 -o {uid} -g {uid} /go", user="root")
         self.exec(
-            f"echo export DD_CC=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-unknown-linux-gnu-gcc >> /home/compiler/.bashrc",
-            user="compiler",
+            f"usermod -aG sudo {self.compiler_user} && echo '{self.compiler_user} ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers",
+            user="root",
         )
         self.exec(
-            f"echo export DD_CXX=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-unknown-linux-gnu-g++ >> /home/compiler/.bashrc",
-            user="compiler",
+            f"cp /root/.bashrc /home/{self.compiler_user}/.bashrc && chown {self.host_uid}:{self.host_gid} /home/{self.compiler_user}/.bashrc",
+            user="root",
+        )
+        self.exec("mkdir ~/.cargo && touch ~/.cargo/env", user=self.compiler_user)
+        self.exec("dda self telemetry disable", user=self.compiler_user, force_color=False)
+        self.exec(f"install -d -m 0777 -o {self.host_uid} -g {self.host_gid} /go", user="root")
+        self.exec(
+            f"echo export DD_CC=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-unknown-linux-gnu-gcc >> /home/{self.compiler_user}/.bashrc",
+            user=self.compiler_user,
         )
         self.exec(
-            f"echo export DD_CC_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-unknown-linux-gnu-gcc >> /home/compiler/.bashrc",
-            user="compiler",
+            f"echo export DD_CXX=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-unknown-linux-gnu-g++ >> /home/{self.compiler_user}/.bashrc",
+            user=self.compiler_user,
         )
         self.exec(
-            f"echo export DD_CXX_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-unknown-linux-gnu-g++ >> /home/compiler/.bashrc",
-            user="compiler",
+            f"echo export DD_CC_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-unknown-linux-gnu-gcc >> /home/{self.compiler_user}/.bashrc",
+            user=self.compiler_user,
+        )
+        self.exec(
+            f"echo export DD_CXX_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-unknown-linux-gnu-g++ >> /home/{self.compiler_user}/.bashrc",
+            user=self.compiler_user,
+        )
+
+        info(
+            f"[*] Compiler image {self.name} for {self.arch} started, image {self.image}, compiler user '{self.compiler_user}'"
         )
 
 
