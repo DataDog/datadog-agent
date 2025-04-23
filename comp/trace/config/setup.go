@@ -651,6 +651,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "ol_proxy_config.additional_endpoints"; core.IsSet(k) {
 		c.OpenLineageProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
+	if k := "ol_proxy_config.api_version"; core.IsSet(k) {
+		c.OpenLineageProxy.APIVersion = core.GetInt(k)
+	}
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
 	return nil
 }
