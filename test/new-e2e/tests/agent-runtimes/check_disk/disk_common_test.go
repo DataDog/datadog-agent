@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	gocmp "github.com/google/go-cmp/cmp"
 	gocmpopts "github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
@@ -49,6 +50,7 @@ func getSuiteOptions(e2eos e2eos.Descriptor) []e2e.SuiteOption {
 			awshost.WithAgentOptions(
 				agentOptions...,
 			),
+			awshost.WithEC2InstanceOptions(ec2.WithOS(e2eos)),
 		),
 	))
 
