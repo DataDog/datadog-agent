@@ -8,7 +8,6 @@
 package workload
 
 import (
-	"context"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
@@ -25,7 +24,7 @@ var (
 type autoscalingStore = autoscaling.Store[model.PodAutoscalerInternal]
 
 // GetAutoscalingStore returns the autoscaling store, init once
-func GetAutoscalingStore(ctx context.Context) *autoscaling.Store[model.PodAutoscalerInternal] {
+func GetAutoscalingStore() *autoscaling.Store[model.PodAutoscalerInternal] {
 	AutoscalingStoreOnce.Do(func() {
 		AutoscalingStore = autoscaling.NewStore[model.PodAutoscalerInternal]()
 	})

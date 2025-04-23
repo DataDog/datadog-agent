@@ -8,7 +8,6 @@
 package workload
 
 import (
-	"context"
 	"fmt"
 	"io"
 
@@ -23,8 +22,9 @@ type AutoscalingDumpResponse struct {
 	PodAutoscalers []*model.PodAutoscalerInternal `json:"pod_autoscalers"`
 }
 
-func Dump(ctx context.Context) *AutoscalingDumpResponse {
-	datadogPodAutoscalers := GetAutoscalingStore(ctx).GetAll()
+// Dump returns the autoscaling store content
+func Dump() *AutoscalingDumpResponse {
+	datadogPodAutoscalers := GetAutoscalingStore().GetAll()
 
 	datadogPodAutoscalerAddr := []*model.PodAutoscalerInternal{}
 
@@ -40,7 +40,7 @@ func Dump(ctx context.Context) *AutoscalingDumpResponse {
 	return &response
 }
 
-// Write writes the store content to a given writer
+// Write writes the autoscaling store content to a given writer in a human-readable format
 func (adr *AutoscalingDumpResponse) Write(writer io.Writer) {
 	if adr == nil {
 		return

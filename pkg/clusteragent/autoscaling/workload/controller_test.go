@@ -8,7 +8,6 @@
 package workload
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -51,7 +50,7 @@ func resetAutoscalingStore() {
 }
 
 func newFixture(t *testing.T, testTime time.Time) *fixture {
-	store := GetAutoscalingStore(context.Background())
+	store := GetAutoscalingStore()
 	clock := clock.NewFakeClock(testTime)
 	recorder := record.NewFakeRecorder(100)
 	hashHeap := autoscaling.NewHashHeap(testMaxAutoscalerObjects, store)
