@@ -22,7 +22,7 @@ import (
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	ipcmockfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx-mock"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 
@@ -51,7 +51,7 @@ func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option
 		t,
 		Module(),
 		fx.Replace(params),
-		ipcmockfx.Module(),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
 		fx.Provide(func() api.AgentEndpointProvider {
 			return api.AgentEndpointProvider{
@@ -65,11 +65,11 @@ func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option
 	)
 }
 
-func testAPIServer(params config.MockParams, fxOptions ...fx.Option) (*fx.App, testdeps, error) {
+func testAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option) (*fx.App, testdeps, error) {
 	return fxutil.TestApp[testdeps](
 		Module(),
 		fx.Replace(params),
-		ipcmockfx.Module(),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Supply(context.Background()),
 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
 		fx.Provide(func() api.AgentEndpointProvider {
@@ -272,7 +272,7 @@ func TestStartServerWithGrpcServerFailGateway(t *testing.T) {
 		"agent_ipc.port": 0,
 	}}
 
-	_, _, errApp := testAPIServer(cfgOverride, fx.Options(
+	_, _, errApp := testAPIServer(t, cfgOverride, fx.Options(
 		fx.Replace(
 			fx.Annotate(&grpcServer{
 				grpcServer: true,

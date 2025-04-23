@@ -84,7 +84,7 @@ func TestGetHostname(t *testing.T) {
 				forceLocal:   tc.forceLocal,
 			}
 
-			authComp := ipcmock.Mock(t)
+			authComp := ipcmock.New(t)
 			server := authComp.NewMockServer(hostnameHandler(tc.remoteHostname))
 
 			serverURL, err := url.Parse(server.URL)

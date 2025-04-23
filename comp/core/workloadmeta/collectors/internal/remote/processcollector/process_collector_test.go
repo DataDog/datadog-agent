@@ -246,7 +246,7 @@ func TestCollection(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Create ipc component for the client
-			ipcmock.Mock(t)
+			ipcmock.New(t)
 
 			overrides := map[string]interface{}{
 				"language_detection.enabled":               true,

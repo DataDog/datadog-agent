@@ -17,7 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	ipcmockfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx-mock"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -36,7 +37,7 @@ func getProvides(t *testing.T, confOverrides map[string]any) (provides, error) {
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: confOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			ipcmockfx.Module(),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		),
 	)
 }

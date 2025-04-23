@@ -31,7 +31,7 @@ func TestOptionalModule(t *testing.T) {
 		w.Write([]byte(`{"key1": "value1"}`))
 	}
 
-	ipcComp := ipcmock.Mock(t)
+	ipcComp := ipcmock.New(t)
 	server := ipcComp.NewMockServer(http.HandlerFunc(handler))
 
 	url, err := url.Parse(server.URL)

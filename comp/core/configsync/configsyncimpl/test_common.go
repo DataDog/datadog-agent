@@ -35,7 +35,7 @@ func makeDeps(t *testing.T) dependencies {
 		fx.Supply(log.Params{}),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		telemetryimpl.MockModule(),
-		fx.Provide(func(t testing.TB) ipc.Component { return ipcmock.Mock(t) }),
+		fx.Provide(func(t testing.TB) ipc.Component { return ipcmock.New(t) }),
 		fx.Supply(NewParams(0, false, 0)),
 	))
 }

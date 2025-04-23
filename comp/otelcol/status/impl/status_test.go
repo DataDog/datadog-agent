@@ -49,7 +49,7 @@ func TestStatusOut(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			provides := NewComponent(Requires{
 				Config: config.NewMock(t),
-				IPC:    ipcmock.Mock(t),
+				IPC:    ipcmock.New(t),
 			})
 			headerProvider := provides.StatusProvider.Provider
 			test.assertFunc(t, headerProvider)

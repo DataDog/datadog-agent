@@ -310,7 +310,7 @@ func TestProcessAgentChecks(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		at := ipcmock.Mock(t)
+		at := ipcmock.New(t)
 
 		srv := at.NewMockServer(http.HandlerFunc(handler))
 		setupIPCAddress(t, configmock.New(t), srv.URL)

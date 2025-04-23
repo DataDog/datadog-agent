@@ -120,7 +120,7 @@ func TestNewExtension(t *testing.T) {
 }
 
 func TestExtensionHTTPHandler(t *testing.T) {
-	ipc := ipcmock.Mock(t)
+	ipc := ipcmock.New(t)
 
 	rr := getResponseToHandlerRequest(t, ipc, "")
 
@@ -151,7 +151,7 @@ func TestExtensionHTTPHandler(t *testing.T) {
 }
 
 func TestExtensionHTTPHandlerBadToken(t *testing.T) {
-	ipc := ipcmock.Mock(t)
+	ipc := ipcmock.New(t)
 
 	rr := getResponseToHandlerRequest(t, ipc, "badtoken")
 

@@ -189,7 +189,7 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 
 func TestCollection(t *testing.T) {
 	// Create ipc component for the client
-	ipcmock.Mock(t)
+	ipcmock.New(t)
 
 	// workloadmeta server
 	mockServerStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(

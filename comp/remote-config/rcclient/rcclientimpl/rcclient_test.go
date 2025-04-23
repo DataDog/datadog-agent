@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	ipcmockfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx-mock"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -105,7 +105,7 @@ func TestRCClientCreate(t *testing.T) {
 			fx.Provide(func() config.Component { return configmock.New(t) }),
 			settingsimpl.MockModule(),
 			sysprobeconfig.NoneModule(),
-			ipcmockfx.Module(),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		),
 	)
 	// Missing params
@@ -124,7 +124,7 @@ func TestRCClientCreate(t *testing.T) {
 				},
 			),
 			settingsimpl.MockModule(),
-			ipcmockfx.Module(),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		),
 	)
 	assert.NoError(t, err)
@@ -159,7 +159,7 @@ func TestAgentConfigCallback(t *testing.T) {
 				},
 			),
 			settingsimpl.Module(),
-			ipcmockfx.Module(),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Populate(&ipcComp),
 		),
 	)
@@ -262,7 +262,7 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 				},
 			),
 			settingsimpl.Module(),
-			ipcmockfx.Module(),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Populate(&ipcComp),
 		),
 	)

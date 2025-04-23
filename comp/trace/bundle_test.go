@@ -15,7 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	ipcmockfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx-mock"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -75,7 +76,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Invoke(func(_ traceagent.Component) {}),
 		MockBundle(),
 		taggerfx.Module(),
-		ipcmockfx.Module(),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	))
 
 	require.NotNil(t, cfg.Object())

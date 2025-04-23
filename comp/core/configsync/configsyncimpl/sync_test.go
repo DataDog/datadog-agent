@@ -80,7 +80,7 @@ func TestUpdater(t *testing.T) {
 	cs := configSync{
 		Config: cfg,
 		Log:    logmock.New(t),
-		IPC:    ipcmock.Mock(t),
+		IPC:    ipcmock.New(t),
 		url:    url,
 		client: client,
 		ctx:    context.Background(),

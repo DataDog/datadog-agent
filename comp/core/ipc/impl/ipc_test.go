@@ -31,35 +31,32 @@ func TestBothModes(t *testing.T) {
 		Conf:   mockConfig,
 		Params: ipc.ForOneShot(),
 	}
-	provides := NewComponent(reqs)
-	_, ok := provides.Comp.Get()
-	require.False(t, ok)
+	_, err := NewComponent(reqs)
+	require.Error(t, err)
 
 	// Simulate a daemon created the auth artifact
 	{
 		daemonReqs := reqs
 		daemonReqs.Params = ipc.ForDaemon()
-		provides := NewComponent(daemonReqs)
-		comp, ok := provides.Comp.Get()
-		require.True(t, ok)
+		provides, err := NewComponent(daemonReqs)
+		require.NoError(t, err)
 
 		// Check that the auth token is set
-		assert.Equal(t, util.GetAuthToken(), comp.GetAuthToken())
+		assert.Equal(t, util.GetAuthToken(), provides.Comp.GetAuthToken())
 
 		// Check that the IPC certificate is set
-		assert.Equal(t, util.GetTLSClientConfig(), comp.GetTLSClientConfig())
-		assert.Equal(t, util.GetTLSServerConfig(), comp.GetTLSServerConfig())
+		assert.Equal(t, util.GetTLSClientConfig(), provides.Comp.GetTLSClientConfig())
+		assert.Equal(t, util.GetTLSServerConfig(), provides.Comp.GetTLSServerConfig())
 	}
 
 	// re-create the component
-	provides = NewComponent(reqs)
-	comp, ok := provides.Comp.Get()
-	require.True(t, ok)
+	provides, err := NewComponent(reqs)
+	require.NoError(t, err)
 
 	// Check that the auth token is set
-	assert.Equal(t, util.GetAuthToken(), comp.GetAuthToken())
+	assert.Equal(t, util.GetAuthToken(), provides.Comp.GetAuthToken())
 
 	// Check that the IPC certificate is set
-	assert.Equal(t, util.GetTLSClientConfig(), comp.GetTLSClientConfig())
-	assert.Equal(t, util.GetTLSServerConfig(), comp.GetTLSServerConfig())
+	assert.Equal(t, util.GetTLSClientConfig(), provides.Comp.GetTLSClientConfig())
+	assert.Equal(t, util.GetTLSServerConfig(), provides.Comp.GetTLSServerConfig())
 }
