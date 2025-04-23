@@ -115,8 +115,6 @@ agent_dmg-x64-a7:
   - !reference [.cache_omnibus_ruby_deps, setup]
   - |
     export GOMODCACHE=~/gomodcache
-    sudo rm -rf $GOMODCACHE
-    rm -rf $GOMODCACHE
     mkdir -p $GOMODCACHE
 
 .macos_do_build:
@@ -212,6 +210,7 @@ new-agent_dmg-x64-a7:
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
   before_script:
+    # Since there is no virtualization on the macOS runners, we need to unmount the Agent dmg volume to avoid conflicts
     - sudo umount /Volumes/Agent || true
   after_script:
     # Destroy the keychain used to sign packages
