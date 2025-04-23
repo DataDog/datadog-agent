@@ -16,15 +16,13 @@ import (
 
 var (
 	// AutoscalingStore is the store for Datadog Pod Autoscalers
-	AutoscalingStore *autoscaling.Store[model.PodAutoscalerInternal]
+	AutoscalingStore *store
 	// AutoscalingStoreOnce is used to init the store once
 	AutoscalingStoreOnce sync.Once
 )
 
-type autoscalingStore = autoscaling.Store[model.PodAutoscalerInternal]
-
 // GetAutoscalingStore returns the autoscaling store, init once
-func GetAutoscalingStore() *autoscaling.Store[model.PodAutoscalerInternal] {
+func GetAutoscalingStore() *store {
 	AutoscalingStoreOnce.Do(func() {
 		AutoscalingStore = autoscaling.NewStore[model.PodAutoscalerInternal]()
 	})
