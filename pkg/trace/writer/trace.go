@@ -59,14 +59,15 @@ type TraceWriter struct {
 	errorsSampler   samplerTPSReader
 	rareSampler     samplerEnabledReader
 
-	hostname     string
-	env          string
-	senders      []*sender
-	stop         chan struct{}
-	stats        *info.TraceWriterInfo
-	wg           sync.WaitGroup // waits flusher + reporter + compressor
-	tick         time.Duration  // flush frequency
-	agentVersion string
+	hostname        string
+	env             string
+	senders         []*sender
+	stop            chan struct{}
+	stats           *info.TraceWriterInfo
+	statsLastMinute *info.TraceWriterInfo // aggregated stats over the last minute. Shared with info package
+	wg              sync.WaitGroup        // waits flusher + reporter + compressor
+	tick            time.Duration         // flush frequency
+	agentVersion    string
 
 	tracerPayloads []*pb.TracerPayload // tracer payloads buffered
 	bufferedSize   int                 // estimated buffer size
@@ -102,6 +103,7 @@ func NewTraceWriter(
 		hostname:           cfg.Hostname,
 		env:                cfg.DefaultEnv,
 		stats:              &info.TraceWriterInfo{},
+		statsLastMinute:    &info.TraceWriterInfo{},
 		stop:               make(chan struct{}),
 		flushChan:          make(chan chan struct{}),
 		syncMode:           cfg.SynchronousFlushing,
@@ -148,17 +150,15 @@ func (w *TraceWriter) UpdateAPIKey(oldKey, newKey string) {
 
 func (w *TraceWriter) reporter() {
 	tck := time.NewTicker(w.tick)
-	accWriterStats := info.TraceWriterInfo{}
-	info.UpdateTraceWriterInfo(&accWriterStats)
+	info.UpdateTraceWriterInfo(w.statsLastMinute)
 	var lastReset time.Time
 	defer tck.Stop()
 	defer w.wg.Done()
 	for {
 		select {
 		case now := <-tck.C:
-			accWriterStats.Acc(w.stats)
 			if now.Sub(lastReset) >= time.Minute {
-				accWriterStats.Reset()
+				w.statsLastMinute.Reset()
 				lastReset = now
 			}
 			w.report()
@@ -322,10 +322,12 @@ func (w *TraceWriter) serialize(pl *pb.AgentPayload) {
 		log.Errorf("Error closing %s stream when writing trace payload: %v", w.compressor.Encoding(), err)
 	}
 	sendPayloads(w.senders, p, w.syncMode)
-
 }
 
 func (w *TraceWriter) report() {
+	// update aggregated stats before reseting them.
+	w.statsLastMinute.Acc(w.stats)
+
 	_ = w.statsd.Count("datadog.trace_agent.trace_writer.payloads", w.stats.Payloads.Swap(0), nil, 1)
 	_ = w.statsd.Count("datadog.trace_agent.trace_writer.bytes_uncompressed", w.stats.BytesUncompressed.Swap(0), nil, 1)
 	_ = w.statsd.Count("datadog.trace_agent.trace_writer.retries", w.stats.Retries.Swap(0), nil, 1)
