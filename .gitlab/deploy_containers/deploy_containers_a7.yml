@@ -265,27 +265,27 @@ deploy_containers_latest_tags-a7:
   dependencies: []
   parallel:
     matrix:
-      - IMG_NEW_TAG: 7, latest
+      - IMG_NEW_TAG: 7,latest
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}
-      - IMG_NEW_TAG: 7-jmx, latest-jmx
+      - IMG_NEW_TAG: 7-jmx,latest-jmx
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-jmx
-      - IMG_NEW_TAG: 7-servercore, latest-servercore
+      - IMG_NEW_TAG: 7-servercore,latest-servercore
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore
-      - IMG_NEW_TAG: 7-servercore-jmx, latest-servercore-jmx
+      - IMG_NEW_TAG: 7-servercore-jmx,latest-servercore-jmx
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-jmx
-      - IMG_NEW_TAG: 7-ltsc2019, latest-ltsc2019
+      - IMG_NEW_TAG: 7-ltsc2019,latest-ltsc2019
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-ltsc2019
-      - IMG_NEW_TAG: 7-ltsc2022, latest-ltsc2022
+      - IMG_NEW_TAG: 7-ltsc2022,latest-ltsc2022
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-ltsc2022
-      - IMG_NEW_TAG: 7-servercore-ltsc2019, latest-servercore-ltsc2019
+      - IMG_NEW_TAG: 7-servercore-ltsc2019,latest-servercore-ltsc2019
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-ltsc2019
-      - IMG_NEW_TAG: 7-servercore-ltsc2022, latest-servercore-ltsc2022
+      - IMG_NEW_TAG: 7-servercore-ltsc2022,latest-servercore-ltsc2022
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-ltsc2022
-      - IMG_NEW_TAG: 7-servercore-ltsc2019-jmx, latest-servercore-ltsc2019-jmx
+      - IMG_NEW_TAG: 7-servercore-ltsc2019-jmx,latest-servercore-ltsc2019-jmx
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-ltsc2019-jmx
-      - IMG_NEW_TAG: 7-servercore-ltsc2022-jmx, latest-servercore-ltsc2022-jmx
+      - IMG_NEW_TAG: 7-servercore-ltsc2022-jmx,latest-servercore-ltsc2022-jmx
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-ltsc2022-jmx
-      - IMG_NEW_TAG: 7-full, latest-full
+      - IMG_NEW_TAG: 7-full,latest-full
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-full
 
 deploy_containers_latest-a7_internal:
