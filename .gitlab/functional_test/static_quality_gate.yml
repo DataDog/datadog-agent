@@ -6,8 +6,6 @@ static_quality_gates:
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  variables:
-    GIT_STRATEGY: fetch
   needs:
     - agent_deb-x64-a7
     - agent_deb-x64-a7-fips
@@ -89,8 +87,6 @@ manual_gate_threshold_update:
     - when: manual
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  variables:
-    GIT_STRATEGY: fetch
   needs:
     - static_quality_gates
   script:

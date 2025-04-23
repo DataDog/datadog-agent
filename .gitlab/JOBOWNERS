@@ -143,6 +143,7 @@ trace_agent_integration_tests @DataDog/agent-apm
 # Functional test
 serverless_cold_start_performance-deb_x64      @DataDog/serverless
 static_quality_gates                           @DataDog/agent-delivery
+manual_gate_threshold_update                   @DataDog/agent-delivery
 oracle*                                        @DataDog/database-monitoring
 
 # E2E
