@@ -67,7 +67,7 @@ def _get_jmxfetch_release_json_info(release_json):
     Gets the JMXFetch version info from the previous entries in the release.json file.
     """
 
-    release_json_version_data = _get_release_json_info_for_next_rc(release_json)
+    release_json_version_data = release_json[RELEASE_JSON_DEPENDENCIES]
 
     jmxfetch_version = release_json_version_data['JMXFETCH_VERSION']
     jmxfetch_shasum = release_json_version_data['JMXFETCH_HASH']
@@ -81,7 +81,7 @@ def _get_windows_release_json_info(release_json):
     """
     Gets the Windows NPM driver info from the previous entries in the release.json file.
     """
-    release_json_version_data = _get_release_json_info_for_next_rc(release_json)
+    release_json_version_data = release_json[RELEASE_JSON_DEPENDENCIES]
 
     win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum = _get_windows_driver_info(release_json_version_data, 'DDNPM')
     win_ddprocmon_driver, win_ddprocmon_version, win_ddprocmon_shasum = _get_windows_driver_info(
@@ -116,14 +116,6 @@ def _get_windows_driver_info(release_json_version_data, driver_name):
     print(f"The windows {driver_name.lower()} version is {version_value}")
 
     return driver_value, version_value, shasum_value
-
-
-def _get_release_json_info_for_next_rc(release_json):
-    """
-    Gets the version info from the previous entries in the release.json file.
-    """
-
-    return release_json[RELEASE_JSON_DEPENDENCIES]
 
 
 ##

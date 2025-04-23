@@ -249,18 +249,17 @@ def _get_release_version_from_release_json(release_json, version_re, release_jso
     release_component_version = None
     dependencies_entry = release_json.get(RELEASE_JSON_DEPENDENCIES, None)
 
-    if not dependencies_entry:
+    if dependencies_entry is None:
         raise Exit(f"release.json is missing a {RELEASE_JSON_DEPENDENCIES} entry.", 1)
 
     # Check that the component's version is defined in the dependencies entry
-    if release_json_key is not None:
-        match = version_re.match(dependencies_entry.get(release_json_key, ""))
-        if match:
-            release_component_version = _create_version_from_match(match)
-        else:
-            print(
-                f"{RELEASE_JSON_DEPENDENCIES} does not have a valid {release_json_key} ({dependencies_entry.get(release_json_key, '')}), ignoring"
-            )
+    match = version_re.match(dependencies_entry.get(release_json_key, ""))
+    if match:
+        release_component_version = _create_version_from_match(match)
+    else:
+        print(
+            f"{RELEASE_JSON_DEPENDENCIES} does not have a valid {release_json_key} ({dependencies_entry.get(release_json_key, '')}), ignoring"
+        )
 
     return release_component_version
 
