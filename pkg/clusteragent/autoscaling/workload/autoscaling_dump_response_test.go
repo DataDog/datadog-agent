@@ -49,10 +49,12 @@ func TestDump(t *testing.T) {
 === PodAutoscaler default/dpa-0 ===
 ----------- PodAutoscaler ID -----------
 default/dpa-0
+
 ----------- PodAutoscaler Meta -----------
 Creation Timestamp: 0001-01-01 00:00:00 +0000 UTC
 Generation: 1
 Settings Timestamp: 0001-01-01 00:00:00 +0000 UTC
+
 ----------- PodAutoscaler Spec -----------
 Target Ref: {Deployment app-0 apps/v1}
 Owner: Local
@@ -68,9 +70,11 @@ Scale Down Rule Type: Pods
 Scale Down Rule Value: 1
 Scale Down Rule Period: 10
 Scale Down Stabilization Window: 10
+
 ----------- PodAutoscaler Local Fallback -----------
 Horizontal Fallback Enabled: true
 Horizontal Fallback Stale Recommendation Threshold: 600
+
 ----------- PodAutoscaler Constraints -----------
 Min Replicas: 1
 Max Replicas: 10
@@ -78,6 +82,7 @@ Container: app
 Enabled: true
 Requests Min Allowed: map[cpu:100m memory:100Mi]
 Requests Max Allowed: map[cpu:1 memory:1000Mi]
+
 ----------- PodAutoscaler Objectives -----------
 Objective Type: PodResource
 Resource Name: cpu
@@ -149,8 +154,8 @@ Horizontal Last Action: Timestamp: %[1]s
 From Replicas: 2
 To Replicas: 3
 Recommended Replicas: 3
-
 --------------------------------
+Vertical Last Action Error: test vertical last action error
 Vertical Last Action: Timestamp: %[1]s
 Version: 1
 Type: RolloutTriggered
@@ -377,7 +382,8 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 			Version: "1",
 			Type:    datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType,
 		},
-		Error: fmt.Errorf("test error"),
+		VerticalLastActionError: fmt.Errorf("test vertical last action error"),
+		Error:                   fmt.Errorf("test error"),
 	}
 }
 

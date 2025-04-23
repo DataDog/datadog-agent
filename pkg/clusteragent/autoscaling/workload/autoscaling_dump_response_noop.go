@@ -8,7 +8,6 @@
 package workload
 
 import (
-	"context"
 	"io"
 )
 
@@ -16,7 +15,7 @@ import (
 type AutoscalingDumpResponse struct{}
 
 // Dump is a noop function that returns an empty AutoscalingDumpResponse
-func Dump(_ context.Context) *AutoscalingDumpResponse {
+func Dump() *AutoscalingDumpResponse {
 	return nil
 }
 
