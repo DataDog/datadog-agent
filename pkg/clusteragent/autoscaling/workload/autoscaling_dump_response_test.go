@@ -104,7 +104,7 @@ Container Name: app
 Container Resources: map[cpu:100m memory:100Mi]
 Container Limits: map[cpu:1 memory:1000Mi]
 --------------------------------
-Error: <nil>
+Error: test error
 
 ----------- PodAutoscaler Main Scaling Values -----------
 [Horizontal]
@@ -143,6 +143,7 @@ Container Limits: map[cpu:1 memory:1000Mi]
 Error: <nil>
 
 ----------- PodAutoscaler Status -----------
+Error: test error
 --------------------------------
 Horizontal Last Action: Timestamp: %[1]s
 From Replicas: 2
@@ -301,6 +302,9 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 					},
 				},
 			},
+			VerticalError:   nil,
+			HorizontalError: nil,
+			Error:           fmt.Errorf("test error"),
 		},
 		MainScalingValues: model.ScalingValues{
 			Horizontal: &model.HorizontalScalingValues{
@@ -373,6 +377,7 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 			Version: "1",
 			Type:    datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType,
 		},
+		Error: fmt.Errorf("test error"),
 	}
 }
 
