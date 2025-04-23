@@ -182,7 +182,7 @@ func getConfigCheck(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Com
 	w.Write(configCheckBytes)
 }
 
-func getAutoscalerList(w http.ResponseWriter, r *http.Request) {
+func getAutoscalerList(w http.ResponseWriter, _ *http.Request) {
 	autoscalerList := autoscalingWorkload.Dump()
 	if autoscalerList == nil {
 		w.WriteHeader(http.StatusNoContent)

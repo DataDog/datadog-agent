@@ -25,6 +25,7 @@ func (p *PodAutoscalerInternal) String(verbose bool) string {
 	var sb strings.Builder
 	_, _ = fmt.Fprintln(&sb, "----------- PodAutoscaler ID -----------")
 	_, _ = fmt.Fprintln(&sb, p.ID())
+	_, _ = fmt.Fprintln(&sb)
 
 	if !verbose {
 		return sb.String()
@@ -34,6 +35,8 @@ func (p *PodAutoscalerInternal) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Creation Timestamp:", p.CreationTimestamp())
 	_, _ = fmt.Fprintln(&sb, "Generation:", p.Generation())
 	_, _ = fmt.Fprintln(&sb, "Settings Timestamp:", p.SettingsTimestamp())
+	_, _ = fmt.Fprintln(&sb)
+
 	if p.Spec() != nil {
 		_, _ = fmt.Fprintln(&sb, "----------- PodAutoscaler Spec -----------")
 		_, _ = fmt.Fprintln(&sb, "Target Ref:", p.Spec().TargetRef)
@@ -42,16 +45,17 @@ func (p *PodAutoscalerInternal) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Remote Version:", *p.Spec().RemoteVersion)
 		}
 		if p.Spec().ApplyPolicy != nil {
-			_, _ = fmt.Fprint(&sb, formatPolicy(p.Spec().ApplyPolicy))
+			_, _ = fmt.Fprintln(&sb, formatPolicy(p.Spec().ApplyPolicy))
 		}
 		if p.Spec().Fallback != nil {
 			_, _ = fmt.Fprintln(&sb, "----------- PodAutoscaler Local Fallback -----------")
-			_, _ = fmt.Fprint(&sb, formatFallback(p.Spec().Fallback))
+			_, _ = fmt.Fprintln(&sb, formatFallback(p.Spec().Fallback))
 		}
 		if p.Spec().Constraints != nil {
 			_, _ = fmt.Fprintln(&sb, "----------- PodAutoscaler Constraints -----------")
-			_, _ = fmt.Fprint(&sb, formatConstraints(p.Spec().Constraints))
+			_, _ = fmt.Fprintln(&sb, formatConstraints(p.Spec().Constraints))
 		}
+
 		_, _ = fmt.Fprintln(&sb, "----------- PodAutoscaler Objectives -----------")
 		for _, objective := range p.Spec().Objectives {
 			_, _ = fmt.Fprintln(&sb, formatObjective(&objective))
@@ -85,14 +89,15 @@ func (p *PodAutoscalerInternal) String(verbose bool) string {
 		for _, action := range p.HorizontalLastActions() {
 			_, _ = fmt.Fprintln(&sb, "Horizontal Last Action:", formatHorizontalAction(&action))
 		}
+		_, _ = fmt.Fprintln(&sb, "--------------------------------")
 	}
-	_, _ = fmt.Fprintln(&sb, "--------------------------------")
 	if p.VerticalLastActionError() != nil {
 		_, _ = fmt.Fprintln(&sb, "Vertical Last Action Error:", p.VerticalLastActionError())
 	}
 	if p.VerticalLastAction() != nil {
 		_, _ = fmt.Fprintln(&sb, "Vertical Last Action:", formatVerticalAction(p.VerticalLastAction()))
 	}
+	_, _ = fmt.Fprintln(&sb)
 
 	if p.CustomRecommenderConfiguration() != nil {
 		_, _ = fmt.Fprintln(&sb, "----------- Custom Recommender -----------")
@@ -222,7 +227,7 @@ func formatHorizontalAction(action *datadoghqcommon.DatadogPodAutoscalerHorizont
 	if action.LimitedReason != nil {
 		_, _ = fmt.Fprintln(&sb, "Limited Reason:", *action.LimitedReason)
 	}
-	return sb.String()
+	return strings.TrimRight(sb.String(), "\n")
 }
 
 func formatVerticalAction(action *datadoghqcommon.DatadogPodAutoscalerVerticalAction) string {
@@ -230,7 +235,7 @@ func formatVerticalAction(action *datadoghqcommon.DatadogPodAutoscalerVerticalAc
 	_, _ = fmt.Fprintln(&sb, "Timestamp:", action.Time)
 	_, _ = fmt.Fprintln(&sb, "Version:", action.Version)
 	_, _ = fmt.Fprintln(&sb, "Type:", action.Type)
-	return sb.String()
+	return strings.TrimRight(sb.String(), "\n")
 }
 
 // TODO: move to common util, shared with orchestrator
