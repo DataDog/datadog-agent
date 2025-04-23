@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/pkg/config/viperconfig
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.65.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/util/log v0.65.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/config/model v0.65.0-rc.10
+	github.com/DataDog/datadog-agent/pkg/util/log v0.65.0-rc.10
 	github.com/DataDog/viper v1.14.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
@@ -12,8 +12,8 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.65.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.65.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.65.0-rc.10 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.65.0-rc.10 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
