@@ -123,7 +123,6 @@ func (s *Launcher) run() {
 			// no more file should be tailed
 			s.cleanup()
 			s.stopScan <- struct{}{} // Signal scanner to stop
-			<-s.done                 // Wait for scanner to finish
 			return
 		}
 	}
@@ -160,7 +159,6 @@ func (s *Launcher) runScanner() {
 			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
 			s.scan()
 		case <-s.stopScan:
-			s.done <- struct{}{}
 			return
 		}
 	}
