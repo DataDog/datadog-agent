@@ -57,6 +57,16 @@ def get_unstaged_files(ctx, re_filter=None, include_deleted_files=False) -> Iter
             yield file
 
 
+def get_untracked_files(ctx, re_filter=None) -> Iterable[str]:
+    """
+    Get the list of untracked files in the repository.
+    """
+    files = ctx.run("git ls-files --others --exclude-standard", hide=True).stdout.splitlines()
+    for file in files:
+        if re_filter is None or re_filter.search(file):
+            yield file
+
+
 def get_file_modifications(
     ctx, base_branch=None, added=False, modified=False, removed=False, only_names=False, no_renames=False
 ) -> list[tuple[str, str]]:

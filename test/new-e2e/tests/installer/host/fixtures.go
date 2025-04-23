@@ -115,7 +115,7 @@ func (h *Host) RemoveBrokenDockerConfig() {
 // SetupFakeAgentExp sets up a fake Agent experiment with configurable options.
 func (h *Host) SetupFakeAgentExp() FakeAgent {
 	// Install an experiment to create the experiment units
-	latestAgentImageVersion := "7.66.0-devel.git.532.6ad2678.pipeline.62458403-1" // TODO use latest prod image when 7.65 is out
+	latestAgentImageVersion := "7.66.0-devel.git.534.4e40dec.pipeline.62473533-1" // TODO use latest prod image when 7.65 is out
 	h.Run(fmt.Sprintf(`sudo datadog-installer install-experiment "oci://install.datad0g.com/agent-package:%s"`, latestAgentImageVersion))
 	h.Run("sudo systemctl stop datadog-agent-exp.service")
 	h.Run("sudo systemctl start datadog-agent.service")

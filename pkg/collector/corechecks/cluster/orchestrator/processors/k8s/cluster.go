@@ -10,12 +10,14 @@ package k8s
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/twmb/murmur3"
@@ -23,6 +25,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	corev1Client "k8s.io/client-go/kubernetes/typed/core/v1"
+)
+
+var (
+	extendedResourcesBlacklist = map[corev1.ResourceName]struct{}{
+		corev1.ResourceCPU:    {},
+		corev1.ResourceMemory: {},
+		corev1.ResourcePods:   {},
+	}
 )
 
 // ClusterProcessor is a processor for Kubernetes clusters. There is no
@@ -64,6 +74,7 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 	pctx := ctx.(*processors.K8sProcessorContext)
 	resourceList := p.nodeHandlers.ResourceList(ctx, list)
 	nodeCount := int32(len(resourceList))
+	nodesInfo := make([]*model.ClusterNodeInfo, 0, len(resourceList))
 
 	for _, resource := range resourceList {
 		r := resource.(*corev1.Node)
@@ -83,19 +94,19 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 		podAllocatable += uint32(r.Status.Allocatable.Pods().Value())
 		podCapacity += uint32(r.Status.Capacity.Pods().Value())
 
+		// Unaggregated node information summary.
+		nodesInfo = append(nodesInfo, k8sTransformers.ExtractClusterNodeInfo(r))
+
 		// Extended resources capacity and allocatable.
 		for name, quantity := range r.Status.Capacity {
-			if name == corev1.ResourceCPU || name == corev1.ResourceMemory || name == corev1.ResourcePods {
-				continue
+			if _, found := extendedResourcesBlacklist[name]; !found {
+				extendedResourcesCapacity[name.String()] += quantity.Value()
 			}
-			extendedResourcesCapacity[name.String()] += quantity.Value()
 		}
-
 		for name, quantity := range r.Status.Allocatable {
-			if name == corev1.ResourceCPU || name == corev1.ResourceMemory || name == corev1.ResourcePods {
-				continue
+			if _, found := extendedResourcesBlacklist[name]; !found {
+				extendedResourcesAllocatable[name.String()] += quantity.Value()
 			}
-			extendedResourcesAllocatable[name.String()] += quantity.Value()
 		}
 	}
 
@@ -110,6 +121,7 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 		PodCapacity:                  podCapacity,
 		ExtendedResourcesCapacity:    extendedResourcesCapacity,
 		ExtendedResourcesAllocatable: extendedResourcesAllocatable,
+		NodesInfo:                    nodesInfo,
 	}
 
 	kubeSystemCreationTimestamp, err := getKubeSystemCreationTimeStamp(pctx.APIClient.Cl.CoreV1())
@@ -142,7 +154,13 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 		return processResult, 0, nil
 	}
 
-	messages := []model.MessageBody{
+	yaml, err := json.Marshal(clusterModel)
+	if err != nil {
+		log.Warnc(processors.NewMarshallingError(err).Error(), orchestrator.ExtraLogContext...)
+		return processResult, 0, nil
+	}
+
+	metadataMessages := []model.MessageBody{
 		&model.CollectorCluster{
 			ClusterName: pctx.Cfg.KubeClusterName,
 			ClusterId:   pctx.ClusterID,
@@ -151,8 +169,27 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 			Tags:        pctx.Cfg.ExtraTags,
 		},
 	}
+	manifestMessages := []model.MessageBody{
+		&model.CollectorManifest{
+			ClusterName: pctx.Cfg.KubeClusterName,
+			ClusterId:   pctx.ClusterID,
+			GroupId:     pctx.MsgGroupID,
+			Manifests: []*model.Manifest{
+				{
+					Content:         yaml,
+					ContentType:     "json",
+					ResourceVersion: clusterModel.ResourceVersion,
+					Type:            int32(orchestrator.K8sCluster),
+					Uid:             pctx.ClusterID,
+					Version:         "v1",
+				},
+			},
+			Tags: pctx.Cfg.ExtraTags,
+		},
+	}
 	processResult = processors.ProcessResult{
-		MetadataMessages: messages,
+		MetadataMessages: metadataMessages,
+		ManifestMessages: manifestMessages,
 	}
 
 	return processResult, 1, nil

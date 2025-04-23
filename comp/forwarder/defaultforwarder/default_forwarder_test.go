@@ -61,3 +61,43 @@ func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, expectData, string(data))
 }
+
+func TestDefaultForwarderUpdateAdditionalEndpointAPIKey(t *testing.T) {
+	mockConfig := config.NewMock(t)
+	mockConfig.Set("api_key", "api_key1", pkgconfigmodel.SourceAgentRuntime)
+	log := logmock.New(t)
+
+	// starting API Keys, before the update
+	// main api_key is a duplicate of the additional_endpoints one
+	keysPerDomains := map[string][]utils.APIKeys{
+		"example1.com": {
+			utils.NewAPIKeys("api_key", "api_key1"),
+			utils.NewAPIKeys("additional_endpoints", "api_key1"),
+		},
+		"example2.com": {
+			utils.NewAPIKeys("additional_endpoints", "api_key3"),
+		},
+	}
+	forwarderOptions := NewOptions(mockConfig, log, keysPerDomains)
+	forwarder := NewDefaultForwarder(mockConfig, log, forwarderOptions)
+
+	// API keys from the domain resolvers match
+	expectData := `{"example1.com":["api_key1"],"example2.com":["api_key3"]}`
+	actualAPIKeys := forwarder.domainAPIKeyMap()
+	data, err := json.Marshal(actualAPIKeys)
+	require.NoError(t, err)
+	assert.Equal(t, expectData, string(data))
+
+	// update the APIKey by setting it on the config, we now have a new API key
+	mockConfig.Set("additional_endpoints",
+		map[string][]string{"example1.com": {"api_key2"}},
+		pkgconfigmodel.SourceAgentRuntime,
+	)
+
+	// The endpoint has both api keys
+	expectData = `{"example1.com":["api_key1","api_key2"],"example2.com":["api_key3"]}`
+	actualAPIKeys = forwarder.domainAPIKeyMap()
+	data, err = json.Marshal(actualAPIKeys)
+	require.NoError(t, err)
+	assert.Equal(t, expectData, string(data))
+}

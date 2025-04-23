@@ -915,7 +915,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	eventType := event.GetEventType()
 	if eventType > model.MaxKernelEventType {
-		p.monitors.eventStreamMonitor.CountInvalidEvent(eventstream.EventStreamMap, eventstream.InvalidType, dataLen)
+		p.monitors.eventStreamMonitor.CountInvalidEvent(dataLen)
 		seclog.Errorf("unsupported event type %d", eventType)
 		return
 	}
@@ -1829,7 +1829,7 @@ func (p *EBPFProbe) startSysCtlSnapshotLoop() {
 			// create the sysctl snapshot
 			event, err := sysctl.NewSnapshotEvent(p.config.RuntimeSecurity.SysCtlSnapshotIgnoredBaseNames, p.config.RuntimeSecurity.SysCtlSnapshotKernelCompilationFlags)
 			if err != nil {
-				seclog.Errorf("sysctl snapshot failed: %v", err)
+				seclog.Warnf("sysctl snapshot failed: %v", err)
 				continue
 			}
 
@@ -2349,7 +2349,9 @@ func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
 
 // initManagerOptions initializes the eBPF manager options
 func (p *EBPFProbe) initManagerOptions() error {
-	p.managerOptions = ebpf.NewDefaultOptions()
+	kretprobeMaxActive := p.config.Probe.EventStreamKretprobeMaxActive
+
+	p.managerOptions = ebpf.NewDefaultOptions(kretprobeMaxActive)
 	p.initManagerOptionsActivatedProbes()
 	p.initManagerOptionsConstants()
 	p.initManagerOptionsTailCalls()
