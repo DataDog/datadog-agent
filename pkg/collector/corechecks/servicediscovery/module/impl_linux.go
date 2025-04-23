@@ -13,7 +13,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -383,38 +382,6 @@ func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
 	}
 
 	utils.WriteAsJSON(w, services, utils.CompactOutput)
-}
-
-const prefix = "socket:["
-
-// getSockets get a list of socket inode numbers opened by a process
-func getSockets(pid int32) ([]uint64, error) {
-	statPath := kernel.HostProc(fmt.Sprintf("%d/fd", pid))
-	d, err := os.Open(statPath)
-	if err != nil {
-		return nil, err
-	}
-	defer d.Close()
-	fnames, err := d.Readdirnames(-1)
-	if err != nil {
-		return nil, err
-	}
-	var sockets []uint64
-	for _, fd := range fnames {
-		fullPath, err := os.Readlink(filepath.Join(statPath, fd))
-		if err != nil {
-			continue
-		}
-		if strings.HasPrefix(fullPath, prefix) {
-			sock, err := strconv.ParseUint(fullPath[len(prefix):len(fullPath)-1], 10, 64)
-			if err != nil {
-				continue
-			}
-			sockets = append(sockets, sock)
-		}
-	}
-
-	return sockets, nil
 }
 
 // socketInfo stores information related to each socket.
