@@ -12,9 +12,9 @@ import (
 	"math"
 	"os"
 	"slices"
-	"testing"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	gocmp "github.com/google/go-cmp/cmp"
 	gocmpopts "github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
@@ -31,13 +31,7 @@ type baseCheckSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-// a relative diff considered acceptable when comparing metrics
-const metricCompareFraction = 0.02
-
-// number of decimals when comparing metrics
-const metricCompareDecimals = 1
-
-func TestLinuxDiskSuite(t *testing.T) {
+func getSuiteOptions(e2eos e2eos.Descriptor) []e2e.SuiteOption {
 	agentOptions := []agentparams.Option{}
 	suiteOptions := []e2e.SuiteOption{}
 	//TODO: remove once the PR is ready
@@ -58,11 +52,14 @@ func TestLinuxDiskSuite(t *testing.T) {
 		),
 	))
 
-	t.Parallel()
-	e2e.Run(t, &baseCheckSuite{},
-		suiteOptions...,
-	)
+	return suiteOptions
 }
+
+// a relative diff considered acceptable when comparing metrics
+const metricCompareFraction = 0.02
+
+// number of decimals when comparing metrics
+const metricCompareDecimals = 1
 
 func (v *baseCheckSuite) TestCheckDisk() {
 	testCases := []struct {
