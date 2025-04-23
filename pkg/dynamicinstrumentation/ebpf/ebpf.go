@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 
@@ -143,9 +144,11 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 		return fmt.Errorf("could not find bpf program for symbol %s", probe.FuncName)
 	}
 
+	manager.TraceFSLock.Lock()
 	link, err := executable.Uprobe(probe.FuncName, bpfProgram, &link.UprobeOptions{
 		PID: int(procInfo.PID),
 	})
+	manager.TraceFSLock.Unlock()
 	if err != nil {
 		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "UPROBE_FAILURE", fmt.Sprintf("%s: %s", probe.FuncName, err.Error()))
 		return fmt.Errorf("could not attach bpf program for %s via uprobe: %w", probe.FuncName, err)
