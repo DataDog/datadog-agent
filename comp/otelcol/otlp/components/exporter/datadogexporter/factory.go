@@ -216,7 +216,7 @@ func (f *factory) createMetricsExporter(
 		TimeoutConfig: exporterhelper.TimeoutConfig{
 			Timeout: cfg.Timeout,
 		},
-		QueueConfig: cfg.QueueSettings,
+		QueueBatchConfig: cfg.QueueSettings,
 		ShutdownFunc: func(context.Context) error {
 			cancel()  // first cancel context
 			wg.Wait() // then wait for shutdown

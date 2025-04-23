@@ -225,7 +225,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 	}
 
 	exporter, err := exporterhelper.NewMetrics(ctx, params, cfg, newExp.ConsumeMetrics,
-		exporterhelper.WithQueue(cfg.QueueConfig),
+		exporterhelper.WithQueue(cfg.QueueBatchConfig),
 		exporterhelper.WithTimeout(cfg.TimeoutConfig),
 		// the metrics remapping code mutates data
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: true}),
