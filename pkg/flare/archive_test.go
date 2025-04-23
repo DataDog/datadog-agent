@@ -37,6 +37,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver"
+	autoscalingWorkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	autoscalingWorkloadModel "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -103,6 +105,28 @@ func setupProcessAPIServer(t *testing.T, port int) {
 		secretsimpl.MockModule(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	))
+}
+
+func TestGetAutoscalerList(t *testing.T) {
+	dpaInternal := autoscalingWorkloadModel.NewFakePodAutoscalerInternal("ns", "test-dpa", nil)
+	autoscalerInfo := autoscalingWorkload.AutoscalersInfo{
+		PodAutoscalers: []autoscalingWorkloadModel.PodAutoscalerInternal{
+			dpaInternal,
+		},
+	}
+
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		out, _ := json.Marshal(&autoscalerInfo)
+		w.Write(out)
+	}))
+	defer s.Close()
+
+	setupIPCAddress(t, configmock.New(t), s.URL)
+
+	content, err := GetAutoscalerList(s.URL)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(content), "test-dpa")
 }
 
 func TestGetAgentTaggerList(t *testing.T) {

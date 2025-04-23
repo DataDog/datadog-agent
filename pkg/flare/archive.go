@@ -24,6 +24,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	autoscalingWorkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare/common"
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
@@ -251,6 +252,29 @@ func getChecksFromProcessAgent(fb flaretypes.FlareBuilder, getAddressPort func()
 	getCheck("process", "process_config.process_collection.enabled")
 	getCheck("container", "process_config.container_collection.enabled")
 	getCheck("process_discovery", "process_config.process_discovery.enabled")
+}
+
+// GetAutoscalerList fetches the autoscaler list from the given URL.
+func GetAutoscalerList(remoteURL string) ([]byte, error) {
+	c := apiutil.GetClient(apiutil.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
+
+	r, err := apiutil.DoGet(c, remoteURL, apiutil.LeaveConnectionOpen)
+	if err != nil {
+		return nil, err
+	}
+
+	autoscalerDump := autoscalingWorkload.AutoscalersInfo{}
+	err = json.Unmarshal(r, &autoscalerDump)
+
+	if err != nil {
+		return nil, err
+	}
+
+	fct := func(w io.Writer) error {
+		autoscalerDump.Print(w)
+		return nil
+	}
+	return functionOutputToBytes(fct), nil
 }
 
 func getAgentTaggerList() ([]byte, error) {
