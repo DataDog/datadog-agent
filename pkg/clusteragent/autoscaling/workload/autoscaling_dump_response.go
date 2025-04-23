@@ -14,6 +14,7 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,6 +25,11 @@ type AutoscalingDumpResponse struct {
 
 // Dump returns the autoscaling store content
 func Dump() *AutoscalingDumpResponse {
+	if !pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") {
+		log.Debug("Autoscaling is disabled")
+		return nil
+	}
+
 	datadogPodAutoscalers := GetAutoscalingStore().GetAll()
 
 	datadogPodAutoscalerAddr := []*model.PodAutoscalerInternal{}

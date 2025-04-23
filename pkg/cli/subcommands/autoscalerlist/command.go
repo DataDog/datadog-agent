@@ -43,7 +43,7 @@ type GlobalParams struct {
 	FleetPoliciesDirPath string
 }
 
-// MakeCommand returns an`autoscaler-list` command to be used by agent binaries.
+// MakeCommand returns an`autoscaler-list` command to be used by cluster- binaries.
 func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cliParams := &cliParams{}
 
@@ -95,8 +95,8 @@ func getAutoscalerURL(config config.Component) (string, error) {
 	var urlstr string
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		urlstr = fmt.Sprintf("https://%v:%v/autoscaler-list", ipcAddress, config.GetInt("cluster_agent.cmd_port"))
-	} else { // TODO: we don't support this on the standalone agent
-		urlstr = fmt.Sprintf("https://%v:%v/agent/autoscaler-list", ipcAddress, config.GetInt("cmd_port"))
+	} else {
+		return "", fmt.Errorf("running autoscaler-list is only supported on the cluster agent")
 	}
 
 	return urlstr, nil
@@ -105,7 +105,7 @@ func getAutoscalerURL(config config.Component) (string, error) {
 func getAutoscalerList(w io.Writer, url string) error {
 	c := util.GetClient()
 
-	// get the tagger-list from server
+	// get the autoscaler-list from server
 	r, err := util.DoGet(c, url, util.LeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
