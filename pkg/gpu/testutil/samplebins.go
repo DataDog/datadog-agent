@@ -43,7 +43,7 @@ var finishedPattern = regexp.MustCompile("CUDA calls made")
 
 const (
 	// MinimalDockerImage is the minimal docker image, just used for running a binary
-	MinimalDockerImage dockerImage = "alpine:3.20.3"
+	MinimalDockerImage dockerImage = dockerutils.MinimalDockerImage
 )
 
 // SampleArgs holds arguments for the sample binary

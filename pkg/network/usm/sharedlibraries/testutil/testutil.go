@@ -27,12 +27,17 @@ import (
 // mutex protecting build process
 var mux sync.Mutex
 
+func BuildFmapperScanner(t testing.TB) *protocolstestutil.PatternScanner {
+	patternScanner, err := protocolstestutil.NewScanner(regexp.MustCompile("awaiting signal"), protocolstestutil.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
+	return patternScanner
+}
+
 // OpenFromProcess launches the specified external program which holds an active
 // handle to the given paths.
 func OpenFromProcess(t *testing.T, programExecutable string, paths ...string) (*exec.Cmd, error) {
 	cmd := exec.Command(programExecutable, paths...)
-	patternScanner, err := protocolstestutil.NewScanner(regexp.MustCompile("awaiting signal"), protocolstestutil.NoPattern)
-	require.NoError(t, err, "failed to create pattern scanner")
+	patternScanner := BuildFmapperScanner(t)
 	cmd.Stdout = patternScanner
 	cmd.Stderr = patternScanner
 
@@ -40,6 +45,8 @@ func OpenFromProcess(t *testing.T, programExecutable string, paths ...string) (*
 	log.Infof("exec prog=%s, paths=%v | PID = %d", programExecutable, paths, cmd.Process.Pid)
 
 	t.Cleanup(func() {
+		patternScanner.PrintLogs(t)
+
 		if cmd.Process == nil {
 			return
 		}
