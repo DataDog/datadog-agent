@@ -18,7 +18,6 @@ import (
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	"github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 )
 
 func (p *PodAutoscalerInternal) String(verbose bool) string {
@@ -306,7 +305,7 @@ func (p *PodAutoscalerInternal) UnmarshalJSON(data []byte) error {
 		Name                           string                                                 `json:"name"`
 		CreationTimestamp              time.Time                                              `json:"creation_timestamp"`
 		Generation                     int64                                                  `json:"generation"`
-		Spec                           *datadoghq.DatadogPodAutoscalerSpec                    `json:"spec"`
+		Spec                           *v1alpha2.DatadogPodAutoscalerSpec                     `json:"spec"`
 		SettingsTimestamp              time.Time                                              `json:"settings_timestamp"`
 		ScalingValues                  ScalingValues                                          `json:"scaling_values"`
 		MainScalingValues              ScalingValues                                          `json:"main_scaling_values"`
