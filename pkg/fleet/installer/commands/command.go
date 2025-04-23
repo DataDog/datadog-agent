@@ -153,13 +153,7 @@ func RootCommands() []*cobra.Command {
 		getStateCommand(),
 		statusCommand(),
 		postinstCommand(),
-		prermCommand(),
-		preStartExpCommand(),
-		postStartExpCommand(),
-		preStopExpCommand(),
-		postStopExpCommand(),
-		prePromoteExpCommand(),
-		postPromoteExpCommand(),
+		hooksCommand(),
 	}
 }
 

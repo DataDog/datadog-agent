@@ -6,8 +6,8 @@ package datadogconnector // import "github.com/DataDog/datadog-agent/comp/otelco
 import (
 	"context"
 	"fmt"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"time"
@@ -64,7 +64,7 @@ type traceToMetricConnector struct {
 	isStarted bool
 }
 
-func getTraceAgentCfg(logger *zap.Logger, cfg datadogconfig.TracesConnectorConfig, attributesTranslator *attributes.Translator, tagger tagger.Component) *config.AgentConfig {
+func getTraceAgentCfg(logger *zap.Logger, cfg datadogconfig.TracesConnectorConfig, attributesTranslator *attributes.Translator, tagger types.TaggerClient, hostnameOpt option.Option[string]) *config.AgentConfig {
 	acfg := config.New()
 	acfg.OTLPReceiver.AttributesTranslator = attributesTranslator
 	acfg.OTLPReceiver.SpanNameRemappings = cfg.SpanNameRemappings
@@ -73,6 +73,9 @@ func getTraceAgentCfg(logger *zap.Logger, cfg datadogconfig.TracesConnectorConfi
 	acfg.ComputeStatsBySpanKind = cfg.ComputeStatsBySpanKind
 	acfg.PeerTagsAggregation = cfg.PeerTagsAggregation
 	acfg.PeerTags = cfg.PeerTags
+	if hostname, found := hostnameOpt.Get(); found {
+		acfg.Hostname = hostname
+	}
 	if tagger != nil {
 		acfg.ContainerTags = func(cid string) ([]string, error) {
 			return tagger.Tag(types.NewEntityID(types.ContainerID, cid), types.HighCardinality)
@@ -92,10 +95,10 @@ func getTraceAgentCfg(logger *zap.Logger, cfg datadogconfig.TracesConnectorConfi
 	if !datadog.ReceiveResourceSpansV2FeatureGate.IsEnabled() {
 		acfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
-	if datadog.OperationAndResourceNameV2FeatureGate.IsEnabled() {
-		acfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
+	if !datadog.OperationAndResourceNameV2FeatureGate.IsEnabled() {
+		acfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 	} else {
-		logger.Info("Please enable feature gate datadog.EnableOperationAndResourceNameV2 for improved operation and resource name logic. This feature will be enabled by default in the future - if you have Datadog monitors or alerts set on operation/resource names, you may need to migrate them to the new convention.")
+		logger.Info("Please enable feature gate datadog.EnableOperationAndResourceNameV2 for improved operation and resource name logic. The v1 logic will be deprecated in the future - if you have Datadog monitors or alerts set on operation/resource names, you may need to migrate them to the new convention. See the migration guide at https://docs.datadoghq.com/opentelemetry/guide/migrate/migrate_operation_names/")
 	}
 	if v := cfg.BucketInterval; v > 0 {
 		acfg.BucketInterval = v
@@ -106,7 +109,7 @@ func getTraceAgentCfg(logger *zap.Logger, cfg datadogconfig.TracesConnectorConfi
 var _ component.Component = (*traceToMetricConnector)(nil) // testing that the connectorImp properly implements the type Component interface
 
 // newTraceToMetricConnector creates a new connector with native OTel span ingestion
-func newTraceToMetricConnector(set component.TelemetrySettings, cfg component.Config, metricsConsumer consumer.Metrics, metricsClient statsd.ClientInterface, tagger tagger.Component) (*traceToMetricConnector, error) {
+func newTraceToMetricConnector(set component.TelemetrySettings, cfg component.Config, metricsConsumer consumer.Metrics, metricsClient statsd.ClientInterface, tagger types.TaggerClient, hostnameOpt option.Option[string]) (*traceToMetricConnector, error) {
 	set.Logger.Info("Building datadog connector for traces to metrics")
 	statsout := make(chan *pb.StatsPayload, 100)
 	statsWriter := statsprocessor.NewOtelStatsWriter(statsout)
@@ -120,7 +123,7 @@ func newTraceToMetricConnector(set component.TelemetrySettings, cfg component.Co
 		return nil, fmt.Errorf("failed to create metrics translator: %w", err)
 	}
 
-	tcfg := getTraceAgentCfg(set.Logger, cfg.(*Config).Traces, attributesTranslator, tagger)
+	tcfg := getTraceAgentCfg(set.Logger, cfg.(*Config).Traces, attributesTranslator, tagger, hostnameOpt)
 	oconf := tcfg.Obfuscation.Export(tcfg)
 	oconf.Statsd = metricsClient
 	oconf.Redis.Enabled = true
