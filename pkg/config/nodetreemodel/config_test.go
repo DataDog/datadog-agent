@@ -890,9 +890,8 @@ func TestEnvVarOrdering(t *testing.T) {
 
 func TestWarningLogged(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-	t.Setenv("DD_CONF_NODETREEMODEL", "enable")
 	cfg.BindEnv("bad_key", "DD_BAD_KEY")
-	os.Setenv("DD_BAD_KEY", "value")
+	t.Setenv("DD_BAD_KEY", "value")
 	original := splitKeyFunc
 	splitKeyFunc = func(_ string) []string {
 		return []string{} // Override to return an empty slice
