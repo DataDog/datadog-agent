@@ -120,6 +120,8 @@
 /.gitlab/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-delivery
 /.gitlab/binary_build/windows.yml                    @DataDog/agent-delivery @DataDog/windows-agent
 
+/.gitlab/source_test/codeql_scan.yml                 @DataDog/sdlc-security
+
 /.gitlab/benchmarks/                                 @DataDog/agent-devx @DataDog/apm-ecosystems-performance @DataDog/agent-apm
 
 /.gitlab/deploy_containers/                          @DataDog/container-integrations @DataDog/agent-delivery
@@ -693,6 +695,7 @@
 /test/system/dogstatsd/                       @DataDog/agent-metric-pipelines
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm
 /test/regression/                             @DataDog/single-machine-performance
+/test/regression/cases/docker_containers*     @DataDog/single-machine-performance @DataDog/container-integrations
 
 /tools/                                 @DataDog/agent-devx
 /tools/ci                               @DataDog/agent-devx
