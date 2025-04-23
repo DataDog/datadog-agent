@@ -203,6 +203,7 @@
 /cmd/agent/subcommands/streamep         @DataDog/container-integrations
 /cmd/agent/subcommands/taggerlist       @DataDog/container-platform
 /cmd/agent/subcommands/workloadlist     @DataDog/container-platform
+/cmd/agent/subcommands/autoscalerlist   @DataDog/container-autoscaling @DataDog/container-integrations
 /cmd/agent/subcommands/run/internal/clcrunnerapi/       @DataDog/container-platform
 /cmd/agent/windows                      @DataDog/windows-agent
 /cmd/agent/windows_resources            @DataDog/windows-agent
@@ -369,6 +370,7 @@
 /pkg/cli/subcommands/check              @DataDog/agent-runtimes @DataDog/agent-integrations
 /pkg/cli/subcommands/version            @DataDog/agent-runtimes
 /pkg/cli/subcommands/clusterchecks      @DataDog/container-platform
+/pkg/cli/subcommands/autoscalerlist     @DataDog/container-autoscaling @DataDog/container-integrations
 /pkg/discovery/                         @DataDog/agent-discovery
 /pkg/errors/                            @DataDog/agent-runtimes
 /pkg/fips                               @DataDog/agent-runtimes
