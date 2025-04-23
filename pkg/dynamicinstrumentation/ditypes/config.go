@@ -15,13 +15,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const ConfigBPFProbeID = "config" // ConfigBPFProbeID is the ID used for the config bpf program
