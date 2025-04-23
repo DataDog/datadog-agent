@@ -23,7 +23,7 @@ type AutoscalingDumpResponse struct {
 	PodAutoscalers []*model.PodAutoscalerInternal `json:"pod_autoscalers"`
 }
 
-func Dump(ctx context.Context) AutoscalingDumpResponse {
+func Dump(ctx context.Context) *AutoscalingDumpResponse {
 	datadogPodAutoscalers := GetAutoscalingStore(ctx).GetAll()
 
 	datadogPodAutoscalerAddr := []*model.PodAutoscalerInternal{}
@@ -37,11 +37,15 @@ func Dump(ctx context.Context) AutoscalingDumpResponse {
 		PodAutoscalers: datadogPodAutoscalerAddr,
 	}
 
-	return response
+	return &response
 }
 
 // Write writes the store content to a given writer
-func (adr AutoscalingDumpResponse) Write(writer io.Writer) {
+func (adr *AutoscalingDumpResponse) Write(writer io.Writer) {
+	if adr == nil {
+		return
+	}
+
 	if writer != color.Output {
 		color.NoColor = true
 	}
