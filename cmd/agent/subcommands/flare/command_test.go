@@ -42,7 +42,7 @@ type commandTestSuite struct {
 
 func (c *commandTestSuite) SetupSuite() {
 	t := c.T()
-	c.sysprobeSocketPath = testutil.SystemProbeSocketPath(t)
+	c.sysprobeSocketPath = testutil.SystemProbeSocketPath(t, "flare")
 }
 
 // startTestServers starts test servers from a clean state to ensure no cache responses are used.

@@ -18,7 +18,7 @@ import (
 )
 
 // SystemProbeSocketPath returns a temporary socket path for testing.
-func SystemProbeSocketPath(t *testing.T) string {
+func SystemProbeSocketPath(t *testing.T, _ string) string {
 	return path.Join(t.TempDir(), "sysprobe.sock")
 }
 

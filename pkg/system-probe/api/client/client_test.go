@@ -20,7 +20,7 @@ import (
 func startTestServer(t *testing.T, handler http.Handler) (string, *httptest.Server) {
 	t.Helper()
 
-	socketPath := testutil.SystemProbeSocketPath(t)
+	socketPath := testutil.SystemProbeSocketPath(t, "client")
 	server, err := testutil.NewSystemProbeTestServer(handler, socketPath)
 	require.NoError(t, err)
 	require.NotNil(t, server)
