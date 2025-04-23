@@ -337,17 +337,13 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 
 	services := make([]model.Service, 0)
 
-	procRoot := kernel.ProcFSRoot()
 	pids, err := process.Pids()
 	if err != nil {
 		utils.WriteAsJSON(w, "could not get PIDs", utils.CompactOutput)
 		return
 	}
 
-	context := parsingContext{
-		procRoot:  procRoot,
-		netNsInfo: make(map[uint32]*namespaceInfo),
-	}
+	context := newParsingContext()
 
 	containers := s.getContainersMap()
 	containerTagsCache := make(map[string][]string)
@@ -541,8 +537,17 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 // parsingContext holds temporary context not preserved between invocations of
 // the endpoint.
 type parsingContext struct {
-	procRoot  string
-	netNsInfo map[uint32]*namespaceInfo
+	procRoot       string
+	netNsInfo      map[uint32]*namespaceInfo
+	readlinkBuffer []byte
+}
+
+func newParsingContext() parsingContext {
+	return parsingContext{
+		procRoot:       kernel.ProcFSRoot(),
+		netNsInfo:      make(map[uint32]*namespaceInfo),
+		readlinkBuffer: make([]byte, readlinkBufferSize),
+	}
 }
 
 // addIgnoredPid store excluded pid.
@@ -635,7 +640,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 const maxNumberOfPorts = 50
 
 func (s *discovery) getPorts(context parsingContext, pid int32) ([]uint16, error) {
-	sockets, err := getSockets(pid)
+	sockets, err := getSockets(pid, context.readlinkBuffer)
 	if err != nil {
 		return nil, err
 	}
@@ -1094,16 +1099,12 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
-	procRoot := kernel.ProcFSRoot()
 	pids, err := process.Pids()
 	if err != nil {
 		return nil, err
 	}
 
-	context := parsingContext{
-		procRoot:  procRoot,
-		netNsInfo: make(map[uint32]*namespaceInfo),
-	}
+	context := newParsingContext()
 
 	response := &model.ServicesResponse{
 		StartedServices:   make([]model.Service, 0, len(s.potentialServices)),
