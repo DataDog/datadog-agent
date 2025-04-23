@@ -84,7 +84,7 @@ func autoscalerList(_ log.Component, config config.Component, _ *cliParams) erro
 		return err
 	}
 
-	return GetAutoscalerList(color.Output, url)
+	return getAutoscalerList(color.Output, url)
 }
 
 func getAutoscalerURL(config config.Component) (string, error) {
@@ -103,7 +103,7 @@ func getAutoscalerURL(config config.Component) (string, error) {
 	return urlstr, nil
 }
 
-func GetAutoscalerList(w io.Writer, url string) error {
+func getAutoscalerList(w io.Writer, url string) error {
 	c := util.GetClient()
 
 	// get the tagger-list from server
