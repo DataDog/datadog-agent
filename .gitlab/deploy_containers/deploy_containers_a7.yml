@@ -44,6 +44,14 @@ include:
     - export IMG_SOURCES="${IMG_BASE_SRC}-7${JMX}-win${OS}${FLAVOR}-amd64"
     - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${FLAVOR}-ltsc${LTSC_VERSION}${JMX}"
 
+.deploy_containers_latest_base:
+  extends: .docker_publish_job_definition
+  stage: deploy_containers
+  dependencies: []
+  before_script:
+    - VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
+    - export AGENT_REFERENCE=${AGENT_REPOSITORY}:${VERSION}
+
 .deploy_containers-a7_external:
   extends: .deploy_containers-a7-base
   parallel:
@@ -250,125 +258,55 @@ deploy_containers-a7-fips_internal-rc:
 #
 
 deploy_containers_latest_tags-a7:
-  extends: .docker_publish_job_definition
+  extends: .deploy_containers_latest_base
   stage: deploy_containers
   rules:
     !reference [.on_final]
   dependencies: []
   parallel:
     matrix:
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:7
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:latest
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:7-jmx
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-jmx
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:latest-jmx
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-jmx
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:7-servercore
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-servercore
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:latest-servercore
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-servercore
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:7-servercore-jmx
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-servercore-jmx
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:latest-servercore-jmx
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-servercore-jmx
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:7-ltsc2019
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-ltsc2019
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:latest-ltsc2019
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-ltsc2019
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:7-ltsc2022
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-ltsc2022
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:latest-ltsc2022
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-ltsc2022
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:7-servercore-ltsc2019
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-servercore-ltsc2019
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:latest-servercore-ltsc2019
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-servercore-ltsc2019
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:7-servercore-ltsc2022
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-servercore-ltsc2022
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:latest-servercore-ltsc2022
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-servercore-ltsc2022
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:7-servercore-ltsc2019-jmx
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-servercore-ltsc2019-jmx
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:latest-servercore-ltsc2019-jmx
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-servercore-ltsc2019-jmx
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:7-servercore-ltsc2022-jmx
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-servercore-ltsc2022-jmx
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:latest-servercore-ltsc2022-jmx
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-servercore-ltsc2022-jmx
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:7-full
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-full
-      - IMG_NEW_TAG: ${AGENT_REPOSITORY}:latest-full
-        IMG_TAG_REFERENCE: ${AGENT_REPOSITORY}:${VERSION}-full
-
-# deploy_containers_latest-a7:
-#   extends: .docker_publish_job_definition
-#   stage: deploy_containers
-#   rules:
-#     !reference [.on_final]
-#   dependencies: []
-#   parallel:
-#     matrix:
-#       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
-#         IMG_SOURCES: "%BASE%-amd64,%BASE%-arm64,%BASE%-win1809-amd64,%BASE%-winltsc2022-amd64"
-#         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7,${AGENT_REPOSITORY}:latest
-#       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
-#         IMG_SOURCES: "%BASE%-amd64,%BASE%-arm64,%BASE%-win1809-amd64,%BASE%-winltsc2022-amd64"
-#         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-jmx,${AGENT_REPOSITORY}:latest-jmx
-#       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
-#         IMG_SOURCES: "%BASE%-win1809-servercore-amd64,%BASE%-winltsc2022-servercore-amd64"
-#         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore,${AGENT_REPOSITORY}:latest-servercore
-#       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
-#         IMG_SOURCES: "%BASE%-win1809-servercore-amd64,%BASE%-winltsc2022-servercore-amd64"
-#         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-jmx,${AGENT_REPOSITORY}:latest-servercore-jmx
-#       # Windows only images
-#       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
-#         IMG_SOURCES: "%BASE%-win1809-amd64"
-#         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-ltsc2019,${AGENT_REPOSITORY}:latest-ltsc2019
-#       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
-#         IMG_SOURCES: "%BASE%-winltsc2022-amd64"
-#         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-ltsc2022,${AGENT_REPOSITORY}:latest-ltsc2022
-#       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
-#         IMG_SOURCES: "%BASE%-win1809-servercore-amd64"
-#         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-ltsc2019,${AGENT_REPOSITORY}:latest-servercore-ltsc2019
-#       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
-#         IMG_SOURCES: "%BASE%-winltsc2022-servercore-amd64"
-#         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-ltsc2022,${AGENT_REPOSITORY}:latest-servercore-ltsc2022
-#       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
-#         IMG_SOURCES: "%BASE%-winltsc2022-servercore-amd64"
-#         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-ltsc2022-jmx,${AGENT_REPOSITORY}:latest-servercore-ltsc2022-jmx
-#       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
-#         IMG_SOURCES: "%BASE%-win1809-servercore-amd64"
-#         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-ltsc2019-jmx,${AGENT_REPOSITORY}:latest-servercore-ltsc2019-jmx
-#       # Full image: for linux we need 7-full tag, for windows we need 7-jmx
-#       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
-#         IMG_SOURCES: "%BASE%-full-amd64,%BASE%-full-arm64,%BASE%-jmx-win1809-amd64,%BASE%-jmx-winltsc2022-amd64"
-#         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-full,${AGENT_REPOSITORY}:latest-full
+      - IMG_NEW_TAG: 7, latest
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}
+      - IMG_NEW_TAG: 7-jmx, latest-jmx
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-jmx
+      - IMG_NEW_TAG: 7-servercore, latest-servercore
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore
+      - IMG_NEW_TAG: 7-servercore-jmx, latest-servercore-jmx
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-jmx
+      - IMG_NEW_TAG: 7-ltsc2019, latest-ltsc2019
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-ltsc2019
+      - IMG_NEW_TAG: 7-ltsc2022, latest-ltsc2022
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-ltsc2022
+      - IMG_NEW_TAG: 7-servercore-ltsc2019, latest-servercore-ltsc2019
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-ltsc2019
+      - IMG_NEW_TAG: 7-servercore-ltsc2022, latest-servercore-ltsc2022
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-ltsc2022
+      - IMG_NEW_TAG: 7-servercore-ltsc2019-jmx, latest-servercore-ltsc2019-jmx
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-ltsc2019-jmx
+      - IMG_NEW_TAG: 7-servercore-ltsc2022-jmx, latest-servercore-ltsc2022-jmx
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-ltsc2022-jmx
+      - IMG_NEW_TAG: 7-full, latest-full
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-full
 
 deploy_containers_latest-a7_internal:
-  extends: .docker_publish_job_definition
+  extends: .deploy_containers_latest_base
   stage: deploy_containers
   rules:
     !reference [.on_internal_final]
   dependencies: []
   parallel:
     matrix:
-      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
-        IMG_SOURCES: "%BASE%-amd64,%BASE%-arm64,%BASE%-win1809-amd64,%BASE%-winltsc2022-amd64"
-        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-jmx
+      - IMG_NEW_TAG: 7-jmx
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-jmx
       # Full image: for linux we need 7-full tag, for windows we need 7-jmx
-      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
-        IMG_SOURCES: "%BASE%-full-amd64,%BASE%-full-arm64,%BASE%-jmx-win1809-amd64,%BASE%-jmx-winltsc2022-amd64"
-        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-full
+      - IMG_NEW_TAG: 7-full
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-full
       # ot-beta image: linux only for now
-      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx"
-        IMG_SOURCES: "%BASE%-amd64,%BASE%-arm64"
-        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-ot-beta-jmx
+      - IMG_NEW_TAG: 7-ot-beta-jmx
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-ot-beta-jmx
       # fips image: linux only for now
-      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-jmx"
-        IMG_SOURCES: "%BASE%-amd64,%BASE%-arm64"
-        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-fips-jmx
+      - IMG_NEW_TAG: 7-fips-jmx
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-fips-jmx
 
 deploy_containers_latest-dogstatsd:
   extends: .docker_publish_job_definition
@@ -376,34 +314,33 @@ deploy_containers_latest-dogstatsd:
   rules:
     !reference [.on_final]
   dependencies: []
-  variables:
-    IMG_SOURCES: ${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
-    IMG_DESTINATIONS: ${DSD_REPOSITORY}:7,${DSD_REPOSITORY}:latest
+  before_script:
+    - VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
+    - export IMG_TAG_REFERENCE=${DSD_REPOSITORY}:${VERSION}
+    - export IMG_NEW_TAG=7,latest
 
 deploy_containers_latest-a7-ot:
-  extends: .deploy_containers-a7-base-ot
+  extends: .deploy_containers_latest_base
   stage: deploy_containers
   rules:
     !reference [.on_final]
   dependencies: []
-  variables:
-    VERSION: 7-ot-beta
   parallel:
     matrix:
-      - JMX:
-          - ""
-          - "-jmx"
+      - IMG_NEW_TAG: 7-ot-beta
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-ot-beta
+      - IMG_NEW_TAG: 7-ot-beta-jmx
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-ot-beta-jmx
 
 deploy_containers_latest-a7-fips:
-  extends: .deploy_containers-a7-base-fips
+  extends: .deploy_containers_latest_base
   stage: deploy_containers
   rules:
     !reference [.on_final]
   dependencies: []
-  variables:
-    VERSION: 7-fips
   parallel:
     matrix:
-      - JMX:
-          - ""
-          - "-jmx"
+      - IMG_NEW_TAG: 7-fips
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-fips
+      - IMG_NEW_TAG: 7-fips-jmx
+        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-fips-jmx
