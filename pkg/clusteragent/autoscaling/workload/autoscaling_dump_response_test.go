@@ -26,11 +26,14 @@ import (
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestDump(t *testing.T) {
+	config := config.NewMock(t)
+	config.SetWithoutSource("autoscaling.workload.enabled", true)
 	testTime := time.Now()
 	f := newFixture(t, testTime)
 
