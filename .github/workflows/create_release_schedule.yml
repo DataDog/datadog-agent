@@ -26,11 +26,6 @@ jobs:
       with:
         ref: ${{ github.head_ref }}
         persist-credentials: false
-    - name: Install python
-      uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
-      with:
-        python-version-file: .python-version
-        cache: "pip"
     - name: Install dda
       uses: ./.github/actions/install-dda
       with:

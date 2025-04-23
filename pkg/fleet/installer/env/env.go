@@ -39,16 +39,19 @@ const (
 	envAgentUserName         = "DD_AGENT_USER_NAME"
 	// envAgentUserNameCompat provides compatibility with the original MSI parameter name
 	envAgentUserNameCompat = "DDAGENTUSER_NAME"
-	envTags                = "DD_TAGS"
-	envExtraTags           = "DD_EXTRA_TAGS"
-	envHostname            = "DD_HOSTNAME"
-	envDDHTTPProxy         = "DD_PROXY_HTTP"
-	envHTTPProxy           = "HTTP_PROXY"
-	envDDHTTPSProxy        = "DD_PROXY_HTTPS"
-	envHTTPSProxy          = "HTTPS_PROXY"
-	envDDNoProxy           = "DD_PROXY_NO_PROXY"
-	envNoProxy             = "NO_PROXY"
-	envIsFromDaemon        = "DD_INSTALLER_FROM_DAEMON"
+	envAgentUserPassword   = "DD_AGENT_USER_PASSWORD"
+	// envAgentUserPasswordCompat provides compatibility with the original MSI parameter name
+	envAgentUserPasswordCompat = "DDAGENTUSER_PASSWORD"
+	envTags                    = "DD_TAGS"
+	envExtraTags               = "DD_EXTRA_TAGS"
+	envHostname                = "DD_HOSTNAME"
+	envDDHTTPProxy             = "DD_PROXY_HTTP"
+	envHTTPProxy               = "HTTP_PROXY"
+	envDDHTTPSProxy            = "DD_PROXY_HTTPS"
+	envHTTPSProxy              = "HTTPS_PROXY"
+	envDDNoProxy               = "DD_PROXY_NO_PROXY"
+	envNoProxy                 = "NO_PROXY"
+	envIsFromDaemon            = "DD_INSTALLER_FROM_DAEMON"
 
 	// install script
 	envApmInstrumentationEnabled = "DD_APM_INSTRUMENTATION_ENABLED"
@@ -153,6 +156,7 @@ type Env struct {
 	AgentMajorVersion string
 	AgentMinorVersion string
 	AgentUserName     string // windows only
+	AgentUserPassword string // windows only
 
 	InstallScript InstallScriptEnv
 
@@ -223,6 +227,7 @@ func FromEnv() *Env {
 		AgentMajorVersion: os.Getenv(envAgentMajorVersion),
 		AgentMinorVersion: os.Getenv(envAgentMinorVersion),
 		AgentUserName:     getEnvOrDefault(envAgentUserName, os.Getenv(envAgentUserNameCompat)),
+		AgentUserPassword: getEnvOrDefault(envAgentUserPassword, os.Getenv(envAgentUserPasswordCompat)),
 
 		InstallScript: InstallScriptEnv{
 			APMInstrumentationEnabled: getEnvOrDefault(envApmInstrumentationEnabled, APMInstrumentationNotSet),

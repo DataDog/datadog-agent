@@ -41,8 +41,17 @@ func (p pythonDetector) detect(args []string) (ServiceMetadata, bool) {
 	// looking like the example below, so redirect to the Gunicorn detector for
 	// this case:
 	//  /usr/bin/python3 /usr/bin/gunicorn foo:app()
-	if len(args) > 0 && filepath.Base(args[0]) == "gunicorn" {
-		return p.gunicorn.detect(args[1:])
+	//
+	// Another case where we want to redirect to the Gunicorn detector is when
+	// gunicorn replaces its command line with something like the below. Because
+	// of the [ready], we end up here first instead of going directly to the
+	// Gunicorn detector.
+	//  [ready] gunicorn: worker [airflow-webserver]
+	if len(args) > 0 {
+		base := filepath.Base(args[0])
+		if base == "gunicorn" || base == "gunicorn:" {
+			return p.gunicorn.detect(args[1:])
+		}
 	}
 
 	var (
