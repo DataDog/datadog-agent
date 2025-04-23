@@ -1,6 +1,6 @@
-module github.com/DataDog/opentelemetry-mapping-go/pkg/quantile
+module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/quantile
 
-go 1.23
+go 1.23.0
 
 require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.27.0

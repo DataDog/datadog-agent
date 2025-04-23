@@ -1,4 +1,4 @@
-module github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs
+module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs
 
 go 1.23.0
 

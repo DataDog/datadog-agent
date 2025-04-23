@@ -1,4 +1,4 @@
-module github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata
+module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata
 
 go 1.23.0
 
