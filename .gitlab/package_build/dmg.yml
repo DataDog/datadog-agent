@@ -31,3 +31,75 @@ agent_dmg-x64-a7:
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check"]
   timeout: 6h
+
+.macos_setup_python:
+  # Selecting the current Python version
+  - !reference [.select_python_env_commands]
+  # List Python and Go existing environments and their disk space
+  - !reference [.list_python_versions_commands]
+  - !reference [.install_python_dependencies]
+
+.macos_setup_cache:
+  # Clean up previous builds
+  - sudo bash -c "rm -rf /var/cache/omnibus/src/*" || true
+  # Set bundler install path to cached folder
+  - !reference [.cache_omnibus_ruby_deps, setup]
+  - |
+    export GOMODCACHE=~/gomodcache
+    mkdir -p $GOMODCACHE
+
+new-agent_dmg-x64-a7:
+  stage: package_build
+  # TODO(celian): Don't use the test image
+  tags: ["macos:ventura-amd64-test", "specific:true"]
+  needs: ["go_mod_tidy_check"]
+  allow_failure: true
+
+  # TODO(celian): Temporary rules.
+  rules:
+    # This is used to avoid conflicts with the current build job on main / release branches with s3. This will run on dev branches
+    - !reference [.on_main_or_release_branch_or_deploy_manual]
+    - when: on_success
+
+  # TODO(celian): Replace by the following after testing new builds.
+  # rules:
+  #    - !reference [.on_macos_gui_change]
+  #    - !reference [.on_packaging_change]
+  #    - !reference [.on_main_or_release_branch]
+  #    - !reference [.on_all_builds]
+  #    - !reference [.manual]
+  # allow_failure: false  # (remove)
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - omnibus/pkg/*.dmg
+      - omnibus/pkg/version-manifest.json
+  variables:
+    SIGN: true
+    KEYCHAIN_NAME: "build.keychain"
+    INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
+    INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD: true
+    S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
+    S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS: true
+    NOTARIZATION_TIMEOUT: 30m
+    NOTARIZATION_ATTEMPTS: 3
+    NOTARIZATION_WAIT_TIME: 15s
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
+  before_script:
+    # Since there is no virtualization on the macOS runners, we need to unmount the Agent dmg volume to avoid conflicts
+    - sudo umount /Volumes/Agent || true
+  after_script:
+    # Destroy the keychain used to sign packages
+    - |
+      if [ "$SIGN" = true ]; then
+        security delete-keychain "build.keychain" || true
+      fi
+    - sudo umount /Volumes/Agent || true
+  script:
+    - set -eo pipefail
+    - !reference [.vault_login]
+    - !reference [.macos_setup_python]
+    - !reference [.macos_setup_cache]
+    - bash .gitlab/package_build/build_agent_dmg.sh
+    - !reference [.upload_sbom_artifacts]

@@ -257,6 +257,10 @@ variables:
   INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx
   MACOS_GITHUB_APP_1: macos-github-app-one  # agent-devx
   MACOS_GITHUB_APP_2: macos-github-app-two  # agent-devx
+  MACOS_APPLE_APPLICATION_SIGNING: apple-application-signing  # agent-delivery
+  MACOS_APPLE_DEVELOPER_ACCOUNT: apple-developer-account  # agent-delivery
+  MACOS_APPLE_INSTALLER_SIGNING: apple-installer-signing  # agent-delivery
+  MACOS_KEYCHAIN_PWD: ci-keychain  # agent-delivery
   SLACK_AGENT: slack-agent-ci  # agent-devx
   SMP_ACCOUNT: smp  # single-machine-performance
   # End vault variables
@@ -654,6 +658,14 @@ workflow:
     when: always
   - <<: *if_release_branch
     when: always
+
+.on_main_or_release_branch_or_deploy_manual:
+  - <<: *if_deploy
+    when: manual
+  - <<: *if_main_branch
+    when: manual
+  - <<: *if_release_branch
+    when: manual
 
 .on_all_builds:
   - <<: *if_run_all_builds
