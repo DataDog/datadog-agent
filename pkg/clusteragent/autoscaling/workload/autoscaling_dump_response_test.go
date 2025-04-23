@@ -10,6 +10,7 @@ package workload
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -33,13 +34,160 @@ import (
 func TestDump(t *testing.T) {
 	testTime := time.Now()
 	f := newFixture(t, testTime)
+
+	dpai := createFakePodAutoscaler(testTime)
+
+	f.store.Set("default/dpa-0", dpai.Build(), "")
+	_, found := f.store.Get("default/dpa-0")
+	assert.True(t, found)
+
+	dump := Dump(context.Background())
+	var buf bytes.Buffer
+	dump.Write(&buf)
+	output := buf.String()
+
+	expectedOutput := fmt.Sprintf(`
+=== PodAutoscaler default/dpa-0 ===
+----------- PodAutoscaler ID -----------
+default/dpa-0
+----------- PodAutoscaler Meta -----------
+Creation Timestamp: 0001-01-01 00:00:00 +0000 UTC
+Generation: 1
+Settings Timestamp: 0001-01-01 00:00:00 +0000 UTC
+----------- PodAutoscaler Spec -----------
+Target Ref: {Deployment app-0 apps/v1}
+Owner: Local
+Apply Policy Mode: Apply
+Update Policy: Auto
+Scale Up Strategy: Max
+Scale Up Rule Type: Pods
+Scale Up Rule Value: 1
+Scale Up Rule Period: 10
+Scale Up Stabilization Window: 10
+Scale Down Strategy: Min
+Scale Down Rule Type: Pods
+Scale Down Rule Value: 1
+Scale Down Rule Period: 10
+Scale Down Stabilization Window: 10
+----------- PodAutoscaler Local Fallback -----------
+Horizontal Fallback Enabled: true
+Horizontal Fallback Stale Recommendation Threshold: 600
+----------- PodAutoscaler Constraints -----------
+Min Replicas: 1
+Max Replicas: 10
+Container: app
+Enabled: true
+Requests Min Allowed: map[cpu:100m memory:100Mi]
+Requests Max Allowed: map[cpu:1 memory:1000Mi]
+----------- PodAutoscaler Objectives -----------
+Objective Type: PodResource
+Resource Name: cpu
+Utilization: 80
+
+Objective Type: ContainerResource
+Resource Name: cpu
+Container Name: app
+Utilization: 85
+
+----------- PodAutoscaler Scaling Values -----------
+[Horizontal]
+Horizontal Error: <nil>
+Source: Autoscaling
+Timestamp: %[1]s
+Replicas: 100
+--------------------------------
+[Vertical]
+Vertical Error: <nil>
+Source: Autoscaling
+Timestamp: %[1]s
+ResourcesHash: 1234567890
+Container Name: app
+Container Resources: map[cpu:100m memory:100Mi]
+Container Limits: map[cpu:1 memory:1000Mi]
+--------------------------------
+Error: <nil>
+
+----------- PodAutoscaler Main Scaling Values -----------
+[Horizontal]
+Horizontal Error: <nil>
+Source: Local
+Timestamp: %[1]s
+Replicas: 100
+--------------------------------
+[Vertical]
+Vertical Error: <nil>
+Source: Autoscaling
+Timestamp: %[1]s
+ResourcesHash: 1234567890
+Container Name: app
+Container Resources: map[cpu:100m memory:100Mi]
+Container Limits: map[cpu:1 memory:1000Mi]
+--------------------------------
+Error: <nil>
+
+----------- PodAutoscaler Fallback Scaling Values -----------
+[Horizontal]
+Horizontal Error: <nil>
+Source: Autoscaling
+Timestamp: %[1]s
+Replicas: 100
+--------------------------------
+[Vertical]
+Vertical Error: <nil>
+Source: Autoscaling
+Timestamp: %[1]s
+ResourcesHash: 1234567890
+Container Name: app
+Container Resources: map[cpu:100m memory:100Mi]
+Container Limits: map[cpu:1 memory:1000Mi]
+--------------------------------
+Error: <nil>
+
+----------- PodAutoscaler Status -----------
+--------------------------------
+Horizontal Last Action: Timestamp: %[1]s
+From Replicas: 2
+To Replicas: 3
+Recommended Replicas: 3
+
+--------------------------------
+Vertical Last Action: Timestamp: %[1]s
+Version: 1
+Type: RolloutTriggered
+
+----------- Custom Recommender -----------
+Endpoint: https://custom-recommender.com
+Settings: map[key:value]
+
+===
+`, testTime.String())
+	compareTestOutput(t, output, expectedOutput)
+
+	resetAutoscalingStore()
+}
+
+func TestMarshalUnmarshal(t *testing.T) {
+	// json serialization drops nanoseconds; strip it here
+	testTime := time.Unix(time.Now().Unix(), 0)
+	fakeDpai := createFakePodAutoscaler(testTime)
+	realDpai := fakeDpai.Build()
+	jsonDpai, err := json.Marshal(&realDpai)
+	assert.NoError(t, err)
+
+	unmarshalledDpai := model.PodAutoscalerInternal{}
+	err = json.Unmarshal(jsonDpai, &unmarshalledDpai)
+	assert.NoError(t, err)
+
+	compareTestOutput(t, unmarshalledDpai.String(true), realDpai.String(true))
+}
+
+func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal {
 	expectedGVK := schema.GroupVersionKind{
 		Group:   "apps",
 		Version: "v1",
 		Kind:    "Deployment",
 	}
-
-	dpai := model.FakePodAutoscalerInternal{
+	return model.FakePodAutoscalerInternal{
 		Namespace:  "default",
 		Name:       "dpa-0",
 		Generation: 1,
@@ -54,6 +202,28 @@ func TestDump(t *testing.T) {
 				Mode: datadoghq.DatadogPodAutoscalerApplyModeApply,
 				Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
 					Strategy: datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy,
+				},
+				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					Strategy: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerMaxChangeStrategySelect),
+					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
+						{
+							Type:          datadoghqcommon.DatadogPodAutoscalerPodsScalingRuleType,
+							Value:         1,
+							PeriodSeconds: 10,
+						},
+					},
+					StabilizationWindowSeconds: 10,
+				},
+				ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					Strategy: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerMinChangeStrategySelect),
+					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
+						{
+							Type:          datadoghqcommon.DatadogPodAutoscalerPodsScalingRuleType,
+							Value:         1,
+							PeriodSeconds: 10,
+						},
+					},
+					StabilizationWindowSeconds: 10,
 				},
 			},
 			Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
@@ -205,125 +375,6 @@ func TestDump(t *testing.T) {
 			Type:    datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType,
 		},
 	}
-
-	f.store.Set("default/dpa-0", dpai.Build(), "")
-	_, found := f.store.Get("default/dpa-0")
-	assert.True(t, found)
-
-	dump := Dump(context.Background())
-	var buf bytes.Buffer
-	dump.Write(&buf)
-	output := buf.String()
-
-	expectedOutput := fmt.Sprintf(`
-=== PodAutoscaler default/dpa-0 ===
------------ PodAutoscaler ID -----------
-default/dpa-0
------------ PodAutoscaler Meta -----------
-Creation Timestamp: 0001-01-01 00:00:00 +0000 UTC
-Generation: 1
-Settings Timestamp: 0001-01-01 00:00:00 +0000 UTC
------------ PodAutoscaler Spec -----------
-Target Ref: {Deployment app-0 apps/v1}
-Owner: Local
-Remote Version: <nil>
-Apply Policy Mode: Apply
-Update Policy: Auto
------------ PodAutoscaler Local Fallback -----------
-Horizontal Fallback Enabled: true
-Horizontal Fallback Stale Recommendation Threshold: 600
------------ PodAutoscaler Constraints -----------
-Min Replicas: 1
-Max Replicas: 10
-Container: app
-Enabled: true
-Requests Min Allowed: map[cpu:100m memory:100Mi]
-Requests Max Allowed: map[cpu:1 memory:1000Mi]
------------ PodAutoscaler Objectives -----------
-Objective Type: PodResource
-Resource Name: cpu
-Utilization: 80
-
-Objective Type: ContainerResource
-Resource Name: cpu
-Container Name: app
-Utilization: 85
-
------------ PodAutoscaler Scaling Values -----------
-[Horizontal]
-Horizontal Error: <nil>
-Source: Autoscaling
-Timestamp: %[1]s
-Replicas: 100
---------------------------------
-[Vertical]
-Vertical Error: <nil>
-Source: Autoscaling
-Timestamp: %[1]s
-ResourcesHash: 1234567890
-Container Name: app
-Container Resources: map[cpu:100m memory:100Mi]
-Container Limits: map[cpu:1 memory:1000Mi]
---------------------------------
-Error: <nil>
-
------------ PodAutoscaler Main Scaling Values -----------
-[Horizontal]
-Horizontal Error: <nil>
-Source: Local
-Timestamp: %[1]s
-Replicas: 100
---------------------------------
-[Vertical]
-Vertical Error: <nil>
-Source: Autoscaling
-Timestamp: %[1]s
-ResourcesHash: 1234567890
-Container Name: app
-Container Resources: map[cpu:100m memory:100Mi]
-Container Limits: map[cpu:1 memory:1000Mi]
---------------------------------
-Error: <nil>
-
------------ PodAutoscaler Fallback Scaling Values -----------
-[Horizontal]
-Horizontal Error: <nil>
-Source: Autoscaling
-Timestamp: %[1]s
-Replicas: 100
---------------------------------
-[Vertical]
-Vertical Error: <nil>
-Source: Autoscaling
-Timestamp: %[1]s
-ResourcesHash: 1234567890
-Container Name: app
-Container Resources: map[cpu:100m memory:100Mi]
-Container Limits: map[cpu:1 memory:1000Mi]
---------------------------------
-Error: <nil>
-
------------ PodAutoscaler Status -----------
---------------------------------
-Horizontal Last Action: Timestamp: %[1]s
-From Replicas: 2
-To Replicas: 3
-Recommended Replicas: 3
-
---------------------------------
-Vertical Last Action: Timestamp: %[1]s
-Version: 1
-Type: RolloutTriggered
-
------------ Custom Recommender -----------
-Endpoint: https://custom-recommender.com
-Settings: map[key:value]
-
-===
-`, testTime.String())
-	compareTestOutput(t, output, expectedOutput)
-
-	resetAutoscalingStore()
 }
 
 func compareTestOutput(t *testing.T, expected, actual string) {
