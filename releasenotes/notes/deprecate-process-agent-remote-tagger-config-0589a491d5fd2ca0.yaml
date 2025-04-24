@@ -8,5 +8,5 @@
 ---
 deprecations:
   - |
-    The remote tagger for the process-agent is now always enabled and can not be disabled 
-    ``process_config.remote_tagger`` config entry is removed.
+    The remote tagger for the process-agent is now always enabled and cannot be disabled. 
+    The ``process_config.remote_tagger`` config entry is removed.
