@@ -225,8 +225,14 @@ try {
       Remove-Item -Force $installer
    }
 
-   Write-Host "Downloading installer from $ddInstallerUrl"
-   [System.Net.WebClient]::new().DownloadFile($ddInstallerUrl, $installer)
+   # Check if ddInstallerUrl is a local file path
+   if (Test-Path $ddInstallerUrl) {
+      Write-Host "Using local installer file: $ddInstallerUrl"
+      Copy-Item -Path $ddInstallerUrl -Destination $installer
+   } else {
+      Write-Host "Downloading installer from $ddInstallerUrl"
+      [System.Net.WebClient]::new().DownloadFile($ddInstallerUrl, $installer)
+   }
 
    # set so `default-packages` won't contain the Datadog Agent
    # as it is now installed during the beginning of the bootstrap process
