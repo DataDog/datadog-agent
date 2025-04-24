@@ -7,7 +7,7 @@ import unittest
 from collections import OrderedDict
 from contextlib import contextmanager
 from types import SimpleNamespace
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import ANY, MagicMock, call, patch
 
 from invoke import Context, MockContext, Result
 from invoke.exceptions import Exit
@@ -1075,3 +1075,110 @@ class TestTagModules(unittest.TestCase):
             mock_modules.return_value = mock_dict
             release.tag_modules(c, version="version")
         self.assertEqual(c.run.call_count, 34)
+
+
+class TestTagVersion(unittest.TestCase):
+    c = MockContext(run=Result("yolo"))
+
+    @patch('tasks.release.__tag_single_module')
+    @patch('tasks.release.push_tags_in_batches')
+    @patch('tasks.release.is_agent6', new=MagicMock(return_value=True))
+    @patch('tasks.release.is_qualification', new=MagicMock(return_value=False))
+    @patch('tasks.release.agent_context', new=MagicMock())
+    @patch.dict(os.environ, {'GITLAB_CI': 'false', 'GITHUB_ACTIONS': 'false'})
+    def test_not_in_qualification_phase(self, push_tags_in_batches_mock, tag_single_module_mock):
+        rc_version = "6.53.5-rc.2"
+        release.tag_version(self.c, start_qual=False, version=rc_version)
+        tag_single_module_mock.assert_called_with(self.c, ANY, rc_version, ANY, ANY, ANY)
+        assert tag_single_module_mock.call_count == 1
+        assert push_tags_in_batches_mock.call_count == 1
+
+    @patch('tasks.release.__tag_single_module')
+    @patch('tasks.release.push_tags_in_batches')
+    @patch('time.time', new=MagicMock(return_value=1234))
+    @patch('tasks.release.is_agent6', new=MagicMock(return_value=True))
+    @patch('tasks.release.is_qualification', new=MagicMock(return_value=False))
+    @patch('tasks.release.agent_context', new=MagicMock())
+    @patch.dict(os.environ, {'GITLAB_CI': 'false', 'GITHUB_ACTIONS': 'false'})
+    def test_start_qualification_phase(self, push_tags_in_batches_mock, tag_single_module_mock):
+        rc_version = "6.53.5-rc.2"
+        release.tag_version(self.c, start_qual=True, version=rc_version)
+        calls = tag_single_module_mock.call_args_list
+        calls[0].assert_called_with(self.c, ANY, rc_version, ANY, ANY, ANY)
+        calls[1].assert_called_with(self.c, ANY, "qualification-1234", ANY, ANY, ANY)
+        assert tag_single_module_mock.call_count == 2
+        assert push_tags_in_batches_mock.call_count == 1
+
+    @patch('tasks.release.__tag_single_module')
+    @patch('tasks.release.push_tags_in_batches')
+    @patch('time.time', new=MagicMock(return_value=2345))
+    @patch('tasks.release.is_agent6', new=MagicMock(return_value=True))
+    @patch('tasks.release.is_qualification', new=MagicMock(return_value=True))
+    @patch('tasks.release.agent_context', new=MagicMock())
+    @patch.dict(os.environ, {'GITLAB_CI': 'false', 'GITHUB_ACTIONS': 'false'})
+    def test_during_qualification_phase(self, push_tags_in_batches_mock, tag_single_module_mock):
+        rc_version = "6.53.5-rc.3"
+        release.tag_version(self.c, start_qual=False, version=rc_version)
+        calls = tag_single_module_mock.call_args_list
+        calls[0].assert_called_with(self.c, ANY, rc_version, ANY, ANY, ANY)
+        calls[1].assert_called_with(self.c, ANY, "qualification-2345", ANY, ANY, ANY)
+        assert tag_single_module_mock.call_count == 2
+        assert push_tags_in_batches_mock.call_count == 1
+
+    @patch('tasks.release.__tag_single_module')
+    @patch('tasks.release.push_tags_in_batches')
+    @patch('tasks.release.is_agent6', new=MagicMock(return_value=True))
+    @patch('tasks.release.is_qualification', new=MagicMock(return_value=True))
+    @patch('tasks.release.agent_context', new=MagicMock())
+    @patch('tasks.release.get_qualification_tags', new=MagicMock())
+    @patch.dict(os.environ, {'GITLAB_CI': 'false', 'GITHUB_ACTIONS': 'false'})
+    def test_end_qualification_phase(self, push_tags_in_batches_mock, tag_single_module_mock):
+        final_release_version = "6.53.5"
+        release.tag_version(self.c, start_qual=False, version=final_release_version)
+        tag_single_module_mock.assert_called_with(self.c, ANY, final_release_version, ANY, ANY, ANY)
+        assert tag_single_module_mock.call_count == 1
+        assert push_tags_in_batches_mock.call_count == 2
+
+
+class TestGetQualificationTags(unittest.TestCase):
+    c = MockContext(run=Result("yolo"))
+
+    @patch('tasks.release.qualification_tag_query')
+    @patch('tasks.release.agent_context', new=MagicMock())
+    def test_returns_all_tags(self, qualification_tag_query_mock):
+        qualification_tag_query_mock.return_value = ['hash2\tqualification_2345^{}', 'hash1\tqualification_1234^{}']
+        tags = release.get_qualification_tags(self.c, "6.53.x")
+        qualification_tag_query_mock.assert_called_with(self.c, "6.53.x", sort=True)
+        assert tags == [['hash2', 'qualification_2345'], ['hash1', 'qualification_1234']]
+        self.assertEqual(len(tags), 2)
+
+    @patch('tasks.release.qualification_tag_query')
+    @patch('tasks.release.agent_context', new=MagicMock())
+    def test_returns_only_one_tag(self, qualification_tag_query_mock):
+        qualification_tag_query_mock.return_value = ['hash2\tqualification_2345^{}', 'hash1\tqualification_1234^{}']
+        tags = release.get_qualification_tags(self.c, "6.53.x", latest_tag=True)
+        qualification_tag_query_mock.assert_called_with(self.c, "6.53.x", sort=True)
+        assert tags == [['hash2', 'qualification_2345']]
+        self.assertEqual(len(tags), 1)
+
+
+class TestIsQualification(unittest.TestCase):
+    c = MockContext(run=Result("yolo"))
+
+    @patch('builtins.print')
+    @patch('tasks.release.qualification_tag_query', new=MagicMock(return_value="hash1\tqualification_1234"))
+    def test_is_qualification(self, print_mock):
+        self.assertTrue(release.is_qualification(self.c, "6.53.x"))
+        assert print_mock.call_count == 0
+        self.assertTrue(release.is_qualification(self.c, "6.53.x", output=True))
+        print_mock.assert_called_with("true")
+        assert print_mock.call_count == 1
+
+    @patch('builtins.print')
+    @patch('tasks.release.qualification_tag_query', new=MagicMock(return_value=None))
+    def test_is_not_qualification(self, print_mock):
+        self.assertFalse(release.is_qualification(self.c, "6.53.x"))
+        assert print_mock.call_count == 0
+        self.assertFalse(release.is_qualification(self.c, "6.53.x", output=True))
+        print_mock.assert_called_with("false")
+        assert print_mock.call_count == 1
