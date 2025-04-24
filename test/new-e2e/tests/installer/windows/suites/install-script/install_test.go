@@ -15,17 +15,16 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 )
 
+type testInstallScriptSuite struct {
+	installerwindows.BaseSuite
+}
+
 const (
 	oldInstallerURL     = "http://install.datadoghq.com/datadog-installer-7.63.0-installer-0.12.5-1-x86_64.exe"
 	oldInstallerScript  = "http://install.datadoghq.com/Install-Datadog-7.63.0-installer-0.12.5-1.ps1"
 	oldInstallerVersion = "7.62"
 	oldAgentVersion     = "7.63.2"
 )
-
-// testInstallScriptSuite is a test suite that uses the script installer
-type testInstallScriptSuite struct {
-	installerwindows.BaseSuite
-}
 
 // TestInstallScript tests the usage of the Datadog installer script to install the Datadog Agent package.
 func TestInstallScript(t *testing.T) {
@@ -34,14 +33,6 @@ func TestInstallScript(t *testing.T) {
 			winawshost.ProvisionerNoAgentNoFakeIntake(),
 		),
 	)
-}
-
-// BeforeTest sets up the test
-func (s *testInstallScriptSuite) BeforeTest(suiteName, testName string) {
-	s.BaseSuite.BeforeTest(suiteName, testName)
-	s.SetInstallerImpl(installerwindows.NewDatadogInstallScript(s.Env(),
-		installerwindows.WithLocalFileOverride("CURRENT_AGENT"),
-	))
 }
 
 // TestInstallAgentPackage tests installing and uninstalling the Datadog Agent using the Datadog installer.
@@ -58,6 +49,7 @@ func (s *testInstallScriptSuite) TestInstallAgentPackage() {
 }
 
 // TestInstallFromOldInstaller tests installing the Datadog Agent package from an old installer.
+// shows we can correctly use the script to uninstall the old agent + installer MSIs
 func (s *testInstallScriptSuite) TestInstallFromOldInstaller() {
 	s.Run("Install from old installer", func() {
 		s.installOldInstallerAndAgent()
@@ -78,7 +70,6 @@ func (s *testInstallScriptSuite) mustInstallVersion(versionPredicate string, opt
 	// Arrange
 	packageConfig, err := installerwindows.NewPackageConfig(opts...)
 	s.Require().NoError(err)
-	fmt.Println("packageConfig", packageConfig)
 
 	// Act
 	output, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{

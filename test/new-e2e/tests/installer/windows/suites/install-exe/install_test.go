@@ -35,8 +35,8 @@ func TestInstallExe(t *testing.T) {
 // BeforeTest sets up the test
 func (s *testInstallExeSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
-	s.SetInstallerImpl(installerwindows.NewDatadogInstallExe(s.Env(),
-		installerwindows.WithLocalFileOverride("CURRENT_AGENT"),
+	s.SetInstallScriptImpl(installerwindows.NewDatadogInstallExe(s.Env(),
+		installerwindows.WithInstallScriptDevEnvOverrides("CURRENT_AGENT"),
 	))
 }
 

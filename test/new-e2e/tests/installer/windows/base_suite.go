@@ -39,10 +39,10 @@ import (
 //	STABLE_AGENT_VERSION_PACKAGE=7.55.2-1
 type BaseSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
-	installer     *DatadogInstaller
-	installerImpl SetupScriptRunner
-	currentAgent  *AgentVersionManager
-	stableAgent   *AgentVersionManager
+	installer         *DatadogInstaller
+	installScriptImpl InstallScriptRunner
+	currentAgent      *AgentVersionManager
+	stableAgent       *AgentVersionManager
 }
 
 // Installer The Datadog Installer for testing.
@@ -52,14 +52,14 @@ func (s *BaseSuite) Installer() *DatadogInstaller {
 
 // InstallScript returns the installer implementation.
 // Override this method in your test suite to use a different implementation.
-func (s *BaseSuite) InstallScript() SetupScriptRunner {
-	return s.installerImpl
+func (s *BaseSuite) InstallScript() InstallScriptRunner {
+	return s.installScriptImpl
 }
 
-// SetInstallerImpl sets a custom installer implementation.
+// SetInstallScriptImpl sets a custom installer implementation.
 // Use this in your test suite's SetupSuite to override the default implementation.
-func (s *BaseSuite) SetInstallerImpl(impl SetupScriptRunner) {
-	s.installerImpl = impl
+func (s *BaseSuite) SetInstallScriptImpl(impl InstallScriptRunner) {
+	s.installScriptImpl = impl
 }
 
 // Require instantiates a suiteAssertions for the current suite.
@@ -127,7 +127,6 @@ func (s *BaseSuite) SetupSuite() {
 		WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
-	fmt.Printf("previousOCI: %+v\n", previousOCI)
 
 	// Get previous version MSI package
 	previousMSI, err := windowsagent.NewPackage(
@@ -184,7 +183,7 @@ func (s *BaseSuite) BeforeTest(suiteName, testName string) {
 	s.Require().NoError(os.MkdirAll(outputDir, 0755))
 
 	s.installer = NewDatadogInstaller(s.Env(), s.CurrentAgentVersion().MSIPackage().URL, outputDir)
-	s.installerImpl = NewDatadogInstallScript(s.Env())
+	s.installScriptImpl = NewDatadogInstallScript(s.Env())
 }
 
 func (s *BaseSuite) startExperimentWithCustomPackage(opts ...PackageOption) (string, error) {
