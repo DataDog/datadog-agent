@@ -1040,6 +1040,7 @@ workflow:
         - cmd/otel-agent/**/*
         - comp/core/tagger/**/*
         - comp/otelcol/**/*
+        - pkg/config/setup/otlp.go
         - pkg/trace/api/otlp.go
         - pkg/trace/stats/otel_util.go
         - pkg/trace/traceutil/otel_util.go
