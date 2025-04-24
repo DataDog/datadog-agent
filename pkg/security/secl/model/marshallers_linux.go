@@ -83,15 +83,14 @@ func (e *Process) MarshalProcCache(data []byte, bootTime time.Time) (int, error)
 	written := ContainerIDLen + 8
 
 	// process without cgroup should be mainly pid 1
-	if !e.CGroup.CGroupFile.IsNull() {
-		toAdd, err := e.CGroup.CGroupFile.MarshalBinary()
-		if err != nil {
-			return 0, err
-		}
-
-		copy(data[written:written+len(toAdd)], toAdd)
-		written += len(toAdd)
+	// TODO: fix empty cgroup path key for not-pid-1 processes
+	toAdd, err := e.CGroup.CGroupFile.MarshalBinaryAllowEmpty()
+	if err != nil {
+		return 0, err
 	}
+
+	copy(data[written:written+len(toAdd)], toAdd)
+	written += len(toAdd)
 
 	added, err := MarshalBinary(data[written:], &e.FileEvent)
 	if err != nil {
@@ -210,5 +209,12 @@ func (p *PathKey) MarshalBinary() ([]byte, error) {
 	buff := make([]byte, 16)
 	p.Write(buff)
 
+	return buff, nil
+}
+
+// MarshalBinaryAllowEmpty returns the binary representation of a path key with could be empty
+func (p *PathKey) MarshalBinaryAllowEmpty() ([]byte, error) {
+	buff := make([]byte, 16)
+	p.Write(buff)
 	return buff, nil
 }
