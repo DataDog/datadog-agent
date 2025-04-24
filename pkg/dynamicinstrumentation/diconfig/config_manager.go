@@ -108,6 +108,7 @@ func (cm *RCConfigManager) Stop() {
 	for _, procInfo := range cm.mu.diProcs {
 		procInfo.CloseAllUprobeLinks()
 	}
+	log.Infof("Closed all uprobe links")
 }
 
 // updateProcesses is the callback interface that ConfigManager uses to consume the map of `ProcessInfo`s
@@ -264,7 +265,7 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 				cm.mu.Unlock()
 				continue
 			}
-
+			log.Infof("Successfully inspected binary for %d %s %s", procInfo.PID, procInfo.ServiceName, probe.FuncName)
 			probe.InstrumentationInfo.ConfigurationHash = configPath.Hash
 			applyConfigUpdate(procInfo, probe)
 		}
@@ -275,7 +276,9 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
 	log.Debugf("Applying config update for: %s in %s (ID: %s)\n", probe.FuncName, probe.ServiceName, probe.ID)
 	for {
+		log.Infof("Attempting to generate and attach BPF program for %d %s %s (ID: %s)", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID)
 		if err := tryGenerateAndAttach(procInfo, probe); err == nil {
+			log.Infof("Successfully generated and attached BPF program for %d %s %s (ID: %s)", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID)
 			return
 		}
 	}
@@ -285,6 +288,7 @@ func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
 // it will decrement the reference depth of the probe if it fails to generate and attach
 // the BPF program and try again until the reference depth is 0
 func tryGenerateAndAttach(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error {
+	log.Infof("Attempting to generate and attach BPF program for %d %s %s (ID: %s)", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID)
 	err := codegen.GenerateBPFParamsCode(procInfo, probe)
 	if err != nil {
 		log.Errorf("Couldn't generate BPF programs for %s: %v", probe.FuncName, err)
@@ -309,6 +313,7 @@ func tryGenerateAndAttach(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) e
 		}
 		return nil
 	}
+	log.Infof("Successfully generated and attached BPF program for %d %s %s (ID: %s)", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID)
 	return nil
 }
 

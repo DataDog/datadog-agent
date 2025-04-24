@@ -9,7 +9,6 @@ package bininspect
 
 import (
 	"debug/dwarf"
-	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils"
@@ -132,7 +131,11 @@ func (d dwarfInspector) findFunctionDebugInfoEntries(functions []string) (map[st
 	}
 
 	if len(functionsToSearch) != 0 {
-		return nil, errors.New("not all functions found")
+		missingFunctions := make([]string, 0, len(functionsToSearch))
+		for funcName := range functionsToSearch {
+			missingFunctions = append(missingFunctions, funcName)
+		}
+		return nil, fmt.Errorf("not all functions found: %v", missingFunctions)
 	}
 
 	return functionEntries, nil
