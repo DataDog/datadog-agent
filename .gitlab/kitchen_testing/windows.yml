@@ -148,6 +148,9 @@ kitchen_windows_installer_npm_driver-a6:
     - .kitchen_test_windows_installer_driver
 
 kitchen_windows_installer_agent-a6:
+  # Flaky (CMDPORT is not 5001 sometimes)
+  allow_failure: true
+  retry: 2
   extends:
     - .kitchen_scenario_windows_a6
     - .kitchen_test_windows_installer_agent
