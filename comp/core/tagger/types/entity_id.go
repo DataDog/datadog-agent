@@ -110,6 +110,10 @@ func ExtractPrefixAndID(entityID string) (prefix EntityIDPrefix, id string, err 
 	if !found {
 		return "", "", fmt.Errorf("unsupported tagger entity id format %q, correct format is `{prefix}://{id}`", entityID)
 	}
+	if _, found := supportedPrefixes[EntityIDPrefix(extractedPrefix)]; !found {
+		// prefix is expected to be set based on the prefix enum.
+		return "", "", fmt.Errorf("unsupported tagger entity prefix: %q", extractedPrefix)
+	}
 
 	return EntityIDPrefix(extractedPrefix), extractedID, nil
 }
