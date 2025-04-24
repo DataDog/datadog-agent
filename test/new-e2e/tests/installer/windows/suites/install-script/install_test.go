@@ -22,35 +22,14 @@ const (
 	oldAgentVersion     = "7.63.2"
 )
 
-// baseInstallSuite contains the common test methods for both script and exe installation
-type baseInstallSuite struct {
-	installerwindows.BaseSuite
-}
-
 // testInstallScriptSuite is a test suite that uses the script installer
 type testInstallScriptSuite struct {
-	baseInstallSuite
-}
-
-// testInstallExeSuite is a test suite that uses the exe installer
-type testInstallExeSuite struct {
-	baseInstallSuite
+	installerwindows.BaseSuite
 }
 
 // TestInstallScript tests the usage of the Datadog installer script to install the Datadog Agent package.
 func TestInstallScript(t *testing.T) {
 	e2e.Run(t, &testInstallScriptSuite{},
-		e2e.WithProvisioner(
-			winawshost.ProvisionerNoAgentNoFakeIntake(),
-		),
-	)
-}
-
-// TestInstallExe tests the usage of the Datadog installer exe to install the Datadog Agent package.
-//
-// e.g. datadog-installer setup --flavor default
-func TestInstallExe(t *testing.T) {
-	e2e.Run(t, &testInstallExeSuite{},
 		e2e.WithProvisioner(
 			winawshost.ProvisionerNoAgentNoFakeIntake(),
 		),
@@ -65,16 +44,8 @@ func (s *testInstallScriptSuite) BeforeTest(suiteName, testName string) {
 	))
 }
 
-// BeforeTest sets up the test
-func (s *testInstallExeSuite) BeforeTest(suiteName, testName string) {
-	s.BaseSuite.BeforeTest(suiteName, testName)
-	s.SetInstallerImpl(installerwindows.NewDatadogInstallExe(s.Env(),
-		installerwindows.WithLocalFileOverride("CURRENT_AGENT"),
-	))
-}
-
 // TestInstallAgentPackage tests installing and uninstalling the Datadog Agent using the Datadog installer.
-func (s *baseInstallSuite) TestInstallAgentPackage() {
+func (s *testInstallScriptSuite) TestInstallAgentPackage() {
 	s.Run("Fresh install", func() {
 		s.installPrevious()
 		s.Run("Install different Agent version", func() {
@@ -87,7 +58,7 @@ func (s *baseInstallSuite) TestInstallAgentPackage() {
 }
 
 // TestInstallFromOldInstaller tests installing the Datadog Agent package from an old installer.
-func (s *baseInstallSuite) TestInstallFromOldInstaller() {
+func (s *testInstallScriptSuite) TestInstallFromOldInstaller() {
 	s.Run("Install from old installer", func() {
 		s.installOldInstallerAndAgent()
 		s.Run("Install New Version", func() {
@@ -97,13 +68,13 @@ func (s *baseInstallSuite) TestInstallFromOldInstaller() {
 }
 
 // TestFailedUnsupportedVersion Test that version <65 fails to install
-func (s *baseInstallSuite) TestFailedUnsupportedVersion() {
+func (s *testInstallScriptSuite) TestFailedUnsupportedVersion() {
 	s.Run("Install unsupported agent", func() {
 		s.installUnsupportedAgent()
 	})
 }
 
-func (s *baseInstallSuite) mustInstallVersion(versionPredicate string, opts ...installerwindows.PackageOption) {
+func (s *testInstallScriptSuite) mustInstallVersion(versionPredicate string, opts ...installerwindows.PackageOption) {
 	// Arrange
 	packageConfig, err := installerwindows.NewPackageConfig(opts...)
 	s.Require().NoError(err)
@@ -128,21 +99,21 @@ func (s *baseInstallSuite) mustInstallVersion(versionPredicate string, opts ...i
 		})
 }
 
-func (s *baseInstallSuite) installPrevious() {
+func (s *testInstallScriptSuite) installPrevious() {
 	s.mustInstallVersion(
 		s.StableAgentVersion().Version(),
 		installerwindows.WithPackage(s.StableAgentVersion().OCIPackage()),
 	)
 }
 
-func (s *baseInstallSuite) installCurrent() {
+func (s *testInstallScriptSuite) installCurrent() {
 	s.mustInstallVersion(
 		s.CurrentAgentVersion().Version(),
 		installerwindows.WithPackage(s.CurrentAgentVersion().OCIPackage()),
 	)
 }
 
-func (s *baseInstallSuite) upgradeToLatestExperiment() {
+func (s *testInstallScriptSuite) upgradeToLatestExperiment() {
 	s.MustStartExperimentCurrentVersion()
 
 	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
@@ -150,7 +121,7 @@ func (s *baseInstallSuite) upgradeToLatestExperiment() {
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 }
 
-func (s *baseInstallSuite) installOldInstallerAndAgent() {
+func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
 	// Arrange
 	agentVersion := fmt.Sprintf("%s-1", oldAgentVersion)
 	// Act
@@ -165,11 +136,7 @@ func (s *baseInstallSuite) installOldInstallerAndAgent() {
 			"DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE":        "install.datadoghq.com",
 		}),
 		installerwindows.WithInstallerURL(oldInstallerURL),
-	}
-
-	// Add script option only for script-based installation
-	if _, ok := s.InstallScript().(*installerwindows.DatadogInstallScript); ok {
-		opts = append(opts, installerwindows.WithInstallerScript(oldInstallerScript))
+		installerwindows.WithInstallerScript(oldInstallerScript),
 	}
 
 	output, err := s.InstallScript().Run(opts...)
@@ -187,7 +154,7 @@ func (s *baseInstallSuite) installOldInstallerAndAgent() {
 		})
 }
 
-func (s *baseInstallSuite) installUnsupportedAgent() {
+func (s *testInstallScriptSuite) installUnsupportedAgent() {
 	// Arrange
 	// Act
 	_, err := s.InstallScript().Run(
