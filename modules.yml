@@ -214,8 +214,6 @@ modules:
     used_by_otel: true
   pkg/opentelemetry-mapping-go/inframetadata/gohai/internal/gohaitest:
     used_by_otel: true
-  pkg/opentelemetry-mapping-go/internal/sketchtest:
-    used_by_otel: true
   pkg/opentelemetry-mapping-go/otlp/attributes:
     used_by_otel: true
   pkg/opentelemetry-mapping-go/otlp/logs:
@@ -296,6 +294,8 @@ modules:
     used_by_otel: true
   pkg/util/prometheus: default
   pkg/util/quantile:
+    used_by_otel: true
+  pkg/util/quantile/sketchtest:
     used_by_otel: true
   pkg/util/scrubber:
     used_by_otel: true

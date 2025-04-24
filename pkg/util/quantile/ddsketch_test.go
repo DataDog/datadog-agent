@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/internal/sketchtest"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest"
 )
 
 const (
