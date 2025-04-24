@@ -12,7 +12,7 @@ import (
 
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/hostmetadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"

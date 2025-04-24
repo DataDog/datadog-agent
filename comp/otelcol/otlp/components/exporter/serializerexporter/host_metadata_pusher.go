@@ -13,8 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata/payload"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/payload"
 )
 
 type hostMetadataPusher struct {

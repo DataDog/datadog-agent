@@ -16,13 +16,13 @@ import (
 	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/quantile"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
-	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 	"github.com/tinylib/msgp/msgp"
 )
 

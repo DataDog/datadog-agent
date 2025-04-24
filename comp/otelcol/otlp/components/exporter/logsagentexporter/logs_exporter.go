@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	logsmapping "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	logsmapping "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs"
 	"github.com/stormcat24/protodep/pkg/logger"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/plog"

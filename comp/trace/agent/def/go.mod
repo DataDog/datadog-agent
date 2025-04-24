@@ -3,9 +3,9 @@ module github.com/DataDog/datadog-agent/comp/trace/agent/def
 go 1.23.0
 
 require (
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0
-	go.opentelemetry.io/collector/pdata v1.29.0
+	go.opentelemetry.io/collector/pdata v1.30.0
 )
 
 require (
@@ -14,8 +14,8 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.29.0 // indirect
-	go.opentelemetry.io/collector/internal/telemetry v0.123.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.30.0 // indirect
+	go.opentelemetry.io/collector/internal/telemetry v0.124.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.10.0 // indirect
 	go.opentelemetry.io/otel/log v0.11.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.35.0 // indirect
@@ -29,9 +29,8 @@ require (
 	github.com/philhofer/fwd v1.1.3-0.20240916144458-20a13a1f6b7c // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/tinylib/msgp v1.2.5 // indirect
-	go.opentelemetry.io/collector/component v1.29.0 // indirect
-	go.opentelemetry.io/collector/component/componenttest v0.123.0 // indirect
-	go.opentelemetry.io/collector/semconv v0.123.0 // indirect
+	go.opentelemetry.io/collector/component v1.30.0 // indirect
+	go.opentelemetry.io/collector/semconv v0.124.0 // indirect
 	go.opentelemetry.io/otel v1.35.0 // indirect
 	go.opentelemetry.io/otel/metric v1.35.0 // indirect
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
@@ -142,6 +141,13 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ../../../../pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload => ../../../../pkg/networkpath/payload
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ../../../../pkg/obfuscate
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata => ../../../../pkg/opentelemetry-mapping-go/inframetadata
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/gohai/internal/gohaitest => ../../../../pkg/opentelemetry-mapping-go/inframetadata/gohai/internal/gohaitest
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/internal/sketchtest => ../../../../pkg/opentelemetry-mapping-go/internal/sketchtest
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes => ../../../../pkg/opentelemetry-mapping-go/otlp/attributes
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs => ../../../../pkg/opentelemetry-mapping-go/otlp/logs
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics => ../../../../pkg/opentelemetry-mapping-go/otlp/metrics
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/quantile => ../../../../pkg/opentelemetry-mapping-go/quantile
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ../../../../pkg/orchestrator/model
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../../pkg/proto

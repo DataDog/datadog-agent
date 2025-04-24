@@ -7,12 +7,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.61.0
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/quantile v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.60.0
 	github.com/DataDog/datadog-agent/pkg/tagset v0.60.0
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.26.0
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/atomic v1.11.0
 )
@@ -189,6 +189,13 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ../../pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload => ../../pkg/networkpath/payload
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ../../pkg/obfuscate
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata => ../../pkg/opentelemetry-mapping-go/inframetadata
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/gohai/internal/gohaitest => ../../pkg/opentelemetry-mapping-go/inframetadata/gohai/internal/gohaitest
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/internal/sketchtest => ../../pkg/opentelemetry-mapping-go/internal/sketchtest
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes => ../../pkg/opentelemetry-mapping-go/otlp/attributes
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs => ../../pkg/opentelemetry-mapping-go/otlp/logs
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics => ../../pkg/opentelemetry-mapping-go/otlp/metrics
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/quantile => ../../pkg/opentelemetry-mapping-go/quantile
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ../../pkg/orchestrator/model
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
