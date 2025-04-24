@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/quantile"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/quantile/summary"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile/summary"
 )
 
 var _ memSized = (*Sketch)(nil)

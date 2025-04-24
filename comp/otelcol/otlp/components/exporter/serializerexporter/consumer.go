@@ -17,12 +17,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/quantile"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 	"github.com/tinylib/msgp/msgp"
 )
 

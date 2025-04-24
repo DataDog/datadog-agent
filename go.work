@@ -109,7 +109,6 @@ use (
 	pkg/networkdevice/profile
 	pkg/networkpath/payload
 	pkg/obfuscate
-	pkg/opentelemetry-mapping-go/quantile
 	pkg/opentelemetry-mapping-go/internal/sketchtest
 	pkg/opentelemetry-mapping-go/otlp/metrics
 	pkg/opentelemetry-mapping-go/otlp/attributes
@@ -152,6 +151,7 @@ use (
 	pkg/util/otel
 	pkg/util/pointer
 	pkg/util/prometheus
+	pkg/util/quantile
 	pkg/util/scrubber
 	pkg/util/sort
 	pkg/util/startstop

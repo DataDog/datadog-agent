@@ -29,7 +29,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/internal/sketchtest"
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/quantile"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
 var _ SketchConsumer = (*sketchConsumer)(nil)
