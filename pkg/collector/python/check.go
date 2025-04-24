@@ -90,7 +90,7 @@ func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rt
 	return pyCheck, nil
 }
 
-func (c *PythonCheck) runCheckImpl(commitMetrics bool) (checkErr error) {
+func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 	// Lock the GIL and release it at the end of the run
 	gstate, err := newStickyLock()
 	if err != nil {
@@ -100,9 +100,7 @@ func (c *PythonCheck) runCheckImpl(commitMetrics bool) (checkErr error) {
 
 	log.Debugf("Running python check %s (version: '%s', id: '%s')", c.ModuleName, c.version, c.id)
 
-	instance := c.instance
-
-	cResult := C.run_check(rtloader, instance)
+	cResult := C.run_check(rtloader, c.instance)
 	if cResult == nil {
 		if err := getRtLoaderError(); err != nil {
 			return err
