@@ -115,9 +115,10 @@ class GateMetricHandler:
 
     def get_formatted_metric(self, gate_name, metric_name, show_sign=False):
         value = self.metrics[gate_name][metric_name]
-        string_value = byte_to_string(value)
+        string_value = byte_to_string(value, with_unit=False, unit_power=2)
         if value > 0:
-            return f"{'+' if show_sign else ''}{string_to_latex_color(string_value, "red")}"
+            string_value = "+" + string_value
+            return string_to_latex_color(string_value, "red")
         elif value < 0:
             return string_to_latex_color(string_value, "lightgreen")
         else:
