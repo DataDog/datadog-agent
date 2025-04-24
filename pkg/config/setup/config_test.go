@@ -450,7 +450,6 @@ func TestProxy(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			// CircleCI sets NO_PROXY, so unset it for this test
 			unsetEnvForTest(t, "NO_PROXY")
 
 			config := newTestConf(t)
@@ -1199,7 +1198,6 @@ process_config:
 `)
 
 func TestConfigAssignAtPath(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
 	unsetEnvForTest(t, "NO_PROXY")
 
 	config := newTestConf(t)
@@ -1257,7 +1255,6 @@ use_proxy_for_cloud_metadata: true
 }
 
 func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
 	unsetEnvForTest(t, "NO_PROXY")
 
 	config := newTestConf(t)
@@ -1301,7 +1298,6 @@ secret_backend_arguments:
 `)
 
 func TestConfigAssignAtPathSimple(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
 	unsetEnvForTest(t, "NO_PROXY")
 
 	config := newTestConf(t)
@@ -1332,7 +1328,6 @@ use_proxy_for_cloud_metadata: true
 }
 
 func TestConfigMustMatchOrigin(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
 	unsetEnvForTest(t, "NO_PROXY")
 
 	testMinimalConf := []byte(`apm_config:
@@ -1409,7 +1404,6 @@ use_proxy_for_cloud_metadata: true
 }
 
 func TestConfigAssignAtPathForIntMapKeys(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
 	unsetEnvForTest(t, "NO_PROXY")
 
 	// Even if a map is using keys that looks like stringified ints, calling
