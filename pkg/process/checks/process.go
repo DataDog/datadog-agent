@@ -11,6 +11,7 @@ import (
 	"math"
 	"net/http"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -39,17 +40,14 @@ import (
 )
 
 const (
-	emptyCtrID                            = ""
-	configPrefix                          = "process_config."
-	configCustomSensitiveWords            = configPrefix + "custom_sensitive_words"
-	configScrubArgs                       = configPrefix + "scrub_args"
-	configStripProcArgs                   = configPrefix + "strip_proc_arguments"
-	configDisallowList                    = configPrefix + "blacklist_patterns"
-	configIgnoreZombies                   = configPrefix + "ignore_zombie_processes"
-	awsECSFargatePidModeTaskContainerName = "aws-fargate-pause"
+	emptyCtrID                 = ""
+	configPrefix               = "process_config."
+	configCustomSensitiveWords = configPrefix + "custom_sensitive_words"
+	configScrubArgs            = configPrefix + "scrub_args"
+	configStripProcArgs        = configPrefix + "strip_proc_arguments"
+	configDisallowList         = configPrefix + "blacklist_patterns"
+	configIgnoreZombies        = configPrefix + "ignore_zombie_processes"
 )
-
-var once sync.Once // used for one-off warning
 
 // NewProcessCheck returns an instance of the ProcessCheck.
 func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component, gpuSubscriber gpusubscriber.Component, statsd statsd.ClientInterface) *ProcessCheck {
@@ -135,6 +133,9 @@ type ProcessCheck struct {
 	statsd         statsd.ClientInterface
 
 	gpuSubscriber gpusubscriber.Component
+
+	// used for one-off warning
+	warnOnceECSLinuxFargateMisconfig sync.Once
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -303,9 +304,11 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
-	once.Do(func() {
-		if !isECSFargatePidModeSetToTask(totalProcs, containers) {
-			log.Warn(`Process collection is likely misconfigured. Please check if your task definition has "pidMode":"task"`)
+	// warn customer if "pidMode":"task" is not set in ecs linux fargate
+	p.warnOnceECSLinuxFargateMisconfig.Do(func() {
+		// pidMode is currently not supported on windows, see docs: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#task_definition_pidmode
+		if fargate.IsFargateInstance() && runtime.GOOS == "linux" && !isECSLinuxFargatePidModeSetToTask(containers) {
+			log.Warn(`Process collection is likely misconfigured. Please ensure your task definition has "pidMode":"task" set. See https://docs.datadoghq.com/integrations/ecs_fargate/?tab=webui#process-collection for more information.`)
 		}
 	})
 
@@ -716,19 +719,18 @@ func isDisallowListed(cmdline []string, disallowList []*regexp.Regexp) bool {
 	return false
 }
 
-func isECSFargatePidModeSetToTask(totalProcs int, containers []*model.Container) bool {
-	if !fargate.IsFargateInstance() {
+func isECSLinuxFargatePidModeSetToTask(containers []*model.Container) bool {
+	if !fargate.IsFargateInstance() || runtime.GOOS != "linux" {
 		return false
 	}
 
 	// aws-fargate-pause container only exists when "pidMode"" is set to "task" on ecs fargate
-	pidModeTaskContainerExists := false
+	ecsContainerNameTag := fmt.Sprintf("%s:%s", tags.EcsContainerName, "aws-fargate-pause")
 	for _, c := range containers {
-		// TODO: consider revising this check since it doesn't seem very robust
-		if slices.Contains(c.Tags, fmt.Sprintf("%s:%s", tags.EcsContainerName, awsECSFargatePidModeTaskContainerName)) {
-			pidModeTaskContainerExists = true
-			break
+		// container fields are not yet populated with information from tags at this point, so we need to check the tags
+		if slices.Contains(c.Tags, ecsContainerNameTag) {
+			return true
 		}
 	}
-	return pidModeTaskContainerExists && totalProcs > 0
+	return false
 }
