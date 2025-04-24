@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func (s *Setup) prePackageInstall() (err error) {
+func (s *Setup) preInstallPackages() (err error) {
 	s.addAgentToAdditionalGroups()
 
 	return nil
