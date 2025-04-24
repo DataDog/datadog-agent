@@ -1438,7 +1438,7 @@ int uprobe__kafka_tls_fetch_response_partition_parser_v0(struct pt_regs *ctx) {
 
 SEC("uprobe/kafka_tls_fetch_response_partition_parser_v12")
 int uprobe__kafka_tls_fetch_response_partition_parser_v12(struct pt_regs *ctx) {
-    return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_PARTITION, 12, 12, KAFKA_FETCH);
+    return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_PARTITION, 12, KAFKA_DECODING_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION, KAFKA_FETCH);
 }
 
 SEC("uprobe/kafka_tls_fetch_response_record_batch_parser_v0")
@@ -1448,7 +1448,7 @@ int uprobe__kafka_tls_fetch_response_record_batch_parser_v0(struct pt_regs *ctx)
 
 SEC("uprobe/kafka_tls_fetch_response_record_batch_parser_v12")
 int uprobe__kafka_tls_fetch_response_record_batch_parser_v12(struct pt_regs *ctx) {
-    return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_RECORD_BATCH, 12, 12, KAFKA_FETCH);
+    return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_RECORD_BATCH, 12, KAFKA_DECODING_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION, KAFKA_FETCH);
 }
 
 SEC("uprobe/kafka_tls_produce_response_partition_parser_v0")
@@ -1458,7 +1458,7 @@ int uprobe__kafka_tls_produce_response_partition_parser_v0(struct pt_regs *ctx) 
 
 SEC("uprobe/kafka_tls_produce_response_partition_parser_v9")
 int uprobe__kafka_tls_produce_response_partition_parser_v9(struct pt_regs *ctx) {
-    return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_PARTITION, 9, 11, KAFKA_PRODUCE);
+    return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_PARTITION, 9, KAFKA_DECODING_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION, KAFKA_PRODUCE);
 }
 
 // Gets the next expected TCP sequence in the stream, assuming
@@ -1779,7 +1779,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         // If we have a produce request with required acks set to 0, we can enqueue it immediately, as there will be no produce response.
         kafka_batch_enqueue_wrapper(kafka, tup, kafka_transaction);
         return true;
-    }
+    }   
 
     // Copy to stack required by 4.14 verifier.
     kafka_transaction_t transaction;
