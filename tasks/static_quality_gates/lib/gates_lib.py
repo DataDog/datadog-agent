@@ -127,7 +127,9 @@ class GateMetricHandler:
     def get_formatted_metric_comparison(self, gate_name, first_metric, limit_metric):
         first_value = self.metrics[gate_name][first_metric]
         second_value = self.metrics[gate_name][limit_metric]
-        limit_value_string = string_to_latex_color(byte_to_string(second_value, unit_power=2, with_unit=False), "orange")
+        limit_value_string = string_to_latex_color(
+            byte_to_string(second_value, unit_power=2, with_unit=False), "orange"
+        )
         if first_value > second_value:
             return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False), "red")} > {limit_value_string}"
         elif first_value < second_value:
