@@ -124,4 +124,4 @@ class TestJUnitUploadFromTGZ(unittest.TestCase):
             "tasks/unit_tests/testdata/test_output_no_failure.json",
         )
         mock_popen.assert_called()
-        self.assertEqual(mock_popen.call_count, 30)
+        self.assertEqual(mock_popen.call_count, 31)
