@@ -23,11 +23,6 @@ func (client *Client) newRequest(method, uri string, body io.Reader) (*http.Requ
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 // do exec a request with authentication
 func (client *Client) do(req *http.Request) ([]byte, int, error) {
-	// // Cross-forgery token
-	// client.authenticationMutex.Lock()
-	// req.Header.Add("X-CSRF-TOKEN", client.token)
-	// client.authenticationMutex.Unlock()
-
 	log.Tracef("Executing Versa api request %s %s", req.Method, req.URL.Path)
 	resp, err := client.httpClient.Do(req)
 	if err != nil {
@@ -37,13 +32,14 @@ func (client *Client) do(req *http.Request) ([]byte, int, error) {
 
 	defer resp.Body.Close()
 
-	if !isAuthenticated(resp.Header) {
-		log.Tracef("Versa api request responded with invalid auth %s %s", req.Method, req.URL.Path)
-		// clear auth to trigger re-authentication
-		client.clearAuth()
-		// Return 401 on auth errors
-		return nil, 401, nil
-	}
+	// TODO: should we bring this back with OAuth?
+	// if !isAuthenticated(resp.Header) {
+	// 	log.Tracef("Versa api request responded with invalid auth %s %s", req.Method, req.URL.Path)
+	// 	// clear auth to trigger re-authentication
+	// 	client.clearAuth()
+	// 	// Return 401 on auth errors
+	// 	return nil, 401, nil
+	// }
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

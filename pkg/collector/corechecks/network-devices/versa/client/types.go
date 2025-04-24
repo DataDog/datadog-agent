@@ -76,7 +76,6 @@ type Appliance struct {
 	YangCompatibilityStatus string              `json:"yang-compatibility-status"`
 	ServicesStatus          string              `json:"services-status"`
 	OverallStatus           string              `json:"overall-status"`
-	ControllStatus          string              `json:"controll-status"`
 	PathStatus              string              `json:"path-status"`
 	IntraChassisHAStatus    HAStatus            `json:"intra-chassis-ha-status"`
 	InterChassisHAStatus    HAStatus            `json:"inter-chassis-ha-status"`

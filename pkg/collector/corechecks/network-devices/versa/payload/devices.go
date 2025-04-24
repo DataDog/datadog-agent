@@ -132,13 +132,6 @@ func mapNDMBoolStatus(versaUnreachable bool) devicemetadata.DeviceStatus {
 	return devicemetadata.DeviceStatusReachable
 }
 
-func mapNDMStringStatus(versaStatus string) devicemetadata.DeviceStatus {
-	if versaStatus == "UNREACHABLE" {
-		return devicemetadata.DeviceStatusUnreachable
-	}
-	return devicemetadata.DeviceStatusReachable
-}
-
 func mapNDMPingStatus(versaPingStatus string) devicemetadata.DeviceStatus {
 	if versaPingStatus == "UNREACHABLE" {
 		return devicemetadata.DeviceStatusUnreachable
@@ -203,8 +196,8 @@ func computeUptime(device client.Appliance) (float64, error) {
 	return math.Round((float64(now) - float64(deviceUptime)) / 10), nil // In hundredths of a second, to match SNMP
 }
 
-func buildDeviceID(namespace string, deviceId string) string {
-	return fmt.Sprintf("%s:%s", namespace, deviceId)
+func buildDeviceID(namespace string, deviceID string) string {
+	return fmt.Sprintf("%s:%s", namespace, deviceID)
 }
 
 func getDirectorIPAddress(director *client.DirectorStatus) (string, error) {

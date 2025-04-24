@@ -36,7 +36,6 @@ type checkCfg struct {
 	// add versa specific fields
 	Name                            string `yaml:"name"` // TODO: remove this field, only added it for testing
 	DirectorEndpoint                string `yaml:"director_endpoint"`
-	AnalyticsEndpoint               string `yaml:"analytics_endpoint"` // TODO: remove this field once OAuth is implemented
 	Username                        string `yaml:"username"`
 	Password                        string `yaml:"password"`
 	UseHTTP                         bool   `yaml:"use_http"`
@@ -68,7 +67,7 @@ func (v *VersaCheck) Run() error {
 
 	log.Infof("Running Versa check for instance: %s", v.config.Name)
 
-	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.AnalyticsEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP)
+	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP)
 	if err != nil {
 		return fmt.Errorf("error creating Versa client: %w", err)
 	}

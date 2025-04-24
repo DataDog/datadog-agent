@@ -29,18 +29,14 @@ const (
 	defaultHTTPScheme  = "https"
 )
 
-// Useful for mocking
-var timeNow = time.Now
-
 // Client is an HTTP Versa client.
 type Client struct {
 	httpClient *http.Client
 	endpoint   string
 	port       string
-	// TODO: remove when OAuth is implemented
-	analyticsEndpoint   string
-	token               string
-	tokenExpiry         time.Time
+	// TODO: add back with OAuth
+	// token               string
+	// tokenExpiry         time.Time
 	username            string
 	password            string
 	authenticationMutex *sync.Mutex
@@ -54,7 +50,7 @@ type Client struct {
 type ClientOptions func(*Client)
 
 // NewClient creates a new Versa HTTP client.
-func NewClient(endpoint, analyticsEndpoint, username, password string, useHTTP bool, options ...ClientOptions) (*Client, error) {
+func NewClient(endpoint, username, password string, useHTTP bool, options ...ClientOptions) (*Client, error) {
 	err := validateParams(endpoint, username, password)
 	if err != nil {
 		return nil, err
@@ -84,7 +80,6 @@ func NewClient(endpoint, analyticsEndpoint, username, password string, useHTTP b
 		httpClient:          httpClient,
 		endpoint:            endpointURL.String(),
 		port:                "9182", // TODO: replace with 9183 for OAuth
-		analyticsEndpoint:   analyticsEndpoint,
 		username:            username,
 		password:            password,
 		authenticationMutex: &sync.Mutex{},
@@ -173,6 +168,10 @@ func WithLookback(lookback time.Duration) ClientOptions {
 	}
 }
 
+// GetOrganizationsNextgen is an alternative to GetOrganizations
+// that uses the new NextGen API to get the list of organizations
+// This API may not be available in all versions of Versa, so we
+// need to check the version before using it.
 func (client *Client) GetOrganizationsNextgen() ([]TenantConfig, error) {
 	// TODO: what is the lowest version of Versa that exposes this API?
 	// until we know, use the old API
@@ -187,6 +186,7 @@ func (client *Client) GetOrganizationsNextgen() ([]TenantConfig, error) {
 	return *resp, nil
 }
 
+// GetOrganizations retrieves a list of organizations
 func (client *Client) GetOrganizations() ([]Organization, error) {
 	var organizations []Organization
 	resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", nil)
