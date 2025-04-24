@@ -1,7 +1,7 @@
-using System;
 using AutoFixture.Xunit2;
 using FluentAssertions;
 using Microsoft.Deployment.WindowsInstaller;
+using System;
 using Xunit;
 
 namespace CustomActions.Tests.ProcessUserCustomActions
@@ -53,6 +53,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
 
             Test.Properties.Should()
                 .Contain("DDAGENTUSER_FOUND", "true").And
+                .Contain("DDAGENTUSER_IS_SERVICE_ACCOUNT", "false").And
                 .Contain(kvp => kvp.Key == "DDAGENTUSER_SID" && !string.IsNullOrEmpty(kvp.Value)).And
                 .Contain("DDAGENTUSER_PROCESSED_NAME", "ddagentuser").And
                 .Contain("DDAGENTUSER_PROCESSED_DOMAIN", Environment.MachineName).And
@@ -109,7 +110,8 @@ namespace CustomActions.Tests.ProcessUserCustomActions
 
             Test.Properties.Should()
                 .OnlyContain(kvp => (kvp.Key == "DDAGENTUSER_FOUND" && kvp.Value == "true") ||
-                                    (kvp.Key == "DDAGENTUSER_SID" && !string.IsNullOrEmpty(kvp.Value)));
+                                    (kvp.Key == "DDAGENTUSER_SID" && !string.IsNullOrEmpty(kvp.Value)) ||
+                                    (kvp.Key == "DDAGENTUSER_IS_SERVICE_ACCOUNT" && kvp.Value == "false"));
         }
 
         /// <summary>

@@ -192,6 +192,8 @@ type discovery struct {
 
 	timeProvider timeProvider
 	network      networkCollector
+
+	networkErrorLimit *log.Limit
 }
 
 type networkCollectorFactory func(cfg *discoveryConfig) (networkCollector, error)
@@ -226,6 +228,7 @@ func newDiscoveryWithNetwork(wmeta workloadmeta.Component, tagger tagger.Compone
 		tagger:             tagger,
 		timeProvider:       tp,
 		network:            network,
+		networkErrorLimit:  log.NewLogLimit(10, 10*time.Minute),
 	}
 }
 
@@ -258,10 +261,13 @@ func (s *discovery) Close() {
 	s.cleanCache(pidSet{})
 	if s.network != nil {
 		s.network.close()
+		s.network = nil
 	}
 	clear(s.cache)
 	clear(s.noPortTries)
 	clear(s.ignorePids)
+	clear(s.potentialServices)
+	clear(s.runningServices)
 }
 
 // handleStatusEndpoint is the handler for the /status endpoint.
@@ -323,7 +329,7 @@ func (s *discovery) handleStateEndpoint(w http.ResponseWriter, _ *http.Request) 
 	state.LastCPUTimeUpdate = s.lastCPUTimeUpdate.Unix()
 	state.LastNetworkStatsUpdate = s.lastNetworkStatsUpdate.Unix()
 
-	utils.WriteAsJSON(w, state)
+	utils.WriteAsJSON(w, state, utils.CompactOutput)
 }
 
 func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) {
@@ -335,7 +341,7 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 	procRoot := kernel.ProcFSRoot()
 	pids, err := process.Pids()
 	if err != nil {
-		utils.WriteAsJSON(w, "could not get PIDs")
+		utils.WriteAsJSON(w, "could not get PIDs", utils.CompactOutput)
 		return
 	}
 
@@ -356,7 +362,7 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 		services = append(services, *service)
 	}
 
-	utils.WriteAsJSON(w, services)
+	utils.WriteAsJSON(w, services, utils.CompactOutput)
 }
 
 // handleCheck is the handler for the /check endpoint.
@@ -376,7 +382,7 @@ func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	utils.WriteAsJSON(w, services)
+	utils.WriteAsJSON(w, services, utils.CompactOutput)
 }
 
 const prefix = "socket:["
@@ -540,14 +546,15 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 		log.Debugf("couldn't snapshot UDP sockets: %v", err)
 	}
 	tcpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/tcp6", pid)), tcpListen, noIgnore)
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		// The file won't exist if IPv6 is disabled.
 		log.Debugf("couldn't snapshot TCP6 sockets: %v", err)
 	}
 	udpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/udp6", pid)), udpListen,
 		func(port uint16) bool {
 			return network.IsPortInEphemeralRange(network.AFINET6, network.UDP, port) == network.EphemeralTrue
 		})
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		log.Debugf("couldn't snapshot UDP6 sockets: %v", err)
 	}
 
@@ -815,7 +822,9 @@ func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.Ser
 			err := s.network.addPid(uint32(pid))
 			if err == nil {
 				info.addedToMap = true
-			} else {
+			} else if s.networkErrorLimit.ShouldLog() {
+				// This error can occur if the eBPF map used by the network
+				// collector is full.
 				log.Warnf("unable to add to network collector %v: %v", pid, err)
 			}
 			continue

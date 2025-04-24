@@ -7,6 +7,7 @@
 package selftests
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -44,10 +45,10 @@ func (o *WindowsCreateFileSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 }
 
 // GenerateEvent generate an event
-func (o *WindowsCreateFileSelfTest) GenerateEvent() error {
+func (o *WindowsCreateFileSelfTest) GenerateEvent(ctx context.Context) error {
 	o.isSuccess = false
 
-	cmd := exec.Command(
+	cmd := exec.CommandContext(ctx,
 		"powershell",
 		"-c",
 		"New-Item",

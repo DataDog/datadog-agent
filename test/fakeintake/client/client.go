@@ -100,12 +100,30 @@ func WithoutStrictFakeintakeIDCheck() Option {
 	}
 }
 
+// WithGetBackoffDelay sets the delay between two retries in get
+func WithGetBackoffDelay(delay time.Duration) Option {
+	return func(c *Client) {
+		c.getBackoffDelay = delay
+	}
+}
+
+// WithGetBackoffRetries sets the number of retries in get
+func WithGetBackoffRetries(retries uint64) Option {
+	return func(c *Client) {
+		c.getBackoffRetries = retries
+	}
+}
+
 // Client is a fake intake client
 type Client struct {
 	fakeintakeID            string
 	fakeIntakeURL           string
 	strictFakeintakeIDCheck bool
 	fakeintakeIDMutex       sync.RWMutex
+
+	// Get retry parameters
+	getBackoffRetries uint64
+	getBackoffDelay   time.Duration
 
 	metricAggregator               aggregator.MetricAggregator
 	checkRunAggregator             aggregator.CheckRunAggregator
@@ -135,6 +153,8 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 	client := &Client{
 		strictFakeintakeIDCheck:        true,
 		fakeintakeIDMutex:              sync.RWMutex{},
+		getBackoffRetries:              4,
+		getBackoffDelay:                5 * time.Second,
 		fakeIntakeURL:                  strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:               aggregator.NewMetricAggregator(),
 		checkRunAggregator:             aggregator.NewCheckRunAggregator(),
@@ -705,6 +725,26 @@ func (c *Client) GetLastProcessPayloadAPIKey() (string, error) {
 	return payloads[len(payloads)-1].APIKey, nil
 }
 
+// GetAllProcessPayloadAPIKeys fetches fakeintake on `/api/v1/collector` endpoint and returns
+// a list of unique API keys of the received process payloads
+func (c *Client) GetAllProcessPayloadAPIKeys() ([]string, error) {
+	payloads, err := c.getFakePayloads(processesEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	keysFound := make(map[string]struct{})
+	keys := make([]string, 0)
+	for _, payload := range payloads {
+		if _, ok := keysFound[payload.APIKey]; !ok {
+			keysFound[payload.APIKey] = struct{}{}
+			keys = append(keys, payload.APIKey)
+		}
+	}
+
+	return keys, nil
+}
+
 // GetContainers fetches fakeintake on `/api/v1/container` endpoint and returns
 // all received container payloads
 func (c *Client) GetContainers() ([]*aggregator.ContainerPayload, error) {
@@ -924,7 +964,7 @@ func (c *Client) get(route string) ([]byte, error) {
 
 		body, err = io.ReadAll(tmpResp.Body)
 		return err
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(c.getBackoffDelay), c.getBackoffRetries))
 	if err, ok := err.(net.Error); ok && err.Timeout() {
 		panic(fmt.Sprintf("fakeintake call timed out: %v", err))
 	}
