@@ -66,11 +66,6 @@ def read_byte_input(byte_input):
         return byte_input
 
 
-def is_first_commit_of_the_day(ctx) -> bool:
-    out = ctx.run("git log --since=today.midnight | grep -E \"commit [a-z0-9]+\" | wc -l ")
-    return out.stdout.strip() == "1"
-
-
 def find_package_path(flavor, package_os, arch, extension=None):
     package_dir = os.environ['OMNIBUS_PACKAGE_DIR']
     separator = '_' if package_os == 'debian' else '-'
