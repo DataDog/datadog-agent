@@ -16,7 +16,7 @@ import (
 func TestObjectStore_GetSet(t *testing.T) {
 	store := NewObjectStore[any]()
 
-	id := types.NewEntityID(types.ContainerID, "id")
+	id := types.NewEntityID("prefix", "id")
 	// getting a non existent item
 	obj, found := store.Get(id)
 	assert.Nil(t, obj)
@@ -46,7 +46,7 @@ func TestObjectStore_Size(t *testing.T) {
 	assert.Equalf(t, store.Size(), 0, "store should be empty")
 
 	// add item to store
-	id := types.NewEntityID(types.ContainerID, "id")
+	id := types.NewEntityID("prefix", "id")
 	store.Set(id, struct{}{})
 
 	// store size should be 1
@@ -64,7 +64,7 @@ func TestObjectStore_ListObjects(t *testing.T) {
 
 	// build some filter
 	fb := types.NewFilterBuilder()
-	fb.Include(types.EntityIDPrefix(types.ContainerID), types.EntityIDPrefix(types.KubernetesDeployment))
+	fb.Include(types.EntityIDPrefix("prefix1"), types.EntityIDPrefix("prefix2"))
 	filter := fb.Build(types.HighCardinality)
 
 	// list should return empty
@@ -73,10 +73,10 @@ func TestObjectStore_ListObjects(t *testing.T) {
 
 	// add some items
 	ids := []types.EntityID{
-		types.NewEntityID(types.EntityIDPrefix(types.ContainerID), "id1"),
-		types.NewEntityID(types.EntityIDPrefix(types.KubernetesDeployment), "id2"),
-		types.NewEntityID(types.EntityIDPrefix(types.KubernetesPodUID), "id3"),
-		types.NewEntityID(types.EntityIDPrefix(types.ECSTask), "id4"),
+		types.NewEntityID(types.EntityIDPrefix("prefix1"), "id1"),
+		types.NewEntityID(types.EntityIDPrefix("prefix2"), "id2"),
+		types.NewEntityID(types.EntityIDPrefix("prefix3"), "id3"),
+		types.NewEntityID(types.EntityIDPrefix("prefix4"), "id4"),
 	}
 
 	for _, entityID := range ids {
@@ -85,8 +85,8 @@ func TestObjectStore_ListObjects(t *testing.T) {
 
 	list = store.ListObjects(filter)
 	expectedListing := []types.EntityID{
-		types.NewEntityID(types.EntityIDPrefix(types.ContainerID), "id1"),
-		types.NewEntityID(types.EntityIDPrefix(types.KubernetesDeployment), "id2"),
+		types.NewEntityID(types.EntityIDPrefix("prefix1"), "id1"),
+		types.NewEntityID(types.EntityIDPrefix("prefix2"), "id2"),
 	}
 	assert.ElementsMatch(t, expectedListing, list)
 }
@@ -95,13 +95,11 @@ func TestObjectStore_ForEach(t *testing.T) {
 	store := NewObjectStore[any]()
 
 	// add some items
-	entityID1 := types.NewEntityID(types.EntityIDPrefix(types.ContainerID), "id1")
-	entityID2 := types.NewEntityID(types.EntityIDPrefix(types.KubernetesDeployment), "id2")
 	ids := []types.EntityID{
-		entityID1,
-		entityID2,
-		types.NewEntityID(types.EntityIDPrefix(types.KubernetesPodUID), "id3"),
-		types.NewEntityID(types.EntityIDPrefix(types.ECSTask), "id4"),
+		types.NewEntityID(types.EntityIDPrefix("prefix1"), "id1"),
+		types.NewEntityID(types.EntityIDPrefix("prefix2"), "id2"),
+		types.NewEntityID(types.EntityIDPrefix("prefix3"), "id3"),
+		types.NewEntityID(types.EntityIDPrefix("prefix4"), "id4"),
 	}
 
 	for _, entityID := range ids {
@@ -112,10 +110,10 @@ func TestObjectStore_ForEach(t *testing.T) {
 
 	// build some filter
 	fb := types.NewFilterBuilder()
-	fb.Include(types.EntityIDPrefix(types.ContainerID), types.EntityIDPrefix(types.KubernetesDeployment))
+	fb.Include(types.EntityIDPrefix("prefix1"), types.EntityIDPrefix("prefix2"))
 	filter := fb.Build(types.HighCardinality)
 
 	// only elements matching the filter should be included in the accumulator
 	store.ForEach(filter, func(id types.EntityID, _ any) { accumulator = append(accumulator, id.String()) })
-	assert.ElementsMatch(t, accumulator, []string{entityID1.String(), entityID2.String()})
+	assert.ElementsMatch(t, accumulator, []string{"prefix1://id1", "prefix2://id2"})
 }

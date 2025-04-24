@@ -329,7 +329,7 @@ func (s *discovery) handleStateEndpoint(w http.ResponseWriter, _ *http.Request) 
 	state.LastCPUTimeUpdate = s.lastCPUTimeUpdate.Unix()
 	state.LastNetworkStatsUpdate = s.lastNetworkStatsUpdate.Unix()
 
-	utils.WriteAsJSON(w, state)
+	utils.WriteAsJSON(w, state, utils.CompactOutput)
 }
 
 func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) {
@@ -341,7 +341,7 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 	procRoot := kernel.ProcFSRoot()
 	pids, err := process.Pids()
 	if err != nil {
-		utils.WriteAsJSON(w, "could not get PIDs")
+		utils.WriteAsJSON(w, "could not get PIDs", utils.CompactOutput)
 		return
 	}
 
@@ -362,7 +362,7 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 		services = append(services, *service)
 	}
 
-	utils.WriteAsJSON(w, services)
+	utils.WriteAsJSON(w, services, utils.CompactOutput)
 }
 
 // handleCheck is the handler for the /check endpoint.
@@ -382,7 +382,7 @@ func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	utils.WriteAsJSON(w, services)
+	utils.WriteAsJSON(w, services, utils.CompactOutput)
 }
 
 const prefix = "socket:["
