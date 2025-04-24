@@ -22,7 +22,16 @@ dependency "libjemalloc" if linux_target?
 
 dependency 'datadog-agent-dependencies'
 
-source path: '..'
+source path: '..',
+       options: {
+         exclude: [
+           "**/testdata/**/*",
+           "test/**/*",
+           "releasenotes/**/*",
+           "releasenotes-dca/**/*",
+           "docs/**/*",
+         ],
+       }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 always_build true
