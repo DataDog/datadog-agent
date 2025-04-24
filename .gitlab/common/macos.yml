@@ -45,7 +45,10 @@
       echo "Find python version matching $PYTHON_VERSION"
       PYTHON_VERSION_ESCAPED="${PYTHON_VERSION//./\\.}"
       versionmatches="$(ls "$(pyenv root)/versions" | grep -E "^${PYTHON_VERSION_ESCAPED}\\.[0-9]+$")"
-      if [ -z "$versionmatches" ]; then
+      if [ -n "$versionmatches" ]; then
+        # 2.a.
+        echo "Found already existing python version for $PYTHON_VERSION"
+      else
         # 2.b.
         echo "Installing Python $PYTHON_VERSION..."
         pyenv install "$PYTHON_VERSION"
@@ -54,9 +57,6 @@
           echo "No matching Python version found for $PYTHON_VERSION even after installation." >& 2
           exit 1
         fi
-      else
-        # 2.a.
-        echo "Found already existing python version for $PYTHON_VERSION"
       fi
       # If there are multiple matches, select the latest one
       PYTHON_VERSION="$(echo "$versionmatches" | sort -V | tail -n 1)"
