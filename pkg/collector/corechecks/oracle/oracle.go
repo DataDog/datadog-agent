@@ -90,6 +90,8 @@ type Check struct {
 	cdbName                                 string
 	statementMetricsMonotonicCountsPrevious map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB
 	dbHostname                              string
+	dbResolvedHostname                      string
+	dbInstanceIdentifier                    string
 	dbVersion                               string
 	driver                                  string
 	metricLastRun                           time.Time
@@ -149,6 +151,11 @@ func checkIntervalExpired(lastRun *time.Time, collectionInterval int64) bool {
 		return true
 	}
 	return false
+}
+
+// IsHASupported returns true if the check supports HA
+func (c *Check) IsHASupported() bool {
+	return true
 }
 
 // Run executes the check.

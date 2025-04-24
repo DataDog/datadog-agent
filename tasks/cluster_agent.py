@@ -16,7 +16,7 @@ from tasks.build_tags import get_default_build_tags
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
 from tasks.gointegrationtest import CLUSTER_AGENT_IT_CONF, containerized_integration_tests
-from tasks.libs.releasing.version import load_release_versions
+from tasks.libs.releasing.version import load_dependencies
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
@@ -35,7 +35,6 @@ def build(
     development=True,
     skip_assets=False,
     policies_version=None,
-    release_version="nightly",
 ):
     """
     Build Cluster Agent
@@ -57,11 +56,11 @@ def build(
     )
 
     if policies_version is None:
-        print(f"Loading release versions for {release_version}")
-        env = load_release_versions(ctx, release_version)
+        print("Loading dependencies from release.json")
+        env = load_dependencies(ctx)
         if "SECURITY_AGENT_POLICIES_VERSION" in env:
             policies_version = env["SECURITY_AGENT_POLICIES_VERSION"]
-            print(f"Security Agent polices for {release_version}: {policies_version}")
+            print(f"Security Agent polices: {policies_version}")
 
     build_context = "Dockerfiles/cluster-agent"
     policies_path = f"{build_context}/security-agent-policies"

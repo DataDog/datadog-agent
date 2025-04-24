@@ -205,7 +205,7 @@ dev_nightly-a7-full:
   variables:
     IMG_REGISTRIES: dev
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-arm64
-    IMG_DESTINATIONS: agent-dev:nightly-full-${CI_COMMIT_REF_SLUG}-jmx
+    IMG_DESTINATIONS: agent-dev:nightly-full-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}-jmx,agent-dev:nightly-full-${CI_COMMIT_REF_SLUG}-jmx
 
 # deploys nightlies to agent-dev
 dev_nightly-dogstatsd:
