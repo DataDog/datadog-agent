@@ -827,6 +827,83 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedGeneratedName:       "airflow-webserver",
 			expectedGeneratedNameSource: CommandLine,
 		},
+		{
+			name: "uvicorn with first arg",
+			cmdline: []string{
+				"/usr/local/bin/python",
+				"/usr/local/bin/uvicorn",
+				"myapp.asgi:application",
+				"--host=0.0.0.0",
+				"--port=8000",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "myapp.asgi",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "uvicorn with middle args",
+			cmdline: []string{
+				"/app/.venv/bin/python3",
+				"/app/.venv/bin/uvicorn",
+				"--factory",
+				"--host=0.0.0.0",
+				"--port=8000",
+				"app:create_app",
+				"--workers=4",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "app",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "uvicorn with header",
+			cmdline: []string{
+				"/usr/local/bin/python3",
+				"/usr/local/bin/uvicorn",
+				"--header=X-Foo:Bar",
+				"api.v1.app:app",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "api.v1.app",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "uvicorn with header separate",
+			cmdline: []string{
+				"/usr/local/bin/python3",
+				"/usr/local/bin/uvicorn",
+				"--header",
+				"X-Foo:Bar",
+				"api.v1.app:app",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "api.v1.app",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "uvicorn with header separate last",
+			cmdline: []string{
+				"/usr/local/bin/python3",
+				"/usr/local/bin/uvicorn",
+				"api.v1.app:app",
+				"--header",
+				"X-Foo:Bar",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "api.v1.app",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "uvicorn unknown",
+			cmdline: []string{
+				"/usr/local/bin/python3",
+				"/usr/local/bin/uvicorn",
+				"foo",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "uvicorn",
+			expectedGeneratedNameSource: CommandLine,
+		},
 	}
 
 	for _, tt := range tests {
