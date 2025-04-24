@@ -15,18 +15,20 @@ def post(install_directory, storage_location, skip_flag=False):
         if os.path.exists(install_directory) and os.path.exists(storage_location):
             post_python_installed_packages_file = packages.post_python_installed_packages_file(storage_location)
             packages.create_python_installed_packages_file(post_python_installed_packages_file)
+
+            # by default, we persist third party integrations
+            persist_third_party_integration = True
+
+            # using DD_SKIP_INSTALL_THIRD_PARTY_INTEGRATIONS in the agent install script will create this file
             flag_path = os.path.join(storage_location, ".skip_install_python_third_party_deps")
 
-            # this approach makes it easier to expose this file flag as an environment variable
-            # DD_SKIP_INSTALL_THIRD_PARTY_INTEGRATIONS in the agent install script
-            skip_third_party_integration = False
             if os.path.exists(flag_path):
                 with open(flag_path, "r") as f:
                     flag_content = f.read()
                     if flag_content.strip().lower() in ["y", "yes", "true", "1", ""]:
-                        skip_third_party_integration = True
-                    
-            if not skip_third_party_integration or skip_flag:
+                        persist_third_party_integration = False
+            
+            if persist_third_party_integration or skip_flag:
                 diff_python_installed_packages_file = packages.diff_python_installed_packages_file(storage_location)
                 if os.path.exists(diff_python_installed_packages_file):
                     requirements_agent_release_file = packages.requirements_agent_release_file(install_directory)
