@@ -25,13 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	// The size of the process events queue of netlink.
-	processMonitorEventQueueSize = 2048
-	// The size of the callbacks queue for pending tasks.
-	pendingCallbacksQueueSize = 5000
-)
-
 var (
 	processMonitor = &ProcessMonitor{
 		// Must initialize the sets, as we can register callbacks prior to calling Initialize.
@@ -171,15 +164,7 @@ func (pm *ProcessMonitor) handleProcessExec(pid uint32) {
 
 	for callback := range pm.processExecCallbacks {
 		temporaryCallback := callback
-		select {
-		case pm.callbackRunner <- func() { (*temporaryCallback)(pid) }:
-			continue
-		default:
-			pm.tel.processExecChannelIsFull.Add(1)
-			if log.ShouldLog(log.DebugLvl) && pm.oversizedLogLimit.ShouldLog() {
-				log.Debug("can't send exec callback to callbackRunner, channel is full")
-			}
-		}
+		pm.callbackRunner <- func() { (*temporaryCallback)(pid) }
 	}
 }
 
@@ -191,15 +176,7 @@ func (pm *ProcessMonitor) handleProcessExit(pid uint32) {
 
 	for callback := range pm.processExitCallbacks {
 		temporaryCallback := callback
-		select {
-		case pm.callbackRunner <- func() { (*temporaryCallback)(pid) }:
-			continue
-		default:
-			pm.tel.processExitChannelIsFull.Add(1)
-			if log.ShouldLog(log.DebugLvl) && pm.oversizedLogLimit.ShouldLog() {
-				log.Debug("can't send exit callback to callbackRunner, channel is full")
-			}
-		}
+		pm.callbackRunner <- func() { (*temporaryCallback)(pid) }
 	}
 }
 
@@ -207,7 +184,7 @@ func (pm *ProcessMonitor) handleProcessExit(pid uint32) {
 func (pm *ProcessMonitor) initNetlinkProcessEventMonitor() error {
 	pm.netlinkDoneChannel = make(chan struct{})
 	pm.netlinkErrorsChannel = make(chan error, 10)
-	pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorEventQueueSize)
+	pm.netlinkEventsChannel = make(chan netlink.ProcEvent)
 
 	if err := netns.WithRootNS(kernel.ProcFSRoot(), func() error {
 		return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
@@ -224,7 +201,7 @@ func (pm *ProcessMonitor) initCallbackRunner() {
 	if err != nil {
 		cpuNum = runtime.NumVCPU()
 	}
-	pm.callbackRunner = make(chan func(), pendingCallbacksQueueSize)
+	pm.callbackRunner = make(chan func())
 	pm.callbackRunnerStopChannel = make(chan struct{})
 	pm.callbackRunnersWG.Add(cpuNum)
 	for i := 0; i < cpuNum; i++ {
@@ -379,7 +356,7 @@ func (pm *ProcessMonitor) Initialize(useEventStream bool) error {
 			// Setting up the main loop
 			pm.netlinkDoneChannel = make(chan struct{})
 			pm.netlinkErrorsChannel = make(chan error, 10)
-			pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorEventQueueSize)
+			pm.netlinkEventsChannel = make(chan netlink.ProcEvent)
 
 			go pm.mainEventLoop()
 
