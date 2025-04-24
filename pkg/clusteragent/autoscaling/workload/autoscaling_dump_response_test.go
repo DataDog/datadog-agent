@@ -176,7 +176,7 @@ Settings: map[key:value]
 
 func TestMarshalUnmarshal(t *testing.T) {
 	// json serialization drops nanoseconds; strip it here
-	testTime := time.Unix(time.Now().UTC().Unix(), 0)
+	testTime := time.Unix(time.Now().Unix(), 0).UTC()
 	fakeDpai := createFakePodAutoscaler(testTime)
 	realDpai := fakeDpai.Build()
 	jsonDpai, err := json.Marshal(&realDpai)
@@ -391,5 +391,11 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 }
 
 func compareTestOutput(t *testing.T, expected, actual string) {
-	assert.Equal(t, strings.ReplaceAll(expected, " ", ""), strings.ReplaceAll(actual, " ", ""))
+	expected = strings.ReplaceAll(expected, " ", "")
+	expected = strings.ReplaceAll(expected, "GMT", "UTC")
+
+	actual = strings.ReplaceAll(actual, " ", "")
+	actual = strings.ReplaceAll(actual, "GMT", "UTC")
+
+	assert.Equal(t, expected, actual)
 }
