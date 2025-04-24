@@ -8,12 +8,12 @@ import requests
 
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
 from tasks.libs.common.utils import get_metric_origin
+from tasks.libs.releasing.version import RELEASE_JSON_DEPENDENCIES
 from tasks.release import _get_release_json_value
 
 
 def _get_omnibus_commits(field):
-    release_version = os.environ['RELEASE_VERSION']
-    return _get_release_json_value(f'{release_version}::{field}')
+    return _get_release_json_value(f'{RELEASE_JSON_DEPENDENCIES}::{field}')
 
 
 def _get_environment_for_cache() -> dict:
