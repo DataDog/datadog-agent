@@ -109,16 +109,18 @@ func getAutoscalerList(w io.Writer, url string) error {
 	r, err := util.DoGet(c, url, util.LeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
-			fmt.Fprintf(w, "The agent ran into an error while getting autoscaler list: %s\n", string(r))
-		} else {
-			fmt.Fprintf(w, "Failed to query the agent (running?): %s\n", err)
+			return fmt.Errorf("the agent ran into an error while getting autoscaler list: %s", string(r))
 		}
+		return fmt.Errorf("failed to query the agent (running?): %s", err)
+	}
+
+	if len(r) == 0 {
+		return fmt.Errorf("no autoscalers found")
 	}
 
 	adr := autoscalingWorkload.AutoscalingDumpResponse{}
-	err = json.Unmarshal(r, &adr)
-	if err != nil {
-		return err
+	if err = json.Unmarshal(r, &adr); err != nil {
+		return fmt.Errorf("error unmarshalling json: %s", err)
 	}
 
 	adr.Write(w)
