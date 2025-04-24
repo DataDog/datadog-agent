@@ -102,10 +102,9 @@ func TestSNMPListenerSubnets(t *testing.T) {
 
 	services := map[string]*SNMPService{}
 	l := &SNMPListener{
-		services:   services,
-		stop:       make(chan bool),
-		config:     snmpListenerConfig,
-		ipsCounter: newMockIPCounter(),
+		services: services,
+		stop:     make(chan bool),
+		config:   snmpListenerConfig,
 	}
 
 	l.Listen(newSvc, delSvc)
