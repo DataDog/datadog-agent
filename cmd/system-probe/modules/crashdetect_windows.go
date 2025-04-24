@@ -48,7 +48,7 @@ func (wcdm *winCrashDetectModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, _ *http.Request) {
 		log.Infof("Got check request in crashDetect")
 		results := wcdm.WinCrashProbe.Get()
-		utils.WriteAsJSON(w, results)
+		utils.WriteAsJSON(w, results, utils.CompactOutput)
 	}))
 
 	return nil
