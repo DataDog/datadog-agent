@@ -1,6 +1,4 @@
-import io
 import subprocess
-from collections import defaultdict
 from enum import Enum
 
 
@@ -79,82 +77,3 @@ class FailedJobs:
             + self.mandatory_infra_job_failures
             + self.optional_infra_job_failures
         )
-
-
-class SlackMessage:
-    JOBS_SECTION_HEADER = "Failed jobs:"
-    OPTIONAL_JOBS_SECTION_HEADER = "Failed jobs (allowed to fail):"
-    INFRA_SECTION_HEADER = "Infrastructure failures:"
-    OPTIONAL_INFRA_SECTION_HEADER = "Infrastructure failures (allowed to fail):"
-    TEST_SECTION_HEADER = "Failed unit tests:"
-    MAX_JOBS_PER_TEST = 2
-
-    def __init__(self, base: str = "", jobs: FailedJobs = None):
-        jobs = jobs if jobs else FailedJobs()
-        self.base_message = base
-        self.failed_jobs = jobs
-        self.failed_tests = defaultdict(list)
-        self.coda = ""
-
-    def __render_jobs_section(self, header: str, jobs: list, buffer: io.StringIO):
-        if not jobs:
-            return
-
-        print(header, file=buffer)
-
-        jobs_per_stage = defaultdict(list)
-        for job in jobs:
-            jobs_per_stage[job["stage"]].append(job)
-
-        for stage, jobs in jobs_per_stage.items():
-            jobs_info = []
-            for job in jobs:
-                num_retries = len(job["retry_summary"]) - 1
-                job_info = f"<{job['url']}|{job['name']}>"
-                if num_retries > 0:
-                    job_info += f" ({num_retries} retries)"
-
-                jobs_info.append(job_info)
-
-            print(
-                f"- {', '.join(jobs_info)} (`{stage}` stage)",
-                file=buffer,
-            )
-
-    def __render_tests_section(self, buffer):
-        print(self.TEST_SECTION_HEADER, file=buffer)
-        for (test_name, test_package), jobs in self.failed_tests.items():
-            job_list = ", ".join(f"<{job['url']}|{job['name']}>" for job in jobs[: self.MAX_JOBS_PER_TEST])
-            if len(jobs) > self.MAX_JOBS_PER_TEST:
-                job_list += f" and {len(jobs) - self.MAX_JOBS_PER_TEST} more"
-            print(f"- `{test_name}` from package `{test_package}` (in {job_list})", file=buffer)
-
-    def __str__(self):
-        buffer = io.StringIO()
-        if self.base_message:
-            print(self.base_message, file=buffer)
-        self.__render_jobs_section(
-            self.JOBS_SECTION_HEADER,
-            self.failed_jobs.mandatory_job_failures,
-            buffer,
-        )
-        self.__render_jobs_section(
-            self.OPTIONAL_JOBS_SECTION_HEADER,
-            self.failed_jobs.optional_job_failures,
-            buffer,
-        )
-        self.__render_jobs_section(
-            self.INFRA_SECTION_HEADER,
-            self.failed_jobs.mandatory_infra_job_failures,
-            buffer,
-        )
-        self.__render_jobs_section(
-            self.OPTIONAL_INFRA_SECTION_HEADER,
-            self.failed_jobs.optional_infra_job_failures,
-            buffer,
-        )
-        if self.failed_tests:
-            self.__render_tests_section(buffer)
-        if self.coda:
-            print(self.coda, file=buffer)
-        return buffer.getvalue()
