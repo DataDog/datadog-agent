@@ -27,9 +27,9 @@ type EntityID struct {
 	id     string
 }
 
-// Empty returns true if either the prefix or id empty strings
+// Empty returns true if prefix and id are both empty strings
 func (eid EntityID) Empty() bool {
-	return eid.prefix == "" || eid.id == ""
+	return eid.prefix == "" && eid.id == ""
 }
 
 // GetPrefix returns the entityID prefix
@@ -43,20 +43,12 @@ func (eid EntityID) GetID() string {
 }
 
 // String returns the entityID in the format `{prefix}://{id}`
-// Returns an empty string if `id` is empty
 func (eid EntityID) String() string {
 	return eid.prefix.ToUID(eid.id)
 }
 
-var supportedPrefixes = AllPrefixesSet()
-
 // NewEntityID builds and returns an EntityID object
-// A panic will occur if an unsupported prefix is used
 func NewEntityID(prefix EntityIDPrefix, id string) EntityID {
-	if _, found := supportedPrefixes[prefix]; !found {
-		// prefix is expected to be set based on the prefix enum defined below
-		panic(fmt.Sprintf("unsupported tagger entity prefix: %q", prefix))
-	}
 	return EntityID{prefix, id}
 }
 
