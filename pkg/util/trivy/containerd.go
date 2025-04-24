@@ -144,9 +144,14 @@ func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, 
 
 	var history []v1.History
 	for _, h := range imgConfig.History {
+		var created time.Time
+		if h.Created != nil {
+			created = *h.Created
+		}
+
 		history = append(history, v1.History{
 			Author:     h.Author,
-			Created:    v1.Time{Time: *h.Created},
+			Created:    v1.Time{Time: created},
 			CreatedBy:  h.CreatedBy,
 			Comment:    h.Comment,
 			EmptyLayer: h.EmptyLayer,

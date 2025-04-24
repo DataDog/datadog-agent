@@ -77,7 +77,7 @@ func (m *Module) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests,
 		func(w http.ResponseWriter, _ *http.Request) {
 			stats := []string{}
-			utils.WriteAsJSON(w, stats)
+			utils.WriteAsJSON(w, stats, utils.CompactOutput)
 		}))
 
 	log.Info("Registering dynamic instrumentation module")
