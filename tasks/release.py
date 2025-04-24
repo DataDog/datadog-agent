@@ -566,7 +566,7 @@ def _get_jmxfetch_release_json_info(release_json, agent_major_version, is_first_
     Gets the JMXFetch version info from the previous entries in the release.json file.
     """
 
-    release_json_version_data = _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc)
+    release_json_version_data = release_json[RELEASE_JSON_DEPENDENCIES]
 
     jmxfetch_version = release_json_version_data['JMXFETCH_VERSION']
     jmxfetch_shasum = release_json_version_data['JMXFETCH_HASH']
@@ -580,7 +580,7 @@ def _get_windows_release_json_info(release_json, agent_major_version, is_first_r
     """
     Gets the Windows NPM driver info from the previous entries in the release.json file.
     """
-    release_json_version_data = _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc)
+    release_json_version_data = release_json[RELEASE_JSON_DEPENDENCIES]
 
     win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum = _get_windows_driver_info(release_json_version_data, 'DDNPM')
     win_ddprocmon_driver, win_ddprocmon_version, win_ddprocmon_shasum = _get_windows_driver_info(
@@ -615,22 +615,6 @@ def _get_windows_driver_info(release_json_version_data, driver_name):
     print(f"The windows {driver_name.lower()} version is {version_value}")
 
     return driver_value, version_value, shasum_value
-
-
-def _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc=False):
-    """
-    Gets the version info from the previous entries in the release.json file.
-    """
-
-    # First RC should use the data from nightly section otherwise reuse the last RC info
-    if is_first_rc:
-        previous_release_json_version = nightly_entry_for(agent_major_version)
-    else:
-        previous_release_json_version = release_entry_for(agent_major_version)
-
-    print(f"Using '{previous_release_json_version}' values")
-
-    return release_json[previous_release_json_version]
 
 
 ##
@@ -1560,7 +1544,7 @@ def check_omnibus_branches(ctx):
                 f'git clone --depth=50 https://github.com/DataDog/{repo_name} --branch {branch} {tmpdir}/{repo_name}',
                 hide='stdout',
             )
-            commit = _get_release_json_value(f'nightly::{release_json_field}')
+            commit = _get_release_json_value(f'RELEASE_JSON_DEPENDENCIES::{release_json_field}')
             if ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited != 0:
                 raise Exit(
                     code=1,

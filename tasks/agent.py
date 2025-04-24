@@ -29,7 +29,7 @@ from tasks.libs.common.utils import (
     get_goenv,
     get_version,
     has_both_python,
-    load_release_versions,
+    load_dependencies,
     timed,
 )
 from tasks.rtloader import clean as rtloader_clean
@@ -622,7 +622,6 @@ def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod",
 def get_omnibus_env(
     ctx,
     skip_sign=False,
-    release_version="nightly",
     major_version='7',
     python_runtimes='3',
     hardened_runtime=False,
@@ -631,7 +630,7 @@ def get_omnibus_env(
     flavor=AgentFlavor.base,
     pip_config_file="pip.conf",
 ):
-    env = load_release_versions(ctx, release_version)
+    env = load_dependencies(ctx)
 
     # If the host has a GOMODCACHE set, try to reuse it
     if not go_mod_cache and os.environ.get('GOMODCACHE'):
@@ -872,7 +871,6 @@ def omnibus_build(
     gem_path=None,
     skip_deps=False,
     skip_sign=False,
-    release_version="nightly",
     major_version='7',
     python_runtimes='3',
     omnibus_s3_cache=False,
@@ -903,7 +901,6 @@ def omnibus_build(
     env = get_omnibus_env(
         ctx,
         skip_sign=skip_sign,
-        release_version=release_version,
         major_version=major_version,
         python_runtimes=python_runtimes,
         hardened_runtime=hardened_runtime,
@@ -966,7 +963,6 @@ def omnibus_manifest(
     base_dir=None,
     gem_path=None,
     skip_sign=False,
-    release_version="nightly",
     major_version='7',
     python_runtimes='3',
     hardened_runtime=False,
@@ -980,7 +976,6 @@ def omnibus_manifest(
     env = get_omnibus_env(
         ctx,
         skip_sign=skip_sign,
-        release_version=release_version,
         major_version=major_version,
         python_runtimes=python_runtimes,
         hardened_runtime=hardened_runtime,

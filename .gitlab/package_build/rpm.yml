@@ -1,7 +1,6 @@
 ---
 .agent_build_common_rpm:
   script:
-    - echo "About to build for $RELEASE_VERSION"
     - !reference [.setup_ruby_mirror_linux]
     - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
@@ -18,7 +17,7 @@
     - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-$CLANG_LLVM_VER.${PACKAGE_ARCH} /tmp/system-probe/llc-bpf
     - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz /tmp/system-probe/minimized-btfs.tar.xz
     - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe
+    - inv -e agent.omnibus-build --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:

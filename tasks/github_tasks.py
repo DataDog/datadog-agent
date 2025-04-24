@@ -87,7 +87,6 @@ def trigger_macos(
         )
     elif workflow_type == "test":
         conclusion = _trigger_macos_workflow(
-            release_version,
             destination,
             retry_download,
             retry_interval,
@@ -100,7 +99,6 @@ def trigger_macos(
         repack_macos_junit_tar(conclusion, "junit-tests_macos.tgz", "junit-tests_macos-repacked.tgz")
     elif workflow_type == "lint":
         conclusion = _trigger_macos_workflow(
-            release_version,
             workflow_name="lint.yaml",
             datadog_agent_ref=datadog_agent_ref,
             python_runtimes=python_runtimes,

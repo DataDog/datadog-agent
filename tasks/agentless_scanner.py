@@ -13,7 +13,7 @@ from tasks.agent import bundle_install_omnibus
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_version, load_release_versions
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_version, load_dependencies
 
 # constants
 AGENTLESS_SCANNER_BIN_PATH = os.path.join(".", "bin", "agentless-scanner")
@@ -92,7 +92,6 @@ def omnibus_build(
     base_dir=None,
     gem_path=None,
     skip_deps=False,
-    release_version="nightly",
     major_version='7',
     omnibus_s3_cache=False,
     go_mod_cache=None,
@@ -118,7 +117,7 @@ def omnibus_build(
     if overrides:
         overrides_cmd = "--override=" + " ".join(overrides)
 
-    env = load_release_versions(ctx, release_version)
+    env = load_dependencies(ctx)
 
     env['PACKAGE_VERSION'] = get_version(
         ctx,
