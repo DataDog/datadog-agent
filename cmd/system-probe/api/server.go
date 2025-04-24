@@ -45,7 +45,7 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, teleme
 	// agent checks as a means to check if system-probe is ready to serve
 	// requests, see pkg/system-probe/api/client.
 	mux.HandleFunc("/debug/stats", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, _ *http.Request) {
-		utils.WriteAsJSON(w, module.GetStats())
+		utils.WriteAsJSON(w, module.GetStats(), utils.CompactOutput)
 	}))
 
 	setupConfigHandlers(mux, settings)

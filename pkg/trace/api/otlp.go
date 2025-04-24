@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -446,7 +447,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:        hostname,
 		Chunks:          o.createChunks(tracesByID, priorityByID),
-		Env:             traceutil.NormalizeTagValue(env),
+		Env:             normalize.NormalizeTagValue(env),
 		ContainerID:     containerID,
 		LanguageName:    tagstats.Lang,
 		LanguageVersion: tagstats.LangVersion,
@@ -619,7 +620,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	})
 	if _, ok := span.Meta["env"]; !ok {
 		if _, env := transform.GetFirstFromMap(span.Meta, semconv127.AttributeDeploymentEnvironmentName, semconv.AttributeDeploymentEnvironment); env != "" {
-			transform.SetMetaOTLP(span, "env", traceutil.NormalizeTag(env))
+			transform.SetMetaOTLP(span, "env", normalize.NormalizeTag(env))
 		}
 	}
 	if in.TraceState().AsRaw() != "" {
