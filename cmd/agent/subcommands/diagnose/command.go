@@ -328,7 +328,6 @@ This command print the security-agent metadata payload. This payload is used by 
 		Long:  `.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printAgentFullTelemetry,
-				fx.Supply(payloadName("agent-full-telemetry")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 			)

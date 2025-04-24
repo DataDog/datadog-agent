@@ -151,7 +151,6 @@ func TestShowFullAgentTelemetryCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"diagnose", "show-metadata", "agent-full-telemetry"},
 		printAgentFullTelemetry,
-		func(payload payloadName) {
-			require.Equal(t, payloadName("agent-full-telemetry"), payload)
-		})
+		func() {},
+	)
 }
