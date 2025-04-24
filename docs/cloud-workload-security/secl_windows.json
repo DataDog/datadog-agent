@@ -1464,6 +1464,85 @@
       ]
     },
     {
+      "name": "DNS Responses",
+      "link": "dns-responses",
+      "description": "DNS Responses are the supported response codes",
+      "all": [
+        {
+          "name": "NoError",
+          "architecture": "all"
+        },
+        {
+          "name": "FormErr",
+          "architecture": "all"
+        },
+        {
+          "name": "ServFail",
+          "architecture": "all"
+        },
+        {
+          "name": "NXDomain",
+          "architecture": "all"
+        },
+        {
+          "name": "NotImp",
+          "architecture": "all"
+        },
+        {
+          "name": "Refused",
+          "architecture": "all"
+        },
+        {
+          "name": "YXDomain",
+          "architecture": "all"
+        },
+        {
+          "name": "YXRRSet",
+          "architecture": "all"
+        },
+        {
+          "name": "NXRRSet",
+          "architecture": "all"
+        },
+        {
+          "name": "NotAuth",
+          "architecture": "all"
+        },
+        {
+          "name": "NotZone",
+          "architecture": "all"
+        },
+        {
+          "name": "BADVERS",
+          "architecture": "all"
+        },
+        {
+          "name": "BADSIG",
+          "architecture": "all"
+        },
+        {
+          "name": "BADKEY",
+          "architecture": "all"
+        },
+        {
+          "name": "BADTIME",
+          "architecture": "all"
+        },
+        {
+          "name": "BADMODE",
+          "architecture": "all"
+        },
+        {
+          "name": "BADNAME",
+          "architecture": "all"
+        },
+        {
+          "name": "BADALG",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "DNS qclasses",
       "link": "dns-qclasses",
       "description": "DNS qclasses are the supported DNS query classes.",

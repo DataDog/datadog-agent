@@ -661,6 +661,30 @@ Boolean constants are the supported boolean constants.
 | `true` | all |
 | `false` | all |
 
+### `DNS Responses` {#dns-responses}
+DNS Responses are the supported response codes
+
+| Name | Architectures |
+| ---- |---------------|
+| `NoError` | all |
+| `FormErr` | all |
+| `ServFail` | all |
+| `NXDomain` | all |
+| `NotImp` | all |
+| `Refused` | all |
+| `YXDomain` | all |
+| `YXRRSet` | all |
+| `NXRRSet` | all |
+| `NotAuth` | all |
+| `NotZone` | all |
+| `BADVERS` | all |
+| `BADSIG` | all |
+| `BADKEY` | all |
+| `BADTIME` | all |
+| `BADMODE` | all |
+| `BADNAME` | all |
+| `BADALG` | all |
+
 ### `DNS qclasses` {#dns-qclasses}
 DNS qclasses are the supported DNS query classes.
 
