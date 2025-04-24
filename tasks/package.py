@@ -4,8 +4,6 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 
 import requests
-import rich.progress
-from binary import convert_units
 from gitlab.v4.objects import Project, ProjectPipeline
 from invoke.context import Context
 from invoke.exceptions import Exit
@@ -225,6 +223,8 @@ def _extract_rpm(ctx: Context, rpm_path: str, extract_path: str):
 
 
 def _download(package_url: str, path: str):
+    import rich.progress
+
     print(f"Downloading {package_url} to {path}")
     response = requests.get(package_url, stream=True)
     response.raise_for_status()
@@ -365,6 +365,8 @@ def _get_pipeline_from_ref(repo: Project, ref: str) -> ProjectPipeline:
 
 
 def _diff(dir1: str, dir2: str):
+    from binary import convert_units
+
     seen = set()
     dir1not2 = []
 
