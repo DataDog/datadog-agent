@@ -40,7 +40,7 @@ import (
 type BaseSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
 	installer     *DatadogInstaller
-	installScript *DatadogInstallScript
+	installerImpl SetupScriptRunner
 	currentAgent  *AgentVersionManager
 	stableAgent   *AgentVersionManager
 }
@@ -50,8 +50,17 @@ func (s *BaseSuite) Installer() *DatadogInstaller {
 	return s.installer
 }
 
-// InstallScript The Datadog Install script for testing.
-func (s *BaseSuite) InstallScript() *DatadogInstallScript { return s.installScript }
+// InstallScript returns the installer implementation.
+// Override this method in your test suite to use a different implementation.
+func (s *BaseSuite) InstallScript() SetupScriptRunner {
+	return s.installerImpl
+}
+
+// SetInstallerImpl sets a custom installer implementation.
+// Use this in your test suite's SetupSuite to override the default implementation.
+func (s *BaseSuite) SetInstallerImpl(impl SetupScriptRunner) {
+	s.installerImpl = impl
+}
 
 // Require instantiates a suiteAssertions for the current suite.
 // This allows writing assertions in a "natural" way, i.e.:
@@ -118,6 +127,7 @@ func (s *BaseSuite) SetupSuite() {
 		WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
+	fmt.Printf("previousOCI: %+v\n", previousOCI)
 
 	// Get previous version MSI package
 	previousMSI, err := windowsagent.NewPackage(
@@ -174,7 +184,7 @@ func (s *BaseSuite) BeforeTest(suiteName, testName string) {
 	s.Require().NoError(os.MkdirAll(outputDir, 0755))
 
 	s.installer = NewDatadogInstaller(s.Env(), s.CurrentAgentVersion().MSIPackage().URL, outputDir)
-	s.installScript = NewDatadogInstallScript(s.Env())
+	s.installerImpl = NewDatadogInstallScript(s.Env())
 }
 
 func (s *BaseSuite) startExperimentWithCustomPackage(opts ...PackageOption) (string, error) {
