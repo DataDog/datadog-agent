@@ -53,7 +53,7 @@ func (t *tcpQueueLengthModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", func(w http.ResponseWriter, _ *http.Request) {
 		t.lastCheck.Store(time.Now().Unix())
 		stats := t.Tracer.GetAndFlush()
-		utils.WriteAsJSON(w, stats)
+		utils.WriteAsJSON(w, stats, utils.CompactOutput)
 	})
 
 	return nil
