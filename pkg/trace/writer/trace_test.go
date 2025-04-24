@@ -447,7 +447,6 @@ func TestTraceWriterInfo(t *testing.T) {
 	assert.Equal(t, 2, srv.Accepted())
 	payloadsContain(t, srv.Payloads(), testSpans, zstd.NewComponent())
 
-	assert.NotEmpty(t, tw.statsLastMinute)
 	assert.Equal(t, tw.statsLastMinute.Spans.Load(), int64(70))
 	assert.Equal(t, tw.statsLastMinute.Events.Load(), int64(13))
 	assert.Equal(t, tw.statsLastMinute.Traces.Load(), int64(3))

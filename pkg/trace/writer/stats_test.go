@@ -477,7 +477,6 @@ func TestStatsWriterInfo(t *testing.T) {
 
 	assertPayload(assert, testSets, srv.Payloads())
 
-	assert.NotEmpty(sw.statsLastMinute)
 	assert.NotEmpty(sw.statsLastMinute.Bytes.Load())
 	assert.Empty(sw.statsLastMinute.Errors.Load())
 	assert.Empty(sw.statsLastMinute.Retries.Load())
