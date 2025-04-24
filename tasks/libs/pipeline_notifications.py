@@ -1,6 +1,5 @@
 import os
 import pathlib
-import re
 import subprocess
 from typing import Dict
 
@@ -19,7 +18,6 @@ def load_and_validate(file_name: str, default_placeholder: str, default_value: s
     return result
 
 
-DATADOG_AGENT_GITHUB_ORG_URL = "https://github.com/DataDog"
 DEFAULT_SLACK_CHANNEL = "#agent-devx-ops"
 DEFAULT_JIRA_PROJECT = "AGNTR"
 # Map keys in lowercase
@@ -49,39 +47,6 @@ def check_for_missing_owners_slack_and_jira(print_missing_teams=True, owners_fil
             if print_missing_teams:
                 print(f"The team {path[2][0][1]} doesn't have a jira project assigned !!")
     return error
-
-
-def base_message(header, state):
-    project_title = os.getenv("CI_PROJECT_TITLE")
-    # commit_title needs a default string value, otherwise the re.search line below crashes
-    commit_title = os.getenv("CI_COMMIT_TITLE", "")
-    pipeline_url = os.getenv("CI_PIPELINE_URL")
-    pipeline_id = os.getenv("CI_PIPELINE_ID")
-    commit_ref_name = os.getenv("CI_COMMIT_REF_NAME")
-    commit_url_gitlab = f"{os.getenv('CI_PROJECT_URL')}/commit/{os.getenv('CI_COMMIT_SHA')}"
-    commit_url_github = f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/commit/{os.getenv('CI_COMMIT_SHA')}"
-    commit_short_sha = os.getenv("CI_COMMIT_SHORT_SHA")
-    author = get_git_author()
-
-    # Try to find a PR id (e.g #12345) in the commit title and add a link to it in the message if found.
-    parsed_pr_id_found = re.search(r'.*\(#([0-9]*)\)$', commit_title)
-    enhanced_commit_title = commit_title
-    if parsed_pr_id_found:
-        parsed_pr_id = parsed_pr_id_found.group(1)
-        pr_url_github = f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/pull/{parsed_pr_id}"
-        enhanced_commit_title = enhanced_commit_title.replace(f"#{parsed_pr_id}", f"<{pr_url_github}|#{parsed_pr_id}>")
-
-    return f"""{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {state}.
-{enhanced_commit_title} (<{commit_url_gitlab}|{commit_short_sha}>)(:github: <{commit_url_github}|link>) by {author}"""
-
-
-def get_git_author():
-    return (
-        subprocess.check_output(["git", "show", "-s", "--format='%an'", "HEAD"])
-        .decode('utf-8')
-        .strip()
-        .replace("'", "")
-    )
 
 
 def send_slack_message(recipient, message):
