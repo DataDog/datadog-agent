@@ -115,6 +115,7 @@ var dbTypes = map[string]string{
 	semconv.AttributeDBSystemGeode:     spanTypeDB,
 }
 
+// DefaultOTLPServiceName is the default service name for OTel spans when no service name is found in the resource attributes.
 const DefaultOTLPServiceName = "otlpresourcenoservicename"
 
 // checkDBType checks if the dbType is a known db type and returns the corresponding span.Type
