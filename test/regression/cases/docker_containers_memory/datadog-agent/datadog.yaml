@@ -1,0 +1,38 @@
+dd_url: http://127.0.0.1:9091
+logs_config:
+  logs_dd_url: localhost:9092
+  logs_no_ssl: true
+process_config:
+  process_dd_url: http://localhost:9093
+container_image:
+  dd_url: http://localhost:9094
+
+telemetry:
+  enabled: true
+  checks: '*'
+
+checks_tag_cardinality: high
+dogstatsd_origin_detection: true
+dogstatsd_tag_cardinality: high
+log_enabled: true
+logs_enabled: true
+logs_config:
+  container_collect_all: true
+container_labels_as_tags:
+  foo: label_foo
+  bar: label_bar
+  baz: label_baz
+  qux: label_qux
+  quux: label_quux
+  corge: label_corge
+  grault: label_grault
+container_env_as_tags:
+  FOO: env_foo
+  BAR: env_bar
+  BAZ: env_baz
+  QUX: env_qux
+  QUUX: env_quux
+  CORGE: env_corge
+  GRAULT: env_grault
+
+dogstatsd_socket: /tmp/dsd.socket

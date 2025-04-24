@@ -78,3 +78,19 @@ static_quality_gates:
       - extract_rpm_package_report
       - static_gate_report.json
     expire_in: 1 week
+
+manual_gate_threshold_update:
+  stage: functional_test
+  rules:
+    - !reference [.on_main]
+    - !reference [.on_dev_branches]
+    - when: manual
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs:
+    - static_quality_gates
+  script:
+    - !reference [.login_to_docker_readonly_crane]
+    - !reference [.setup_agent_github_app]
+    - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
+    - dda inv -- quality-gates.manual-threshold-update || exit $?

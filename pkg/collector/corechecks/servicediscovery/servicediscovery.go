@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -93,7 +94,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 func (c *Check) Run() error {
 	response, err := c.os.DiscoverServices()
 	if err != nil {
-		return err
+		return sysprobeclient.IgnoreStartupError(err)
 	}
 
 	log.Debugf("runningServices: %d", response.RunningServicesCount)
