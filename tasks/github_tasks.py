@@ -28,7 +28,7 @@ from tasks.libs.common.utils import get_git_pretty_ref
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
-from tasks.libs.releasing.version import current_version
+from tasks.libs.releasing.version import RELEASE_JSON_DEPENDENCIES, current_version
 from tasks.libs.types.types import PermissionCheck
 from tasks.release import _get_release_json_value
 
@@ -46,8 +46,8 @@ def concurrency_key():
     return current_ref
 
 
-def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_interval=0, **kwargs):
-    github_action_ref = _get_release_json_value(f'{release}::MACOS_BUILD_VERSION')
+def _trigger_macos_workflow(destination=None, retry_download=0, retry_interval=0, **kwargs):
+    github_action_ref = _get_release_json_value(f'{RELEASE_JSON_DEPENDENCIES}::MACOS_BUILD_VERSION')
 
     run = trigger_macos_workflow(
         github_action_ref=github_action_ref,
@@ -73,7 +73,6 @@ def trigger_macos(
     _,
     workflow_type="build",
     datadog_agent_ref=None,
-    release_version="nightly",
     major_version="7",
     destination=".",
     version_cache=None,
@@ -90,16 +89,11 @@ def trigger_macos(
 
     if workflow_type == "build":
         conclusion = _trigger_macos_workflow(
-            # Provide the release version to be able to fetch the associated
-            # macos-build branch from release.json for all workflows...
-            release_version,
             destination,
             retry_download,
             retry_interval,
             workflow_name="macos.yaml",
             datadog_agent_ref=datadog_agent_ref,
-            # ... And provide the release version as a workflow input when needed
-            release_version=release_version,
             major_version=major_version,
             # Send pipeline id and bucket branch so that the package version
             # can be constructed properly for nightlies.
