@@ -41,8 +41,20 @@ func (p pythonDetector) detect(args []string) (ServiceMetadata, bool) {
 	// looking like the example below, so redirect to the Gunicorn detector for
 	// this case:
 	//  /usr/bin/python3 /usr/bin/gunicorn foo:app()
-	if len(args) > 0 && filepath.Base(args[0]) == "gunicorn" {
-		return p.gunicorn.detect(args[1:])
+	//
+	// Another case where we want to redirect to the Gunicorn detector is when
+	// gunicorn replaces its command line with something like the below. Because
+	// of the [ready], we end up here first instead of going directly to the
+	// Gunicorn detector.
+	//  [ready] gunicorn: worker [airflow-webserver]
+	if len(args) > 0 {
+		base := filepath.Base(args[0])
+		if base == "gunicorn" || base == "gunicorn:" {
+			return p.gunicorn.detect(args[1:])
+		}
+		if base == "uvicorn" {
+			return detectUvicorn(args[1:])
+		}
 	}
 
 	var (
@@ -190,4 +202,31 @@ func extractGunicornNameFrom(args []string) (string, bool) {
 func parseNameFromWsgiApp(wsgiApp string) string {
 	name, _, _ := strings.Cut(wsgiApp, ":")
 	return name
+}
+
+func detectUvicorn(args []string) (ServiceMetadata, bool) {
+	skipNext := false
+	for _, arg := range args {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+
+		// Skip flags
+		if strings.HasPrefix(arg, "-") {
+			if arg == "--header" {
+				// This takes an argument which looks similar to a module:app
+				// pattern so skip that.
+				skipNext = true
+			}
+			continue
+		}
+
+		// Look for module:app pattern
+		if strings.Contains(arg, ":") {
+			module := strings.Split(arg, ":")[0]
+			return NewServiceMetadata(module, CommandLine), true
+		}
+	}
+	return NewServiceMetadata("uvicorn", CommandLine), true
 }

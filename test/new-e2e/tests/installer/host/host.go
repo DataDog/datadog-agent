@@ -738,8 +738,8 @@ func (s *State) AssertUnitsRunning(names ...string) {
 // AssertUnitsNotLoaded asserts that a systemd unit is not loaded.
 func (s *State) AssertUnitsNotLoaded(names ...string) {
 	for _, name := range names {
-		_, ok := s.Units[name]
-		assert.True(s.t, !ok, "unit %v is loaded", name)
+		unit, ok := s.Units[name]
+		assert.True(s.t, !ok || (ok && unit.LoadState != Loaded), "unit %v is loaded", name)
 	}
 }
 

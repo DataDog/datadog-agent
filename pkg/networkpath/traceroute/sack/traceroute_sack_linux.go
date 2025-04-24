@@ -147,6 +147,7 @@ func RunSackTraceroute(ctx context.Context, p Params) (*common.Results, error) {
 		Target:     p.Target.Addr().AsSlice(),
 		DstPort:    p.Target.Port(),
 		Hops:       hops,
+		Tags:       []string{"tcp_method:sack"},
 	}
 
 	return result, nil

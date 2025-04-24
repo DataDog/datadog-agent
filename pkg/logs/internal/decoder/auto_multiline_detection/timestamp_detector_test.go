@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 type testInput struct {
@@ -82,8 +82,9 @@ var inputs = []testInput{
 }
 
 func TestCorrectLabelIsAssigned(t *testing.T) {
-	tokenizer := NewTokenizer(pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes"))
-	timestampDetector := NewTimestampDetector(pkgconfigsetup.Datadog().GetFloat64("logs_config.auto_multi_line.timestamp_detector_match_threshold"))
+	mockConfig := configmock.New(t)
+	tokenizer := NewTokenizer(mockConfig.GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes"))
+	timestampDetector := NewTimestampDetector(mockConfig.GetFloat64("logs_config.auto_multi_line.timestamp_detector_match_threshold"))
 
 	for _, testInput := range inputs {
 		context := &messageContext{
@@ -97,12 +98,13 @@ func TestCorrectLabelIsAssigned(t *testing.T) {
 		assert.Equal(t, testInput.label, context.label, fmt.Sprintf("input: %s had the wrong label with probability: %f", testInput.input, match.probability))
 
 		// To assist with debugging and tuning - this prints the probability and an underline of where the input was matched
-		printMatchUnderline(context, testInput.input, match)
+		printMatchUnderline(t, context, testInput.input, match)
 	}
 }
 
-func printMatchUnderline(context *messageContext, input string, match MatchContext) {
-	maxLen := pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
+func printMatchUnderline(t *testing.T, context *messageContext, input string, match MatchContext) {
+	mockConfig := configmock.New(t)
+	maxLen := mockConfig.GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
 	fmt.Printf("%.2f\t\t%v\n", match.probability, input)
 
 	if match.start == match.end {

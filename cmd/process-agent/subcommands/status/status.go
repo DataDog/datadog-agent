@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"text/template"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

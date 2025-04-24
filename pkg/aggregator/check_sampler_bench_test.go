@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -47,15 +47,15 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// flush and because the serializer is not initialized it panics with a nil.
 	// For some reasons using InitAggregator[WithInterval] doesn't fix the problem,
 	// but this do.
+	mockConfig := configmock.New(b)
 	deps := fxutil.Test[benchmarkDeps](b, core.MockBundle())
 	taggerComponent := taggerfxmock.SetupFakeTagger(b)
-	cfg := pkgconfigsetup.Datadog()
-	forwarderOpts := forwarder.NewOptionsWithResolvers(cfg, deps.Log,
+	forwarderOpts := forwarder.NewOptionsWithResolvers(mockConfig, deps.Log,
 		resolver.NewSingleDomainResolvers(map[string][]utils.APIKeys{"hello": {utils.NewAPIKeys("", "world")}}),
 	)
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
-	sharedForwarder := forwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), deps.Log, forwarderOpts)
+	sharedForwarder := forwarder.NewDefaultForwarder(mockConfig, deps.Log, forwarderOpts)
 	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, logscompressionmock.NewMockCompressor()))
 	haAgent := haagentmock.NewMockHaAgent()

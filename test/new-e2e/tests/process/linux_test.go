@@ -6,6 +6,7 @@
 package process
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -66,7 +67,8 @@ func (s *linuxTestSuite) TestAPIKeyRefresh() {
 	)
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertAPIKey(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().Agent.Client, s.Env().FakeIntake.Client(), false)
+		assertAPIKeyStatus(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().Agent.Client, false)
+		assertLastPayloadAPIKey(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().FakeIntake.Client())
 	}, 2*time.Minute, 10*time.Second)
 
 	// API key refresh
@@ -75,7 +77,8 @@ func (s *linuxTestSuite) TestAPIKeyRefresh() {
 	require.Contains(t, secretRefreshOutput, "api_key")
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertAPIKey(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().Agent.Client, s.Env().FakeIntake.Client(), false)
+		assertAPIKeyStatus(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().Agent.Client, false)
+		assertLastPayloadAPIKey(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().FakeIntake.Client())
 	}, 2*time.Minute, 10*time.Second)
 }
 
@@ -96,7 +99,8 @@ func (s *linuxTestSuite) TestAPIKeyRefreshCoreAgent() {
 	)
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertAPIKey(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().Agent.Client, s.Env().FakeIntake.Client(), true)
+		assertAPIKeyStatus(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().Agent.Client, true)
+		assertLastPayloadAPIKey(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().FakeIntake.Client())
 	}, 2*time.Minute, 10*time.Second)
 
 	// API key refresh
@@ -105,7 +109,65 @@ func (s *linuxTestSuite) TestAPIKeyRefreshCoreAgent() {
 	require.Contains(t, secretRefreshOutput, "api_key")
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertAPIKey(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().Agent.Client, s.Env().FakeIntake.Client(), true)
+		assertAPIKeyStatus(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().Agent.Client, true)
+		assertLastPayloadAPIKey(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().FakeIntake.Client())
+	}, 2*time.Minute, 10*time.Second)
+}
+
+func (s *linuxTestSuite) TestAPIKeyRefreshAdditionalEndpoints() {
+	t := s.T()
+
+	fakeIntakeURL := s.Env().FakeIntake.Client().URL()
+
+	additionalEndpoint := fmt.Sprintf(`  additional_endpoints:
+    "%s":
+      - ENC[api_key_additional]`, fakeIntakeURL)
+	config := coreAgentRefreshStr + additionalEndpoint
+
+	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, "/tmp/test-secret")
+	apiKey := "apikeyabcde"
+	apiKeyAdditional := "apikey12345"
+	secretClient.SetSecret("api_key", apiKey)
+	secretClient.SetSecret("api_key_additional", apiKeyAdditional)
+
+	s.UpdateEnv(
+		awshost.Provisioner(
+			awshost.WithAgentOptions(
+				agentparams.WithAgentConfig(config),
+				secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
+				agentparams.WithSkipAPIKeyInConfig(),
+			),
+		),
+	)
+
+	fakeIntakeClient := s.Env().FakeIntake.Client()
+	agentClient := s.Env().Agent.Client
+
+	fakeIntakeClient.FlushServerAndResetAggregators()
+
+	// Assert that the status and payloads have the correct API key
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assertAPIKeyStatus(collect, apiKey, agentClient, true)
+		assertAPIKeyStatus(collect, apiKeyAdditional, agentClient, true)
+		assertAllPayloadsAPIKeys(collect, []string{apiKey, apiKeyAdditional}, fakeIntakeClient)
+	}, 2*time.Minute, 10*time.Second)
+
+	// Refresh secrets in the agent
+	apiKey = "apikeyfghijk"
+	apiKeyAdditional = "apikey67890"
+	secretClient.SetSecret("api_key", apiKey)
+	secretClient.SetSecret("api_key_additional", apiKeyAdditional)
+	secretRefreshOutput := s.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
+	require.Contains(t, secretRefreshOutput, "api_key")
+	require.Contains(t, secretRefreshOutput, "api_key_additional")
+
+	fakeIntakeClient.FlushServerAndResetAggregators()
+
+	// Assert that the status and payloads have the correct API key
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assertAPIKeyStatus(collect, apiKey, agentClient, true)
+		assertAPIKeyStatus(collect, apiKeyAdditional, agentClient, true)
+		assertAllPayloadsAPIKeys(collect, []string{apiKey, apiKeyAdditional}, fakeIntakeClient)
 	}, 2*time.Minute, 10*time.Second)
 }
 
