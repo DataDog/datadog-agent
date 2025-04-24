@@ -30,27 +30,33 @@ import (
 
 type baseCheckSuite struct {
 	e2e.BaseSuite[environments.Host]
+	descriptor   e2eos.Descriptor
+	agentOptions []agentparams.Option
 }
 
-func getSuiteOptions(e2eos e2eos.Descriptor) []e2e.SuiteOption {
+func getAgentOptions() []agentparams.Option {
 	agentOptions := []agentparams.Option{}
-	suiteOptions := []e2e.SuiteOption{}
 	//TODO: remove once the PR is ready
 	if os.Getenv("CI_PIPELINE_ID") == "" {
 		// if running locally, use the hardcoded pipeline id + devmode
 		agentOptions = append(agentOptions,
 			// update pipeline id when you push changes to the disk check or the agent itself
-			agentparams.WithPipeline("62195633"),
+			agentparams.WithPipeline("63087029"),
 		)
+	}
+	return agentOptions
+}
+
+func (v *baseCheckSuite) getSuiteOptions() []e2e.SuiteOption {
+	suiteOptions := []e2e.SuiteOption{}
+	//TODO: remove once the PR is ready
+	if os.Getenv("CI_PIPELINE_ID") == "" {
 		suiteOptions = append(suiteOptions, e2e.WithDevMode())
 	}
-
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithAgentOptions(
-				agentOptions...,
-			),
-			awshost.WithEC2InstanceOptions(ec2.WithOS(e2eos)),
+			awshost.WithAgentOptions(v.agentOptions...),
+			awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
 		),
 	))
 
@@ -128,12 +134,17 @@ func (v *baseCheckSuite) runDiskCheck(agentConfig string, checkConfig string, us
 	diskCheckVersionTag := fmt.Sprintf("disk_check_version:%s", diskCheckVersion)
 	checkConfig += fmt.Sprintf("\n    tags:\n      - %s", diskCheckVersionTag)
 
+	agentOptions := v.agentOptions
+	agentOptions = append(agentOptions,
+		agentparams.WithAgentConfig(agentConfig),
+	)
+	agentOptions = append(agentOptions,
+		agentparams.WithIntegration("disk.d", checkConfig),
+	)
 	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithAgentOptions(
-			agentparams.WithAgentConfig(agentConfig),
-			agentparams.WithIntegration("disk.d", checkConfig),
-		),
-	))
+		awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
+		awshost.WithAgentOptions(agentOptions...)),
+	)
 
 	// run the check
 	output := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"disk", "--json"}))
