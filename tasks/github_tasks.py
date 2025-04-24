@@ -7,7 +7,7 @@ from typing import List
 
 from invoke import Exit, task
 
-from tasks.libs.common.utils import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH, get_git_pretty_ref
+from tasks.libs.common.utils import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH, RELEASE_JSON_DEPENDENCIES, get_git_pretty_ref
 from tasks.libs.datadog_api import create_count, send_metrics
 from tasks.libs.github_actions_tools import (
     download_artifacts,
@@ -33,8 +33,8 @@ def concurrency_key():
     return current_ref
 
 
-def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_interval=0, **kwargs):
-    github_action_ref = _get_release_json_value(f'{release}::MACOS_BUILD_VERSION')
+def _trigger_macos_workflow(destination=None, retry_download=0, retry_interval=0, **kwargs):
+    github_action_ref = _get_release_json_value(f'{RELEASE_JSON_DEPENDENCIES}::MACOS_BUILD_VERSION')
 
     run = trigger_macos_workflow(
         github_action_ref=github_action_ref,
@@ -60,7 +60,6 @@ def trigger_macos(
     _,
     workflow_type="build",
     datadog_agent_ref=DEFAULT_BRANCH,
-    release_version="nightly",
     major_version="7",
     python_runtimes="3",
     destination=".",
@@ -72,16 +71,11 @@ def trigger_macos(
 ):
     if workflow_type == "build":
         conclusion = _trigger_macos_workflow(
-            # Provide the release version to be able to fetch the associated
-            # macos-build branch from release.json for all workflows...
-            release_version,
             destination,
             retry_download,
             retry_interval,
             workflow_name="macos.yaml",
             datadog_agent_ref=datadog_agent_ref,
-            # ... And provide the release version as a workflow input when needed
-            release_version=release_version,
             major_version=major_version,
             python_runtimes=python_runtimes,
             # Send pipeline id and bucket branch so that the package version

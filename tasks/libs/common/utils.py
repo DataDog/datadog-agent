@@ -34,6 +34,7 @@ else:
     RTLOADER_LIB_NAME = "libdatadog-agent-rtloader.so"
 RTLOADER_HEADER_NAME = "datadog_agent_rtloader.h"
 AGENT_VERSION_CACHE_NAME = "agent-version.cache"
+RELEASE_JSON_DEPENDENCIES = "dependencies"
 
 
 def get_all_allowed_repo_branches():
@@ -556,14 +557,14 @@ def get_version_numeric_only(ctx, major_version='7'):
     return version
 
 
-def load_release_versions(_, target_version):
+def load_dependencies(_):
     with open("release.json", "r") as f:
         versions = json.load(f)
-        if target_version in versions:
-            # windows runners don't accepts anything else than strings in the
-            # environment when running a subprocess.
-            return {str(k): str(v) for k, v in versions[target_version].items()}
-    raise Exception(f"Could not find '{target_version}' version in release.json")
+        if RELEASE_JSON_DEPENDENCIES not in versions:
+            raise Exception(f"Could not find '{RELEASE_JSON_DEPENDENCIES}' in release.json")
+        # windows runners don't accepts anything else than strings in the
+        # environment when running a subprocess.
+        return {str(k): str(v) for k, v in versions[RELEASE_JSON_DEPENDENCIES].items()}
 
 
 ##

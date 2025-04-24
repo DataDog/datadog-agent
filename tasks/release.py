@@ -22,6 +22,7 @@ from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
+    RELEASE_JSON_DEPENDENCIES,
     check_clean_branch_state,
     get_version,
     nightly_entry_for,
@@ -470,40 +471,27 @@ def _get_highest_repo_version(
     return highest_version
 
 
-def _get_release_version_from_release_json(release_json, major_version, version_re, release_json_key=None):
+def _get_release_version_from_release_json(release_json, version_re, release_json_key):
     """
-    If release_json_key is None, returns the highest version entry in release.json.
-    If release_json_key is set, returns the entry for release_json_key of the highest version entry in release.json.
+    returns the release component version for release_json_key in the dependencies entry of the release.json
     """
 
-    release_version = None
     release_component_version = None
+    dependencies_entry = release_json.get(RELEASE_JSON_DEPENDENCIES, None)
 
-    # Get the release entry for the given Agent major version
-    release_entry_name = release_entry_for(major_version)
-    release_json_entry = release_json.get(release_entry_name, None)
+    if dependencies_entry is None:
+        raise Exit(f"release.json is missing a {RELEASE_JSON_DEPENDENCIES} entry.", 1)
 
-    # Check that the release entry exists, otherwise fail
-    if release_json_entry:
-        release_version = release_entry_name
+    # Check that the component's version is defined in the dependencies entry
+    match = version_re.match(dependencies_entry.get(release_json_key, ""))
+    if match:
+        release_component_version = _create_version_from_match(match)
+    else:
+        print(
+            f"{RELEASE_JSON_DEPENDENCIES} does not have a valid {release_json_key} ({dependencies_entry.get(release_json_key, '')}), ignoring"
+        )
 
-        # Check that the component's version is defined in the release entry
-        if release_json_key is not None:
-            match = version_re.match(release_json_entry.get(release_json_key, ""))
-            if match:
-                release_component_version = _create_version_from_match(match)
-            else:
-                print(
-                    f"{release_entry_name} does not have a valid {release_json_key} ({release_json_entry.get(release_json_key, '')}), ignoring"
-                )
-
-    if not release_version:
-        raise Exit(f"Couldn't find any matching {release_version} version.", 1)
-
-    if release_json_key is not None:
-        return release_component_version
-
-    return release_version
+    return release_component_version
 
 
 ##
