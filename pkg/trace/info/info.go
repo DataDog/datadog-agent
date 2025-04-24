@@ -30,27 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-// var (
-//
-//	infoMu        sync.RWMutex
-//	receiverStats = []TagStats{} // only for the last minute
-//	languages     []string
-//
-//	// TODO: move from package globals to a clean single struct
-//
-//	traceWriterInfo *TraceWriterInfo
-//	statsWriterInfo StatsWriterInfo
-//
-//	watchdogInfo  watchdog.Info
-//	rateByService map[string]float64
-//	// The rates by service with empty env values removed (As they are confusing to view for customers)
-//	rateByServiceFiltered map[string]float64
-//	start                 = time.Now()
-//	infoTmpl              *template.Template
-//	notRunningTmpl        *template.Template
-//	errorTmpl             *template.Template
-//)
-
 var (
 	once sync.Once
 	// Unfortunately there must be a global Info tracker as we publish info via expvar
