@@ -15,8 +15,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	conventions "go.opentelemetry.io/collector/semconv/v1.18.0"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata/gohai"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata/payload"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/gohai"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/payload"
 )
 
 // HostMap maps from hostnames to host metadata payloads.

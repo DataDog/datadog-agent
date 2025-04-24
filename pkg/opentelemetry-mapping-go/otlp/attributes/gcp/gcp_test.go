@@ -21,7 +21,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/internal/testutils"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/internal/testutils"
 )
 
 const (

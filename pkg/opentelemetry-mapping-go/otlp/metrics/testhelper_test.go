@@ -14,9 +14,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile/summary"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/quantile"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/quantile/summary"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"

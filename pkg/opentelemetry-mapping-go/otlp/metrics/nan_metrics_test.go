@@ -27,8 +27,8 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile/summary"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/quantile/summary"
 )
 
 func exampleSummaryDataPointSlice(ts pcommon.Timestamp, sum float64, count uint64) pmetric.SummaryDataPointSlice {

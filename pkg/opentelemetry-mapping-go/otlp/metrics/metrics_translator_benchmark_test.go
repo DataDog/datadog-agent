@@ -24,7 +24,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 )
 
 const (
