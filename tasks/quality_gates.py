@@ -62,11 +62,11 @@ def display_pr_comment(
     # Sort gates by error_types to group in between NoError, AssertionError and StackTrace
     for gate in sorted(gate_states, key=lambda x: x["error_type"] is None):
 
-        def getMetric(*metric_names, gate_name=gate['name'], show_sign=False):
+        def getMetric(*metric_names, gate_name=gate['name']):
             try:
                 metric_number = len(metric_names)
                 if metric_number == 1:
-                    return metric_handler.get_formatted_metric(gate_name, metric_names[0], show_sign=show_sign)
+                    return metric_handler.get_formatted_metric(gate_name, metric_names[0], with_unit=False)
                 elif metric_number == 2:
                     return metric_handler.get_formatted_metric_comparison(gate_name, *metric_names)
                 else:
@@ -76,8 +76,8 @@ def display_pr_comment(
 
         gate_name = gate['name'].replace("static_quality_gate_", "")
         relative_disk_size, relative_wire_size = (
-            getMetric("relative_on_disk_size", show_sign=True),
-            getMetric("relative_on_wire_size", show_sign=True),
+            getMetric("relative_on_disk_size"),
+            getMetric("relative_on_wire_size"),
         )
 
         if gate["error_type"] is None:
