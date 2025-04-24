@@ -45,7 +45,7 @@ build_windows_container_entrypoint   @DataDog/windows-agent
 generate_minimized_btfs_*            @DataDog/ebpf-platform
 
 # Package build
-agent_dmg*                           @DataDog/agent-delivery
+*agent_dmg*                          @DataDog/agent-delivery
 datadog-agent-*                      @DataDog/agent-delivery
 datadog-ot-agent-*                   @DataDog/agent-delivery
 dogstatsd-*                          @DataDog/agent-delivery

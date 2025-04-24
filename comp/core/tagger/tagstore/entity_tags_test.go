@@ -19,7 +19,7 @@ const (
 	invalidSource = "invalidSource"
 )
 
-var testEntityID = types.NewEntityID(types.ContainerID, "EntityID")
+var testEntityID = types.NewEntityID("test", "EntityID")
 
 func TestToEntity(t *testing.T) {
 	entityTags := newEntityTagsWithSingleSource(testEntityID, testSource)
