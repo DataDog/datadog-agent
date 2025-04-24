@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package ec2 provides EC2 attributes.
 package ec2
 
 import (

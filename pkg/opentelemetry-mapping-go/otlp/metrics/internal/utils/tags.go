@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package utils provides utilities for the OpenTelemetry Collector.
 package utils
 
 import (

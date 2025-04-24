@@ -14,6 +14,7 @@
 // This payload definition is undergoing a refactor; the DataDog/gohai library is being deprecated in favor of a new module
 // in DataDog/datadog-agent (see https://github.com/DataDog/gohai/pull/180).
 
+// Package gohai implements the Gohai payload.
 package gohai
 
 import (

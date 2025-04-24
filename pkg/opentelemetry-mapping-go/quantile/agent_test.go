@@ -6,7 +6,6 @@
 package quantile
 
 import (
-	"reflect"
 	"testing"
 	"unsafe"
 
@@ -91,8 +90,8 @@ func TestAgentFinish(t *testing.T) {
 	t.Run("DeepCopy", func(t *testing.T) {
 		var (
 			binsptr = func(s *Sketch) uintptr {
-				hdr := (*reflect.SliceHeader)(unsafe.Pointer(&s.bins))
-				return hdr.Data
+				hdr := unsafe.SliceData(s.bins)
+				return uintptr(unsafe.Pointer(hdr))
 			}
 
 			checkDeepCopy = func(a *Agent, s *Sketch) {

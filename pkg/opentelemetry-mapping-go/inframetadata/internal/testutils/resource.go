@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package testutils provides utilities for testing the hostmap.
 package testutils
 
 import (
@@ -13,7 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
-// ResourceFromMap builds a resource with resource attributes set to the provided map.
+// NewResourceFromMap builds a resource with resource attributes set to the provided map.
 func NewResourceFromMap(t *testing.T, m map[string]any) pcommon.Resource {
 	res := pcommon.NewResource()
 	err := res.Attributes().FromRaw(m)

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-// package sketchtest is an internal module with test helpers for generating points from a given distribution.
+// Package sketchtest is an internal module with test helpers for generating points from a given distribution.
 package sketchtest
 
 import "math"
@@ -43,7 +43,7 @@ func UQuadraticQ(a, b float64) QuantileFunction {
 	}
 }
 
-// Truncate a quantile function to the interval [a,b] given its CDF.
+// TruncateQ a quantile function to the interval [a,b] given its CDF.
 // See https://en.wikipedia.org/wiki/Truncated_distribution.
 // This function assumes but does not check that quantile is the inverse of cdf.
 func TruncateQ(a, b float64, quantile QuantileFunction, cdf CDF) QuantileFunction {
@@ -64,7 +64,7 @@ func TruncateQ(a, b float64, quantile QuantileFunction, cdf CDF) QuantileFunctio
 	}
 }
 
-// Truncate a CDF to the interval (a,b).
+// TruncateCDF a CDF to the interval (a,b).
 // See https://en.wikipedia.org/wiki/Truncated_distribution.
 func TruncateCDF(a, b float64, cdf CDF) CDF {
 	return func(x float64) float64 {

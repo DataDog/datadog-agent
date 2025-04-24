@@ -29,7 +29,7 @@ const (
 	AttributeDatadogHostname = "datadog.host.name"
 	// AttributeK8sNodeName the datadog k8s node name attribute
 	AttributeK8sNodeName = "k8s.node.name"
-	// Attribute host is a literal host tag.
+	// AttributeHost is a literal host tag.
 	// We check for this to avoid double tagging.
 	AttributeHost = "host"
 )

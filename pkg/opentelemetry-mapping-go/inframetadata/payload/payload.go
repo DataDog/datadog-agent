@@ -4,8 +4,9 @@
 // - https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/a5cdd2/exporter/datadogexporter/internal/hostmetadata/metadata.go
 // - https://github.com/DataDog/datadog-agent/blob/ab37437/pkg/metadata/host/payload.go
 //
-// This file defines the host metadata payload. This payload fills in information about the hosts in the Datadog's infrastructure list page.
 
+// Package payload implements the host metadata payload.
+// This file defines the host metadata payload. This payload fills in information about the hosts in the Datadog's infrastructure list page.
 package payload
 
 import (

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package attributes provides attributes for the OpenTelemetry Collector.
 package attributes
 
 import (
@@ -258,7 +259,7 @@ func OriginIDFromAttributes(attrs pcommon.Map) (originID string) {
 	return
 }
 
-// ContainerTagFromResourceAttributes extracts container tags from the given
+// ContainerTagsFromResourceAttributes extracts container tags from the given
 // set of resource attributes. Container tags are extracted via semantic
 // conventions. Customer container tags are extracted via resource attributes
 // prefixed by datadog.container.tag. Custom container tag values of a different type

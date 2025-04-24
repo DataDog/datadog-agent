@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package instrumentationlibrary provides instrumentation library metadata.
 package instrumentationlibrary
 
 import (

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package hostmap implements a map from hostnames to host metadata payloads.
 package hostmap
 
 import (
@@ -271,9 +272,9 @@ func (m *HostMap) Update(host string, res pcommon.Resource) (changed bool, md pa
 		old := md.Network()[fieldNetworkMACAddress]
 		// Take the first MAC addresses for consistency with the Agent's implementation
 		// Map from IEEE RA format to the Go format for MAC addresses.
-		new := ieeeRAtoGolangFormat(macAddresses[0])
-		changed = changed || old != new
-		md.Network()[fieldNetworkMACAddress] = new
+		newAddress := ieeeRAtoGolangFormat(macAddresses[0])
+		changed = changed || old != newAddress
+		md.Network()[fieldNetworkMACAddress] = newAddress
 	}
 
 	if ipAddresses, ok, fieldErr := strSliceField(res.Attributes(), attributeHostIP); fieldErr != nil {
@@ -307,6 +308,7 @@ func (m *HostMap) Update(host string, res pcommon.Resource) (changed bool, md pa
 	return
 }
 
+// UpdateFromMetric updates the host metadata payload for a given host by providing a metric.
 func (m *HostMap) UpdateFromMetric(host string, metric pmetric.Metric) {
 	// Take last available point
 	var datapoints pmetric.NumberDataPointSlice

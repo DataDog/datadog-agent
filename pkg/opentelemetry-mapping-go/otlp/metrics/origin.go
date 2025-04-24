@@ -23,6 +23,7 @@ import (
 type OriginProduct int32
 
 const (
+	// OriginProductUnknown is the default origin product.
 	OriginProductUnknown OriginProduct = 0
 	// OriginProductDatadogAgent is the origin for metrics coming from the Datadog Agent OTLP Ingest.
 	OriginProductDatadogAgent OriginProduct = 10
