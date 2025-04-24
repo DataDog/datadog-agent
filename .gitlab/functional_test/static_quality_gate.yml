@@ -93,4 +93,4 @@ manual_gate_threshold_update:
     - !reference [.login_to_docker_readonly_crane]
     - !reference [ .setup_agent_github_app ]
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
-    - dda inv -- manual-threshold-update || exit $?
+    - dda inv -- quality-gates.manual-threshold-update || exit $?
