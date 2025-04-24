@@ -107,8 +107,7 @@ end
 do_build = false
 do_package = false
 
-if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
-  dependency "package-artifact"
+if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"] or do_repackage?
   do_package = true
   skip_healthcheck true
 else
@@ -258,7 +257,12 @@ if do_build
     dependency "init-scripts-agent"
   end
 elsif do_package
-  dependency "package-artifact"
+  if do_repackage?
+    dependency "existing-agent-package"
+    dependency "datadog-agent"
+  else
+    dependency "package-artifact"
+  end
   dependency "init-scripts-agent"
 end
 
