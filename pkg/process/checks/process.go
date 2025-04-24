@@ -11,8 +11,6 @@ import (
 	"math"
 	"net/http"
 	"regexp"
-	"runtime"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -21,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/shirou/gopsutil/v4/cpu"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -34,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -306,10 +302,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	// warn customer if "pidMode":"task" is not set in ecs linux fargate
 	p.warnOnceECSLinuxFargateMisconfig.Do(func() {
-		// pidMode is currently not supported on windows, see docs: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#task_definition_pidmode
-		if fargate.IsFargateInstance() && runtime.GOOS == "linux" && !isECSLinuxFargatePidModeSetToTask(containers) {
-			log.Warn(`Process collection is likely misconfigured. Please ensure your task definition has "pidMode":"task" set. See https://docs.datadoghq.com/integrations/ecs_fargate/?tab=webui#process-collection for more information.`)
-		}
+		warnECSFargateMisconfig(containers)
 	})
 
 	// Store the last state for comparison on the next run.
@@ -713,22 +706,6 @@ func isDisallowListed(cmdline []string, disallowList []*regexp.Regexp) bool {
 	cmd := strings.Join(cmdline, " ")
 	for _, b := range disallowList {
 		if b.MatchString(cmd) {
-			return true
-		}
-	}
-	return false
-}
-
-func isECSLinuxFargatePidModeSetToTask(containers []*model.Container) bool {
-	if !fargate.IsFargateInstance() || runtime.GOOS != "linux" {
-		return false
-	}
-
-	// aws-fargate-pause container only exists when "pidMode"" is set to "task" on ecs fargate
-	ecsContainerNameTag := fmt.Sprintf("%s:%s", tags.EcsContainerName, "aws-fargate-pause")
-	for _, c := range containers {
-		// container fields are not yet populated with information from tags at this point, so we need to check the tags
-		if slices.Contains(c.Tags, ecsContainerNameTag) {
 			return true
 		}
 	}

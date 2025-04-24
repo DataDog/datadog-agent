@@ -93,7 +93,7 @@ func TestProcessIsECSFargatePidModeSetToTaskWindows(t *testing.T) {
 		expected       bool
 	}{
 		{
-			description:    "fargate enabled but windodws unsupported",
+			description:    "fargate enabled but windows unsupported",
 			containers:     []*model.Container{},
 			fargateEnabled: true,
 			expected:       false,
@@ -111,7 +111,7 @@ func TestProcessIsECSFargatePidModeSetToTaskWindows(t *testing.T) {
 			} else {
 				env.ClearFeatures()
 			}
-			assert.Equal(t, tc.expected, isECSLinuxFargatePidModeSetToTask(tc.containers))
+			assert.Equal(t, tc.expected, isECSFargatePidModeSetToTask(tc.containers))
 		})
 	}
 }
