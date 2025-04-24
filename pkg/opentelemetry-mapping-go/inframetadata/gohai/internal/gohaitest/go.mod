@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetada
 go 1.23.0
 
 require (
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.0.0-00010101000000-000000000000
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee
-	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.27.0
 	github.com/stretchr/testify v1.10.0
 )
 
@@ -16,4 +16,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata => ../../../
+replace github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata => ../../../../../../pkg/opentelemetry-mapping-go/inframetadata
