@@ -55,6 +55,7 @@ BPF_HASH_MAP(mmap_args, u64, mmap_args_t, 1)
 // pid_tgid -> fd+map_id
 BPF_HASH_MAP(fcntl_args, u64, int, 1)
 
+
 // intercept map creation of perf buffers and ring buffers to:
 // 1. associate map_fd+pid -> map_id (kernelspace often has map_fd+pid, so store association to allow pivots)
 // 2. associate map_id -> pid (needed for userspace to lookup /proc/PID/smaps data)
@@ -390,6 +391,210 @@ int BPF_KPROBE(k_map_update, int cmd, union bpf_attr *attr) {
     log_debug("map_update_elem: map_id=%d cpu=%d len=%lu", pb_key.map_id, pb_key.cpu, stackinfo.len);
     bpf_map_update_elem(&perf_buffers, &pb_key, &stackinfo, BPF_ANY);
     bpf_map_delete_elem(&perf_event_mmap, &key);
+    return 0;
+}
+
+/* .rodata */
+/** Ksyms **/
+volatile const u64 perf_fops = 0;
+volatile const u64 perf_kprobe = 0;
+volatile const u64 nr_cpu = 0;
+
+static __always_inline bool is_perf_event(u32 fd, struct file** perf_event_file) {
+    struct file **fdarray;
+    int err;
+    u64 fops;
+
+    struct task_struct *tsk = (struct task_struct *)bpf_get_current_task();
+    if (tsk == NULL)
+        return false;
+
+    err = BPF_CORE_READ_INTO(&fdarray, tsk, files, fdt, fd);
+    if (err < 0)
+        return false;
+
+    err = bpf_core_read(perf_event_file, sizeof(struct file *), fdarray + fd);
+    if (err < 0)
+        return false;
+
+    struct file* pef = *perf_event_file;
+    err = bpf_core_read(&fops, sizeof(struct file_operations *), &pef->f_op);
+    if (err < 0)
+        return false;
+
+    if (!fops)
+        return false;
+
+    if (perf_fops) {
+        if (fops != perf_fops)
+            return false;
+    } else {
+        return false;
+    }
+
+    return true;
+}
+
+static __always_inline bool is_perf_kprobe(struct file* perf_event_file, struct perf_event** event) {
+    struct pmu* pmu;
+    int err;
+
+    err = BPF_CORE_READ_INTO(event, perf_event_file, private_data);
+    if (err < 0)
+        return false;
+
+    err = BPF_CORE_READ_INTO(&pmu, *event, pmu);
+    if (err < 0)
+        return false;
+
+    if (perf_kprobe) {
+        if ((unsigned long)pmu != perf_kprobe)
+            return false;
+    } else {
+        return false;
+    }
+
+    return true;
+}
+
+static __always_inline struct trace_kprobe* trace_kprobe_from_perf_event(struct perf_event* event) {
+    struct trace_event_call* call;
+    int err;
+
+    err = BPF_CORE_READ_INTO(&call, event, tp_event);
+    if (err < 0)
+        return NULL;
+
+
+    struct trace_probe_event *tpe = container_of(call, struct trace_probe_event, call);
+    if (!tpe)
+        return NULL;
+
+    struct list_head* first;
+    err = BPF_CORE_READ_INTO(&first, tpe, probes.next);
+    if (err < 0)
+        return NULL;
+
+
+    if (first == &tpe->probes) {
+        return 0;
+    }
+
+    struct trace_probe* tp = container_of(first, struct trace_probe, list);
+    if (!tp)
+        return NULL;
+
+    return container_of(tp, struct trace_kprobe, tp);
+}
+
+static __always_inline u64 get_kprobe_hits(struct trace_kprobe *tk) {
+    u64 kprobe_hits = 0;
+    u64* this_cpu_hits = NULL;
+    u64 cpu_hits;
+    int err;
+
+    for (int i = 0; i < nr_cpu; i++) {
+        this_cpu_hits = bpf_per_cpu_ptr(&tk->nhit, i);
+        if (this_cpu_hits == NULL)
+            return kprobe_hits;
+
+        err = bpf_probe_read_kernel(&cpu_hits, sizeof(u64), this_cpu_hits);
+        if (err < 0)
+            return kprobe_hits;
+
+        kprobe_hits += cpu_hits;
+    }
+
+    return kprobe_hits;
+}
+
+static __always_inline u64 get_kprobe_misses(struct trace_kprobe *tk) {
+    u64 nmissed;
+    int err;
+
+    err = BPF_CORE_READ_INTO(&nmissed, tk, rp.kp.nmissed);
+    if (err < 0)
+        return 0;
+
+    return nmissed;
+}
+
+static __always_inline get_kretprobe_maxactive_misses(struct trace_kprobe *tk) {
+    u64 nmissed;
+    int err;
+
+    err = BPF_CORE_READ_INTO(&nmissed, tk, rp.nmissed);
+    if (err < 0)
+        return 0;
+
+    return nmissed;
+}
+
+void bpf_rcu_read_lock(void) __ksym;
+void bpf_rcu_read_unlock(void) __ksym;
+
+struct kprobe_stats {
+    u64 kprobe_hits;
+    u64 kprobe_nesting_misses;
+    u64 kretprobe_maxactive_misses;
+}
+
+struct cookie {
+    u64 kprobe_id;
+    u64 query_id;
+}
+
+BPF_HASH_MAP(cookie_to_trace_kprobe, u64, u64, 8192)
+BPF_HASH_MAP(cookie_to_kprobe_stats, struct cookie, struct kprobe_stats, 8192)
+
+SEC("kprobe/do_vfs_ioctl")
+int BPF_KPROBE(k_do_vfs_ioctl, struct file* fp, u32 cmd, u32 fd, struct cookie* cookie_ptr) {
+    struct file* perf_event_file;
+    struct perf_event* event;
+    struct trace_kprobe* tk;
+    int err;
+    struct kprobe_stats kstats = { 0 };
+
+    struct cookie this_cookie = { 0 };
+    err = bpf_probe_read_user(&this_cookie , sizeof(struct cookie), cookie_ptr);
+    if (err == 0) {
+        tk = bpf_map_lookup_elem(&cookie_to_trace_kprobe, &this_cookie.kprobe_id);
+        if (tk) {
+            goto record_nhits;
+        }
+    }
+
+    // we need to hold an rcu lock becuase task_struct->files_struct->fdt
+    // must be read within an rcu read-size critical section.
+    bpf_rcu_read_lock();
+    if (!is_perf_event(fd, &perf_event_file)) {
+        bpf_rcu_read_unlock();
+        return 0;
+    }
+
+    bpf_rcu_read_unlock();
+
+    if (!is_perf_kprobe(perf_event_file, &event))
+        return 0;
+
+    if (!event)
+        return 0;
+
+    tk = trace_kprobe_from_perf_event(event);
+
+    // cache the trace_kprobe if cookie was provided
+    if (this_cookie.kprobe_id != 0)
+        bpf_map_update_elem(&cookie_to_trace_kprobe, &this_cookie.kprobe_id, &tk, BPF_NOEXIST);
+
+record_nhits:
+
+    kstats.kprobe_hits = get_kprobe_hits(tk);
+    kstats.kprobe_nesting_misses = get_kprobe_misses(tk);
+    u64 kretprobe_maxactive_missed = get_kretprobe_maxactive_misses(tk);
+
+    // userspace will remove kprobe stats once they are read for the query
+    bpf_map_update_elem(&cookie_to_kprobe_stats, &this_cookie, &kstats, BPF_ANY);
+
     return 0;
 }
 

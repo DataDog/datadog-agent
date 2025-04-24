@@ -142,6 +142,12 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, err
 		delete(collSpec.Programs, "k_map_create")
 	}
 
+	if kv < kernel.VersionCode(6, 2, 0) {
+		delete(collSpec.Programs, "k_do_vfs_ioctl")
+		delete(collSpec.Maps, "cookie_to_trace_kprobe")
+		delete(collSpec.Maps, "cookie_to_kprobe_stats")
+	}
+
 	p := Probe{nrcpus: nrcpus}
 	p.coll, err = ebpf.NewCollectionWithOptions(collSpec, opts.VerifierOptions)
 	if err != nil {
