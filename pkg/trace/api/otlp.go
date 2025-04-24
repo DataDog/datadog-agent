@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -51,19 +52,19 @@ var _ (ptraceotlp.GRPCServer) = (*OTLPReceiver)(nil)
 // data on two ports for both plain HTTP and gRPC.
 type OTLPReceiver struct {
 	ptraceotlp.UnimplementedGRPCServer
-	wg             sync.WaitGroup      // waits for a graceful shutdown
-	grpcsrv        *grpc.Server        // the running GRPC server on a started receiver, if enabled
-	out            chan<- *Payload     // the outgoing payload channel
-	conf           *config.AgentConfig // receiver config
-	cidProvider    IDProvider          // container ID provider
-	statsd         statsd.ClientInterface
-	timing         timing.Reporter
-	ignoreResNames map[string]struct{}
+	wg                 sync.WaitGroup      // waits for a graceful shutdown
+	grpcsrv            *grpc.Server        // the running GRPC server on a started receiver, if enabled
+	out                chan<- *Payload     // the outgoing payload channel
+	conf               *config.AgentConfig // receiver config
+	cidProvider        IDProvider          // container ID provider
+	statsd             statsd.ClientInterface
+	timing             timing.Reporter
+	grpcMaxRecvMsgSize int
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
-	operationAndResourceNamesV2GateEnabled := cfg.HasFeature("enable_operation_and_resource_name_logic_v2")
+	operationAndResourceNamesV2GateEnabled := !cfg.HasFeature("disable_operation_and_resource_name_logic_v2")
 	operationAndResourceNamesV2GateEnabledVal := 0.0
 	if operationAndResourceNamesV2GateEnabled {
 		operationAndResourceNamesV2GateEnabledVal = 1.0
@@ -72,21 +73,13 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 
 	spanNameAsResourceNameEnabledVal := 0.0
 	if cfg.OTLPReceiver.SpanNameAsResourceName {
-		if operationAndResourceNamesV2GateEnabled {
-			log.Warnf("Detected SpanNameAsResourceName in config - this feature will be deprecated in a future version, and overrides feature gate \"enable_operation_and_resource_name_logic_v2\". Please remove it and set \"operation.name\" attribute on your spans instead.")
-		} else {
-			log.Warnf("Detected SpanNameAsResourceName in config - this feature will be deprecated in a future version. Please remove it, enable feature gate \"enable_operation_and_resource_name_logic_v2\", and set \"operation.name\" attribute on your spans instead.")
-		}
+		log.Warnf("Detected SpanNameAsResourceName in config - this feature will be deprecated in a future version. Please remove it and set \"operation.name\" attribute on your spans instead. See the migration guide at https://docs.datadoghq.com/opentelemetry/guide/migrate/migrate_operation_names/")
 		spanNameAsResourceNameEnabledVal = 1.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.span_name_as_resource_name_enabled", spanNameAsResourceNameEnabledVal, nil, 1)
 	spanNameRemappingsEnabledVal := 0.0
 	if len(cfg.OTLPReceiver.SpanNameRemappings) > 0 {
-		if operationAndResourceNamesV2GateEnabled {
-			log.Warnf("Detected SpanNameRemappings in config - this feature will be deprecated in a future version. Please remove it to access functionality from feature gate \"enable_operation_and_resource_name_logic_v2\".")
-		} else {
-			log.Warnf("Detected SpanNameRemappings in config - this feature will be deprecated in a future version. Please remove it and enable feature gate \"enable_operation_and_resource_name_logic_v2\"")
-		}
+		log.Warnf("Detected SpanNameRemappings in config - this feature will be deprecated in a future version. Please remove it to access new operation name functionality. See the migration guide at https://docs.datadoghq.com/opentelemetry/guide/migrate/migrate_operation_names/")
 		spanNameRemappingsEnabledVal = 1.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.span_name_remappings_enabled", spanNameRemappingsEnabledVal, nil, 1)
@@ -94,17 +87,17 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 	if cfg.HasFeature("enable_otlp_compute_top_level_by_span_kind") {
 		computeTopLevelBySpanKindVal = 1.0
 	}
-	ignoreResNames := make(map[string]struct{})
-	for _, resName := range cfg.Ignore["resource"] {
-		ignoreResNames[resName] = struct{}{}
-	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.compute_top_level_by_span_kind", computeTopLevelBySpanKindVal, nil, 1)
 	enableReceiveResourceSpansV2Val := 1.0
 	if cfg.HasFeature("disable_receive_resource_spans_v2") {
 		enableReceiveResourceSpansV2Val = 0.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.enable_receive_resource_spans_v2", enableReceiveResourceSpansV2Val, nil, 1)
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo), statsd: statsd, timing: timing, ignoreResNames: ignoreResNames}
+	grpcMaxRecvMsgSize := 10 * 1024 * 1024
+	if cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib > 0 {
+		grpcMaxRecvMsgSize = cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib * 1024 * 1024
+	}
+	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo), statsd: statsd, timing: timing, grpcMaxRecvMsgSize: grpcMaxRecvMsgSize}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -116,7 +109,7 @@ func (o *OTLPReceiver) Start() {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {
 			o.grpcsrv = grpc.NewServer(
-				grpc.MaxRecvMsgSize(10*1024*1024),
+				grpc.MaxRecvMsgSize(o.grpcMaxRecvMsgSize),
 				grpc.MaxConcurrentStreams(1), // Each payload must be sent to processing stage before we decode the next.
 			)
 			ptraceotlp.RegisterGRPCServer(o.grpcsrv, o)
@@ -244,18 +237,6 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		libspans := rspans.ScopeSpans().At(i)
 		for j := 0; j < libspans.Spans().Len(); j++ {
 			otelspan := libspans.Spans().At(j)
-			resourceName := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, transform.KeyDatadogResource)
-			if resourceName == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
-				if transform.OperationAndResourceNameV2Enabled(o.conf) {
-					resourceName = traceutil.GetOTelResourceV2(otelspan, otelres)
-				} else {
-					resourceName = traceutil.GetOTelResourceV1(otelspan, otelres)
-				}
-			}
-			if _, exists := o.ignoreResNames[resourceName]; exists {
-				continue
-			}
-
 			spancount++
 			traceID := traceutil.OTelTraceIDToUint64(otelspan.TraceID())
 			if tracesByID[traceID] == nil {
@@ -467,7 +448,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:        hostname,
 		Chunks:          o.createChunks(tracesByID, priorityByID),
-		Env:             traceutil.NormalizeTagValue(env),
+		Env:             normalize.NormalizeTagValue(env),
 		ContainerID:     containerID,
 		LanguageName:    tagstats.Lang,
 		LanguageVersion: tagstats.LangVersion,
@@ -641,7 +622,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	if _, ok := span.Meta["env"]; !ok {
 		// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
 		if _, env := transform.GetFirstFromMap(span.Meta, "deployment.environment.name", semconv.AttributeDeploymentEnvironment); env != "" {
-			transform.SetMetaOTLP(span, "env", traceutil.NormalizeTag(env))
+			transform.SetMetaOTLP(span, "env", normalize.NormalizeTag(env))
 		}
 	}
 	if in.TraceState().AsRaw() != "" {

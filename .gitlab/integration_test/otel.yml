@@ -43,7 +43,6 @@ docker_image_build_otel:
     - !reference [.except_mergequeue]
     - when: on_success
 
-
 datadog_otel_components_ocb_build:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES

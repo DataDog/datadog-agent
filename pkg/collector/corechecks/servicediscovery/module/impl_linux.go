@@ -22,9 +22,6 @@ import (
 
 	"github.com/shirou/gopsutil/v4/process"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -37,6 +34,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -46,7 +46,7 @@ import (
 )
 
 const (
-	pathServices = "/services"
+	pathCheck = "/check"
 
 	// Use a low cache validity to ensure that we refresh information every time
 	// the check is run if needed. This is the same as cacheValidityNoRT in
@@ -192,6 +192,8 @@ type discovery struct {
 
 	timeProvider timeProvider
 	network      networkCollector
+
+	networkErrorLimit *log.Limit
 }
 
 type networkCollectorFactory func(cfg *discoveryConfig) (networkCollector, error)
@@ -226,6 +228,7 @@ func newDiscoveryWithNetwork(wmeta workloadmeta.Component, tagger tagger.Compone
 		tagger:             tagger,
 		timeProvider:       tp,
 		network:            network,
+		networkErrorLimit:  log.NewLogLimit(10, 10*time.Minute),
 	}
 }
 
@@ -244,8 +247,9 @@ func (s *discovery) GetStats() map[string]interface{} {
 // Register registers the discovery module with the provided HTTP mux.
 func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
+	httpMux.HandleFunc("/state", s.handleStateEndpoint)
 	httpMux.HandleFunc("/debug", s.handleDebugEndpoint)
-	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))
+	httpMux.HandleFunc(pathCheck, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleCheck))
 	return nil
 }
 
@@ -257,16 +261,75 @@ func (s *discovery) Close() {
 	s.cleanCache(pidSet{})
 	if s.network != nil {
 		s.network.close()
+		s.network = nil
 	}
 	clear(s.cache)
 	clear(s.noPortTries)
 	clear(s.ignorePids)
+	clear(s.potentialServices)
+	clear(s.runningServices)
 }
 
 // handleStatusEndpoint is the handler for the /status endpoint.
 // Reports the status of the discovery module.
 func (s *discovery) handleStatusEndpoint(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte("Discovery Module is running"))
+}
+
+type state struct {
+	Cache                  map[int]*model.Service `json:"cache"`
+	NoPortTries            map[int]int            `json:"no_port_tries"`
+	PotentialServices      []int                  `json:"potential_services"`
+	RunningServices        []int                  `json:"running_services"`
+	IgnorePids             []int                  `json:"ignore_pids"`
+	LastGlobalCPUTime      uint64                 `json:"last_global_cpu_time"`
+	LastCPUTimeUpdate      int64                  `json:"last_cpu_time_update"`
+	LastNetworkStatsUpdate int64                  `json:"last_network_stats_update"`
+	NetworkEnabled         bool                   `json:"network_enabled"`
+}
+
+// handleStateEndpoint is the handler for the /state endpoint.
+// Returns the internal state of the discovery module.
+func (s *discovery) handleStateEndpoint(w http.ResponseWriter, _ *http.Request) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	state := &state{
+		Cache:             make(map[int]*model.Service, len(s.cache)),
+		NoPortTries:       make(map[int]int, len(s.noPortTries)),
+		PotentialServices: make([]int, 0, len(s.potentialServices)),
+		RunningServices:   make([]int, 0, len(s.runningServices)),
+		IgnorePids:        make([]int, 0, len(s.ignorePids)),
+		NetworkEnabled:    s.network != nil,
+	}
+
+	for pid, info := range s.cache {
+		service := &model.Service{}
+		info.toModelService(pid, service)
+		state.Cache[int(pid)] = service
+	}
+
+	for pid, tries := range s.noPortTries {
+		state.NoPortTries[int(pid)] = tries
+	}
+
+	for pid := range s.potentialServices {
+		state.PotentialServices = append(state.PotentialServices, int(pid))
+	}
+
+	for pid := range s.runningServices {
+		state.RunningServices = append(state.RunningServices, int(pid))
+	}
+
+	for pid := range s.ignorePids {
+		state.IgnorePids = append(state.IgnorePids, int(pid))
+	}
+
+	state.LastGlobalCPUTime = s.lastGlobalCPUTime
+	state.LastCPUTimeUpdate = s.lastCPUTimeUpdate.Unix()
+	state.LastNetworkStatsUpdate = s.lastNetworkStatsUpdate.Unix()
+
+	utils.WriteAsJSON(w, state, utils.CompactOutput)
 }
 
 func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) {
@@ -278,7 +341,7 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 	procRoot := kernel.ProcFSRoot()
 	pids, err := process.Pids()
 	if err != nil {
-		utils.WriteAsJSON(w, "could not get PIDs")
+		utils.WriteAsJSON(w, "could not get PIDs", utils.CompactOutput)
 		return
 	}
 
@@ -299,27 +362,27 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 		services = append(services, *service)
 	}
 
-	utils.WriteAsJSON(w, services)
+	utils.WriteAsJSON(w, services, utils.CompactOutput)
 }
 
-// handleServers is the handler for the /services endpoint.
-// Returns the list of currently running services.
-func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
+// handleCheck is the handler for the /check endpoint.
+// Returns the list of service discovery events.
+func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
 	params, err := parseParams(req.URL.Query())
 	if err != nil {
-		_ = log.Errorf("invalid params to /discovery%s: %v", pathServices, err)
+		_ = log.Errorf("invalid params to /discovery%s: %v", pathCheck, err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	services, err := s.getServices(params)
 	if err != nil {
-		_ = log.Errorf("failed to handle /discovery%s: %v", pathServices, err)
+		_ = log.Errorf("failed to handle /discovery%s: %v", pathCheck, err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	utils.WriteAsJSON(w, services)
+	utils.WriteAsJSON(w, services, utils.CompactOutput)
 }
 
 const prefix = "socket:["
@@ -483,14 +546,15 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 		log.Debugf("couldn't snapshot UDP sockets: %v", err)
 	}
 	tcpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/tcp6", pid)), tcpListen, noIgnore)
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		// The file won't exist if IPv6 is disabled.
 		log.Debugf("couldn't snapshot TCP6 sockets: %v", err)
 	}
 	udpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/udp6", pid)), udpListen,
 		func(port uint16) bool {
 			return network.IsPortInEphemeralRange(network.AFINET6, network.UDP, port) == network.EphemeralTrue
 		})
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		log.Debugf("couldn't snapshot UDP6 sockets: %v", err)
 	}
 
@@ -758,7 +822,9 @@ func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.Ser
 			err := s.network.addPid(uint32(pid))
 			if err == nil {
 				info.addedToMap = true
-			} else {
+			} else if s.networkErrorLimit.ShouldLog() {
+				// This error can occur if the eBPF map used by the network
+				// collector is full.
 				log.Warnf("unable to add to network collector %v: %v", pid, err)
 			}
 			continue

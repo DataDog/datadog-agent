@@ -3,27 +3,28 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && linux_bpf
 
 package modules
 
 import (
 	"fmt"
 	"net/http"
+	"sync/atomic"
 	"time"
 
-	"go.uber.org/atomic"
-
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 )
 
+func init() { registerModule(TCPQueueLength) }
+
 // TCPQueueLength Factory
-var TCPQueueLength = module.Factory{
+var TCPQueueLength = &module.Factory{
 	Name:             config.TCPQueueLengthTracerModule,
 	ConfigNamespaces: []string{},
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
@@ -33,8 +34,7 @@ var TCPQueueLength = module.Factory{
 		}
 
 		return &tcpQueueLengthModule{
-			Tracer:    t,
-			lastCheck: atomic.NewInt64(0),
+			Tracer: t,
 		}, nil
 	},
 	NeedsEBPF: func() bool {
@@ -46,14 +46,14 @@ var _ module.Module = &tcpQueueLengthModule{}
 
 type tcpQueueLengthModule struct {
 	*tcpqueuelength.Tracer
-	lastCheck *atomic.Int64
+	lastCheck atomic.Int64
 }
 
 func (t *tcpQueueLengthModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", func(w http.ResponseWriter, _ *http.Request) {
 		t.lastCheck.Store(time.Now().Unix())
 		stats := t.Tracer.GetAndFlush()
-		utils.WriteAsJSON(w, stats)
+		utils.WriteAsJSON(w, stats, utils.CompactOutput)
 	})
 
 	return nil
