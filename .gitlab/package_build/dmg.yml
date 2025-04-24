@@ -57,6 +57,7 @@ new-agent_dmg-x64-a7:
   # TODO(celian): Temporary rules.
   rules:
     # This is used to avoid conflicts with the current build job on main / release branches with s3. This will run on dev branches
+    - !reference  [.except_mergequeue]
     - !reference [.on_main_or_release_branch_or_deploy_manual]
     - when: on_success
 
