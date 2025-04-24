@@ -105,7 +105,7 @@ func OtelSpanToDDSpanMinimal(
 	}
 
 	if !conf.OTLPReceiver.IgnoreMissingDatadogFields {
-		if ddspan.Service == "" || ddspan.Service == traceutil.DefaultOTLPServiceName {
+		if ddspan.Service == "" {
 			ddspan.Service = traceutil.GetOTelService(otelres, true)
 		}
 
