@@ -76,17 +76,20 @@ func OtelSpanToDDSpanMinimal(
 ) *pb.Span {
 	spanKind := otelspan.Kind()
 
+	sattr := otelspan.Attributes()
+	rattr := otelres.Attributes()
+
 	ddspan := &pb.Span{
-		Service:  traceutil.GetOTelAttrVal(otelspan.Attributes(), true, KeyDatadogService),
-		Name:     traceutil.GetOTelAttrVal(otelspan.Attributes(), true, KeyDatadogName),
-		Resource: traceutil.GetOTelAttrVal(otelspan.Attributes(), true, KeyDatadogResource),
-		Type:     traceutil.GetOTelAttrVal(otelspan.Attributes(), true, KeyDatadogType),
+		Service:  traceutil.GetOTelAttrVal(rattr, true, KeyDatadogService),
+		Name:     traceutil.GetOTelAttrVal(sattr, true, KeyDatadogName),
+		Resource: traceutil.GetOTelAttrVal(sattr, true, KeyDatadogResource),
+		Type:     traceutil.GetOTelAttrVal(sattr, true, KeyDatadogType),
 		TraceID:  traceutil.OTelTraceIDToUint64(otelspan.TraceID()),
 		SpanID:   traceutil.OTelSpanIDToUint64(otelspan.SpanID()),
 		ParentID: traceutil.OTelSpanIDToUint64(otelspan.ParentSpanID()),
 		Start:    int64(otelspan.StartTimestamp()),
 		Duration: int64(otelspan.EndTimestamp()) - int64(otelspan.StartTimestamp()),
-		Meta:     make(map[string]string, otelspan.Attributes().Len()+otelres.Attributes().Len()),
+		Meta:     make(map[string]string, sattr.Len()+rattr.Len()),
 		Metrics:  make(map[string]float64),
 	}
 	if isErrorVal, ok := otelspan.Attributes().Get(KeyDatadogError); ok {
@@ -97,12 +100,12 @@ func OtelSpanToDDSpanMinimal(
 		}
 	}
 
-	if incomingSpanKindName := traceutil.GetOTelAttrVal(otelspan.Attributes(), true, KeyDatadogSpanKind); incomingSpanKindName != "" {
+	if incomingSpanKindName := traceutil.GetOTelAttrVal(sattr, true, KeyDatadogSpanKind); incomingSpanKindName != "" {
 		ddspan.Meta["span.kind"] = incomingSpanKindName
 	}
 
 	if !conf.OTLPReceiver.IgnoreMissingDatadogFields {
-		if ddspan.Service == "" {
+		if ddspan.Service == "" || ddspan.Service == traceutil.DefaultOTLPServiceName {
 			ddspan.Service = traceutil.GetOTelService(otelres, true)
 		}
 
@@ -150,7 +153,7 @@ func OtelSpanToDDSpanMinimal(
 	if isTopLevel {
 		traceutil.SetTopLevel(ddspan, true)
 	}
-	if isMeasured := traceutil.GetOTelAttrVal(otelspan.Attributes(), false, "_dd.measured"); isMeasured == "1" {
+	if isMeasured := traceutil.GetOTelAttrVal(sattr, false, "_dd.measured"); isMeasured == "1" {
 		traceutil.SetMeasured(ddspan, true)
 	} else if topLevelByKind && (spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer) {
 		// When enable_otlp_compute_top_level_by_span_kind is true, compute stats for client-side spans
@@ -186,50 +189,65 @@ func GetDDKeyForOTLPAttribute(k string) string {
 	return mappedKey
 }
 
-func setMetaOTLPWithSemConvMappings(k string, value string, ddspan *pb.Span, ignoreMissingDatadogFields bool) {
+func conditionallyMapOTLPAttributeToMeta(k string, value string, ddspan *pb.Span, ignoreMissingDatadogFields bool) {
 	mappedKey := GetDDKeyForOTLPAttribute(k)
+	if ddspan.Meta[mappedKey] != "" {
+		return
+	}
+
 	// Exclude Datadog APM conventions.
 	// These are handled above explicitly.
 	if mappedKey != "" {
-		if _, ok := metaKeysToDDSemanticsKeys[mappedKey]; ok {
-			if ddspan.Meta[mappedKey] != "" || ignoreMissingDatadogFields {
-				return
-			}
+		// Does it have an equivalent DD namespaced key? If so, and ignoreMissingDatadogFields is set, we don't want to set it.
+		if _, ok := apmConventionKeysToDDNamespacedKeys[mappedKey]; ok && ignoreMissingDatadogFields {
+			return
 		}
 		SetMetaOTLP(ddspan, mappedKey, value)
 	}
 }
 
-func setMetricOTLPWithSemConvMappings(k string, value float64, ddspan *pb.Span, ignoreMissingDatadogFields bool) {
+func conditionallyMapOTLPAttributeToMetric(k string, value float64, ddspan *pb.Span, ignoreMissingDatadogFields bool) {
 	mappedKey := GetDDKeyForOTLPAttribute(k)
+	if _, ok := ddspan.Metrics[mappedKey]; ok {
+		return
+	}
+
 	// Exclude Datadog APM conventions.
 	// These are handled above explicitly.
 	if mappedKey != "" {
-		if _, ok := metaKeysToDDSemanticsKeys[mappedKey]; ok {
-			if _, ok := ddspan.Metrics[mappedKey]; ok || ignoreMissingDatadogFields {
-				return
-			}
+		// Does it have an equivalent DD namespaced key? If so, and ignoreMissingDatadogFields is set, we don't want to set it.
+		if _, ok := apmConventionKeysToDDNamespacedKeys[mappedKey]; ok && ignoreMissingDatadogFields {
+			return
 		}
 		SetMetricOTLP(ddspan, mappedKey, value)
 	}
 }
 
-var ddSemanticsKeysToMetaKeys = map[string]string{
-	KeyDatadogEnvironment:    "env",
-	KeyDatadogVersion:        "version",
+var ddNamespacedKeysToAPMConventionKeysForResourceAttributes = map[string]string{
+	KeyDatadogEnvironment: "env",
+	KeyDatadogVersion:     "version",
+}
+
+var ddNamespacedKeysToAPMConventionKeysForSpanAttributes = map[string]string{
 	KeyDatadogHTTPStatusCode: "http.status_code",
 	KeyDatadogErrorMsg:       "error.msg",
 	KeyDatadogErrorType:      "error.type",
 	KeyDatadogErrorStack:     "error.stack",
 }
 
-var metaKeysToDDSemanticsKeys = map[string]string{
+var apmConventionKeysToDDNamespacedKeys = map[string]string{
 	"env":              KeyDatadogEnvironment,
 	"version":          KeyDatadogVersion,
 	"http.status_code": KeyDatadogHTTPStatusCode,
 	"error.msg":        KeyDatadogErrorMsg,
 	"error.type":       KeyDatadogErrorType,
 	"error.stack":      KeyDatadogErrorStack,
+}
+
+func copyAttrToMapIfExists(attributes pcommon.Map, key string, m map[string]string, mappedKey string) {
+	if incomingValue := traceutil.GetOTelAttrVal(attributes, false, key); incomingValue != "" {
+		m[mappedKey] = incomingValue
+	}
 }
 
 // OtelSpanToDDSpan converts an OTel span to a DD span.
@@ -247,15 +265,33 @@ func OtelSpanToDDSpan(
 	}
 	ddspan := OtelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil)
 
-	for ddSemanticKey, ddSpanMetaKey := range ddSemanticsKeysToMetaKeys {
-		if incomingValue := traceutil.GetOTelAttrVal(otelspan.Attributes(), false, ddSemanticKey); incomingValue != "" {
-			ddspan.Meta[ddSpanMetaKey] = incomingValue
+	// Span attributes take precedence over resource attributes in the event of key collisions; so, use span attributes first
+
+	// DD namespaced keys take precedence over OTLP keys, so use them first
+	for ddNamespacedKey, apmConventionKey := range ddNamespacedKeysToAPMConventionKeysForSpanAttributes {
+		copyAttrToMapIfExists(otelspan.Attributes(), ddNamespacedKey, ddspan.Meta, apmConventionKey)
+	}
+
+	otelspan.Attributes().Range(func(k string, v pcommon.Value) bool {
+		switch v.Type() {
+		case pcommon.ValueTypeDouble:
+			conditionallyMapOTLPAttributeToMetric(k, v.Double(), ddspan, conf.OTLPReceiver.IgnoreMissingDatadogFields)
+		case pcommon.ValueTypeInt:
+			conditionallyMapOTLPAttributeToMetric(k, float64(v.Int()), ddspan, conf.OTLPReceiver.IgnoreMissingDatadogFields)
+		default:
+			conditionallyMapOTLPAttributeToMeta(k, v.AsString(), ddspan, conf.OTLPReceiver.IgnoreMissingDatadogFields)
 		}
+
+		return true
+	})
+
+	for ddNamespacedKey, apmConventionKey := range ddNamespacedKeysToAPMConventionKeysForResourceAttributes {
+		copyAttrToMapIfExists(otelres.Attributes(), ddNamespacedKey, ddspan.Meta, apmConventionKey)
 	}
 
 	otelres.Attributes().Range(func(k string, v pcommon.Value) bool {
 		value := v.AsString()
-		setMetaOTLPWithSemConvMappings(k, value, ddspan, conf.OTLPReceiver.IgnoreMissingDatadogFields)
+		conditionallyMapOTLPAttributeToMeta(k, value, ddspan, conf.OTLPReceiver.IgnoreMissingDatadogFields)
 		return true
 	})
 
@@ -278,22 +314,6 @@ func OtelSpanToDDSpan(
 	if otelspan.Links().Len() > 0 {
 		ddspan.Meta["_dd.span_links"] = MarshalLinks(otelspan.Links())
 	}
-
-	otelspan.Attributes().Range(func(k string, v pcommon.Value) bool {
-		if strings.HasPrefix(k, "datadog.") {
-			return true
-		}
-		switch v.Type() {
-		case pcommon.ValueTypeDouble:
-			setMetricOTLPWithSemConvMappings(k, v.Double(), ddspan, conf.OTLPReceiver.IgnoreMissingDatadogFields)
-		case pcommon.ValueTypeInt:
-			setMetricOTLPWithSemConvMappings(k, float64(v.Int()), ddspan, conf.OTLPReceiver.IgnoreMissingDatadogFields)
-		default:
-			setMetaOTLPWithSemConvMappings(k, v.AsString(), ddspan, conf.OTLPReceiver.IgnoreMissingDatadogFields)
-		}
-
-		return true
-	})
 
 	if otelspan.TraceState().AsRaw() != "" {
 		ddspan.Meta["w3c.tracestate"] = otelspan.TraceState().AsRaw()

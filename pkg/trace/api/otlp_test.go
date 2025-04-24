@@ -1348,7 +1348,7 @@ func TestResourceRelatedSpanAttributesAreIgnored_ReceiveResourceSpansV2(t *testi
 		assert.Empty(t, p.TracerPayload.Hostname)
 		assert.Empty(t, p.TracerPayload.ContainerID)
 		assert.Empty(t, p.TracerPayload.Env)
-		assert.Equal(t, "otlpresourcenoservicename", span.Service)
+		assert.Equal(t, traceutil.DefaultOTLPServiceName, span.Service)
 		assert.Empty(t, span.Meta["version"])
 	}
 }
@@ -2201,7 +2201,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			resourceNameV1:  "POST /uploads/:document_id",
 			resourceNameV2:  "POST /uploads/:document_id",
 			out: &pb.Span{
-				Service:  "otlpresourcenoservicename",
+				Service:  traceutil.DefaultOTLPServiceName,
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -2257,7 +2257,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			resourceNameV1:  "test-resource",
 			resourceNameV2:  "test-resource",
 			out: &pb.Span{
-				Service:  "test-service",
+				Service:  traceutil.DefaultOTLPServiceName,
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -2265,8 +2265,6 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				Duration: 200000000,
 				Error:    1,
 				Meta: map[string]string{
-					"env":                  "test-env",
-					"version":              "test-version",
 					"span.kind":            "test-kind",
 					"otel.trace_id":        "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":     "Unset",

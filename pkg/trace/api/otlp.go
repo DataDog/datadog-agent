@@ -33,6 +33,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	semconv117 "go.opentelemetry.io/collector/semconv/v1.17.0"
+	semconv127 "go.opentelemetry.io/collector/semconv/v1.27.0"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -287,19 +288,18 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	if o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
 		hostname = ""
 	}
-	if incomingHostname := traceutil.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogHost); incomingHostname != "" {
+	if incomingHostname := traceutil.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogHost); incomingHostname != "" {
 		hostname = incomingHostname
 	}
 
-	containerID := traceutil.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogContainerID)
+	containerID := traceutil.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogContainerID)
 	if containerID == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
 		containerID = traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
 	}
 
-	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
-	env := traceutil.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogEnvironment)
+	env := traceutil.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogEnvironment)
 	if env == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
-		env = traceutil.GetOTelAttrVal(resourceAttributes, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
+		env = traceutil.GetOTelAttrVal(resourceAttributes, true, semconv127.AttributeDeploymentEnvironmentName, semconv.AttributeDeploymentEnvironment)
 	}
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:      hostname,
@@ -361,8 +361,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	if !srcok {
 		hostFromMap(rattr, "_dd.hostname")
 	}
-	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
-	_, env := transform.GetFirstFromMap(rattr, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
+	_, env := transform.GetFirstFromMap(rattr, semconv127.AttributeDeploymentEnvironmentName, semconv.AttributeDeploymentEnvironment)
 	lang := rattr[string(semconv.AttributeTelemetrySDKLanguage)]
 	if lang == "" {
 		lang = fastHeaderGet(httpHeader, header.Lang)
@@ -619,8 +618,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		return true
 	})
 	if _, ok := span.Meta["env"]; !ok {
-		// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
-		if _, env := transform.GetFirstFromMap(span.Meta, "deployment.environment.name", semconv.AttributeDeploymentEnvironment); env != "" {
+		if _, env := transform.GetFirstFromMap(span.Meta, semconv127.AttributeDeploymentEnvironmentName, semconv.AttributeDeploymentEnvironment); env != "" {
 			transform.SetMetaOTLP(span, "env", traceutil.NormalizeTag(env))
 		}
 	}
