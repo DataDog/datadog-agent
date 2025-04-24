@@ -29,7 +29,6 @@ func buildProduceVersionTest(name string, version *kversion.Versions, targetAddr
 	return protocolClassificationAttributes{
 		name: name,
 		context: testContext{
-			serverPort:    kafkaPort,
 			targetAddress: targetAddress,
 			serverAddress: serverAddress,
 			extras: map[string]interface{}{

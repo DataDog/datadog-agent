@@ -54,39 +54,6 @@ send_pipeline_stats:
     - !reference [.notify_setup]
     - dda inv -- -e notify.send-stats
 
-notify_github:
-  extends: .notify-job
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:arm64"]
-  rules:
-    - !reference [.on_dev_branches]
-    - if: $RELEASE_VERSION != ""
-      changes:
-        paths:
-          - '**/*.go'
-        compare_to: $COMPARE_TO_BRANCH
-      when: on_success
-    - when: never
-  needs:
-    - job: "deploy_deb_testing-a7_x64"
-      optional: true
-  dependencies: []
-  script:
-    - !reference [.setup_agent_github_app]
-    # Python 3.12 changes default behavior how packages are installed.
-    # In particular, --break-system-packages command line option is
-    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
-    - python3 -m dda self dep sync -f legacy-tasks
-    - messagefile="$(mktemp)"
-    - echo "Use this command from [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) to manually test this PR changes on a VM:" >> "$messagefile"
-    - echo '```sh' >> "$messagefile"
-    - echo "dda inv aws.create-vm --pipeline-id=$CI_PIPELINE_ID --os-family=ubuntu" >> "$messagefile"
-    - echo '```' >> "$messagefile"
-    - 'echo "Note: This applies to commit **$CI_COMMIT_SHORT_SHA**" >> "$messagefile"'
-    - dda inv -- -e github.pr-commenter --title "Test changes on VM" --body "$(cat "$messagefile")" --echo
-    - rm "$messagefile"
-
 notify_gitlab_ci_changes:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   extends: .notify-job
