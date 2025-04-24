@@ -145,3 +145,13 @@ func TestShowAgentTelemetryCommand(t *testing.T) {
 			require.Equal(t, payloadName("agent-telemetry"), payload)
 		})
 }
+
+func TestShowFullAgentTelemetryCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"diagnose", "show-metadata", "agent-full-telemetry"},
+		printAgentFullTelemetry,
+		func(payload payloadName) {
+			require.Equal(t, payloadName("agent-full-telemetry"), payload)
+		})
+}

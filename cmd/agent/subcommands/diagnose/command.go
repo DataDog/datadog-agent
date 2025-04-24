@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"sort"
 	"strings"
@@ -326,13 +325,13 @@ This command print the security-agent metadata payload. This payload is used by 
 	agentFullTelemetryCmd := &cobra.Command{
 		Use:   "agent-full-telemetry",
 		Short: "[internal] Print the full agent telemetry metrics exposed by the agent",
+		Long:  `.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			payload, err := queryAgentTelemetry()
-			if err != nil {
-				return err
-			}
-			fmt.Print(string(payload))
-			return nil
+			return fxutil.OneShot(printAgentFullTelemetry,
+				fx.Supply(payloadName("agent-full-telemetry")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
 		},
 	}
 
@@ -483,12 +482,22 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnose.Config) (*diagnose.Result
 	return &diagnoses, nil
 }
 
-// queryAgentTelemetry gets the full telemetry payload exposed by the agent
-func queryAgentTelemetry() ([]byte, error) {
-	r, err := http.Get(fmt.Sprintf("http://localhost:%s/telemetry", pkgconfigsetup.Datadog().GetString("expvar_port")))
+// printAgentFullTelemetry gets the full telemetry payload exposed by the agent
+func printAgentFullTelemetry(config config.Component) error {
+	c := util.GetClient()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
 	if err != nil {
-		return nil, err
+		return err
+	}
+	r, err := c.Get(fmt.Sprintf("http://%s:%s/telemetry", ipcAddress, config.GetString("expvar_port")))
+	if err != nil {
+		return err
 	}
 	defer r.Body.Close()
-	return io.ReadAll(r.Body)
+	result, err := io.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(result))
+	return nil
 }
