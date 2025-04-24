@@ -85,7 +85,7 @@ func (pt *ProcessTracker) Stop() {
 
 func (pt *ProcessTracker) handleProcessStart(pid uint32) {
 	exePath := filepath.Join(pt.procRoot, strconv.FormatUint(uint64(pid), 10), "exe")
-	log.Infof("Handling process start for %d %s", pid, exePath)
+	log.Tracef("Handling process start for %d %s", pid, exePath)
 	go pt.inspectBinary(exePath, pid)
 }
 
