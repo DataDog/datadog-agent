@@ -30,8 +30,8 @@ GATE_CONFIG_PATH = "test/static/static_quality_gates.yml"
 
 body_pattern = """### {}
 
-|Result|Quality gate|Relative disk size|On disk size|On disk size limit|Relative wire size|On wire size|On wire size limit|
-|--|----|----|------|------|----|------|------|
+||Quality gate|Disk size diff|On disk size|Wire size diff|On wire size|
+|--|--|--|--|--|--|
 """
 
 body_error_footer_pattern = """<details>
@@ -74,22 +74,29 @@ def display_pr_comment(
     # Sort gates by error_types to group in between NoError, AssertionError and StackTrace
     for gate in sorted(gate_states, key=lambda x: x["error_type"] is None):
 
-        def getMetric(metric_name, gate_name=gate['name']):
+        def getMetric(*metric_names, gate_name=gate['name'], show_sign=False):
             try:
-                return metric_handler.get_formatted_metric(gate_name, metric_name)
+                metric_number = len(metric_names)
+                if metric_number == 1:
+                    return metric_handler.get_formatted_metric(gate_name, metric_names[0], show_sign=show_sign)
+                elif metric_number == 2:
+                    return metric_handler.get_formatted_metric_comparison(gate_name, *metric_names)
+                else:
+                    return "InvalidMetricParam"
             except KeyError:
                 return "DataNotFound"
 
         gate_name = gate['name'].replace("static_quality_gate_", "")
-        relative_disk_size, relative_wire_size = get_formated_relative_size(
-            getMetric("relative_on_disk_size"), getMetric("relative_on_wire_size")
+        relative_disk_size, relative_wire_size = (
+            getMetric("relative_on_disk_size", show_sign=True),
+            getMetric("relative_on_wire_size", show_sign=True),
         )
 
         if gate["error_type"] is None:
-            body_info += f"|{SUCCESS_CHAR}|{gate_name}|{relative_disk_size}|{getMetric('current_on_disk_size')}|{getMetric('max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size')}|{getMetric('max_on_wire_size')}|\n"
+            body_info += f"|{SUCCESS_CHAR}|{gate_name}|{relative_disk_size}|{getMetric('current_on_disk_size', 'max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size', 'max_on_wire_size')}|\n"
             with_info = True
         else:
-            body_error += f"|{FAIL_CHAR}|{gate_name}|{relative_disk_size}|{getMetric('current_on_disk_size')}|{getMetric('max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size')}|{getMetric('max_on_wire_size')}|\n"
+            body_error += f"|{FAIL_CHAR}|{gate_name}|{relative_disk_size}|{getMetric('current_on_disk_size', 'max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size', 'max_on_wire_size')}|\n"
             error_message = gate['message'].replace('\n', '<br>')
             body_error_footer += f"|{gate_name}|{gate['error_type']}|{error_message}|\n"
             with_error = True
