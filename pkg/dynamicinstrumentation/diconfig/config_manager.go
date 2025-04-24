@@ -199,7 +199,7 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 
 		runtimeID, err := uuid.ParseBytes([]byte(configEventParams[0].ValueStr))
 		if err != nil {
-			log.Errorf("Runtime ID \"%s\" is not a UUID: %d %s %v", configEventParams[0].ValueStr, procInfo.PID, procInfo.ServiceName, err)
+			log.Errorf("error parsing event uuid: \"%s\" is not a uuid: %d %s %v", configEventParams[0].ValueStr, procInfo.PID, procInfo.ServiceName, err)
 			continue
 		}
 
@@ -268,7 +268,7 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 }
 
 func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
-	log.Debugf("Applying config update for: %d %s %s (ID: %s)\n", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID)
+	log.Infof("Applying config update for: %d %s %s (ID: %s)\n", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID)
 	for {
 		if err := tryGenerateAndAttach(procInfo, probe); err == nil {
 			return

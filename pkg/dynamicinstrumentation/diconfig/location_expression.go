@@ -55,7 +55,6 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 		for pathElementIndex := range pathElements {
 			var elementParam *ditypes.Parameter = getParamFromTriePaths(pathElements[pathElementIndex])
 			if elementParam == nil {
-				log.Infof("Path not found to target: %s", pathElements[pathElementIndex])
 				continue
 			}
 			// Check if this instrumentation target is directly assigned

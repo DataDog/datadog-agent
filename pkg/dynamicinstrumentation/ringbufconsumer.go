@@ -45,7 +45,7 @@ func (goDI *GoDI) startRingbufferConsumer(rate float64) (func(), error) {
 			}
 			err = r.ReadInto(&record)
 			if err != nil {
-				log.Infof("couldn't read event off ringbuffer: %s", err.Error())
+				log.Errorf("couldn't read event off ringbuffer: %s", err.Error())
 				continue
 			}
 

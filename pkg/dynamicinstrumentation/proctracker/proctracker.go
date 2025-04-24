@@ -145,14 +145,14 @@ func (pt *ProcessTracker) inspectBinary(exePath string, pid uint32) {
 	f, err := os.Open(exePath)
 	if err != nil {
 		// this should be a debug log, but we want to know if this happens
-		log.Infof("could not open file for %s: %s, %s", serviceName, binPath, err)
+		log.Errorf("could not open file for %s: %s, %s", serviceName, binPath, err)
 		return
 	}
 	defer f.Close()
 
 	elfFile, err := safeelf.NewFile(f)
 	if err != nil {
-		log.Infof("binary file could not be parsed as an ELF file for %d %s: %s, %s", pid, serviceName, binPath, err)
+		log.Errorf("binary file could not be parsed as an ELF file for %d %s: %s, %s", pid, serviceName, binPath, err)
 		return
 	}
 	noStructs := make(map[bininspect.FieldIdentifier]bininspect.StructLookupFunction)
@@ -164,13 +164,13 @@ func (pt *ProcessTracker) inspectBinary(exePath string, pid uint32) {
 	}
 	_, err = bininspect.InspectNewProcessBinary(elfFile, functionsConfig, noStructs)
 	if err != nil {
-		log.Infof("error reading binary for %d %s: %s, %s", pid, serviceName, binPath, err)
+		log.Errorf("error reading binary for %d %s: %s, %s", pid, serviceName, binPath, err)
 		return
 	}
 
 	var stat syscall.Stat_t
 	if err = syscall.Stat(binPath, &stat); err != nil {
-		log.Infof("error stating binary for %d %s: %s, %s", pid, serviceName, binPath, err)
+		log.Errorf("error stating binary for %d %s: %s, %s", pid, serviceName, binPath, err)
 		return
 	}
 	binID := binaryID{
