@@ -274,27 +274,27 @@ deploy_containers_latest-a7:
     - job: deploy_containers-a7-full
   parallel:
     matrix:
-      - IMG_NEW_TAG: 7,latest
+      - IMG_NEW_TAGS: 7,latest
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}
-      - IMG_NEW_TAG: 7-jmx,latest-jmx
+      - IMG_NEW_TAGS: 7-jmx,latest-jmx
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-jmx
-      - IMG_NEW_TAG: 7-servercore,latest-servercore
+      - IMG_NEW_TAGS: 7-servercore,latest-servercore
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore
-      - IMG_NEW_TAG: 7-servercore-jmx,latest-servercore-jmx
+      - IMG_NEW_TAGS: 7-servercore-jmx,latest-servercore-jmx
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-jmx
-      - IMG_NEW_TAG: 7-ltsc2019,latest-ltsc2019
+      - IMG_NEW_TAGS: 7-ltsc2019,latest-ltsc2019
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-ltsc2019
-      - IMG_NEW_TAG: 7-ltsc2022,latest-ltsc2022
+      - IMG_NEW_TAGS: 7-ltsc2022,latest-ltsc2022
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-ltsc2022
-      - IMG_NEW_TAG: 7-servercore-ltsc2019,latest-servercore-ltsc2019
+      - IMG_NEW_TAGS: 7-servercore-ltsc2019,latest-servercore-ltsc2019
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-ltsc2019
-      - IMG_NEW_TAG: 7-servercore-ltsc2022,latest-servercore-ltsc2022
+      - IMG_NEW_TAGS: 7-servercore-ltsc2022,latest-servercore-ltsc2022
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-ltsc2022
-      - IMG_NEW_TAG: 7-servercore-ltsc2019-jmx,latest-servercore-ltsc2019-jmx
+      - IMG_NEW_TAGS: 7-servercore-ltsc2019-jmx,latest-servercore-ltsc2019-jmx
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-ltsc2019-jmx
-      - IMG_NEW_TAG: 7-servercore-ltsc2022-jmx,latest-servercore-ltsc2022-jmx
+      - IMG_NEW_TAGS: 7-servercore-ltsc2022-jmx,latest-servercore-ltsc2022-jmx
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-ltsc2022-jmx
-      - IMG_NEW_TAG: 7-full,latest-full
+      - IMG_NEW_TAGS: 7-full,latest-full
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-full
 
 deploy_containers_latest-a7_internal:
@@ -309,16 +309,16 @@ deploy_containers_latest-a7_internal:
     - job: deploy_containers-a7-full-internal
   parallel:
     matrix:
-      - IMG_NEW_TAG: 7-jmx
+      - IMG_NEW_TAGS: 7-jmx
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-jmx
       # Full image: for linux we need 7-full tag, for windows we need 7-jmx
-      - IMG_NEW_TAG: 7-full
+      - IMG_NEW_TAGS: 7-full
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-full
       # ot-beta image: linux only for now
-      - IMG_NEW_TAG: 7-ot-beta-jmx
+      - IMG_NEW_TAGS: 7-ot-beta-jmx
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-ot-beta-jmx
       # fips image: linux only for now
-      - IMG_NEW_TAG: 7-fips-jmx
+      - IMG_NEW_TAGS: 7-fips-jmx
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-fips-jmx
 
 deploy_containers_latest-dogstatsd:
@@ -331,7 +331,7 @@ deploy_containers_latest-dogstatsd:
   before_script:
     - VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_TAG_REFERENCE=${DSD_REPOSITORY}:${VERSION}
-    - export IMG_NEW_TAG=7,latest
+    - export IMG_NEW_TAGS=7,latest
 
 deploy_containers_latest-a7-ot:
   extends: .deploy_containers_latest_base
@@ -342,9 +342,9 @@ deploy_containers_latest-a7-ot:
     - job: deploy_containers-a7-ot
   parallel:
     matrix:
-      - IMG_NEW_TAG: 7-ot-beta
+      - IMG_NEW_TAGS: 7-ot-beta
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-ot-beta
-      - IMG_NEW_TAG: 7-ot-beta-jmx
+      - IMG_NEW_TAGS: 7-ot-beta-jmx
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-ot-beta-jmx
 
 deploy_containers_latest-a7-fips:
@@ -356,9 +356,9 @@ deploy_containers_latest-a7-fips:
     - job: deploy_containers-a7-fips
   parallel:
     matrix:
-      - IMG_NEW_TAG: 7-fips
+      - IMG_NEW_TAGS: 7-fips
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-fips
-      - IMG_NEW_TAG: 7-fips-jmx
+      - IMG_NEW_TAGS: 7-fips-jmx
         IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-fips-jmx
 
 #
