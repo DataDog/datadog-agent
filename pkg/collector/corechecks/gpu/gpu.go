@@ -9,6 +9,7 @@ package gpu
 
 import (
 	"fmt"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 
@@ -331,7 +332,7 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 
 	for _, container := range containers {
 		for _, resource := range container.AllocatedResources {
-			if resource.Name == "nvidia.com/gpu" {
+			if resource.Name == "nvidia.com/gpu" || strings.HasPrefix(resource.Name, "nvidia.com/mig") {
 				gpuToContainers[resource.ID] = append(gpuToContainers[resource.ID], container)
 			}
 		}

@@ -9,6 +9,7 @@ package gpu
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -20,6 +21,7 @@ import (
 )
 
 const nvidiaResourceName = "nvidia.com/gpu"
+const nvidiaMigResourceName = "nvidia.com/mig"
 
 // systemContext holds certain attributes about the system that are used by the GPU probe.
 type systemContext struct {
@@ -178,7 +180,7 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 	numContainerGPUs := 0
 	for _, resource := range container.AllocatedResources {
 		// Only consider NVIDIA GPUs
-		if resource.Name != nvidiaResourceName {
+		if resource.Name != nvidiaResourceName && !strings.HasPrefix(resource.Name, nvidiaMigResourceName) {
 			continue
 		}
 
