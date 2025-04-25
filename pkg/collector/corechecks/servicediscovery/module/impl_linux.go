@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -337,13 +338,17 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 
 	services := make([]model.Service, 0)
 
+	procRoot := kernel.ProcFSRoot()
 	pids, err := process.Pids()
 	if err != nil {
 		utils.WriteAsJSON(w, "could not get PIDs", utils.CompactOutput)
 		return
 	}
 
-	context := newParsingContext()
+	context := parsingContext{
+		procRoot:  procRoot,
+		netNsInfo: make(map[uint32]*namespaceInfo),
+	}
 
 	containers := s.getContainersMap()
 	containerTagsCache := make(map[string][]string)
@@ -378,6 +383,38 @@ func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
 	}
 
 	utils.WriteAsJSON(w, services, utils.CompactOutput)
+}
+
+const prefix = "socket:["
+
+// getSockets get a list of socket inode numbers opened by a process
+func getSockets(pid int32) ([]uint64, error) {
+	statPath := kernel.HostProc(fmt.Sprintf("%d/fd", pid))
+	d, err := os.Open(statPath)
+	if err != nil {
+		return nil, err
+	}
+	defer d.Close()
+	fnames, err := d.Readdirnames(-1)
+	if err != nil {
+		return nil, err
+	}
+	var sockets []uint64
+	for _, fd := range fnames {
+		fullPath, err := os.Readlink(filepath.Join(statPath, fd))
+		if err != nil {
+			continue
+		}
+		if strings.HasPrefix(fullPath, prefix) {
+			sock, err := strconv.ParseUint(fullPath[len(prefix):len(fullPath)-1], 10, 64)
+			if err != nil {
+				continue
+			}
+			sockets = append(sockets, sock)
+		}
+	}
+
+	return sockets, nil
 }
 
 // socketInfo stores information related to each socket.
@@ -537,17 +574,8 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 // parsingContext holds temporary context not preserved between invocations of
 // the endpoint.
 type parsingContext struct {
-	procRoot       string
-	netNsInfo      map[uint32]*namespaceInfo
-	readlinkBuffer []byte
-}
-
-func newParsingContext() parsingContext {
-	return parsingContext{
-		procRoot:       kernel.ProcFSRoot(),
-		netNsInfo:      make(map[uint32]*namespaceInfo),
-		readlinkBuffer: make([]byte, readlinkBufferSize),
-	}
+	procRoot  string
+	netNsInfo map[uint32]*namespaceInfo
 }
 
 // addIgnoredPid store excluded pid.
@@ -640,7 +668,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 const maxNumberOfPorts = 50
 
 func (s *discovery) getPorts(context parsingContext, pid int32) ([]uint16, error) {
-	sockets, err := getSockets(pid, context.readlinkBuffer)
+	sockets, err := getSockets(pid)
 	if err != nil {
 		return nil, err
 	}
@@ -1099,12 +1127,16 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
+	procRoot := kernel.ProcFSRoot()
 	pids, err := process.Pids()
 	if err != nil {
 		return nil, err
 	}
 
-	context := newParsingContext()
+	context := parsingContext{
+		procRoot:  procRoot,
+		netNsInfo: make(map[uint32]*namespaceInfo),
+	}
 
 	response := &model.ServicesResponse{
 		StartedServices:   make([]model.Service, 0, len(s.potentialServices)),

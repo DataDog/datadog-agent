@@ -19,6 +19,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // TestShouldIgnorePid check cases of ignored and non-ignored services
@@ -75,7 +77,10 @@ func TestShouldIgnorePid(t *testing.T) {
 			}, 3*time.Second, 100*time.Millisecond)
 
 			// now can check the ignored service
-			discoveryCtx := newParsingContext()
+			discoveryCtx := parsingContext{
+				procRoot:  kernel.ProcFSRoot(),
+				netNsInfo: make(map[uint32]*namespaceInfo),
+			}
 			service := discovery.getService(discoveryCtx, int32(cmd.Process.Pid))
 			if test.ignore {
 				require.Empty(t, service)
