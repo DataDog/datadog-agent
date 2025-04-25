@@ -450,7 +450,6 @@ func TestProxy(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			unsetEnvForTest(t, "NO_PROXY")
 
 			config := newTestConf(t)
 			config.SetWithoutSource("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)
@@ -1198,7 +1197,6 @@ process_config:
 `)
 
 func TestConfigAssignAtPath(t *testing.T) {
-	unsetEnvForTest(t, "NO_PROXY")
 
 	config := newTestConf(t)
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
@@ -1255,7 +1253,6 @@ use_proxy_for_cloud_metadata: true
 }
 
 func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
-	unsetEnvForTest(t, "NO_PROXY")
 
 	config := newTestConf(t)
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
@@ -1298,7 +1295,6 @@ secret_backend_arguments:
 `)
 
 func TestConfigAssignAtPathSimple(t *testing.T) {
-	unsetEnvForTest(t, "NO_PROXY")
 
 	config := newTestConf(t)
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
@@ -1328,7 +1324,6 @@ use_proxy_for_cloud_metadata: true
 }
 
 func TestConfigMustMatchOrigin(t *testing.T) {
-	unsetEnvForTest(t, "NO_PROXY")
 
 	testMinimalConf := []byte(`apm_config:
   apm_dd_url: ENC[some_url]
@@ -1404,7 +1399,6 @@ use_proxy_for_cloud_metadata: true
 }
 
 func TestConfigAssignAtPathForIntMapKeys(t *testing.T) {
-	unsetEnvForTest(t, "NO_PROXY")
 
 	// Even if a map is using keys that looks like stringified ints, calling
 	// configAssignAtPath will still work correctly
