@@ -17,8 +17,6 @@ from tasks.libs.common.utils import (
     check_clean_branch_state,
     get_all_allowed_repo_branches,
     is_allowed_repo_branch,
-    nightly_entry_for,
-    release_entry_for,
 )
 from tasks.libs.pipeline_notifications import read_owners, send_slack_message
 from tasks.libs.pipeline_tools import (

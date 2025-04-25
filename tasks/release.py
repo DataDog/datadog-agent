@@ -25,8 +25,6 @@ from tasks.libs.common.utils import (
     RELEASE_JSON_DEPENDENCIES,
     check_clean_branch_state,
     get_version,
-    nightly_entry_for,
-    release_entry_for,
 )
 from tasks.libs.version import Version
 from tasks.pipeline import edit_schedule, run
@@ -561,7 +559,7 @@ def _fetch_dependency_repo_version(
     return version
 
 
-def _get_jmxfetch_release_json_info(release_json, agent_major_version, is_first_rc=False):
+def _get_jmxfetch_release_json_info(release_json):
     """
     Gets the JMXFetch version info from the previous entries in the release.json file.
     """
@@ -576,7 +574,7 @@ def _get_jmxfetch_release_json_info(release_json, agent_major_version, is_first_
     return jmxfetch_version, jmxfetch_shasum
 
 
-def _get_windows_release_json_info(release_json, agent_major_version, is_first_rc=False):
+def _get_windows_release_json_info(release_json):
     """
     Gets the Windows NPM driver info from the previous entries in the release.json file.
     """
@@ -624,7 +622,6 @@ def _get_windows_driver_info(release_json_version_data, driver_name):
 
 def _update_release_json_entry(
     release_json,
-    release_entry,
     integrations_version,
     omnibus_ruby_version,
     jmxfetch_version,
@@ -668,7 +665,7 @@ def _update_release_json_entry(
         new_release_json[key] = value
 
     # Then update the entry
-    new_release_json[release_entry] = _stringify_config(new_version_config)
+    new_release_json[RELEASE_JSON_DEPENDENCIES] = _stringify_config(new_version_config)
 
     return new_release_json
 
@@ -678,7 +675,7 @@ def _update_release_json_entry(
 ##
 
 
-def _update_release_json(release_json, release_entry, new_version: Version, max_version: Version):
+def _update_release_json(release_json, new_version: Version, max_version: Version):
     """
     Updates the provided release.json object by fetching compatible versions for all dependencies
     of the provided Agent version, constructing the new entry, adding it to the release.json object
@@ -750,7 +747,6 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
     # Add new entry to the release.json object and return it
     return _update_release_json_entry(
         release_json,
-        release_entry,
         integrations_version,
         omnibus_ruby_version,
         jmxfetch_version,
@@ -772,11 +768,10 @@ def update_release_json(new_version: Version, max_version: Version):
     """
     release_json = _load_release_json()
 
-    release_entry = release_entry_for(new_version.major)
-    print(f"Updating {release_entry} for {new_version}")
+    print(f"Updating release.json for {new_version}")
 
     # Update release.json object with the entry for the new version
-    release_json = _update_release_json(release_json, release_entry, new_version, max_version)
+    release_json = _update_release_json(release_json, new_version, max_version)
 
     _save_release_json(release_json)
 

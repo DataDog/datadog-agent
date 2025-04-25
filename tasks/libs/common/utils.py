@@ -572,14 +572,6 @@ def load_dependencies(_):
 ##
 
 
-def nightly_entry_for(_):
-    return "nightly"
-
-
-def release_entry_for(_):
-    return "release"
-
-
 def check_clean_branch_state(ctx, github, branch):
     """
     Check we are in a clean situation to create a new branch:
