@@ -29,7 +29,7 @@ GATE_CONFIG_PATH = "test/static/static_quality_gates.yml"
 
 body_pattern = """### {}
 
-||Quality gate|Disk size diff (MiB)|On disk size (MiB)|Wire size diff (MiB)|On wire size (MiB)|
+||Quality gate|Variance|On disk size (MiB)|Variance|On wire size (MiB)|
 |--|--|--|--|--|--|
 """
 
@@ -185,7 +185,9 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
 
     github = GithubAPI()
     if github.get_pr_for_branch(branch).totalCount > 0:
-        metric_handler.generate_relative_size(ctx, ancestor=get_common_ancestor(ctx, "HEAD"))
+        ancestor = get_common_ancestor(ctx, "HEAD")
+        print(f"[DEBUG] {ancestor}")
+        metric_handler.generate_relative_size(ctx, ancestor=ancestor)
         display_pr_comment(ctx, final_state == "success", gate_states, metric_handler)
 
     # Generate PR to update static quality gates threshold once per day (scheduled main pipeline by conductor)
