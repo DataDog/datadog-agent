@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
+	fs "github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -61,9 +62,6 @@ var securityAgentConfig string
 
 //go:embed fixtures/security-agent-disabled.yaml
 var securityAgentConfigDisabled string
-
-// driver services that start up and shut down with system probe.
-var driverServices := [2]string{"ddnpm", "ddprocmon"}
 
 // TestServiceBehaviorAgentCommandNoFIM tests the service behavior when controlled by Agent commands
 func TestNoFIMServiceBehaviorAgentCommand(t *testing.T) {
@@ -664,13 +662,11 @@ func (s *baseStartStopSuite) assertAllServicesState(expected string) {
 }
 
 func (s *baseStartStopSuite) assertServiceState(expected string, serviceName string) {
-	stateAttained := false
 	host := s.Env().RemoteHost
 
 	s.Assert().EventuallyWithT(func(c *assert.CollectT) {
 		status, err := windowsCommon.GetServiceStatus(host, serviceName)
 		if !assert.NoError(c, err) {
-			stateAttained = true
 			return
 		}
 		if !assert.Equal(c, expected, status, "%s should be %s", serviceName, expected) {
@@ -678,9 +674,9 @@ func (s *baseStartStopSuite) assertServiceState(expected string, serviceName str
 		}
 	}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
 
-	if !stateAttained && slices.Contains(driverServices. serviceName)
+	if s.T().Failed() && slices.Contains(s.getInstalledKernelServices(), serviceName) {
 		// if a driver service failed to get to the expected state, capture a kernel dump for debugging.
-		s.T().Logf("Capturing live kernel dump due to %s not in %s state", serviceName, expected)
+		s.T().Logf("capturing live kernel dump due to %s not in %s state\n", serviceName, expected)
 		captureLiveKernelDump(s.dumpFolder)
 	}
 }
@@ -791,14 +787,44 @@ func (s *baseStartStopSuite) sendHostMemoryMetrics(host *components.RemoteHost) 
 
 // captureLiveKernelDump sends a commnad to the host to create a live kernel dump.
 func (s *baseStartStopSuite) captureLiveKernelDump(dumpDir string) {
-	getSubsystemCmd := `$ss = Get-CimInstance -ClassName MSFT_StorageSubSystem -Namespace Root\Microsoft\Windows\Storage`
-    createLiveDumpCmd := fmt.Sprintf(`Invoke-CimMethod -InputObject $ss -MethodName "GetDiagnosticInfo" -Arguments @{DestinationPath="%s"; IncludeLiveDump=$true}"`, dumpDir)
-    cmd := fmt.Sprintf("%s;%s", getSubsystemCmd, createLiveDumpCmd)
+	// Create a temporary directory for the dump to handle tool-specific layouts.
+	tempDir, err := os.MkdirTemp("", "ddkmdump")
+	if err != nil {
+		s.T().Logf("failed to create temp directory for live kernel dump: %s", err)
+		return err
+	}
 
+	defer os.RemoveAll(tempDir.Name)
+
+	// This Powershell command is originally tailored for a storage cluster environment.
+	getSubsystemCmd := `$ss = Get-CimInstance -ClassName MSFT_StorageSubSystem -Namespace Root\Microsoft\Windows\Storage`
+	createLiveDumpCmd := fmt.Sprintf(`Invoke-CimMethod -InputObject $ss -MethodName "GetDiagnosticInfo" -Arguments @{DestinationPath="%s"; IncludeLiveDump=$true}"`, tempDir.Name)
+	cmd := fmt.Sprintf("%s;%s", getSubsystemCmd, createLiveDumpCmd)
+
+	s.T().Logf("creating live kernel dump under %s\n", tempDir.Name)
 	out, err := host.Execute(cmd)
 	out = strings.TrimSpace(out)
-	if err == nil && out != "" {
-		s.T().Logf("PowerShell Live Dump output:\n%s", out)
+	if out != "" {
+		s.T().Logf("PowerShell live kernel dump output:\n%s", out)
 	}
-	return err
+
+	if err != nil {
+		return err
+	}
+
+	// The dump named LiveDump.dmp will be under a "localhost" subdirectory.
+	sourceDumpFile := fmt.Sprintf(`%s\localhost\LiveDump.dmp`, tempDir.Name)
+	if _, err := os.Stat(dumpFile); err != nil {
+		s.T().Logf("live kernel dump not found under %s: %s\n", sourceDumpFile, err)
+		return err
+	}
+
+	destDumpFile := fmt.Sprintf(`%s\LiveDump.dmp`, dumpDir)
+	err := fs.CopyFile(destDumpFile, sourceDumpFile)
+	if _, err := os.Stat(dumpFile); err != nil {
+		s.T().Logf("failed to copy %s to %s: %s\n", sourceDumpFile, destDumpFile, err)
+		return err
+	}
+
+	return nil
 }
