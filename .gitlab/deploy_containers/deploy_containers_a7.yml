@@ -123,6 +123,11 @@ deploy_containers-a7-full:
   rules:
     !reference [.manual_on_deploy_auto_on_rc]
 
+deploy_containers-a7-full-internal:
+  extends: .deploy_containers-a7-full-base
+  rules:
+    !reference [.on_internal_final]
+
 deploy_containers-a7-ot:
   extends: .deploy_containers-a7-base-ot
   rules:
@@ -253,6 +258,7 @@ deploy_containers-a7-fips_internal-rc:
       - JMX:
           - ""
           - "-jmx"
+
 #
 # Latest publication
 #
@@ -300,6 +306,7 @@ deploy_containers_latest-a7_internal:
     - job: deploy_containers-a7_internal
     - job: deploy_containers-a7-ot_internal
     - job: deploy_containers-a7-fips_internal
+    - job: deploy_containers-a7-full-internal
   parallel:
     matrix:
       - IMG_NEW_TAG: 7-jmx
