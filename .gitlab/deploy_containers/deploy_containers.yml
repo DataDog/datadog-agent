@@ -4,8 +4,6 @@
 
 deploy_containers-a7:
   stage: deploy_containers
-  rules:
-    !reference [.on_deploy]
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     BUCKET_BRANCH: $BUCKET_BRANCH
