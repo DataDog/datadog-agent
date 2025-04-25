@@ -661,10 +661,13 @@ workflow:
 .on_main_or_release_branch_or_deploy_manual:
   - <<: *if_deploy
     when: manual
+    allow_failure: true
   - <<: *if_main_branch
     when: manual
+    allow_failure: true
   - <<: *if_release_branch
     when: manual
+    allow_failure: true
 
 .on_all_builds:
   - <<: *if_run_all_builds
