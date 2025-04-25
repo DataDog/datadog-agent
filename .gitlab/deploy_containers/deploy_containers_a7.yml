@@ -50,7 +50,7 @@ include:
   stage: deploy_containers_latest
   dependencies: []
   before_script:
-    - VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
+    - VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export AGENT_REFERENCE=${AGENT_REPOSITORY}:${VERSION}
 
 .deploy_containers-a7_external:
