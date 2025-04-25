@@ -6,7 +6,7 @@ How to build the Agent docker image
 From the root of the repository, run the following command:
 
 ```
-docker run --rm -it -v "${pwd}:c:\mnt" -e OMNIBUS_TARGET=main -e MAJOR_VERSION=7 -e RELEASE_VERSION=nightly -e PY_RUNTIMES=3 datadog/agent-buildimages-windows_x64:1809 powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
+docker run --rm -it -v "${pwd}:c:\mnt" -e OMNIBUS_TARGET=main -e MAJOR_VERSION=7 datadog/agent-buildimages-windows_x64:1809 powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
 ```
 
 The build artifacts will be in `omnibus\pkg`.
