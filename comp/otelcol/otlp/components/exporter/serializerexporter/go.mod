@@ -4,13 +4,13 @@ go 1.23.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/metrics v0.59.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/proto v0.64.2
+	github.com/DataDog/datadog-agent/pkg/proto v0.66.0-devel
 	github.com/DataDog/datadog-agent/pkg/serializer v0.59.0
 	github.com/DataDog/datadog-agent/pkg/tagset v0.60.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.2
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.26.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.26.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.27.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.27.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.27.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.123.0
 	github.com/stretchr/testify v1.10.0
@@ -162,7 +162,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/create v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.26.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.27.0
 	github.com/google/go-cmp v0.7.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.123.0
 	go.opentelemetry.io/collector/component/componenttest v0.123.0
