@@ -19,16 +19,18 @@ def post(install_directory, storage_location, skip_flag=False):
             # by default, we persist third party integrations
             persist_third_party_integration = True
 
-            # using DD_SKIP_INSTALL_THIRD_PARTY_INTEGRATIONS in the agent install script will create this file
-            flag_path = os.path.join(storage_location, ".skip_install_python_third_party_deps")
+            # if skip_flag is True no need check for the file flag
+            if not skip_flag:
+                # using DD_SKIP_INSTALL_THIRD_PARTY_INTEGRATIONS in the agent install script will create this file
+                flag_path = os.path.join(storage_location, ".skip_install_python_third_party_deps")
 
-            if os.path.exists(flag_path):
-                with open(flag_path, "r") as f:
-                    flag_content = f.read()
-                    if flag_content.strip().lower() in ["y", "yes", "true", "1", ""]:
-                        persist_third_party_integration = False
-            
-            if persist_third_party_integration or skip_flag:
+                if os.path.exists(flag_path):
+                    with open(flag_path, "r") as f:
+                        flag_content = f.read()
+                        if flag_content.strip().lower() in ["y", "yes", "true", "1", ""]:
+                            persist_third_party_integration = False
+
+            if persist_third_party_integration:
                 diff_python_installed_packages_file = packages.diff_python_installed_packages_file(storage_location)
                 if os.path.exists(diff_python_installed_packages_file):
                     requirements_agent_release_file = packages.requirements_agent_release_file(install_directory)
@@ -39,7 +41,7 @@ def post(install_directory, storage_location, skip_flag=False):
                     print(f"File '{diff_python_installed_packages_file}' not found.")
                     return 0
             else:
-                print(f"File '{flag_path}' found with an affirmative value: no third party integration will be installed.")
+                print(f"No third party integration will be installed.")
                 return 0
         else:
             print(f"Directory '{install_directory}' and '{storage_location}' not found.")
