@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
-	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	"github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 )
 
@@ -23,7 +22,6 @@ const cmdServerShortName string = "CMD"
 
 func (server *apiServer) startCMDServer(
 	cmdAddr string,
-	tmf observability.TelemetryMiddlewareFactory,
 ) (err error) {
 	// get the transport we're going to use under HTTP
 	server.cmdListener, err = getListener(cmdAddr)
@@ -62,8 +60,8 @@ func (server *apiServer) startCMDServer(
 	cmdMux.Handle("/", gwmux)
 
 	// Add some observability in the API server
-	cmdMuxHandler := tmf.Middleware(cmdServerShortName)(cmdMux)
-	cmdMuxHandler = observability.LogResponseHandler(cmdServerName)(cmdMuxHandler)
+	cmdMuxHandler := server.apiObserver.TelemetryMiddleware(cmdServerShortName, server.authTagGetter)(cmdMux)
+	cmdMuxHandler = server.apiObserver.LogResponseMiddleware(cmdServerName)(cmdMuxHandler)
 
 	tlsConfig := server.authToken.GetTLSServerConfig()
 

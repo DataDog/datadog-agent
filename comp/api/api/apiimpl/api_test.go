@@ -16,8 +16,9 @@ import (
 
 	"golang.org/x/net/http2"
 
-	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apiobserver "github.com/DataDog/datadog-agent/comp/api/apiobserver/def"
+	apiobserverfx "github.com/DataDog/datadog-agent/comp/api/apiobserver/fx"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
@@ -61,6 +62,7 @@ func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option
 		telemetryimpl.MockModule(),
 		config.MockModule(),
 		grpcNonefx.Module(),
+		apiobserverfx.Module(),
 		fx.Options(fxOptions...),
 	)
 }
@@ -127,7 +129,7 @@ func TestStartBothServersWithObservability(t *testing.T) {
 		},
 	}
 
-	expectedMetricName := fmt.Sprintf("%s__%s", observability.MetricSubsystem, observability.MetricName)
+	expectedMetricName := fmt.Sprintf("%s__%s", apiobserver.MetricSubsystem, apiobserver.MetricName)
 	for _, tc := range testCases {
 		t.Run(tc.serverName, func(t *testing.T) {
 			url := fmt.Sprintf("https://%s/this_does_not_exist", tc.addr)

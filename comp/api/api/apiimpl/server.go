@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
@@ -49,18 +48,14 @@ func (server *apiServer) startServers() error {
 		return fmt.Errorf("unable to get IPC address and port: %v", err)
 	}
 
-	authTagGetter, err := authTagGetter(server.authToken.GetTLSServerConfig())
+	server.authTagGetter, err = authTagGetter(server.authToken.GetTLSServerConfig())
 	if err != nil {
 		return fmt.Errorf("unable to load the IPC certificate: %v", err)
 	}
 
-	// create the telemetry middleware
-	tmf := observability.NewTelemetryMiddlewareFactory(server.telemetry, authTagGetter)
-
 	// start the CMD server
 	if err := server.startCMDServer(
 		apiAddr,
-		tmf,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}
@@ -70,7 +65,7 @@ func (server *apiServer) startServers() error {
 		ipcServerHost := server.cfg.GetString("agent_ipc.host")
 		ipcServerHostPort := net.JoinHostPort(ipcServerHost, strconv.Itoa(ipcServerPort))
 
-		if err := server.startIPCServer(ipcServerHostPort, tmf); err != nil {
+		if err := server.startIPCServer(ipcServerHostPort); err != nil {
 			// if we fail to start the IPC server, we should stop the CMD server
 			server.stopServers()
 			return fmt.Errorf("unable to start IPC API server: %v", err)

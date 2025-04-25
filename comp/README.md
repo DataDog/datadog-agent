@@ -60,6 +60,10 @@ Package api implements the "api" bundle,
 
 Package def implements the internal Agent API component definitions which exposes endpoints such as config, flare or status
 
+### [comp/api/apiobserver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api/apiobserver)
+
+Package apiobserver provides telemetry middleware for api servers
+
 ### [comp/api/authtoken](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api/authtoken)
 
 Package authtoken implements the creation and access to the auth_token used to communicate between Agent processes.

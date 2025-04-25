@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observability
+package apiobserverimpl
 
 import (
 	"fmt"
@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apiobserver "github.com/DataDog/datadog-agent/comp/api/apiobserver/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -56,8 +57,8 @@ func TestTelemetryMiddleware(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			clock := clock.NewMock()
 			telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-			tm := newTelemetryMiddlewareFactory(telemetry, clock, NoopAuthTagGetter)
-			telemetryHandler := tm.Middleware(serverName)
+			tm := newComponentWithClock(telemetry, clock)
+			telemetryHandler := tm.Comp.TelemetryMiddleware(serverName, NoopAuthTagGetter)
 
 			var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {
 				clock.Add(tc.duration)
@@ -79,7 +80,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 			require.NoError(t, err)
 			resp.Body.Close()
 
-			observabilityMetric, err := telemetry.GetHistogramMetric(MetricSubsystem, MetricName)
+			observabilityMetric, err := telemetry.GetHistogramMetric(apiobserver.MetricSubsystem, apiobserver.MetricName)
 			require.NoError(t, err)
 
 			require.Len(t, observabilityMetric, 1)
@@ -103,7 +104,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 
 func TestTelemetryMiddlewareDuration(t *testing.T) {
 	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	telemetryHandler := NewTelemetryMiddlewareFactory(telemetry, NoopAuthTagGetter).Middleware("test")
+	telemetryHandler := NewComponent(Requires{telemetry}).Comp.TelemetryMiddleware("test", NoopAuthTagGetter)
 
 	var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -123,13 +124,13 @@ func TestTelemetryMiddlewareDuration(t *testing.T) {
 
 func TestTelemetryMiddlewareTwice(t *testing.T) {
 	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	tm := NewTelemetryMiddlewareFactory(telemetry, NoopAuthTagGetter)
+	tm := NewComponent(Requires{telemetry})
 
 	// test that we can create multiple middleware instances
 	// Prometheus metrics can be registered only once, this test enforces that the metric
 	// is not created in the Middleware itself
-	_ = tm.Middleware("test1")
-	_ = tm.Middleware("test2")
+	_ = tm.Comp.TelemetryMiddleware("test1", NoopAuthTagGetter)
+	_ = tm.Comp.TelemetryMiddleware("test2", NoopAuthTagGetter)
 }
 
 func NoopAuthTagGetter(_ *http.Request) string {
