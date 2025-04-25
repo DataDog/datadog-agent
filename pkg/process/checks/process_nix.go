@@ -100,7 +100,7 @@ func warnECSFargateMisconfig(containers []*model.Container) {
 	}
 }
 
-// isECSFargatePidModeSetToTask checks if pidMode is set to task in task to allow for process collection and assumes the method is called in a fargate environment
+// isECSFargatePidModeSetToTask checks if pidMode is set to task in task definition to allow for process collection and assumes the method is called in a fargate environment
 func isECSFargatePidModeSetToTask(containers []*model.Container) bool {
 	// aws-fargate-pause container only exists when "pidMode" is set to "task" on ecs fargate
 	ecsContainerNameTag := fmt.Sprintf("%s:%s", tags.EcsContainerName, "aws-fargate-pause")
