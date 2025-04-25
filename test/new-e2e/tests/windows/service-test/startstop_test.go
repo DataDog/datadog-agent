@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
-	fs "github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -663,7 +662,6 @@ func (s *baseStartStopSuite) assertAllServicesState(expected string) {
 
 func (s *baseStartStopSuite) assertServiceState(expected string, serviceName string) {
 	host := s.Env().RemoteHost
-
 	s.Assert().EventuallyWithT(func(c *assert.CollectT) {
 		status, err := windowsCommon.GetServiceStatus(host, serviceName)
 		if !assert.NoError(c, err) {
@@ -677,7 +675,7 @@ func (s *baseStartStopSuite) assertServiceState(expected string, serviceName str
 	if s.T().Failed() && slices.Contains(s.getInstalledKernelServices(), serviceName) {
 		// if a driver service failed to get to the expected state, capture a kernel dump for debugging.
 		s.T().Logf("capturing live kernel dump due to %s not in %s state\n", serviceName, expected)
-		captureLiveKernelDump(s.dumpFolder)
+		s.captureLiveKernelDump(host, s.dumpFolder)
 	}
 }
 
@@ -786,45 +784,51 @@ func (s *baseStartStopSuite) sendHostMemoryMetrics(host *components.RemoteHost) 
 }
 
 // captureLiveKernelDump sends a commnad to the host to create a live kernel dump.
-func (s *baseStartStopSuite) captureLiveKernelDump(dumpDir string) {
-	// Create a temporary directory for the dump to handle tool-specific layouts.
-	tempDir, err := os.MkdirTemp("", "ddkmdump")
-	if err != nil {
-		s.T().Logf("failed to create temp directory for live kernel dump: %s", err)
-		return err
-	}
+func (s *baseStartStopSuite) captureLiveKernelDump(host components.RemoteHost, dumpDir string) {
+	tempDumpDir := `C:\Windows\Temp`
+	sourceDumpDir := fmt.Sprintf(`%s\localhost`, tempDumpDir)
 
-	defer os.RemoveAll(tempDir.Name)
+	// Make sure the subdirectory where the dump will be generated is empty.
+	host.RemoveAll(sourceDumpDir)
 
-	// This Powershell command is originally tailored for a storage cluster environment.
+	// This Powershell command is originally tailored for storage cluster environments.
+	// The live kernel dump will be placed under subdirectory named "localhost."
 	getSubsystemCmd := `$ss = Get-CimInstance -ClassName MSFT_StorageSubSystem -Namespace Root\Microsoft\Windows\Storage`
-	createLiveDumpCmd := fmt.Sprintf(`Invoke-CimMethod -InputObject $ss -MethodName "GetDiagnosticInfo" -Arguments @{DestinationPath="%s"; IncludeLiveDump=$true}"`, tempDir.Name)
-	cmd := fmt.Sprintf("%s;%s", getSubsystemCmd, createLiveDumpCmd)
+	createLiveDumpCmd := fmt.Sprintf(`Invoke-CimMethod -InputObject $ss -MethodName "GetDiagnosticInfo" -Arguments @{DestinationPath="%s"; IncludeLiveDump=$true}"`, tempDumpDir)
+	dumpCmd := fmt.Sprintf("%s;%s", getSubsystemCmd, createLiveDumpCmd)
 
-	s.T().Logf("creating live kernel dump under %s\n", tempDir.Name)
-	out, err := host.Execute(cmd)
+	s.T().Logf("creating live kernel dump under %s\n", tempDumpDir)
+	out, err := host.Execute(dumpCmd)
 	out = strings.TrimSpace(out)
 	if out != "" {
 		s.T().Logf("PowerShell live kernel dump output:\n%s", out)
 	}
 
 	if err != nil {
-		return err
+		s.T().Logf("Remote execute error: %s\n", err)
+		return
 	}
 
-	// The dump named LiveDump.dmp will be under a "localhost" subdirectory.
-	sourceDumpFile := fmt.Sprintf(`%s\localhost\LiveDump.dmp`, tempDir.Name)
-	if _, err := os.Stat(dumpFile); err != nil {
-		s.T().Logf("live kernel dump not found under %s: %s\n", sourceDumpFile, err)
-		return err
+	// Check if the dump is present.
+	sourceDumpFile := fmt.Sprintf(`%s\LiveDump.dmp`, sourceDumpDir)
+	if exists, _ := host.FileExists(sourceDumpFile); !exists {
+		s.T().Logf("live kernel dump %s not found: %s\n", sourceDumpFile, err)
+		return
 	}
 
+	// Move the dump file to the target directory.
 	destDumpFile := fmt.Sprintf(`%s\LiveDump.dmp`, dumpDir)
-	err := fs.CopyFile(destDumpFile, sourceDumpFile)
-	if _, err := os.Stat(dumpFile); err != nil {
-		s.T().Logf("failed to copy %s to %s: %s\n", sourceDumpFile, destDumpFile, err)
-		return err
+	moveDumpFileCmd := fmt.Sprintf(`Move-Item -Path "%s" -Destination "%s"`, sourceDumpFile, destDumpFile)
+	out, err = host.Execute(moveDumpFileCmd)
+	out = strings.TrimSpace(out)
+	if out != "" {
+		s.T().Logf("PowerShell move kernel dump file output:\n%s", out)
 	}
 
-	return nil
+	if err != nil {
+		s.T().Logf("Remote execute error: %s\n", err)
+	}
+
+	// Cleanup the "localhost" subdirectory.
+	host.RemoveAll(sourceDumpDir)
 }
