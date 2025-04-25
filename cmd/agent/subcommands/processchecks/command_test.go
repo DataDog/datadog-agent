@@ -6,6 +6,7 @@
 package processchecks
 
 import (
+	"context"
 	"os"
 	"path"
 	"testing"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/check"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -27,12 +30,19 @@ func TestCommand(t *testing.T) {
 }
 
 func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
-	// Because we uses fx.Invoke some components are built
-	config := path.Join(t.TempDir(), "datadog.yaml")
-	err := os.WriteFile(config, []byte("hostname: test"), 0644)
+	testDir := t.TempDir()
+
+	configPath := path.Join(testDir, "datadog.yaml")
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("auth_token_file_path", path.Join(testDir, "auth_token"))
+
+	_, err := security.FetchOrCreateAuthToken(context.Background(), mockConfig)
+	require.NoError(t, err)
+
+	err = os.WriteFile(configPath, []byte("hostname: test"), 0644)
 	require.NoError(t, err)
 
 	return &command.GlobalParams{
-		ConfFilePath: config,
+		ConfFilePath: configPath,
 	}
 }
