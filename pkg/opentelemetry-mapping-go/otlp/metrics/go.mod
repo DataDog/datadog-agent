@@ -3,10 +3,10 @@ module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metric
 go 1.23.0
 
 require (
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/internal/sketchtest v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/quantile v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/proto v0.66.0-devel
-	github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.27.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.27.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.27.0
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/golang/protobuf v1.5.4
 	github.com/lightstep/go-expohisto v1.0.0
@@ -59,9 +59,9 @@ require (
 )
 
 replace (
-	github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest => ../../internal/sketchtest
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes => ../attributes
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile => ../../quantile
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/internal/sketchtest => ../../../../pkg/opentelemetry-mapping-go/internal/sketchtest
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes => ../../../../pkg/opentelemetry-mapping-go/otlp/attributes
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/quantile => ../../../../pkg/opentelemetry-mapping-go/quantile
 )
 
 retract v0.4.0 // see #107
