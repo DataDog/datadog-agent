@@ -9,7 +9,6 @@
 package log
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -83,8 +82,7 @@ func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags
 		logsAgent.GetSources().AddSource(src)
 		// If we are not in Azure or the aas instance env var is not set, we fall back to the previous behavior
 	} else if filePath, set := os.LookupEnv(envVarTailFilePath); set {
-		name := fmt.Sprintf("serverless-file-tail")
-		src := sources.NewLogSource(name, &logConfig.LogsConfig{
+		src := sources.NewLogSource("serverless-file-tail", &logConfig.LogsConfig{
 			Type:    logConfig.FileType,
 			Path:    filePath,
 			Service: os.Getenv("DD_SERVICE"),
