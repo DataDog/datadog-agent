@@ -62,6 +62,9 @@ var securityAgentConfig string
 //go:embed fixtures/security-agent-disabled.yaml
 var securityAgentConfigDisabled string
 
+// driver services that start up and shut down with system probe.
+var driverServices := [2]string{"ddnpm", "ddprocmon"}
+
 // TestServiceBehaviorAgentCommandNoFIM tests the service behavior when controlled by Agent commands
 func TestNoFIMServiceBehaviorAgentCommand(t *testing.T) {
 	s := &agentServiceCommandSuite{}
@@ -661,16 +664,25 @@ func (s *baseStartStopSuite) assertAllServicesState(expected string) {
 }
 
 func (s *baseStartStopSuite) assertServiceState(expected string, serviceName string) {
+	stateAttained := false
 	host := s.Env().RemoteHost
+
 	s.Assert().EventuallyWithT(func(c *assert.CollectT) {
 		status, err := windowsCommon.GetServiceStatus(host, serviceName)
 		if !assert.NoError(c, err) {
+			stateAttained = true
 			return
 		}
 		if !assert.Equal(c, expected, status, "%s should be %s", serviceName, expected) {
 			s.T().Logf("waiting for %s to be %s, status %s", serviceName, expected, status)
 		}
 	}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
+
+	if !stateAttained && slices.Contains(driverServices. serviceName)
+		// if a driver service failed to get to the expected state, capture a kernel dump for debugging.
+		s.T().Logf("Capturing live kernel dump due to %s not in %s state", serviceName, expected)
+		captureLiveKernelDump(s.dumpFolder)
+	}
 }
 
 func (s *baseStartStopSuite) stopAllServices() {
@@ -775,4 +787,18 @@ func (s *baseStartStopSuite) sendHostMemoryMetrics(host *components.RemoteHost) 
 	} else {
 		s.T().Logf("posted memory metrics")
 	}
+}
+
+// captureLiveKernelDump sends a commnad to the host to create a live kernel dump.
+func (s *baseStartStopSuite) captureLiveKernelDump(dumpDir string) {
+	getSubsystemCmd := `$ss = Get-CimInstance -ClassName MSFT_StorageSubSystem -Namespace Root\Microsoft\Windows\Storage`
+    createLiveDumpCmd := fmt.Sprintf(`Invoke-CimMethod -InputObject $ss -MethodName "GetDiagnosticInfo" -Arguments @{DestinationPath="%s"; IncludeLiveDump=$true}"`, dumpDir)
+    cmd := fmt.Sprintf("%s;%s", getSubsystemCmd, createLiveDumpCmd)
+
+	out, err := host.Execute(cmd)
+	out = strings.TrimSpace(out)
+	if err == nil && out != "" {
+		s.T().Logf("PowerShell Live Dump output:\n%s", out)
+	}
+	return err
 }
