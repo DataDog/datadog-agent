@@ -43,6 +43,8 @@ func TestIsInstanceTailingEnabled(t *testing.T) {
 	assert.False(t, isInstanceTailingEnabled())
 	t.Setenv("DD_AAS_INSTANCE_LOGGING_ENABLED", "True")
 	assert.True(t, isInstanceTailingEnabled())
-	t.Setenv("DD_AAS_INSTANCE_LOGGING_ENABLED", "")
+	t.Setenv("DD_AAS_INSTANCE_LOGGING_ENABLED", "1")
 	assert.True(t, isInstanceTailingEnabled())
+	t.Setenv("DD_AAS_INSTANCE_LOGGING_ENABLED", "")
+	assert.False(t, isInstanceTailingEnabled())
 }

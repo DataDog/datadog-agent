@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
-	log "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -69,10 +68,10 @@ func SetupLogAgent(conf *Config, tags map[string]string, tagger tagger.Component
 }
 
 func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags []string, origin string) {
+
+	appServiceDefaultLoggingEnabled := origin == "appservice" && isInstanceTailingEnabled()
 	// The Azure App Service log volume is shared across all instances. This leads to every instance tailing the same files.
 	// To avoid this, we want to add the azure instance ID to the filepath so each instance tails their respective system log files.
-	appServiceDefaultLoggingEnabled := origin == "appservice" && isInstanceTailingEnabled()
-
 	if appServiceDefaultLoggingEnabled {
 		src := sources.NewLogSource("aas-instance-file-tail", &logConfig.LogsConfig{
 			Type:    logConfig.FileType,
@@ -82,27 +81,17 @@ func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags
 			Source:  source,
 		})
 		logsAgent.GetSources().AddSource(src)
-	}
-
-	if filePaths, set := os.LookupEnv(envVarTailFilePath); set {
-		// The user can specify multiple file paths separated by commas
-		paths := strings.Split(filePaths, ",")
-		for i, filePath := range paths {
-			// Skip the default log path if instance tailing is already enabled
-			if appServiceDefaultLoggingEnabled && filePath == "/home/LogFiles/*.log" {
-				log.Debugf("Skipping default log path for AAS instance tailing")
-				continue
-			}
-			name := fmt.Sprintf("serverless-file-tail-%d", i)
-			src := sources.NewLogSource(name, &logConfig.LogsConfig{
-				Type:    logConfig.FileType,
-				Path:    filePath,
-				Service: os.Getenv("DD_SERVICE"),
-				Tags:    tags,
-				Source:  source,
-			})
-			logsAgent.GetSources().AddSource(src)
-		}
+		// If we are not in Azure or the aas instance env var is not set, we fall back to the previous behavior
+	} else if filePath, set := os.LookupEnv(envVarTailFilePath); set {
+		name := fmt.Sprintf("serverless-file-tail")
+		src := sources.NewLogSource(name, &logConfig.LogsConfig{
+			Type:    logConfig.FileType,
+			Path:    filePath,
+			Service: os.Getenv("DD_SERVICE"),
+			Tags:    tags,
+			Source:  source,
+		})
+		logsAgent.GetSources().AddSource(src)
 	}
 }
 
@@ -113,5 +102,5 @@ func isEnabled(envValue string) bool {
 // enabled by default
 func isInstanceTailingEnabled() bool {
 	val := strings.ToLower(os.Getenv(aasInstanceTailing))
-	return val == "" || val == "true"
+	return val == "true" || val == "1"
 }
