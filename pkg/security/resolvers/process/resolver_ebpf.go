@@ -84,7 +84,7 @@ type EBPFResolver struct {
 	opts         ResolverOpts
 
 	// stats
-	cacheSize                 *atomic.Int64
+	processCacheEntryCount    *atomic.Int64
 	hitsStats                 map[string]*atomic.Int64
 	missStats                 *atomic.Int64
 	addedEntriesFromEvent     *atomic.Int64
@@ -145,6 +145,9 @@ func (p *EBPFResolver) NewProcessCacheEntry(pidContext model.PIDContext) *model.
 	entry := p.processCacheEntryPool.Get()
 	entry.PIDContext = pidContext
 	entry.Cookie = utils.NewCookie()
+
+	p.processCacheEntryCount.Inc()
+
 	return entry
 }
 
@@ -155,11 +158,11 @@ func (p *EBPFResolver) CountBrokenLineage() {
 
 // SendStats sends process resolver metrics
 func (p *EBPFResolver) SendStats() error {
-	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverCacheSize, p.getCacheSize(), []string{}, 1.0); err != nil {
+	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverCacheSize, p.getEntryCacheSize(), []string{}, 1.0); err != nil {
 		return fmt.Errorf("failed to send process_resolver cache_size metric: %w", err)
 	}
 
-	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverReferenceCount, p.getEntryCacheSize(), []string{}, 1.0); err != nil {
+	if err := p.statsdClient.Gauge(metrics.MetricProcessResolverReferenceCount, p.getProcessCacheEntryCount(), []string{}, 1.0); err != nil {
 		return fmt.Errorf("failed to send process_resolver reference_count metric: %w", err)
 	}
 
@@ -588,8 +591,6 @@ func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, source uint64
 	case model.ProcessCacheEntryFromProcFS:
 		p.addedEntriesFromProcFS.Inc()
 	}
-
-	p.cacheSize.Inc()
 }
 
 func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64, newEntryCb func(*model.ProcessCacheEntry, error)) {
@@ -1488,16 +1489,16 @@ func (p *EBPFResolver) ToDot(withArgs bool) (string, error) {
 	return dump.Name(), nil
 }
 
-// getCacheSize returns the cache size of the process resolver
-func (p *EBPFResolver) getCacheSize() float64 {
+// getEntryCacheSize returns the cache size of the process resolver
+func (p *EBPFResolver) getEntryCacheSize() float64 {
 	p.RLock()
 	defer p.RUnlock()
 	return float64(len(p.entryCache))
 }
 
-// getEntryCacheSize returns the cache size of the process resolver
-func (p *EBPFResolver) getEntryCacheSize() float64 {
-	return float64(p.cacheSize.Load())
+// getProcessCacheEntryCount returns the cache size of the process resolver
+func (p *EBPFResolver) getProcessCacheEntryCount() float64 {
+	return float64(p.processCacheEntryCount.Load())
 }
 
 // SetState sets the process resolver state
@@ -1556,7 +1557,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		argsEnvsCache:             argsEnvsCache,
 		state:                     atomic.NewInt64(Snapshotting),
 		hitsStats:                 map[string]*atomic.Int64{},
-		cacheSize:                 atomic.NewInt64(0),
+		processCacheEntryCount:    atomic.NewInt64(0),
 		missStats:                 atomic.NewInt64(0),
 		addedEntriesFromEvent:     atomic.NewInt64(0),
 		addedEntriesFromKernelMap: atomic.NewInt64(0),
@@ -1580,7 +1581,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)
 	}
-	p.processCacheEntryPool = NewProcessCacheEntryPool(func() { p.cacheSize.Dec() })
+	p.processCacheEntryPool = NewProcessCacheEntryPool(func() { p.processCacheEntryCount.Dec() })
 
 	// Create rate limiter that allows for 128 pids
 	limiter, err := utils.NewLimiter[uint32](128, numAllowedPIDsToResolvePerPeriod, procFallbackLimiterPeriod)
