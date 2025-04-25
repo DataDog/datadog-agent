@@ -10,18 +10,21 @@ package storage
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 )
 
 // ActivityDumpHandler represents an handler for the activity dumps sent by the probe
 type ActivityDumpHandler interface {
-	HandleActivityDump(dump *api.ActivityDumpStreamMessage)
+	HandleActivityDump(selector *cgroupModel.WorkloadSelector, header []byte, data []byte) error
 }
 
 // ActivityDumpRemoteStorageForwarder is a remote storage that forwards dumps to the security-agent
@@ -43,22 +46,23 @@ func (storage *ActivityDumpRemoteStorageForwarder) GetStorageType() config.Stora
 
 // Persist saves the provided buffer to the persistent storage
 func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.StorageRequest, p *profile.Profile, raw *bytes.Buffer) error {
+	selector := p.GetWorkloadSelector()
+
 	// set activity dump size for current encoding
 	p.Metadata.Size = uint64(raw.Len())
 
-	// generate stream message
-	msg := &api.ActivityDumpStreamMessage{
-		Dump: p.ToSecurityActivityDumpMessage(p.Metadata.End.Sub(p.Metadata.Start), map[config.StorageFormat][]config.StorageRequest{
-			request.Format: {request},
-		}),
-		Data: raw.Bytes(),
+	p.Header.DDTags = strings.Join(p.GetTags(), ",")
+	// marshal event metadata
+	headerData, err := json.Marshal(p.Header)
+	if err != nil {
+		return fmt.Errorf("couldn't marshall event metadata")
 	}
 
 	if handler := storage.activityDumpHandler; handler != nil {
-		handler.HandleActivityDump(msg)
+		handler.HandleActivityDump(selector, headerData, raw.Bytes())
 	}
 
-	seclog.Infof("[%s] file for activity dump [%s] was forwarded to the security-agent", request.Format, p.GetSelectorStr())
+	seclog.Infof("[%s] file for activity dump [%s] was forwarded to the security-agent", request.Format, selector)
 	return nil
 }
 

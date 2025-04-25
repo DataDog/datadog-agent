@@ -24,10 +24,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
 )
 
@@ -167,7 +165,7 @@ func (rsa *RuntimeSecurityAgent) StartActivityDumpListener() {
 			}
 
 			if seclog.DefaultLogger.IsTracing() {
-				seclog.DefaultLogger.Tracef("Got activity dump [%s]", msg.GetDump().GetMetadata().GetName())
+				seclog.DefaultLogger.Tracef("Got activity dump [%s]", msg.GetSelector())
 			}
 
 			rsa.activityDumpReceived.Inc()
@@ -188,31 +186,23 @@ func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 
 // DispatchActivityDump forwards an activity dump message to the backend
 func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStreamMessage) {
-	// parse dump from message
-	p, storageRequests, err := profile.NewProfileFromActivityDumpMessage(msg.GetDump())
-	if err != nil {
-		seclog.Errorf("%v", err)
-		return
-	}
 	if rsa.profContainersTelemetry != nil {
 		// register for telemetry for this container
-		imageName, imageTag := p.GetImageNameTag()
-		rsa.profContainersTelemetry.registerProfiledContainer(imageName, imageTag)
+		selector := msg.GetSelector()
+		imageName := selector.GetName()
+		imageTag := selector.GetTag()
+		if imageName != "" {
+			rsa.profContainersTelemetry.registerProfiledContainer(imageName, imageTag)
+		}
 	}
 
 	// storage might be nil, on windows for example
 	if rsa.storage != nil {
 		raw := bytes.NewBuffer(msg.GetData())
 
-		for _, requests := range storageRequests {
-			for _, request := range requests {
-				if request.Type == sconfig.RemoteStorage {
-					if err := rsa.storage.Persist(request, p, raw); err != nil {
-						seclog.Errorf("%v", err)
-					}
-				}
-			}
-		}
+		// TODO: send profile here
+		_ = raw
+		_ = msg.GetHeader()
 	}
 }
 
