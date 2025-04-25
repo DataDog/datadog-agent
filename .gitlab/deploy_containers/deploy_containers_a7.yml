@@ -263,7 +263,7 @@ deploy_containers-a7-fips_internal-rc:
 # Latest publication
 #
 
-deploy_containers_latest_tags-a7:
+deploy_containers_latest-a7:
   extends: .deploy_containers_latest_base
   stage: deploy_containers_latest
   rules:
