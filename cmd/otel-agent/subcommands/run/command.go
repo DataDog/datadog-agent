@@ -10,7 +10,6 @@ package run
 import (
 	"context"
 	"fmt"
-	"os"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
@@ -104,7 +103,8 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		return err
 	}
 	if !acfg.GetBool("otelcollector.enabled") {
-		os.Exit(0)
+		fmt.Println("*** OpenTelemetry Collector is not enabled, exiting application ***. Set the config option `otelcollector.enabled` or the environment variable `DD_OTELCOLLECTOR_ENABLED` at true to enable it.")
+		return nil
 	}
 	uris := append(params.ConfPaths, params.Sets...)
 	if err == agentConfig.ErrNoDDExporter {
