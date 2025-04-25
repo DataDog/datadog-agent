@@ -78,9 +78,9 @@ type EBPFResolver struct {
 	pathResolver      spath.ResolverInterface
 	envVarsResolver   *envvars.Resolver
 
-	inodeFileMap ebpf.EBPFMap
-	procCacheMap ebpf.EBPFMap
-	pidCacheMap  ebpf.EBPFMap
+	inodeFileMap ebpf.Map
+	procCacheMap ebpf.Map
+	pidCacheMap  ebpf.Map
 	opts         ResolverOpts
 
 	// stats
@@ -1297,7 +1297,7 @@ func (p *EBPFResolver) setAncestor(pce *model.ProcessCacheEntry) {
 	}
 }
 
-func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) error {
+func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) {
 	bootTime := p.timeResolver.GetBootTime()
 
 	// insert new entry in kernel maps
@@ -1319,8 +1319,6 @@ func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) error {
 			seclog.Errorf("couldn't push pid_cache entry to kernel space: %s", err)
 		}
 	}
-
-	return err
 }
 
 // newEntryFromProcfsAndSyncKernelMaps snapshots /proc for the provided pid and sync the kernel maps

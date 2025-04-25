@@ -309,7 +309,7 @@ func TestResolveFromProcfs(t *testing.T) {
 	pid := os.Getpid()
 
 	t.Run("sanitize-inode", func(t *testing.T) {
-		entry := resolver.resolveFromProcfs(uint32(pid), 222, 1, func(pce *model.ProcessCacheEntry, err error) {
+		entry := resolver.resolveFromProcfs(uint32(pid), 222, 1, func(pce *model.ProcessCacheEntry, _ error) {
 			assert.Equal(t, uint64(222), pce.FileEvent.Inode)
 			assert.True(t, pce.IsParentMissing)
 		})
