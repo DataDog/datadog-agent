@@ -7,6 +7,6 @@
 
 package usm
 
-func getWorkingDirectoryFromPid(pid int) (string, bool) {
+func getWorkingDirectoryFromPid(_ int) (string, bool) {
 	return "", false
 }
