@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -128,6 +129,8 @@ type ProcessCheck struct {
 	statsd         statsd.ClientInterface
 
 	gpuSubscriber gpusubscriber.Component
+
+	warnOnceECSLinuxFargateMisconfig sync.Once
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -295,6 +298,11 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
+
+	// warn customer if "pidMode":"task" is not set in ecs linux fargate
+	p.warnOnceECSLinuxFargateMisconfig.Do(func() {
+		warnECSFargateMisconfig(containers)
+	})
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
