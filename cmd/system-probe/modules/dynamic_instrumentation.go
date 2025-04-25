@@ -13,6 +13,8 @@ import (
 
 	dimod "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/module"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -20,17 +22,23 @@ import (
 
 func init() { registerModule(DynamicInstrumentation) }
 
+var godiProcessEventConsumer *consumers.ProcessConsumer
+
 // DynamicInstrumentation is a system probe module which allows you to add instrumentation into
 // running Go services without restarts.
 var DynamicInstrumentation = &module.Factory{
 	Name:             config.DynamicInstrumentationModule,
 	ConfigNamespaces: []string{},
 	Fn: func(agentConfiguration *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
+		if godiProcessEventConsumer == nil {
+			return nil, errors.New("process event consumer not initialized")
+		}
+
 		config, err := dimod.NewConfig(agentConfiguration)
 		if err != nil {
 			return nil, fmt.Errorf("invalid dynamic instrumentation module configuration: %w", err)
 		}
-		m, err := dimod.NewModule(config)
+		m, err := dimod.NewModule(config, godiProcessEventConsumer)
 		if err != nil {
 			if errors.Is(err, ebpf.ErrNotImplemented) {
 				return nil, module.ErrNotEnabled
@@ -43,4 +51,11 @@ var DynamicInstrumentation = &module.Factory{
 	NeedsEBPF: func() bool {
 		return true
 	},
+}
+
+// createGoDIProcessEventConsumer creates the process event consumer for the GoDI module. Should be called from the event monitor module
+func createGoDIProcessEventConsumer(evm *eventmonitor.EventMonitor) (err error) {
+	eventTypes := []consumers.ProcessConsumerEventTypes{consumers.ExecEventType, consumers.ExitEventType}
+	godiProcessEventConsumer, err = consumers.NewProcessConsumer("godi", 100, eventTypes, evm)
+	return err
 }

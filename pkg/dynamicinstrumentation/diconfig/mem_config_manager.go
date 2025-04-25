@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/proctracker"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,13 +35,13 @@ type ReaderConfigManager struct {
 type configsByService = map[ditypes.ServiceName]map[ditypes.ProbeID]rcConfig
 
 // NewReaderConfigManager creates a new ReaderConfigManager
-func NewReaderConfigManager() (*ReaderConfigManager, error) {
+func NewReaderConfigManager(pm process.Subscriber) (*ReaderConfigManager, error) {
 	cm := &ReaderConfigManager{
 		callback: applyConfigUpdate,
 		state:    ditypes.NewDIProcs(),
 	}
 
-	cm.procTracker = proctracker.NewProcessTracker(cm.updateProcessInfo)
+	cm.procTracker = proctracker.NewProcessTracker(pm, cm.updateProcessInfo)
 	err := cm.procTracker.Start()
 	if err != nil {
 		return nil, err

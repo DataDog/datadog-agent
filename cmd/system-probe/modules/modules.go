@@ -24,7 +24,7 @@ var moduleOrder = []types.ModuleName{
 	config.OOMKillProbeModule,
 	config.EventMonitorModule, // there is a dependency from EventMonitor -> NetworkTracer, so EventMonitor has to follow NetworkTracer
 	config.ProcessModule,
-	config.DynamicInstrumentationModule,
+	config.DynamicInstrumentationModule, // GoDI needs to be after EventMonitor
 	config.LanguageDetectionModule,
 	config.ComplianceModule,
 	config.PingModule,

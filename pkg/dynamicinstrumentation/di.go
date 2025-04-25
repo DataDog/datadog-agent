@@ -10,9 +10,13 @@
 package dynamicinstrumentation
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/process"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
@@ -75,15 +79,21 @@ type DIOptions struct {
 
 // RunDynamicInstrumentation is the main entry point into running the Dynamic
 // Instrumentation project for Go. It does not block.
-func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
+func RunDynamicInstrumentation(ctx context.Context, consumer *consumers.ProcessConsumer, opts *DIOptions) (*GoDI, error) {
 	var goDI *GoDI
 	err := ebpf.SetupEventsMap()
 	if err != nil {
 		return nil, err
 	}
+
+	pm, err := process.NewMonitor(consumer, process.SyncInterval(ctx, 30*time.Second))
+	if err != nil {
+		return nil, err
+	}
+
 	stopFunctions := []func(){}
 	if opts.ReaderWriterOptions.CustomReaderWriters {
-		cm, err := diconfig.NewReaderConfigManager()
+		cm, err := diconfig.NewReaderConfigManager(pm)
 		if err != nil {
 			return nil, fmt.Errorf("could not create new reader config manager: %w", err)
 		}
@@ -102,7 +112,7 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 			stats:         newGoDIStats(),
 		}
 	} else if opts.OfflineOptions.Offline {
-		cm, stopFileConfigManager, err := diconfig.NewFileConfigManager(opts.OfflineOptions.ProbesFilePath)
+		cm, stopFileConfigManager, err := diconfig.NewFileConfigManager(pm, opts.OfflineOptions.ProbesFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("could not create new file config manager: %w", err)
 		}
@@ -122,7 +132,7 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 		}
 		stopFunctions = append(stopFunctions, stopFileConfigManager)
 	} else {
-		cm, err := diconfig.NewRCConfigManager()
+		cm, err := diconfig.NewRCConfigManager(pm)
 		if err != nil {
 			return nil, fmt.Errorf("could not create new RC config manager: %w", err)
 		}

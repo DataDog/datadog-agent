@@ -12,7 +12,6 @@ package proctracker
 import (
 	"errors"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,8 +22,8 @@ import (
 	delve "github.com/go-delve/delve/pkg/goversion"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/process"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
-	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -36,9 +35,8 @@ type processTrackerCallback func(ditypes.DIProcs)
 
 // ProcessTracker is adapted from https://github.com/DataDog/datadog-agent/blob/main/pkg/network/protocols/http/ebpf_gotls.go
 type ProcessTracker struct {
-	procRoot    string
 	lock        sync.RWMutex
-	pm          *monitor.ProcessMonitor
+	pm          process.Subscriber
 	processes   processes
 	binaries    binaries
 	callback    processTrackerCallback
@@ -46,10 +44,9 @@ type ProcessTracker struct {
 }
 
 // NewProcessTracker creates a new ProcessTracer
-func NewProcessTracker(callback processTrackerCallback) *ProcessTracker {
+func NewProcessTracker(pm process.Subscriber, callback processTrackerCallback) *ProcessTracker {
 	pt := ProcessTracker{
-		pm:        monitor.GetProcessMonitor(),
-		procRoot:  kernel.ProcFSRoot(),
+		pm:        pm,
 		callback:  callback,
 		binaries:  make(map[binaryID]*runningBinary),
 		processes: make(map[pid]binaryID),
@@ -61,19 +58,11 @@ func NewProcessTracker(callback processTrackerCallback) *ProcessTracker {
 // aware of new processes that may need to be instrumented or instrumented processes
 // that should no longer be instrumented
 func (pt *ProcessTracker) Start() error {
-
 	unsubscribeExec := pt.pm.SubscribeExec(pt.handleProcessStart)
 	unsubscribeExit := pt.pm.SubscribeExit(pt.handleProcessStop)
 
-	pt.unsubscribe = append(pt.unsubscribe, unsubscribeExec)
-	pt.unsubscribe = append(pt.unsubscribe, unsubscribeExit)
-
-	err := pt.pm.Initialize(false)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	pt.unsubscribe = append(pt.unsubscribe, unsubscribeExec, unsubscribeExit)
+	return pt.pm.Sync()
 }
 
 // Stop unsubscribes from exec and exit events
@@ -85,8 +74,7 @@ func (pt *ProcessTracker) Stop() {
 }
 
 func (pt *ProcessTracker) handleProcessStart(pid uint32) {
-	exePath := filepath.Join(pt.procRoot, strconv.FormatUint(uint64(pid), 10), "exe")
-
+	exePath := kernel.HostProc(strconv.Itoa(int(pid)), "exe")
 	go pt.inspectBinary(exePath, pid)
 }
 
@@ -126,11 +114,6 @@ func remoteConfigCallback(_ delve.GoVersion, goarch string) ([]bininspect.Parame
 }
 
 func (pt *ProcessTracker) inspectBinary(exePath string, pid uint32) {
-	// Avoid self-inspection.
-	if int(pid) == os.Getpid() {
-		return
-	}
-
 	serviceName, diEnabled := getEnvVars(pid)
 	if serviceName == "" || !diEnabled {
 		// if the expected env vars are not set we don't inspect the binary
