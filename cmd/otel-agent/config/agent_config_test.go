@@ -121,6 +121,17 @@ func (suite *ConfigTestSuite) TestAgentConfigExpandEnvVars() {
 	assert.Equal(t, "abc", c.Get("api_key"))
 }
 
+func (suite *ConfigTestSuite) TestAgentConfigExpandEnvVars_NumberAPIKey() {
+	t := suite.T()
+	fileName := "testdata/config_default_expand_envvar.yaml"
+	suite.T().Setenv("DD_API_KEY", "123456")
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	if err != nil {
+		t.Errorf("Failed to load agent config: %v", err)
+	}
+	assert.Equal(t, "123456", c.Get("api_key"))
+}
+
 func (suite *ConfigTestSuite) TestAgentConfigExpandEnvVars_Raw() {
 	t := suite.T()
 	fileName := "testdata/config_default_expand_envvar_raw.yaml"
