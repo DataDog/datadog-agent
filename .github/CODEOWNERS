@@ -405,7 +405,7 @@
 /comp/core/autodiscovery/providers/remote_config*.go  @DataDog/remote-config
 /pkg/cloudfoundry                       @Datadog/agent-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
-/pkg/clusteragent/autoscaling/          @DataDog/container-integrations
+/pkg/clusteragent/autoscaling/          @DataDog/container-autoscaling @DataDog/container-integrations
 /pkg/clusteragent/admission/mutate/autoscaling          @DataDog/container-integrations
 /pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/injection-platform
 /pkg/clusteragent/admission/mutate/cwsinstrumentation    @Datadog/agent-security
