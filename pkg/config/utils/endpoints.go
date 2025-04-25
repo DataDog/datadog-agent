@@ -32,7 +32,7 @@ const (
 func getResolvedDDUrl(c pkgconfigmodel.Reader, urlKey string) string {
 	resolvedDDURL := c.GetString(urlKey)
 	if c.IsSet("site") {
-		log.Infof("'site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", urlKey, urlKey, c.GetString(urlKey))
+		log.Debugf("'site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", urlKey, urlKey, c.GetString(urlKey))
 	}
 	return resolvedDDURL
 }
