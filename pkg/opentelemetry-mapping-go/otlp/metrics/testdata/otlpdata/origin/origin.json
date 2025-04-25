@@ -74,7 +74,7 @@
           },
           {
             "scope": {
-              "name": "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
+              "name": "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
             },
             "metrics": [
               {

@@ -9,7 +9,7 @@
 package payload
 
 import (
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata/gohai"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/gohai"
 )
 
 // HostMetadata includes metadata about the host tags,

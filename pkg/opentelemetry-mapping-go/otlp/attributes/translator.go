@@ -23,7 +23,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 )
 
 const missingSourceMetricName string = "datadog.otlp_translator.resources.missing_source"
@@ -35,7 +35,7 @@ type Translator struct {
 
 // NewTranslator returns a new attributes translator.
 func NewTranslator(set component.TelemetrySettings) (*Translator, error) {
-	meter := set.MeterProvider.Meter("github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes")
+	meter := set.MeterProvider.Meter("github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes")
 	missingSources, err := meter.Int64Counter(
 		missingSourceMetricName,
 		metric.WithDescription("OTLP resources that are missing a source (e.g. hostname)"),

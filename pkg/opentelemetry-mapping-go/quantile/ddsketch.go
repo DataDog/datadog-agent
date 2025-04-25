@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
 	"github.com/DataDog/sketches-go/ddsketch/store"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile/summary"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/quantile/summary"
 )
 
 const (
