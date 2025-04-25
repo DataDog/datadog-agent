@@ -10,6 +10,7 @@ package run
 import (
 	"context"
 	"fmt"
+	"os"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
@@ -101,6 +102,9 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 	acfg, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
 	if err != nil && err != agentConfig.ErrNoDDExporter {
 		return err
+	}
+	if !acfg.GetBool("otelcollector.enabled") {
+		os.Exit(0)
 	}
 	uris := append(params.ConfPaths, params.Sets...)
 	if err == agentConfig.ErrNoDDExporter {
