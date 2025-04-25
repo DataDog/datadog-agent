@@ -8,5 +8,5 @@ package model
 // Warnings represent the warnings in the config
 type Warnings struct {
 	TraceMallocEnabledWithPy2 bool
-	Err                       error
+	Errors                    []error
 }
