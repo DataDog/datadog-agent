@@ -91,12 +91,7 @@ func TestProcessIsECSFargatePidModeSetToTaskWindows(t *testing.T) {
 		expected    bool
 	}{
 		{
-			description: "fargate enabled but windows unsupported",
-			containers:  []*model.Container{},
-			expected:    false,
-		},
-		{
-			description: "fargate disabled and windows unsupported",
+			description: "windows unsupported",
 			containers:  []*model.Container{},
 			expected:    false,
 		},
