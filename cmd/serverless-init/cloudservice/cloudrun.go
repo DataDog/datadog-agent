@@ -7,12 +7,13 @@ package cloudservice
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -48,6 +49,9 @@ const (
 	functionTarget    = "build_function_target"
 	functionSignature = "function_signature_type"
 )
+
+// metric prefix for cloud run
+const CloudRunMetricPrefix = "gcp.run"
 
 var metadataHelperFunc = GetMetaData
 
@@ -133,7 +137,7 @@ func (c *CloudRun) GetOrigin() string {
 // GetPrefix returns the prefix that we're prefixing all
 // metrics with.
 func (c *CloudRun) GetPrefix() string {
-	return "gcp.run"
+	return CloudRunMetricPrefix
 }
 
 // Init is empty for CloudRun

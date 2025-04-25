@@ -43,6 +43,9 @@ const (
 	acaRegion         = "aca.app.region"
 	acaRevision       = "aca.app.revision"
 	acaSubscriptionID = "aca.subscription.id"
+
+	// metric prefix for container app
+	ContainerAppMetricPrefix = "azure.containerapp"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -103,7 +106,7 @@ func (c *ContainerApp) GetOrigin() string {
 // GetPrefix returns the prefix that we're prefixing all
 // metrics with.
 func (c *ContainerApp) GetPrefix() string {
-	return "azure.containerapp"
+	return ContainerAppMetricPrefix
 }
 
 // NewContainerApp returns a new ContainerApp instance

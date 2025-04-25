@@ -25,6 +25,9 @@ const (
 	WebsiteStack = "WEBSITE_STACK"
 	//nolint:revive // TODO(SERV) Fix revive linter
 	AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
+
+	// metric prefix for app service
+	AppServiceMetricPrefix = "azure.appservice"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -53,7 +56,7 @@ func (a *AppService) GetOrigin() string {
 // GetPrefix returns the prefix that we're prefixing all
 // metrics with.
 func (a *AppService) GetPrefix() string {
-	return "azure.appservice"
+	return AppServiceMetricPrefix
 }
 
 // Init is empty for AppService

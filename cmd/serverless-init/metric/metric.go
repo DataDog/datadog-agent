@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -19,17 +20,17 @@ import (
 //
 //nolint:revive // TODO(SERV) Fix revive linter
 func AddColdStartMetric(metricPrefix string, tags []string, _ time.Time, demux aggregator.Demultiplexer) {
-	add(fmt.Sprintf("%v.enhanced.cold_start", metricPrefix), tags, time.Now(), demux)
+	add(fmt.Sprintf("%v.enhanced.cold_start", metricPrefix), tags, time.Now(), metricPrefixToSource(metricPrefix), demux)
 }
 
 // AddShutdownMetric adds the shutdown metric to the demultiplexer
 //
 //nolint:revive // TODO(SERV) Fix revive linter
 func AddShutdownMetric(metricPrefix string, tags []string, _ time.Time, demux aggregator.Demultiplexer) {
-	add(fmt.Sprintf("%v.enhanced.shutdown", metricPrefix), tags, time.Now(), demux)
+	add(fmt.Sprintf("%v.enhanced.shutdown", metricPrefix), tags, time.Now(), metricPrefixToSource(metricPrefix), demux)
 }
 
-func add(name string, tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
+func add(name string, tags []string, timestamp time.Time, metricSource metrics.MetricSource, demux aggregator.Demultiplexer) {
 	if demux == nil {
 		log.Debugf("Cannot add metric %s, the metric agent is not running", name)
 		return
@@ -42,5 +43,20 @@ func add(name string, tags []string, timestamp time.Time, demux aggregator.Demul
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  metricTimestamp,
+		Source:     metricSource,
 	})
+}
+
+// metricPrefixToSource returns the metric source for the respective cloud service's enhanced metrics
+func metricPrefixToSource(metricPrefix string) metrics.MetricSource {
+	var metricSource metrics.MetricSource
+	switch metricPrefix {
+	case cloudservice.ContainerAppMetricPrefix:
+		metricSource = metrics.MetricSourceAzureContainerAppEnhanced
+	case cloudservice.AppServiceMetricPrefix:
+		metricSource = metrics.MetricSourceAzureAppServiceEnhanced
+	case cloudservice.CloudRunMetricPrefix:
+		metricSource = metrics.MetricSourceGoogleCloudRunEnhanced
+	}
+	return metricSource
 }
