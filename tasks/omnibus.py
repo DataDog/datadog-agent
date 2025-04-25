@@ -15,6 +15,7 @@ from tasks.libs.common.omnibus import (
     send_cache_miss_event,
     should_retry_bundle_install,
 )
+from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import gitlab_section, timed
 from tasks.libs.releasing.version import get_version, load_dependencies
 
@@ -388,6 +389,35 @@ def manifest(
         env=env,
         log_level=log_level,
     )
+
+
+@task
+def build_repackaged_agent(ctx, log_level="info"):
+    """
+    Create an Agent package by using an existing Agent package as a base and rebuilding the Agent binaries with the local checkout.
+    """
+    # Make sure we let the user know that we're going to overwrite the existing Agent installation if present
+    agent_path = "/opt/datadog-agent"
+    if os.path.exists(agent_path):
+        if not yes_no_question(
+            f"The Agent installation directory {agent_path} already exists, and will be overwritten by this build. Continue?",
+            color="red",
+            default=False,
+        ):
+            raise Exit("Operation cancelled")
+
+        import shutil
+
+        shutil.rmtree("/opt/datadog-agent")
+
+    env = get_omnibus_env(ctx, skip_sign=True, major_version='7', flavor=AgentFlavor.base)
+
+    # Setting this variable enables "repackaging mode"
+    env['OMNIBUS_REPACKAGE'] = 'true'
+
+    bundle_install_omnibus(ctx, None, env)
+
+    omnibus_run_task(ctx, "build", "agent", base_dir=None, env=env, log_level=log_level)
 
 
 def _otool_install_path_replacements(otool_output, install_path):
