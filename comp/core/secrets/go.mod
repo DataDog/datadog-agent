@@ -7,8 +7,9 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/status v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.61.0
+	github.com/DataDog/datadog-agent/pkg/template v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0
-	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
+	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0
 	github.com/benbjohnson/clock v1.3.5
@@ -22,6 +23,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -31,15 +33,14 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_golang v1.21.1 // indirect
+	github.com/prometheus/client_golang v1.22.0 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.62.0 // indirect
-	github.com/prometheus/procfs v0.15.1 // indirect
+	github.com/prometheus/procfs v0.16.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/cobra v1.9.1 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect

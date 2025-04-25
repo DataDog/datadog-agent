@@ -72,6 +72,8 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 	enrichedTags = append(enrichedTags, dimensions.Tags()...)
 	prefix, id, err := types.ExtractPrefixAndID(dimensions.OriginID())
 	if err != nil {
+		log.Tracef("Cannot get tags for entity %s: %s", dimensions.OriginID(), err)
+	} else {
 		entityID := types.NewEntityID(prefix, id)
 		entityTags, err := t.tagger.Tag(entityID, t.cardinality)
 		if err != nil {
@@ -79,8 +81,6 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 		} else {
 			enrichedTags = append(enrichedTags, entityTags...)
 		}
-	} else {
-		log.Tracef("Cannot get tags for entity %s: %s", dimensions.OriginID(), err)
 	}
 
 	globalTags, err := t.tagger.GlobalTags(t.cardinality)

@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -105,10 +106,11 @@ func (suite *TailerTestSuite) TestStopAfterFileRotationWhenStuck() {
 }
 
 func (suite *TailerTestSuite) TestTailerTimeDurationConfig() {
+	mockConfig := configmock.New(suite.T())
 	// To satisfy the suite level tailer
 	suite.tailer.StartFromBeginning()
 
-	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.close_timeout", 42)
+	mockConfig.SetWithoutSource("logs_config.close_timeout", 42)
 	sleepDuration := 10 * time.Millisecond
 	info := status.NewInfoRegistry()
 
@@ -359,10 +361,11 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 }
 
 func (suite *TailerTestSuite) TestTruncatedTag() {
-	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.max_message_size_bytes", 3)
-	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.tag_truncated_logs", true)
-	defer pkgconfigsetup.Datadog().SetWithoutSource("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
-	defer pkgconfigsetup.Datadog().SetWithoutSource("logs_config.tag_truncated_logs", false)
+	mockConfig := configmock.New(suite.T())
+	mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", 3)
+	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", true)
+	defer mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
+	defer mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", false)
 
 	source := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
