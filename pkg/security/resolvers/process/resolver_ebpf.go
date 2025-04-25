@@ -29,6 +29,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
@@ -77,9 +78,9 @@ type EBPFResolver struct {
 	pathResolver      spath.ResolverInterface
 	envVarsResolver   *envvars.Resolver
 
-	inodeFileMap *lib.Map
-	procCacheMap *lib.Map
-	pidCacheMap  *lib.Map
+	inodeFileMap ebpf.EBPFMap
+	procCacheMap ebpf.EBPFMap
+	pidCacheMap  ebpf.EBPFMap
 	opts         ResolverOpts
 
 	// stats
@@ -564,17 +565,10 @@ func (p *EBPFResolver) RetrieveFileFieldsFromProcfs(filename string) (*model.Fil
 	return &fileFields, nil
 }
 
-func (p *EBPFResolver) insertEntry(entry, prev *model.ProcessCacheEntry, source uint64) {
+func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, source uint64) {
 	entry.Source = source
 
-	prevEntry := p.entryCache[entry.Pid]
-	if prevEntry != prev {
-		seclog.Errorf("pid %d already exists in the cache with a different entry", entry.Pid)
-		if prevEntry != nil {
-			prevEntry.Release()
-		}
-	}
-	if prev != nil {
+	if prev := p.entryCache[entry.Pid]; prev != nil {
 		prev.Release()
 	}
 
@@ -599,7 +593,6 @@ func (p *EBPFResolver) insertEntry(entry, prev *model.ProcessCacheEntry, source 
 }
 
 func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64, newEntryCb func(*model.ProcessCacheEntry, error)) {
-
 	if entry.Pid == 0 {
 		return
 	}
@@ -627,7 +620,7 @@ func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uin
 		}
 	}
 
-	p.insertEntry(entry, prev, source)
+	p.insertEntry(entry, source)
 }
 
 func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64) {
@@ -642,7 +635,7 @@ func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uin
 			p.inodeErrStats.Inc()
 		}
 
-		// check exec bomb
+		// check exec bomb, keep the prev entry and update it
 		if prev.Equals(entry) {
 			prev.ApplyExecTimeOf(entry)
 			return
@@ -652,7 +645,7 @@ func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uin
 		entry.IsParentMissing = true
 	}
 
-	p.insertEntry(entry, prev, source)
+	p.insertEntry(entry, source)
 }
 
 func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
@@ -1304,44 +1297,7 @@ func (p *EBPFResolver) setAncestor(pce *model.ProcessCacheEntry) {
 	}
 }
 
-// newEntryFromProcfsAndSyncKernelMaps snapshots /proc for the provided pid and sync the kernel maps
-func (p *EBPFResolver) newEntryFromProcfsAndSyncKernelMaps(proc *process.Process, filledProc *utils.FilledProcess, inode uint64, source uint64, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
-	pid := uint32(proc.Pid)
-
-	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
-
-	// update the cache entry
-	if err := p.enrichEventFromProcfs(entry, proc, filledProc); err != nil {
-		seclog.Trace(err)
-		return nil
-	}
-
-	// use the inode from the pid context if set
-	if inode != 0 {
-		if entry.FileEvent.Inode != inode {
-			seclog.Errorf("inode mismatch, using inode from pid context %d: %d != %d", pid, entry.FileEvent.Inode, inode)
-		}
-		entry.FileEvent.Inode = inode
-	}
-	entry.IsKworker = filledProc.Ppid == 0 && filledProc.Pid != 1
-
-	parent := p.entryCache[entry.PPid]
-	if parent != nil {
-		if parent.Equals(entry) {
-			entry.SetForkParent(parent)
-		} else if prev := p.entryCache[pid]; prev != nil { // exec-exec
-			entry.SetExecParent(prev)
-		} else { // exec
-			entry.SetExecParent(parent)
-		}
-	} else if pid == 1 {
-		entry.SetAsExec()
-	} else {
-		seclog.Debugf("unable to set the type of process, not pid 1, no parent in cache: %+v", entry)
-	}
-
-	p.insertEntry(entry, p.entryCache[pid], source)
-
+func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) error {
 	bootTime := p.timeResolver.GetBootTime()
 
 	// insert new entry in kernel maps
@@ -1359,10 +1315,56 @@ func (p *EBPFResolver) newEntryFromProcfsAndSyncKernelMaps(proc *process.Process
 	if err != nil {
 		seclog.Errorf("couldn't marshal pid_cache entry: %s", err)
 	} else {
-		if err = p.pidCacheMap.Put(pid, pidCacheEntryB); err != nil {
+		if err = p.pidCacheMap.Put(entry.PIDContext.Pid, pidCacheEntryB); err != nil {
 			seclog.Errorf("couldn't push pid_cache entry to kernel space: %s", err)
 		}
 	}
+
+	return err
+}
+
+// newEntryFromProcfsAndSyncKernelMaps snapshots /proc for the provided pid and sync the kernel maps
+func (p *EBPFResolver) newEntryFromProcfsAndSyncKernelMaps(proc *process.Process, filledProc *utils.FilledProcess, inode uint64, source uint64, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
+	pid := uint32(proc.Pid)
+
+	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
+
+	// update the cache entry
+	if err := p.enrichEventFromProcfs(entry, proc, filledProc); err != nil {
+		seclog.Trace(err)
+		return nil
+	}
+
+	// use the inode from the pid context if set so that we don't propagate a potentially wrong inode
+	if inode != 0 {
+		if entry.FileEvent.Inode != inode {
+			seclog.Errorf("inode mismatch, using inode from pid context %d: %d != %d", pid, entry.FileEvent.Inode, inode)
+
+			entry.FileEvent.Inode = inode
+			entry.IsParentMissing = true
+		}
+	}
+
+	entry.IsKworker = filledProc.Ppid == 0 && filledProc.Pid != 1
+
+	parent := p.entryCache[entry.PPid]
+	if parent != nil {
+		if parent.Equals(entry) {
+			entry.SetForkParent(parent)
+		} else if prev := p.entryCache[pid]; prev != nil { // exec-exec
+			entry.SetExecParent(prev)
+		} else { // exec
+			entry.SetExecParent(parent)
+		}
+	} else if pid == 1 {
+		entry.SetAsExec()
+	} else {
+		seclog.Debugf("unable to set the type of process, not pid 1, no parent in cache: %+v", entry)
+	}
+
+	p.insertEntry(entry, source)
+
+	p.syncKernelMaps(entry)
 
 	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.FileEvent.PathnameStr, pid, entry.FileEvent.Inode)
 
