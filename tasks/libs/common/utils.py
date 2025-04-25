@@ -17,6 +17,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
+from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 
@@ -84,12 +85,8 @@ def running_in_gitlab_ci():
     return os.environ.get("GITLAB_CI") == "true"
 
 
-def running_in_circleci():
-    return os.environ.get("CIRCLECI") == "true"
-
-
 def running_in_ci():
-    return running_in_circleci() or running_in_github_actions() or running_in_gitlab_ci()
+    return running_in_github_actions() or running_in_gitlab_ci()
 
 
 def running_in_pyapp():
@@ -178,6 +175,15 @@ def get_embedded_path(ctx):
             return test_embedded_path
 
     return None
+
+
+def get_repo_root():
+    """
+    Get the root of the repository, where the .git directory is.
+    """
+    import tasks
+
+    return Path(tasks.__file__).parent.parent
 
 
 def get_xcode_version(ctx):
@@ -439,10 +445,6 @@ def get_git_pretty_ref():
     # https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables
     if running_in_github_actions():
         return os.environ.get("GITHUB_HEAD_REF") or os.environ["GITHUB_REF"].split("/")[-1]
-
-    # https://circleci.com/docs/variables/#built-in-environment-variables
-    if running_in_circleci():
-        return os.environ.get("CIRCLE_TAG") or os.environ["CIRCLE_BRANCH"]
 
     current_branch = get_git_branch_name()
     if current_branch != "HEAD":

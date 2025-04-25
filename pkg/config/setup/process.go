@@ -177,8 +177,6 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
 	procBindEnvAndSetDefault(config, "process_config.internal_profiling.enabled", false)
 	procBindEnvAndSetDefault(config, "process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs)
-	procBindEnvAndSetDefault(config, "process_config.remote_tagger", false)
-	procBindEnvAndSetDefault(config, "process_config.remote_workloadmeta", false) // This flag might change. It's still being tested.
 	procBindEnvAndSetDefault(config, "process_config.disable_realtime_checks", false)
 	procBindEnvAndSetDefault(config, "process_config.ignore_zombie_processes", false)
 

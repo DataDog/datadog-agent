@@ -693,10 +693,8 @@ func TestAggregationProcessTags(t *testing.T) {
 	bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
 	c1 := payloadWithCounts(testTime, bak, "", "test-version", "abc", "abc123", 11, 7, 100)
 	c1.ProcessTags = "a:1,b:2,c:3"
-	c1.ProcessTagsHash = 33
 	c2 := payloadWithCounts(testTime, bak, "", "test-version", "abc", "abc123", 11, 7, 100)
 	c2.ProcessTags = "b:33"
-	c1.ProcessTagsHash = 59
 
 	assert.Len(msw.payloads, 0)
 	a.add(testTime, deepCopy(c1))
@@ -709,8 +707,10 @@ func TestAggregationProcessTags(t *testing.T) {
 	assertAggCountsPayload(t, aggCounts)
 
 	assert.Len(aggCounts.Stats, 2)
-	res := []string{aggCounts.Stats[0].ProcessTags, aggCounts.Stats[1].ProcessTags}
-	assert.ElementsMatch([]string{"a:1,b:2,c:3", "b:33"}, res)
+	resProcessTags := []string{aggCounts.Stats[0].ProcessTags, aggCounts.Stats[1].ProcessTags}
+	resProcessTagsHash := []uint64{aggCounts.Stats[0].ProcessTagsHash, aggCounts.Stats[1].ProcessTagsHash}
+	assert.ElementsMatch([]string{"a:1,b:2,c:3", "b:33"}, resProcessTags)
+	assert.ElementsMatch([]uint64{7030721150995765661, 6360281807028847755}, resProcessTagsHash)
 	assert.Len(a.buckets, 0)
 }
 

@@ -44,7 +44,7 @@ type ServerlessDemultiplexer struct {
 }
 
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
-func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forwarderTimeout time.Duration, tagger tagger.Component) *ServerlessDemultiplexer {
+func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]utils.APIKeys, forwarderTimeout time.Duration, tagger tagger.Component) *ServerlessDemultiplexer {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 	logger := logimpl.NewTemporaryLoggerWithoutInit()
 	forwarder := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, keysPerDomain, forwarderTimeout)
