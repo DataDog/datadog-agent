@@ -10,6 +10,7 @@ package common
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -165,4 +166,23 @@ func TestIntegrationConfigInstanceSpark(t *testing.T) {
 			},
 		},
 	}, spark)
+}
+
+func TestDoubleWriteConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	config := Config{}
+	config.DatadogYAML.APIKey = "1234567890" // Required field
+	config.DatadogYAML.Hostname = "new_hostname"
+	config.DatadogYAML.LogsEnabled = true
+
+	err := writeConfigs(config, tempDir)
+	assert.NoError(t, err)
+
+	err = writeConfigs(config, tempDir)
+	assert.NoError(t, err)
+
+	// Check datadog.yaml
+	datadogYAML, err := os.ReadFile(filepath.Join(tempDir, datadogConfFile))
+	assert.NoError(t, err)
+	assert.True(t, strings.HasPrefix(string(datadogYAML), disclaimerGenerated+"\n\n"))
 }
