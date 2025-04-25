@@ -130,7 +130,6 @@ type ProcessCheck struct {
 
 	gpuSubscriber gpusubscriber.Component
 
-	// used for one-off warning
 	warnOnceECSLinuxFargateMisconfig sync.Once
 }
 

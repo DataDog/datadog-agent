@@ -14,7 +14,6 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
@@ -87,30 +86,22 @@ func TestFormatCPUTimes(t *testing.T) {
 
 func TestProcessIsECSFargatePidModeSetToTaskWindows(t *testing.T) {
 	for _, tc := range []struct {
-		description    string
-		containers     []*model.Container
-		fargateEnabled bool
-		expected       bool
+		description string
+		containers  []*model.Container
+		expected    bool
 	}{
 		{
-			description:    "fargate enabled but windows unsupported",
-			containers:     []*model.Container{},
-			fargateEnabled: true,
-			expected:       false,
+			description: "fargate enabled but windows unsupported",
+			containers:  []*model.Container{},
+			expected:    false,
 		},
 		{
-			description:    "fargate disabled and windows unsupported",
-			containers:     []*model.Container{},
-			fargateEnabled: false,
-			expected:       false,
+			description: "fargate disabled and windows unsupported",
+			containers:  []*model.Container{},
+			expected:    false,
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
-			if tc.fargateEnabled {
-				env.SetFeatures(t, env.ECSFargate)
-			} else {
-				env.ClearFeatures()
-			}
 			assert.Equal(t, tc.expected, isECSFargatePidModeSetToTask(tc.containers))
 		})
 	}

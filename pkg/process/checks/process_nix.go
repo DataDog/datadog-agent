@@ -93,20 +93,16 @@ func calculatePct(deltaProc, deltaTime, numCPU float64) float32 {
 	return float32(pct)
 }
 
-// warnECSLinuxFargateMisconfig pidMode is currently not supported on fargate windows, see docs: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#task_definition_pidmode
+// warnECSFargateMisconfig pidMode is currently not supported on fargate windows, see docs: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#task_definition_pidmode
 func warnECSFargateMisconfig(containers []*model.Container) {
 	if fargate.IsFargateInstance() && !isECSFargatePidModeSetToTask(containers) {
-		log.Warn(`Process collection is likely misconfigured. Please ensure your task definition has "pidMode":"task" set. See https://docs.datadoghq.com/integrations/ecs_fargate/?tab=webui#process-collection for more information.`)
+		log.Warn(`Process collection may be misconfigured. Please ensure your task definition has "pidMode":"task" set. See https://docs.datadoghq.com/integrations/ecs_fargate/#process-collection for more information.`)
 	}
 }
 
-// isECSLinuxFargatePidModeSetToTask checks if pidMode is set to task in task (which will prevent process collection) definition using specific container existence
+// isECSFargatePidModeSetToTask checks if pidMode is set to task in task to allow for process collection and assumes the method is called in a fargate environment
 func isECSFargatePidModeSetToTask(containers []*model.Container) bool {
-	if !fargate.IsFargateInstance() {
-		return false
-	}
-
-	// aws-fargate-pause container only exists when "pidMode"" is set to "task" on ecs fargate
+	// aws-fargate-pause container only exists when "pidMode" is set to "task" on ecs fargate
 	ecsContainerNameTag := fmt.Sprintf("%s:%s", tags.EcsContainerName, "aws-fargate-pause")
 	for _, c := range containers {
 		// container fields are not yet populated with information from tags at this point, so we need to check the tags
