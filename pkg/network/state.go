@@ -1514,7 +1514,6 @@ func (ns *networkState) IsClosedConnectionsNearCapacity(clientID string) bool {
 	if client, ok := ns.clients[clientID]; ok {
 		return client.closedConnectionsNearCapacity.Load()
 	}
-	// If client doesn't exist (should not happen in normal flow after registration), return false
 	log.Warnf("IsClosedConnectionsNearCapacity called for non-existent client ID: %s", clientID)
 	return false
 }
