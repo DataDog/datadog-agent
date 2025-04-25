@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"slices"
+
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/quantile"
@@ -31,7 +33,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
-	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/internal/instrumentationlibrary"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/internal/instrumentationscope"
@@ -650,7 +651,7 @@ func mapGaugeRuntimeMetricWithAttributes(md pmetric.Metric, metricsArray pmetric
 			cp.SetEmptyGauge()
 			dataPoint := cp.Gauge().DataPoints().AppendEmpty()
 			md.Gauge().DataPoints().At(i).CopyTo(dataPoint)
-			dataPoint.Attributes().RemoveIf(func(s string, value pcommon.Value) bool {
+			dataPoint.Attributes().RemoveIf(func(s string, _ pcommon.Value) bool {
 				for _, attribute := range mp.attributes {
 					if s == attribute.key {
 						return true
@@ -681,7 +682,7 @@ func mapSumRuntimeMetricWithAttributes(md pmetric.Metric, metricsArray pmetric.M
 			cp.Sum().SetIsMonotonic(md.Sum().IsMonotonic())
 			dataPoint := cp.Sum().DataPoints().AppendEmpty()
 			md.Sum().DataPoints().At(i).CopyTo(dataPoint)
-			dataPoint.Attributes().RemoveIf(func(s string, value pcommon.Value) bool {
+			dataPoint.Attributes().RemoveIf(func(s string, _ pcommon.Value) bool {
 				for _, attribute := range mp.attributes {
 					if s == attribute.key {
 						return true
@@ -711,7 +712,7 @@ func mapHistogramRuntimeMetricWithAttributes(md pmetric.Metric, metricsArray pme
 			cp.Histogram().SetAggregationTemporality(md.Histogram().AggregationTemporality())
 			dataPoint := cp.Histogram().DataPoints().AppendEmpty()
 			md.Histogram().DataPoints().At(i).CopyTo(dataPoint)
-			dataPoint.Attributes().RemoveIf(func(s string, value pcommon.Value) bool {
+			dataPoint.Attributes().RemoveIf(func(s string, _ pcommon.Value) bool {
 				for _, attribute := range mp.attributes {
 					if s == attribute.key {
 						return true

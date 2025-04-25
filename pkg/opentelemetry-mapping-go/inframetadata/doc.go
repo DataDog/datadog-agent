@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// package inframetadata handles host metadata and infrastructure list related features. It stores the host metadata and gohai payload definitions as well as the `Reporter` implementation.
+// Package inframetadata handles host metadata and infrastructure list related features. It stores the host metadata and gohai payload definitions as well as the `Reporter` implementation.
 //
 // A `Reporter` keeps a `HostMap` (a map of hostnames to host metadata payloads) and periodically clears it out and reports the information using a `Pusher`
 //

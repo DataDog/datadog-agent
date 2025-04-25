@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package hostmap provides constants for the hostmap.
 package hostmap
 
 import (
@@ -33,7 +34,7 @@ const (
 
 // platformAttributesMap defines the mapping between Gohai fieldPlatform fields
 // and resource attribute names (semantic conventions or not).
-var platformAttributesMap map[string]string = map[string]string{
+var platformAttributesMap = map[string]string{
 	fieldPlatformOS:               conventions.AttributeOSDescription,
 	fieldPlatformGOOS:             conventions.AttributeOSType,
 	fieldPlatformGOOARCH:          conventions.AttributeHostArch,
@@ -80,7 +81,7 @@ const (
 
 // cpuAttributesMap defines the mapping between Gohai fieldCPU fields
 // and resource attribute names (semantic conventions or not).
-var cpuAttributesMap map[string]string = map[string]string{
+var cpuAttributesMap = map[string]string{
 	fieldCPUVendorID:  attributeHostCPUVendorID,
 	fieldCPUModelName: attributeHostCPUModelName,
 	fieldCPUCacheSize: attributeHostCPUCacheL2Size,
@@ -94,14 +95,14 @@ type cpuMetricsData struct {
 	ConversionFactor float64
 }
 
-var cpuMetricsMap map[string]cpuMetricsData = map[string]cpuMetricsData{
+var cpuMetricsMap = map[string]cpuMetricsData{
 	metricSystemCPUPhysicalCount: {FieldName: fieldCPUCores},
 	metricSystemCPULogicalCount:  {FieldName: fieldCPULogicalProcessors},
 	metricSystemCPUFrequency:     {FieldName: fieldCPUMHz, ConversionFactor: 1e-6},
 }
 
 // TrackedMetrics is the set of metrics that are tracked by the hostmap.
-var TrackedMetrics map[string]struct{} = map[string]struct{}{
+var TrackedMetrics = map[string]struct{}{
 	metricSystemCPUPhysicalCount: {},
 	metricSystemCPULogicalCount:  {},
 	metricSystemCPUFrequency:     {},

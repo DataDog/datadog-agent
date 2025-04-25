@@ -32,6 +32,7 @@ const (
 	shouldUseByDefault = false
 )
 
+// Pusher is the interface for pushing host metadata to a remote endpoint.
 type Pusher interface {
 	// Push host metadata to a remote endpoint.
 	// MUST be safe to call concurrently.
