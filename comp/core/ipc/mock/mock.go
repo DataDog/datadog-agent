@@ -65,10 +65,12 @@ func (m *IPCMock) GetTLSServerConfig() *tls.Config {
 	return util.GetTLSServerConfig()
 }
 
+// HTTPMiddleware is a mock of the ipc.Component HTTPMiddleware method
 func (m *IPCMock) HTTPMiddleware(next http.Handler) http.Handler {
 	return ipchttp.NewHTTPMiddleware(m.t.Logf, m.GetAuthToken())(next)
 }
 
+// GetClient is a mock of the ipc.Component GetClient method
 func (m *IPCMock) GetClient() ipc.HTTPClient {
 	return m.client
 }
