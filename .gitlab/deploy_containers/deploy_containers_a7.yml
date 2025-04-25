@@ -9,6 +9,7 @@
 
 stages:
   - deploy_containers
+  - deploy_containers_latest
 
 include:
   - .gitlab/common/container_publish_job_templates.yml
