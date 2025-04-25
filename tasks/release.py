@@ -293,7 +293,7 @@ def tag_devel(ctx, release_branch, commit="HEAD", push=True, force=False):
 
 @task
 def finish(ctx, release_branch, upstream="origin"):
-    """Updates the release entry in the release.json file for the new version.
+    """Updates the release.json file for the new version.
 
     Updates internal module dependencies with the new version.
     """
@@ -773,7 +773,7 @@ def create_release_branches(
 
     That includes:
         - creates a release branch in datadog-agent, datadog-agent-macos, and omnibus-ruby repositories,
-        - updates release.json on new datadog-agent branch to point to newly created release branches in nightly section
+        - updates release.json on new datadog-agent branch to point to newly created release branches
         - updates entries in .gitlab-ci.yml and .gitlab/notify/notify.yml which depend on local branch name
 
     Args:
