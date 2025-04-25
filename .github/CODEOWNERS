@@ -468,6 +468,7 @@
 /pkg/flare/*_windows_test.go            @Datadog/windows-agent @DataDog/agent-configuration
 /pkg/fleet/                             @DataDog/fleet @DataDog/windows-agent
 /pkg/fleet/installer/setup/djm/         @DataDog/fleet @DataDog/data-jobs-monitoring
+/pkg/opentelemetry-mapping-go           @DataDog/opentelemetry-agent
 /pkg/pidfile/                           @DataDog/agent-runtimes
 /pkg/persistentcache/                   @DataDog/agent-runtimes
 /pkg/proto/                             @DataDog/agent-runtimes
