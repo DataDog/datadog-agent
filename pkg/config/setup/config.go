@@ -981,6 +981,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnv("ol_proxy_config.dd_url")
 	config.BindEnv("ol_proxy_config.api_key")
 	config.BindEnv("ol_proxy_config.additional_endpoints")
+	config.BindEnvAndSetDefault("ol_proxy_config.api_version", 2)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -1215,8 +1216,6 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 
 func autoconfig(config pkgconfigmodel.Setup) {
 	// Autoconfig
-	// Defaut Timeout in second when talking to storage for configuration (etcd, zookeeper, ...)
-	config.BindEnvAndSetDefault("autoconf_template_url_timeout", 5)
 	// Where to look for check templates if no custom path is defined
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
 	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)

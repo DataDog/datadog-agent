@@ -9,7 +9,7 @@ generator:
       parallel_connections: 5
       method:
         post:
-          maximum_prebuild_cache_size_bytes: "5 MiB"
+          maximum_prebuild_cache_size_bytes: "512 MiB"
           variant: "opentelemetry_traces"
 
 blackhole:
@@ -18,6 +18,12 @@ blackhole:
       body_variant: "nothing"
   - http:
       binding_addr: "127.0.0.1:9092"
+      body_variant: "nothing"
+  - http:
+      binding_addr: "127.0.0.1:9093"
+      body_variant: "nothing"
+  - http:
+      binding_addr: "127.0.0.1:9094"
       body_variant: "nothing"
 
 target_metrics:

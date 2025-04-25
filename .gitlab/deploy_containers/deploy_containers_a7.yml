@@ -179,7 +179,7 @@ deploy_containers-a7-full-rc:
   rules:
     !reference [.on_rc]
   variables:
-    VERSION: 7-full-rc
+    VERSION: 7-rc
 
 deploy_containers-a7-fips-rc:
   extends: .deploy_containers-a7-base-fips

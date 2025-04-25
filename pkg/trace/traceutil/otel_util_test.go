@@ -19,6 +19,8 @@ import (
 	semconv126 "go.opentelemetry.io/collector/semconv/v1.26.0"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"go.opentelemetry.io/otel/metric/noop"
+
+	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
 var (
@@ -317,15 +319,15 @@ func TestGetOTelService(t *testing.T) {
 		},
 		{
 			name:      "truncate long service",
-			rattrs:    map[string]string{semconv.AttributeServiceName: strings.Repeat("a", MaxServiceLen+1)},
+			rattrs:    map[string]string{semconv.AttributeServiceName: strings.Repeat("a", normalizeutil.MaxServiceLen+1)},
 			normalize: true,
-			expected:  strings.Repeat("a", MaxServiceLen),
+			expected:  strings.Repeat("a", normalizeutil.MaxServiceLen),
 		},
 		{
 			name:      "invalid service",
 			rattrs:    map[string]string{semconv.AttributeServiceName: "%$^"},
 			normalize: true,
-			expected:  DefaultServiceName,
+			expected:  normalizeutil.DefaultServiceName,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -373,10 +375,10 @@ func TestGetOTelResource(t *testing.T) {
 		},
 		{
 			name:       "truncate long resource",
-			sattrs:     map[string]string{"resource.name": strings.Repeat("a", MaxResourceLen+1)},
+			sattrs:     map[string]string{"resource.name": strings.Repeat("a", normalizeutil.MaxResourceLen+1)},
 			normalize:  true,
-			expectedV1: strings.Repeat("a", MaxResourceLen),
-			expectedV2: strings.Repeat("a", MaxResourceLen),
+			expectedV1: strings.Repeat("a", normalizeutil.MaxResourceLen),
+			expectedV2: strings.Repeat("a", normalizeutil.MaxResourceLen),
 		},
 		{
 			name:       "GraphQL with no type",
@@ -480,19 +482,19 @@ func TestGetOTelOperationName(t *testing.T) {
 			sattrs:             map[string]string{"operation.name": "op"},
 			spanNameRemappings: map[string]string{"op": ""},
 			normalize:          true,
-			expected:           DefaultSpanName,
+			expected:           normalizeutil.DefaultSpanName,
 		},
 		{
 			name:      "normalize invalid operation name",
 			sattrs:    map[string]string{"operation.name": "%$^"},
 			normalize: true,
-			expected:  DefaultSpanName,
+			expected:  normalizeutil.DefaultSpanName,
 		},
 		{
 			name:      "truncate long operation name",
-			sattrs:    map[string]string{"operation.name": strings.Repeat("a", MaxNameLen+1)},
+			sattrs:    map[string]string{"operation.name": strings.Repeat("a", normalizeutil.MaxNameLen+1)},
 			normalize: true,
-			expected:  strings.Repeat("a", MaxNameLen),
+			expected:  strings.Repeat("a", normalizeutil.MaxNameLen),
 		},
 		{
 			name:                   "operation name retrieved from span name, then remapped",
