@@ -29,8 +29,8 @@ GATE_CONFIG_PATH = "test/static/static_quality_gates.yml"
 
 body_pattern = """### {}
 
-||Quality gate|Disk size diff|On disk size|Wire size diff|On wire size|Unit|
-|--|--|--|--|--|--|--|
+||Quality gate|Disk size diff (MiB)|On disk size (MiB)|Wire size diff (MiB)|On wire size (MiB)|
+|--|--|--|--|--|--|
 """
 
 body_error_footer_pattern = """<details>
@@ -81,10 +81,10 @@ def display_pr_comment(
         )
 
         if gate["error_type"] is None:
-            body_info += f"|{SUCCESS_CHAR}|{gate_name}|{relative_disk_size}|{getMetric('current_on_disk_size', 'max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size', 'max_on_wire_size')}|MiB|\n"
+            body_info += f"|{SUCCESS_CHAR}|{gate_name}|{relative_disk_size}|{getMetric('current_on_disk_size', 'max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size', 'max_on_wire_size')}|\n"
             with_info = True
         else:
-            body_error += f"|{FAIL_CHAR}|{gate_name}|{relative_disk_size}|{getMetric('current_on_disk_size', 'max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size', 'max_on_wire_size')}|MiB|\n"
+            body_error += f"|{FAIL_CHAR}|{gate_name}|{relative_disk_size}|{getMetric('current_on_disk_size', 'max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size', 'max_on_wire_size')}|\n"
             error_message = gate['message'].replace('\n', '<br>')
             body_error_footer += f"|{gate_name}|{gate['error_type']}|{error_message}|\n"
             with_error = True
