@@ -25,7 +25,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/quantile"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
 func toStore(b pmetric.ExponentialHistogramDataPointBuckets) store.Store {

@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/internal/sketchtest
+module github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest
 
 go 1.23.0
 

@@ -28,8 +28,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/internal/sketchtest"
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/quantile"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest"
 )
 
 var _ SketchConsumer = (*sketchConsumer)(nil)
