@@ -25,6 +25,9 @@ const (
 	packetsChanSize    = 100
 )
 
+// TODO: (Firewall) Find a better way to do that
+var lastReadPort uint16
+
 // UserV3 contains the definition of one SNMPv3 user with its username and its auth
 // parameters.
 type UserV3 struct {
@@ -57,8 +60,10 @@ func ReadConfig(host string, conf config.Component) (*TrapsConfig, error) {
 		return nil, err
 	}
 	if err := c.SetDefaults(host, conf.GetString("network_devices.namespace")); err != nil {
+		lastReadPort = c.Port
 		return c, err
 	}
+	lastReadPort = c.Port
 	return c, nil
 }
 
@@ -168,4 +173,8 @@ func (c *TrapsConfig) GetPacketChannelSize() int {
 // IsEnabled returns whether SNMP trap collection is enabled in the Agent configuration.
 func IsEnabled(conf config.Component) bool {
 	return conf.GetBool("network_devices.snmp_traps.enabled")
+}
+
+func GetLastReadPort() uint16 {
+	return lastReadPort
 }
