@@ -66,9 +66,8 @@ func calculatePct(deltaProc, deltaTime, numCPU float64) float32 {
 	return float32(overalPct)
 }
 
-// ecs fargate checks only support linux
-func warnECSFargateMisconfig(containers []*model.Container) {}
+func warnECSFargateMisconfig(_ []*model.Container) {}
 
-func isECSFargatePidModeSetToTask(containers []*model.Container) bool {
+func isECSFargatePidModeSetToTask(_ []*model.Container) bool {
 	return false
 }
