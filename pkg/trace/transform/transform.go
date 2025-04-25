@@ -223,11 +223,13 @@ func conditionallyMapOTLPAttributeToMetric(k string, value float64, ddspan *pb.S
 	}
 }
 
+// If these DD namespaced keys are found in OTLP resource attributes, map them to the corresponding keys in ddspan.Meta
 var ddNamespacedKeysToAPMConventionKeysForResourceAttributes = map[string]string{
 	KeyDatadogEnvironment: "env",
 	KeyDatadogVersion:     "version",
 }
 
+// If these DD namespaced keys are found in OTLP span attributes, map them to the corresponding keys in ddspan.Meta
 var ddNamespacedKeysToAPMConventionKeysForSpanAttributes = map[string]string{
 	KeyDatadogHTTPStatusCode: "http.status_code",
 	KeyDatadogErrorMsg:       "error.msg",
