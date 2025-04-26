@@ -676,7 +676,7 @@ unit_names:
 }
 
 // Monitor units that match regular expressions coming from the instance config.
-func TestSubmitMonitoredServiceMetricsRegexes(t *testing.T) {
+func TestSubmitMetricsRegexes(t *testing.T) {
 
 	// Given
 	unitsToMetrics := map[string][]string{
@@ -739,19 +739,25 @@ func TestSubmitMonitoredServiceMetricsRegexes(t *testing.T) {
 	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	tests := map[string]struct {
+		unitNames      string
 		unitRegexes    string
 		monitoredUnits []string
 	}{
-		"monitor_units_1_and_2": {`'unit1', 'unit2'`, []string{"unit1.service", "unit2.service"}},
-		"monitor_all_services":  {`'.+\.service$'`, []string{"unit1.service", "unit2.service", "unit3.service"}},
-		"monitor_all_units":     {`'.+'`, []string{"unit1.service", "unit2.service", "unit3.service", "unit4.socket"}},
+		"monitor_units_1_and_2": {"", `'unit1', 'unit2'`, []string{"unit1.service", "unit2.service"}},
+		"monitor_all_services":  {"", `'.+\.service$'`, []string{"unit1.service", "unit2.service", "unit3.service"}},
+		"monitor_all_units":     {"", `'.+'`, []string{"unit1.service", "unit2.service", "unit3.service", "unit4.socket"}},
+		// unit_regexes selects all services and unit_names selects the socket unit.
+		"unit_names_complement_unit_regex": {"unit4.socket", `'.+\.service$'`, []string{"unit1.service", "unit2.service", "unit3.service", "unit4.socket"}},
+		// unit_regexes excludes service unit1 and unit2, but unit_names selects them.
+		"unit_names_override_unit_regex": {"'unit1.service', 'unit2.service'", `[^12]`, []string{"unit1.service", "unit2.service"}},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Given
 			rawInstanceConfig := []byte(fmt.Sprintf(`
+unit_names: [%s]
 unit_regexes: [%s]
-`, test.unitRegexes))
+`, test.unitNames, test.unitRegexes))
 			check := SystemdCheck{stats: stats}
 			senderManager := mocksender.CreateDefaultDemultiplexer()
 			check.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, nil, "test")
