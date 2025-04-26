@@ -830,6 +830,12 @@ func (s *baseStartStopSuite) captureLiveKernelDump(host *components.RemoteHost, 
 		s.T().Logf("Remote execute error: %s\n", err)
 	}
 
+	if exists, _ := host.FileExists(destDumpFile); exists {
+		s.T().Logf("live kernel dump moved to %s\n", destDumpFile)
+	} else {
+		s.T().Logf("live kernel dump not found at %s\n", destDumpFile)
+	}
+
 	// Cleanup the "localhost" subdirectory.
 	host.RemoveAll(sourceDumpDir)
 }
