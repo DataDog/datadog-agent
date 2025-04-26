@@ -784,15 +784,15 @@ func (s *baseStartStopSuite) sendHostMemoryMetrics(host *components.RemoteHost) 
 }
 
 // captureLiveKernelDump sends a commnad to the host to create a live kernel dump.
-func (s *baseStartStopSuite) captureLiveKernelDump(host components.RemoteHost, dumpDir string) {
+func (s *baseStartStopSuite) captureLiveKernelDump(host *components.RemoteHost, dumpDir string) {
 	tempDumpDir := `C:\Windows\Temp`
 	sourceDumpDir := fmt.Sprintf(`%s\localhost`, tempDumpDir)
 
+	// The live kernel dump will be placed under subdirectory named "localhost."
 	// Make sure the subdirectory where the dump will be generated is empty.
 	host.RemoveAll(sourceDumpDir)
 
 	// This Powershell command is originally tailored for storage cluster environments.
-	// The live kernel dump will be placed under subdirectory named "localhost."
 	getSubsystemCmd := `$ss = Get-CimInstance -ClassName MSFT_StorageSubSystem -Namespace Root\Microsoft\Windows\Storage`
 	createLiveDumpCmd := fmt.Sprintf(`Invoke-CimMethod -InputObject $ss -MethodName "GetDiagnosticInfo" -Arguments @{DestinationPath="%s"; IncludeLiveDump=$true}"`, tempDumpDir)
 	dumpCmd := fmt.Sprintf("%s;%s", getSubsystemCmd, createLiveDumpCmd)
