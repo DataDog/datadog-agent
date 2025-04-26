@@ -672,7 +672,8 @@ func (s *baseStartStopSuite) assertServiceState(expected string, serviceName str
 		}
 	}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
 
-	if s.T().Failed() && slices.Contains(s.getInstalledKernelServices(), serviceName) {
+	// if s.T().Failed() && slices.Contains(s.getInstalledKernelServices(), serviceName) {
+	if serviceName == "ddprocmon" {
 		// if a driver service failed to get to the expected state, capture a kernel dump for debugging.
 		s.T().Logf("capturing live kernel dump due to %s not in %s state\n", serviceName, expected)
 		s.captureLiveKernelDump(host, s.dumpFolder)
