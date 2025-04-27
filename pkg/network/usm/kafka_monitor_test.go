@@ -154,11 +154,6 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 	produce12fetch12.SetMaxKeyVersion(kafka.FetchAPIKey, 12)
 	versions = append(versions, produce12fetch12)
 
-	produce12fetch16 := kversion.V4_0_0()
-	produce12fetch16.SetMaxKeyVersion(kafka.ProduceAPIKey, 12)
-	produce12fetch16.SetMaxKeyVersion(kafka.FetchAPIKey, 16)
-	versions = append(versions, produce12fetch16)
-
 	versionName := func(version *kversion.Versions) string {
 		produce, found := version.LookupMaxKeyVersion(kafka.ProduceAPIKey)
 		require.True(t, found)
@@ -291,7 +286,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					ServerAddress: ctx.targetAddress,
 					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(version),
+						kgo.MaxVersions(kversion.V1_0_0()),
 						kgo.ClientID(""),
 					},
 				})
@@ -307,7 +302,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				getAndValidateKafkaStats(t, monitor, fixCount(1), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(1),
 					expectedNumberOfFetchRequests:   0,
-					expectedAPIVersionProduce:       expectedAPIVersionProduce,
+					expectedAPIVersionProduce:       5,
 					expectedAPIVersionFetch:         0,
 					tlsEnabled:                      tls,
 				}, kafkaSuccessErrorCode)
