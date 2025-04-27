@@ -32,8 +32,9 @@ type msiexecArgs struct {
 
 	// logFile should be a full local path where msiexec will write the installation logs.
 	// If nothing is specified, a random, temporary file is used.
-	logFile         string
-	ddagentUserName string
+	logFile             string
+	ddagentUserName     string
+	ddagentUserPassword string
 
 	// additionalArgs are further args that can be passed to msiexec
 	additionalArgs []string
@@ -124,6 +125,14 @@ func WithAdditionalArgs(additionalArgs []string) MsiexecOption {
 func WithDdAgentUserName(ddagentUserName string) MsiexecOption {
 	return func(a *msiexecArgs) error {
 		a.ddagentUserName = ddagentUserName
+		return nil
+	}
+}
+
+// WithDdAgentUserPassword specifies the DDAGENTUSER_PASSWORD to use
+func WithDdAgentUserPassword(ddagentUserPassword string) MsiexecOption {
+	return func(a *msiexecArgs) error {
+		a.ddagentUserPassword = ddagentUserPassword
 		return nil
 	}
 }
@@ -299,6 +308,9 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 	}
 	if a.ddagentUserName != "" {
 		a.additionalArgs = append(a.additionalArgs, fmt.Sprintf("DDAGENTUSER_NAME=%s", a.ddagentUserName))
+	}
+	if a.ddagentUserPassword != "" {
+		a.additionalArgs = append(a.additionalArgs, fmt.Sprintf("DDAGENTUSER_PASSWORD=%s", a.ddagentUserPassword))
 	}
 	if a.msiAction == "/i" {
 		a.additionalArgs = append(a.additionalArgs, "MSIFASTINSTALL=7")

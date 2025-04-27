@@ -14,7 +14,6 @@ import (
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -104,11 +103,6 @@ func (f *fakeTagger) GetTagStore() *tagstore.TagStore {
 }
 
 // Tagger methods
-
-// GetTaggerTelemetryStore calls tagger.GetTaggerTelemetryStore().
-func (f *fakeTagger) GetTaggerTelemetryStore() *telemetry.Store {
-	return f.tagger.GetTaggerTelemetryStore()
-}
 
 // Tag calls tagger.Tag().
 func (f *fakeTagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {

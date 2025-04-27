@@ -29,7 +29,6 @@ func buildProduceVersionTest(name string, version *kversion.Versions, targetAddr
 	return protocolClassificationAttributes{
 		name: name,
 		context: testContext{
-			serverPort:    kafkaPort,
 			targetAddress: targetAddress,
 			serverAddress: serverAddress,
 			extras: map[string]interface{}{
@@ -265,7 +264,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			version = kversion.V3_8_0()
 			targetPort = kafka.KafkaOldPort
 		}
-		require.LessOrEqual(t, int16(produceVersion), lo.Must(version.LookupMaxKeyVersion(produceAPIKey)), "fetch version unsupported by kafka lib")
+		require.LessOrEqual(t, int16(produceVersion), lo.Must(version.LookupMaxKeyVersion(produceAPIKey)), "produce version unsupported by kafka lib")
 		version.SetMaxKeyVersion(produceAPIKey, int16(produceVersion))
 
 		currentTest := buildProduceVersionTest(

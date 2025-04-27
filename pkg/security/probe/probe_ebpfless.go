@@ -630,9 +630,7 @@ func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return
 			}
 
-			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev, func(pid uint32, sig uint32) error {
-				return p.processKiller.KillFromUserspace(pid, sig, ev)
-			}) {
+			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		case action.Def.Hash != nil:
@@ -687,7 +685,7 @@ func (p *EBPFLessProbe) GetAgentContainerContext() *events.AgentContainerContext
 func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLessProbe, error) {
 	opts.normalize()
 
-	processKiller, err := NewProcessKiller(config)
+	processKiller, err := NewProcessKiller(config, nil)
 	if err != nil {
 		return nil, err
 	}

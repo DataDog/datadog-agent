@@ -17,6 +17,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -59,8 +60,12 @@ func StartUnit(ctx context.Context, unit string, args ...string) (err error) {
 		return err
 	}
 	span.SetTag("exit_code", exitErr.ExitCode())
-	// exit code 143 means the process was killed by a signal, most likely because we self stopped
-	if exitErr.ExitCode() == 143 {
+
+	waitStatus, hasWaitStatus := exitErr.Sys().(syscall.WaitStatus)
+	// Handle the cases where we self stop:
+	// - Exit code 143 (128 + 15) means the process was killed by SIGTERM. This is unlikely to happen because of Go's exec.
+	// - Exit code -1 being returned by exec means the process was killed by a signal. We check the wait status to see if it was SIGTERM.
+	if (exitErr.ExitCode() == -1 && hasWaitStatus && waitStatus.Signal() == syscall.SIGTERM) || exitErr.ExitCode() == 143 {
 		return nil
 	}
 	return errors.New(string(exitErr.Stderr))

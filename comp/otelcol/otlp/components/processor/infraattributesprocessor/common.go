@@ -28,13 +28,13 @@ var unifiedServiceTagMap = map[string][]string{
 }
 
 type infraTagsProcessor struct {
-	tagger   taggerClient
+	tagger   types.TaggerClient
 	hostname option.Option[string]
 }
 
 // newInfraTagsProcessor creates a new infraTagsProcessor instance
 func newInfraTagsProcessor(
-	tagger taggerClient,
+	tagger types.TaggerClient,
 	hostGetterOpt option.Option[SourceProviderFunc],
 ) infraTagsProcessor {
 	infraTagsProcessor := infraTagsProcessor{

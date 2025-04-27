@@ -74,11 +74,11 @@ function Send-Telemetry($payload) {
 }
 
 function Show-Error($errorMessage, $errorCode) {
-   Write-Error -ErrorAction Continue @"
-    Datadog Install script failed:
+   Write-Host -ForegroundColor Red @"
+Datadog Install script failed:
 
-    Error message: $($errorMessage)
-    Error code: $($errorCode)
+Error message: $($errorMessage)
+Error code: $($errorCode)
 
 "@
 

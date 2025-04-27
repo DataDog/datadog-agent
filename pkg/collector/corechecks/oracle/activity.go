@@ -64,11 +64,12 @@ func sendPayload(c *Check, sessionRows []OracleActivityRow, timestamp float64) e
 	payload := ActivitySnapshot{
 		Metadata: Metadata{
 			//Timestamp:      float64(c.clock.Now().UnixMilli()),
-			Timestamp:      ts,
-			Host:           c.dbHostname,
-			Source:         common.IntegrationName,
-			DBMType:        "activity",
-			DDAgentVersion: c.agentVersion,
+			Timestamp:        ts,
+			Host:             c.dbHostname,
+			DatabaseInstance: c.dbInstanceIdentifier,
+			Source:           common.IntegrationName,
+			DBMType:          "activity",
+			DDAgentVersion:   c.agentVersion,
 		},
 		CollectionInterval: collectionInterval,
 		Tags:               c.tags,

@@ -183,8 +183,8 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 
 	if pkgconfig.Get("apm_config.features") == nil {
 		apmConfigFeatures := []string{}
-		if pkgdatadog.OperationAndResourceNameV2FeatureGate.IsEnabled() {
-			apmConfigFeatures = append(apmConfigFeatures, "enable_operation_and_resource_name_logic_v2")
+		if !pkgdatadog.OperationAndResourceNameV2FeatureGate.IsEnabled() {
+			apmConfigFeatures = append(apmConfigFeatures, "disable_operation_and_resource_name_logic_v2")
 		}
 		if ddc.Traces.ComputeTopLevelBySpanKind {
 			apmConfigFeatures = append(apmConfigFeatures, "enable_otlp_compute_top_level_by_span_kind")

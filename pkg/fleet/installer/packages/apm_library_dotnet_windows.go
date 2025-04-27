@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows
-
 package packages
 
 import (
@@ -15,9 +13,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var apmLibraryDotnetPackage = hooks{
+	postInstall:         postInstallAPMLibraryDotnet,
+	preRemove:           preRemoveAPMLibraryDotnet,
+	postStartExperiment: postStartExperimentAPMLibraryDotnet,
+	preStopExperiment:   preStopExperimentAPMLibraryDotnet,
+}
 
 const (
 	packageAPMLibraryDotnet = "datadog-apm-library-dotnet"
@@ -39,9 +43,9 @@ func getLibraryPath(installDir string) string {
 	return filepath.Join(installDir, "library")
 }
 
-// SetupAPMLibraryDotnet runs on the first install of the .NET APM library after the files are laid out on disk.
-func SetupAPMLibraryDotnet(ctx context.Context, _ string) (err error) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, "setup_apm_library_dotnet")
+// postInstallAPMLibraryDotnet runs on the first install of the .NET APM library after the files are laid out on disk.
+func postInstallAPMLibraryDotnet(ctx HookContext) (err error) {
+	span, ctx := ctx.StartSpan("setup_apm_library_dotnet")
 	defer func() { span.Finish(err) }()
 	// Register GAC + set env variables
 	var installDir string
@@ -61,9 +65,9 @@ func SetupAPMLibraryDotnet(ctx context.Context, _ string) (err error) {
 	return nil
 }
 
-// StartAPMLibraryDotnetExperiment starts a .NET APM library experiment.
-func StartAPMLibraryDotnetExperiment(ctx context.Context) (err error) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, "start_apm_library_dotnet_experiment")
+// postStartExperimentAPMLibraryDotnet starts a .NET APM library experiment.
+func postStartExperimentAPMLibraryDotnet(ctx HookContext) (err error) {
+	span, ctx := ctx.StartSpan("start_apm_library_dotnet_experiment")
 	defer func() { span.Finish(err) }()
 	// Register GAC + set env variables new version
 	var installDir string
@@ -83,9 +87,9 @@ func StartAPMLibraryDotnetExperiment(ctx context.Context) (err error) {
 	return nil
 }
 
-// StopAPMLibraryDotnetExperiment stops a .NET APM library experiment.
-func StopAPMLibraryDotnetExperiment(ctx context.Context) (err error) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, "stop_apm_library_dotnet_experiment")
+// preStopExperimentAPMLibraryDotnet stops a .NET APM library experiment.
+func preStopExperimentAPMLibraryDotnet(ctx HookContext) (err error) {
+	span, ctx := ctx.StartSpan("stop_apm_library_dotnet_experiment")
 	defer func() { span.Finish(err) }()
 	// Re-register GAC + set env variables of stable version
 	var installDir string
@@ -105,16 +109,10 @@ func StopAPMLibraryDotnetExperiment(ctx context.Context) (err error) {
 	return nil
 }
 
-// PromoteAPMLibraryDotnetExperiment promotes a .NET APM library experiment to stable.
-func PromoteAPMLibraryDotnetExperiment(_ context.Context) (err error) {
-	// Do nothing since the experiment is already installed and does not rely on the symlink
-	return nil
-}
-
-// RemoveAPMLibraryDotnet uninstalls the .NET APM library
+// preRemoveAPMLibraryDotnet uninstalls the .NET APM library
 // This function only disable injection, the cleanup for each version is done by the PreRemoveHook
-func RemoveAPMLibraryDotnet(ctx context.Context) (err error) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, "remove_apm_library_dotnet")
+func preRemoveAPMLibraryDotnet(ctx HookContext) (err error) {
+	span, ctx := ctx.StartSpan("remove_apm_library_dotnet")
 	defer func() { span.Finish(err) }()
 	var installDir string
 	installDir, err = filepath.EvalSymlinks(getTargetPath("stable"))
@@ -135,9 +133,9 @@ func RemoveAPMLibraryDotnet(ctx context.Context) (err error) {
 	return nil
 }
 
-// PreRemoveHookDotnet runs before the garbage collector deletes the package files for a version.
+// asyncPreRemoveHookAPMLibraryDotnet runs before the garbage collector deletes the package files for a version.
 // It checks that it's safe to delete it and cleans up the external dependencies of the package.
-func PreRemoveHookDotnet(ctx context.Context, pkgRepositoryPath string) (bool, error) {
+func asyncPreRemoveHookAPMLibraryDotnet(ctx context.Context, pkgRepositoryPath string) (bool, error) {
 	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(pkgRepositoryPath))
 	exitCode, err := dotnetExec.UninstallVersion(ctx, getLibraryPath(pkgRepositoryPath))
 	if err != nil {

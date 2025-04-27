@@ -357,6 +357,32 @@ namespace Datadog.CustomActions
         }
 
         /// <summary>
+        /// Returns the Agent user password from the command line, or the LSA secret store
+        /// </summary>
+        private string FetchAgentPassword()
+        {
+            var ddAgentUserPassword = _session.Property("DDAGENTUSER_PASSWORD");
+            if (!string.IsNullOrEmpty(ddAgentUserPassword))
+            {
+                return ddAgentUserPassword;
+            }
+
+            // If the password is not provided on the command line, try to fetch it from the LSA secret store
+            try
+            {
+                var keyName = ConfigureUserCustomActions.AgentPasswordPrivateDataKey();
+                ddAgentUserPassword = _nativeMethods.FetchSecret(keyName);
+            }
+            catch (Exception e)
+            {
+                // Ignore errors, the password may not exist yet
+                _session.Log($"Failed to read Agent password from LSA, using empty string, this is unexpected only during upgrades: {e}");
+            }
+
+            return ddAgentUserPassword;
+        }
+
+        /// <summary>
         /// Processes the DDAGENTUSER_NAME and DDAGENTUSER_PASSWORD properties into formats that can be
         /// consumed by other custom actions. Also does some basic error handling/checking on the property values.
         /// </summary>
@@ -384,7 +410,7 @@ namespace Datadog.CustomActions
                 }
 
                 var ddAgentUserName = _session.Property("DDAGENTUSER_NAME");
-                var ddAgentUserPassword = _session.Property("DDAGENTUSER_PASSWORD");
+                var ddAgentUserPassword = FetchAgentPassword();
                 var datadogAgentServiceExists = _serviceController.ServiceExists(Constants.AgentServiceName);
 
                 // LocalSystem is not supported by LookupAccountName as it is a pseudo account,
@@ -437,6 +463,14 @@ namespace Datadog.CustomActions
                     _session["DDAGENTUSER_FOUND"] = "true";
                     _session["DDAGENTUSER_SID"] = securityIdentifier.ToString();
                     isServiceAccount = _nativeMethods.IsServiceAccount(securityIdentifier);
+                    if (isServiceAccount)
+                    {
+                        _session["DDAGENTUSER_IS_SERVICE_ACCOUNT"] = "true";
+                    }
+                    else
+                    {
+                        _session["DDAGENTUSER_IS_SERVICE_ACCOUNT"] = "false";
+                    }
                     isDomainAccount = _nativeMethods.IsDomainAccount(securityIdentifier);
                     _session.Log(
                         $"\"{domain}\\{userName}\" ({securityIdentifier.Value}, {nameUse}) is a {(isDomainAccount ? "domain" : "local")} {(isServiceAccount ? "service " : string.Empty)}account");

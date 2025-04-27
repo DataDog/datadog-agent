@@ -815,6 +815,18 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedGeneratedName:       "mcservice",
 			expectedGeneratedNameSource: CommandLine,
 		},
+		{
+			name: "gunicorn with replaced cmdline and [ready]",
+			cmdline: []string{
+				"[ready]",
+				"gunicorn:",
+				"worker",
+				"[airflow-webserver]",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "airflow-webserver",
+			expectedGeneratedNameSource: CommandLine,
+		},
 	}
 
 	for _, tt := range tests {

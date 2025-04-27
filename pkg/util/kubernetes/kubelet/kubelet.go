@@ -371,8 +371,9 @@ func (ku *KubeUtil) GetPodForContainerID(ctx context.Context, containerID string
 		return pod, nil
 	}
 
+	// Error is not nil
 	// Retry with cache invalidation
-	if err != nil && errors.IsNotFound(err) {
+	if errors.IsNotFound(err) {
 		log.Debugf("Cannot get container %q: %s, retrying without cache...", containerID, err)
 		pods, err = ku.ForceGetLocalPodList(ctx)
 		if err != nil {
@@ -506,9 +507,6 @@ func IsPodReady(pod *Pod) bool {
 		return false
 	}
 
-	if tolerate, ok := pod.Metadata.Annotations[unreadyAnnotation]; ok && tolerate == "true" {
-		return true
-	}
 	for _, status := range pod.Status.Conditions {
 		if status.Type == "Ready" && status.Status == "True" {
 			return true

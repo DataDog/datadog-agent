@@ -17,7 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/image"
@@ -48,7 +47,7 @@ const (
 // imageEventActionSbom is an event that we set to create a fake docker event.
 const imageEventActionSbom = events.Action("sbom")
 
-type resolveHook func(ctx context.Context, co types.ContainerJSON) (string, error)
+type resolveHook func(ctx context.Context, co container.InspectResponse) (string, error)
 
 type collector struct {
 	id      string
@@ -350,7 +349,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 	return event, nil
 }
 
-func extractImage(ctx context.Context, container types.ContainerJSON, resolve resolveHook, store workloadmeta.Component) workloadmeta.ContainerImage {
+func extractImage(ctx context.Context, container container.InspectResponse, resolve resolveHook, store workloadmeta.Component) workloadmeta.ContainerImage {
 	imageSpec := container.Config.Image
 	image := workloadmeta.ContainerImage{
 		RawName: imageSpec,
@@ -423,7 +422,7 @@ func extractEnvVars(env []string) map[string]string {
 	return envMap
 }
 
-func extractPorts(container types.ContainerJSON) []workloadmeta.ContainerPort {
+func extractPorts(container container.InspectResponse) []workloadmeta.ContainerPort {
 	var ports []workloadmeta.ContainerPort
 
 	// yes, the code in both branches is exactly the same. unfortunately.
@@ -490,7 +489,7 @@ func extractNetworkIPs(networks map[string]*network.EndpointSettings) map[string
 	return networkIPs
 }
 
-func extractStatus(containerState *types.ContainerState) workloadmeta.ContainerStatus {
+func extractStatus(containerState *container.State) workloadmeta.ContainerStatus {
 	if containerState == nil {
 		return workloadmeta.ContainerStatusUnknown
 	}
@@ -511,7 +510,7 @@ func extractStatus(containerState *types.ContainerState) workloadmeta.ContainerS
 	return workloadmeta.ContainerStatusUnknown
 }
 
-func extractHealth(containerLabels map[string]string, containerHealth *types.Health) workloadmeta.ContainerHealth {
+func extractHealth(containerLabels map[string]string, containerHealth *container.Health) workloadmeta.ContainerHealth {
 	// When we're running in Kubernetes, do not report health from Docker but from Kubelet readiness
 	if _, ok := containerLabels[kubernetes.CriContainerNamespaceLabel]; ok {
 		return ""
@@ -522,11 +521,11 @@ func extractHealth(containerLabels map[string]string, containerHealth *types.Hea
 	}
 
 	switch containerHealth.Status {
-	case types.NoHealthcheck, types.Starting:
+	case container.NoHealthcheck, container.Starting:
 		return workloadmeta.ContainerHealthUnknown
-	case types.Healthy:
+	case container.Healthy:
 		return workloadmeta.ContainerHealthHealthy
-	case types.Unhealthy:
+	case container.Unhealthy:
 		return workloadmeta.ContainerHealthUnhealthy
 	}
 
@@ -656,7 +655,7 @@ func isInheritedLayer(layer image.HistoryResponseItem) bool {
 	return layer.CreatedBy == "" && layer.Size == 0
 }
 
-func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, inspect types.ImageInspect) []workloadmeta.ContainerImageLayer {
+func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, inspect image.InspectResponse) []workloadmeta.ContainerImageLayer {
 	var layers []workloadmeta.ContainerImageLayer
 
 	// Loop through history and check how many layers should be assigned a corresponding docker inspect digest

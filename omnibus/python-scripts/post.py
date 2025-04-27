@@ -58,11 +58,15 @@ if os.name == 'nt':
         return post(install_directory, data_dog_data_dir, skip_flag=True)
 else:
     def main():
-        if len(sys.argv) != 2:
-            print("Usage: post.py <INSTALL_DIR>")
-            return 1
-        install_directory = sys.argv[1]
-        return post(install_directory, install_directory)
+        if len(sys.argv) == 2:
+            install_directory = sys.argv[1]
+            return post(install_directory, install_directory)
+        elif len(sys.argv) == 3:
+            install_directory = sys.argv[1]
+            storage_location = sys.argv[2]
+            return post(install_directory, storage_location)
+        print("Usage: post.py <INSTALL_DIR> [STORAGE_LOCATION]")
+        return 1
 
 if __name__ == '__main__':
     sys.exit(main())

@@ -6,18 +6,18 @@ generator:
         load_profile:
           linear:
             # Over a ten minute experiment this will mean load proceeds from
-            # 10MB to 310MB per second. As a file rotates every 500MB we will
+            # 10 MiB to 310 MiB per second. As a file rotates every 500 MiB we will
             # see files rotating, by the end, every two seconds.
             #
             # Agent is not expected to keep up.
-            initial_bytes_per_second: 10MB
-            rate: 0.5MB
+            initial_bytes_per_second: 10 MiB
+            rate: 0.5 MiB
         concurrent_logs: 1
-        maximum_bytes_per_log: 500MB
+        maximum_bytes_per_log: 500 MiB
         total_rotations: 5
         max_depth: 0
         variant: "ascii"
-        maximum_prebuild_cache_size_bytes: 300MB
+        maximum_prebuild_cache_size_bytes: 300 MiB
         mount_point: /smp-shared
 
 blackhole:

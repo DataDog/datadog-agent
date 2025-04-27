@@ -17,6 +17,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
+from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 
@@ -174,6 +175,15 @@ def get_embedded_path(ctx):
             return test_embedded_path
 
     return None
+
+
+def get_repo_root():
+    """
+    Get the root of the repository, where the .git directory is.
+    """
+    import tasks
+
+    return Path(tasks.__file__).parent.parent
 
 
 def get_xcode_version(ctx):

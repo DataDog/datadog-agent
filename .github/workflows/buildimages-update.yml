@@ -59,12 +59,6 @@ jobs:
           ref: ${{ inputs.branch }}
           persist-credentials: false
 
-      - name: Setup Python and pip
-        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
-        with:
-          python-version-file: .python-version
-          cache: "pip"
-
       - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
         with:
           # use the go version from the input, not from the .go-version file

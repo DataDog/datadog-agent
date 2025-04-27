@@ -6,19 +6,19 @@
 package profile
 
 import (
-	"github.com/stretchr/testify/require"
 	"path/filepath"
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
 func Test_loadProfiles(t *testing.T) {
+	mockConfig := configmock.New(t)
 	tests := []struct {
 		name                   string
 		mockConfd              string
@@ -88,7 +88,7 @@ func Test_loadProfiles(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			SetGlobalProfileConfigMap(nil)
 			path, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
-			pkgconfigsetup.Datadog().SetWithoutSource("confd_path", path)
+			mockConfig.SetWithoutSource("confd_path", path)
 
 			actualProfiles, err := loadProfiles(tt.profiles)
 			if tt.expectedErr != "" {

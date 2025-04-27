@@ -15,6 +15,7 @@ type libRequirementOptions struct {
 	initContainerMutators containerMutators
 	containerMutators     containerMutators
 	podMutators           []podMutator
+	containerFilter       containerFilter
 }
 
 type libRequirement struct {
@@ -28,6 +29,10 @@ type libRequirement struct {
 
 func (reqs libRequirement) injectPod(pod *corev1.Pod, ctrName string) error {
 	for i, ctr := range pod.Spec.Containers {
+
+		if reqs.containerFilter != nil && !reqs.containerFilter(&ctr) {
+			continue
+		}
 
 		if ctrName == "" || ctrName == ctr.Name {
 			for _, v := range reqs.envVars {

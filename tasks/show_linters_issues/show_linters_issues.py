@@ -59,7 +59,7 @@ def show_linters_issues(
     """
     This function displays the list of files that need fixing for a specific team and for specific linters.
 
-        Example: dda inv show-linters-issues --filter-team "@DataDog/agent-devx-infra" --filter-linters "revive" --platforms "linux,amd64" --platforms "linux,arm64"
+        Example: dda inv show-linters-issues --filter-team "@DataDog/agent-devx" --filter-linters "revive" --platforms "linux,amd64" --platforms "linux,arm64"
 
         Parameters:
             team (str): keep only the files owned by a team. These are Github team names from the GITHUB_SLACK_MAP variable.

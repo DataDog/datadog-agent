@@ -7,6 +7,7 @@ package infraattributesprocessor
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -24,7 +25,7 @@ func hostGetter(_ context.Context) (string, error) {
 }
 
 func TestType(t *testing.T) {
-	tc := newTestTaggerClient()
+	tc := testutil.NewTestTaggerClient()
 	factory := NewFactoryForAgent(tc, hostGetter)
 	pType := factory.Type()
 
@@ -32,7 +33,7 @@ func TestType(t *testing.T) {
 }
 
 func TestCreateDefaultConfig(t *testing.T) {
-	tc := newTestTaggerClient()
+	tc := testutil.NewTestTaggerClient()
 	factory := NewFactoryForAgent(tc, hostGetter)
 	cfg := factory.CreateDefaultConfig()
 	assert.NoError(t, componenttest.CheckConfigStruct(cfg))
@@ -55,7 +56,7 @@ func TestCreateProcessors(t *testing.T) {
 		t.Run(tt.configName, func(t *testing.T) {
 			cm, err := confmaptest.LoadConf(filepath.Join("testdata", tt.configName))
 			require.NoError(t, err)
-			tc := newTestTaggerClient()
+			tc := testutil.NewTestTaggerClient()
 
 			for k := range cm.ToStringMap() {
 				// Check if all processor variations that are defined in test config can be actually created

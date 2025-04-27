@@ -9,7 +9,7 @@ target:
   environment:
     DD_TELEMETRY_ENABLED: true
     DD_DOGSTATSD_STATS_PORT: 5000
-    DD_API_KEY: 00000001
+    DD_API_KEY: a0000001
     DD_HOSTNAME: smp-regression
     DD_DD_URL: http://127.0.0.1:9092
 

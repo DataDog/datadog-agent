@@ -915,7 +915,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	eventType := event.GetEventType()
 	if eventType > model.MaxKernelEventType {
-		p.monitors.eventStreamMonitor.CountInvalidEvent(eventstream.EventStreamMap, eventstream.InvalidType, dataLen)
+		p.monitors.eventStreamMonitor.CountInvalidEvent(dataLen)
 		seclog.Errorf("unsupported event type %d", eventType)
 		return
 	}
@@ -1829,7 +1829,7 @@ func (p *EBPFProbe) startSysCtlSnapshotLoop() {
 			// create the sysctl snapshot
 			event, err := sysctl.NewSnapshotEvent(p.config.RuntimeSecurity.SysCtlSnapshotIgnoredBaseNames, p.config.RuntimeSecurity.SysCtlSnapshotKernelCompilationFlags)
 			if err != nil {
-				seclog.Errorf("sysctl snapshot failed: %v", err)
+				seclog.Warnf("sysctl snapshot failed: %v", err)
 				continue
 			}
 
@@ -2349,7 +2349,9 @@ func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
 
 // initManagerOptions initializes the eBPF manager options
 func (p *EBPFProbe) initManagerOptions() error {
-	p.managerOptions = ebpf.NewDefaultOptions()
+	kretprobeMaxActive := p.config.Probe.EventStreamKretprobeMaxActive
+
+	p.managerOptions = ebpf.NewDefaultOptions(kretprobeMaxActive)
 	p.initManagerOptionsActivatedProbes()
 	p.initManagerOptionsConstants()
 	p.initManagerOptionsTailCalls()
@@ -2369,11 +2371,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		onDemandRate = MaxOnDemandEventsPerSecond
 	}
 
-	processKiller, err := NewProcessKiller(config)
-	if err != nil {
-		return nil, err
-	}
-
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &EBPFProbe{
@@ -2389,7 +2386,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		ctx:                  ctx,
 		cancelFnc:            cancelFnc,
 		newTCNetDevices:      make(chan model.NetDevice, 16),
-		processKiller:        processKiller,
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, 1),
 		playSnapShotState:    atomic.NewBool(false),
 	}
@@ -2420,6 +2416,21 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	p.Manager = ebpf.NewRuntimeSecurityManager(p.useRingBuffers)
 
 	p.supportsBPFSendSignal = p.kernelVersion.SupportBPFSendSignal()
+	pkos := NewProcessKillerOS(func(sig, pid uint32) error {
+		if p.supportsBPFSendSignal {
+			err := p.killListMap.Put(uint32(pid), uint32(sig))
+			if err != nil {
+				seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)
+				return err
+			}
+		}
+		return nil
+	})
+	processKiller, err := NewProcessKiller(config, pkos)
+	if err != nil {
+		return nil, err
+	}
+	p.processKiller = processKiller
 
 	p.monitors = NewEBPFMonitors(p)
 
@@ -2714,7 +2725,9 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	}
 
 	// splice event
+	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfPipeBuffer, "struct pipe_buffer")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructBufs, "struct pipe_inode_info", "bufs")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeBufferStructFlags, "struct pipe_buffer", "flags")
 	if kv.HaveLegacyPipeInodeInfoStruct() {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructNrbufs, "struct pipe_inode_info", "nrbufs")
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNamePipeInodeInfoStructCurbuf, "struct pipe_inode_info", "curbuf")
@@ -2805,36 +2818,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return
 			}
 
-			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev, func(pid uint32, sig uint32) error {
-				// very last check to ensure that we kill the correct process
-				inode := ev.ProcessContext.FileEvent.Inode
-
-				procExecPath := utils.ProcExePath(pid)
-				stat, err := utils.UnixStat(procExecPath)
-				if err != nil {
-					return err
-				}
-				if stat.Ino != inode {
-					return fmt.Errorf("failed to kill process %d, incorrect inode %d vs %d", pid, stat.Ino, inode)
-				}
-
-				var errBPF error
-				if p.supportsBPFSendSignal {
-					errBPF = p.killListMap.Put(uint32(pid), uint32(sig))
-					if errBPF != nil {
-						seclog.Warnf("failed to kill process with eBPF %d: %s", pid, errBPF)
-					}
-				}
-
-				errKill := p.processKiller.KillFromUserspace(pid, sig, ev)
-
-				// report the error only if both kill methods failed
-				if p.supportsBPFSendSignal && (errBPF == nil || errKill == nil) {
-					return nil
-				}
-
-				return multierror.Append(errKill, errBPF).ErrorOrNil()
-			}) {
+			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 

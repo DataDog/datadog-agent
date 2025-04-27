@@ -153,7 +153,6 @@ def run(
     ctx,
     git_ref="",
     here=False,
-    use_release_entry=False,
     major_versions=None,
     repo_branch="dev",
     deploy=False,
@@ -176,9 +175,6 @@ def run(
     Release Candidate related flags:
     Use --rc-build to mark the build as Release Candidate.
     Use --rc-k8s-deployments to trigger a child pipeline that will deploy Release Candidate build to staging k8s clusters.
-
-    By default, the nightly release.json entry is used.
-    Use the --use-release-entry option to use the release release.json entry instead.
 
     By default, the pipeline builds both Agent 6 and Agent 7.
     Use the --major-versions option to specify a comma-separated string of the major Agent versions to build
@@ -203,15 +199,13 @@ def run(
       dda inv pipeline.run --here --e2e-tests
 
     Run a deploy pipeline on the 7.32.0 tag, uploading the artifacts to the stable branch of the staging repositories:
-      dda inv pipeline.run --deploy --use-release-entries --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
+      dda inv pipeline.run --deploy --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
     """
 
     repo = get_gitlab_repo()
 
     if (git_ref == "" and not here) or (git_ref != "" and here):
         raise Exit("ERROR: Exactly one of --here or --git-ref <git ref> must be specified.", code=1)
-
-    release_version = "release" if use_release_entry else "nightly"
 
     if major_versions:
         print(
@@ -259,7 +253,6 @@ def run(
         pipeline = trigger_agent_pipeline(
             repo,
             git_ref,
-            release_version,
             repo_branch,
             deploy=deploy,
             deploy_installer=deploy_installer,

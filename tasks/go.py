@@ -314,7 +314,7 @@ def tidy_all(ctx):
 
 
 @task
-def tidy(ctx):
+def tidy(ctx, verbose: bool = False):
     check_valid_mods(ctx)
 
     ctx.run("go work sync")
@@ -330,11 +330,12 @@ def tidy(ctx):
             resource.setrlimit(resource.RLIMIT_NOFILE, (1024, current_ulimit[1]))
 
     # Note: It's currently faster to tidy everything than looking for exactly what we should tidy
+    verbosity = "-x" if verbose else ""
     promises = []
     for mod in get_default_modules().values():
         with ctx.cd(mod.full_path()):
             # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
-            promises.append(ctx.run("go mod tidy", asynchronous=True))
+            promises.append(ctx.run(f"go mod tidy {verbosity}", asynchronous=True))
 
     for promise in promises:
         promise.join()

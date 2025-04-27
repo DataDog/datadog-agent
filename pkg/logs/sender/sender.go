@@ -45,58 +45,69 @@ type Sender struct {
 	queues  []chan *message.Payload
 
 	pipelineMonitor metrics.PipelineMonitor
-	flushWg         *sync.WaitGroup
 	idx             *atomic.Uint32
+}
+
+// ServerlessMeta is a struct that contains essential control structures for serverless mode.
+// Do not access any methods on this interface without checking IsEnabled first.
+type ServerlessMeta interface {
+	Lock()
+	Unlock()
+	WaitGroup() *sync.WaitGroup
+	SenderDoneChan() chan *sync.WaitGroup
+	IsEnabled() bool
+}
+
+// NewServerlessMeta creates a new ServerlessMeta instance.
+func NewServerlessMeta(isEnabled bool) ServerlessMeta {
+	if isEnabled {
+		return &serverlessMetaImpl{sync.Mutex{}, sync.WaitGroup{}, make(chan *sync.WaitGroup), isEnabled}
+	}
+	return &serverlessMetaImpl{}
+}
+
+// serverlessMetaImpl is a struct that contains essential control structures for serverless mode.
+type serverlessMetaImpl struct {
+	sync.Mutex
+	wg             sync.WaitGroup
+	senderDoneChan chan *sync.WaitGroup
+	enabled        bool
+}
+
+// WaitGroup returns the wait group for the serverless mode, used to block the pipeline flush until all payloads are sent.
+func (s *serverlessMetaImpl) WaitGroup() *sync.WaitGroup {
+	return &s.wg
+}
+
+// SenderDoneChan returns the channel is used to transfer wait groups from the sync_destination to the sender.
+func (s *serverlessMetaImpl) SenderDoneChan() chan *sync.WaitGroup {
+	return s.senderDoneChan
+}
+
+// IsEnabled returns true if the serverless mode is enabled.
+// This is used to check if the serverless mode is enabled before accessing any of the methods on this struct.
+func (s *serverlessMetaImpl) IsEnabled() bool {
+	if s == nil {
+		return false
+	}
+	return s.enabled
 }
 
 // DestinationFactory used to generate client destinations on each call.
 type DestinationFactory func() *client.Destinations
 
-// NewSender is the legacy sender.
+// NewSender returns a new sender.
 func NewSender(
-	config pkgconfigmodel.Reader,
-	inputChan chan *message.Payload,
-	outputChan chan *message.Payload,
-	destinations *client.Destinations,
-	bufferSize int,
-	senderDoneChan chan *sync.WaitGroup,
-	flushWg *sync.WaitGroup,
-	pipelineMonitor metrics.PipelineMonitor,
-) *Sender {
-	w := newWorkerLegacy(
-		config,
-		inputChan,
-		outputChan,
-		destinations,
-		bufferSize,
-		senderDoneChan,
-		flushWg,
-		pipelineMonitor,
-	)
-
-	return &Sender{
-		workers:         []*worker{w},
-		pipelineMonitor: pipelineMonitor,
-		queues:          []chan *message.Payload{inputChan},
-		flushWg:         flushWg,
-		idx:             &atomic.Uint32{},
-	}
-}
-
-// NewSenderV2 returns a new sender.
-func NewSenderV2(
 	config pkgconfigmodel.Reader,
 	auditor auditor.Auditor,
 	destinationFactory DestinationFactory,
 	bufferSize int,
-	senderDoneChan chan *sync.WaitGroup,
-	flushWg *sync.WaitGroup,
+	serverlessMeta ServerlessMeta,
 	queueCount int,
 	workersPerQueue int,
 	pipelineMonitor metrics.PipelineMonitor,
 ) *Sender {
 	var workers []*worker
-
 	if queueCount <= 0 {
 		queueCount = DefaultQueuesCount
 	}
@@ -116,8 +127,7 @@ func NewSenderV2(
 				auditor,
 				destinationFactory(),
 				bufferSize,
-				senderDoneChan,
-				flushWg,
+				serverlessMeta,
 				pipelineMonitor,
 			)
 			workers = append(workers, worker)
@@ -128,7 +138,6 @@ func NewSenderV2(
 		workers:         workers,
 		pipelineMonitor: pipelineMonitor,
 		queues:          queues,
-		flushWg:         flushWg,
 		idx:             &atomic.Uint32{},
 	}
 }

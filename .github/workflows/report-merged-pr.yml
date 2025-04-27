@@ -24,13 +24,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Python3
-        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
-        with:
-          python-version-file: .python-version
-          cache: "pip"
-          cache-dependency-path: '.dda/version'
-
       - name: Install dda
         uses: ./.github/actions/install-dda
         with:

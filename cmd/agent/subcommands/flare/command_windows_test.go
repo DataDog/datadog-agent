@@ -9,38 +9,10 @@
 package flare
 
 import (
-	"net/http"
-	"net/http/httptest"
-	"testing"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	sysprobeserver "github.com/DataDog/datadog-agent/pkg/system-probe/api/server"
 )
-
-const (
-	// systemProbeTestPipeName is the test named pipe for system-probe
-	systemProbeTestPipeName = `\\.\pipe\dd_system_probe_flare_test`
-)
-
-func sysprobeSocketPath(_ *testing.T) string {
-	return systemProbeTestPipeName
-}
-
-// NewSystemProbeTestServer starts a new mock server to handle System Probe requests.
-func NewSystemProbeTestServer(handler http.Handler) (*httptest.Server, error) {
-	server := httptest.NewUnstartedServer(handler)
-
-	// The test named pipe allows the current user.
-	conn, err := sysprobeserver.NewListenerForCurrentUser(systemProbeTestPipeName)
-	if err != nil {
-		return nil, err
-	}
-
-	server.Listener = conn
-	return server, nil
-}
 
 // InjectConnectionFailures injects a failure in TestReadProfileDataErrors.
 func InjectConnectionFailures(mockSysProbeConfig model.Config, mockConfig model.Config) {

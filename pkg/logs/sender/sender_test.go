@@ -6,7 +6,6 @@
 package sender
 
 import (
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,18 +46,15 @@ func TestNewSenderWorkerDistribution(t *testing.T) {
 			destinations := &client.Destinations{}
 			destFactory := func() *client.Destinations { return destinations }
 			bufferSize := 100
-			senderDoneChan := make(chan *sync.WaitGroup)
-			flushWg := &sync.WaitGroup{}
 			pipelineMonitor := metrics.NewNoopPipelineMonitor("test")
 
 			// Create sender
-			sender := NewSenderV2(
+			sender := NewSender(
 				config,
 				auditor,
 				destFactory,
 				bufferSize,
-				senderDoneChan,
-				flushWg,
+				NewMockServerlessMeta(false),
 				tc.queuesCount,
 				tc.workersPerQueue,
 				pipelineMonitor,

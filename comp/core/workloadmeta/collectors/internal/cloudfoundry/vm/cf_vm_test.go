@@ -167,7 +167,7 @@ func (f *FakeDCAClient) GetNodeLabels(_ string) (map[string]string, error) {
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) GetNodeAnnotations(_ string) (map[string]string, error) {
+func (f *FakeDCAClient) GetNodeAnnotations(_ string, _ ...string) (map[string]string, error) {
 	panic("implement me")
 }
 

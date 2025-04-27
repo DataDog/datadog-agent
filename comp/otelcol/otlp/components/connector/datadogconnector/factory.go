@@ -7,9 +7,9 @@ package datadogconnector // import "github.com/DataDog/datadog-agent/comp/otelco
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"time"
-
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
@@ -19,13 +19,23 @@ import (
 )
 
 type factory struct {
-	tagger tagger.Component
+	tagger   types.TaggerClient
+	hostname option.Option[string]
 }
 
+// SourceProviderFunc is a function that returns the source of the host.
+type SourceProviderFunc func(context.Context) (string, error)
+
 // NewFactoryForAgent creates a factory for datadog connector for use in OTel agent
-func NewFactoryForAgent(tagger tagger.Component) connector.Factory {
+func NewFactoryForAgent(tagger types.TaggerClient, hostGetter SourceProviderFunc) connector.Factory {
 	f := &factory{
 		tagger: tagger,
+	}
+
+	if hostGetter != nil {
+		if hostname, err := hostGetter(context.Background()); err == nil {
+			f.hostname = option.New(hostname)
+		}
 	}
 
 	//  OTel connector factory to make a factory for connectors
@@ -39,7 +49,7 @@ func NewFactoryForAgent(tagger tagger.Component) connector.Factory {
 // NewFactory creates a factory for datadog connector.
 func NewFactory() connector.Factory {
 	//  OTel connector factory to make a factory for connectors
-	return NewFactoryForAgent(nil)
+	return NewFactoryForAgent(nil, nil)
 }
 
 func createDefaultConfig() component.Config {
@@ -66,7 +76,7 @@ func (f *factory) createTracesToMetricsConnector(_ context.Context, params conne
 		return nil, err
 	}
 
-	c, err = newTraceToMetricConnector(params.TelemetrySettings, cfg, nextConsumer, metricsClient, f.tagger)
+	c, err = newTraceToMetricConnector(params.TelemetrySettings, cfg, nextConsumer, metricsClient, f.tagger, f.hostname)
 
 	if err != nil {
 		return nil, err

@@ -2307,18 +2307,23 @@ func testHTTPLikeSketches(t *testing.T, tr *tracer.Tracer, client *nethttp.Clien
 		}
 
 		for key, stats := range requests {
-			if getRequestStats != nil && postRequestsStats != nil {
-				break
-			}
 			if key.Path.Content.Get() != parsedURL.Path {
 				continue
 			}
 			if key.Method.String() == "GET" {
-				getRequestStats = stats
+				if getRequestStats == nil {
+					getRequestStats = stats
+				} else {
+					getRequestStats.CombineWith(stats)
+				}
 				continue
 			}
 			if key.Method.String() == "POST" {
-				postRequestsStats = stats
+				if postRequestsStats == nil {
+					postRequestsStats = stats
+				} else {
+					postRequestsStats.CombineWith(stats)
+				}
 				continue
 			}
 		}

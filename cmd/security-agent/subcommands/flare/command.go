@@ -70,8 +70,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 func requestFlare(_ log.Component, config config.Component, _ secrets.Component, params *cliParams) error {
 	warnings := config.Warnings()
-	if warnings != nil && warnings.Err != nil {
-		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings.Err))
+	if warnings != nil && warnings.Errors != nil {
+		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings.Errors))
 	}
 	if params.customerEmail == "" {
 		var err error

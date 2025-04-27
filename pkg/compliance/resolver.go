@@ -50,7 +50,7 @@ import (
 const inputsResolveTimeout = 5 * time.Second
 
 // DockerProvider is a function returning a Docker client.
-type DockerProvider func(context.Context) (docker.CommonAPIClient, error)
+type DockerProvider func(context.Context) (docker.APIClient, error)
 
 // KubernetesGroupsAndResourcesProvider is a function that returns the Kubernetes groups and services
 // Note: this is the same as the ServerGroupsAndResources function defined in
@@ -73,7 +73,7 @@ type LinuxAuditClient interface {
 }
 
 // DefaultDockerProvider returns the default Docker client.
-func DefaultDockerProvider(ctx context.Context) (docker.CommonAPIClient, error) {
+func DefaultDockerProvider(ctx context.Context) (docker.APIClient, error) {
 	return newDockerClient(ctx)
 }
 
@@ -122,7 +122,7 @@ type defaultResolver struct {
 	kubeClusterIDCache string
 	kubeResourcesCache *[]*kubemetav1.APIResourceList
 
-	dockerCl                        docker.CommonAPIClient
+	dockerCl                        docker.APIClient
 	kubernetesCl                    kubedynamic.Interface
 	kubernetesGroupAndResourcesFunc KubernetesGroupsAndResourcesProvider
 	linuxAuditCl                    LinuxAuditClient
@@ -586,7 +586,7 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 			return nil, err
 		}
 		for _, im := range list {
-			image, _, err := cl.ImageInspectWithRaw(ctx, im.ID)
+			image, err := cl.ImageInspect(ctx, im.ID)
 			if err != nil {
 				return nil, err
 			}

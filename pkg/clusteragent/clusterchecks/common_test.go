@@ -8,6 +8,7 @@
 package clusterchecks
 
 import (
+	"errors"
 	"sync"
 	"testing"
 
@@ -56,8 +57,16 @@ func (m *mockedPluggableAutoConfig) RemoveScheduler(name string) {
 
 type fakeLeaderEngine struct {
 	sync.Mutex
-	ip  string
-	err error
+	ip         string
+	err        error
+	subscriber chan struct{}
+}
+
+func newFakeLeaderEngine() *fakeLeaderEngine {
+	return &fakeLeaderEngine{
+		subscriber: make(chan struct{}),
+		err:        errors.New("failing"),
+	}
 }
 
 func (e *fakeLeaderEngine) get() (string, error) {
@@ -68,7 +77,19 @@ func (e *fakeLeaderEngine) get() (string, error) {
 
 func (e *fakeLeaderEngine) set(ip string, err error) {
 	e.Lock()
-	defer e.Unlock()
 	e.ip = ip
 	e.err = err
+	e.Unlock()
+	if e.subscriber != nil {
+		e.notify()
+	}
+}
+
+func (e *fakeLeaderEngine) notify() {
+	e.subscriber <- struct{}{}
+}
+
+func (e *fakeLeaderEngine) subscribe() (leadershipChangeNotif <-chan struct{}) {
+	leadershipChangeNotif = e.subscriber
+	return
 }
