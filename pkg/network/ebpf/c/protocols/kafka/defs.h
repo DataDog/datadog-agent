@@ -21,6 +21,8 @@
 
 #define TOPIC_NAME_MAX_STRING_SIZE 80
 
+#define NUM_TOPICS_MAX 0x3fff // 16383
+
 // The number of varint bytes required to support the specified values.
 // 127
 #define VARINT_BYTES_0000007f   1

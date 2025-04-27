@@ -150,28 +150,26 @@ static __always_inline int parse_varint_u16(u16 *out, u16 in, u32 *bytes)
     return true;
 }
 
-static __always_inline bool skip_varint_number_of_topics(pktbuf_t pkt, u32 *offset) {
-    u8 bytes[2] = {};
+static __always_inline u16 get_varint_number_of_topics(pktbuf_t pkt, u32 *offset) {
+    u16 topic_count = 0;
 
     // Should be safe to assume that there is always more than one byte present,
     // since there will be the topic name etc after the number of topics.
-    if (*offset + sizeof(bytes) > pktbuf_data_end(pkt)) {
+    if (*offset + sizeof(topic_count) > pktbuf_data_end(pkt)) {
         return false;
     }
 
-    pktbuf_load_bytes(pkt, *offset, bytes, sizeof(bytes));
+    pktbuf_load_bytes(pkt, *offset, topic_count, sizeof(topic_count));
+    *offset += 2;
 
-    *offset += 1;
-    if (isMSBSet(bytes[0])) {
-        *offset += 1;
+    return topic_count;
+}
 
-        if (isMSBSet(bytes[1])) {
-            // More than 16383 topics?
-            return false;
-        }
-    }
+static __always_inline bool skip_varint_number_of_topics(pktbuf_t pkt, u32 *offset) {
+    u16 topic_count = get_varint_number_of_topics(pkt, offset);
 
-    return true;
+    // More than 16383 topics?
+    return topic_count < 16383;
 }
 
 // Skips a varint of up to `max_bytes` (4).  The `skip_varint_number_of_topics`
@@ -248,7 +246,7 @@ static __always_inline s16 read_nullable_string_size(pktbuf_t pkt, bool flexible
 static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexible, u32 offset) {
     // Skipping number of entries for now
     if (flexible) {
-        if (!skip_varint_number_of_topics(pkt, &offset)) {
+        if (get_varint_number_of_topics(pkt, offset) > NUM_TOPICS_MAX) {
             return false;
         }
     } else {
@@ -281,7 +279,7 @@ static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible,
 
     // Skipping number of entries for now
     if (flexible) {
-        if (!skip_varint_number_of_topics(pkt, &offset)) {
+        if (get_varint_number_of_topics(pkt, offset) > NUM_TOPICS_MAX) {
             return false;
         }
     } else {
@@ -446,7 +444,10 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
         if (!get_topic_offset_from_metadata_request(kafka_header, pkt, &offset)) {
             return false;
         }
-        flexible = kafka_header->api_version >= 12;
+        log_debug("GUY classified Kafka metadata request - valid header");
+
+
+
         return true;
     default:
         return false;

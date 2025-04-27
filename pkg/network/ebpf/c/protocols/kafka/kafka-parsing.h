@@ -1699,9 +1699,9 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
 
     // Skipping number of entries for now
     if (flexible) {
-        if (!skip_varint_number_of_topics(pkt, &offset)) {
-            return false;
-        }
+        if (get_varint_number_of_topics(pkt, offset) > NUM_TOPICS_MAX) {
+                return false;
+            }
     } else {
         offset += sizeof(s32);
     }
