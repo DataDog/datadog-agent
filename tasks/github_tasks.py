@@ -7,7 +7,12 @@ from typing import List
 
 from invoke import Exit, task
 
-from tasks.libs.common.utils import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH, RELEASE_JSON_DEPENDENCIES, get_git_pretty_ref
+from tasks.libs.common.utils import (
+    DEFAULT_BRANCH,
+    DEFAULT_INTEGRATIONS_CORE_BRANCH,
+    RELEASE_JSON_DEPENDENCIES,
+    get_git_pretty_ref,
+)
 from tasks.libs.datadog_api import create_count, send_metrics
 from tasks.libs.github_actions_tools import (
     download_artifacts,

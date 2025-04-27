@@ -245,9 +245,7 @@ def _build_msi(ctx, env, outdir, name):
 
 
 @task
-def build(
-    ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', debug=False
-):
+def build(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', debug=False):
     """
     Build the MSI installer for the agent
     """
@@ -302,9 +300,7 @@ def build(
 
 
 @task
-def test(
-    ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', debug=False
-):
+def test(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', debug=False):
     """
     Run the unit test for the MSI installer for the agent
     """
