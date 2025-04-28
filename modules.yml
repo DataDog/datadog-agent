@@ -213,6 +213,7 @@ modules:
   pkg/opentelemetry-mapping-go/inframetadata:
     used_by_otel: true
   pkg/opentelemetry-mapping-go/inframetadata/gohai/internal/gohaitest:
+    should_test_condition: never
     used_by_otel: true
   pkg/opentelemetry-mapping-go/otlp/attributes:
     used_by_otel: true
