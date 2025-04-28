@@ -92,8 +92,8 @@ func TestRunSuites(t *testing.T) {
 	assert.Nil(err)
 
 	// We replace windows line break by linux so the tests pass on every OS
-	expectedResult := strings.Replace(runSuitetextresult, "\r\n", "\n", -1)
-	output := strings.Replace(string(result), "\r\n", "\n", -1)
+	expectedResult := strings.ReplaceAll(runSuitetextresult, "\r\n", "\n")
+	output := strings.ReplaceAll(string(result), "\r\n", "\n")
 
 	assert.Equal(expectedResult, output)
 
@@ -101,8 +101,8 @@ func TestRunSuites(t *testing.T) {
 	assert.Nil(err)
 
 	// We replace windows line break by linux so the tests pass on every OS
-	expectedResult = strings.Replace(runSuitejsonresult, "\r\n", "\n", -1)
-	output = strings.Replace(string(result), "\r\n", "\n", -1)
+	expectedResult = strings.ReplaceAll(runSuitejsonresult, "\r\n", "\n")
+	output = strings.ReplaceAll(string(result), "\r\n", "\n")
 
 	assert.Equal(expectedResult, output)
 }
@@ -120,8 +120,8 @@ func TestRunSuite(t *testing.T) {
 	assert.Nil(err)
 
 	// We replace windows line break by linux so the tests pass on every OS
-	expectedResult := strings.Replace(runSuitetextresult, "\r\n", "\n", -1)
-	output := strings.Replace(string(result), "\r\n", "\n", -1)
+	expectedResult := strings.ReplaceAll(runSuitetextresult, "\r\n", "\n")
+	output := strings.ReplaceAll(string(result), "\r\n", "\n")
 
 	assert.Equal(expectedResult, output)
 
@@ -129,8 +129,8 @@ func TestRunSuite(t *testing.T) {
 	assert.Nil(err)
 
 	// We replace windows line break by linux so the tests pass on every OS
-	expectedResult = strings.Replace(runSuitejsonresult, "\r\n", "\n", -1)
-	output = strings.Replace(string(result), "\r\n", "\n", -1)
+	expectedResult = strings.ReplaceAll(runSuitejsonresult, "\r\n", "\n")
+	output = strings.ReplaceAll(string(result), "\r\n", "\n")
 
 	assert.Equal(expectedResult, output)
 
@@ -167,8 +167,8 @@ func TestAPIDiagnose(t *testing.T) {
 	assert.Nil(err)
 
 	// We replace windows line break by linux so the tests pass on every OS
-	expectedResult := strings.Replace(runSuitejsonresult, "\r\n", "\n", -1)
-	output := strings.Replace(prettyJSON.String(), "\r\n", "\n", -1)
+	expectedResult := strings.ReplaceAll(runSuitejsonresult, "\r\n", "\n")
+	output := strings.ReplaceAll(prettyJSON.String(), "\r\n", "\n")
 
 	assert.Equal(expectedResult, output)
 }
@@ -188,7 +188,7 @@ func TestFlareProvider(t *testing.T) {
 
 	flarecallback(mock)
 
-	expectedResult := strings.Replace(runSuitetextresult, "\r\n", "\n", -1)
+	expectedResult := strings.ReplaceAll(runSuitetextresult, "\r\n", "\n")
 
 	mock.AssertFileContent(strings.TrimSuffix(expectedResult, "\n"), "diagnose.log")
 }

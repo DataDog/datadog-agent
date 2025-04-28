@@ -330,8 +330,8 @@ func (suite *AgentTestSuite) TestStatusOut() {
     OSFileLimit: 1048576
 `
 			// We replace windows line break by linux so the tests pass on every OS
-			expectedResult := strings.Replace(result, "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			expectedResult := strings.ReplaceAll(result, "\r\n", "\n")
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 
 			assert.Equal(t, expectedResult, output)
 		}},
@@ -351,8 +351,8 @@ func (suite *AgentTestSuite) TestStatusOut() {
 </div>
 `
 			// We replace windows line break by linux so the tests pass on every OS
-			expectedResult := strings.Replace(result, "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			expectedResult := strings.ReplaceAll(result, "\r\n", "\n")
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 
 			assert.Equal(t, expectedResult, output)
 		}},

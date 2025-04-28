@@ -70,7 +70,7 @@ const expectedBody = `<!DOCTYPE html>
         <i class="fa fa-power-off fa-fw"> </i>&nbsp;
         Restart Agent
       </li>
-      
+
     </ul>
   </div>
   <div class="top_bar">
@@ -86,7 +86,7 @@ const expectedBody = `<!DOCTYPE html>
     <div id="error" class="page">
       <div id="error_content"></div>
       <div id="logged_out">
-        
+
 <h3>Refreshing the Session</h3>
 <p>Please ensure you access the Datadog Agent Manager with one of the following:</p>
 <ul>
@@ -159,8 +159,8 @@ func TestRenderIndexPage(t *testing.T) {
 	assert.Equal(t, "text/html; charset=utf-8", res.Header.Get("Content-Type"))
 
 	// We replace windows line break by linux so the tests pass on every OS
-	expectedResult := strings.Replace(expectedBody, "\r\n", "\n", -1)
-	output := strings.Replace(string(bodyBytes), "\r\n", "\n", -1)
+	expectedResult := strings.ReplaceAll(expectedBody, "\r\n", "\n")
+	output := strings.ReplaceAll(string(bodyBytes), "\r\n", "\n")
 
 	assert.Equal(t, expectedResult, output)
 }

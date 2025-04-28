@@ -319,7 +319,7 @@ func CreatePackageSourceIfLocal(host *components.RemoteHost, pkg TestPackageConf
 			return pkg, err
 		}
 		// Must replace slashes so that daemon can parse it correctly
-		outPath = strings.Replace(outPath, "\\", "/", -1)
+		outPath = strings.ReplaceAll(outPath, "\\", "/")
 		pkg.urloverride = fmt.Sprintf("file://%s", outPath)
 	}
 	return pkg, nil
