@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	win "golang.org/x/sys/windows"
-	"regexp"
 	"slices"
 	"strings"
 	"unsafe"
