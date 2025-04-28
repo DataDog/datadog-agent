@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
 const (
@@ -20,8 +22,8 @@ const (
 )
 
 // NewLocalAPI returns a new LocalAPI.
-func NewLocalAPI(daemon Daemon, runPath string) (LocalAPI, error) {
-	socketPath := filepath.Join(runPath, socketName)
+func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
+	socketPath := filepath.Join(paths.RunPath, socketName)
 	err := os.RemoveAll(socketPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not remove socket: %w", err)
@@ -41,13 +43,13 @@ func NewLocalAPI(daemon Daemon, runPath string) (LocalAPI, error) {
 }
 
 // NewLocalAPIClient returns a new LocalAPIClient.
-func NewLocalAPIClient(runPath string) LocalAPIClient {
+func NewLocalAPIClient() LocalAPIClient {
 	return &localAPIClientImpl{
 		addr: "daemon", // this has no meaning when using a unix socket
 		client: &http.Client{
 			Transport: &http.Transport{
 				Dial: func(_, _ string) (net.Conn, error) {
-					return net.Dial("unix", filepath.Join(runPath, socketName))
+					return net.Dial("unix", filepath.Join(paths.RunPath, socketName))
 				},
 			},
 		},
