@@ -36,8 +36,7 @@ const (
 )
 
 type client struct {
-	cl              sbompb.SBOMCollectorClient
-	parentCollector *streamHandler
+	cl sbompb.SBOMCollectorClient
 }
 
 func (c *client) StreamEntities(ctx context.Context) (remote.Stream, error) {
@@ -141,7 +140,7 @@ func (s *streamHandler) IsEnabled() bool {
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {
 	log.Debug("creating grpc client")
 
-	return &client{cl: sbompb.NewSBOMCollectorClient(cc), parentCollector: s}
+	return &client{cl: sbompb.NewSBOMCollectorClient(cc)}
 }
 
 func (s *streamHandler) HandleResponse(_ workloadmeta.Component, resp interface{}) ([]workloadmeta.CollectorEvent, error) {
