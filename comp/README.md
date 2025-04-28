@@ -78,7 +78,7 @@ Package checks implements the "checks" bundle, for all of the component based ag
 
 ### [comp/checks/agentcrashdetect](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect)
 
-*Datadog Team*: windows-kernel-integrations
+*Datadog Team*: windows-agent
 
 Package agentcrashdetect ... /* TODO: detailed doc comment for the component */
 

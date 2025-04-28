@@ -22,7 +22,7 @@ const (
 )
 
 // NewLocalAPI returns a new LocalAPI.
-func NewLocalAPI(daemon Daemon, _ string) (LocalAPI, error) {
+func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
 	// Prevent daemon from running in insecure directories
 	err := paths.IsInstallerDataDirSecure()
 	if err != nil {
@@ -43,7 +43,7 @@ func NewLocalAPI(daemon Daemon, _ string) (LocalAPI, error) {
 }
 
 // NewLocalAPIClient returns a new LocalAPIClient.
-func NewLocalAPIClient(_ string) LocalAPIClient {
+func NewLocalAPIClient() LocalAPIClient {
 	return &localAPIClientImpl{
 		addr: "daemon",
 		client: &http.Client{
