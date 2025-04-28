@@ -23,10 +23,10 @@ type kernelTelemetry struct {
 	// produceNoRequiredAcks is the number of produce requests that did not require any acks.
 	produceNoRequiredAcks *libtelemetry.Counter
 
-	// classifiedFetchApiVersionHits and classifiedProduceApiVersionHits are the number of classified fetch and produce requests
+	// classifiedFetchAPIVersionHits and classifiedProduceAPIVersionHits are the number of classified fetch and produce requests
 	// broken by API version (the index)
-	classifiedFetchApiVersionHits   [100]*libtelemetry.Counter
-	classifiedProduceApiVersionHits [100]*libtelemetry.Counter
+	classifiedFetchAPIVersionHits   [100]*libtelemetry.Counter
+	classifiedProduceAPIVersionHits [100]*libtelemetry.Counter
 
 	// telemetryLastState represents the latest Kafka eBPF Kernel telemetry observed from the kernel
 	telemetryLastState RawKernelTelemetry
@@ -44,11 +44,11 @@ func newKernelTelemetry() *kernelTelemetry {
 
 	kafkaKernelTel.produceNoRequiredAcks = metricGroup.NewCounter("produce_no_required_acks")
 
-	for bucketIndex := range kafkaKernelTel.classifiedFetchApiVersionHits {
-		kafkaKernelTel.classifiedFetchApiVersionHits[bucketIndex] = metricGroup.NewCounter("classified_hits", "operation:fetch", "api_version:"+strconv.Itoa(bucketIndex+1))
+	for bucketIndex := range kafkaKernelTel.classifiedFetchAPIVersionHits {
+		kafkaKernelTel.classifiedFetchAPIVersionHits[bucketIndex] = metricGroup.NewCounter("classified_hits", "operation:fetch", "api_version:"+strconv.Itoa(bucketIndex+1))
 	}
-	for bucketIndex := range kafkaKernelTel.classifiedProduceApiVersionHits {
-		kafkaKernelTel.classifiedProduceApiVersionHits[bucketIndex] = metricGroup.NewCounter("classified_hits", "operation:produce", "api_version:"+strconv.Itoa(bucketIndex+1))
+	for bucketIndex := range kafkaKernelTel.classifiedProduceAPIVersionHits {
+		kafkaKernelTel.classifiedProduceAPIVersionHits[bucketIndex] = metricGroup.NewCounter("classified_hits", "operation:produce", "api_version:"+strconv.Itoa(bucketIndex+1))
 	}
 
 	return kafkaKernelTel
@@ -63,11 +63,11 @@ func (t *kernelTelemetry) update(tel *RawKernelTelemetry) {
 	}
 	t.produceNoRequiredAcks.Add(int64(telemetryDelta.Produce_no_required_acks))
 
-	for bucketIndex := range t.classifiedFetchApiVersionHits {
-		t.classifiedFetchApiVersionHits[bucketIndex].Add(int64(telemetryDelta.Classified_fetch_api_version_hits[bucketIndex]))
+	for bucketIndex := range t.classifiedFetchAPIVersionHits {
+		t.classifiedFetchAPIVersionHits[bucketIndex].Add(int64(telemetryDelta.Classified_fetch_api_version_hits[bucketIndex]))
 	}
-	for bucketIndex := range t.classifiedProduceApiVersionHits {
-		t.classifiedProduceApiVersionHits[bucketIndex].Add(int64(telemetryDelta.Classified_produce_api_version_hits[bucketIndex]))
+	for bucketIndex := range t.classifiedProduceAPIVersionHits {
+		t.classifiedProduceAPIVersionHits[bucketIndex].Add(int64(telemetryDelta.Classified_produce_api_version_hits[bucketIndex]))
 	}
 
 	// Create a deep copy of the 'tel' parameter to prevent changes from the outer scope affecting the last state
@@ -79,8 +79,8 @@ func (t *RawKernelTelemetry) Sub(other RawKernelTelemetry) *RawKernelTelemetry {
 	return &RawKernelTelemetry{
 		Topic_name_size_buckets:             computePathSizeBucketDifferences(t.Topic_name_size_buckets, other.Topic_name_size_buckets),
 		Produce_no_required_acks:            t.Produce_no_required_acks - other.Produce_no_required_acks,
-		Classified_produce_api_version_hits: computeApiVersionHitsBucketDifferences(t.Classified_produce_api_version_hits, other.Classified_produce_api_version_hits),
-		Classified_fetch_api_version_hits:   computeApiVersionHitsBucketDifferences(t.Classified_fetch_api_version_hits, other.Classified_fetch_api_version_hits),
+		Classified_produce_api_version_hits: computeAPIVersionHitsBucketDifferences(t.Classified_produce_api_version_hits, other.Classified_produce_api_version_hits),
+		Classified_fetch_api_version_hits:   computeAPIVersionHitsBucketDifferences(t.Classified_fetch_api_version_hits, other.Classified_fetch_api_version_hits),
 	}
 }
 
@@ -94,7 +94,7 @@ func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [Topic
 	return result
 }
 
-func computeApiVersionHitsBucketDifferences(bucket, otherBucket [20]uint64) [20]uint64 {
+func computeAPIVersionHitsBucketDifferences(bucket, otherBucket [20]uint64) [20]uint64 {
 	var result [len(bucket)]uint64
 
 	for i := 0; i < len(result); i++ {
