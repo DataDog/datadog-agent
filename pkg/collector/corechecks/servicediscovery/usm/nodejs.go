@@ -10,7 +10,6 @@ import (
 	"io/fs"
 	"path"
 	"path/filepath"
-
 	"strings"
 
 	"github.com/valyala/fastjson"
