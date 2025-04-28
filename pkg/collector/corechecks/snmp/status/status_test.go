@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	// Importing the discovery package to register the expvar
 	"github.com/stretchr/testify/assert"
 
+	// Importing the discovery package to register the expvar
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery"
