@@ -95,18 +95,17 @@ rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIBUS_DIR"
 if [ "$SIGN" = "true" ]; then
     # Unlock the keychain to get access to the signing certificates
     security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
-    dda inv -- -e omnibus.build --hardened-runtime --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
+    dda inv -- -e omnibus.build --hardened-runtime --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
     # Lock the keychain once we're done
     security lock-keychain "$KEYCHAIN_NAME"
 else
-    dda inv -- -e omnibus.build --skip-sign --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
+    dda inv -- -e omnibus.build --skip-sign --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
 fi
 echo Built packages using omnibus
 
 # --- Notarization ---
 if [ "$SIGN" = true ]; then
     echo -e "\e[0Ksection_start:`date +%s`:notarization\r\e[0KDoing notarization"
-    export RELEASE_VERSION=${RELEASE_VERSION:-$VERSION}
     unset LATEST_DMG
 
     # Find latest .dmg file in $GOPATH/src/github.com/Datadog/datadog-agent/omnibus/pkg
