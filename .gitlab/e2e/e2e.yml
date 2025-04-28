@@ -712,7 +712,7 @@ new-e2e-windows-systemprobe:
     - windows_msi_and_bosh_zip_x64-a7
   variables:
     TARGETS: ./tests/sysprobe-functional
-    TEAM: windows-kernel-integrations
+    TEAM: windows-agent
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestUSMAutoTaggingSuite
@@ -729,7 +729,7 @@ new-e2e-windows-security-agent:
     - tests_windows_secagent_x64
   variables:
     TARGETS: ./tests/security-agent-functional
-    TEAM: windows-kernel-integrations
+    TEAM: windows-agent
 
 new-e2e-otel-eks-init:
   stage: e2e_init
