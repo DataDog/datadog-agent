@@ -94,7 +94,7 @@ func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [Topic
 	return result
 }
 
-func computeApiVersionHitsBucketDifferences(bucket, otherBucket [30]uint64) [30]uint64 {
+func computeApiVersionHitsBucketDifferences(bucket, otherBucket [20]uint64) [20]uint64 {
 	var result [len(bucket)]uint64
 
 	for i := 0; i < len(result); i++ {

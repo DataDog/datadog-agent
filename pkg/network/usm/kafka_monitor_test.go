@@ -552,60 +552,60 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				},
 			},
 			testBody: func(t *testing.T, ctx *testContext, monitor *Monitor) {
-				tests := []struct {
-					name                string
-					expectedBucketIndex int
-				}{
-					{name: "Topic size is 1", expectedBucketIndex: 0},
-				}
-
 				currentRawKernelTelemetry := &kafka.RawKernelTelemetry{}
-				for _, tt := range tests {
-					t.Run(tt.name, func(t *testing.T) {
-						topicName := ctx.extras["topic_name"].(string)
-						client, err := kafka.NewClient(kafka.Options{
-							ServerAddress: ctx.targetAddress,
-							DialFn:        dialFn,
-							CustomOptions: []kgo.Opt{
-								kgo.MaxVersions(version),
-								kgo.ClientID("test-client"),
-							},
-						})
-
-						require.NoError(t, err)
-						ctx.clients = append(ctx.clients, client)
-						require.NoError(t, client.CreateTopic(topicName))
-
-						record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
-						ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-						defer cancel()
-						require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
-
-						var telemetryMap *kafka.RawKernelTelemetry
-						require.EventuallyWithT(t, func(collect *assert.CollectT) {
-							telemetryMap, err = kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
-							require.NoError(collect, err)
-
-							//for idx := 0; idx < len(telemetryMap.Classified_produce_api_version_hits); idx++ {
-							//	if idx != tt.expectedBucketIndex {
-							//		require.Equal(collect, currentRawKernelTelemetry.Classified_produce_api_version_hits[idx],
-							//			telemetryMap.Classified_produce_api_version_hits[idx],
-							//			"Expected bucket (%d) to remain unchanged", idx)
-							//	}
-							//}
-
-							fmt.Println("telemetryMap.Classified_produce_api_version_hits", telemetryMap.Classified_produce_api_version_hits)
-							fmt.Println("currentRawKernelTelemetry.Classified_produce_api_version_hits", currentRawKernelTelemetry.Classified_produce_api_version_hits)
-
-							// Verify that the expected bucket contains the correct number of occurrences.
-							//expectedNumberOfOccurrences := fixCount(2) // (1 produce request + 1 fetch request)
-							//require.Equal(collect, uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Topic_name_size_buckets[tt.expectedBucketIndex], telemetryMap.Topic_name_size_buckets[tt.expectedBucketIndex])
-						}, time.Second*3, time.Millisecond*100)
-
-						// Update the current raw kernel telemetry for the next iteration
-						currentRawKernelTelemetry = telemetryMap
+				t.Run(t.Name(), func(t *testing.T) {
+					topicName := ctx.extras["topic_name"].(string)
+					client, err := kafka.NewClient(kafka.Options{
+						ServerAddress: ctx.targetAddress,
+						DialFn:        dialFn,
+						CustomOptions: []kgo.Opt{
+							kgo.MaxVersions(version),
+							kgo.ClientID("test-client"),
+							kgo.ConsumeTopics(topicName), // ConsumeTopics is needed to trigger the fetch request
+						},
 					})
-				}
+
+					require.NoError(t, err)
+					ctx.clients = append(ctx.clients, client)
+					require.NoError(t, client.CreateTopic(topicName))
+
+					// Send produce request we expect to be tracked
+					// This should also trigger a fetch request
+					ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+					defer cancel()
+					record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
+					require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+
+					var telemetryMap *kafka.RawKernelTelemetry
+					require.EventuallyWithT(t, func(collect *assert.CollectT) {
+						telemetryMap, err = kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
+						require.NoError(collect, err)
+
+						telemetryDiff := telemetryMap.Sub(*currentRawKernelTelemetry)
+						expectedCount := uint64(fixCount(1)) // because we use Docker the packets are seen twice
+
+						// Verify that the expected bucket contains the correct hits.
+						for bucketIndex := 0; bucketIndex < len(telemetryDiff.Classified_produce_api_version_hits); bucketIndex++ {
+							// Ensure that the other buckets remain unchanged before verifying the expected bucket.
+							if bucketIndex != expectedAPIVersionProduce-1 {
+								require.Equal(collect, 0, telemetryDiff.Classified_produce_api_version_hits[bucketIndex])
+							} else {
+								require.Equal(collect, expectedCount, telemetryDiff.Classified_produce_api_version_hits[bucketIndex])
+							}
+						}
+						for bucketIndex := 0; bucketIndex < len(telemetryDiff.Classified_fetch_api_version_hits); bucketIndex++ {
+							// Ensure that the other buckets remain unchanged before verifying the expected bucket.
+							if bucketIndex != expectedAPIVersionFetch-1 {
+								require.Equal(collect, 0, telemetryDiff.Classified_fetch_api_version_hits[bucketIndex])
+							} else {
+								require.Equal(collect, expectedCount, telemetryDiff.Classified_fetch_api_version_hits[bucketIndex])
+							}
+						}
+					}, time.Second*3, time.Millisecond*100)
+
+					// Update the current raw kernel telemetry for the next iteration
+					currentRawKernelTelemetry = telemetryMap
+				})
 			},
 		},
 	}
