@@ -206,7 +206,7 @@ func (c *Check) configureDiskCheck(data integration.Data, initConfig integration
 			return err
 		}
 	}
-	if c.instanceConfig.TagByLabel && c.instanceConfig.UseLsblk && c.instanceConfig.BlkidCacheFile != "" {
+	if c.instanceConfig.UseLsblk && c.instanceConfig.BlkidCacheFile != "" {
 		return errors.New("only one of 'use_lsblk' and 'blkid_cache_file' can be set at the same time")
 	}
 	c.configureCreateMounts()
