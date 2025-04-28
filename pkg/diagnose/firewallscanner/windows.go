@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package firewall_scanner
+package firewallscanner
 
 import (
 	"encoding/json"
@@ -29,7 +29,7 @@ type windowsRule struct {
 type ruleDirection int
 
 const (
-	Inbound ruleDirection = 1
+	inbound ruleDirection = 1
 )
 
 func (scanner *windowsFirewallScanner) DiagnoseBlockedPorts(forProtocol string, destPorts integrationsByDestPort, log log.Component) []diagnose.Diagnosis {
@@ -65,7 +65,7 @@ func checkBlockedPortsWindows(output []byte, forProtocol string, destPorts integ
 
 	for _, rule := range rules {
 		forIntegrations, portExists := destPorts[rule.LocalPort]
-		if rule.Direction == Inbound && strings.EqualFold(rule.Protocol, forProtocol) && portExists {
+		if rule.Direction == inbound && strings.EqualFold(rule.Protocol, forProtocol) && portExists {
 			blockedPorts = append(blockedPorts, blockedPort{
 				Port:            rule.LocalPort,
 				ForIntegrations: forIntegrations,

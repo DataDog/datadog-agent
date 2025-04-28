@@ -36,7 +36,7 @@ import (
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/firewall-scanner"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/firewallscanner"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
 
 	// checks implemented as components
@@ -648,7 +648,7 @@ func startAgent(
 	})
 
 	diagnosecatalog.Register(diagnose.FirewallBlockers, func(_ diagnose.Config) []diagnose.Diagnosis {
-		return firewall_scanner.DiagnoseBlockers(cfg, log)
+		return firewallscanner.DiagnoseBlockers(cfg, log)
 	})
 
 	// start dependent services
