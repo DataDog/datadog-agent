@@ -639,6 +639,10 @@ func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uin
 		// check exec bomb, keep the prev entry and update it
 		if prev.Equals(entry) {
 			prev.ApplyExecTimeOf(entry)
+
+			// entry not sure anymore
+			entry.Release()
+
 			return
 		}
 		prev.Exec(entry)
