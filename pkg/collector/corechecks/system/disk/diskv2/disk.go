@@ -201,7 +201,11 @@ func (c *Check) configureDiskCheck(data integration.Data, initConfig integration
 	}
 	for reString, tags := range c.instanceConfig.DeviceTagRe {
 		if re, err := compileRegExp(reString, defaultIgnoreCase()); err == nil {
-			c.deviceTagRe[re] = strings.Split(tags, ",")
+			splitTags := strings.Split(tags, ",")
+			for i, tag := range splitTags {
+				splitTags[i] = strings.TrimSpace(tag)
+			}
+			c.deviceTagRe[re] = splitTags
 		} else {
 			return err
 		}
