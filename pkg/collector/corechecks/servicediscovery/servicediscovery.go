@@ -94,7 +94,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 		"discovered_services",
 		[]string{},
 		"Number of discovered alive services.",
-		telemetry.Options{NoDoubleUnderscoreSep: true},
+		telemetry.DefaultOptions,
 	)
 
 	return nil
