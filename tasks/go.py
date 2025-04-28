@@ -67,7 +67,7 @@ def run_golangci_lint(
 
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root, headless_mode=headless_mode)
     verbosity = "-v" if verbose else ""
-    # we split targets to avoid going over the memory limit from circleCI
+    # we split targets to reduce memory usage
     results = []
     time_results = []
     for target in targets:
