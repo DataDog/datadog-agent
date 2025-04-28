@@ -588,7 +588,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 						for bucketIndex := 0; bucketIndex < len(telemetryDiff.Classified_produce_api_version_hits); bucketIndex++ {
 							// Ensure that the other buckets remain unchanged before verifying the expected bucket.
 							if bucketIndex != expectedAPIVersionProduce-1 {
-								require.Equal(collect, 0, telemetryDiff.Classified_produce_api_version_hits[bucketIndex])
+								require.Equal(collect, uint64(0), telemetryDiff.Classified_produce_api_version_hits[bucketIndex])
 							} else {
 								require.Equal(collect, expectedCount, telemetryDiff.Classified_produce_api_version_hits[bucketIndex])
 							}
@@ -596,7 +596,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 						for bucketIndex := 0; bucketIndex < len(telemetryDiff.Classified_fetch_api_version_hits); bucketIndex++ {
 							// Ensure that the other buckets remain unchanged before verifying the expected bucket.
 							if bucketIndex != expectedAPIVersionFetch-1 {
-								require.Equal(collect, 0, telemetryDiff.Classified_fetch_api_version_hits[bucketIndex])
+								require.Equal(collect, uint64(0), telemetryDiff.Classified_fetch_api_version_hits[bucketIndex])
 							} else {
 								require.Equal(collect, expectedCount, telemetryDiff.Classified_fetch_api_version_hits[bucketIndex])
 							}
