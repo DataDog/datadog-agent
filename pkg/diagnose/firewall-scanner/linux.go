@@ -30,16 +30,36 @@ func (scanner *linuxFirewallScanner) DiagnoseBlockedPorts(forProtocol string, de
 		return []diagnose.Diagnosis{}
 	}
 
-	var blockedPorts []blockedPort
-
-	checkers := []func(string, integrationsByDestPort, logger.Component) []blockedPort{
-		checkBlockedPortsIPTables,
-		checkBlockedPortsNFTables,
-		checkBlockedPortsUFW,
+	type cmdWithCheck struct {
+		cmd               *exec.Cmd
+		checkBlockedPorts func([]byte, string, integrationsByDestPort) []blockedPort
 	}
 
-	for _, checker := range checkers {
-		blockedPorts = append(blockedPorts, checker(forProtocol, destPorts, log)...)
+	cmdWithCheckList := []cmdWithCheck{
+		{
+			cmd:               exec.Command("iptables", "-S"),
+			checkBlockedPorts: checkBlockedPortsIPTables,
+		},
+		{
+			cmd:               exec.Command("nft", "list", "ruleset"),
+			checkBlockedPorts: checkBlockedPortsNFTables,
+		},
+		{
+			cmd:               exec.Command("ufw", "status"),
+			checkBlockedPorts: checkBlockedPortsUFW,
+		},
+	}
+
+	var blockedPorts []blockedPort
+
+	for _, cmdWithCheck := range cmdWithCheckList {
+		output, err := cmdWithCheck.cmd.Output()
+		if err != nil {
+			log.Warnf("Error executing command %s: %v", cmdWithCheck.cmd.String(), err)
+			continue
+		}
+
+		blockedPorts = append(blockedPorts, cmdWithCheck.checkBlockedPorts(output, forProtocol, destPorts)...)
 	}
 
 	return []diagnose.Diagnosis{
@@ -47,14 +67,7 @@ func (scanner *linuxFirewallScanner) DiagnoseBlockedPorts(forProtocol string, de
 	}
 }
 
-func checkBlockedPortsIPTables(forProtocol string, destPorts integrationsByDestPort, log logger.Component) []blockedPort {
-	cmd := exec.Command("iptables", "-S")
-	output, err := cmd.Output()
-	if err != nil {
-		log.Warnf("Error executing command %s: %v", cmd.String(), err)
-		return []blockedPort{}
-	}
-
+func checkBlockedPortsIPTables(output []byte, forProtocol string, destPorts integrationsByDestPort) []blockedPort {
 	re := regexp.MustCompile(`(?i)-p (\S+)\b.*--dport (\d+)\b.*-j drop\b`)
 	return checkBlockedPortsLinux(string(output), re, map[string]int{
 		keyProtocolIndex: 1,
@@ -62,14 +75,7 @@ func checkBlockedPortsIPTables(forProtocol string, destPorts integrationsByDestP
 	}, forProtocol, destPorts)
 }
 
-func checkBlockedPortsNFTables(forProtocol string, destPorts integrationsByDestPort, log logger.Component) []blockedPort {
-	cmd := exec.Command("nft", "list", "ruleset")
-	output, err := cmd.Output()
-	if err != nil {
-		log.Warnf("Error executing command %s: %v", cmd.String(), err)
-		return []blockedPort{}
-	}
-
+func checkBlockedPortsNFTables(output []byte, forProtocol string, destPorts integrationsByDestPort) []blockedPort {
 	re := regexp.MustCompile(`(?i)\b(\S+)\b.*\bdport (\d+)\b.*\bdrop\b`)
 	return checkBlockedPortsLinux(string(output), re, map[string]int{
 		keyProtocolIndex: 1,
@@ -77,14 +83,7 @@ func checkBlockedPortsNFTables(forProtocol string, destPorts integrationsByDestP
 	}, forProtocol, destPorts)
 }
 
-func checkBlockedPortsUFW(forProtocol string, destPorts integrationsByDestPort, log logger.Component) []blockedPort {
-	cmd := exec.Command("ufw", "status")
-	output, err := cmd.Output()
-	if err != nil {
-		log.Warnf("Error executing command %s: %v", cmd.String(), err)
-		return []blockedPort{}
-	}
-
+func checkBlockedPortsUFW(output []byte, forProtocol string, destPorts integrationsByDestPort) []blockedPort {
 	outputString := string(output)
 	if strings.Contains(outputString, "Status: inactive") {
 		return []blockedPort{}

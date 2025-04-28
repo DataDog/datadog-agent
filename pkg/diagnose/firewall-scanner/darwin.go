@@ -34,17 +34,17 @@ func (scanner *darwinFirewallScanner) DiagnoseBlockedPorts(forProtocol string, d
 		return []diagnose.Diagnosis{}
 	}
 
-	blockedPorts := checkBlockedPortsDarwin(string(output), forProtocol, destPorts)
+	blockedPorts := checkBlockedPortsDarwin(output, forProtocol, destPorts)
 
 	return []diagnose.Diagnosis{
 		buildBlockedPortsDiagnosis(blockerDiagnosisNameDarwin, forProtocol, blockedPorts),
 	}
 }
 
-func checkBlockedPortsDarwin(outputString string, forProtocol string, destPorts integrationsByDestPort) []blockedPort {
+func checkBlockedPortsDarwin(output []byte, forProtocol string, destPorts integrationsByDestPort) []blockedPort {
 	var blockedPorts []blockedPort
 
-	rules := strings.Split(outputString, "\n")
+	rules := strings.Split(string(output), "\n")
 	re := regexp.MustCompile(`(?i)\bblock\b.*\bproto (\S+)\b.*\bto\b.*\bport = (\d+)\b`)
 	for _, rule := range rules {
 		rule = strings.ToLower(rule)
