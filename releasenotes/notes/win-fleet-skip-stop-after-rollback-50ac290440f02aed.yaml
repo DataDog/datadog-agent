@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Avoid running the Agent MSI a second time when rolling back a remote upgrade on Windows.
