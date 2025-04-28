@@ -9,11 +9,11 @@ import (
 	"io"
 	"io/fs"
 	"path"
+	"path/filepath"
+
 	"strings"
 
 	"github.com/valyala/fastjson"
-
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -38,7 +38,6 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 			skipNext = false
 			continue
 		}
-
 		if strings.HasPrefix(a, "-") {
 			if a == "-r" || a == "--require" {
 				// next arg can be a js file but not the entry point. skip it
@@ -54,6 +53,7 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 				if !isJs(target) {
 					continue
 				}
+
 				entryPoint = abs(target, filepath.Dir(absFile))
 			} else {
 				continue
