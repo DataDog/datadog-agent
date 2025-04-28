@@ -160,45 +160,79 @@ def diff(
     Exactly one of --target-ref, --target-pipeline, or --pull-request-id must be provided.
     """
 
-    assert binary in ("agent", "dogstatsd"), "Unknown binary"
-    assert flavor in ("", "heroku", "iot", "fips"), "Unknown flavor"
-    assert arch in ("amd64", "arm64"), "Unknown architecture"
-
-    match _type:
-        case "deb":
-            _get_package_url = _get_deb_package_url
-            _extract = _extract_deb
-            ext = "deb"
-        case "rpm":
-            _get_package_url = _get_rpm_package_url
-            _extract = _extract_rpm
-            ext = "rpm"
-        case _:
-            raise Exit(code=1, message=f"Unknown package type: {_type}")
-
     repo = get_gitlab_repo("DataDog/datadog-agent")
     base_pipeline_id = _get_pipeline_id(ctx, repo, base_ref, base_pipeline, pull_request_id, base=True)
     target_pipeline_id = _get_pipeline_id(ctx, repo, target_ref, target_pipeline, pull_request_id, base=False)
     print(f"Comparing package from pipeline {base_pipeline_id} with pipeline {target_pipeline_id}")
 
+    print()
+
     tmpdir = tempfile.mkdtemp()
     print(f"Artifacts will be downloaded to {tmpdir}")
 
+    base_extract_dir = os.path.join(tmpdir, "base")
+    download(ctx, base_pipeline_id, binary, _type, flavor, arch, tmpdir, extract_dir=base_extract_dir)
+    target_extract_dir = os.path.join(tmpdir, "target")
+    download(ctx, target_pipeline_id, binary, _type, flavor, arch, tmpdir, extract_dir=target_extract_dir)
+
+    _diff(base_extract_dir, target_extract_dir)
+
+
+@task(
+    help={
+        "pipeline": "The pipeline id to download the package from",
+        "binary": "The binary of the package, either agent or dogstatsd",
+        "type": "The type of package, only deb is supported for now",
+        "flavor": "The flavor of the package, either empty, heroku, iot or fips",
+        "arch": "The package architecture, either amd64 or arm64",
+        "path": "The path to download the package to",
+        "extract": "Whether to extract the package",
+        "extract_dir": "The directory to extract the package to",
+    }
+)
+def download(
+    ctx: Context,
+    pipeline: str | int,
+    binary: str = "agent",
+    _type: str = "deb",
+    flavor: str = "",
+    arch: str = "amd64",
+    path: str | None = None,
+    extract: bool = True,
+    extract_dir: str | None = None,
+):
+    """
+    Download the package from the given pipeline.
+    """
+
+    assert binary in ("agent", "dogstatsd"), "Unknown binary"
+    assert flavor in ("", "heroku", "iot", "fips"), "Unknown flavor"
+    assert arch in ("amd64", "arm64"), "Unknown architecture"
+
+    if path is None:
+        path = os.getcwd()
+
+    if extract_dir is None:
+        extract_dir = path
+    else:
+        # If extract_dir is provided, always extract
+        extract = True
+
+    match _type:
+        case "deb":
+            _get_package_url = _get_deb_package_url
+            _extract = _extract_deb
+        case "rpm":
+            _get_package_url = _get_rpm_package_url
+            _extract = _extract_rpm
+        case _:
+            raise Exit(code=1, message=f"Unknown package type: {_type}")
+
     package_name = _get_package_name(binary, flavor)
+    download_path = _download(_get_package_url(ctx, int(pipeline), package_name, arch), path)
 
-    base_path = os.path.join(tmpdir, f"base.{ext}")
-    _download(_get_package_url(ctx, base_pipeline_id, package_name, arch), base_path)
-
-    target_path = os.path.join(tmpdir, f"target.{ext}")
-    _download(_get_package_url(ctx, target_pipeline_id, package_name, arch), target_path)
-
-    extract_path = os.path.join(tmpdir, "base")
-    _extract(ctx, base_path, extract_path)
-
-    target_extract_path = os.path.join(tmpdir, "target")
-    _extract(ctx, target_path, target_extract_path)
-
-    _diff(extract_path, target_extract_path)
+    if extract:
+        _extract(ctx, download_path, extract_dir)
 
 
 def _get_package_name(binary: str, flavor: str):
@@ -225,8 +259,11 @@ def _extract_rpm(ctx: Context, rpm_path: str, extract_path: str):
 def _download(package_url: str, path: str):
     import rich.progress
 
+    if os.path.isdir(path):
+        path = os.path.join(path, os.path.basename(package_url))
+
     print(f"Downloading {package_url} to {path}")
-    response = requests.get(package_url, stream=True)
+    response = requests.get(package_url, stream=True, timeout=None)
     response.raise_for_status()
 
     with open(path, "wb") as writer:
@@ -244,6 +281,8 @@ def _download(package_url: str, path: str):
             for chunk in response.iter_content(chunk_size=4096):
                 writer.write(chunk)
                 progress.update(task, advance=len(chunk))
+
+    return path
 
 
 def _get_rpm_package_url(ctx: Context, pipeline_id: int, package_name: str, arch: str):
