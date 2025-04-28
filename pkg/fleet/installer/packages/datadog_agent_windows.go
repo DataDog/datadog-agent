@@ -226,6 +226,8 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 	defer dataDogService.Close()
 
 	// main watchdog loop
+	// Watch the Installer and Agent services and ensure they stay running
+	// The Agent MSI starts them initially.
 	for time.Now().Before(timeout) {
 		// check the Installer service
 		status, err := instService.Query()
