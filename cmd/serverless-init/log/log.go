@@ -71,7 +71,7 @@ func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags
 	appServiceDefaultLoggingEnabled := origin == "appservice" && isInstanceTailingEnabled()
 	// The Azure App Service log volume is shared across all instances. This leads to every instance tailing the same files.
 	// To avoid this, we want to add the azure instance ID to the filepath so each instance tails their respective system log files.
-	// Users can also add $COMPUTERNAME to the custom files to achieve the same result.
+	// Users can also add $COMPUTERNAME to their custom files to achieve the same result.
 	if appServiceDefaultLoggingEnabled {
 		src := sources.NewLogSource("aas-instance-file-tail", &logConfig.LogsConfig{
 			Type:    logConfig.FileType,
