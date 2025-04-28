@@ -129,6 +129,28 @@ var (
 	ErrPathIsAlreadyRegistered = errors.New("path is already registered")
 )
 
+// UnknownAttachmentError is an error that is not one of the expected errors, a
+// shorthand to ensure we don't log expected errors (such as
+// ErrPathIsAlreadyRegistered or errPathIsBlocked, which are expected to happen
+// in normal operation)
+type UnknownAttachmentError struct {
+	Err error
+}
+
+func (e *UnknownAttachmentError) Error() string {
+	return fmt.Sprintf("unexpected error: %v", e.Err)
+}
+
+func (e *UnknownAttachmentError) Unwrap() error {
+	return e.Err
+}
+
+// NewUnknownAttachmentError creates a new `UnknownAttachmentError` instance wrapping
+// the given error.
+func NewUnknownAttachmentError(err error) *UnknownAttachmentError {
+	return &UnknownAttachmentError{Err: err}
+}
+
 // getBlockReason creates a string specifying the reason for the block based on
 // the error received. To reduce memory usage of this debugging feature, for
 // very common errors we store a summary instead of the full error string,
@@ -152,12 +174,12 @@ func getBlockReason(error error) string {
 // the existing registration if and only if `pid` is new;
 func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB, alreadyRegistered Callback) error {
 	if activationCB == nil || deactivationCB == nil {
-		return errCallbackIsMissing
+		return NewUnknownAttachmentError(errCallbackIsMissing)
 	}
 
 	path, err := NewFilePath(r.procRoot, namespacedPath, pid)
 	if err != nil {
-		return err
+		return NewUnknownAttachmentError(err)
 	}
 
 	pathID := path.ID
@@ -220,6 +242,9 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 			r.blocklistByID.Add(pathID, BlockListEntry{Path: path.HostPath, Reason: getBlockReason(err)})
 		}
 		r.telemetry.fileHookFailed.Add(1)
+
+		// Passing the error as is, without wrapping it in a `UnknownAttachmentError`,
+		// that's the responsibility of the callback.
 		return err
 	}
 

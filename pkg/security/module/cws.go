@@ -262,7 +262,7 @@ func (c *CWSConsumer) RunSelfTest(gRPC bool) (bool, error) {
 		return false, nil
 	}
 
-	if err := c.selfTester.RunSelfTest(selftests.DefaultTimeout); err != nil {
+	if err := c.selfTester.RunSelfTest(c.ctx, selftests.DefaultTimeout); err != nil {
 		return true, err
 	}
 

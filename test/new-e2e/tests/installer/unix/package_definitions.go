@@ -119,3 +119,16 @@ func InstallScriptEnvWithPackages(arch e2eos.Architecture, packagesConfig []Test
 	installScriptInstallerEnv(env, packagesConfig)
 	return env
 }
+
+// InstallInstallerScriptEnvWithPackages returns the environment variables for the installer script for the given packages
+func InstallInstallerScriptEnvWithPackages() map[string]string {
+	env := map[string]string{}
+	apiKey := os.Getenv("DD_API_KEY")
+	if apiKey == "" {
+		apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
+	}
+	env["DD_API_KEY"] = apiKey
+	env["DD_SITE"] = "datadoghq.com"
+	installScriptInstallerEnv(env, PackagesConfig)
+	return env
+}

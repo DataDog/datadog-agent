@@ -229,7 +229,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 		// Marshal the resource to generate the YAML field.
 		yaml, err := json.Marshal(resource)
 		if err != nil {
-			log.Warnc(newMarshallingError(err).Error(), orchestrator.ExtraLogContext...)
+			log.Warnc(NewMarshallingError(err).Error(), orchestrator.ExtraLogContext...)
 			continue
 		}
 

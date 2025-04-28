@@ -22,24 +22,25 @@ import (
 	"strings"
 	"time"
 
-	languagedetection "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1/languagedetection"
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v2/series"
-	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
 	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1/languagedetection"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v2/series"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -57,7 +58,7 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, authToken authtoken.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component) error {
+func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, authToken authtoken.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component, telemetry telemetry.Component) error {
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
@@ -121,18 +122,24 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	// event size should be small enough to fit within the grpc max message size
 	maxEventSize := maxMessageSize / 2
 	pb.RegisterAgentSecureServer(grpcSrv, &serverSecure{
-		taggerServer: taggerserver.NewServer(taggerComp, maxEventSize, cfg.GetInt("remote_tagger.max_concurrent_sync")),
+		taggerServer: taggerserver.NewServer(taggerComp, telemetry, maxEventSize, cfg.GetInt("remote_tagger.max_concurrent_sync")),
 	})
 
 	timeout := pkgconfigsetup.Datadog().GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second
+	errorLog := stdLog.New(logWriter, "Error from the agent http API server: ", 0) // log errors to seelog
 	srv := helpers.NewMuxedGRPCServer(
 		listener.Addr().String(),
 		tlsConfig,
 		grpcSrv,
-		router,
+		// Use a recovery handler to log panics if they happen.
+		// The client will receive a 500 error.
+		handlers.RecoveryHandler(
+			handlers.PrintRecoveryStack(true),
+			handlers.RecoveryLogger(errorLog),
+		)(router),
 		timeout,
 	)
-	srv.ErrorLog = stdLog.New(logWriter, "Error from the agent http API server: ", 0) // log errors to seelog
+	srv.ErrorLog = errorLog
 
 	tlsListener := tls.NewListener(listener, srv.TLSConfig)
 

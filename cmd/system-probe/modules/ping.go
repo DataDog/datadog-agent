@@ -11,17 +11,20 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/mux"
-	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	pingcheck "github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func init() { registerModule(Pinger) }
 
 const (
 	countParam    = "count"
@@ -32,7 +35,7 @@ const (
 type pinger struct{}
 
 // Pinger is a factory for NDMs Ping module
-var Pinger = module.Factory{
+var Pinger = &module.Factory{
 	Name:             config.PingModule,
 	ConfigNamespaces: []string{"ping"},
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
@@ -50,12 +53,12 @@ func (p *pinger) GetStats() map[string]interface{} {
 }
 
 func (p *pinger) Register(httpMux *module.Router) error {
-	var runCounter = atomic.NewUint64(0)
+	var runCounter atomic.Uint64
 
 	httpMux.HandleFunc("/ping/{host}", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		vars := mux.Vars(req)
-		id := getClientID(req)
+		id := utils.GetClientID(req)
 		host := vars["host"]
 
 		count, err := getIntParam(countParam, req)
@@ -108,7 +111,7 @@ func (p *pinger) Register(httpMux *module.Router) error {
 			log.Errorf("unable to write ping response: %s", err)
 		}
 
-		runCount := runCounter.Inc()
+		runCount := runCounter.Add(1)
 		logPingRequests(host, id, count, interval, timeout, runCount, start)
 	})
 

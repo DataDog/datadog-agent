@@ -14,7 +14,7 @@ import (
 	docker "github.com/docker/docker/client"
 )
 
-func newDockerClient(ctx context.Context) (docker.CommonAPIClient, error) {
+func newDockerClient(ctx context.Context) (docker.APIClient, error) {
 	cl, err := dockerutil.ConnectToDocker(ctx)
 	if err != nil {
 		return nil, ErrIncompatibleEnvironment

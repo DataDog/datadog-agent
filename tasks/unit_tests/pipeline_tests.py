@@ -28,7 +28,7 @@ class TestCompareToItself(unittest.TestCase):
     @staticmethod
     def side(x):
         if x == "c0mm1t":
-            return MagicMock(author_name=pipeline.BOT_NAME)
+            return MagicMock(author_name=pipeline.BOT_NAME, title="Commit to compare to itself")
         else:
             return MagicMock(author_name="Aimee Jaquet")
 

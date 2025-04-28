@@ -230,10 +230,12 @@ func SetAgentPythonMajorVersion(t *testing.T, client *TestClient, majorVersion s
 // CheckAgentPython runs tests to check the agent use the correct python version
 func CheckAgentPython(t *testing.T, client *TestClient, expectedVersion string) {
 	t.Run(fmt.Sprintf("check python %s is used", expectedVersion), func(tt *testing.T) {
-		statusVersion, err := client.GetPythonVersion()
-		require.NoError(tt, err)
-		actualPythonVersion := statusVersion
-		require.Equal(tt, expectedVersion, actualPythonVersion)
+		require.EventuallyWithT(tt, func(c *assert.CollectT) {
+			statusVersion, err := client.GetPythonVersion()
+			require.NoError(c, err)
+			actualPythonVersion := statusVersion
+			require.Equal(c, expectedVersion, actualPythonVersion)
+		}, 2*time.Minute, 5*time.Second)
 	})
 }
 

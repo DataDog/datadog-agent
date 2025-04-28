@@ -107,10 +107,7 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 	}
 
 	if wasOverridden {
-		rd1.Policy.Name = rd2.Policy.Name
-		rd1.Policy.Source = rd2.Policy.Source
-		rd1.Policy.Type = rd2.Policy.Type
-
+		rd1.Policy = rd2.Policy
 	}
 }
 
@@ -129,16 +126,11 @@ func (r *PolicyRule) MergeWith(r2 *PolicyRule) error {
 
 	if r.Def.Disabled {
 		r.Def.Disabled = r2.Def.Disabled
-		r.Policy.Name = r2.Policy.Name
-		r.Policy.Source = r2.Policy.Source
-		r.Policy.Type = r2.Policy.Type
-
+		r.Policy = r2.Policy
 	} else {
 		if r.Policy.Type == DefaultPolicyType && r2.Policy.Type == CustomPolicyType {
 			r.Def.Disabled = r2.Def.Disabled
-			r.Policy.Name = r2.Policy.Name
-			r.Policy.Source = r2.Policy.Source
-			r.Policy.Type = r2.Policy.Type
+			r.Policy = r2.Policy
 		}
 	}
 

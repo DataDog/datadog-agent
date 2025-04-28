@@ -1505,3 +1505,36 @@ func listsEqual(mustMatch []string) func(candidate []string) bool {
 		return true
 	}
 }
+
+func TestWithOrgStatusPollingIntervalNoConfigPassed(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("run_path", "/tmp")
+
+	baseRawURL := "https://localhost"
+	mockTelemetryReporter := newMockRcTelemetryReporter()
+	options := []Option{
+		WithAPIKey("abc"),
+	}
+	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
+	assert.NoError(t, err)
+	assert.Equal(t, service.orgStatusRefreshInterval, defaultRefreshInterval)
+	assert.NotNil(t, service)
+	service.Stop()
+}
+
+func TestWithOrgStatusPollingIntervalConfigPassed(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("run_path", "/tmp")
+
+	baseRawURL := "https://localhost"
+	mockTelemetryReporter := newMockRcTelemetryReporter()
+	options := []Option{
+		WithAPIKey("abc"),
+		WithOrgStatusRefreshInterval(54*time.Second, "test.org_status_refresh_interval"),
+	}
+	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
+	assert.NoError(t, err)
+	assert.Equal(t, service.orgStatusRefreshInterval, 54*time.Second)
+	assert.NotNil(t, service)
+	service.Stop()
+}

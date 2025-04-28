@@ -32,9 +32,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -165,29 +165,14 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		autoexitimpl.Module(),
 
 		// Provide the corresponding workloadmeta Params to configure the catalog
-		wmcatalog.GetCatalog(),
+		wmcatalogremote.GetCatalog(),
 
 		// Provide workloadmeta module
-		workloadmetafx.ModuleWithProvider(func(c config.Component) workloadmeta.Params {
-			var catalog workloadmeta.AgentType
-
-			if c.GetBool("process_config.remote_workloadmeta") {
-				catalog = workloadmeta.Remote
-			} else {
-				catalog = workloadmeta.ProcessAgent
-			}
-
-			return workloadmeta.Params{AgentType: catalog}
+		workloadmetafx.Module(workloadmeta.Params{
+			AgentType: workloadmeta.Remote,
 		}),
 
-		dualTaggerfx.Module(tagger.DualParams{
-			UseRemote: func(c config.Component) bool {
-				return c.GetBool("process_config.remote_tagger") ||
-					// If the agent is running in ECS or ECS Fargate and the ECS task collection is enabled, use the remote tagger
-					// as remote tagger can return more tags than the local tagger.
-					((env.IsECS() || env.IsECSFargate()) && c.GetBool("ecs_task_collection_enabled"))
-			},
-		}, tagger.RemoteParams{
+		remoteTaggerfx.Module(tagger.RemoteParams{
 			RemoteTarget: func(c config.Component) (string, error) {
 				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
 			},

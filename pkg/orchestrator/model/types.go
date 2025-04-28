@@ -25,8 +25,8 @@ var ExtraLogContext = []interface{}{"check", CheckName}
 // NoExpiration maps to go-cache corresponding value
 const NoExpiration = cache.NoExpiration
 
-// The values in these enfms should match the values defined in the agent payload schema, defined here:
-// https://github.com/DataDog/agent-payload/blob/master/proto/process/agent.proto (within enum K8sResource)
+// The values in these enums should match the values defined in the agent payload schema, defined here:
+// https://github.com/DataDog/agent-payload/blob/master/proto/process/agent.proto (within enum OrchestratorResource)
 // we do not utilize iota as these types are used in external systems, not just within the agent instance.
 const (
 	// K8sUnsetType represents a Kubernetes unset type
@@ -85,6 +85,8 @@ const (
 	K8sStorageClass = 26
 	// K8sPodDisruptionBudget represents a Kubernetes PodDisruptionBudget
 	K8sPodDisruptionBudget = 27
+	// K8sEndpointSlice represents a Kubernetes EndpointSlice
+	K8sEndpointSlice = 28
 	// ECSTask represents an ECS Task
 	ECSTask = 150
 )
@@ -101,6 +103,7 @@ func NodeTypes() []NodeType {
 		K8sCronJob,
 		K8sDaemonSet,
 		K8sDeployment,
+		K8sEndpointSlice,
 		K8sHorizontalPodAutoscaler,
 		K8sIngress,
 		K8sJob,
@@ -183,6 +186,8 @@ func (n NodeType) String() string {
 		return "ECSTask"
 	case K8sPodDisruptionBudget:
 		return "PodDisruptionBudget"
+	case K8sEndpointSlice:
+		return "EndpointSlice"
 	default:
 		_ = log.Errorf("Trying to convert unknown NodeType iota: %d", n)
 		return "Unknown"
@@ -200,6 +205,7 @@ func (n NodeType) Orchestrator() string {
 		K8sCronJob,
 		K8sDaemonSet,
 		K8sDeployment,
+		K8sEndpointSlice,
 		K8sHorizontalPodAutoscaler,
 		K8sIngress,
 		K8sJob,

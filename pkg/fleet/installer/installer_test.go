@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
@@ -36,15 +37,17 @@ type installFnFactory = func(manager *testPackageManager) installFn
 
 type testPackageManager struct {
 	installerImpl
+	testHooks *testHooks
 }
 
 func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *testPackageManager {
-	packages := repository.NewRepositories(rootPath, packages.PreRemoveHooks)
+	packages := repository.NewRepositories(rootPath, nil)
 	configs := repository.NewRepositories(t.TempDir(), nil)
 	db, err := db.New(filepath.Join(rootPath, "packages.db"))
 	assert.NoError(t, err)
+	hooks := &testHooks{}
 	return &testPackageManager{
-		installerImpl{
+		installerImpl: installerImpl{
 			env:            &env.Env{},
 			db:             db,
 			downloader:     oci.NewDownloader(&env.Env{}, s.Client()),
@@ -52,8 +55,87 @@ func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *t
 			configs:        configs,
 			userConfigsDir: t.TempDir(),
 			packagesDir:    rootPath,
+			hooks:          hooks,
 		},
+		testHooks: hooks,
 	}
+}
+
+type testHooks struct {
+	mock.Mock
+	noop bool
+}
+
+func (h *testHooks) PreInstall(ctx context.Context, pkg string, pkgType packages.PackageType, upgrade bool) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg, pkgType, upgrade)
+	return nil
+}
+
+func (h *testHooks) PostInstall(ctx context.Context, pkg string, pkgType packages.PackageType, upgrade bool, winArgs []string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg, pkgType, upgrade, winArgs)
+	return nil
+}
+
+func (h *testHooks) PreRemove(ctx context.Context, pkg string, pkgType packages.PackageType, upgrade bool) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg, pkgType, upgrade)
+	return nil
+}
+
+func (h *testHooks) PreStartExperiment(ctx context.Context, pkg string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg)
+	return nil
+}
+
+func (h *testHooks) PostStartExperiment(ctx context.Context, pkg string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg)
+	return nil
+}
+
+func (h *testHooks) PreStopExperiment(ctx context.Context, pkg string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg)
+	return nil
+}
+
+func (h *testHooks) PostStopExperiment(ctx context.Context, pkg string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg)
+	return nil
+}
+
+func (h *testHooks) PrePromoteExperiment(ctx context.Context, pkg string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg)
+	return nil
+}
+
+func (h *testHooks) PostPromoteExperiment(ctx context.Context, pkg string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg)
+	return nil
 }
 
 func (i *testPackageManager) ConfigFS(f fixtures.Fixture) fs.FS {
@@ -65,6 +147,9 @@ func TestInstallStable(t *testing.T) {
 		s := fixtures.NewServer(t)
 		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
+
+		preInstallCall := installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false).Return(nil)
+		installer.testHooks.On("PostInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false, mock.Anything).Return(nil).NotBefore(preInstallCall)
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
@@ -84,8 +169,12 @@ func TestInstallExperiment(t *testing.T) {
 		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 
+		preInstallCall := installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false).Return(nil)
+		installer.testHooks.On("PostInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false, mock.Anything).Return(nil).NotBefore(preInstallCall)
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
+		preStartExperimentCall := installer.testHooks.On("PreStartExperiment", testCtx, fixtures.FixtureSimpleV1.Package).Return(nil)
+		installer.testHooks.On("PostStartExperiment", testCtx, fixtures.FixtureSimpleV1.Package).Return(nil).NotBefore(preStartExperimentCall)
 		err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV2))
 		assert.NoError(t, err)
 		r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
@@ -105,10 +194,16 @@ func TestInstallPromoteExperiment(t *testing.T) {
 		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 
+		preInstallCall := installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false).Return(nil)
+		installer.testHooks.On("PostInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false, mock.Anything).Return(nil).NotBefore(preInstallCall)
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
+		preStartExperimentCall := installer.testHooks.On("PreStartExperiment", testCtx, fixtures.FixtureSimpleV1.Package).Return(nil)
+		installer.testHooks.On("PostStartExperiment", testCtx, fixtures.FixtureSimpleV1.Package).Return(nil).NotBefore(preStartExperimentCall)
 		err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV2))
 		assert.NoError(t, err)
+		prePromoteExperimentCall := installer.testHooks.On("PrePromoteExperiment", testCtx, fixtures.FixtureSimpleV1.Package).Return(nil)
+		installer.testHooks.On("PostPromoteExperiment", testCtx, fixtures.FixtureSimpleV1.Package).Return(nil).NotBefore(prePromoteExperimentCall)
 		err = installer.PromoteExperiment(testCtx, fixtures.FixtureSimpleV1.Package)
 		assert.NoError(t, err)
 		r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
@@ -127,10 +222,16 @@ func TestUninstallExperiment(t *testing.T) {
 		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 
+		preInstallCall := installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false).Return(nil)
+		installer.testHooks.On("PostInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false, mock.Anything).Return(nil).NotBefore(preInstallCall)
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
+		preStartExperimentCall := installer.testHooks.On("PreStartExperiment", testCtx, fixtures.FixtureSimpleV1.Package).Return(nil)
+		installer.testHooks.On("PostStartExperiment", testCtx, fixtures.FixtureSimpleV1.Package).Return(nil).NotBefore(preStartExperimentCall)
 		err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV2))
 		assert.NoError(t, err)
+		preStopExperimentCall := installer.testHooks.On("PreStopExperiment", testCtx, fixtures.FixtureSimpleV1.Package).Return(nil)
+		installer.testHooks.On("PostStopExperiment", testCtx, fixtures.FixtureSimpleV1.Package).Return(nil).NotBefore(preStopExperimentCall)
 		err = installer.RemoveExperiment(testCtx, fixtures.FixtureSimpleV1.Package)
 		assert.NoError(t, err)
 		r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
@@ -148,6 +249,7 @@ func TestInstallSkippedWhenAlreadyInstalled(t *testing.T) {
 	s := fixtures.NewServer(t)
 	installer := newTestPackageManager(t, s, t.TempDir())
 	defer installer.db.Close()
+	installer.testHooks.noop = true
 
 	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
@@ -167,6 +269,7 @@ func TestForceInstallWhenAlreadyInstalled(t *testing.T) {
 	s := fixtures.NewServer(t)
 	installer := newTestPackageManager(t, s, t.TempDir())
 	defer installer.db.Close()
+	installer.testHooks.noop = true
 
 	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
@@ -187,7 +290,7 @@ func TestReinstallAfterDBClean(t *testing.T) {
 		s := fixtures.NewServer(t)
 		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
-
+		installer.testHooks.noop = true
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
 		r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
@@ -250,6 +353,7 @@ func TestPurge(t *testing.T) {
 		s := fixtures.NewServer(t)
 		rootPath := t.TempDir()
 		installer := newTestPackageManager(t, s, rootPath)
+		installer.testHooks.noop = true
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
@@ -291,8 +395,10 @@ func TestNoOutsideImport(t *testing.T) {
 	datadogAgentPrefix := "github.com/DataDog/datadog-agent/"
 	allowedPaths := []string{
 		"pkg/fleet/installer",
-		"pkg/version",  // TODO: cleanup & remove
-		"pkg/util/log", // TODO: cleanup & remove
+		"pkg/version",      // TODO: cleanup & remove
+		"pkg/util/log",     // TODO: cleanup & remove
+		"pkg/util/winutil", // Needed for Windows
+		"pkg/template",
 	}
 
 	// Walk the directory tree

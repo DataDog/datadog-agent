@@ -87,7 +87,7 @@ func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	}
 	return nil
 }
-func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
+func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int) (eval.Evaluator, error) {
 	switch field {
 	case "accept.addr.family":
 		return &eval.IntEvaluator{
@@ -98,6 +98,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "accept.addr.hostname":
 		return &eval.StringArrayEvaluator{
@@ -108,6 +109,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "accept.addr.ip":
 		return &eval.CIDREvaluator{
@@ -118,6 +120,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "accept.addr.is_public":
 		return &eval.BoolEvaluator{
@@ -128,6 +131,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "accept.addr.port":
 		return &eval.IntEvaluator{
@@ -138,6 +142,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "accept.retval":
 		return &eval.IntEvaluator{
@@ -148,6 +153,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "bind.addr.family":
 		return &eval.IntEvaluator{
@@ -158,6 +164,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "bind.addr.ip":
 		return &eval.CIDREvaluator{
@@ -168,6 +175,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "bind.addr.is_public":
 		return &eval.BoolEvaluator{
@@ -178,6 +186,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "bind.addr.port":
 		return &eval.IntEvaluator{
@@ -188,6 +197,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "bind.protocol":
 		return &eval.IntEvaluator{
@@ -198,6 +208,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "bind.retval":
 		return &eval.IntEvaluator{
@@ -208,6 +219,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "bpf.cmd":
 		return &eval.IntEvaluator{
@@ -218,6 +230,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "bpf.map.name":
 		return &eval.StringEvaluator{
@@ -228,6 +241,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "bpf.map.type":
 		return &eval.IntEvaluator{
@@ -238,6 +252,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "bpf.prog.attach_type":
 		return &eval.IntEvaluator{
@@ -248,6 +263,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "bpf.prog.helpers":
 		return &eval.IntArrayEvaluator{
@@ -262,6 +278,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "bpf.prog.name":
 		return &eval.StringEvaluator{
@@ -272,6 +289,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "bpf.prog.tag":
 		return &eval.StringEvaluator{
@@ -282,6 +300,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "bpf.prog.type":
 		return &eval.IntEvaluator{
@@ -292,6 +311,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "bpf.retval":
 		return &eval.IntEvaluator{
@@ -302,6 +322,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "capset.cap_effective":
 		return &eval.IntEvaluator{
@@ -312,6 +333,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "capset.cap_permitted":
 		return &eval.IntEvaluator{
@@ -322,6 +344,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "cgroup.file.inode":
 		return &eval.IntEvaluator{
@@ -332,6 +355,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "cgroup.file.mount_id":
 		return &eval.IntEvaluator{
@@ -342,6 +366,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "cgroup.id":
 		return &eval.StringEvaluator{
@@ -352,6 +377,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "cgroup.manager":
 		return &eval.StringEvaluator{
@@ -362,6 +388,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "cgroup.version":
 		return &eval.IntEvaluator{
@@ -372,6 +399,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.change_time":
 		return &eval.IntEvaluator{
@@ -382,6 +410,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.filesystem":
 		return &eval.StringEvaluator{
@@ -392,6 +421,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.gid":
 		return &eval.IntEvaluator{
@@ -402,6 +432,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.group":
 		return &eval.StringEvaluator{
@@ -412,6 +443,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -422,6 +454,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -432,6 +465,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.inode":
 		return &eval.IntEvaluator{
@@ -442,6 +476,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.mode":
 		return &eval.IntEvaluator{
@@ -452,6 +487,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.modification_time":
 		return &eval.IntEvaluator{
@@ -462,6 +498,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.mount_id":
 		return &eval.IntEvaluator{
@@ -472,6 +509,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.name":
 		return &eval.StringEvaluator{
@@ -483,6 +521,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.name.length":
 		return &eval.IntEvaluator{
@@ -494,6 +533,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.package.name":
 		return &eval.StringEvaluator{
@@ -504,6 +544,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -514,6 +555,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.package.version":
 		return &eval.StringEvaluator{
@@ -524,6 +566,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.path":
 		return &eval.StringEvaluator{
@@ -535,6 +578,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.path.length":
 		return &eval.IntEvaluator{
@@ -546,6 +590,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.rights":
 		return &eval.IntEvaluator{
@@ -556,6 +601,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.uid":
 		return &eval.IntEvaluator{
@@ -566,6 +612,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.file.user":
 		return &eval.StringEvaluator{
@@ -576,6 +623,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.retval":
 		return &eval.IntEvaluator{
@@ -586,6 +634,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chdir.syscall.path":
 		return &eval.StringEvaluator{
@@ -596,6 +645,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.change_time":
 		return &eval.IntEvaluator{
@@ -606,6 +656,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.destination.mode":
 		return &eval.IntEvaluator{
@@ -616,6 +667,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.destination.rights":
 		return &eval.IntEvaluator{
@@ -626,6 +678,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.filesystem":
 		return &eval.StringEvaluator{
@@ -636,6 +689,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.gid":
 		return &eval.IntEvaluator{
@@ -646,6 +700,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.group":
 		return &eval.StringEvaluator{
@@ -656,6 +711,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -666,6 +722,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -676,6 +733,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.inode":
 		return &eval.IntEvaluator{
@@ -686,6 +744,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.mode":
 		return &eval.IntEvaluator{
@@ -696,6 +755,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.modification_time":
 		return &eval.IntEvaluator{
@@ -706,6 +766,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.mount_id":
 		return &eval.IntEvaluator{
@@ -716,6 +777,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.name":
 		return &eval.StringEvaluator{
@@ -727,6 +789,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.name.length":
 		return &eval.IntEvaluator{
@@ -738,6 +801,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.package.name":
 		return &eval.StringEvaluator{
@@ -748,6 +812,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -758,6 +823,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.package.version":
 		return &eval.StringEvaluator{
@@ -768,6 +834,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.path":
 		return &eval.StringEvaluator{
@@ -779,6 +846,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.path.length":
 		return &eval.IntEvaluator{
@@ -790,6 +858,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.rights":
 		return &eval.IntEvaluator{
@@ -800,6 +869,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.uid":
 		return &eval.IntEvaluator{
@@ -810,6 +880,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.file.user":
 		return &eval.StringEvaluator{
@@ -820,6 +891,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.retval":
 		return &eval.IntEvaluator{
@@ -830,6 +902,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.syscall.mode":
 		return &eval.IntEvaluator{
@@ -840,6 +913,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chmod.syscall.path":
 		return &eval.StringEvaluator{
@@ -850,6 +924,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.change_time":
 		return &eval.IntEvaluator{
@@ -860,6 +935,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.destination.gid":
 		return &eval.IntEvaluator{
@@ -870,6 +946,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.destination.group":
 		return &eval.StringEvaluator{
@@ -880,6 +957,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.destination.uid":
 		return &eval.IntEvaluator{
@@ -890,6 +968,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.destination.user":
 		return &eval.StringEvaluator{
@@ -900,6 +979,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.filesystem":
 		return &eval.StringEvaluator{
@@ -910,6 +990,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.gid":
 		return &eval.IntEvaluator{
@@ -920,6 +1001,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.group":
 		return &eval.StringEvaluator{
@@ -930,6 +1012,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -940,6 +1023,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -950,6 +1034,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.inode":
 		return &eval.IntEvaluator{
@@ -960,6 +1045,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.mode":
 		return &eval.IntEvaluator{
@@ -970,6 +1056,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.modification_time":
 		return &eval.IntEvaluator{
@@ -980,6 +1067,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.mount_id":
 		return &eval.IntEvaluator{
@@ -990,6 +1078,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.name":
 		return &eval.StringEvaluator{
@@ -1001,6 +1090,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.name.length":
 		return &eval.IntEvaluator{
@@ -1012,6 +1102,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.package.name":
 		return &eval.StringEvaluator{
@@ -1022,6 +1113,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -1032,6 +1124,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.package.version":
 		return &eval.StringEvaluator{
@@ -1042,6 +1135,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.path":
 		return &eval.StringEvaluator{
@@ -1053,6 +1147,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.path.length":
 		return &eval.IntEvaluator{
@@ -1064,6 +1159,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.rights":
 		return &eval.IntEvaluator{
@@ -1074,6 +1170,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.uid":
 		return &eval.IntEvaluator{
@@ -1084,6 +1181,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chown.file.user":
 		return &eval.StringEvaluator{
@@ -1094,6 +1192,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chown.retval":
 		return &eval.IntEvaluator{
@@ -1104,6 +1203,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "chown.syscall.gid":
 		return &eval.IntEvaluator{
@@ -1114,6 +1214,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chown.syscall.path":
 		return &eval.StringEvaluator{
@@ -1124,6 +1225,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "chown.syscall.uid":
 		return &eval.IntEvaluator{
@@ -1134,6 +1236,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "connect.addr.family":
 		return &eval.IntEvaluator{
@@ -1144,6 +1247,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "connect.addr.hostname":
 		return &eval.StringArrayEvaluator{
@@ -1154,6 +1258,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "connect.addr.ip":
 		return &eval.CIDREvaluator{
@@ -1164,6 +1269,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "connect.addr.is_public":
 		return &eval.BoolEvaluator{
@@ -1174,6 +1280,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "connect.addr.port":
 		return &eval.IntEvaluator{
@@ -1184,6 +1291,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "connect.protocol":
 		return &eval.IntEvaluator{
@@ -1194,6 +1302,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "connect.retval":
 		return &eval.IntEvaluator{
@@ -1204,6 +1313,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "container.created_at":
 		return &eval.IntEvaluator{
@@ -1214,6 +1324,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "container.id":
 		return &eval.StringEvaluator{
@@ -1224,6 +1335,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "container.runtime":
 		return &eval.StringEvaluator{
@@ -1234,6 +1346,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "container.tags":
 		return &eval.StringArrayEvaluator{
@@ -1244,6 +1357,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 9999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "dns.id":
 		return &eval.IntEvaluator{
@@ -1254,6 +1368,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "dns.question.class":
 		return &eval.IntEvaluator{
@@ -1264,6 +1379,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "dns.question.count":
 		return &eval.IntEvaluator{
@@ -1274,6 +1390,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "dns.question.length":
 		return &eval.IntEvaluator{
@@ -1284,6 +1401,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "dns.question.name":
 		return &eval.StringEvaluator{
@@ -1295,6 +1413,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "dns.question.name.length":
 		return &eval.IntEvaluator{
@@ -1306,6 +1425,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "dns.question.type":
 		return &eval.IntEvaluator{
@@ -1316,6 +1436,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "event.async":
 		return &eval.BoolEvaluator{
@@ -1326,6 +1447,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "event.hostname":
 		return &eval.StringEvaluator{
@@ -1336,6 +1458,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "event.origin":
 		return &eval.StringEvaluator{
@@ -1346,6 +1469,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "event.os":
 		return &eval.StringEvaluator{
@@ -1356,6 +1480,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "event.service":
 		return &eval.StringEvaluator{
@@ -1366,6 +1491,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "event.timestamp":
 		return &eval.IntEvaluator{
@@ -1376,6 +1502,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.args":
 		return &eval.StringEvaluator{
@@ -1386,6 +1513,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -1396,6 +1524,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.args_options":
 		return &eval.StringArrayEvaluator{
@@ -1406,6 +1535,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.args_truncated":
 		return &eval.BoolEvaluator{
@@ -1416,6 +1546,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.argv":
 		return &eval.StringArrayEvaluator{
@@ -1426,6 +1557,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.argv0":
 		return &eval.StringEvaluator{
@@ -1436,6 +1568,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.auid":
 		return &eval.IntEvaluator{
@@ -1446,6 +1579,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.cap_effective":
 		return &eval.IntEvaluator{
@@ -1456,6 +1590,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.cap_permitted":
 		return &eval.IntEvaluator{
@@ -1466,6 +1601,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.cgroup.file.inode":
 		return &eval.IntEvaluator{
@@ -1476,6 +1612,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.cgroup.file.mount_id":
 		return &eval.IntEvaluator{
@@ -1486,6 +1623,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.cgroup.id":
 		return &eval.StringEvaluator{
@@ -1496,6 +1634,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.cgroup.manager":
 		return &eval.StringEvaluator{
@@ -1506,6 +1645,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.cgroup.version":
 		return &eval.IntEvaluator{
@@ -1516,6 +1656,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.comm":
 		return &eval.StringEvaluator{
@@ -1526,6 +1667,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.container.id":
 		return &eval.StringEvaluator{
@@ -1536,6 +1678,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.created_at":
 		return &eval.IntEvaluator{
@@ -1546,6 +1689,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.egid":
 		return &eval.IntEvaluator{
@@ -1556,6 +1700,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.egroup":
 		return &eval.StringEvaluator{
@@ -1566,6 +1711,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.envp":
 		return &eval.StringArrayEvaluator{
@@ -1576,6 +1722,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.envs":
 		return &eval.StringArrayEvaluator{
@@ -1586,6 +1733,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -1596,6 +1744,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.euid":
 		return &eval.IntEvaluator{
@@ -1606,6 +1755,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.euser":
 		return &eval.StringEvaluator{
@@ -1616,6 +1766,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.change_time":
 		return &eval.IntEvaluator{
@@ -1629,6 +1780,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.filesystem":
 		return &eval.StringEvaluator{
@@ -1642,6 +1794,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.gid":
 		return &eval.IntEvaluator{
@@ -1655,6 +1808,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.group":
 		return &eval.StringEvaluator{
@@ -1668,6 +1822,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -1681,6 +1836,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -1694,6 +1850,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.inode":
 		return &eval.IntEvaluator{
@@ -1707,6 +1864,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.mode":
 		return &eval.IntEvaluator{
@@ -1720,6 +1878,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.modification_time":
 		return &eval.IntEvaluator{
@@ -1733,6 +1892,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.mount_id":
 		return &eval.IntEvaluator{
@@ -1746,6 +1906,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.name":
 		return &eval.StringEvaluator{
@@ -1760,6 +1921,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.name.length":
 		return &eval.IntEvaluator{
@@ -1771,6 +1933,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.package.name":
 		return &eval.StringEvaluator{
@@ -1784,6 +1947,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -1797,6 +1961,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.package.version":
 		return &eval.StringEvaluator{
@@ -1810,6 +1975,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.path":
 		return &eval.StringEvaluator{
@@ -1824,6 +1990,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.path.length":
 		return &eval.IntEvaluator{
@@ -1835,6 +2002,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.rights":
 		return &eval.IntEvaluator{
@@ -1848,6 +2016,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.uid":
 		return &eval.IntEvaluator{
@@ -1861,6 +2030,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.file.user":
 		return &eval.StringEvaluator{
@@ -1874,6 +2044,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.fsgid":
 		return &eval.IntEvaluator{
@@ -1884,6 +2055,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.fsgroup":
 		return &eval.StringEvaluator{
@@ -1894,6 +2066,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.fsuid":
 		return &eval.IntEvaluator{
@@ -1904,6 +2077,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.fsuser":
 		return &eval.StringEvaluator{
@@ -1914,6 +2088,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.gid":
 		return &eval.IntEvaluator{
@@ -1924,6 +2099,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.group":
 		return &eval.StringEvaluator{
@@ -1934,6 +2110,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.change_time":
 		return &eval.IntEvaluator{
@@ -1947,6 +2124,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.filesystem":
 		return &eval.StringEvaluator{
@@ -1960,6 +2138,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.gid":
 		return &eval.IntEvaluator{
@@ -1973,6 +2152,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.group":
 		return &eval.StringEvaluator{
@@ -1986,6 +2166,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -1999,6 +2180,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -2012,6 +2194,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.inode":
 		return &eval.IntEvaluator{
@@ -2025,6 +2208,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.mode":
 		return &eval.IntEvaluator{
@@ -2038,6 +2222,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.modification_time":
 		return &eval.IntEvaluator{
@@ -2051,6 +2236,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
@@ -2064,6 +2250,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.name":
 		return &eval.StringEvaluator{
@@ -2078,6 +2265,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.name.length":
 		return &eval.IntEvaluator{
@@ -2089,6 +2277,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.package.name":
 		return &eval.StringEvaluator{
@@ -2102,6 +2291,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -2115,6 +2305,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.package.version":
 		return &eval.StringEvaluator{
@@ -2128,6 +2319,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.path":
 		return &eval.StringEvaluator{
@@ -2142,6 +2334,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.path.length":
 		return &eval.IntEvaluator{
@@ -2153,6 +2346,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.rights":
 		return &eval.IntEvaluator{
@@ -2166,6 +2360,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.uid":
 		return &eval.IntEvaluator{
@@ -2179,6 +2374,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.user":
 		return &eval.StringEvaluator{
@@ -2192,6 +2388,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.is_exec":
 		return &eval.BoolEvaluator{
@@ -2202,6 +2399,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.is_kworker":
 		return &eval.BoolEvaluator{
@@ -2212,6 +2410,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.is_thread":
 		return &eval.BoolEvaluator{
@@ -2222,6 +2421,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.pid":
 		return &eval.IntEvaluator{
@@ -2232,6 +2432,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.ppid":
 		return &eval.IntEvaluator{
@@ -2242,6 +2443,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.syscall.path":
 		return &eval.StringEvaluator{
@@ -2252,6 +2454,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.tid":
 		return &eval.IntEvaluator{
@@ -2262,6 +2465,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.tty_name":
 		return &eval.StringEvaluator{
@@ -2272,6 +2476,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.uid":
 		return &eval.IntEvaluator{
@@ -2282,6 +2487,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.user":
 		return &eval.StringEvaluator{
@@ -2292,6 +2498,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exec.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
@@ -2302,6 +2509,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.user_session.k8s_uid":
 		return &eval.StringEvaluator{
@@ -2312,6 +2520,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exec.user_session.k8s_username":
 		return &eval.StringEvaluator{
@@ -2322,6 +2531,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.args":
 		return &eval.StringEvaluator{
@@ -2332,6 +2542,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -2342,6 +2553,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.args_options":
 		return &eval.StringArrayEvaluator{
@@ -2352,6 +2564,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.args_truncated":
 		return &eval.BoolEvaluator{
@@ -2362,6 +2575,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.argv":
 		return &eval.StringArrayEvaluator{
@@ -2372,6 +2586,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.argv0":
 		return &eval.StringEvaluator{
@@ -2382,6 +2597,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.auid":
 		return &eval.IntEvaluator{
@@ -2392,6 +2608,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.cap_effective":
 		return &eval.IntEvaluator{
@@ -2402,6 +2619,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.cap_permitted":
 		return &eval.IntEvaluator{
@@ -2412,6 +2630,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.cause":
 		return &eval.IntEvaluator{
@@ -2422,6 +2641,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.cgroup.file.inode":
 		return &eval.IntEvaluator{
@@ -2432,6 +2652,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.cgroup.file.mount_id":
 		return &eval.IntEvaluator{
@@ -2442,6 +2663,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.cgroup.id":
 		return &eval.StringEvaluator{
@@ -2452,6 +2674,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.cgroup.manager":
 		return &eval.StringEvaluator{
@@ -2462,6 +2685,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.cgroup.version":
 		return &eval.IntEvaluator{
@@ -2472,6 +2696,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.code":
 		return &eval.IntEvaluator{
@@ -2482,6 +2707,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.comm":
 		return &eval.StringEvaluator{
@@ -2492,6 +2718,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.container.id":
 		return &eval.StringEvaluator{
@@ -2502,6 +2729,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.created_at":
 		return &eval.IntEvaluator{
@@ -2512,6 +2740,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.egid":
 		return &eval.IntEvaluator{
@@ -2522,6 +2751,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.egroup":
 		return &eval.StringEvaluator{
@@ -2532,6 +2762,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.envp":
 		return &eval.StringArrayEvaluator{
@@ -2542,6 +2773,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.envs":
 		return &eval.StringArrayEvaluator{
@@ -2552,6 +2784,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -2562,6 +2795,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.euid":
 		return &eval.IntEvaluator{
@@ -2572,6 +2806,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.euser":
 		return &eval.StringEvaluator{
@@ -2582,6 +2817,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.change_time":
 		return &eval.IntEvaluator{
@@ -2595,6 +2831,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.filesystem":
 		return &eval.StringEvaluator{
@@ -2608,6 +2845,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.gid":
 		return &eval.IntEvaluator{
@@ -2621,6 +2859,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.group":
 		return &eval.StringEvaluator{
@@ -2634,6 +2873,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -2647,6 +2887,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -2660,6 +2901,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.inode":
 		return &eval.IntEvaluator{
@@ -2673,6 +2915,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.mode":
 		return &eval.IntEvaluator{
@@ -2686,6 +2929,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.modification_time":
 		return &eval.IntEvaluator{
@@ -2699,6 +2943,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.mount_id":
 		return &eval.IntEvaluator{
@@ -2712,6 +2957,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.name":
 		return &eval.StringEvaluator{
@@ -2726,6 +2972,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.name.length":
 		return &eval.IntEvaluator{
@@ -2737,6 +2984,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.package.name":
 		return &eval.StringEvaluator{
@@ -2750,6 +2998,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -2763,6 +3012,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.package.version":
 		return &eval.StringEvaluator{
@@ -2776,6 +3026,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.path":
 		return &eval.StringEvaluator{
@@ -2790,6 +3041,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.path.length":
 		return &eval.IntEvaluator{
@@ -2801,6 +3053,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.rights":
 		return &eval.IntEvaluator{
@@ -2814,6 +3067,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.uid":
 		return &eval.IntEvaluator{
@@ -2827,6 +3081,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.file.user":
 		return &eval.StringEvaluator{
@@ -2840,6 +3095,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.fsgid":
 		return &eval.IntEvaluator{
@@ -2850,6 +3106,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.fsgroup":
 		return &eval.StringEvaluator{
@@ -2860,6 +3117,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.fsuid":
 		return &eval.IntEvaluator{
@@ -2870,6 +3128,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.fsuser":
 		return &eval.StringEvaluator{
@@ -2880,6 +3139,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.gid":
 		return &eval.IntEvaluator{
@@ -2890,6 +3150,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.group":
 		return &eval.StringEvaluator{
@@ -2900,6 +3161,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.change_time":
 		return &eval.IntEvaluator{
@@ -2913,6 +3175,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.filesystem":
 		return &eval.StringEvaluator{
@@ -2926,6 +3189,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.gid":
 		return &eval.IntEvaluator{
@@ -2939,6 +3203,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.group":
 		return &eval.StringEvaluator{
@@ -2952,6 +3217,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -2965,6 +3231,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -2978,6 +3245,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.inode":
 		return &eval.IntEvaluator{
@@ -2991,6 +3259,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.mode":
 		return &eval.IntEvaluator{
@@ -3004,6 +3273,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.modification_time":
 		return &eval.IntEvaluator{
@@ -3017,6 +3287,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
@@ -3030,6 +3301,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.name":
 		return &eval.StringEvaluator{
@@ -3044,6 +3316,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.name.length":
 		return &eval.IntEvaluator{
@@ -3055,6 +3328,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.package.name":
 		return &eval.StringEvaluator{
@@ -3068,6 +3342,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -3081,6 +3356,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.package.version":
 		return &eval.StringEvaluator{
@@ -3094,6 +3370,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.path":
 		return &eval.StringEvaluator{
@@ -3108,6 +3385,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.path.length":
 		return &eval.IntEvaluator{
@@ -3119,6 +3397,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.rights":
 		return &eval.IntEvaluator{
@@ -3132,6 +3411,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.uid":
 		return &eval.IntEvaluator{
@@ -3145,6 +3425,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.user":
 		return &eval.StringEvaluator{
@@ -3158,6 +3439,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.is_exec":
 		return &eval.BoolEvaluator{
@@ -3168,6 +3450,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.is_kworker":
 		return &eval.BoolEvaluator{
@@ -3178,6 +3461,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.is_thread":
 		return &eval.BoolEvaluator{
@@ -3188,6 +3472,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.pid":
 		return &eval.IntEvaluator{
@@ -3198,6 +3483,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.ppid":
 		return &eval.IntEvaluator{
@@ -3208,6 +3494,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.tid":
 		return &eval.IntEvaluator{
@@ -3218,6 +3505,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.tty_name":
 		return &eval.StringEvaluator{
@@ -3228,6 +3516,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.uid":
 		return &eval.IntEvaluator{
@@ -3238,6 +3527,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.user":
 		return &eval.StringEvaluator{
@@ -3248,6 +3538,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "exit.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
@@ -3258,6 +3549,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.user_session.k8s_uid":
 		return &eval.StringEvaluator{
@@ -3268,6 +3560,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "exit.user_session.k8s_username":
 		return &eval.StringEvaluator{
@@ -3278,6 +3571,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "imds.aws.is_imds_v2":
 		return &eval.BoolEvaluator{
@@ -3288,6 +3582,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "imds.aws.security_credentials.type":
 		return &eval.StringEvaluator{
@@ -3298,6 +3593,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "imds.cloud_provider":
 		return &eval.StringEvaluator{
@@ -3308,6 +3604,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "imds.host":
 		return &eval.StringEvaluator{
@@ -3318,6 +3615,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "imds.server":
 		return &eval.StringEvaluator{
@@ -3328,6 +3626,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "imds.type":
 		return &eval.StringEvaluator{
@@ -3338,6 +3637,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "imds.url":
 		return &eval.StringEvaluator{
@@ -3348,6 +3648,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "imds.user_agent":
 		return &eval.StringEvaluator{
@@ -3358,6 +3659,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.change_time":
 		return &eval.IntEvaluator{
@@ -3368,6 +3670,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.change_time":
 		return &eval.IntEvaluator{
@@ -3378,6 +3681,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.filesystem":
 		return &eval.StringEvaluator{
@@ -3388,6 +3692,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.gid":
 		return &eval.IntEvaluator{
@@ -3398,6 +3703,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.group":
 		return &eval.StringEvaluator{
@@ -3408,6 +3714,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.hashes":
 		return &eval.StringArrayEvaluator{
@@ -3418,6 +3725,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -3428,6 +3736,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.inode":
 		return &eval.IntEvaluator{
@@ -3438,6 +3747,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.mode":
 		return &eval.IntEvaluator{
@@ -3448,6 +3758,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.modification_time":
 		return &eval.IntEvaluator{
@@ -3458,6 +3769,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.mount_id":
 		return &eval.IntEvaluator{
@@ -3468,6 +3780,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.name":
 		return &eval.StringEvaluator{
@@ -3479,6 +3792,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.name.length":
 		return &eval.IntEvaluator{
@@ -3490,6 +3804,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.package.name":
 		return &eval.StringEvaluator{
@@ -3500,6 +3815,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.package.source_version":
 		return &eval.StringEvaluator{
@@ -3510,6 +3826,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.package.version":
 		return &eval.StringEvaluator{
@@ -3520,6 +3837,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.path":
 		return &eval.StringEvaluator{
@@ -3531,6 +3849,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.path.length":
 		return &eval.IntEvaluator{
@@ -3542,6 +3861,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.rights":
 		return &eval.IntEvaluator{
@@ -3552,6 +3872,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.uid":
 		return &eval.IntEvaluator{
@@ -3562,6 +3883,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.destination.user":
 		return &eval.StringEvaluator{
@@ -3572,6 +3894,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.filesystem":
 		return &eval.StringEvaluator{
@@ -3582,6 +3905,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.gid":
 		return &eval.IntEvaluator{
@@ -3592,6 +3916,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.group":
 		return &eval.StringEvaluator{
@@ -3602,6 +3927,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -3612,6 +3938,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -3622,6 +3949,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.inode":
 		return &eval.IntEvaluator{
@@ -3632,6 +3960,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.mode":
 		return &eval.IntEvaluator{
@@ -3642,6 +3971,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.modification_time":
 		return &eval.IntEvaluator{
@@ -3652,6 +3982,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.mount_id":
 		return &eval.IntEvaluator{
@@ -3662,6 +3993,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.name":
 		return &eval.StringEvaluator{
@@ -3673,6 +4005,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.name.length":
 		return &eval.IntEvaluator{
@@ -3684,6 +4017,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.package.name":
 		return &eval.StringEvaluator{
@@ -3694,6 +4028,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -3704,6 +4039,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.package.version":
 		return &eval.StringEvaluator{
@@ -3714,6 +4050,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.path":
 		return &eval.StringEvaluator{
@@ -3725,6 +4062,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.path.length":
 		return &eval.IntEvaluator{
@@ -3736,6 +4074,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.rights":
 		return &eval.IntEvaluator{
@@ -3746,6 +4085,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.uid":
 		return &eval.IntEvaluator{
@@ -3756,6 +4096,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "link.file.user":
 		return &eval.StringEvaluator{
@@ -3766,6 +4107,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.retval":
 		return &eval.IntEvaluator{
@@ -3776,6 +4118,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "link.syscall.destination.path":
 		return &eval.StringEvaluator{
@@ -3786,6 +4129,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "link.syscall.path":
 		return &eval.StringEvaluator{
@@ -3796,6 +4140,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.args":
 		return &eval.StringEvaluator{
@@ -3806,6 +4151,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.args_truncated":
 		return &eval.BoolEvaluator{
@@ -3816,6 +4162,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.argv":
 		return &eval.StringArrayEvaluator{
@@ -3826,6 +4173,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.change_time":
 		return &eval.IntEvaluator{
@@ -3836,6 +4184,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.filesystem":
 		return &eval.StringEvaluator{
@@ -3846,6 +4195,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.gid":
 		return &eval.IntEvaluator{
@@ -3856,6 +4206,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.group":
 		return &eval.StringEvaluator{
@@ -3866,6 +4217,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -3876,6 +4228,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -3886,6 +4239,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.inode":
 		return &eval.IntEvaluator{
@@ -3896,6 +4250,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.mode":
 		return &eval.IntEvaluator{
@@ -3906,6 +4261,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.modification_time":
 		return &eval.IntEvaluator{
@@ -3916,6 +4272,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.mount_id":
 		return &eval.IntEvaluator{
@@ -3926,6 +4283,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.name":
 		return &eval.StringEvaluator{
@@ -3937,6 +4295,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.name.length":
 		return &eval.IntEvaluator{
@@ -3948,6 +4307,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.package.name":
 		return &eval.StringEvaluator{
@@ -3958,6 +4318,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -3968,6 +4329,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.package.version":
 		return &eval.StringEvaluator{
@@ -3978,6 +4340,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.path":
 		return &eval.StringEvaluator{
@@ -3989,6 +4352,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.path.length":
 		return &eval.IntEvaluator{
@@ -4000,6 +4364,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.rights":
 		return &eval.IntEvaluator{
@@ -4010,6 +4375,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.uid":
 		return &eval.IntEvaluator{
@@ -4020,6 +4386,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.file.user":
 		return &eval.StringEvaluator{
@@ -4030,6 +4397,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.loaded_from_memory":
 		return &eval.BoolEvaluator{
@@ -4040,6 +4408,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.name":
 		return &eval.StringEvaluator{
@@ -4050,6 +4419,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "load_module.retval":
 		return &eval.IntEvaluator{
@@ -4060,6 +4430,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.change_time":
 		return &eval.IntEvaluator{
@@ -4070,6 +4441,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.destination.mode":
 		return &eval.IntEvaluator{
@@ -4080,6 +4452,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.destination.rights":
 		return &eval.IntEvaluator{
@@ -4090,6 +4463,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.filesystem":
 		return &eval.StringEvaluator{
@@ -4100,6 +4474,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.gid":
 		return &eval.IntEvaluator{
@@ -4110,6 +4485,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.group":
 		return &eval.StringEvaluator{
@@ -4120,6 +4496,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -4130,6 +4507,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -4140,6 +4518,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.inode":
 		return &eval.IntEvaluator{
@@ -4150,6 +4529,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.mode":
 		return &eval.IntEvaluator{
@@ -4160,6 +4540,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.modification_time":
 		return &eval.IntEvaluator{
@@ -4170,6 +4551,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.mount_id":
 		return &eval.IntEvaluator{
@@ -4180,6 +4562,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.name":
 		return &eval.StringEvaluator{
@@ -4191,6 +4574,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.name.length":
 		return &eval.IntEvaluator{
@@ -4202,6 +4586,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.package.name":
 		return &eval.StringEvaluator{
@@ -4212,6 +4597,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -4222,6 +4608,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.package.version":
 		return &eval.StringEvaluator{
@@ -4232,6 +4619,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.path":
 		return &eval.StringEvaluator{
@@ -4243,6 +4631,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.path.length":
 		return &eval.IntEvaluator{
@@ -4254,6 +4643,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.rights":
 		return &eval.IntEvaluator{
@@ -4264,6 +4654,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.uid":
 		return &eval.IntEvaluator{
@@ -4274,6 +4665,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.file.user":
 		return &eval.StringEvaluator{
@@ -4284,6 +4676,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.retval":
 		return &eval.IntEvaluator{
@@ -4294,6 +4687,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.syscall.mode":
 		return &eval.IntEvaluator{
@@ -4304,6 +4698,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mkdir.syscall.path":
 		return &eval.StringEvaluator{
@@ -4314,6 +4709,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.change_time":
 		return &eval.IntEvaluator{
@@ -4324,6 +4720,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.filesystem":
 		return &eval.StringEvaluator{
@@ -4334,6 +4731,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.gid":
 		return &eval.IntEvaluator{
@@ -4344,6 +4742,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.group":
 		return &eval.StringEvaluator{
@@ -4354,6 +4753,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -4364,6 +4764,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -4374,6 +4775,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.inode":
 		return &eval.IntEvaluator{
@@ -4384,6 +4786,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.mode":
 		return &eval.IntEvaluator{
@@ -4394,6 +4797,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.modification_time":
 		return &eval.IntEvaluator{
@@ -4404,6 +4808,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.mount_id":
 		return &eval.IntEvaluator{
@@ -4414,6 +4819,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.name":
 		return &eval.StringEvaluator{
@@ -4425,6 +4831,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.name.length":
 		return &eval.IntEvaluator{
@@ -4436,6 +4843,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.package.name":
 		return &eval.StringEvaluator{
@@ -4446,6 +4854,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -4456,6 +4865,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.package.version":
 		return &eval.StringEvaluator{
@@ -4466,6 +4876,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.path":
 		return &eval.StringEvaluator{
@@ -4477,6 +4888,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.path.length":
 		return &eval.IntEvaluator{
@@ -4488,6 +4900,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.rights":
 		return &eval.IntEvaluator{
@@ -4498,6 +4911,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.uid":
 		return &eval.IntEvaluator{
@@ -4508,6 +4922,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.file.user":
 		return &eval.StringEvaluator{
@@ -4518,6 +4933,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.flags":
 		return &eval.IntEvaluator{
@@ -4528,6 +4944,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.protection":
 		return &eval.IntEvaluator{
@@ -4538,6 +4955,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mmap.retval":
 		return &eval.IntEvaluator{
@@ -4548,6 +4966,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mount.fs_type":
 		return &eval.StringEvaluator{
@@ -4558,6 +4977,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mount.mountpoint.path":
 		return &eval.StringEvaluator{
@@ -4568,6 +4988,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mount.retval":
 		return &eval.IntEvaluator{
@@ -4578,6 +4999,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mount.root.path":
 		return &eval.StringEvaluator{
@@ -4588,6 +5010,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mount.source.path":
 		return &eval.StringEvaluator{
@@ -4598,6 +5021,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mount.syscall.fs_type":
 		return &eval.StringEvaluator{
@@ -4608,6 +5032,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mount.syscall.mountpoint.path":
 		return &eval.StringEvaluator{
@@ -4618,6 +5043,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mount.syscall.source.path":
 		return &eval.StringEvaluator{
@@ -4628,6 +5054,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "mprotect.req_protection":
 		return &eval.IntEvaluator{
@@ -4638,6 +5065,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mprotect.retval":
 		return &eval.IntEvaluator{
@@ -4648,6 +5076,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "mprotect.vm_protection":
 		return &eval.IntEvaluator{
@@ -4658,6 +5087,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "network.destination.ip":
 		return &eval.CIDREvaluator{
@@ -4668,6 +5098,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "network.destination.is_public":
 		return &eval.BoolEvaluator{
@@ -4678,6 +5109,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "network.destination.port":
 		return &eval.IntEvaluator{
@@ -4688,6 +5120,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "network.device.ifname":
 		return &eval.StringEvaluator{
@@ -4698,6 +5131,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "network.l3_protocol":
 		return &eval.IntEvaluator{
@@ -4708,6 +5142,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "network.l4_protocol":
 		return &eval.IntEvaluator{
@@ -4718,6 +5153,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "network.network_direction":
 		return &eval.IntEvaluator{
@@ -4728,6 +5164,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "network.size":
 		return &eval.IntEvaluator{
@@ -4738,6 +5175,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "network.source.ip":
 		return &eval.CIDREvaluator{
@@ -4748,6 +5186,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "network.source.is_public":
 		return &eval.BoolEvaluator{
@@ -4758,6 +5197,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "network.source.port":
 		return &eval.IntEvaluator{
@@ -4768,6 +5208,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "network_flow_monitor.device.ifname":
 		return &eval.StringEvaluator{
@@ -4778,6 +5219,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "network_flow_monitor.flows.destination.ip":
 		return &eval.CIDRArrayEvaluator{
@@ -4804,6 +5246,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "network_flow_monitor.flows.destination.is_public":
 		return &eval.BoolArrayEvaluator{
@@ -4830,6 +5273,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "network_flow_monitor.flows.destination.port":
 		return &eval.IntArrayEvaluator{
@@ -4856,6 +5300,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "network_flow_monitor.flows.egress.data_size":
 		return &eval.IntArrayEvaluator{
@@ -4882,6 +5327,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "network_flow_monitor.flows.egress.packet_count":
 		return &eval.IntArrayEvaluator{
@@ -4908,6 +5354,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "network_flow_monitor.flows.ingress.data_size":
 		return &eval.IntArrayEvaluator{
@@ -4934,6 +5381,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "network_flow_monitor.flows.ingress.packet_count":
 		return &eval.IntArrayEvaluator{
@@ -4960,6 +5408,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "network_flow_monitor.flows.l3_protocol":
 		return &eval.IntArrayEvaluator{
@@ -4986,6 +5435,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "network_flow_monitor.flows.l4_protocol":
 		return &eval.IntArrayEvaluator{
@@ -5012,6 +5462,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "network_flow_monitor.flows.length":
 		return &eval.IntEvaluator{
@@ -5022,6 +5473,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "network_flow_monitor.flows.source.ip":
 		return &eval.CIDRArrayEvaluator{
@@ -5048,6 +5500,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "network_flow_monitor.flows.source.is_public":
 		return &eval.BoolArrayEvaluator{
@@ -5074,6 +5527,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "network_flow_monitor.flows.source.port":
 		return &eval.IntArrayEvaluator{
@@ -5100,6 +5554,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ondemand.arg1.str":
 		return &eval.StringEvaluator{
@@ -5110,6 +5565,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ondemand.arg1.uint":
 		return &eval.IntEvaluator{
@@ -5120,6 +5576,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ondemand.arg2.str":
 		return &eval.StringEvaluator{
@@ -5130,6 +5587,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ondemand.arg2.uint":
 		return &eval.IntEvaluator{
@@ -5140,6 +5598,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ondemand.arg3.str":
 		return &eval.StringEvaluator{
@@ -5150,6 +5609,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ondemand.arg3.uint":
 		return &eval.IntEvaluator{
@@ -5160,6 +5620,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ondemand.arg4.str":
 		return &eval.StringEvaluator{
@@ -5170,6 +5631,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ondemand.arg4.uint":
 		return &eval.IntEvaluator{
@@ -5180,6 +5642,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ondemand.name":
 		return &eval.StringEvaluator{
@@ -5190,6 +5653,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.change_time":
 		return &eval.IntEvaluator{
@@ -5200,6 +5664,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.destination.mode":
 		return &eval.IntEvaluator{
@@ -5210,6 +5675,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.filesystem":
 		return &eval.StringEvaluator{
@@ -5220,6 +5686,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.gid":
 		return &eval.IntEvaluator{
@@ -5230,6 +5697,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.group":
 		return &eval.StringEvaluator{
@@ -5240,6 +5708,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -5250,6 +5719,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -5260,6 +5730,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.inode":
 		return &eval.IntEvaluator{
@@ -5270,6 +5741,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.mode":
 		return &eval.IntEvaluator{
@@ -5280,6 +5752,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.modification_time":
 		return &eval.IntEvaluator{
@@ -5290,6 +5763,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.mount_id":
 		return &eval.IntEvaluator{
@@ -5300,6 +5774,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.name":
 		return &eval.StringEvaluator{
@@ -5311,6 +5786,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.name.length":
 		return &eval.IntEvaluator{
@@ -5322,6 +5798,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.package.name":
 		return &eval.StringEvaluator{
@@ -5332,6 +5809,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -5342,6 +5820,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.package.version":
 		return &eval.StringEvaluator{
@@ -5352,6 +5831,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.path":
 		return &eval.StringEvaluator{
@@ -5363,6 +5843,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.path.length":
 		return &eval.IntEvaluator{
@@ -5374,6 +5855,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.rights":
 		return &eval.IntEvaluator{
@@ -5384,6 +5866,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.uid":
 		return &eval.IntEvaluator{
@@ -5394,6 +5877,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "open.file.user":
 		return &eval.StringEvaluator{
@@ -5404,6 +5888,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "open.flags":
 		return &eval.IntEvaluator{
@@ -5414,6 +5899,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "open.retval":
 		return &eval.IntEvaluator{
@@ -5424,6 +5910,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "open.syscall.flags":
 		return &eval.IntEvaluator{
@@ -5434,6 +5921,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "open.syscall.mode":
 		return &eval.IntEvaluator{
@@ -5444,6 +5932,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "open.syscall.path":
 		return &eval.StringEvaluator{
@@ -5454,6 +5943,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "packet.destination.ip":
 		return &eval.CIDREvaluator{
@@ -5464,6 +5954,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "packet.destination.is_public":
 		return &eval.BoolEvaluator{
@@ -5474,6 +5965,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "packet.destination.port":
 		return &eval.IntEvaluator{
@@ -5484,6 +5976,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "packet.device.ifname":
 		return &eval.StringEvaluator{
@@ -5494,6 +5987,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "packet.filter":
 		return &eval.StringEvaluator{
@@ -5505,6 +5999,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "packet.l3_protocol":
 		return &eval.IntEvaluator{
@@ -5515,6 +6010,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "packet.l4_protocol":
 		return &eval.IntEvaluator{
@@ -5525,6 +6021,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "packet.network_direction":
 		return &eval.IntEvaluator{
@@ -5535,6 +6032,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "packet.size":
 		return &eval.IntEvaluator{
@@ -5545,6 +6043,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "packet.source.ip":
 		return &eval.CIDREvaluator{
@@ -5555,6 +6054,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "packet.source.is_public":
 		return &eval.BoolEvaluator{
@@ -5565,6 +6065,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "packet.source.port":
 		return &eval.IntEvaluator{
@@ -5575,6 +6076,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "packet.tls.version":
 		return &eval.IntEvaluator{
@@ -5585,6 +6087,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.args":
 		return &eval.StringArrayEvaluator{
@@ -5610,6 +6113,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 500 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -5635,6 +6139,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.args_options":
 		return &eval.StringArrayEvaluator{
@@ -5660,6 +6165,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.args_truncated":
 		return &eval.BoolArrayEvaluator{
@@ -5685,6 +6191,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.argv":
 		return &eval.StringArrayEvaluator{
@@ -5710,6 +6217,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 500 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.argv0":
 		return &eval.StringArrayEvaluator{
@@ -5735,6 +6243,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.auid":
 		return &eval.IntArrayEvaluator{
@@ -5760,6 +6269,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.cap_effective":
 		return &eval.IntArrayEvaluator{
@@ -5785,6 +6295,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.cap_permitted":
 		return &eval.IntArrayEvaluator{
@@ -5810,6 +6321,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.cgroup.file.inode":
 		return &eval.IntArrayEvaluator{
@@ -5835,6 +6347,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.cgroup.file.mount_id":
 		return &eval.IntArrayEvaluator{
@@ -5860,6 +6373,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.cgroup.id":
 		return &eval.StringArrayEvaluator{
@@ -5885,6 +6399,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.cgroup.manager":
 		return &eval.StringArrayEvaluator{
@@ -5910,6 +6425,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.cgroup.version":
 		return &eval.IntArrayEvaluator{
@@ -5935,6 +6451,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.comm":
 		return &eval.StringArrayEvaluator{
@@ -5960,6 +6477,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
@@ -5985,6 +6503,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.created_at":
 		return &eval.IntArrayEvaluator{
@@ -6010,6 +6529,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.egid":
 		return &eval.IntArrayEvaluator{
@@ -6035,6 +6555,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.egroup":
 		return &eval.StringArrayEvaluator{
@@ -6060,6 +6581,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.envp":
 		return &eval.StringArrayEvaluator{
@@ -6085,6 +6607,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.envs":
 		return &eval.StringArrayEvaluator{
@@ -6110,6 +6633,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.envs_truncated":
 		return &eval.BoolArrayEvaluator{
@@ -6135,6 +6659,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.euid":
 		return &eval.IntArrayEvaluator{
@@ -6160,6 +6685,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.euser":
 		return &eval.StringArrayEvaluator{
@@ -6185,6 +6711,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.change_time":
 		return &eval.IntArrayEvaluator{
@@ -6216,6 +6743,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.filesystem":
 		return &eval.StringArrayEvaluator{
@@ -6247,6 +6775,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.gid":
 		return &eval.IntArrayEvaluator{
@@ -6278,6 +6807,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.group":
 		return &eval.StringArrayEvaluator{
@@ -6309,6 +6839,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -6340,6 +6871,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 999 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -6371,6 +6903,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.inode":
 		return &eval.IntArrayEvaluator{
@@ -6402,6 +6935,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.mode":
 		return &eval.IntArrayEvaluator{
@@ -6433,6 +6967,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.modification_time":
 		return &eval.IntArrayEvaluator{
@@ -6464,6 +6999,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.mount_id":
 		return &eval.IntArrayEvaluator{
@@ -6495,6 +7031,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
@@ -6527,6 +7064,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.name.length":
 		return &eval.IntArrayEvaluator{
@@ -6553,6 +7091,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.package.name":
 		return &eval.StringArrayEvaluator{
@@ -6584,6 +7123,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.package.source_version":
 		return &eval.StringArrayEvaluator{
@@ -6615,6 +7155,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.package.version":
 		return &eval.StringArrayEvaluator{
@@ -6646,6 +7187,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
@@ -6678,6 +7220,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.path.length":
 		return &eval.IntArrayEvaluator{
@@ -6704,6 +7247,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.rights":
 		return &eval.IntArrayEvaluator{
@@ -6735,6 +7279,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.uid":
 		return &eval.IntArrayEvaluator{
@@ -6766,6 +7311,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.file.user":
 		return &eval.StringArrayEvaluator{
@@ -6797,6 +7343,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.fsgid":
 		return &eval.IntArrayEvaluator{
@@ -6822,6 +7369,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.fsgroup":
 		return &eval.StringArrayEvaluator{
@@ -6847,6 +7395,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.fsuid":
 		return &eval.IntArrayEvaluator{
@@ -6872,6 +7421,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.fsuser":
 		return &eval.StringArrayEvaluator{
@@ -6897,6 +7447,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.gid":
 		return &eval.IntArrayEvaluator{
@@ -6922,6 +7473,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.group":
 		return &eval.StringArrayEvaluator{
@@ -6947,6 +7499,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.change_time":
 		return &eval.IntArrayEvaluator{
@@ -6978,6 +7531,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.filesystem":
 		return &eval.StringArrayEvaluator{
@@ -7009,6 +7563,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.gid":
 		return &eval.IntArrayEvaluator{
@@ -7040,6 +7595,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.group":
 		return &eval.StringArrayEvaluator{
@@ -7071,6 +7627,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -7102,6 +7659,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 999 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -7133,6 +7691,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.inode":
 		return &eval.IntArrayEvaluator{
@@ -7164,6 +7723,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.mode":
 		return &eval.IntArrayEvaluator{
@@ -7195,6 +7755,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.modification_time":
 		return &eval.IntArrayEvaluator{
@@ -7226,6 +7787,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.mount_id":
 		return &eval.IntArrayEvaluator{
@@ -7257,6 +7819,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.name":
 		return &eval.StringArrayEvaluator{
@@ -7289,6 +7852,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.name.length":
 		return &eval.IntArrayEvaluator{
@@ -7315,6 +7879,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.package.name":
 		return &eval.StringArrayEvaluator{
@@ -7346,6 +7911,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.package.source_version":
 		return &eval.StringArrayEvaluator{
@@ -7377,6 +7943,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.package.version":
 		return &eval.StringArrayEvaluator{
@@ -7408,6 +7975,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.path":
 		return &eval.StringArrayEvaluator{
@@ -7440,6 +8008,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.path.length":
 		return &eval.IntArrayEvaluator{
@@ -7466,6 +8035,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.rights":
 		return &eval.IntArrayEvaluator{
@@ -7497,6 +8067,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.uid":
 		return &eval.IntArrayEvaluator{
@@ -7528,6 +8099,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.interpreter.file.user":
 		return &eval.StringArrayEvaluator{
@@ -7559,6 +8131,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.is_exec":
 		return &eval.BoolArrayEvaluator{
@@ -7584,6 +8157,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.is_kworker":
 		return &eval.BoolArrayEvaluator{
@@ -7609,6 +8183,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.is_thread":
 		return &eval.BoolArrayEvaluator{
@@ -7634,6 +8209,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.length":
 		return &eval.IntEvaluator{
@@ -7644,6 +8220,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.pid":
 		return &eval.IntArrayEvaluator{
@@ -7669,6 +8246,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.ppid":
 		return &eval.IntArrayEvaluator{
@@ -7694,6 +8272,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.tid":
 		return &eval.IntArrayEvaluator{
@@ -7719,6 +8298,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.tty_name":
 		return &eval.StringArrayEvaluator{
@@ -7744,6 +8324,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.uid":
 		return &eval.IntArrayEvaluator{
@@ -7769,6 +8350,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.user":
 		return &eval.StringArrayEvaluator{
@@ -7794,6 +8376,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
@@ -7819,6 +8402,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.user_session.k8s_uid":
 		return &eval.StringArrayEvaluator{
@@ -7844,6 +8428,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.ancestors.user_session.k8s_username":
 		return &eval.StringArrayEvaluator{
@@ -7869,6 +8454,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "process.args":
 		return &eval.StringEvaluator{
@@ -7879,6 +8465,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -7889,6 +8476,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.args_options":
 		return &eval.StringArrayEvaluator{
@@ -7899,6 +8487,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.args_truncated":
 		return &eval.BoolEvaluator{
@@ -7909,6 +8498,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.argv":
 		return &eval.StringArrayEvaluator{
@@ -7919,6 +8509,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.argv0":
 		return &eval.StringEvaluator{
@@ -7929,6 +8520,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.auid":
 		return &eval.IntEvaluator{
@@ -7939,6 +8531,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.cap_effective":
 		return &eval.IntEvaluator{
@@ -7949,6 +8542,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.cap_permitted":
 		return &eval.IntEvaluator{
@@ -7959,6 +8553,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.cgroup.file.inode":
 		return &eval.IntEvaluator{
@@ -7969,6 +8564,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.cgroup.file.mount_id":
 		return &eval.IntEvaluator{
@@ -7979,6 +8575,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.cgroup.id":
 		return &eval.StringEvaluator{
@@ -7989,6 +8586,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.cgroup.manager":
 		return &eval.StringEvaluator{
@@ -7999,6 +8597,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.cgroup.version":
 		return &eval.IntEvaluator{
@@ -8009,6 +8608,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.comm":
 		return &eval.StringEvaluator{
@@ -8019,6 +8619,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.container.id":
 		return &eval.StringEvaluator{
@@ -8029,6 +8630,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.created_at":
 		return &eval.IntEvaluator{
@@ -8039,6 +8641,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.egid":
 		return &eval.IntEvaluator{
@@ -8049,6 +8652,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.egroup":
 		return &eval.StringEvaluator{
@@ -8059,6 +8663,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.envp":
 		return &eval.StringArrayEvaluator{
@@ -8069,6 +8674,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.envs":
 		return &eval.StringArrayEvaluator{
@@ -8079,6 +8685,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -8089,6 +8696,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.euid":
 		return &eval.IntEvaluator{
@@ -8099,6 +8707,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.euser":
 		return &eval.StringEvaluator{
@@ -8109,6 +8718,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.change_time":
 		return &eval.IntEvaluator{
@@ -8122,6 +8732,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.filesystem":
 		return &eval.StringEvaluator{
@@ -8135,6 +8746,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.gid":
 		return &eval.IntEvaluator{
@@ -8148,6 +8760,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.group":
 		return &eval.StringEvaluator{
@@ -8161,6 +8774,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -8174,6 +8788,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -8187,6 +8802,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.inode":
 		return &eval.IntEvaluator{
@@ -8200,6 +8816,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.mode":
 		return &eval.IntEvaluator{
@@ -8213,6 +8830,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.modification_time":
 		return &eval.IntEvaluator{
@@ -8226,6 +8844,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.mount_id":
 		return &eval.IntEvaluator{
@@ -8239,6 +8858,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.name":
 		return &eval.StringEvaluator{
@@ -8253,6 +8873,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.name.length":
 		return &eval.IntEvaluator{
@@ -8264,6 +8885,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.package.name":
 		return &eval.StringEvaluator{
@@ -8277,6 +8899,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -8290,6 +8913,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.package.version":
 		return &eval.StringEvaluator{
@@ -8303,6 +8927,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.path":
 		return &eval.StringEvaluator{
@@ -8317,6 +8942,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.path.length":
 		return &eval.IntEvaluator{
@@ -8328,6 +8954,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.rights":
 		return &eval.IntEvaluator{
@@ -8341,6 +8968,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.uid":
 		return &eval.IntEvaluator{
@@ -8354,6 +8982,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.file.user":
 		return &eval.StringEvaluator{
@@ -8367,6 +8996,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.fsgid":
 		return &eval.IntEvaluator{
@@ -8377,6 +9007,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.fsgroup":
 		return &eval.StringEvaluator{
@@ -8387,6 +9018,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.fsuid":
 		return &eval.IntEvaluator{
@@ -8397,6 +9029,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.fsuser":
 		return &eval.StringEvaluator{
@@ -8407,6 +9040,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.gid":
 		return &eval.IntEvaluator{
@@ -8417,6 +9051,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.group":
 		return &eval.StringEvaluator{
@@ -8427,6 +9062,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.change_time":
 		return &eval.IntEvaluator{
@@ -8440,6 +9076,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.filesystem":
 		return &eval.StringEvaluator{
@@ -8453,6 +9090,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.gid":
 		return &eval.IntEvaluator{
@@ -8466,6 +9104,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.group":
 		return &eval.StringEvaluator{
@@ -8479,6 +9118,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -8492,6 +9132,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -8505,6 +9146,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.inode":
 		return &eval.IntEvaluator{
@@ -8518,6 +9160,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.mode":
 		return &eval.IntEvaluator{
@@ -8531,6 +9174,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.modification_time":
 		return &eval.IntEvaluator{
@@ -8544,6 +9188,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
@@ -8557,6 +9202,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.name":
 		return &eval.StringEvaluator{
@@ -8571,6 +9217,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.name.length":
 		return &eval.IntEvaluator{
@@ -8582,6 +9229,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.package.name":
 		return &eval.StringEvaluator{
@@ -8595,6 +9243,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -8608,6 +9257,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.package.version":
 		return &eval.StringEvaluator{
@@ -8621,6 +9271,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.path":
 		return &eval.StringEvaluator{
@@ -8635,6 +9286,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.path.length":
 		return &eval.IntEvaluator{
@@ -8646,6 +9298,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.rights":
 		return &eval.IntEvaluator{
@@ -8659,6 +9312,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.uid":
 		return &eval.IntEvaluator{
@@ -8672,6 +9326,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.interpreter.file.user":
 		return &eval.StringEvaluator{
@@ -8685,6 +9340,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.is_exec":
 		return &eval.BoolEvaluator{
@@ -8695,6 +9351,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.is_kworker":
 		return &eval.BoolEvaluator{
@@ -8705,6 +9362,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.is_thread":
 		return &eval.BoolEvaluator{
@@ -8715,6 +9373,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.args":
 		return &eval.StringEvaluator{
@@ -8728,6 +9387,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -8741,6 +9401,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.args_options":
 		return &eval.StringArrayEvaluator{
@@ -8754,6 +9415,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.args_truncated":
 		return &eval.BoolEvaluator{
@@ -8767,6 +9429,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.argv":
 		return &eval.StringArrayEvaluator{
@@ -8780,6 +9443,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.argv0":
 		return &eval.StringEvaluator{
@@ -8793,6 +9457,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.auid":
 		return &eval.IntEvaluator{
@@ -8806,6 +9471,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.cap_effective":
 		return &eval.IntEvaluator{
@@ -8819,6 +9485,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.cap_permitted":
 		return &eval.IntEvaluator{
@@ -8832,6 +9499,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.cgroup.file.inode":
 		return &eval.IntEvaluator{
@@ -8845,6 +9513,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.cgroup.file.mount_id":
 		return &eval.IntEvaluator{
@@ -8858,6 +9527,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.cgroup.id":
 		return &eval.StringEvaluator{
@@ -8871,6 +9541,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.cgroup.manager":
 		return &eval.StringEvaluator{
@@ -8884,6 +9555,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.cgroup.version":
 		return &eval.IntEvaluator{
@@ -8897,6 +9569,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.comm":
 		return &eval.StringEvaluator{
@@ -8910,6 +9583,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.container.id":
 		return &eval.StringEvaluator{
@@ -8923,6 +9597,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.created_at":
 		return &eval.IntEvaluator{
@@ -8936,6 +9611,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.egid":
 		return &eval.IntEvaluator{
@@ -8949,6 +9625,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.egroup":
 		return &eval.StringEvaluator{
@@ -8962,6 +9639,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.envp":
 		return &eval.StringArrayEvaluator{
@@ -8975,6 +9653,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.envs":
 		return &eval.StringArrayEvaluator{
@@ -8988,6 +9667,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -9001,6 +9681,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.euid":
 		return &eval.IntEvaluator{
@@ -9014,6 +9695,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.euser":
 		return &eval.StringEvaluator{
@@ -9027,6 +9709,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.change_time":
 		return &eval.IntEvaluator{
@@ -9043,6 +9726,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.filesystem":
 		return &eval.StringEvaluator{
@@ -9059,6 +9743,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.gid":
 		return &eval.IntEvaluator{
@@ -9075,6 +9760,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.group":
 		return &eval.StringEvaluator{
@@ -9091,6 +9777,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -9107,6 +9794,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -9123,6 +9811,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.inode":
 		return &eval.IntEvaluator{
@@ -9139,6 +9828,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.mode":
 		return &eval.IntEvaluator{
@@ -9155,6 +9845,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.modification_time":
 		return &eval.IntEvaluator{
@@ -9171,6 +9862,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.mount_id":
 		return &eval.IntEvaluator{
@@ -9187,6 +9879,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.name":
 		return &eval.StringEvaluator{
@@ -9204,6 +9897,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.name.length":
 		return &eval.IntEvaluator{
@@ -9215,6 +9909,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.package.name":
 		return &eval.StringEvaluator{
@@ -9231,6 +9926,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -9247,6 +9943,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.package.version":
 		return &eval.StringEvaluator{
@@ -9263,6 +9960,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.path":
 		return &eval.StringEvaluator{
@@ -9280,6 +9978,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.path.length":
 		return &eval.IntEvaluator{
@@ -9291,6 +9990,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.rights":
 		return &eval.IntEvaluator{
@@ -9307,6 +10007,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.uid":
 		return &eval.IntEvaluator{
@@ -9323,6 +10024,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.file.user":
 		return &eval.StringEvaluator{
@@ -9339,6 +10041,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.fsgid":
 		return &eval.IntEvaluator{
@@ -9352,6 +10055,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.fsgroup":
 		return &eval.StringEvaluator{
@@ -9365,6 +10069,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.fsuid":
 		return &eval.IntEvaluator{
@@ -9378,6 +10083,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.fsuser":
 		return &eval.StringEvaluator{
@@ -9391,6 +10097,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.gid":
 		return &eval.IntEvaluator{
@@ -9404,6 +10111,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.group":
 		return &eval.StringEvaluator{
@@ -9417,6 +10125,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.change_time":
 		return &eval.IntEvaluator{
@@ -9433,6 +10142,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.filesystem":
 		return &eval.StringEvaluator{
@@ -9449,6 +10159,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.gid":
 		return &eval.IntEvaluator{
@@ -9465,6 +10176,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.group":
 		return &eval.StringEvaluator{
@@ -9481,6 +10193,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -9497,6 +10210,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -9513,6 +10227,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.inode":
 		return &eval.IntEvaluator{
@@ -9529,6 +10244,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.mode":
 		return &eval.IntEvaluator{
@@ -9545,6 +10261,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.modification_time":
 		return &eval.IntEvaluator{
@@ -9561,6 +10278,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
@@ -9577,6 +10295,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.name":
 		return &eval.StringEvaluator{
@@ -9594,6 +10313,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.name.length":
 		return &eval.IntEvaluator{
@@ -9605,6 +10325,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.package.name":
 		return &eval.StringEvaluator{
@@ -9621,6 +10342,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -9637,6 +10359,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.package.version":
 		return &eval.StringEvaluator{
@@ -9653,6 +10376,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.path":
 		return &eval.StringEvaluator{
@@ -9670,6 +10394,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.path.length":
 		return &eval.IntEvaluator{
@@ -9681,6 +10406,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.rights":
 		return &eval.IntEvaluator{
@@ -9697,6 +10423,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.uid":
 		return &eval.IntEvaluator{
@@ -9713,6 +10440,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.user":
 		return &eval.StringEvaluator{
@@ -9729,6 +10457,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.is_exec":
 		return &eval.BoolEvaluator{
@@ -9742,6 +10471,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.is_kworker":
 		return &eval.BoolEvaluator{
@@ -9755,6 +10485,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.is_thread":
 		return &eval.BoolEvaluator{
@@ -9768,6 +10499,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.pid":
 		return &eval.IntEvaluator{
@@ -9781,6 +10513,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.ppid":
 		return &eval.IntEvaluator{
@@ -9794,6 +10527,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.tid":
 		return &eval.IntEvaluator{
@@ -9807,6 +10541,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.tty_name":
 		return &eval.StringEvaluator{
@@ -9820,6 +10555,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.uid":
 		return &eval.IntEvaluator{
@@ -9833,6 +10569,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.user":
 		return &eval.StringEvaluator{
@@ -9846,6 +10583,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
@@ -9859,6 +10597,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.user_session.k8s_uid":
 		return &eval.StringEvaluator{
@@ -9872,6 +10611,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.parent.user_session.k8s_username":
 		return &eval.StringEvaluator{
@@ -9885,6 +10625,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.pid":
 		return &eval.IntEvaluator{
@@ -9895,6 +10636,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.ppid":
 		return &eval.IntEvaluator{
@@ -9905,6 +10647,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.tid":
 		return &eval.IntEvaluator{
@@ -9915,6 +10658,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.tty_name":
 		return &eval.StringEvaluator{
@@ -9925,6 +10669,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.uid":
 		return &eval.IntEvaluator{
@@ -9935,6 +10680,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.user":
 		return &eval.StringEvaluator{
@@ -9945,6 +10691,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "process.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
@@ -9955,6 +10702,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.user_session.k8s_uid":
 		return &eval.StringEvaluator{
@@ -9965,6 +10713,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "process.user_session.k8s_username":
 		return &eval.StringEvaluator{
@@ -9975,6 +10724,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.request":
 		return &eval.IntEvaluator{
@@ -9985,6 +10735,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.retval":
 		return &eval.IntEvaluator{
@@ -9995,6 +10746,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.args":
 		return &eval.StringArrayEvaluator{
@@ -10020,6 +10772,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 500 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -10045,6 +10798,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.args_options":
 		return &eval.StringArrayEvaluator{
@@ -10070,6 +10824,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.args_truncated":
 		return &eval.BoolArrayEvaluator{
@@ -10095,6 +10850,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.argv":
 		return &eval.StringArrayEvaluator{
@@ -10120,6 +10876,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 500 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.argv0":
 		return &eval.StringArrayEvaluator{
@@ -10145,6 +10902,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.auid":
 		return &eval.IntArrayEvaluator{
@@ -10170,6 +10928,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.cap_effective":
 		return &eval.IntArrayEvaluator{
@@ -10195,6 +10954,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.cap_permitted":
 		return &eval.IntArrayEvaluator{
@@ -10220,6 +10980,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.cgroup.file.inode":
 		return &eval.IntArrayEvaluator{
@@ -10245,6 +11006,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.cgroup.file.mount_id":
 		return &eval.IntArrayEvaluator{
@@ -10270,6 +11032,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.cgroup.id":
 		return &eval.StringArrayEvaluator{
@@ -10295,6 +11058,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.cgroup.manager":
 		return &eval.StringArrayEvaluator{
@@ -10320,6 +11084,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.cgroup.version":
 		return &eval.IntArrayEvaluator{
@@ -10345,6 +11110,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.comm":
 		return &eval.StringArrayEvaluator{
@@ -10370,6 +11136,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
@@ -10395,6 +11162,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.created_at":
 		return &eval.IntArrayEvaluator{
@@ -10420,6 +11188,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.egid":
 		return &eval.IntArrayEvaluator{
@@ -10445,6 +11214,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.egroup":
 		return &eval.StringArrayEvaluator{
@@ -10470,6 +11240,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.envp":
 		return &eval.StringArrayEvaluator{
@@ -10495,6 +11266,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.envs":
 		return &eval.StringArrayEvaluator{
@@ -10520,6 +11292,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.envs_truncated":
 		return &eval.BoolArrayEvaluator{
@@ -10545,6 +11318,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.euid":
 		return &eval.IntArrayEvaluator{
@@ -10570,6 +11344,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.euser":
 		return &eval.StringArrayEvaluator{
@@ -10595,6 +11370,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.change_time":
 		return &eval.IntArrayEvaluator{
@@ -10626,6 +11402,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.filesystem":
 		return &eval.StringArrayEvaluator{
@@ -10657,6 +11434,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.gid":
 		return &eval.IntArrayEvaluator{
@@ -10688,6 +11466,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.group":
 		return &eval.StringArrayEvaluator{
@@ -10719,6 +11498,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -10750,6 +11530,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 999 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -10781,6 +11562,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.inode":
 		return &eval.IntArrayEvaluator{
@@ -10812,6 +11594,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.mode":
 		return &eval.IntArrayEvaluator{
@@ -10843,6 +11626,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.modification_time":
 		return &eval.IntArrayEvaluator{
@@ -10874,6 +11658,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.mount_id":
 		return &eval.IntArrayEvaluator{
@@ -10905,6 +11690,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
@@ -10937,6 +11723,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.name.length":
 		return &eval.IntArrayEvaluator{
@@ -10963,6 +11750,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.package.name":
 		return &eval.StringArrayEvaluator{
@@ -10994,6 +11782,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.package.source_version":
 		return &eval.StringArrayEvaluator{
@@ -11025,6 +11814,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.package.version":
 		return &eval.StringArrayEvaluator{
@@ -11056,6 +11846,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
@@ -11088,6 +11879,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.path.length":
 		return &eval.IntArrayEvaluator{
@@ -11114,6 +11906,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.rights":
 		return &eval.IntArrayEvaluator{
@@ -11145,6 +11938,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.uid":
 		return &eval.IntArrayEvaluator{
@@ -11176,6 +11970,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.file.user":
 		return &eval.StringArrayEvaluator{
@@ -11207,6 +12002,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.fsgid":
 		return &eval.IntArrayEvaluator{
@@ -11232,6 +12028,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.fsgroup":
 		return &eval.StringArrayEvaluator{
@@ -11257,6 +12054,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.fsuid":
 		return &eval.IntArrayEvaluator{
@@ -11282,6 +12080,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.fsuser":
 		return &eval.StringArrayEvaluator{
@@ -11307,6 +12106,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.gid":
 		return &eval.IntArrayEvaluator{
@@ -11332,6 +12132,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.group":
 		return &eval.StringArrayEvaluator{
@@ -11357,6 +12158,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.change_time":
 		return &eval.IntArrayEvaluator{
@@ -11388,6 +12190,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.filesystem":
 		return &eval.StringArrayEvaluator{
@@ -11419,6 +12222,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.gid":
 		return &eval.IntArrayEvaluator{
@@ -11450,6 +12254,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.group":
 		return &eval.StringArrayEvaluator{
@@ -11481,6 +12286,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -11512,6 +12318,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 999 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -11543,6 +12350,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.inode":
 		return &eval.IntArrayEvaluator{
@@ -11574,6 +12382,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.mode":
 		return &eval.IntArrayEvaluator{
@@ -11605,6 +12414,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.modification_time":
 		return &eval.IntArrayEvaluator{
@@ -11636,6 +12446,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.mount_id":
 		return &eval.IntArrayEvaluator{
@@ -11667,6 +12478,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.name":
 		return &eval.StringArrayEvaluator{
@@ -11699,6 +12511,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.name.length":
 		return &eval.IntArrayEvaluator{
@@ -11725,6 +12538,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.package.name":
 		return &eval.StringArrayEvaluator{
@@ -11756,6 +12570,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.package.source_version":
 		return &eval.StringArrayEvaluator{
@@ -11787,6 +12602,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.package.version":
 		return &eval.StringArrayEvaluator{
@@ -11818,6 +12634,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.path":
 		return &eval.StringArrayEvaluator{
@@ -11850,6 +12667,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.path.length":
 		return &eval.IntArrayEvaluator{
@@ -11876,6 +12694,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.rights":
 		return &eval.IntArrayEvaluator{
@@ -11907,6 +12726,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.uid":
 		return &eval.IntArrayEvaluator{
@@ -11938,6 +12758,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.user":
 		return &eval.StringArrayEvaluator{
@@ -11969,6 +12790,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.is_exec":
 		return &eval.BoolArrayEvaluator{
@@ -11994,6 +12816,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.is_kworker":
 		return &eval.BoolArrayEvaluator{
@@ -12019,6 +12842,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.is_thread":
 		return &eval.BoolArrayEvaluator{
@@ -12044,6 +12868,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.length":
 		return &eval.IntEvaluator{
@@ -12054,6 +12879,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.pid":
 		return &eval.IntArrayEvaluator{
@@ -12079,6 +12905,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.ppid":
 		return &eval.IntArrayEvaluator{
@@ -12104,6 +12931,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.tid":
 		return &eval.IntArrayEvaluator{
@@ -12129,6 +12957,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.tty_name":
 		return &eval.StringArrayEvaluator{
@@ -12154,6 +12983,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.uid":
 		return &eval.IntArrayEvaluator{
@@ -12179,6 +13009,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.user":
 		return &eval.StringArrayEvaluator{
@@ -12204,6 +13035,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
@@ -12229,6 +13061,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.user_session.k8s_uid":
 		return &eval.StringArrayEvaluator{
@@ -12254,6 +13087,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.user_session.k8s_username":
 		return &eval.StringArrayEvaluator{
@@ -12279,6 +13113,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.args":
 		return &eval.StringEvaluator{
@@ -12289,6 +13124,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -12299,6 +13135,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.args_options":
 		return &eval.StringArrayEvaluator{
@@ -12309,6 +13146,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.args_truncated":
 		return &eval.BoolEvaluator{
@@ -12319,6 +13157,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.argv":
 		return &eval.StringArrayEvaluator{
@@ -12329,6 +13168,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.argv0":
 		return &eval.StringEvaluator{
@@ -12339,6 +13179,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.auid":
 		return &eval.IntEvaluator{
@@ -12349,6 +13190,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.cap_effective":
 		return &eval.IntEvaluator{
@@ -12359,6 +13201,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.cap_permitted":
 		return &eval.IntEvaluator{
@@ -12369,6 +13212,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.cgroup.file.inode":
 		return &eval.IntEvaluator{
@@ -12379,6 +13223,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.cgroup.file.mount_id":
 		return &eval.IntEvaluator{
@@ -12389,6 +13234,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.cgroup.id":
 		return &eval.StringEvaluator{
@@ -12399,6 +13245,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.cgroup.manager":
 		return &eval.StringEvaluator{
@@ -12409,6 +13256,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.cgroup.version":
 		return &eval.IntEvaluator{
@@ -12419,6 +13267,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.comm":
 		return &eval.StringEvaluator{
@@ -12429,6 +13278,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.container.id":
 		return &eval.StringEvaluator{
@@ -12439,6 +13289,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.created_at":
 		return &eval.IntEvaluator{
@@ -12449,6 +13300,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.egid":
 		return &eval.IntEvaluator{
@@ -12459,6 +13311,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.egroup":
 		return &eval.StringEvaluator{
@@ -12469,6 +13322,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.envp":
 		return &eval.StringArrayEvaluator{
@@ -12479,6 +13333,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.envs":
 		return &eval.StringArrayEvaluator{
@@ -12489,6 +13344,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -12499,6 +13355,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.euid":
 		return &eval.IntEvaluator{
@@ -12509,6 +13366,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.euser":
 		return &eval.StringEvaluator{
@@ -12519,6 +13377,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.change_time":
 		return &eval.IntEvaluator{
@@ -12532,6 +13391,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.filesystem":
 		return &eval.StringEvaluator{
@@ -12545,6 +13405,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.gid":
 		return &eval.IntEvaluator{
@@ -12558,6 +13419,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.group":
 		return &eval.StringEvaluator{
@@ -12571,6 +13433,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -12584,6 +13447,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -12597,6 +13461,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.inode":
 		return &eval.IntEvaluator{
@@ -12610,6 +13475,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.mode":
 		return &eval.IntEvaluator{
@@ -12623,6 +13489,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.modification_time":
 		return &eval.IntEvaluator{
@@ -12636,6 +13503,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.mount_id":
 		return &eval.IntEvaluator{
@@ -12649,6 +13517,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.name":
 		return &eval.StringEvaluator{
@@ -12663,6 +13532,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.name.length":
 		return &eval.IntEvaluator{
@@ -12674,6 +13544,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.package.name":
 		return &eval.StringEvaluator{
@@ -12687,6 +13558,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -12700,6 +13572,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.package.version":
 		return &eval.StringEvaluator{
@@ -12713,6 +13586,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.path":
 		return &eval.StringEvaluator{
@@ -12727,6 +13601,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.path.length":
 		return &eval.IntEvaluator{
@@ -12738,6 +13613,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.rights":
 		return &eval.IntEvaluator{
@@ -12751,6 +13627,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.uid":
 		return &eval.IntEvaluator{
@@ -12764,6 +13641,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.file.user":
 		return &eval.StringEvaluator{
@@ -12777,6 +13655,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.fsgid":
 		return &eval.IntEvaluator{
@@ -12787,6 +13666,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.fsgroup":
 		return &eval.StringEvaluator{
@@ -12797,6 +13677,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.fsuid":
 		return &eval.IntEvaluator{
@@ -12807,6 +13688,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.fsuser":
 		return &eval.StringEvaluator{
@@ -12817,6 +13699,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.gid":
 		return &eval.IntEvaluator{
@@ -12827,6 +13710,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.group":
 		return &eval.StringEvaluator{
@@ -12837,6 +13721,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.change_time":
 		return &eval.IntEvaluator{
@@ -12850,6 +13735,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.filesystem":
 		return &eval.StringEvaluator{
@@ -12863,6 +13749,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.gid":
 		return &eval.IntEvaluator{
@@ -12876,6 +13763,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.group":
 		return &eval.StringEvaluator{
@@ -12889,6 +13777,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -12902,6 +13791,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -12915,6 +13805,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.inode":
 		return &eval.IntEvaluator{
@@ -12928,6 +13819,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.mode":
 		return &eval.IntEvaluator{
@@ -12941,6 +13833,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.modification_time":
 		return &eval.IntEvaluator{
@@ -12954,6 +13847,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
@@ -12967,6 +13861,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.name":
 		return &eval.StringEvaluator{
@@ -12981,6 +13876,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.name.length":
 		return &eval.IntEvaluator{
@@ -12992,6 +13888,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.package.name":
 		return &eval.StringEvaluator{
@@ -13005,6 +13902,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -13018,6 +13916,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.package.version":
 		return &eval.StringEvaluator{
@@ -13031,6 +13930,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.path":
 		return &eval.StringEvaluator{
@@ -13045,6 +13945,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.path.length":
 		return &eval.IntEvaluator{
@@ -13056,6 +13957,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.rights":
 		return &eval.IntEvaluator{
@@ -13069,6 +13971,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.uid":
 		return &eval.IntEvaluator{
@@ -13082,6 +13985,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.user":
 		return &eval.StringEvaluator{
@@ -13095,6 +13999,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.is_exec":
 		return &eval.BoolEvaluator{
@@ -13105,6 +14010,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.is_kworker":
 		return &eval.BoolEvaluator{
@@ -13115,6 +14021,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.is_thread":
 		return &eval.BoolEvaluator{
@@ -13125,6 +14032,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.args":
 		return &eval.StringEvaluator{
@@ -13138,6 +14046,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -13151,6 +14060,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.args_options":
 		return &eval.StringArrayEvaluator{
@@ -13164,6 +14074,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.args_truncated":
 		return &eval.BoolEvaluator{
@@ -13177,6 +14088,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.argv":
 		return &eval.StringArrayEvaluator{
@@ -13190,6 +14102,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.argv0":
 		return &eval.StringEvaluator{
@@ -13203,6 +14116,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.auid":
 		return &eval.IntEvaluator{
@@ -13216,6 +14130,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.cap_effective":
 		return &eval.IntEvaluator{
@@ -13229,6 +14144,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.cap_permitted":
 		return &eval.IntEvaluator{
@@ -13242,6 +14158,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.cgroup.file.inode":
 		return &eval.IntEvaluator{
@@ -13255,6 +14172,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.cgroup.file.mount_id":
 		return &eval.IntEvaluator{
@@ -13268,6 +14186,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.cgroup.id":
 		return &eval.StringEvaluator{
@@ -13281,6 +14200,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.cgroup.manager":
 		return &eval.StringEvaluator{
@@ -13294,6 +14214,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.cgroup.version":
 		return &eval.IntEvaluator{
@@ -13307,6 +14228,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.comm":
 		return &eval.StringEvaluator{
@@ -13320,6 +14242,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.container.id":
 		return &eval.StringEvaluator{
@@ -13333,6 +14256,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.created_at":
 		return &eval.IntEvaluator{
@@ -13346,6 +14270,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.egid":
 		return &eval.IntEvaluator{
@@ -13359,6 +14284,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.egroup":
 		return &eval.StringEvaluator{
@@ -13372,6 +14298,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.envp":
 		return &eval.StringArrayEvaluator{
@@ -13385,6 +14312,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.envs":
 		return &eval.StringArrayEvaluator{
@@ -13398,6 +14326,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -13411,6 +14340,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.euid":
 		return &eval.IntEvaluator{
@@ -13424,6 +14354,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.euser":
 		return &eval.StringEvaluator{
@@ -13437,6 +14368,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.change_time":
 		return &eval.IntEvaluator{
@@ -13453,6 +14385,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.filesystem":
 		return &eval.StringEvaluator{
@@ -13469,6 +14402,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.gid":
 		return &eval.IntEvaluator{
@@ -13485,6 +14419,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.group":
 		return &eval.StringEvaluator{
@@ -13501,6 +14436,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -13517,6 +14453,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -13533,6 +14470,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.inode":
 		return &eval.IntEvaluator{
@@ -13549,6 +14487,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.mode":
 		return &eval.IntEvaluator{
@@ -13565,6 +14504,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.modification_time":
 		return &eval.IntEvaluator{
@@ -13581,6 +14521,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.mount_id":
 		return &eval.IntEvaluator{
@@ -13597,6 +14538,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.name":
 		return &eval.StringEvaluator{
@@ -13614,6 +14556,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.name.length":
 		return &eval.IntEvaluator{
@@ -13625,6 +14568,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.package.name":
 		return &eval.StringEvaluator{
@@ -13641,6 +14585,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -13657,6 +14602,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.package.version":
 		return &eval.StringEvaluator{
@@ -13673,6 +14619,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.path":
 		return &eval.StringEvaluator{
@@ -13690,6 +14637,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.path.length":
 		return &eval.IntEvaluator{
@@ -13701,6 +14649,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.rights":
 		return &eval.IntEvaluator{
@@ -13717,6 +14666,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.uid":
 		return &eval.IntEvaluator{
@@ -13733,6 +14683,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.file.user":
 		return &eval.StringEvaluator{
@@ -13749,6 +14700,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.fsgid":
 		return &eval.IntEvaluator{
@@ -13762,6 +14714,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.fsgroup":
 		return &eval.StringEvaluator{
@@ -13775,6 +14728,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.fsuid":
 		return &eval.IntEvaluator{
@@ -13788,6 +14742,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.fsuser":
 		return &eval.StringEvaluator{
@@ -13801,6 +14756,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.gid":
 		return &eval.IntEvaluator{
@@ -13814,6 +14770,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.group":
 		return &eval.StringEvaluator{
@@ -13827,6 +14784,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.change_time":
 		return &eval.IntEvaluator{
@@ -13843,6 +14801,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.filesystem":
 		return &eval.StringEvaluator{
@@ -13859,6 +14818,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.gid":
 		return &eval.IntEvaluator{
@@ -13875,6 +14835,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.group":
 		return &eval.StringEvaluator{
@@ -13891,6 +14852,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -13907,6 +14869,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -13923,6 +14886,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.inode":
 		return &eval.IntEvaluator{
@@ -13939,6 +14903,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.mode":
 		return &eval.IntEvaluator{
@@ -13955,6 +14920,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.modification_time":
 		return &eval.IntEvaluator{
@@ -13971,6 +14937,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
@@ -13987,6 +14954,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.name":
 		return &eval.StringEvaluator{
@@ -14004,6 +14972,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.name.length":
 		return &eval.IntEvaluator{
@@ -14015,6 +14984,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.package.name":
 		return &eval.StringEvaluator{
@@ -14031,6 +15001,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -14047,6 +15018,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.package.version":
 		return &eval.StringEvaluator{
@@ -14063,6 +15035,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.path":
 		return &eval.StringEvaluator{
@@ -14080,6 +15053,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.path.length":
 		return &eval.IntEvaluator{
@@ -14091,6 +15065,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.rights":
 		return &eval.IntEvaluator{
@@ -14107,6 +15082,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.uid":
 		return &eval.IntEvaluator{
@@ -14123,6 +15099,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.user":
 		return &eval.StringEvaluator{
@@ -14139,6 +15116,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.is_exec":
 		return &eval.BoolEvaluator{
@@ -14152,6 +15130,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.is_kworker":
 		return &eval.BoolEvaluator{
@@ -14165,6 +15144,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.is_thread":
 		return &eval.BoolEvaluator{
@@ -14178,6 +15158,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.pid":
 		return &eval.IntEvaluator{
@@ -14191,6 +15172,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.ppid":
 		return &eval.IntEvaluator{
@@ -14204,6 +15186,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.tid":
 		return &eval.IntEvaluator{
@@ -14217,6 +15200,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.tty_name":
 		return &eval.StringEvaluator{
@@ -14230,6 +15214,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.uid":
 		return &eval.IntEvaluator{
@@ -14243,6 +15228,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.user":
 		return &eval.StringEvaluator{
@@ -14256,6 +15242,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
@@ -14269,6 +15256,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.user_session.k8s_uid":
 		return &eval.StringEvaluator{
@@ -14282,6 +15270,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.user_session.k8s_username":
 		return &eval.StringEvaluator{
@@ -14295,6 +15284,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.pid":
 		return &eval.IntEvaluator{
@@ -14305,6 +15295,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ppid":
 		return &eval.IntEvaluator{
@@ -14315,6 +15306,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.tid":
 		return &eval.IntEvaluator{
@@ -14325,6 +15317,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.tty_name":
 		return &eval.StringEvaluator{
@@ -14335,6 +15328,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.uid":
 		return &eval.IntEvaluator{
@@ -14345,6 +15339,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.user":
 		return &eval.StringEvaluator{
@@ -14355,6 +15350,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
@@ -14365,6 +15361,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.user_session.k8s_uid":
 		return &eval.StringEvaluator{
@@ -14375,6 +15372,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "ptrace.tracee.user_session.k8s_username":
 		return &eval.StringEvaluator{
@@ -14385,6 +15383,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.change_time":
 		return &eval.IntEvaluator{
@@ -14395,6 +15394,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.destination.name":
 		return &eval.StringEvaluator{
@@ -14405,6 +15405,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.destination.namespace":
 		return &eval.StringEvaluator{
@@ -14415,6 +15416,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.filesystem":
 		return &eval.StringEvaluator{
@@ -14425,6 +15427,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.gid":
 		return &eval.IntEvaluator{
@@ -14435,6 +15438,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.group":
 		return &eval.StringEvaluator{
@@ -14445,6 +15449,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -14455,6 +15460,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -14465,6 +15471,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.inode":
 		return &eval.IntEvaluator{
@@ -14475,6 +15482,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.mode":
 		return &eval.IntEvaluator{
@@ -14485,6 +15493,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.modification_time":
 		return &eval.IntEvaluator{
@@ -14495,6 +15504,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.mount_id":
 		return &eval.IntEvaluator{
@@ -14505,6 +15515,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.name":
 		return &eval.StringEvaluator{
@@ -14516,6 +15527,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.name.length":
 		return &eval.IntEvaluator{
@@ -14527,6 +15539,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.package.name":
 		return &eval.StringEvaluator{
@@ -14537,6 +15550,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -14547,6 +15561,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.package.version":
 		return &eval.StringEvaluator{
@@ -14557,6 +15572,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.path":
 		return &eval.StringEvaluator{
@@ -14568,6 +15584,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.path.length":
 		return &eval.IntEvaluator{
@@ -14579,6 +15596,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.rights":
 		return &eval.IntEvaluator{
@@ -14589,6 +15607,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.uid":
 		return &eval.IntEvaluator{
@@ -14599,6 +15618,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.file.user":
 		return &eval.StringEvaluator{
@@ -14609,6 +15629,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "removexattr.retval":
 		return &eval.IntEvaluator{
@@ -14619,6 +15640,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.change_time":
 		return &eval.IntEvaluator{
@@ -14629,6 +15651,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.change_time":
 		return &eval.IntEvaluator{
@@ -14639,6 +15662,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.filesystem":
 		return &eval.StringEvaluator{
@@ -14649,6 +15673,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.gid":
 		return &eval.IntEvaluator{
@@ -14659,6 +15684,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.group":
 		return &eval.StringEvaluator{
@@ -14669,6 +15695,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.hashes":
 		return &eval.StringArrayEvaluator{
@@ -14679,6 +15706,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -14689,6 +15717,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.inode":
 		return &eval.IntEvaluator{
@@ -14699,6 +15728,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.mode":
 		return &eval.IntEvaluator{
@@ -14709,6 +15739,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.modification_time":
 		return &eval.IntEvaluator{
@@ -14719,6 +15750,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.mount_id":
 		return &eval.IntEvaluator{
@@ -14729,6 +15761,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.name":
 		return &eval.StringEvaluator{
@@ -14740,6 +15773,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.name.length":
 		return &eval.IntEvaluator{
@@ -14751,6 +15785,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.package.name":
 		return &eval.StringEvaluator{
@@ -14761,6 +15796,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.package.source_version":
 		return &eval.StringEvaluator{
@@ -14771,6 +15807,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.package.version":
 		return &eval.StringEvaluator{
@@ -14781,6 +15818,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.path":
 		return &eval.StringEvaluator{
@@ -14792,6 +15830,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.path.length":
 		return &eval.IntEvaluator{
@@ -14803,6 +15842,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.rights":
 		return &eval.IntEvaluator{
@@ -14813,6 +15853,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.uid":
 		return &eval.IntEvaluator{
@@ -14823,6 +15864,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.destination.user":
 		return &eval.StringEvaluator{
@@ -14833,6 +15875,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.filesystem":
 		return &eval.StringEvaluator{
@@ -14843,6 +15886,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.gid":
 		return &eval.IntEvaluator{
@@ -14853,6 +15897,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.group":
 		return &eval.StringEvaluator{
@@ -14863,6 +15908,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -14873,6 +15919,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -14883,6 +15930,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.inode":
 		return &eval.IntEvaluator{
@@ -14893,6 +15941,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.mode":
 		return &eval.IntEvaluator{
@@ -14903,6 +15952,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.modification_time":
 		return &eval.IntEvaluator{
@@ -14913,6 +15963,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.mount_id":
 		return &eval.IntEvaluator{
@@ -14923,6 +15974,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.name":
 		return &eval.StringEvaluator{
@@ -14934,6 +15986,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.name.length":
 		return &eval.IntEvaluator{
@@ -14945,6 +15998,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.package.name":
 		return &eval.StringEvaluator{
@@ -14955,6 +16009,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -14965,6 +16020,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.package.version":
 		return &eval.StringEvaluator{
@@ -14975,6 +16031,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.path":
 		return &eval.StringEvaluator{
@@ -14986,6 +16043,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.path.length":
 		return &eval.IntEvaluator{
@@ -14997,6 +16055,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.rights":
 		return &eval.IntEvaluator{
@@ -15007,6 +16066,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.uid":
 		return &eval.IntEvaluator{
@@ -15017,6 +16077,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rename.file.user":
 		return &eval.StringEvaluator{
@@ -15027,6 +16088,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.retval":
 		return &eval.IntEvaluator{
@@ -15037,6 +16099,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rename.syscall.destination.path":
 		return &eval.StringEvaluator{
@@ -15047,6 +16110,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rename.syscall.path":
 		return &eval.StringEvaluator{
@@ -15057,6 +16121,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.change_time":
 		return &eval.IntEvaluator{
@@ -15067,6 +16132,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.filesystem":
 		return &eval.StringEvaluator{
@@ -15077,6 +16143,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.gid":
 		return &eval.IntEvaluator{
@@ -15087,6 +16154,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.group":
 		return &eval.StringEvaluator{
@@ -15097,6 +16165,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -15107,6 +16176,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -15117,6 +16187,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.inode":
 		return &eval.IntEvaluator{
@@ -15127,6 +16198,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.mode":
 		return &eval.IntEvaluator{
@@ -15137,6 +16209,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.modification_time":
 		return &eval.IntEvaluator{
@@ -15147,6 +16220,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.mount_id":
 		return &eval.IntEvaluator{
@@ -15157,6 +16231,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.name":
 		return &eval.StringEvaluator{
@@ -15168,6 +16243,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.name.length":
 		return &eval.IntEvaluator{
@@ -15179,6 +16255,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.package.name":
 		return &eval.StringEvaluator{
@@ -15189,6 +16266,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -15199,6 +16277,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.package.version":
 		return &eval.StringEvaluator{
@@ -15209,6 +16288,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.path":
 		return &eval.StringEvaluator{
@@ -15220,6 +16300,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.path.length":
 		return &eval.IntEvaluator{
@@ -15231,6 +16312,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.rights":
 		return &eval.IntEvaluator{
@@ -15241,6 +16323,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.uid":
 		return &eval.IntEvaluator{
@@ -15251,6 +16334,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.file.user":
 		return &eval.StringEvaluator{
@@ -15261,6 +16345,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.retval":
 		return &eval.IntEvaluator{
@@ -15271,6 +16356,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "rmdir.syscall.path":
 		return &eval.StringEvaluator{
@@ -15281,6 +16367,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "selinux.bool.name":
 		return &eval.StringEvaluator{
@@ -15291,6 +16378,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "selinux.bool.state":
 		return &eval.StringEvaluator{
@@ -15301,6 +16389,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "selinux.bool_commit.state":
 		return &eval.BoolEvaluator{
@@ -15311,6 +16400,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "selinux.enforce.status":
 		return &eval.StringEvaluator{
@@ -15321,6 +16411,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "setgid.egid":
 		return &eval.IntEvaluator{
@@ -15331,6 +16422,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "setgid.egroup":
 		return &eval.StringEvaluator{
@@ -15341,6 +16433,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setgid.fsgid":
 		return &eval.IntEvaluator{
@@ -15351,6 +16444,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "setgid.fsgroup":
 		return &eval.StringEvaluator{
@@ -15361,6 +16455,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setgid.gid":
 		return &eval.IntEvaluator{
@@ -15371,6 +16466,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "setgid.group":
 		return &eval.StringEvaluator{
@@ -15381,6 +16477,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setuid.euid":
 		return &eval.IntEvaluator{
@@ -15391,6 +16488,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "setuid.euser":
 		return &eval.StringEvaluator{
@@ -15401,6 +16499,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setuid.fsuid":
 		return &eval.IntEvaluator{
@@ -15411,6 +16510,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "setuid.fsuser":
 		return &eval.StringEvaluator{
@@ -15421,6 +16521,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setuid.uid":
 		return &eval.IntEvaluator{
@@ -15431,6 +16532,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "setuid.user":
 		return &eval.StringEvaluator{
@@ -15441,6 +16543,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.change_time":
 		return &eval.IntEvaluator{
@@ -15451,6 +16554,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.destination.name":
 		return &eval.StringEvaluator{
@@ -15461,6 +16565,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.destination.namespace":
 		return &eval.StringEvaluator{
@@ -15471,6 +16576,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.filesystem":
 		return &eval.StringEvaluator{
@@ -15481,6 +16587,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.gid":
 		return &eval.IntEvaluator{
@@ -15491,6 +16598,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.group":
 		return &eval.StringEvaluator{
@@ -15501,6 +16609,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -15511,6 +16620,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -15521,6 +16631,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.inode":
 		return &eval.IntEvaluator{
@@ -15531,6 +16642,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.mode":
 		return &eval.IntEvaluator{
@@ -15541,6 +16653,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.modification_time":
 		return &eval.IntEvaluator{
@@ -15551,6 +16664,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.mount_id":
 		return &eval.IntEvaluator{
@@ -15561,6 +16675,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.name":
 		return &eval.StringEvaluator{
@@ -15572,6 +16687,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.name.length":
 		return &eval.IntEvaluator{
@@ -15583,6 +16699,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.package.name":
 		return &eval.StringEvaluator{
@@ -15593,6 +16710,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -15603,6 +16721,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.package.version":
 		return &eval.StringEvaluator{
@@ -15613,6 +16732,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.path":
 		return &eval.StringEvaluator{
@@ -15624,6 +16744,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.path.length":
 		return &eval.IntEvaluator{
@@ -15635,6 +16756,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.rights":
 		return &eval.IntEvaluator{
@@ -15645,6 +16767,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.uid":
 		return &eval.IntEvaluator{
@@ -15655,6 +16778,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.file.user":
 		return &eval.StringEvaluator{
@@ -15665,6 +16789,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "setxattr.retval":
 		return &eval.IntEvaluator{
@@ -15675,6 +16800,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.pid":
 		return &eval.IntEvaluator{
@@ -15685,6 +16811,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.retval":
 		return &eval.IntEvaluator{
@@ -15695,6 +16822,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.args":
 		return &eval.StringArrayEvaluator{
@@ -15720,6 +16848,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 500 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -15745,6 +16874,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.args_options":
 		return &eval.StringArrayEvaluator{
@@ -15770,6 +16900,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.args_truncated":
 		return &eval.BoolArrayEvaluator{
@@ -15795,6 +16926,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.argv":
 		return &eval.StringArrayEvaluator{
@@ -15820,6 +16952,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 500 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.argv0":
 		return &eval.StringArrayEvaluator{
@@ -15845,6 +16978,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.auid":
 		return &eval.IntArrayEvaluator{
@@ -15870,6 +17004,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.cap_effective":
 		return &eval.IntArrayEvaluator{
@@ -15895,6 +17030,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.cap_permitted":
 		return &eval.IntArrayEvaluator{
@@ -15920,6 +17056,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.cgroup.file.inode":
 		return &eval.IntArrayEvaluator{
@@ -15945,6 +17082,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.cgroup.file.mount_id":
 		return &eval.IntArrayEvaluator{
@@ -15970,6 +17108,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.cgroup.id":
 		return &eval.StringArrayEvaluator{
@@ -15995,6 +17134,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.cgroup.manager":
 		return &eval.StringArrayEvaluator{
@@ -16020,6 +17160,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.cgroup.version":
 		return &eval.IntArrayEvaluator{
@@ -16045,6 +17186,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.comm":
 		return &eval.StringArrayEvaluator{
@@ -16070,6 +17212,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
@@ -16095,6 +17238,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.created_at":
 		return &eval.IntArrayEvaluator{
@@ -16120,6 +17264,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.egid":
 		return &eval.IntArrayEvaluator{
@@ -16145,6 +17290,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.egroup":
 		return &eval.StringArrayEvaluator{
@@ -16170,6 +17316,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.envp":
 		return &eval.StringArrayEvaluator{
@@ -16195,6 +17342,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.envs":
 		return &eval.StringArrayEvaluator{
@@ -16220,6 +17368,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.envs_truncated":
 		return &eval.BoolArrayEvaluator{
@@ -16245,6 +17394,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.euid":
 		return &eval.IntArrayEvaluator{
@@ -16270,6 +17420,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.euser":
 		return &eval.StringArrayEvaluator{
@@ -16295,6 +17446,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.change_time":
 		return &eval.IntArrayEvaluator{
@@ -16326,6 +17478,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.filesystem":
 		return &eval.StringArrayEvaluator{
@@ -16357,6 +17510,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.gid":
 		return &eval.IntArrayEvaluator{
@@ -16388,6 +17542,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.group":
 		return &eval.StringArrayEvaluator{
@@ -16419,6 +17574,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -16450,6 +17606,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 999 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -16481,6 +17638,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.inode":
 		return &eval.IntArrayEvaluator{
@@ -16512,6 +17670,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.mode":
 		return &eval.IntArrayEvaluator{
@@ -16543,6 +17702,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.modification_time":
 		return &eval.IntArrayEvaluator{
@@ -16574,6 +17734,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.mount_id":
 		return &eval.IntArrayEvaluator{
@@ -16605,6 +17766,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
@@ -16637,6 +17799,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.name.length":
 		return &eval.IntArrayEvaluator{
@@ -16663,6 +17826,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.package.name":
 		return &eval.StringArrayEvaluator{
@@ -16694,6 +17858,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.package.source_version":
 		return &eval.StringArrayEvaluator{
@@ -16725,6 +17890,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.package.version":
 		return &eval.StringArrayEvaluator{
@@ -16756,6 +17922,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
@@ -16788,6 +17955,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.path.length":
 		return &eval.IntArrayEvaluator{
@@ -16814,6 +17982,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.rights":
 		return &eval.IntArrayEvaluator{
@@ -16845,6 +18014,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.uid":
 		return &eval.IntArrayEvaluator{
@@ -16876,6 +18046,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.file.user":
 		return &eval.StringArrayEvaluator{
@@ -16907,6 +18078,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.fsgid":
 		return &eval.IntArrayEvaluator{
@@ -16932,6 +18104,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.fsgroup":
 		return &eval.StringArrayEvaluator{
@@ -16957,6 +18130,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.fsuid":
 		return &eval.IntArrayEvaluator{
@@ -16982,6 +18156,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.fsuser":
 		return &eval.StringArrayEvaluator{
@@ -17007,6 +18182,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.gid":
 		return &eval.IntArrayEvaluator{
@@ -17032,6 +18208,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.group":
 		return &eval.StringArrayEvaluator{
@@ -17057,6 +18234,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.change_time":
 		return &eval.IntArrayEvaluator{
@@ -17088,6 +18266,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.filesystem":
 		return &eval.StringArrayEvaluator{
@@ -17119,6 +18298,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.gid":
 		return &eval.IntArrayEvaluator{
@@ -17150,6 +18330,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.group":
 		return &eval.StringArrayEvaluator{
@@ -17181,6 +18362,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -17212,6 +18394,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 999 * eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -17243,6 +18426,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.inode":
 		return &eval.IntArrayEvaluator{
@@ -17274,6 +18458,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.mode":
 		return &eval.IntArrayEvaluator{
@@ -17305,6 +18490,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.modification_time":
 		return &eval.IntArrayEvaluator{
@@ -17336,6 +18522,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.mount_id":
 		return &eval.IntArrayEvaluator{
@@ -17367,6 +18554,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.name":
 		return &eval.StringArrayEvaluator{
@@ -17399,6 +18587,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.name.length":
 		return &eval.IntArrayEvaluator{
@@ -17425,6 +18614,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.package.name":
 		return &eval.StringArrayEvaluator{
@@ -17456,6 +18646,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.package.source_version":
 		return &eval.StringArrayEvaluator{
@@ -17487,6 +18678,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.package.version":
 		return &eval.StringArrayEvaluator{
@@ -17518,6 +18710,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.path":
 		return &eval.StringArrayEvaluator{
@@ -17550,6 +18743,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.path.length":
 		return &eval.IntArrayEvaluator{
@@ -17576,6 +18770,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.rights":
 		return &eval.IntArrayEvaluator{
@@ -17607,6 +18802,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.uid":
 		return &eval.IntArrayEvaluator{
@@ -17638,6 +18834,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.user":
 		return &eval.StringArrayEvaluator{
@@ -17669,6 +18866,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.is_exec":
 		return &eval.BoolArrayEvaluator{
@@ -17694,6 +18892,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.is_kworker":
 		return &eval.BoolArrayEvaluator{
@@ -17719,6 +18918,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.is_thread":
 		return &eval.BoolArrayEvaluator{
@@ -17744,6 +18944,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.length":
 		return &eval.IntEvaluator{
@@ -17754,6 +18955,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.pid":
 		return &eval.IntArrayEvaluator{
@@ -17779,6 +18981,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.ppid":
 		return &eval.IntArrayEvaluator{
@@ -17804,6 +19007,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.tid":
 		return &eval.IntArrayEvaluator{
@@ -17829,6 +19033,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.tty_name":
 		return &eval.StringArrayEvaluator{
@@ -17854,6 +19059,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.uid":
 		return &eval.IntArrayEvaluator{
@@ -17879,6 +19085,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.user":
 		return &eval.StringArrayEvaluator{
@@ -17904,6 +19111,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
@@ -17929,6 +19137,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.user_session.k8s_uid":
 		return &eval.StringArrayEvaluator{
@@ -17954,6 +19163,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.user_session.k8s_username":
 		return &eval.StringArrayEvaluator{
@@ -17979,6 +19189,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.args":
 		return &eval.StringEvaluator{
@@ -17989,6 +19200,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -17999,6 +19211,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.args_options":
 		return &eval.StringArrayEvaluator{
@@ -18009,6 +19222,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.args_truncated":
 		return &eval.BoolEvaluator{
@@ -18019,6 +19233,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.argv":
 		return &eval.StringArrayEvaluator{
@@ -18029,6 +19244,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.argv0":
 		return &eval.StringEvaluator{
@@ -18039,6 +19255,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.auid":
 		return &eval.IntEvaluator{
@@ -18049,6 +19266,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.cap_effective":
 		return &eval.IntEvaluator{
@@ -18059,6 +19277,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.cap_permitted":
 		return &eval.IntEvaluator{
@@ -18069,6 +19288,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.cgroup.file.inode":
 		return &eval.IntEvaluator{
@@ -18079,6 +19299,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.cgroup.file.mount_id":
 		return &eval.IntEvaluator{
@@ -18089,6 +19310,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.cgroup.id":
 		return &eval.StringEvaluator{
@@ -18099,6 +19321,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.cgroup.manager":
 		return &eval.StringEvaluator{
@@ -18109,6 +19332,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.cgroup.version":
 		return &eval.IntEvaluator{
@@ -18119,6 +19343,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.comm":
 		return &eval.StringEvaluator{
@@ -18129,6 +19354,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.container.id":
 		return &eval.StringEvaluator{
@@ -18139,6 +19365,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.created_at":
 		return &eval.IntEvaluator{
@@ -18149,6 +19376,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.egid":
 		return &eval.IntEvaluator{
@@ -18159,6 +19387,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.egroup":
 		return &eval.StringEvaluator{
@@ -18169,6 +19398,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.envp":
 		return &eval.StringArrayEvaluator{
@@ -18179,6 +19409,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.envs":
 		return &eval.StringArrayEvaluator{
@@ -18189,6 +19420,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -18199,6 +19431,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.euid":
 		return &eval.IntEvaluator{
@@ -18209,6 +19442,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.euser":
 		return &eval.StringEvaluator{
@@ -18219,6 +19453,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.change_time":
 		return &eval.IntEvaluator{
@@ -18232,6 +19467,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.filesystem":
 		return &eval.StringEvaluator{
@@ -18245,6 +19481,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.gid":
 		return &eval.IntEvaluator{
@@ -18258,6 +19495,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.group":
 		return &eval.StringEvaluator{
@@ -18271,6 +19509,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -18284,6 +19523,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -18297,6 +19537,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.inode":
 		return &eval.IntEvaluator{
@@ -18310,6 +19551,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.mode":
 		return &eval.IntEvaluator{
@@ -18323,6 +19565,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.modification_time":
 		return &eval.IntEvaluator{
@@ -18336,6 +19579,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.mount_id":
 		return &eval.IntEvaluator{
@@ -18349,6 +19593,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.name":
 		return &eval.StringEvaluator{
@@ -18363,6 +19608,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.name.length":
 		return &eval.IntEvaluator{
@@ -18374,6 +19620,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.package.name":
 		return &eval.StringEvaluator{
@@ -18387,6 +19634,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -18400,6 +19648,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.package.version":
 		return &eval.StringEvaluator{
@@ -18413,6 +19662,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.path":
 		return &eval.StringEvaluator{
@@ -18427,6 +19677,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.path.length":
 		return &eval.IntEvaluator{
@@ -18438,6 +19689,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.rights":
 		return &eval.IntEvaluator{
@@ -18451,6 +19703,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.uid":
 		return &eval.IntEvaluator{
@@ -18464,6 +19717,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.file.user":
 		return &eval.StringEvaluator{
@@ -18477,6 +19731,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.fsgid":
 		return &eval.IntEvaluator{
@@ -18487,6 +19742,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.fsgroup":
 		return &eval.StringEvaluator{
@@ -18497,6 +19753,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.fsuid":
 		return &eval.IntEvaluator{
@@ -18507,6 +19764,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.fsuser":
 		return &eval.StringEvaluator{
@@ -18517,6 +19775,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.gid":
 		return &eval.IntEvaluator{
@@ -18527,6 +19786,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.group":
 		return &eval.StringEvaluator{
@@ -18537,6 +19797,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.change_time":
 		return &eval.IntEvaluator{
@@ -18550,6 +19811,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.filesystem":
 		return &eval.StringEvaluator{
@@ -18563,6 +19825,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.gid":
 		return &eval.IntEvaluator{
@@ -18576,6 +19839,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.group":
 		return &eval.StringEvaluator{
@@ -18589,6 +19853,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -18602,6 +19867,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -18615,6 +19881,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.inode":
 		return &eval.IntEvaluator{
@@ -18628,6 +19895,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.mode":
 		return &eval.IntEvaluator{
@@ -18641,6 +19909,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.modification_time":
 		return &eval.IntEvaluator{
@@ -18654,6 +19923,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
@@ -18667,6 +19937,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.name":
 		return &eval.StringEvaluator{
@@ -18681,6 +19952,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.name.length":
 		return &eval.IntEvaluator{
@@ -18692,6 +19964,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.package.name":
 		return &eval.StringEvaluator{
@@ -18705,6 +19978,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -18718,6 +19992,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.package.version":
 		return &eval.StringEvaluator{
@@ -18731,6 +20006,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.path":
 		return &eval.StringEvaluator{
@@ -18745,6 +20021,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.path.length":
 		return &eval.IntEvaluator{
@@ -18756,6 +20033,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.rights":
 		return &eval.IntEvaluator{
@@ -18769,6 +20047,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.uid":
 		return &eval.IntEvaluator{
@@ -18782,6 +20061,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.user":
 		return &eval.StringEvaluator{
@@ -18795,6 +20075,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.is_exec":
 		return &eval.BoolEvaluator{
@@ -18805,6 +20086,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.is_kworker":
 		return &eval.BoolEvaluator{
@@ -18815,6 +20097,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.is_thread":
 		return &eval.BoolEvaluator{
@@ -18825,6 +20108,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.args":
 		return &eval.StringEvaluator{
@@ -18838,6 +20122,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -18851,6 +20136,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.args_options":
 		return &eval.StringArrayEvaluator{
@@ -18864,6 +20150,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.args_truncated":
 		return &eval.BoolEvaluator{
@@ -18877,6 +20164,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.argv":
 		return &eval.StringArrayEvaluator{
@@ -18890,6 +20178,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.argv0":
 		return &eval.StringEvaluator{
@@ -18903,6 +20192,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.auid":
 		return &eval.IntEvaluator{
@@ -18916,6 +20206,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.cap_effective":
 		return &eval.IntEvaluator{
@@ -18929,6 +20220,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.cap_permitted":
 		return &eval.IntEvaluator{
@@ -18942,6 +20234,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.cgroup.file.inode":
 		return &eval.IntEvaluator{
@@ -18955,6 +20248,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.cgroup.file.mount_id":
 		return &eval.IntEvaluator{
@@ -18968,6 +20262,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.cgroup.id":
 		return &eval.StringEvaluator{
@@ -18981,6 +20276,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.cgroup.manager":
 		return &eval.StringEvaluator{
@@ -18994,6 +20290,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.cgroup.version":
 		return &eval.IntEvaluator{
@@ -19007,6 +20304,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.comm":
 		return &eval.StringEvaluator{
@@ -19020,6 +20318,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.container.id":
 		return &eval.StringEvaluator{
@@ -19033,6 +20332,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.created_at":
 		return &eval.IntEvaluator{
@@ -19046,6 +20346,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.egid":
 		return &eval.IntEvaluator{
@@ -19059,6 +20360,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.egroup":
 		return &eval.StringEvaluator{
@@ -19072,6 +20374,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.envp":
 		return &eval.StringArrayEvaluator{
@@ -19085,6 +20388,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.envs":
 		return &eval.StringArrayEvaluator{
@@ -19098,6 +20402,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -19111,6 +20416,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.euid":
 		return &eval.IntEvaluator{
@@ -19124,6 +20430,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.euser":
 		return &eval.StringEvaluator{
@@ -19137,6 +20444,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.change_time":
 		return &eval.IntEvaluator{
@@ -19153,6 +20461,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.filesystem":
 		return &eval.StringEvaluator{
@@ -19169,6 +20478,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.gid":
 		return &eval.IntEvaluator{
@@ -19185,6 +20495,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.group":
 		return &eval.StringEvaluator{
@@ -19201,6 +20512,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -19217,6 +20529,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -19233,6 +20546,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.inode":
 		return &eval.IntEvaluator{
@@ -19249,6 +20563,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.mode":
 		return &eval.IntEvaluator{
@@ -19265,6 +20580,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.modification_time":
 		return &eval.IntEvaluator{
@@ -19281,6 +20597,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.mount_id":
 		return &eval.IntEvaluator{
@@ -19297,6 +20614,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.name":
 		return &eval.StringEvaluator{
@@ -19314,6 +20632,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.name.length":
 		return &eval.IntEvaluator{
@@ -19325,6 +20644,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.package.name":
 		return &eval.StringEvaluator{
@@ -19341,6 +20661,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -19357,6 +20678,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.package.version":
 		return &eval.StringEvaluator{
@@ -19373,6 +20695,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.path":
 		return &eval.StringEvaluator{
@@ -19390,6 +20713,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.path.length":
 		return &eval.IntEvaluator{
@@ -19401,6 +20725,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.rights":
 		return &eval.IntEvaluator{
@@ -19417,6 +20742,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.uid":
 		return &eval.IntEvaluator{
@@ -19433,6 +20759,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.file.user":
 		return &eval.StringEvaluator{
@@ -19449,6 +20776,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.fsgid":
 		return &eval.IntEvaluator{
@@ -19462,6 +20790,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.fsgroup":
 		return &eval.StringEvaluator{
@@ -19475,6 +20804,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.fsuid":
 		return &eval.IntEvaluator{
@@ -19488,6 +20818,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.fsuser":
 		return &eval.StringEvaluator{
@@ -19501,6 +20832,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.gid":
 		return &eval.IntEvaluator{
@@ -19514,6 +20846,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.group":
 		return &eval.StringEvaluator{
@@ -19527,6 +20860,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.change_time":
 		return &eval.IntEvaluator{
@@ -19543,6 +20877,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.filesystem":
 		return &eval.StringEvaluator{
@@ -19559,6 +20894,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.gid":
 		return &eval.IntEvaluator{
@@ -19575,6 +20911,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.group":
 		return &eval.StringEvaluator{
@@ -19591,6 +20928,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -19607,6 +20945,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -19623,6 +20962,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.inode":
 		return &eval.IntEvaluator{
@@ -19639,6 +20979,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.mode":
 		return &eval.IntEvaluator{
@@ -19655,6 +20996,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.modification_time":
 		return &eval.IntEvaluator{
@@ -19671,6 +21013,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
@@ -19687,6 +21030,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.name":
 		return &eval.StringEvaluator{
@@ -19704,6 +21048,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.name.length":
 		return &eval.IntEvaluator{
@@ -19715,6 +21060,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.package.name":
 		return &eval.StringEvaluator{
@@ -19731,6 +21077,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -19747,6 +21094,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.package.version":
 		return &eval.StringEvaluator{
@@ -19763,6 +21111,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.path":
 		return &eval.StringEvaluator{
@@ -19780,6 +21129,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.path.length":
 		return &eval.IntEvaluator{
@@ -19791,6 +21141,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.rights":
 		return &eval.IntEvaluator{
@@ -19807,6 +21158,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.uid":
 		return &eval.IntEvaluator{
@@ -19823,6 +21175,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.user":
 		return &eval.StringEvaluator{
@@ -19839,6 +21192,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.is_exec":
 		return &eval.BoolEvaluator{
@@ -19852,6 +21206,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.is_kworker":
 		return &eval.BoolEvaluator{
@@ -19865,6 +21220,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.is_thread":
 		return &eval.BoolEvaluator{
@@ -19878,6 +21234,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.pid":
 		return &eval.IntEvaluator{
@@ -19891,6 +21248,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.ppid":
 		return &eval.IntEvaluator{
@@ -19904,6 +21262,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.tid":
 		return &eval.IntEvaluator{
@@ -19917,6 +21276,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.tty_name":
 		return &eval.StringEvaluator{
@@ -19930,6 +21290,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.uid":
 		return &eval.IntEvaluator{
@@ -19943,6 +21304,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.user":
 		return &eval.StringEvaluator{
@@ -19956,6 +21318,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
@@ -19969,6 +21332,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.user_session.k8s_uid":
 		return &eval.StringEvaluator{
@@ -19982,6 +21346,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.parent.user_session.k8s_username":
 		return &eval.StringEvaluator{
@@ -19995,6 +21360,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.pid":
 		return &eval.IntEvaluator{
@@ -20005,6 +21371,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.ppid":
 		return &eval.IntEvaluator{
@@ -20015,6 +21382,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.tid":
 		return &eval.IntEvaluator{
@@ -20025,6 +21393,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.tty_name":
 		return &eval.StringEvaluator{
@@ -20035,6 +21404,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.uid":
 		return &eval.IntEvaluator{
@@ -20045,6 +21415,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.user":
 		return &eval.StringEvaluator{
@@ -20055,6 +21426,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
@@ -20065,6 +21437,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.user_session.k8s_uid":
 		return &eval.StringEvaluator{
@@ -20075,6 +21448,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.target.user_session.k8s_username":
 		return &eval.StringEvaluator{
@@ -20085,6 +21459,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "signal.type":
 		return &eval.IntEvaluator{
@@ -20095,6 +21470,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.change_time":
 		return &eval.IntEvaluator{
@@ -20105,6 +21481,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.filesystem":
 		return &eval.StringEvaluator{
@@ -20115,6 +21492,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.gid":
 		return &eval.IntEvaluator{
@@ -20125,6 +21503,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.group":
 		return &eval.StringEvaluator{
@@ -20135,6 +21514,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -20145,6 +21525,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -20155,6 +21536,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.inode":
 		return &eval.IntEvaluator{
@@ -20165,6 +21547,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.mode":
 		return &eval.IntEvaluator{
@@ -20175,6 +21558,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.modification_time":
 		return &eval.IntEvaluator{
@@ -20185,6 +21569,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.mount_id":
 		return &eval.IntEvaluator{
@@ -20195,6 +21580,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.name":
 		return &eval.StringEvaluator{
@@ -20206,6 +21592,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.name.length":
 		return &eval.IntEvaluator{
@@ -20217,6 +21604,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.package.name":
 		return &eval.StringEvaluator{
@@ -20227,6 +21615,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -20237,6 +21626,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.package.version":
 		return &eval.StringEvaluator{
@@ -20247,6 +21637,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.path":
 		return &eval.StringEvaluator{
@@ -20258,6 +21649,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.path.length":
 		return &eval.IntEvaluator{
@@ -20269,6 +21661,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.rights":
 		return &eval.IntEvaluator{
@@ -20279,6 +21672,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.uid":
 		return &eval.IntEvaluator{
@@ -20289,6 +21683,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "splice.file.user":
 		return &eval.StringEvaluator{
@@ -20299,6 +21694,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "splice.pipe_entry_flag":
 		return &eval.IntEvaluator{
@@ -20309,6 +21705,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "splice.pipe_exit_flag":
 		return &eval.IntEvaluator{
@@ -20319,6 +21716,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "splice.retval":
 		return &eval.IntEvaluator{
@@ -20329,6 +21727,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "sysctl.action":
 		return &eval.IntEvaluator{
@@ -20339,6 +21738,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "sysctl.file_position":
 		return &eval.IntEvaluator{
@@ -20349,6 +21749,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "sysctl.name":
 		return &eval.StringEvaluator{
@@ -20359,6 +21760,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "sysctl.name_truncated":
 		return &eval.BoolEvaluator{
@@ -20369,6 +21771,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "sysctl.old_value":
 		return &eval.StringEvaluator{
@@ -20379,6 +21782,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "sysctl.old_value_truncated":
 		return &eval.BoolEvaluator{
@@ -20389,6 +21793,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "sysctl.value":
 		return &eval.StringEvaluator{
@@ -20399,6 +21804,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "sysctl.value_truncated":
 		return &eval.BoolEvaluator{
@@ -20409,6 +21815,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.change_time":
 		return &eval.IntEvaluator{
@@ -20419,6 +21826,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.filesystem":
 		return &eval.StringEvaluator{
@@ -20429,6 +21837,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.gid":
 		return &eval.IntEvaluator{
@@ -20439,6 +21848,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.group":
 		return &eval.StringEvaluator{
@@ -20449,6 +21859,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -20459,6 +21870,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -20469,6 +21881,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.inode":
 		return &eval.IntEvaluator{
@@ -20479,6 +21892,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.mode":
 		return &eval.IntEvaluator{
@@ -20489,6 +21903,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.modification_time":
 		return &eval.IntEvaluator{
@@ -20499,6 +21914,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.mount_id":
 		return &eval.IntEvaluator{
@@ -20509,6 +21925,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.name":
 		return &eval.StringEvaluator{
@@ -20520,6 +21937,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.name.length":
 		return &eval.IntEvaluator{
@@ -20531,6 +21949,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.package.name":
 		return &eval.StringEvaluator{
@@ -20541,6 +21960,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -20551,6 +21971,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.package.version":
 		return &eval.StringEvaluator{
@@ -20561,6 +21982,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.path":
 		return &eval.StringEvaluator{
@@ -20572,6 +21994,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.path.length":
 		return &eval.IntEvaluator{
@@ -20583,6 +22006,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.rights":
 		return &eval.IntEvaluator{
@@ -20593,6 +22017,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.uid":
 		return &eval.IntEvaluator{
@@ -20603,6 +22028,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.file.user":
 		return &eval.StringEvaluator{
@@ -20613,6 +22039,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.flags":
 		return &eval.IntEvaluator{
@@ -20623,6 +22050,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.retval":
 		return &eval.IntEvaluator{
@@ -20633,6 +22061,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.syscall.dirfd":
 		return &eval.IntEvaluator{
@@ -20643,6 +22072,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.syscall.flags":
 		return &eval.IntEvaluator{
@@ -20653,6 +22083,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "unlink.syscall.path":
 		return &eval.StringEvaluator{
@@ -20663,6 +22094,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "unload_module.name":
 		return &eval.StringEvaluator{
@@ -20673,6 +22105,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "unload_module.retval":
 		return &eval.IntEvaluator{
@@ -20683,6 +22116,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.change_time":
 		return &eval.IntEvaluator{
@@ -20693,6 +22127,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.filesystem":
 		return &eval.StringEvaluator{
@@ -20703,6 +22138,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.gid":
 		return &eval.IntEvaluator{
@@ -20713,6 +22149,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.group":
 		return &eval.StringEvaluator{
@@ -20723,6 +22160,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.hashes":
 		return &eval.StringArrayEvaluator{
@@ -20733,6 +22171,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -20743,6 +22182,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.inode":
 		return &eval.IntEvaluator{
@@ -20753,6 +22193,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.mode":
 		return &eval.IntEvaluator{
@@ -20763,6 +22204,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.modification_time":
 		return &eval.IntEvaluator{
@@ -20773,6 +22215,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.mount_id":
 		return &eval.IntEvaluator{
@@ -20783,6 +22226,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.name":
 		return &eval.StringEvaluator{
@@ -20794,6 +22238,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.name.length":
 		return &eval.IntEvaluator{
@@ -20805,6 +22250,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.package.name":
 		return &eval.StringEvaluator{
@@ -20815,6 +22261,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.package.source_version":
 		return &eval.StringEvaluator{
@@ -20825,6 +22272,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.package.version":
 		return &eval.StringEvaluator{
@@ -20835,6 +22283,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.path":
 		return &eval.StringEvaluator{
@@ -20846,6 +22295,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.path.length":
 		return &eval.IntEvaluator{
@@ -20857,6 +22307,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.rights":
 		return &eval.IntEvaluator{
@@ -20867,6 +22318,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.uid":
 		return &eval.IntEvaluator{
@@ -20877,6 +22329,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.file.user":
 		return &eval.StringEvaluator{
@@ -20887,6 +22340,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.retval":
 		return &eval.IntEvaluator{
@@ -20897,6 +22351,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
 		}, nil
 	case "utimes.syscall.path":
 		return &eval.StringEvaluator{
@@ -20907,6 +22362,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
 		}, nil
 	}
 	return nil, &eval.ErrFieldNotFound{Field: field}
@@ -22373,7 +23829,7 @@ func (ev *Event) GetFields() []eval.Field {
 }
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	m := &Model{}
-	evaluator, err := m.GetEvaluator(field, "")
+	evaluator, err := m.GetEvaluator(field, "", 0)
 	if err != nil {
 		return nil, err
 	}

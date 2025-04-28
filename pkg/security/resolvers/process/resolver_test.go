@@ -9,20 +9,82 @@
 package process
 
 import (
+	"encoding/binary"
+	"errors"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
+
+type fakeEBPMap struct {
+	data map[string]interface{}
+}
+
+func newFakeEBPMap() *fakeEBPMap {
+	return &fakeEBPMap{
+		data: make(map[string]interface{}),
+	}
+}
+
+func (f *fakeEBPMap) marshal(i interface{}) ([]byte, error) {
+	switch value := i.(type) {
+	case []byte:
+		return value, nil
+	case uint32:
+		return binary.NativeEndian.AppendUint32(make([]byte, 0, 4), value), nil
+	case uint64:
+		return binary.NativeEndian.AppendUint64(make([]byte, 0, 8), value), nil
+	default:
+		return nil, fmt.Errorf("unsupported type %T", value)
+	}
+}
+
+func (f *fakeEBPMap) LookupBytes(key interface{}) ([]byte, error) {
+	keyB, err := f.marshal(key)
+	if err != nil {
+		return nil, err
+	}
+
+	if value, ok := f.data[string(keyB)]; ok {
+		if b, ok := value.([]byte); ok {
+			return b, nil
+		}
+	}
+	return nil, errors.New("not found")
+}
+
+func (f *fakeEBPMap) Put(key, value interface{}) error {
+	keyB, err := f.marshal(key)
+	if err != nil {
+		return err
+	}
+
+	f.data[string(keyB)] = value
+	return nil
+}
+
+func (f *fakeEBPMap) Delete(key interface{}) error {
+	keyB, err := f.marshal(key)
+	if err != nil {
+		return err
+	}
+
+	delete(f.data, string(keyB))
+	return nil
+}
 
 func newFakeForkEvent(ppid, pid int, inode uint64, resolver *EBPFResolver) *model.Event {
 	e := model.NewFakeEvent()
@@ -83,7 +145,9 @@ func newResolver() (*EBPFResolver, error) {
 		return nil, err
 	}
 
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, cgroupsResolver, userGroupResolver, timeResolver, &path.NoOpResolver{}, nil, NewResolverOpts())
+	containerResolver := container.New()
+
+	resolver, err := NewEBPFResolver(nil, &config.Config{}, &statsd.NoOpClient{}, nil, containerResolver, nil, cgroupsResolver, userGroupResolver, timeResolver, &path.NoOpResolver{}, nil, NewResolverOpts())
 	if err != nil {
 		return nil, err
 	}
@@ -230,6 +294,27 @@ func TestForkExec(t *testing.T) {
 	resolver.DeleteEntry(child.ProcessContext.Pid, child.ResolveEventTime())
 	assert.Zero(t, len(resolver.entryCache))
 	testCacheSize(t, resolver)
+}
+
+func TestResolveFromProcfs(t *testing.T) {
+	resolver, err := newResolver()
+	if err != nil {
+		t.Fatal()
+	}
+	resolver.procCacheMap = newFakeEBPMap()
+	resolver.pidCacheMap = newFakeEBPMap()
+	resolver.inodeFileMap = newFakeEBPMap()
+
+	// use self pid so that the procfs entry exists and we have the permissions to read it
+	pid := os.Getpid()
+
+	t.Run("sanitize-inode", func(t *testing.T) {
+		entry := resolver.resolveFromProcfs(uint32(pid), 222, 1, func(pce *model.ProcessCacheEntry, _ error) {
+			assert.Equal(t, uint64(222), pce.FileEvent.Inode)
+			assert.True(t, pce.IsParentMissing)
+		})
+		assert.NotNil(t, entry)
+	})
 }
 
 func TestOrphanExec(t *testing.T) {
@@ -746,7 +831,7 @@ func TestIsExecExecSnapshot(t *testing.T) {
 	child3 := newFakeExecEvent(3, 4, 769, resolver)
 
 	// X(pid:3)
-	resolver.insertEntry(parent.ProcessCacheEntry, nil, model.ProcessCacheEntryFromSnapshot)
+	resolver.insertEntry(parent.ProcessCacheEntry, model.ProcessCacheEntryFromSnapshot)
 	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 
@@ -754,7 +839,7 @@ func TestIsExecExecSnapshot(t *testing.T) {
 	//    |
 	// X(pid:4)
 	resolver.setAncestor(child.ProcessCacheEntry)
-	resolver.insertEntry(child.ProcessCacheEntry, nil, model.ProcessCacheEntryFromSnapshot)
+	resolver.insertEntry(child.ProcessCacheEntry, model.ProcessCacheEntryFromSnapshot)
 	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)

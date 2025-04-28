@@ -110,6 +110,12 @@ type SpanContext struct {
 	TraceID utils.TraceID `field:"-"`
 }
 
+// RuleContext defines a rule context
+type RuleContext struct {
+	Expression       string                `field:"-"`
+	MatchingSubExprs eval.MatchingSubExprs `field:"-"`
+}
+
 // BaseEvent represents an event sent from the kernel
 type BaseEvent struct {
 	ID            string         `field:"-"`
@@ -118,13 +124,14 @@ type BaseEvent struct {
 	TimestampRaw  uint64         `field:"event.timestamp,handler:ResolveEventTimestamp"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
 	Timestamp     time.Time      `field:"timestamp,opts:getters_only|gen_getters,handler:ResolveEventTime"`
 	Rules         []*MatchedRule `field:"-"`
+	RuleContext   RuleContext    `field:"-"`
 	ActionReports []ActionReport `field:"-"`
 	Os            string         `field:"event.os"`                                                      // SECLDoc[event.os] Definition:`Operating system of the event`
 	Origin        string         `field:"event.origin"`                                                  // SECLDoc[event.origin] Definition:`Origin of the event`
 	Service       string         `field:"event.service,handler:ResolveService,opts:skip_ad|gen_getters"` // SECLDoc[event.service] Definition:`Service associated with the event`
 	Hostname      string         `field:"event.hostname,handler:ResolveHostname"`                        // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
 
-	// context shared with all events
+	// context shared with all event types
 	ProcessContext         *ProcessContext        `field:"process"`
 	ContainerContext       *ContainerContext      `field:"container"`
 	SecurityProfileContext SecurityProfileContext `field:"-"`
@@ -454,8 +461,8 @@ func (pc *ProcessCacheEntry) callReleaseCallbacks() {
 
 // Release decrement and eventually release the entry
 func (pc *ProcessCacheEntry) Release() {
-	pc.refCount--
-	if pc.refCount > 0 {
+	if pc.refCount > 1 {
+		pc.refCount--
 		return
 	}
 
@@ -600,7 +607,10 @@ type BaseExtraFieldHandlers interface {
 }
 
 // ResolveProcessCacheEntry stub implementation
-func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event, _ func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool) {
+func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(ev *Event, _ func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool) {
+	if ev.ProcessCacheEntry != nil {
+		return ev.ProcessCacheEntry, true
+	}
 	return nil, false
 }
 

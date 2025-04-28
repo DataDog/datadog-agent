@@ -308,7 +308,7 @@ func (l *SNMPListener) checkDevices() {
 		for i := range subnets {
 			// Use `&subnets[i]` to pass the correct pointer address to snmpJob{}
 			subnet = &subnets[i]
-			subnet.devicesScannedCounter.Store(0)
+			subnet.devicesScannedCounter.Store(uint32(len(subnet.config.IgnoredIPAddresses)))
 			startingIP := make(net.IP, len(subnet.startingIP))
 			copy(startingIP, subnet.startingIP)
 			for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {

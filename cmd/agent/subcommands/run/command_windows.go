@@ -133,7 +133,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			jmxlogger jmxlogger.Component,
 			settings settings.Component,
 			_ option.Option[gui.Component],
-			_ agenttelemetry.Component,
+			agenttelemetryComponent agenttelemetry.Component,
 		) error {
 			defer StopAgentWithDefaults()
 
@@ -162,6 +162,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				cloudfoundrycontainer,
 				jmxlogger,
 				settings,
+				agenttelemetryComponent,
 			)
 			if err != nil {
 				return err

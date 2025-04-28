@@ -12,19 +12,12 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Module defines the fx options for this component.
@@ -35,13 +28,7 @@ func Module() fxutil.Module {
 
 type apiServer struct {
 	cfg               config.Component
-	secretResolver    secrets.Component
 	authToken         authtoken.Component
-	taggerComp        tagger.Component
-	autoConfig        autodiscovery.Component
-	wmeta             workloadmeta.Component
-	collector         option.Option[collector.Component]
-	senderManager     diagnosesendermanager.Component
 	cmdListener       net.Listener
 	ipcListener       net.Listener
 	telemetry         telemetry.Component
@@ -52,18 +39,12 @@ type apiServer struct {
 type dependencies struct {
 	fx.In
 
-	Lc                    fx.Lifecycle
-	SecretResolver        secrets.Component
-	AuthToken             authtoken.Component
-	Tagger                tagger.Component
-	Cfg                   config.Component
-	AutoConfig            autodiscovery.Component
-	WorkloadMeta          workloadmeta.Component
-	Collector             option.Option[collector.Component]
-	DiagnoseSenderManager diagnosesendermanager.Component
-	Telemetry             telemetry.Component
-	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
-	GrpcComponent         grpc.Component
+	Lc                fx.Lifecycle
+	AuthToken         authtoken.Component
+	Cfg               config.Component
+	Telemetry         telemetry.Component
+	EndpointProviders []api.EndpointProvider `group:"agent_endpoint"`
+	GrpcComponent     grpc.Component
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -71,14 +52,8 @@ var _ api.Component = (*apiServer)(nil)
 func newAPIServer(deps dependencies) api.Component {
 
 	server := apiServer{
-		secretResolver:    deps.SecretResolver,
 		authToken:         deps.AuthToken,
-		taggerComp:        deps.Tagger,
 		cfg:               deps.Cfg,
-		autoConfig:        deps.AutoConfig,
-		wmeta:             deps.WorkloadMeta,
-		collector:         deps.Collector,
-		senderManager:     deps.DiagnoseSenderManager,
 		telemetry:         deps.Telemetry,
 		endpointProviders: fxutil.GetAndFilterGroup(deps.EndpointProviders),
 		grpcComponent:     deps.GrpcComponent,

@@ -79,7 +79,7 @@ def extract_rpm_package(ctx, package_path, extract_dir):
 
 def extract_zip_archive(ctx, package_path, extract_dir):
     with ctx.cd(extract_dir):
-        ctx.run(f"unzip {package_path}")
+        ctx.run(f"unzip {package_path}", hide=True)
 
 
 def extract_dmg_archive(ctx, package_path, extract_dir):

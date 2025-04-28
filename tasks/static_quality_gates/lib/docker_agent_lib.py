@@ -36,7 +36,8 @@ def get_image_url_size(ctx, metric_handler, gate_name, url):
     image_on_wire_size = ctx.run(
         "DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect -v "
         + url
-        + " | grep size | awk -F ':' '{sum+=$NF} END {printf(\"%d\",sum)}'"
+        + " | grep size | awk -F ':' '{sum+=$NF} END {printf(\"%d\",sum)}'",
+        hide=True,
     )
     image_on_wire_size = int(image_on_wire_size.stdout)
     # Calculate image on disk size

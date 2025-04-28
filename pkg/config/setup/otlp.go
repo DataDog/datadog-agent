@@ -43,22 +43,25 @@ func OTLP(config pkgconfigmodel.Setup) {
 		"DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
 	config.BindEnvAndSetDefault("otlp_config.traces.internal_port", 5003)
 
+	// TODO(OTAGENT-378): Fix OTLP ingestion configs so that they can have default values
+	// For now do NOT add default values for any config under otlp_config.receiver, that will force the OTLP ingestion pipelines to always start
+
 	// gRPC settings
-	config.BindEnv("otlp_config.receiver.protocols.grpc.endpoint")                              // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.receiver.protocols.grpc.transport")                             // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib")                 // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.receiver.protocols.grpc.max_concurrent_streams")                // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.receiver.protocols.grpc.read_buffer_size")                      // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.receiver.protocols.grpc.write_buffer_size")                     // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.receiver.protocols.grpc.include_metadata")                      // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.receiver.protocols.grpc.keepalive.enforcement_policy.min_time") // TODO OTLP team: add default value
+	config.BindEnv("otlp_config.receiver.protocols.grpc.endpoint")
+	config.BindEnv("otlp_config.receiver.protocols.grpc.transport")
+	config.BindEnv("otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib")
+	config.BindEnv("otlp_config.receiver.protocols.grpc.max_concurrent_streams")
+	config.BindEnv("otlp_config.receiver.protocols.grpc.read_buffer_size")
+	config.BindEnv("otlp_config.receiver.protocols.grpc.write_buffer_size")
+	config.BindEnv("otlp_config.receiver.protocols.grpc.include_metadata")
+	config.BindEnv("otlp_config.receiver.protocols.grpc.keepalive.enforcement_policy.min_time")
 
 	// HTTP settings
-	config.BindEnv("otlp_config.receiver.protocols.http.endpoint")              // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.receiver.protocols.http.max_request_body_size") // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.receiver.protocols.http.include_metadata")      // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.receiver.protocols.http.cors.allowed_headers")  // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.receiver.protocols.http.cors.allowed_origins")  // TODO OTLP team: add default value
+	config.BindEnv("otlp_config.receiver.protocols.http.endpoint")
+	config.BindEnv("otlp_config.receiver.protocols.http.max_request_body_size")
+	config.BindEnv("otlp_config.receiver.protocols.http.include_metadata")
+	config.BindEnv("otlp_config.receiver.protocols.http.cors.allowed_headers")
+	config.BindEnv("otlp_config.receiver.protocols.http.cors.allowed_origins")
 
 	// Metrics settings
 	config.BindEnv("otlp_config.metrics.tags") // TODO OTLP team: add default value

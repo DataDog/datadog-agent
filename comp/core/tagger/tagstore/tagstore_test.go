@@ -152,7 +152,7 @@ func (s *StoreTestSuite) TestLookupStandard() {
 	assert.Contains(s.T(), standard, "env:dev")
 	assert.Contains(s.T(), standard, "service:foo")
 
-	_, err = s.tagstore.LookupStandard(types.NewEntityID("not", "found"))
+	_, err = s.tagstore.LookupStandard(types.NewEntityID(types.ContainerID, "not found"))
 	assert.NotNil(s.T(), err)
 }
 

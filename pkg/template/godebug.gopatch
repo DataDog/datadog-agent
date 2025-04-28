@@ -1,0 +1,8 @@
+@@
+var x identifier
+@@
+# couldn't remove the variable entirely, but at least it removes the godebug import
+import "internal/godebug"
+
+-var x = godebug.New(...)
++var x = 0

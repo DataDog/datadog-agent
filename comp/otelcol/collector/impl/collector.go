@@ -43,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
@@ -58,7 +59,8 @@ type collectorImpl struct {
 type Requires struct {
 	// Lc specifies the compdef lifecycle settings, used for appending startup
 	// and shutdown hooks.
-	Lc compdef.Lifecycle
+	Lc         compdef.Lifecycle
+	Shutdowner compdef.Shutdowner
 
 	CollectorContrib collectorcontrib.Component
 	URIs             []string
@@ -131,20 +133,27 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 	} else {
 		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage)
 	}
-	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger)
-	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactoryForAgent(reqs.Tagger)
+	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, hostname.Get)
+	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactoryForAgent(reqs.Tagger, hostname.Get)
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
 	factories.Extensions[ddprofilingextension.Type] = ddprofilingextension.NewFactoryForAgent(reqs.TraceAgent, reqs.Log)
 }
 
 var buildInfo = component.BuildInfo{
-	Version:     "v0.121.0",
+	Version:     "v0.123.0",
 	Command:     filepath.Base(os.Args[0]),
 	Description: "Datadog Agent OpenTelemetry Collector",
 }
 
 // NewComponent returns a new instance of the collector component with full Agent functionalities.
 func NewComponent(reqs Requires) (Provides, error) {
+	if !reqs.Config.GetBool("otelcollector.enabled") {
+		reqs.Log.Info("*** OpenTelemetry Collector is not enabled, exiting application ***. Set the config option `otelcollector.enabled` or the environment variable `DD_OTELCOLLECTOR_ENABLED` at true to enable it.")
+		// Required to signal that the whole app must stop.
+		_ = reqs.Shutdowner.Shutdown()
+		return Provides{}, nil
+	}
+
 	factories, err := reqs.CollectorContrib.OTelComponentFactories()
 	if err != nil {
 		return Provides{}, err

@@ -180,6 +180,25 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 		}
 	}()
 
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
+
+		ruleSetCleanupTicker := time.NewTicker(5 * time.Minute)
+		defer ruleSetCleanupTicker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ruleSetCleanupTicker.C:
+				if ruleSet := e.GetRuleSet(); ruleSet != nil {
+					ruleSet.CleanupExpiredVariables()
+				}
+			}
+		}
+	}()
+
 	for _, provider := range e.policyProviders {
 		provider.Start()
 	}
@@ -466,7 +485,7 @@ func (e *RuleEngine) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, fi
 }
 
 // RuleMatch is called by the ruleset when a rule matches
-func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
+func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.Event) bool {
 	ev := event.(*model.Event)
 
 	// add matched rules before any auto suppression check to ensure that this information is available in activity dumps
@@ -511,6 +530,9 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 			}
 		}
 	}
+
+	ev.RuleContext.Expression = rule.Expression
+	ev.RuleContext.MatchingSubExprs = ctx.GetMatchingSubExprs()
 
 	e.eventSender.SendEvent(rule, ev, extTagsCb, service)
 

@@ -50,7 +50,7 @@ func (i *InstallerExec) newInstallerCmdCustomPath(ctx context.Context, command s
 	// Enforce the use of the installer when it is bundled with the agent.
 	env = append(env, "DD_BUNDLED_AGENT=installer")
 	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
-	span.SetTag("args", args)
+	span.SetTag("args", strings.Join(args, " "))
 	cmd := exec.CommandContext(ctx, path, append([]string{command}, args...)...)
 	env = append(os.Environ(), env...)
 	env = append(env, telemetry.EnvFromContext(ctx)...)
@@ -327,9 +327,9 @@ func (iCmd *installerCmd) Run() error {
 	return fmt.Errorf("run failed: %w \n%s", installerError, err.Error())
 }
 
-// Postinst runs post install scripts for a given package.
-func (i *InstallerExec) Postinst(ctx context.Context, pkg string, caller string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "postinst", pkg, caller)
+// RunHook runs a hook for a given package.
+func (i *InstallerExec) RunHook(ctx context.Context, hookContext string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "hooks", hookContext)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }

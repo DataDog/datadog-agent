@@ -683,6 +683,37 @@ func TestAggregationVersionData(t *testing.T) {
 	})
 }
 
+func TestAggregationProcessTags(t *testing.T) {
+	assert := assert.New(t)
+	a := newTestAggregator()
+	msw := &mockStatsWriter{}
+	a.writer = msw
+	testTime := time.Unix(time.Now().Unix(), 0)
+
+	bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
+	c1 := payloadWithCounts(testTime, bak, "", "test-version", "abc", "abc123", 11, 7, 100)
+	c1.ProcessTags = "a:1,b:2,c:3"
+	c2 := payloadWithCounts(testTime, bak, "", "test-version", "abc", "abc123", 11, 7, 100)
+	c2.ProcessTags = "b:33"
+
+	assert.Len(msw.payloads, 0)
+	a.add(testTime, deepCopy(c1))
+	a.add(testTime, deepCopy(c2))
+	assert.Len(msw.payloads, 0)
+	a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+	require.Len(t, msw.payloads, 1)
+
+	aggCounts := msw.payloads[0]
+	assertAggCountsPayload(t, aggCounts)
+
+	assert.Len(aggCounts.Stats, 2)
+	resProcessTags := []string{aggCounts.Stats[0].ProcessTags, aggCounts.Stats[1].ProcessTags}
+	resProcessTagsHash := []uint64{aggCounts.Stats[0].ProcessTagsHash, aggCounts.Stats[1].ProcessTagsHash}
+	assert.ElementsMatch([]string{"a:1,b:2,c:3", "b:33"}, resProcessTags)
+	assert.ElementsMatch([]uint64{7030721150995765661, 6360281807028847755}, resProcessTagsHash)
+	assert.Len(a.buckets, 0)
+}
+
 func TestAggregationContainerID(t *testing.T) {
 	t.Run("ContainerID empty", func(t *testing.T) {
 		assert := assert.New(t)
@@ -776,6 +807,8 @@ func deepCopy(p *pb.ClientStatsPayload) *pb.ClientStatsPayload {
 		Tags:             p.GetTags(),
 		GitCommitSha:     p.GetGitCommitSha(),
 		ImageTag:         p.GetImageTag(),
+		ProcessTags:      p.GetProcessTags(),
+		ProcessTagsHash:  p.GetProcessTagsHash(),
 	}
 	payload.Stats = deepCopyStatsBucket(p.Stats)
 	return payload

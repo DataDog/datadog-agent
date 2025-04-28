@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -29,8 +29,8 @@ func Test_BoolToFloat64(t *testing.T) {
 }
 
 func Test_getAgentTags(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "my-host")
-	defer pkgconfigsetup.Datadog().SetWithoutSource("hostname", "")
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("hostname", "my-host")
 
 	assert.Equal(t, []string{
 		"agent_host:my-host",

@@ -31,11 +31,6 @@ jobs:
         # Fetch all history for applying timestamps to every page
         fetch-depth: 0
 
-    - name: Set up Python
-      uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
-      with:
-        python-version-file: .python-version
-
     - name: Install dda
       uses: ./.github/actions/install-dda
       with:

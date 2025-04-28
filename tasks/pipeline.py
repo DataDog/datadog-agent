@@ -153,7 +153,6 @@ def run(
     ctx,
     git_ref="",
     here=False,
-    use_release_entry=False,
     major_versions=None,
     repo_branch="dev",
     deploy=False,
@@ -176,9 +175,6 @@ def run(
     Release Candidate related flags:
     Use --rc-build to mark the build as Release Candidate.
     Use --rc-k8s-deployments to trigger a child pipeline that will deploy Release Candidate build to staging k8s clusters.
-
-    By default, the nightly release.json entry is used.
-    Use the --use-release-entry option to use the release release.json entry instead.
 
     By default, the pipeline builds both Agent 6 and Agent 7.
     Use the --major-versions option to specify a comma-separated string of the major Agent versions to build
@@ -203,15 +199,13 @@ def run(
       dda inv pipeline.run --here --e2e-tests
 
     Run a deploy pipeline on the 7.32.0 tag, uploading the artifacts to the stable branch of the staging repositories:
-      dda inv pipeline.run --deploy --use-release-entries --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
+      dda inv pipeline.run --deploy --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
     """
 
     repo = get_gitlab_repo()
 
     if (git_ref == "" and not here) or (git_ref != "" and here):
         raise Exit("ERROR: Exactly one of --here or --git-ref <git ref> must be specified.", code=1)
-
-    release_version = "release" if use_release_entry else "nightly"
 
     if major_versions:
         print(
@@ -259,7 +253,6 @@ def run(
         pipeline = trigger_agent_pipeline(
             repo,
             git_ref,
-            release_version,
             repo_branch,
             deploy=deploy,
             deploy_installer=deploy_installer,
@@ -850,25 +843,31 @@ def compare_to_itself(ctx):
 
     release_json = load_release_json()
 
-    for file in ['.gitlab-ci.yml', '.gitlab/notify/notify.yml']:
-        with open(file) as f:
-            content = f.read()
-        with open(file, 'w') as f:
-            f.write(content.replace(f'compare_to: {release_json["base_branch"]}', f'compare_to: {new_branch}'))
+    with open('.gitlab-ci.yml', 'r+') as f:
+        content = f.read()
+        f.write(
+            content.replace(f'COMPARE_TO_BRANCH: {release_json["base_branch"]}', f'COMPARE_TO_BRANCH: {new_branch}')
+        )
 
     ctx.run("git commit -am 'Commit to compare to itself'", hide=True)
     ctx.run(f"git push origin {new_branch}", hide=True)
     max_attempts = 6
     compare_to_pipeline = None
     for attempt in range(max_attempts):
-        print(f"[{datetime.now()}] Waiting 30s for the pipelines to be created")
+        print(f"[{datetime.now()}] Waiting 30s for the pipelines to be created {attempt + 1}/{max_attempts}")
         time.sleep(30)
         pipelines = agent.pipelines.list(ref=new_branch, get_all=True)
         for pipeline in pipelines:
             commit = agent.commits.get(pipeline.sha)
-            if commit.author_name == BOT_NAME:
-                compare_to_pipeline = pipeline
-                print(f"Test pipeline found: {pipeline.web_url}")
+            if commit.author_name == BOT_NAME and commit.title == "Commit to compare to itself":
+                if pipeline.status == "skipped":
+                    # DDCI: we need to trigger the pipeline
+                    print(f"Triggering the CI execution for {new_branch}")
+                    trigger_agent_pipeline(repo=agent, ref=new_branch)
+                    continue
+                else:
+                    compare_to_pipeline = pipeline
+                    print(f"Test pipeline found: {pipeline.web_url}")
         if compare_to_pipeline:
             break
         if attempt == max_attempts - 1:

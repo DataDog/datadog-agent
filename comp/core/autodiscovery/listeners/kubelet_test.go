@@ -141,6 +141,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 
 	podWithMetricsExcludeAnnotation := podWithAnnotations.DeepCopy().(*workloadmeta.KubernetesPod)
 	podWithMetricsExcludeAnnotation.Annotations[fmt.Sprintf("ad.datadoghq.com/%s.metrics_exclude", containerName)] = `true`
+	podWithMetricsExcludeAnnotation.Annotations[tolerateUnreadyAnnotation] = `true`
 
 	podWithLogsExcludeAnnotation := podWithAnnotations.DeepCopy().(*workloadmeta.KubernetesPod)
 	podWithLogsExcludeAnnotation.Annotations[fmt.Sprintf("ad.datadoghq.com/%s.logs_exclude", containerName)] = `true`
@@ -472,6 +473,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						},
 						metricsExcluded: true,
 						tagger:          taggerComponent,
+						ready:           true,
 					},
 				},
 			},

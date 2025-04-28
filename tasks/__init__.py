@@ -50,6 +50,7 @@ from tasks import (
     owners,
     package,
     pipeline,
+    pkg_template,
     pre_commit,
     process_agent,
     protobuf,
@@ -225,6 +226,7 @@ ns.add_collection(winbuild)
 ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
 ns.add_collection(sbomgen)
+ns.add_collection(pkg_template)
 ns.configure(
     {
         "run": {

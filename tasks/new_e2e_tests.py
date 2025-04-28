@@ -93,6 +93,7 @@ def run(
     logs_folder="e2e_logs",
     local_package="",
     result_json=DEFAULT_E2E_TEST_OUTPUT_JSON,
+    rerun_fails=None,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -122,6 +123,7 @@ def run(
                 code=1,
             )
         parsed_params[parts[0]] = parts[1]
+
     if local_package:
         parsed_params["ddagent:localPackage"] = local_package
 
@@ -155,7 +157,7 @@ def run(
             # Using custom go command piped with scrubber sed instructions https://github.com/gotestyourself/gotestsum#custom-go-test-command
             f"--raw-command {os.path.join(os.path.dirname(__file__), 'tools', 'gotest-scrubbed.sh')} {{packages}}"
         )
-    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {scrubber_raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
+    cmd += f'{{junit_file_flag}} {{json_flag}} {{rerun_fails}} --packages="{{packages}}" {scrubber_raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
 
     # Strings can come with extra double-quotes which can break the command, remove them
     clean_run = []
@@ -186,6 +188,7 @@ def run(
         "src_agent_version": f"-src-agent-version {src_agent_version}" if src_agent_version else "",
         "dest_agent_version": f"-dest-agent-version {dest_agent_version}" if dest_agent_version else "",
         "keep_stacks": '-keep-stacks' if keep_stacks else "",
+        "rerun_fails": f"--rerun-fails={rerun_fails}" if rerun_fails else "",
         "extra_flags": extra_flags,
     }
 

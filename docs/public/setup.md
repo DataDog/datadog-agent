@@ -103,23 +103,21 @@ To build the agent on Windows, see [datadog-agent-buildimages](https://github.co
 
 ### Python
 
-The Agent embeds a full-fledged CPython interpreter so it requires the development files to be available in the dev env. The Agent can embed Python 2 and/or Python 3, you will need development files for all versions you want to support.
+The Agent embeds a full-fledged CPython interpreter so it requires the development files to be available in the dev env. The Agent can embed Python 3, you will need development files for the version you want to support.
 
-If you're on OSX/macOS, installing Python 2.7 and/or 3.12 with [Homebrew](https://brew.sh):
+If you're on OSX/macOS, installing 3.12 with [Homebrew](https://brew.sh):
 
 ```
-brew install python@2
 brew install python@3.12
 ```
 
 On Linux, depending on the distribution, you might need to explicitly install the development files, for example on Ubuntu:
 
 ```
-sudo apt-get install python2.7-dev
 sudo apt-get install python3.12-dev
 ```
 
-On Windows, install Python 2.7 and/or 3.12 via the [official installer](https://www.python.org/downloads/) brings along all the development files needed:
+On Windows, install 3.12 via the [official installer](https://www.python.org/downloads/) brings along all the development files needed:
 
 !!! warning
     If you don't use one of the Python versions that are explicitly supported, you may have problems running the built Agent's Python checks, especially if using a virtualenv. At this time, only Python 3.12 is confirmed to work as expected in the development environment.
@@ -216,7 +214,7 @@ To install it, run:
 
 ```sh
 python3 -m pip install pre-commit
-pre-commit install
+GOFLAGS=-buildvcs=false pre-commit install  # buildvcs avoids errors when getting go dependencies
 ```
 
 The `shellcheck` pre-commit hook requires having the `shellcheck` binary installed and in your `$PATH`. To install it, run:

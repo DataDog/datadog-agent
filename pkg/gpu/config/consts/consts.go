@@ -10,3 +10,12 @@ package consts
 
 // GPUNS is the namespace for the GPU monitoring probe.
 const GPUNS = "gpu_monitoring"
+
+// GpuAttacherName is the name of the uprobe attacher for GPU monitoring.
+const GpuAttacherName = GpuModuleName
+
+// GpuTelemetryModule is the telemetry prefix used for the GPU monitoring probe.
+const GpuTelemetryModule = GpuModuleName
+
+// GpuModuleName is the name of the GPU monitoring module, used for identifying it in the registry debuggers
+const GpuModuleName = "gpu"

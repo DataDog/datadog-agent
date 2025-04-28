@@ -1,0 +1,26 @@
+fullnameOverride: dda-linux-apikeyrefresh
+datadog:
+  kubelet:
+    tlsVerify: false
+
+agents:
+  useHostNetwork: true
+
+clusterAgent:
+  enabled: true
+  env:
+    - name: DD_SECRET_REFRESH_INTERVAL
+      value: "5"
+    - name: DD_SECRET_BACKEND_COMMAND
+      value: /readsecret_multiple_providers.sh
+    - name: DD_API_KEY
+      value: "ENC[file@/etc/secret-volume/apikey]"
+    - name: DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL
+      value: "%s"
+  volumes:
+    - name: secret-volume
+      secret:
+        secretName: apikeyrefresh
+  volumeMounts:
+    - name: secret-volume
+      mountPath: /etc/secret-volume

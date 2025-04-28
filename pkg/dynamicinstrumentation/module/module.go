@@ -10,9 +10,9 @@ package module
 import (
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	di "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation"
@@ -77,7 +77,7 @@ func (m *Module) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests,
 		func(w http.ResponseWriter, _ *http.Request) {
 			stats := []string{}
-			utils.WriteAsJSON(w, stats)
+			utils.WriteAsJSON(w, stats, utils.CompactOutput)
 		}))
 
 	log.Info("Registering dynamic instrumentation module")

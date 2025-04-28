@@ -45,7 +45,7 @@ const (
 	location          = "location"
 	projectID         = "project_id"
 	resourceName      = "resource_name"
-	functionTarget    = "function_target"
+	functionTarget    = "build_function_target"
 	functionSignature = "function_signature_type"
 )
 

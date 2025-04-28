@@ -7,6 +7,13 @@
 
 SEC("classifier/raw_packet_sender")
 int classifier_raw_packet_sender(struct __sk_buff *skb) {
+    u64 rate = 10;
+    LOAD_CONSTANT("raw_packet_limiter_rate", rate);
+
+    if (!global_limiter_allow(RAW_PACKET_LIMITER, rate, 1)) {
+        return ACT_OK;
+    }
+
     struct packet_t *pkt = get_packet();
     if (pkt == NULL) {
         // should never happen

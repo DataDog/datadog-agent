@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 )
 
 func TestGetVisibleDevices(t *testing.T) {

@@ -5,4 +5,5 @@ protobuf_test:
   needs: []
   script:
     - dda inv -- install-tools
-    - dda inv -- -e protobuf.generate
+    # Run protobuf generation in pre-commit mode to ensure that it fails if the files are not up to date
+    - dda inv -- -e protobuf.generate --pre-commit

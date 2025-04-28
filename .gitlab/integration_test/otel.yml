@@ -26,7 +26,7 @@ docker_image_build_otel:
     - !reference [.retrieve_linux_go_deps]
     - mkdir -p /tmp/otel-ci
     - cp comp/otelcol/collector-contrib/impl/manifest.yaml /tmp/otel-ci/
-    - cp Dockerfiles/agent-ot/Dockerfile.agent-otel /tmp/otel-ci/
+    - cp Dockerfiles/agent-ddot/Dockerfile.agent-otel /tmp/otel-ci/
     - cp test/integration/docker/otel_agent_build_tests.py /tmp/otel-ci/
     - wget https://github.com/mikefarah/yq/releases/download/3.4.1/yq_linux_amd64 -O
       /usr/bin/yq && chmod +x /usr/bin/yq
@@ -42,7 +42,6 @@ docker_image_build_otel:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-
 
 datadog_otel_components_ocb_build:
   stage: integration_test

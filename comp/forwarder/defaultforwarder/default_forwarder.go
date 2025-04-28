@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -122,7 +121,8 @@ func ToggleFeature(features, flag Features) Features { return features ^ flag }
 func HasFeature(features, flag Features) bool { return features&flag != 0 }
 
 // NewOptions creates new Options with default values
-func NewOptions(config config.Component, log log.Component, keysPerDomain map[string][]string) *Options {
+func NewOptions(config config.Component, log log.Component, keysPerDomain map[string][]utils.APIKeys) *Options {
+
 	resolvers := pkgresolver.NewSingleDomainResolvers(keysPerDomain)
 	vectorMetricsURL, err := pkgconfigsetup.GetObsPipelineURL(pkgconfigsetup.Metrics, config)
 	if err != nil {
@@ -130,17 +130,26 @@ func NewOptions(config config.Component, log log.Component, keysPerDomain map[st
 	}
 	if r, ok := resolvers[utils.GetInfraEndpoint(config)]; ok && vectorMetricsURL != "" {
 		log.Debugf("Configuring forwarder to send metrics to observability_pipelines_worker: %s", vectorMetricsURL)
+
 		resolvers[utils.GetInfraEndpoint(config)] = pkgresolver.NewDomainResolverWithMetricToVector(
 			r.GetBaseDomain(),
-			r.GetAPIKeys(),
+			r.GetAPIKeysInfo(),
 			vectorMetricsURL,
 		)
 	}
+
 	return NewOptionsWithResolvers(config, log, resolvers)
 }
 
 // NewOptionsWithResolvers creates new Options with default values
 func NewOptionsWithResolvers(config config.Component, log log.Component, domainResolvers map[string]pkgresolver.DomainResolver) *Options {
+	// Add a hook into the config for each resolver to track API key changes.
+	// Do this after the OP resolver may have replaced the original resolver so we don't leak a callback in the config.
+	for domain := range domainResolvers {
+		resolver := domainResolvers[domain]
+		pkgresolver.OnUpdateConfig(resolver, log, config)
+	}
+
 	validationInterval := config.GetInt("forwarder_apikey_validation_interval")
 	if validationInterval <= 0 {
 		log.Warnf(
@@ -357,20 +366,6 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			}
 		}
 	}
-
-	config.OnUpdate(func(setting string, oldValue, newValue any) {
-		if setting != "api_key" {
-			return
-		}
-		oldAPIKey, ok1 := oldValue.(string)
-		newAPIKey, ok2 := newValue.(string)
-		if ok1 && ok2 {
-			log.Infof("Updating API key: %s -> %s", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
-			for _, dr := range f.domainResolvers {
-				dr.UpdateAPIKey(oldAPIKey, newAPIKey)
-			}
-		}
-	})
 
 	timeInterval := config.GetInt("forwarder_retry_queue_capacity_time_interval_sec")
 	if f.agentName != "" {

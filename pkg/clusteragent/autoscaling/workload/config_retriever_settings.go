@@ -10,6 +10,7 @@ package workload
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -31,22 +32,42 @@ const (
 	versionOffset uint64 = 1e9
 )
 
+type settingsItem struct {
+	namespace         string
+	name              string
+	receivedTimestamp time.Time
+	spec              *datadoghq.DatadogPodAutoscalerSpec
+}
+
 type autoscalingSettingsProcessor struct {
-	store     *store
-	processed map[string]struct{}
+	store *store
+	// State is kept nil until the first full config is processed
+	state map[string]settingsItem
+	// We are guaranteed to be called in a single thread for pre/process/post
+	// However, reconcile could be called in parallel
+	updateLock sync.Mutex
+
+	newState            map[string]settingsItem
+	lastProcessingError bool
 }
 
 func newAutoscalingSettingsProcessor(store *store) autoscalingSettingsProcessor {
 	return autoscalingSettingsProcessor{
-		store:     store,
-		processed: make(map[string]struct{}),
+		store: store,
 	}
 }
 
-func (p autoscalingSettingsProcessor) process(receivedTimestamp time.Time, configKey string, rawConfig state.RawConfig) error {
+func (p *autoscalingSettingsProcessor) preProcess() {
+	p.lastProcessingError = false
+	p.newState = make(map[string]settingsItem, len(p.state))
+	p.updateLock.Lock()
+}
+
+func (p *autoscalingSettingsProcessor) processItem(receivedTimestamp time.Time, configKey string, rawConfig state.RawConfig) error {
 	settingsList := &model.AutoscalingSettingsList{}
 	err := json.Unmarshal(rawConfig.Config, &settingsList)
 	if err != nil {
+		p.lastProcessingError = true
 		return fmt.Errorf("failed to unmarshal config id:%s, version: %d, config key: %s, err: %v", rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey, err)
 	}
 
@@ -59,47 +80,84 @@ func (p autoscalingSettingsProcessor) process(receivedTimestamp time.Time, confi
 			err = multierror.Append(err, fmt.Errorf("received invalid PodAutoscaler from config id:%s, version: %d, config key: %s, discarding", rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey))
 		}
 
-		podAutoscalerRemoteVersion := versionOffset + rawConfig.Metadata.Version
 		podAutoscalerID := autoscaling.BuildObjectID(settings.Namespace, settings.Name)
-		podAutoscaler, podAutoscalerFound := p.store.LockRead(podAutoscalerID, true)
-		// If the PodAutoscaler is not found, we need to create it
-		if !podAutoscalerFound {
-			podAutoscaler = model.NewPodAutoscalerFromSettings(settings.Namespace, settings.Name, spec, podAutoscalerRemoteVersion, receivedTimestamp)
-		} else {
-			podAutoscaler.UpdateFromSettings(spec, podAutoscalerRemoteVersion, receivedTimestamp)
+		spec.RemoteVersion = pointer.Ptr(versionOffset + rawConfig.Metadata.Version)
+		p.newState[podAutoscalerID] = settingsItem{
+			namespace:         settings.Namespace,
+			name:              settings.Name,
+			receivedTimestamp: receivedTimestamp,
+			spec:              spec,
 		}
-
-		p.store.UnlockSet(podAutoscalerID, podAutoscaler, configRetrieverStoreID)
-		p.processed[podAutoscalerID] = struct{}{}
 	}
 
+	if err != nil {
+		p.lastProcessingError = true
+	}
 	return err
 }
 
 // postProcess is used after all configs have been processed to clear internal store from missing configs
-func (p autoscalingSettingsProcessor) postProcess(errors []error) {
-	// We don't want to delete configs if we received incorrect data
-	if len(errors) > 0 {
-		log.Debugf("Skipping autoscaling settings clean up due to errors while processing new data: %v", errors)
+func (p *autoscalingSettingsProcessor) postProcess() {
+	// TODO: How to handle the case where the remote version is lower than the local version?
+	// It can happen in case of file split
+	p.state = p.newState
+	p.newState = nil
+	p.updateLock.Unlock()
+}
+
+func (p *autoscalingSettingsProcessor) reconcile(isLeader bool) {
+	// We only reconcile if we are the leader and we have a state
+	if !isLeader || p.state == nil {
 		return
 	}
 
-	// Update the store to flag all PodAutoscalers owned by remote that were not processed
+	// If we cannot TryLock, it means an update is already running.
+	// It would be useless to reconcile right after as no new data would have been received
+	if !p.updateLock.TryLock() {
+		return
+	}
+	defer p.updateLock.Unlock()
+
+	inStore := make(map[string]struct{}, len(p.state))
+
+	// Handle the existing and deleted PodAutoscalers
 	p.store.Update(func(pai model.PodAutoscalerInternal) (model.PodAutoscalerInternal, bool) {
 		if pai.Spec() == nil || pai.Spec().Owner != datadoghqcommon.DatadogPodAutoscalerRemoteOwner {
 			return pai, false
 		}
 
 		paID := pai.ID()
-		_, found := p.processed[paID]
-		if !found {
+		inStore[paID] = struct{}{}
+
+		settingsItem, found := p.state[paID]
+		if found {
+			pai.UpdateFromSettings(settingsItem.spec, settingsItem.receivedTimestamp)
+			return pai, true
+		}
+
+		// Not found in the new state, marking for deletion if no error occurred while processing new data
+		if !p.lastProcessingError {
 			pai.SetDeleted()
 			log.Infof("PodAutoscaler %s was not part of the last update, flagging it as deleted", paID)
 			return pai, true
 		}
 
+		log.Debugf("PodAutoscaler %s was not part of the last update, but we skipped the deletion due to errors while processing new data", paID)
 		return pai, false
 	}, configRetrieverStoreID)
+
+	// Handle the potentially new PodAutoscalers, note that there is a chance they have been created since the `Update` call above
+	for paID, item := range p.state {
+		if _, found := inStore[paID]; !found {
+			podAutoscaler, podAutoscalerFound := p.store.LockRead(paID, true)
+			if podAutoscalerFound {
+				podAutoscaler.UpdateFromSettings(item.spec, item.receivedTimestamp)
+			} else {
+				podAutoscaler = model.NewPodAutoscalerFromSettings(item.namespace, item.name, item.spec, item.receivedTimestamp)
+			}
+			p.store.UnlockSet(paID, podAutoscaler, configRetrieverStoreID)
+		}
+	}
 }
 
 func extractConvertAutoscalerSpec(settings model.AutoscalingSettings) *datadoghq.DatadogPodAutoscalerSpec {

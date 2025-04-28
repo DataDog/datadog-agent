@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -59,6 +60,7 @@ type Requires struct {
 	WorkloadMeta        workloadmeta.Component
 	Collector           option.Option[collector.Component]
 	RemoteAgentRegistry remoteagentregistry.Component
+	Telemetry           telemetry.Component
 }
 
 type server struct {
@@ -73,6 +75,7 @@ type server struct {
 	remoteAgentRegistry remoteagentregistry.Component
 	autodiscovery       autodiscovery.Component
 	configComp          config.Component
+	telemetry           telemetry.Component
 }
 
 func (s *server) BuildServer() http.Handler {
@@ -95,7 +98,7 @@ func (s *server) BuildServer() http.Handler {
 	pb.RegisterAgentSecureServer(grpcServer, &serverSecure{
 		configService:    s.configService,
 		configServiceMRF: s.configServiceMRF,
-		taggerServer:     taggerserver.NewServer(s.taggerComp, maxEventSize, s.configComp.GetInt("remote_tagger.max_concurrent_sync")),
+		taggerServer:     taggerserver.NewServer(s.taggerComp, s.telemetry, maxEventSize, s.configComp.GetInt("remote_tagger.max_concurrent_sync")),
 		taggerComp:       s.taggerComp,
 		// TODO(components): decide if workloadmetaServer should be componentized itself
 		workloadmetaServer:  workloadmetaServer.NewServer(s.workloadMeta),
@@ -149,6 +152,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			remoteAgentRegistry: reqs.RemoteAgentRegistry,
 			autodiscovery:       reqs.AutoConfig,
 			configComp:          reqs.Cfg,
+			telemetry:           reqs.Telemetry,
 		},
 	}
 	return provides, nil

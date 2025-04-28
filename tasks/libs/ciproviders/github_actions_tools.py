@@ -59,7 +59,6 @@ def trigger_macos_workflow(
     workflow_name="macos.yaml",
     github_action_ref="master",
     datadog_agent_ref=None,
-    release_version=None,
     major_version=None,
     gitlab_pipeline_id=None,
     bucket_branch=None,
@@ -78,9 +77,6 @@ def trigger_macos_workflow(
 
     if datadog_agent_ref is not None:
         inputs["datadog_agent_ref"] = datadog_agent_ref
-
-    if release_version is not None:
-        inputs["release_version"] = release_version
 
     if major_version is not None:
         inputs["agent_major_version"] = major_version

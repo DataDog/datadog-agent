@@ -11,7 +11,9 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -41,6 +43,8 @@ type (
 		header           *ipv4.Header
 		payload          []byte
 		cm               *ipv4.ControlMessage
+
+		numReaders atomic.Int32
 
 		writeDelay time.Duration
 		writeToErr error
@@ -190,8 +194,8 @@ func TestListenPackets(t *testing.T) {
 	tt := []struct {
 		description string
 		// input
-		icmpConn   rawConnWrapper
-		tcpConn    rawConnWrapper
+		icmpConn   *mockRawConn
+		tcpConn    *mockRawConn
 		timeout    time.Duration
 		localIP    net.IP
 		localPort  uint16
@@ -298,6 +302,8 @@ func TestListenPackets(t *testing.T) {
 	for _, test := range tt {
 		t.Run(test.description, func(t *testing.T) {
 			actualResponse := listenPackets(test.icmpConn, test.tcpConn, test.timeout, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
+			require.Zero(t, test.icmpConn.numReaders.Load())
+			require.Zero(t, test.tcpConn.numReaders.Load())
 			if test.errMsg != "" {
 				require.Error(t, actualResponse.Err)
 				assert.True(t, strings.Contains(actualResponse.Err.Error(), test.errMsg), "error mismatch: expected %q, got %q", test.errMsg, actualResponse.Err.Error())
@@ -322,6 +328,9 @@ func (m *mockRawConn) SetReadDeadline(t time.Time) error {
 }
 
 func (m *mockRawConn) ReadFrom(_ []byte) (*ipv4.Header, []byte, *ipv4.ControlMessage, error) {
+	m.numReaders.Add(1)
+	defer m.numReaders.Add(-1)
+
 	if m.readTimeoutCount > 0 {
 		m.readTimeoutCount--
 		time.Sleep(time.Until(m.readDeadline))
@@ -343,6 +352,6 @@ func (me mockTimeoutErr) Error() string {
 	return string(me)
 }
 
-func (me mockTimeoutErr) Timeout() bool {
-	return true
+func (me mockTimeoutErr) Unwrap() error {
+	return os.ErrDeadlineExceeded
 }

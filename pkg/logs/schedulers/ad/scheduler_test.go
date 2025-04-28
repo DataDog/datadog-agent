@@ -11,7 +11,6 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -200,6 +199,7 @@ func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
 }
 
 func TestIgnoreRemoteConfigIfDisabled(t *testing.T) {
+	mockConfig := configmock.New(t)
 	for _, rcLogCfgSchedEnabled := range []bool{true, false} {
 		testName := fmt.Sprintf("allow_log_config_scheduling=%t", rcLogCfgSchedEnabled)
 		t.Run(testName, func(t *testing.T) {
@@ -213,7 +213,7 @@ func TestIgnoreRemoteConfigIfDisabled(t *testing.T) {
 				ClusterCheck:  false,
 			}
 			configmock.New(t)
-			pkgconfigsetup.Datadog().Set("remote_configuration.agent_integrations.allow_log_config_scheduling", rcLogCfgSchedEnabled, model.SourceFile)
+			mockConfig.Set("remote_configuration.agent_integrations.allow_log_config_scheduling", rcLogCfgSchedEnabled, model.SourceFile)
 			scheduler.Schedule([]integration.Config{configSource})
 			if rcLogCfgSchedEnabled {
 				require.Equal(t, 1, len(spy.Events))

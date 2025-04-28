@@ -196,7 +196,7 @@ func injectorDebug(boolean string) injectorOption {
 	}
 }
 
-func newInjector(startTime time.Time, registry, imageTag string, opts ...injectorOption) *injector {
+func newInjector(startTime time.Time, registry string, opts ...injectorOption) *injector {
 	i := &injector{
 		registry:   registry,
 		injectTime: startTime,
@@ -204,11 +204,6 @@ func newInjector(startTime time.Time, registry, imageTag string, opts ...injecto
 
 	for _, opt := range opts {
 		opt(i)
-	}
-
-	// if the options didn't override the image, we set it.
-	if i.image == "" {
-		injectorWithImageTag(imageTag)(i)
 	}
 
 	return i

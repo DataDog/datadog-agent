@@ -5,6 +5,8 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
+#define PTRACE_RATE_LIMITER_RATE 100
+
 // list of requests we don't want to rate limit
 static const int important_reqs[] = {
     PTRACE_ATTACH,
@@ -23,7 +25,7 @@ HOOK_SYSCALL_ENTRY3(ptrace, u32, request, pid_t, pid, void *, addr) {
             break;
         }
     }
-    if (!found && !rate_limiter_allow_simple()) {
+    if (!found && !pid_rate_limiter_allow(PTRACE_RATE_LIMITER_RATE, 1)) {
         // for other requests types than a define list, rate limit the events
         return 0;
     }

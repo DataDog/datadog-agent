@@ -8,7 +8,6 @@ package tagger
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -18,7 +17,6 @@ import (
 
 // Component is the component type.
 type Component interface {
-	GetTaggerTelemetryStore() *telemetry.Store
 	Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error)
 	GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error)
 	AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error

@@ -19,8 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {
@@ -561,4 +564,77 @@ func TestTransportProtocol_HTTP1FallBackWhenUsingProxy(t *testing.T) {
 
 	// Assert that the server chose HTTP/1.1 because a proxy was configured
 	assert.Equal(t, "HTTP/1.1", resp.Proto)
+}
+
+// TestDestinationSourceTagBasedOnTelemetryName tests that the source tag is set when the telemetry name contains "logs" source tag
+func TestDestinationSourceTagBasedOnTelemetryName(t *testing.T) {
+	cfg := configmock.New(t)
+
+	// Create telemetry mock
+	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"source"}, "")
+	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"source"}, "")
+
+	// Create a new server
+	server := NewTestServer(200, cfg)
+	defer server.httpServer.Close()
+
+	// Test case: Telemetry name contains "logs" -> sourceTag should be "logs"
+	server.Destination.destMeta = client.NewDestinationMetadata("logs", "3", "reliable", "0")
+	payload := &message.Payload{
+		Encoded:       []byte("payload"),
+		UnencodedSize: 7, // len("payload")
+	}
+
+	// Send the payload to the server
+	err := server.Destination.unconditionalSend(payload)
+	assert.Nil(t, err)
+	assert.Equal(t, "logs_3_reliable_0", server.Destination.destMeta.TelemetryName())
+
+	// Verify the source tag is "logs" in the telemetry metric
+	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "bytes_sent")
+	assert.NoError(t, err)
+	assert.Len(t, metric, 1)
+	assert.Equal(t, "logs", metric[0].Tags()["source"])
+
+	metric, err = telemetryMock.(telemetry.Mock).GetCountMetric("logs", "encoded_bytes_sent")
+	assert.NoError(t, err)
+	assert.Len(t, metric, 1)
+	assert.Equal(t, "logs", metric[0].Tags()["source"])
+}
+
+// TestDestinationSourceTagEPForwarder tests that the source tag is set to "epforwarder" when the telemetry source name does not contain "logs"
+func TestDestinationSourceTagEPForwarder(t *testing.T) {
+	cfg := configmock.New(t)
+
+	// Create telemetry mock
+	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"source"}, "")
+	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"source"}, "")
+
+	// Create a new server
+	server := NewTestServer(200, cfg)
+	defer server.httpServer.Close()
+
+	// Test case: Telemetry name does not contain "logs" -> sourceTag should be "epforwarder"
+	server.Destination.destMeta = client.NewDestinationMetadata("dbm", "1", "reliable", "0")
+	payload := &message.Payload{
+		Encoded:       []byte("payload"),
+		UnencodedSize: 7, // len("payload")
+	}
+
+	err := server.Destination.unconditionalSend(payload)
+	assert.Nil(t, err)
+	assert.Equal(t, "dbm_1_reliable_0", server.Destination.destMeta.TelemetryName())
+
+	// Verify the source tag is "epforwarder" in the telemetry metric
+	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "bytes_sent")
+	assert.NoError(t, err)
+	assert.Len(t, metric, 1)
+	assert.Equal(t, "epforwarder", metric[0].Tags()["source"])
+
+	metric, err = telemetryMock.(telemetry.Mock).GetCountMetric("logs", "encoded_bytes_sent")
+	assert.NoError(t, err)
+	assert.Len(t, metric, 1)
+	assert.Equal(t, "epforwarder", metric[0].Tags()["source"])
 }

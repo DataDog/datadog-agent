@@ -851,9 +851,9 @@ func (z *ClientState) Msgsize() (s int) {
 // MarshalMsg implements msgp.Marshaler
 func (z *ClientTracer) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 8
+	// map header, size 10
 	// string "RuntimeId"
-	o = append(o, 0x88, 0xa9, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x49, 0x64)
+	o = append(o, 0x8a, 0xa9, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x49, 0x64)
 	o = msgp.AppendString(o, z.RuntimeId)
 	// string "Language"
 	o = append(o, 0xa8, 0x4c, 0x61, 0x6e, 0x67, 0x75, 0x61, 0x67, 0x65)
@@ -881,6 +881,18 @@ func (z *ClientTracer) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendArrayHeader(o, uint32(len(z.Tags)))
 	for za0002 := range z.Tags {
 		o = msgp.AppendString(o, z.Tags[za0002])
+	}
+	// string "ProcessTags"
+	o = append(o, 0xab, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x54, 0x61, 0x67, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.ProcessTags)))
+	for za0003 := range z.ProcessTags {
+		o = msgp.AppendString(o, z.ProcessTags[za0003])
+	}
+	// string "ContainerTags"
+	o = append(o, 0xad, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x54, 0x61, 0x67, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.ContainerTags)))
+	for za0004 := range z.ContainerTags {
+		o = msgp.AppendString(o, z.ContainerTags[za0004])
 	}
 	return
 }
@@ -977,6 +989,44 @@ func (z *ClientTracer) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 			}
+		case "ProcessTags":
+			var zb0004 uint32
+			zb0004, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "ProcessTags")
+				return
+			}
+			if cap(z.ProcessTags) >= int(zb0004) {
+				z.ProcessTags = (z.ProcessTags)[:zb0004]
+			} else {
+				z.ProcessTags = make([]string, zb0004)
+			}
+			for za0003 := range z.ProcessTags {
+				z.ProcessTags[za0003], bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "ProcessTags", za0003)
+					return
+				}
+			}
+		case "ContainerTags":
+			var zb0005 uint32
+			zb0005, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "ContainerTags")
+				return
+			}
+			if cap(z.ContainerTags) >= int(zb0005) {
+				z.ContainerTags = (z.ContainerTags)[:zb0005]
+			} else {
+				z.ContainerTags = make([]string, zb0005)
+			}
+			for za0004 := range z.ContainerTags {
+				z.ContainerTags[za0004], bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "ContainerTags", za0004)
+					return
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -998,6 +1048,14 @@ func (z *ClientTracer) Msgsize() (s int) {
 	s += 4 + msgp.StringPrefixSize + len(z.Env) + 11 + msgp.StringPrefixSize + len(z.AppVersion) + 5 + msgp.ArrayHeaderSize
 	for za0002 := range z.Tags {
 		s += msgp.StringPrefixSize + len(z.Tags[za0002])
+	}
+	s += 12 + msgp.ArrayHeaderSize
+	for za0003 := range z.ProcessTags {
+		s += msgp.StringPrefixSize + len(z.ProcessTags[za0003])
+	}
+	s += 14 + msgp.ArrayHeaderSize
+	for za0004 := range z.ContainerTags {
+		s += msgp.StringPrefixSize + len(z.ContainerTags[za0004])
 	}
 	return
 }

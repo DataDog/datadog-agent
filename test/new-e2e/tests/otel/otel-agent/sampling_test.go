@@ -27,7 +27,10 @@ var samplingConfig string
 
 func TestOTelAgentSampling(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &samplingTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(samplingConfig)))))
+	e2e.Run(t, &samplingTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(
+		kubernetesagentparams.WithHelmValues(enableOTELAgentConfig("")),
+		kubernetesagentparams.WithOTelAgent(),
+		kubernetesagentparams.WithOTelConfig(samplingConfig)))))
 }
 
 func (s *samplingTestSuite) SetupSuite() {

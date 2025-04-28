@@ -191,19 +191,19 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 		}
 		configEventParams := configEvent.Argdata
 		if len(configEventParams) != 3 {
-			log.Errorf("error parsing configuration for PID: %d: not enough arguments", procInfo.PID)
+			log.Errorf("error parsing configuration for PID: %d: not enough arguments (got %d): %s", procInfo.PID, len(configEventParams), string(record.RawSample))
 			continue
 		}
 
 		runtimeID, err := uuid.ParseBytes([]byte(configEventParams[0].ValueStr))
 		if err != nil {
-			log.Errorf("Runtime ID \"%s\" is not a UUID: %v)", runtimeID, err)
+			log.Errorf("Runtime ID \"%s\" is not a UUID: %v)", configEventParams[0].ValueStr, err)
 			continue
 		}
 
 		configPath, err := ditypes.ParseConfigPath(string(configEventParams[1].ValueStr))
 		if err != nil {
-			log.Errorf("couldn't parse config path: %v", err)
+			log.Errorf("couldn't parse config path (%s): %v", string(configEventParams[1].ValueStr), err)
 			continue
 		}
 
@@ -249,7 +249,7 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 		if configPath.Hash != probe.InstrumentationInfo.ConfigurationHash {
 			err := AnalyzeBinary(procInfo)
 			if err != nil {
-				log.Errorf("couldn't inspect binary: %v\n", err)
+				log.Errorf("couldn't inspect binary (%s): %v\n", procInfo.BinaryPath, err)
 				cm.Unlock()
 				continue
 			}
@@ -262,45 +262,65 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 }
 
 func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
-	log.Tracef("Applying config update: %v\n", probe)
+	log.Debugf("Applying config update for: %s in %s (ID: %s)\n", probe.FuncName, probe.ServiceName, probe.ID)
+	for {
+		if err := tryGenerateAndAttach(procInfo, probe); err == nil {
+			return
+		}
+	}
+}
 
-generateCompileAttach:
+// tryGenerateAndAttach attempts to generate and attach the BPF program for the probe
+// it will decrement the reference depth of the probe if it fails to generate and attach
+// the BPF program and try again until the reference depth is 0
+func tryGenerateAndAttach(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error {
 	err := codegen.GenerateBPFParamsCode(procInfo, probe)
 	if err != nil {
-		log.Info("Couldn't generate BPF programs", err)
-		if !probe.InstrumentationInfo.AttemptedRebuild {
-			log.Info("Removing parameters and attempting to rebuild BPF object", err)
-			probe.InstrumentationInfo.AttemptedRebuild = true
-			probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters = false
-			goto generateCompileAttach
+		log.Errorf("Couldn't generate BPF programs for %s: %v", probe.FuncName, err)
+		if !haveExhaustedReferenceDepthDecrementing(probe) {
+			return err
 		}
-		return
+		return nil
 	}
-
 	err = ebpf.CompileBPFProgram(probe)
 	if err != nil {
-		// TODO: Emit diagnostic?
-		log.Info("Couldn't compile BPF object", err)
-		if !probe.InstrumentationInfo.AttemptedRebuild {
-			log.Info("Removing parameters and attempting to rebuild BPF object", err)
-			probe.InstrumentationInfo.AttemptedRebuild = true
-			probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters = false
-			goto generateCompileAttach
+		log.Errorf("Couldn't compile BPF object for function %s (ID: %s): %v", probe.FuncName, probe.ID, err)
+		if !haveExhaustedReferenceDepthDecrementing(probe) {
+			return err
 		}
-		return
+		return nil
 	}
 	err = ebpf.AttachBPFUprobe(procInfo, probe)
 	if err != nil {
-		log.Info("Couldn't load and attach bpf programs", err)
-		if !probe.InstrumentationInfo.AttemptedRebuild {
-			log.Info("Removing parameters and attempting to rebuild BPF object", err)
-			probe.InstrumentationInfo.AttemptedRebuild = true
-			probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters = false
-			goto generateCompileAttach
+		log.Errorf("Couldn't load and attach bpf programs for function %s (ID: %s): %v", probe.FuncName, probe.ID, err)
+		if !haveExhaustedReferenceDepthDecrementing(probe) {
+			return err
 		}
-		return
+		return nil
 	}
+	return nil
+}
 
+// haveExhaustedReferenceDepthDecrementing checks if the reference depth has been exhausted
+// in the process of decrementing itand if so, marks all parameters as not captured
+func haveExhaustedReferenceDepthDecrementing(probe *ditypes.Probe) bool {
+	if !checkAndDecrementReferenceDepth(probe) {
+		probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters = false
+		return true
+	}
+	return false
+}
+
+// checkAndDecrementReferenceDepth decrements the reference depth of the probe
+// and returns true if the reference depth is still greater than 0
+func checkAndDecrementReferenceDepth(probe *ditypes.Probe) bool {
+	if !probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters ||
+		probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth <= 0 {
+		return false
+	}
+	probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth--
+	log.Tracef("Retrying after decrementing capture depth to: %d", probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth)
+	return true
 }
 
 func newConfigProbe() *ditypes.Probe {

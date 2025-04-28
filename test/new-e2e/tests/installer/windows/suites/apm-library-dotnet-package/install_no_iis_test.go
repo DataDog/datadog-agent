@@ -29,9 +29,7 @@ func TestDotnetLibraryInstallsWithoutIIS(t *testing.T) {
 
 // TestInstallDotnetLibraryPackageWithoutIIS tests installing the Datadog APM Library for .NET using the Datadog installer without IIS installed.
 func (s *testDotnetLibraryInstallSuiteWithoutIIS) TestInstallDotnetLibraryPackageWithoutIIS() {
-	s.Require().NoError(s.Installer().Install(
-		installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"),
-	))
+	s.Require().NoError(s.Installer().Install())
 	defer s.Installer().Purge()
 
 	// TODO: remove override once image is published in prod
@@ -55,7 +53,6 @@ func (s *testDotnetLibraryInstallSuiteWithoutIIS) TestMSIInstallDotnetLibraryFai
 		installerwindows.WithMSIArg("SITE=datad0g.com"),
 		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", version)),
 		installerwindows.WithMSILogFile("install-rollback.log"),
-		installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"),
 	))
 	defer s.Installer().Purge()
 

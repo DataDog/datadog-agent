@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package installer contains code for the E2E tests for the Datadog installer on Windows
 package installer
 
 import (
@@ -26,27 +25,28 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 )
 
 // DatadogInstaller represents an interface to the Datadog Installer on the remote host.
 type DatadogInstaller struct {
-	binaryPath string
-	env        *environments.WindowsHost
-	outputDir  string
+	binaryPath          string
+	env                 *environments.WindowsHost
+	defaultInstallerURL string
+	outputDir           string
 }
 
 // NewDatadogInstaller instantiates a new instance of the Datadog Installer running
 // on a remote Windows host.
-func NewDatadogInstaller(env *environments.WindowsHost, outputDir string) *DatadogInstaller {
+func NewDatadogInstaller(env *environments.WindowsHost, msiURL, outputDir string) *DatadogInstaller {
 	if outputDir == "" {
 		outputDir = os.TempDir()
 	}
 
 	return &DatadogInstaller{
-		binaryPath: path.Join(consts.Path, consts.BinaryName),
-		env:        env,
-		outputDir:  outputDir,
+		binaryPath:          path.Join(consts.Path, consts.BinaryName),
+		env:                 env,
+		outputDir:           outputDir,
+		defaultInstallerURL: msiURL,
 	}
 }
 
@@ -137,7 +137,7 @@ func (d *DatadogInstaller) runCommand(command, packageName string, opts ...insta
 	return d.execute(fmt.Sprintf("%s %s", command, packageURL), client.WithEnvVariables(envVars))
 }
 
-// SetCatalog configures the catalog for the Datadog Installer daemon
+// SetCatalog configures the catalog for the Datadog Installer daemon.
 func (d *DatadogInstaller) SetCatalog(newCatalog Catalog) (string, error) {
 	serializedCatalog, err := json.Marshal(newCatalog)
 	if err != nil {
@@ -151,25 +151,31 @@ func (d *DatadogInstaller) SetCatalog(newCatalog Catalog) (string, error) {
 	return d.execute(fmt.Sprintf("daemon set-catalog '%s'", catalog))
 }
 
-// StartExperiment will use the Datadog Installer service to start an experiment
+// StartExperiment will use the Datadog Installer service to start an experiment.
 func (d *DatadogInstaller) StartExperiment(packageName string, packageVersion string) (string, error) {
 	return d.execute(fmt.Sprintf("daemon start-experiment '%s' '%s'", packageName, packageVersion))
 }
 
-// PromoteExperiment will use the Datadog Installer service to promote an experiment
+// StartInstallerExperiment will use the Datadog Installer service to start an experiment
+func (d *DatadogInstaller) StartInstallerExperiment(packageName string, packageVersion string) (string, error) {
+	return d.execute(fmt.Sprintf("daemon start-installer-experiment '%s' '%s'", packageName, packageVersion))
+}
+
+// PromoteExperiment will use the Datadog Installer service to promote an experiment.
 func (d *DatadogInstaller) PromoteExperiment(packageName string) (string, error) {
 	return d.execute(fmt.Sprintf("daemon promote-experiment '%s'", packageName))
 }
 
-// StopExperiment will use the Datadog Installer service to stop an experiment
+// StopExperiment will use the Datadog Installer service to stop an experiment.
 func (d *DatadogInstaller) StopExperiment(packageName string) (string, error) {
 	return d.execute(fmt.Sprintf("daemon stop-experiment '%s'", packageName))
 }
 
 // InstallPackage will attempt to use the Datadog Installer to install the package given in parameter.
-// version: A function that returns the version of the package to install. By default, it will install
-// the package matching the current pipeline. This is a function so that it can be combined with
-// Note that this command is a direct command and won't go through the Daemon.
+//
+// By default, it will use the package artifact from the current pipeline.
+//
+// Note: This command is a direct call to the installer and does not use the daemon.
 func (d *DatadogInstaller) InstallPackage(packageName string, opts ...installer.PackageOption) (string, error) {
 	return d.runCommand("install", packageName, opts...)
 }
@@ -194,7 +200,7 @@ func (d *DatadogInstaller) Status() (string, error) {
 	return d.execute("status")
 }
 
-// Purge runs the purge command, removing all packages
+// Purge runs the purge command, removing all packages.
 func (d *DatadogInstaller) Purge() (string, error) {
 	// executeFromCopy is used here because the installer will remove itself
 	// if purge is run from the install directory it may cause an uninstall failure due
@@ -202,53 +208,38 @@ func (d *DatadogInstaller) Purge() (string, error) {
 	return d.executeFromCopy("purge")
 }
 
-// GarbageCollect runs the garbage-collect command, removing unused packages
+// GarbageCollect runs the garbage-collect command, removing unused packages.
 func (d *DatadogInstaller) GarbageCollect() (string, error) {
 	return d.execute("garbage-collect")
 }
-
-// func (d *DatadogInstaller) createInstallerFolders() {
-// 	for _, p := range consts.InstallerConfigPaths {
-// 		d.env.RemoteHost.MustExecute(fmt.Sprintf("New-Item -Path \"%s\" -ItemType Directory -Force", p))
-// 	}
-// }
 
 // Install will attempt to install the Datadog Agent on the remote host.
 // By default, it will use the installer from the current pipeline.
 func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 	params := MsiParams{
-		msiLogFilename:         "install.log",
-		createInstallerFolders: true,
+		msiLogFilename: "install.log",
+		Params: Params{
+			installerURL: d.defaultInstallerURL,
+		},
 	}
 	err := optional.ApplyOptions(&params, opts)
 	if err != nil {
 		return err
 	}
-	// if params.createInstallerFolders {
-	// 	d.createInstallerFolders()
-	// }
+
 	// MSI can install from a URL or a local file
-	msiPath := params.installerURL
-	if localMSIPath, exists := os.LookupEnv("DD_INSTALLER_MSI_URL"); exists || strings.HasPrefix(msiPath, "file://") {
-		if strings.HasPrefix(msiPath, "file://") {
-			localMSIPath = strings.TrimPrefix(msiPath, "file://")
-		}
+	remoteMSIPath := params.installerURL
+	if strings.HasPrefix(remoteMSIPath, "file://") {
 		// developer provided a local file, put it on the remote host
-		msiPath, err = windowsCommon.GetTemporaryFile(d.env.RemoteHost)
+		localMSIPath := strings.TrimPrefix(remoteMSIPath, "file://")
+		remoteMSIPath, err = windowsCommon.GetTemporaryFile(d.env.RemoteHost)
 		if err != nil {
 			return err
 		}
-		d.env.RemoteHost.CopyFile(localMSIPath, msiPath)
-	} else if params.installerURL == "" {
-		artifactURL, err := pipeline.GetPipelineArtifact(d.env.Environment.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
-			return strings.Contains(artifact, "datadog-agent") && strings.HasSuffix(artifact, ".msi")
-		})
-		if err != nil {
-			return err
-		}
-		// update URL
-		params.installerURL = artifactURL
-		msiPath = params.installerURL
+		d.env.RemoteHost.CopyFile(localMSIPath, remoteMSIPath)
+	}
+	if remoteMSIPath == "" {
+		return fmt.Errorf("MSI URL/path is required but was not provided")
 	}
 	logPath := filepath.Join(d.outputDir, params.msiLogFilename)
 	if _, err := os.Stat(logPath); err == nil {
@@ -262,7 +253,7 @@ func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 	if msiArgList != nil {
 		msiArgs = strings.Join(msiArgList, " ")
 	}
-	return windowsCommon.InstallMSI(d.env.RemoteHost, msiPath, msiArgs, logPath)
+	return windowsCommon.InstallMSI(d.env.RemoteHost, remoteMSIPath, msiArgs, logPath)
 }
 
 // Uninstall will attempt to uninstall the Datadog Agent on the remote host.
@@ -449,6 +440,14 @@ func WithPipeline(pipeline string) PackageOption {
 	return func(params *TestPackageConfig) error {
 		params.Version = fmt.Sprintf("pipeline-%s", pipeline)
 		params.Registry = consts.PipelineOCIRegistry
+		return nil
+	}
+}
+
+// WithPackage copies fields from the package
+func WithPackage(pkg TestPackageConfig) PackageOption {
+	return func(params *TestPackageConfig) error {
+		*params = pkg
 		return nil
 	}
 }

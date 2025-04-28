@@ -33,4 +33,6 @@ type Config struct {
 	// Protocol is the protocol to use
 	// for traceroute, default is UDP
 	Protocol payload.Protocol
+	// TCPMethod is the method used to run a TCP traceroute.
+	TCPMethod payload.TCPMethod
 }

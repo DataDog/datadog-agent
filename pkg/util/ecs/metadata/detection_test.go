@@ -12,14 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil"
@@ -36,7 +35,8 @@ func TestLocateECSHTTP(t *testing.T) {
 	ts := ecsinterface.Start()
 	defer ts.Close()
 
-	pkgconfigsetup.Datadog().SetDefault("ecs_agent_url", ts.URL)
+	cfg := mock.New(t)
+	cfg.SetWithoutSource("ecs_agent_url", ts.URL)
 
 	_, err = newAutodetectedClientV1()
 	require.NoError(t, err)
@@ -59,7 +59,8 @@ func TestLocateECSHTTPFail(t *testing.T) {
 	ts := ecsinterface.Start()
 	defer ts.Close()
 
-	pkgconfigsetup.Datadog().SetDefault("ecs_agent_url", ts.URL)
+	cfg := mock.New(t)
+	cfg.SetDefault("ecs_agent_url", ts.URL)
 
 	_, err = newAutodetectedClientV1()
 	require.Error(t, err)
@@ -76,21 +77,22 @@ func TestLocateECSHTTPFail(t *testing.T) {
 func TestGetAgentV1ContainerURLs(t *testing.T) {
 	env.SetFeatures(t, env.Docker)
 
+	cfg := mock.New(t)
 	ctx := context.Background()
-	pkgconfigsetup.Datadog().SetDefault("ecs_agent_container_name", "ecs-agent-custom")
-	defer pkgconfigsetup.Datadog().SetDefault("ecs_agent_container_name", "ecs-agent")
+	cfg.SetWithoutSource("ecs_agent_container_name", "ecs-agent-custom")
+	defer cfg.SetWithoutSource("ecs_agent_container_name", "ecs-agent")
 
 	// Setting mocked data in cache
 	nets := make(map[string]*network.EndpointSettings)
 	nets["bridge"] = &network.EndpointSettings{IPAddress: "172.17.0.2"}
 	nets["foo"] = &network.EndpointSettings{IPAddress: "172.17.0.3"}
 
-	co := types.ContainerJSON{
+	co := container.InspectResponse{
 		Config: &container.Config{
 			Hostname: "ip-172-29-167-5",
 		},
-		ContainerJSONBase: &types.ContainerJSONBase{},
-		NetworkSettings: &types.NetworkSettings{
+		ContainerJSONBase: &container.ContainerJSONBase{},
+		NetworkSettings: &container.NetworkSettings{
 			Networks: nets,
 		},
 	}

@@ -71,6 +71,7 @@ import (
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -103,6 +104,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, t *
 			if err != nil {
 				return nil, err
 			}
+			c.Set("otelcollector.enabled", true, pkgconfigmodel.SourceFile)
 			pkgconfigenv.DetectFeatures(c)
 			return c, nil
 		}),
