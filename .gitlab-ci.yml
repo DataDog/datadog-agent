@@ -661,10 +661,13 @@ workflow:
 .on_main_or_release_branch_or_deploy_manual:
   - <<: *if_deploy
     when: manual
+    allow_failure: true
   - <<: *if_main_branch
     when: manual
+    allow_failure: true
   - <<: *if_release_branch
     when: manual
+    allow_failure: true
 
 .on_all_builds:
   - <<: *if_run_all_builds
@@ -1038,9 +1041,12 @@ workflow:
   - changes:
       paths:
         - cmd/otel-agent/**/*
+        - comp/core/tagger/**/*
         - comp/otelcol/**/*
+        - pkg/config/setup/otlp.go
         - pkg/trace/api/otlp.go
         - pkg/trace/stats/otel_util.go
+        - pkg/trace/traceutil/otel_util.go
         - pkg/trace/transform/transform.go
         - test/new-e2e/tests/otel/**/*
       compare_to: $COMPARE_TO_BRANCH
