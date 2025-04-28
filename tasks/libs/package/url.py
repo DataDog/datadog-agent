@@ -7,11 +7,13 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.download import download
 
+DEB_TESTING_BUCKET_URL = "https://apttesting.datad0g.com"
+RPM_TESTING_BUCKET_URL = "https://yumtesting.datad0g.com"
+
 
 def get_rpm_package_url(ctx: Context, pipeline_id: int, package_name: str, arch: str):
-    base_url = "https://yumtesting.datad0g.com"
     arch2 = "x86_64" if arch == "amd64" else "aarch64"
-    packages_url = f"{base_url}/testing/pipeline-{pipeline_id}-a7/7/{arch2}"
+    packages_url = f"{RPM_TESTING_BUCKET_URL}/testing/pipeline-{pipeline_id}-a7/7/{arch2}"
 
     repomd_url = f"{packages_url}/repodata/repomd.xml"
     response = requests.get(repomd_url, timeout=None)
@@ -47,11 +49,10 @@ def get_deb_package_url(_: Context, pipeline_id: int, package_name: str, arch: s
     if arch == "amd64":
         arch2 = "x86_64"
 
-    base_url = "https://apttesting.datad0g.com"
-    packages_url = f"{base_url}/dists/pipeline-{pipeline_id}-a7-{arch2}/7/binary-{arch}/Packages"
+    packages_url = f"{DEB_TESTING_BUCKET_URL}/dists/pipeline-{pipeline_id}-a7-{arch2}/7/binary-{arch}/Packages"
 
     filename = _deb_get_filename_for_package(packages_url, package_name)
-    return f"{base_url}/{filename}"
+    return f"{DEB_TESTING_BUCKET_URL}/{filename}"
 
 
 def _deb_get_filename_for_package(packages_url: str, target_package_name: str) -> str:
