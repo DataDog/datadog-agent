@@ -9,7 +9,7 @@ package metricscompressionimpl
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
-	zlib "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib"
+	zstd "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zstd"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 )
 
@@ -33,6 +33,6 @@ type Provides struct {
 // NewCompressorReqOtel returns the compression component for Otel
 func NewCompressorReqOtel() Provides {
 	return Provides{
-		Comp: zlib.New(),
+		Comp: zstd.New(zstd.Requires{Level: 1}),
 	}
 }
