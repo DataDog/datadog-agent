@@ -156,6 +156,7 @@ func TestGetNamespacedPodOwner(t *testing.T) {
 		ns       string
 		owner    *workloadmeta.KubernetesPodOwner
 		expected NamespacedPodOwner
+		err      error
 	}{
 		{
 			name: "pod owned by deployment",
@@ -196,10 +197,29 @@ func TestGetNamespacedPodOwner(t *testing.T) {
 				Name:      "datadog-agent-linux-cluster-agent",
 			},
 		},
+		{
+			name: "pod owned by deployment directly",
+			ns:   "default",
+			owner: &workloadmeta.KubernetesPodOwner{
+				Kind: kubernetes.DeploymentKind,
+				Name: "datadog-agent-linux-cluster-agent",
+			},
+			expected: NamespacedPodOwner{
+				Namespace: "default",
+				Kind:      kubernetes.ReplicaSetKind,
+				Name:      "datadog-agent-linux-cluster-agent",
+			},
+			err: errDeploymentNotValidOwner,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			res := getNamespacedPodOwner(tt.ns, tt.owner)
-			assert.Equal(t, tt.expected, res)
+			res, err := getNamespacedPodOwner(tt.ns, tt.owner)
+			if tt.err != nil {
+				assert.Equal(t, tt.err, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, res)
+			}
 		})
 	}
 }

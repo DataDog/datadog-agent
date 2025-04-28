@@ -13,6 +13,8 @@ import "fmt"
 type Options struct {
 	// NoDoubleUnderscoreSep is set to true when you don't want to
 	// separate the subsystem and the name with a double underscore separator.
+	//
+	// This option is not compatible with the cross-org agent telemetry
 	NoDoubleUnderscoreSep bool
 
 	// DefaultMetric exports metric by default via built-in agent_telemetry core check.
