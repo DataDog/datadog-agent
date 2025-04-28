@@ -189,9 +189,9 @@ kitchen_test_security_agent_windows_x64:
     KITCHEN_OSVERS: "win2016"
     CHEF_VERSION: 14.12.9 # newer versions error out during kitchen setup of azure VM
   before_script:
-    - export WINDOWS_DDPROCMON_DRIVER=$(inv release.get-release-json-value "$RELEASE_JSON_DEPENDENCIES::WINDOWS_DDPROCMON_DRIVER")
-    - export WINDOWS_DDPROCMON_VERSION=$(inv release.get-release-json-value "$RELEASE_JSON_DEPENDENCIES::WINDOWS_DDPROCMON_VERSION")
-    - export WINDOWS_DDPROCMON_SHASUM=$(inv release.get-release-json-value "$RELEASE_JSON_DEPENDENCIES::WINDOWS_DDPROCMON_SHASUM")
+    - export WINDOWS_DDPROCMON_DRIVER=$(inv release.get-release-json-value "$AGENT_DEPENDENCIES::WINDOWS_DDPROCMON_DRIVER")
+    - export WINDOWS_DDPROCMON_VERSION=$(inv release.get-release-json-value "$AGENT_DEPENDENCIES::WINDOWS_DDPROCMON_VERSION")
+    - export WINDOWS_DDPROCMON_SHASUM=$(inv release.get-release-json-value "$AGENT_DEPENDENCIES::WINDOWS_DDPROCMON_SHASUM")
     - pushd $DD_AGENT_TESTING_DIR
     - tasks/kitchen_setup.sh
   script:
