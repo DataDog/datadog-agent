@@ -29,19 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-func unsetEnvForTest(t *testing.T, env string) {
-	oldValue, ok := os.LookupEnv(env)
-	os.Unsetenv(env)
-
-	t.Cleanup(func() {
-		if !ok {
-			os.Unsetenv(env)
-		} else {
-			os.Setenv(env, oldValue)
-		}
-	})
-}
-
 func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.Config {
 	conf := newTestConf(t)
 	conf.SetConfigType("yaml")
