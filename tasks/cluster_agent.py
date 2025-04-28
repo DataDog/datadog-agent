@@ -35,6 +35,7 @@ def build(
     skip_assets=False,
     policies_version=None,
     release_version="nightly",
+    major_version='7',
 ):
     """
     Build Cluster Agent
@@ -53,6 +54,7 @@ def build(
         race,
         development,
         skip_assets,
+        major_version=major_version,
     )
 
     if policies_version is None:
