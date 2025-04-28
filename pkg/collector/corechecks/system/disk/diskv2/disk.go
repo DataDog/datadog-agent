@@ -23,6 +23,7 @@ import (
 	"regexp"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/benbjohnson/clock"
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 )
 
@@ -107,7 +108,7 @@ func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
 // Check represents the Disk check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	clock               Clock
+	clock               clock.Clock
 	initConfig          diskInitConfig
 	instanceConfig      diskInstanceConfig
 	includedDevices     []regexp.Regexp
@@ -630,17 +631,17 @@ func Factory() option.Option[func() check.Check] {
 }
 
 // FactoryWithClock creates a new check factory with the clock dependency injection
-func FactoryWithClock(clock Clock) option.Option[func() check.Check] {
+func FactoryWithClock(clock clock.Clock) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return newCheckWithClock(clock)
 	})
 }
 
 func newCheck() check.Check {
-	return newCheckWithClock(&RealClock{})
+	return newCheckWithClock(clock.New())
 }
 
-func newCheckWithClock(clock Clock) check.Check {
+func newCheckWithClock(clock clock.Clock) check.Check {
 	return &Check{
 		CheckBase: core.NewCheckBase(CheckName),
 		clock:     clock,

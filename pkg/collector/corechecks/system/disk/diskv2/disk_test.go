@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/diskv2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/benbjohnson/clock"
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -175,7 +176,7 @@ func createCheck() check.Check {
 	return diskCheck
 }
 
-func createCheckWithClock(clock diskv2.Clock) check.Check {
+func createCheckWithClock(clock clock.Clock) check.Check {
 	diskCheckOpt := diskv2.FactoryWithClock(clock)
 	diskCheckFunc, _ := diskCheckOpt.Get()
 	diskCheck := diskCheckFunc()
@@ -1268,6 +1269,8 @@ func TestGivenADiskCheckWithDefaultConfig_WhenUsagePartitionTimeout_ThenUsageMet
 			}}, nil
 	}
 	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
+		// Sleep 10s (longer than default timeout)
+		time.Sleep(10 * time.Second)
 		return &gopsutil_disk.UsageStat{
 			Path:              "/dev/shm",
 			Fstype:            "tmpfs",
@@ -1281,17 +1284,22 @@ func TestGivenADiskCheckWithDefaultConfig_WhenUsagePartitionTimeout_ThenUsageMet
 			InodesUsedPercent: 0,
 		}, nil
 	}
-	fc := &diskv2.FakeClock{AfterCh: make(chan time.Time, 1)}
-	// Instead of waiting for a real timeout, simulate it immediately.
-	// For example, send a value to the channel to trigger the timeout.
-	fc.AfterCh <- time.Now()
-
-	diskCheck := createCheckWithClock(fc)
+	mockClock := clock.NewMock()
+	diskCheck := createCheckWithClock(mockClock)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-	err := diskCheck.Run()
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	done := make(chan error, 1)
+	go func() {
+		err = diskCheck.Run()
+		done <- err
+	}()
+	// Sleep momentarily so that other goroutines can process.
+	time.Sleep(10 * time.Millisecond)
+	// Move the clock forward longer than default timeout (5s)
+	mockClock.Add(10 * time.Second)
+	<-done
 
 	assert.Nil(t, err)
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
