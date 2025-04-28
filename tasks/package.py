@@ -12,6 +12,7 @@ from invoke.tasks import task
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.download import download as _download
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.package.size import (
     PACKAGE_SIZE_TEMPLATE,
@@ -256,42 +257,13 @@ def _extract_rpm(ctx: Context, rpm_path: str, extract_path: str):
     ctx.run(f"tar xf {rpm_path} -C {extract_path}")
 
 
-def _download(package_url: str, path: str):
-    import rich.progress
-
-    if os.path.isdir(path):
-        path = os.path.join(path, os.path.basename(package_url))
-
-    print(f"Downloading {package_url} to {path}")
-    response = requests.get(package_url, stream=True, timeout=None)
-    response.raise_for_status()
-
-    with open(path, "wb") as writer:
-        name = path.split("/")[-1]
-        total = int(response.headers.get('content-length', 0)) or None
-        with rich.progress.Progress(
-            rich.progress.SpinnerColumn(),
-            rich.progress.TextColumn("[progress.description]{task.description}"),
-            rich.progress.BarColumn(),
-            rich.progress.DownloadColumn(),
-            rich.progress.TransferSpeedColumn(),
-            rich.progress.TimeRemainingColumn(),
-        ) as progress:
-            task = progress.add_task(f"Downloading {name}", total=total)
-            for chunk in response.iter_content(chunk_size=4096):
-                writer.write(chunk)
-                progress.update(task, advance=len(chunk))
-
-    return path
-
-
 def _get_rpm_package_url(ctx: Context, pipeline_id: int, package_name: str, arch: str):
     base_url = "https://yumtesting.datad0g.com"
     arch2 = "x86_64" if arch == "amd64" else "aarch64"
     packages_url = f"{base_url}/testing/pipeline-{pipeline_id}-a7/7/{arch2}"
 
     repomd_url = f"{packages_url}/repodata/repomd.xml"
-    response = requests.get(repomd_url)
+    response = requests.get(repomd_url, timeout=None)
     response.raise_for_status()
     repomd = ET.fromstring(response.text)
 
@@ -332,7 +304,7 @@ def _get_deb_package_url(_: Context, pipeline_id: int, package_name: str, arch: 
 
 
 def _deb_get_filename_for_package(packages_url: str, target_package_name: str) -> str:
-    response = requests.get(packages_url)
+    response = requests.get(packages_url, timeout=None)
     response.raise_for_status()
 
     packages = [
@@ -382,9 +354,9 @@ def _get_pipeline_id(
         base_ref = res.stdout.strip()
         print(f"Base ref is {pr.base.ref}, merge-base is {base_ref}")
         return _get_pipeline_from_ref(repo, base_ref).get_id()
-    else:
-        print(f"Head ref is {pr.head.ref}")
-        return _get_pipeline_from_ref(repo, pr.head.ref).get_id()
+
+    print(f"Head ref is {pr.head.ref}")
+    return _get_pipeline_from_ref(repo, pr.head.ref).get_id()
 
 
 def _get_pipeline_from_ref(repo: Project, ref: str) -> ProjectPipeline:
