@@ -241,6 +241,10 @@ func copyMap(target reflect.Value, input nodetreemodel.Node, fs *featureSet) err
 	results := reflect.MakeMap(mtype)
 
 	if leaf, ok := input.(nodetreemodel.LeafNode); ok {
+		leafValue := leaf.Get()
+		if nodetreemodel.IsNilValue(leafValue) {
+			return nil
+		}
 		if fs.convertArrayToMap {
 			thing := leaf.Get()
 			if arr, ok := thing.([]interface{}); ok {
@@ -377,8 +381,11 @@ func copyAny(target reflect.Value, input nodetreemodel.Node, fs *featureSet) err
 		return copyStruct(target, input, fs)
 	} else if target.Kind() == reflect.Slice {
 		if leaf, ok := input.(nodetreemodel.LeafNode); ok {
-			thing := leaf.Get()
-			if arr, ok := thing.([]interface{}); ok {
+			leafValue := leaf.Get()
+			if nodetreemodel.IsNilValue(leafValue) {
+				return nil
+			}
+			if arr, ok := leafValue.([]interface{}); ok {
 				return copyList(target, makeNodeArray(arr), fs)
 			}
 		}
