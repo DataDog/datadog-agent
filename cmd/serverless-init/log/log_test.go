@@ -6,7 +6,6 @@
 package log
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -40,6 +39,7 @@ func TestIsEnabledFalse(t *testing.T) {
 }
 
 func TestIsInstanceTailingEnabled(t *testing.T) {
+	assert.False(t, isInstanceTailingEnabled())
 	t.Setenv("DD_AAS_INSTANCE_LOGGING_ENABLED", "false")
 	assert.False(t, isInstanceTailingEnabled())
 	t.Setenv("DD_AAS_INSTANCE_LOGGING_ENABLED", "True")
@@ -47,7 +47,5 @@ func TestIsInstanceTailingEnabled(t *testing.T) {
 	t.Setenv("DD_AAS_INSTANCE_LOGGING_ENABLED", "1")
 	assert.True(t, isInstanceTailingEnabled())
 	t.Setenv("DD_AAS_INSTANCE_LOGGING_ENABLED", "")
-	assert.False(t, isInstanceTailingEnabled())
-	defer os.Unsetenv("DD_AAS_INSTANCE_LOGGING_ENABLED")
 	assert.False(t, isInstanceTailingEnabled())
 }
