@@ -22,12 +22,12 @@ import (
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 )
 
-func baseDeviceName(device string) string {
-	return filepath.Base(device)
+func defaultIgnoreCase() bool {
+	return false
 }
 
-func compileRegExp(expr string) (*regexp.Regexp, error) {
-	return regexp.Compile(expr)
+func baseDeviceName(device string) string {
+	return filepath.Base(device)
 }
 
 func (c *Check) configureCreateMounts() {

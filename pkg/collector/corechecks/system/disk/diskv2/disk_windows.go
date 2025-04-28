@@ -20,13 +20,12 @@ import (
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 )
 
-func baseDeviceName(device string) string {
-	return strings.ToLower(strings.Trim(device, "\\"))
+func defaultIgnoreCase() bool {
+	return true
 }
 
-func compileRegExp(expr string) (*regexp.Regexp, error) {
-	iExpr := fmt.Sprintf("(?i)%s", expr)
-	return regexp.Compile(iExpr)
+func baseDeviceName(device string) string {
+	return strings.ToLower(strings.Trim(device, "\\"))
 }
 
 func (c *Check) fetchAllDeviceLabelsFromLsblk() error {

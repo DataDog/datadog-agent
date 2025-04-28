@@ -105,6 +105,13 @@ func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
 	return false
 }
 
+func compileRegExp(expr string, ignoreCase bool) (*regexp.Regexp, error) {
+	if ignoreCase {
+		expr = fmt.Sprintf("(?i)%s", expr)
+	}
+	return regexp.Compile(expr)
+}
+
 // Check represents the Disk check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
@@ -192,15 +199,8 @@ func (c *Check) configureDiskCheck(data integration.Data, initConfig integration
 	if err != nil {
 		return err
 	}
-	if c.instanceConfig.ExcludedDiskRe != "" {
-		if re, err := compileRegExp(c.instanceConfig.ExcludedDiskRe); err == nil {
-			c.excludedDevices = append(c.excludedDevices, *re)
-		} else {
-			return err
-		}
-	}
 	for reString, tags := range c.instanceConfig.DeviceTagRe {
-		if re, err := compileRegExp(reString); err == nil {
+		if re, err := compileRegExp(reString, defaultIgnoreCase()); err == nil {
 			c.deviceTagRe[re] = strings.Split(tags, ",")
 		} else {
 			return err
@@ -256,11 +256,11 @@ func (c *Check) checkDeprecatedConfig(data integration.Data, initConfig integrat
 	return nil
 }
 
-func processRegExpSlices(slices [][]string) ([]regexp.Regexp, error) {
+func processRegExpSlices(slices [][]string, ignoreCase bool) ([]regexp.Regexp, error) {
 	regExpList := []regexp.Regexp{}
 	for _, slice := range slices {
 		for _, val := range slice {
-			if re, err := compileRegExp(val); err == nil {
+			if re, err := compileRegExp(val, ignoreCase); err == nil {
 				regExpList = append(regExpList, *re)
 			} else {
 				return regExpList, err
@@ -272,13 +272,13 @@ func processRegExpSlices(slices [][]string) ([]regexp.Regexp, error) {
 
 func (c *Check) configureExcludeDevice() error {
 	c.excludedDevices = []regexp.Regexp{}
-	if regExpList, err := processRegExpSlices([][]string{c.initConfig.DeviceGlobalExclude, c.initConfig.DeviceGlobalBlacklist, c.instanceConfig.DeviceExclude, c.instanceConfig.DeviceBlacklist, c.instanceConfig.ExcludedDisks}); err == nil {
+	if regExpList, err := processRegExpSlices([][]string{c.initConfig.DeviceGlobalExclude, c.initConfig.DeviceGlobalBlacklist, c.instanceConfig.DeviceExclude, c.instanceConfig.DeviceBlacklist, c.instanceConfig.ExcludedDisks}, defaultIgnoreCase()); err == nil {
 		c.excludedDevices = append(c.excludedDevices, regExpList...)
 	} else {
 		return err
 	}
 	if c.instanceConfig.ExcludedDiskRe != "" {
-		if re, err := compileRegExp(c.instanceConfig.ExcludedDiskRe); err == nil {
+		if re, err := compileRegExp(c.instanceConfig.ExcludedDiskRe, defaultIgnoreCase()); err == nil {
 			c.excludedDevices = append(c.excludedDevices, *re)
 		} else {
 			return err
@@ -289,7 +289,7 @@ func (c *Check) configureExcludeDevice() error {
 
 func (c *Check) configureIncludeDevice() error {
 	c.includedDevices = []regexp.Regexp{}
-	if regExpList, err := processRegExpSlices([][]string{c.instanceConfig.DeviceInclude, c.instanceConfig.DeviceWhitelist}); err == nil {
+	if regExpList, err := processRegExpSlices([][]string{c.instanceConfig.DeviceInclude, c.instanceConfig.DeviceWhitelist}, defaultIgnoreCase()); err == nil {
 		c.includedDevices = append(c.includedDevices, regExpList...)
 	} else {
 		return err
@@ -299,7 +299,7 @@ func (c *Check) configureIncludeDevice() error {
 
 func (c *Check) configureExcludeFileSystem() error {
 	c.excludedFilesystems = []regexp.Regexp{}
-	if regExpList, err := processRegExpSlices([][]string{c.initConfig.FileSystemGlobalExclude, c.initConfig.FileSystemGlobalBlacklist}); err == nil {
+	if regExpList, err := processRegExpSlices([][]string{c.initConfig.FileSystemGlobalExclude, c.initConfig.FileSystemGlobalBlacklist}, true); err == nil {
 		c.excludedFilesystems = append(c.excludedFilesystems, regExpList...)
 	} else {
 		return err
@@ -307,14 +307,14 @@ func (c *Check) configureExcludeFileSystem() error {
 	if len(c.excludedFilesystems) == 0 {
 		// Use default values if neither key was found
 		for _, val := range []string{"iso9660$", "tracefs$"} {
-			if re, err := compileRegExp(val); err == nil {
+			if re, err := compileRegExp(val, true); err == nil {
 				c.excludedFilesystems = append(c.excludedFilesystems, *re)
 			} else {
 				return err
 			}
 		}
 	}
-	if regExpList, err := processRegExpSlices([][]string{c.instanceConfig.FileSystemExclude, c.instanceConfig.FileSystemBlacklist, c.instanceConfig.ExcludedFileSystems}); err == nil {
+	if regExpList, err := processRegExpSlices([][]string{c.instanceConfig.FileSystemExclude, c.instanceConfig.FileSystemBlacklist, c.instanceConfig.ExcludedFileSystems}, true); err == nil {
 		c.excludedFilesystems = append(c.excludedFilesystems, regExpList...)
 	} else {
 		return err
@@ -324,7 +324,7 @@ func (c *Check) configureExcludeFileSystem() error {
 
 func (c *Check) configureIncludeFileSystem() error {
 	c.includedFilesystems = []regexp.Regexp{}
-	if regExpList, err := processRegExpSlices([][]string{c.instanceConfig.FileSystemInclude, c.instanceConfig.FileSystemWhitelist}); err == nil {
+	if regExpList, err := processRegExpSlices([][]string{c.instanceConfig.FileSystemInclude, c.instanceConfig.FileSystemWhitelist}, true); err == nil {
 		c.includedFilesystems = append(c.includedFilesystems, regExpList...)
 	} else {
 		return err
@@ -334,7 +334,7 @@ func (c *Check) configureIncludeFileSystem() error {
 
 func (c *Check) configureExcludeMountPoint() error {
 	c.excludedMountpoints = []regexp.Regexp{}
-	if regExpList, err := processRegExpSlices([][]string{c.initConfig.MountPointGlobalExclude, c.initConfig.MountPointGlobalBlacklist}); err == nil {
+	if regExpList, err := processRegExpSlices([][]string{c.initConfig.MountPointGlobalExclude, c.initConfig.MountPointGlobalBlacklist}, true); err == nil {
 		c.excludedMountpoints = append(c.excludedMountpoints, regExpList...)
 	} else {
 		return err
@@ -343,20 +343,20 @@ func (c *Check) configureExcludeMountPoint() error {
 		// https://github.com/DataDog/datadog-agent/issues/1961
 		// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-1049
 		for _, val := range []string{"(/host)?/proc/sys/fs/binfmt_misc$"} {
-			if re, err := compileRegExp(val); err == nil {
+			if re, err := compileRegExp(val, defaultIgnoreCase()); err == nil {
 				c.excludedMountpoints = append(c.excludedMountpoints, *re)
 			} else {
 				return err
 			}
 		}
 	}
-	if regExpList, err := processRegExpSlices([][]string{c.instanceConfig.MountPointExclude, c.instanceConfig.MountPointBlacklist}); err == nil {
+	if regExpList, err := processRegExpSlices([][]string{c.instanceConfig.MountPointExclude, c.instanceConfig.MountPointBlacklist}, true); err == nil {
 		c.excludedMountpoints = append(c.excludedMountpoints, regExpList...)
 	} else {
 		return err
 	}
 	if c.instanceConfig.ExcludedMountPointRe != "" {
-		if re, err := compileRegExp(c.instanceConfig.ExcludedMountPointRe); err == nil {
+		if re, err := compileRegExp(c.instanceConfig.ExcludedMountPointRe, defaultIgnoreCase()); err == nil {
 			c.excludedMountpoints = append(c.excludedMountpoints, *re)
 		} else {
 			return err
@@ -367,7 +367,7 @@ func (c *Check) configureExcludeMountPoint() error {
 
 func (c *Check) configureIncludeMountPoint() error {
 	c.includedMountpoints = []regexp.Regexp{}
-	if regExpList, err := processRegExpSlices([][]string{c.instanceConfig.MountPointInclude, c.instanceConfig.MountPointWhitelist}); err == nil {
+	if regExpList, err := processRegExpSlices([][]string{c.instanceConfig.MountPointInclude, c.instanceConfig.MountPointWhitelist}, true); err == nil {
 		c.includedMountpoints = append(c.includedMountpoints, regExpList...)
 	} else {
 		return err
