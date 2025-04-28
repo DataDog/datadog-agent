@@ -55,9 +55,18 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 		useCompression bool
 	}{
 		{
+			name: "additional endpoints",
+			configSetup: func(c config.Component) {
+				c.SetWithoutSource("database_monitoring.metrics.additional_endpoints", `[{"api_key":"foo","host":"bar"}]`)
+			},
+			expectedKind:   gzipCompressionKind,
+			expectedLevel:  defaultGzipCompressionLevel,
+			useCompression: defaultUseCompression,
+		},
+		{
 			name: "no compression",
 			configSetup: func(c config.Component) {
-				c.SetWithoutSource("test.use_compression", false)
+				c.SetWithoutSource("database_monitoring.metrics.use_compression", false)
 			},
 			expectedKind:   "none",
 			expectedLevel:  0,
@@ -73,8 +82,8 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 		{
 			name: "zstd custom compression level",
 			configSetup: func(c config.Component) {
-				c.SetWithoutSource("test.compression_kind", "zstd")
-				c.SetWithoutSource("test.zstd_compression_level", 3)
+				c.SetWithoutSource("database_monitoring.metrics.compression_kind", "zstd")
+				c.SetWithoutSource("database_monitoring.metrics.zstd_compression_level", 3)
 			},
 			expectedKind:   zstdCompressionKind,
 			expectedLevel:  3,
@@ -83,7 +92,7 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 		{
 			name: "gzip compression",
 			configSetup: func(c config.Component) {
-				c.SetWithoutSource("test.compression_kind", "gzip")
+				c.SetWithoutSource("database_monitoring.metrics.compression_kind", "gzip")
 			},
 			expectedKind:   gzipCompressionKind,
 			expectedLevel:  defaultGzipCompressionLevel,
@@ -92,38 +101,18 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 		{
 			name: "gzip custom compression level",
 			configSetup: func(c config.Component) {
-				c.SetWithoutSource("test.compression_kind", "gzip")
-				c.SetWithoutSource("test.compression_level", 8)
+				c.SetWithoutSource("database_monitoring.metrics.compression_kind", "gzip")
+				c.SetWithoutSource("database_monitoring.metrics.compression_level", 8)
 			},
 			expectedKind:   gzipCompressionKind,
 			expectedLevel:  8,
 			useCompression: defaultUseCompression,
 		},
 		{
-			name: "additional endpoints",
-			configSetup: func(c config.Component) {
-				c.SetWithoutSource("test.additional_endpoints", `[
-				{
-					"api_key": "apikey2",
-					"Host": "https://mydomain.datadoghq.com",
-					"Port": 443
-				},
-				{
-					"api_key": "apikey3",
-					"Host": "https://mydomain.datadoghq.com",
-					"Port": 443
-				}
-			]`)
-			},
-			expectedKind:   gzipCompressionKind,
-			expectedLevel:  defaultGzipCompressionLevel,
-			useCompression: defaultUseCompression,
-		},
-		{
 			name: "invalid compression",
 			configSetup: func(c config.Component) {
-				c.SetWithoutSource("test.use_compression", true)
-				c.SetWithoutSource("test.compression_kind", "gipz")
+				c.SetWithoutSource("database_monitoring.metrics.use_compression", true)
+				c.SetWithoutSource("database_monitoring.metrics.compression_kind", "gipz")
 			},
 			expectedKind:   zstdCompressionKind,
 			expectedLevel:  defaultZstdCompressionLevel,
@@ -137,7 +126,8 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 			t.configSetup(suite.config)
 
 			desc := passthroughPipelineDesc{
-				endpointsConfigPrefix: "test.",
+				// Only registered config prefixes trigger correct parsing and defaults.
+				endpointsConfigPrefix: "database_monitoring.metrics.",
 			}
 
 			pipeline, err := newHTTPPassthroughPipeline(
@@ -175,10 +165,10 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 
 func (suite *EventPlatformForwarderTestSuite) resetCompression() {
 	// Reset compression settings to default state
-	suite.config.SetWithoutSource("test.use_compression", true)
-	suite.config.SetWithoutSource("test.compression_kind", "zstd")
-	suite.config.SetWithoutSource("test.compression_level", 6)
-	suite.config.SetWithoutSource("test.zstd_compression_level", defaultZstdCompressionLevel)
-	suite.config.SetWithoutSource("test.additional_endpoints", "{}")
+	suite.config.SetWithoutSource("database_monitoring.metrics.use_compression", true)
+	suite.config.SetWithoutSource("database_monitoring.metrics.compression_kind", "zstd")
+	suite.config.SetWithoutSource("database_monitoring.metrics.compression_level", 6)
+	suite.config.SetWithoutSource("database_monitoring.metrics.zstd_compression_level", defaultZstdCompressionLevel)
+	suite.config.SetWithoutSource("database_monitoring.metrics.additional_endpoints", "{}")
 
 }
