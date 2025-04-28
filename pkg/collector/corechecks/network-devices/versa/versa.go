@@ -102,7 +102,7 @@ func (v *VersaCheck) Run() error {
 	}
 
 	// Convert Versa objects to device metadata
-	deviceMetadata := make([]devicemetadata.DeviceMetadata, len(appliances)+1)
+	deviceMetadata := make([]devicemetadata.DeviceMetadata, 0, len(appliances)+1)
 	deviceMetadata = append(deviceMetadata, payload.GetDeviceMetadataFromAppliances(v.config.Namespace, appliances)...)
 
 	directorDeviceMetdata, err := payload.GetDeviceMetadataFromDirector(v.config.Namespace, directorStatus)
