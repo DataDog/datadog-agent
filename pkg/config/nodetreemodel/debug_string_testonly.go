@@ -30,7 +30,7 @@ func (c *ntmConfig) toDebugString(source model.Source, opts ...model.StringifyOp
 		for _, setting := range strcfg.SettingFilters {
 			filterSet[setting] = struct{}{}
 			parts := strings.Split(setting, ".")
-			for i := 0; i < len(parts)-1; i += 1 {
+			for i := 0; i < len(parts)-1; i++ {
 				partial := strings.Join(parts[:i+1], ".")
 				traverseSet[partial] = struct{}{}
 			}
@@ -127,7 +127,7 @@ func (d *treeDebugger) branchCheckFilter(path string) (bool, bool) {
 		return true, true
 	}
 	parts := strings.Split(path, ".")
-	for i, _ := range parts {
+	for i := range parts {
 		part := strings.Join(parts[:i+1], ".")
 		if _, found := d.filterSet[part]; found {
 			return true, true
@@ -203,7 +203,7 @@ func (d *treeDebugger) makePointer(object interface{}) string {
 			d.seenPtrOrder = append(d.seenPtrOrder, ptr)
 		}
 		pc := d.seenPtrs[ptr]
-		pc.num += 1
+		pc.num++
 		return fmt.Sprintf("#ptr<%06d>", pc.key)
 	}
 	return ptr
