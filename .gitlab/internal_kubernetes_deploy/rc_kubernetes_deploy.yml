@@ -11,8 +11,11 @@ rc_kubernetes_deploy:
       when: manual
   needs:
     - job: docker_trigger_internal
+      artifacts: false
     - job: docker_trigger_cluster_agent_internal
+      artifacts: false
     - job: docker_trigger_internal-full
+      artifacts: false
     - job: k8s-e2e-main # Currently only require container Argo workflow
       artifacts: false
       optional: true
