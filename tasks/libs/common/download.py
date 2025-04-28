@@ -1,7 +1,6 @@
 import os
 
 import requests
-import rich.progress
 
 
 def download(url: str, path: str):
@@ -15,6 +14,9 @@ def download(url: str, path: str):
     with open(path, "wb") as writer:
         name = path.split("/")[-1]
         total = int(response.headers.get('content-length', 0)) or None
+
+        import rich.progress
+
         with rich.progress.Progress(
             rich.progress.SpinnerColumn(),
             rich.progress.TextColumn("[progress.description]{task.description}"),
