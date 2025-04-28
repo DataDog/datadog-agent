@@ -20,23 +20,23 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.123.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.123.0
 	github.com/stretchr/testify v1.10.0
-	go.opentelemetry.io/collector/component v1.29.0
-	go.opentelemetry.io/collector/component/componenttest v0.123.0
+	go.opentelemetry.io/collector/component v1.30.0
+	go.opentelemetry.io/collector/component/componenttest v0.124.0
 	go.opentelemetry.io/collector/connector v0.123.0
 	go.opentelemetry.io/collector/connector/connectortest v0.123.0
 	go.opentelemetry.io/collector/consumer v1.29.0
 	go.opentelemetry.io/collector/consumer/consumertest v0.123.0
 	go.opentelemetry.io/collector/exporter v0.123.0
 	go.opentelemetry.io/collector/exporter/debugexporter v0.123.0
-	go.opentelemetry.io/collector/featuregate v1.29.0
+	go.opentelemetry.io/collector/featuregate v1.30.0
 	go.opentelemetry.io/collector/otelcol v0.123.0
 	go.opentelemetry.io/collector/otelcol/otelcoltest v0.123.0
-	go.opentelemetry.io/collector/pdata v1.29.0
+	go.opentelemetry.io/collector/pdata v1.30.0
 	go.opentelemetry.io/collector/processor v1.29.0
 	go.opentelemetry.io/collector/processor/batchprocessor v0.123.0
 	go.opentelemetry.io/collector/receiver v1.29.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.123.0
-	go.opentelemetry.io/collector/semconv v0.123.0
+	go.opentelemetry.io/collector/semconv v0.124.0
 	go.opentelemetry.io/otel/metric v1.35.0
 	go.uber.org/zap v1.27.0
 	google.golang.org/protobuf v1.36.6
@@ -264,10 +264,10 @@ require (
 	go.opentelemetry.io/collector/extension/xextension v0.123.0 // indirect
 	go.opentelemetry.io/collector/internal/fanoutconsumer v0.123.0 // indirect
 	go.opentelemetry.io/collector/internal/sharedcomponent v0.123.0 // indirect
-	go.opentelemetry.io/collector/internal/telemetry v0.123.0 // indirect
+	go.opentelemetry.io/collector/internal/telemetry v0.124.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.123.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.123.0 // indirect
-	go.opentelemetry.io/collector/pipeline v0.123.0 // indirect
+	go.opentelemetry.io/collector/pipeline v0.124.0 // indirect
 	go.opentelemetry.io/collector/pipeline/xpipeline v0.123.0 // indirect
 	go.opentelemetry.io/collector/processor/processortest v0.123.0 // indirect
 	go.opentelemetry.io/collector/processor/xprocessor v0.123.0 // indirect
