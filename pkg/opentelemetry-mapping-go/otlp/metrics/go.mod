@@ -64,3 +64,5 @@ replace (
 )
 
 retract v0.4.0 // see #107
+
+replace github.com/DataDog/datadog-agent/pkg/proto => ../../../proto
