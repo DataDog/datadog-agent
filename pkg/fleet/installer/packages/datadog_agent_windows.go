@@ -11,11 +11,13 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -119,7 +121,7 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	if err != nil {
 		// we failed to install the Agent, we need to restore the stable Agent
 		// to leave the system in a consistent state.
-		// if the reinstall of the sable fails again we can't do much.
+		// if the reinstall of the stable fails again we can't do much.
 		_ = installAgentPackage(env, "stable", nil, "restore_stable_agent.log")
 		return err
 	}
@@ -130,18 +132,22 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	if err != nil {
 		log.Errorf("Watchdog failed: %s", err)
 		// we failed to start the watchdog, the Agent stopped, or we received a timeout
-		// we need to restore the stable Agent
-		// to leave the system in a consistent state.
-		// remove the experiment Agent
-		err = removeAgentIfInstalled(ctx)
+		// we need to restore the stable Agent to leave the system in a consistent state.
+		installer, err := newInstallerExec(env)
 		if err != nil {
-			// we failed to remove the experiment Agent
-			// we can't do much here
+			log.Errorf("Failed to create installer exec: %s", err)
+			return fmt.Errorf("failed to create installer exec: %w", err)
+		}
+		// call remove-experiment to:
+		// - remove current version and reinstall stable version
+		// - update repository state / remove experiment link
+		// The updated repository state will cause the daemon to skip the stop-experiment
+		// operation received from the backend.
+		err = installer.RemoveExperiment(ctx, ctx.Package)
+		if err != nil {
 			log.Errorf("Failed to remove experiment Agent: %s", err)
 			return fmt.Errorf("failed to remove experiment Agent: %w", err)
 		}
-		// reinstall the stable Agent
-		_ = installAgentPackage(env, "stable", nil, "restore_stable_agent.log")
 		return err
 	}
 
@@ -476,4 +482,17 @@ func getenv() *env.Env {
 	}
 
 	return env
+}
+
+func newInstallerExec(env *env.Env) (*exec.InstallerExec, error) {
+	installerBin, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("could not get installer executable path: %w", err)
+	}
+	installerBin, err = filepath.EvalSymlinks(installerBin)
+	if err != nil {
+		return nil, fmt.Errorf("could not get resolve installer executable path: %w", err)
+	}
+	installer := exec.NewInstallerExec(env, installerBin)
+	return installer, nil
 }
