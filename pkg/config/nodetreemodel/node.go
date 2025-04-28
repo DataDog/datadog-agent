@@ -33,7 +33,7 @@ func mapInterfaceToMapString(m map[interface{}]interface{}) map[string]interface
 // valid kinds to call IsNil on
 var nillableKinds = []reflect.Kind{reflect.Chan, reflect.Func, reflect.Map, reflect.Ptr, reflect.Interface, reflect.Slice}
 
-// return whether a is nil, or a is an interface with nil data
+// IsNilValue returns true if a is nil, or a is an interface with nil data
 func IsNilValue(a interface{}) bool {
 	if a == nil {
 		return true
