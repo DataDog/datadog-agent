@@ -39,8 +39,7 @@ type ipcComp struct {
 // NewReadOnlyComponent creates a new ipc component by trying to read the auth artifacts on filesystem.
 // If the auth artifacts are not found, it will return an error.
 func NewReadOnlyComponent(reqs Requires) (Provides, error) {
-	reqs.Log.Infof("Load IPC artifacts")
-
+	reqs.Log.Debug("Loading IPC artifacts")
 	if err := util.SetAuthToken(reqs.Conf); err != nil {
 		return Provides{}, err
 	}
@@ -60,6 +59,7 @@ func NewReadOnlyComponent(reqs Requires) (Provides, error) {
 // NewReadWriteComponent creates a new ipc component by trying to read the auth artifacts on filesystem,
 // and if they are not found, it will create them.
 func NewReadWriteComponent(reqs Requires) (Provides, error) {
+	reqs.Log.Debug("Loading or creating IPC artifacts")
 	if err := util.CreateAndSetAuthToken(reqs.Conf); err != nil {
 		return Provides{}, err
 	}
@@ -76,11 +76,21 @@ func NewReadWriteComponent(reqs Requires) (Provides, error) {
 	}, nil
 }
 
-// NewDebugOnlyComponent returns a new ipc component even if the auth artifacts are not found/initialized.
-// This constructor covers cases where it is acceptable to not have initialized IPC component.
-// This is typically the case for commands that MUST work no matter the coreAgent is running or not, if the auth artifacts are not found/initialized.
-// A good example is the `flare` command, which should return a flare even if the IPC component is not initialized.
-func NewDebugOnlyComponent(reqs Requires) Provides {
+// NewInsecureComponent creates an IPC component instance suitable for specific commands
+// (like 'flare' or 'diagnose') that must function even when the main Agent isn't running
+// or IPC artifacts (like auth tokens) are missing or invalid.
+//
+// This constructor *always* succeeds, unlike NewReadWriteComponent or NewReadOnlyComponent
+// which might fail if artifacts are absent or incorrect.
+// However, the resulting IPC component instance might be non-functional or only partially
+// functional, potentially leading to failures later, such as rejected connections during
+// the IPC handshake if communication with the core Agent is attempted.
+//
+// WARNING: This constructor is intended *only* for edge cases like diagnostics and flare generation.
+// Using it in standard agent processes or commands that rely on stable IPC communication
+// will likely lead to unexpected runtime errors or security issues.
+func NewInsecureComponent(reqs Requires) Provides {
+	reqs.Log.Debug("Loading IPC artifacts (insecure)")
 	provides, err := NewReadOnlyComponent(reqs)
 	if err == nil {
 		return provides

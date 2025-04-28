@@ -170,7 +170,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				logscompressorfx.Module(),
 				metricscompressorfx.Module(),
 				diagnosefx.Module(),
-				ipcfx.ModuleForDebug(),
+				ipcfx.ModuleInsecure(),
 			)
 		},
 	}

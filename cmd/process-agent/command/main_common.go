@@ -240,7 +240,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			}
 		}),
 		settingsimpl.Module(),
-		ipcfx.ModuleForDaemon(),
+		ipcfx.ModuleReadWrite(),
 	)
 
 	err := app.Start(ctx)

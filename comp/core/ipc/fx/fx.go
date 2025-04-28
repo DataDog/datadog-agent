@@ -11,9 +11,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// ModuleForDaemon defines the fx options for this component for the daemon commands.
-// It is using the NewReadWriteComponent constructor under the hood.
-func ModuleForDaemon() fxutil.Module {
+// ModuleReadWrite defines the fx options for this component for the daemon commands.
+// It will try to read the auth artifacts from the configured location.
+// If they are not found, it will create them.
+func ModuleReadWrite() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
 			ipcimpl.NewReadWriteComponent,
@@ -21,9 +22,10 @@ func ModuleForDaemon() fxutil.Module {
 	)
 }
 
-// ModuleForOneshot defines the fx options for this component for the one-shot commands.
-// It is using the NewReadOnlyComponent constructor under the hood.
-func ModuleForOneshot() fxutil.Module {
+// ModuleReadOnly defines the fx options for this component for the one-shot commands.
+// It will try to read the auth artifacts from the configured location.
+// If they are not found, it will fail.
+func ModuleReadOnly() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
 			ipcimpl.NewReadOnlyComponent,
@@ -31,16 +33,23 @@ func ModuleForOneshot() fxutil.Module {
 	)
 }
 
-// ModuleForDebug defines the fx options for this component for commands that should work
-// even if the agent is not running or IPC artifacts are not initialized.
-// WARNING: This module should not be used outside of the flare and diagnose commands.
-// This module covers cases where it is acceptable to not have initialized IPC component.
-// This is typically the case for commands that MUST work no matter the coreAgent is running or not, if the auth artifacts are not found/initialized.
-// A good example is the `flare` command, which should return a flare even if the IPC component is not initialized.
-func ModuleForDebug() fxutil.Module {
+// ModuleInsecure provides fx options for the IPC component suitable for specific commands
+// (like 'flare' or 'diagnose') that must function even when the main Agent isn't running
+// or IPC artifacts (like auth tokens) are missing or invalid.
+//
+// The component constructor provided by this module *always* succeeds, unlike
+// ModuleReadWrite or ModuleReadOnly which might fail if artifacts are absent or incorrect.
+// However, the resulting IPC component instance might be non-functional or only partially
+// functional, potentially leading to failures later, such as rejected connections during
+// the IPC handshake if communication with the core Agent is attempted.
+//
+// WARNING: This module is intended *only* for edge cases like diagnostics and flare generation.
+// Using it in standard agent processes or commands that rely on stable IPC communication
+// will likely lead to unexpected runtime errors or security issues.
+func ModuleInsecure() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			ipcimpl.NewDebugOnlyComponent,
+			ipcimpl.NewInsecureComponent,
 		),
 	)
 }

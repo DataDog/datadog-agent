@@ -52,7 +52,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForOneShot(command.LoggerName, "OFF", false),
 				}),
 				core.Bundle(),
-				ipcfx.ModuleForOneshot(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 		Hidden: true,

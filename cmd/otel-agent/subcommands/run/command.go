@@ -113,7 +113,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 				return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 			}),
 			logfx.Module(),
-			ipcfx.ModuleForDaemon(),
+			ipcfx.ModuleReadWrite(),
 			configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 			converterfx.Module(),
 			fx.Provide(func(cp converter.Component, _ configsync.Component) confmap.Converter {
@@ -135,7 +135,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
 			return statsd.NewOTelStatsd(client)
 		}),
-		ipcfx.ModuleForDaemon(),
+		ipcfx.ModuleReadWrite(),
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
 		converterfx.Module(),

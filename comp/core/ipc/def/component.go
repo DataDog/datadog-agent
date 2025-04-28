@@ -33,18 +33,37 @@ type Component interface {
 // RequestOption allows to specify custom behavior for requests
 type RequestOption func(req *http.Request) *http.Request
 
-// HTTPClient is a HTTP client that abstracts communications between Agent processes
+// HTTPClient is a HTTP client that abstracts communications between Agent processes.
+// It handles TLS configuration and authentication token management for inter-process communication.
 type HTTPClient interface {
+	// Do sends an HTTP request, handling IPC authentication and TLS, and returns the response body.
+	// It wraps the standard http.Client.Do method.
 	Do(req *http.Request, opts ...RequestOption) (resp []byte, err error)
+	// Get sends a GET request, handling IPC authentication and TLS, and returns the response body.
+	// It wraps the standard http.Client.Get method.
 	Get(url string, opts ...RequestOption) (resp []byte, err error)
+	// Head sends a HEAD request, handling IPC authentication and TLS, and returns the response.
+	// It wraps the standard http.Client.Head method.
 	Head(url string, opts ...RequestOption) (resp []byte, err error)
+	// Post sends a POST request with the given body and content type, handling IPC authentication and TLS,
+	// and returns the response body.
+	// It wraps the standard http.Client.Post method.
 	Post(url string, contentType string, body io.Reader, opts ...RequestOption) (resp []byte, err error)
+	// PostChunk sends a POST request with a chunked body, handling IPC authentication and TLS.
+	// The provided callback function is called for each chunk received in the response.
+	// It wraps the standard http.Client.Post method.
 	PostChunk(url string, contentType string, body io.Reader, onChunk func([]byte), opts ...RequestOption) (err error)
+	// PostForm sends a POST request with form data, handling IPC authentication and TLS,
+	// and returns the response body.
+	// It wraps the standard http.Client.PostForm method.
 	PostForm(url string, data url.Values, opts ...RequestOption) (resp []byte, err error)
+	// NewIPCEndpoint creates a new IPC endpoint client for the specified path.
+	// This allows making requests to a specific endpoint path without repeatedly specifying it.
 	NewIPCEndpoint(endpointPath string) (Endpoint, error)
 }
 
-// Endpoint represents a specific endpoint of an IPC server
+// Endpoint represents a specific endpoint of an IPC server, allowing pre-configured requests.
 type Endpoint interface {
+	// DoGet sends a GET request to the pre-configured endpoint path.
 	DoGet(options ...RequestOption) ([]byte, error)
 }

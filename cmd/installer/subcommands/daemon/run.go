@@ -63,6 +63,6 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 		localapiimpl.Module(),
 		telemetryimpl.Module(),
 		fx.Supply(pidimpl.NewParams(global.PIDFilePath)),
-		ipcfx.ModuleForDaemon(),
+		ipcfx.ModuleReadWrite(),
 	)
 }

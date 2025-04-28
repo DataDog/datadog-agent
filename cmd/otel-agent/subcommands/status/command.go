@@ -50,7 +50,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 				coreconfig.Module(),
 				secretsimpl.Module(),
 				logfx.Module(),
-				ipcfx.ModuleForOneshot(),
+				ipcfx.ModuleReadOnly(),
 				otelagentStatusfx.Module(),
 			)
 		},

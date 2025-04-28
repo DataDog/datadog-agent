@@ -224,7 +224,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				metadatarunnerimpl.Module(),
 				dcametadatafx.Module(),
-				ipcfx.ModuleForDaemon(),
+				ipcfx.ModuleReadWrite(),
 			)
 		},
 	}

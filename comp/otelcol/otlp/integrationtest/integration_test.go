@@ -91,7 +91,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 			return statsd.NewOTelStatsd(client)
 		}),
 		sysprobeconfig.NoneModule(),
-		ipcfx.ModuleForDaemon(),
+		ipcfx.ModuleReadWrite(),
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
 		converterfx.Module(),

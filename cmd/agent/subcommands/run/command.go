@@ -497,7 +497,7 @@ func getSharedFxOption() fx.Option {
 		haagentfx.Module(),
 		metricscompressorfx.Module(),
 		diagnosefx.Module(),
-		ipcfx.ModuleForDaemon(),
+		ipcfx.ModuleReadWrite(),
 	)
 }
 
