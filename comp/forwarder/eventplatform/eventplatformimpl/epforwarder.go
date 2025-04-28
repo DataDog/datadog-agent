@@ -149,7 +149,6 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		// Each NetFlow flow is about 500 bytes
 		// 10k BatchMaxSize is about 5Mo of content size
 		defaultBatchMaxSize: 10000,
-		//
 		// High input chan is needed to handle high number of flows being flushed by NetFlow Server every 10s
 		// Customers might need to set `network_devices.forwarder.input_chan_size` to higher value if flows are dropped
 		// due to input channel being full.

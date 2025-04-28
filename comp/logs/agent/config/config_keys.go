@@ -119,15 +119,16 @@ func (l *LogsConfigKeys) devModeUseProto() bool {
 }
 
 func (l *LogsConfigKeys) compressionKind() string {
-	// Check if additional endpoints are configured
-	endpoints, _ := l.getAdditionalEndpoints()
-	if len(endpoints) > 0 {
-		log.Debugf("Additional endpoints detected, pipeline: %s falling back to gzip compression for compatibility", l.prefix)
-		return GzipCompressionKind
-	}
-
 	configKey := l.getConfigKey("compression_kind")
 	compressionKind := l.getConfig().GetString(configKey)
+
+	endpoints, _ := l.getAdditionalEndpoints()
+	if len(endpoints) > 0 {
+		if !l.config.IsConfigured(configKey) {
+			log.Debugf("Additional endpoints detected, pipeline: %s falling back to gzip compression for compatibility", l.prefix)
+			return GzipCompressionKind
+		}
+	}
 
 	if compressionKind == ZstdCompressionKind || compressionKind == GzipCompressionKind {
 		pipelineName := "Main logs agent pipeline"
