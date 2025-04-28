@@ -9,7 +9,7 @@
 package network
 
 var (
-	ETHTOOL_METRIC_NAMES = map[string][]string{
+	ethtoolMetricNames = map[string][]string{
 		// Example ethtool -S iface with ena driver:
 		// queue_0_tx_cnt: 123665045
 		// queue_0_tx_bytes: 34567996008
@@ -239,7 +239,7 @@ var (
 )
 
 var (
-	ETHTOOL_GLOBAL_METRIC_NAMES = map[string][]string{
+	ethtoolGlobalMetricNames = map[string][]string{
 		"ena": {
 			"tx_timeout",
 			"suspend",
@@ -337,5 +337,39 @@ var (
 			"SndbufErrors": "system.net.udp.snd_buf_errors",
 			"InCsumErrors": "system.net.udp.in_csum_errors",
 		},
+	}
+)
+
+var (
+	tcpStateMetricsSuffixMapping_ss = map[string]string{
+		"ESTAB":      "established",
+		"SYN-SENT":   "opening",
+		"SYN-RECV":   "opening",
+		"FIN-WAIT-1": "closing",
+		"FIN-WAIT-2": "closing",
+		"TIME-WAIT":  "time_wait",
+		"UNCONN":     "closing",
+		"CLOSE-WAIT": "closing",
+		"LAST-ACK":   "closing",
+		"LISTEN":     "listening",
+		"CLOSING":    "closing",
+	}
+
+	tcpStateMetricsSuffixMapping_netstat = map[string]string{
+		"ESTABLISHED": "established",
+		"SYN_SENT":    "opening",
+		"SYN_RECV":    "opening",
+		"FIN_WAIT1":   "closing",
+		"FIN_WAIT2":   "closing",
+		"TIME_WAIT":   "time_wait",
+		"CLOSE":       "closing",
+		"CLOSE_WAIT":  "closing",
+		"LAST_ACK":    "closing",
+		"LISTEN":      "listening",
+		"CLOSING":     "closing",
+	}
+
+	udpStateMetricsSuffixMapping = map[string]string{
+		"NONE": "connections",
 	}
 )
