@@ -14,6 +14,8 @@ import (
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	netflowConfig "github.com/DataDog/datadog-agent/comp/netflow/config"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 )
 
 type integrationsByDestPort map[string][]string
@@ -78,31 +80,21 @@ func getNetFlowDestPorts(config config.Component) []destPort {
 		return []destPort{}
 	}
 
-	listenersInterface := config.Get("network_devices.netflow.listeners")
-	listeners, ok := listenersInterface.([]interface{})
-	if !ok {
+	var listeners []netflowConfig.ListenerConfig
+	err := structure.UnmarshalKey(config, "network_devices.netflow.listeners", &listeners)
+	if err != nil {
 		return []destPort{}
 	}
 
 	var destPorts []destPort
+
 	for _, listener := range listeners {
-		listenerMap, ok := listener.(map[interface{}]interface{})
-		if !ok {
+		flowTypeDetail, err := common.GetFlowTypeByName(listener.FlowType)
+		if err != nil {
 			continue
 		}
 
-		flowType, ok := listenerMap["flow_type"].(string)
-		if !ok {
-			continue
-		}
-
-		port, ok := listenerMap["port"].(int)
-		if !ok {
-			flowTypeDetail, err := common.GetFlowTypeByName(common.FlowType(flowType))
-			if err != nil {
-				continue
-			}
-
+		if listener.Port == 0 {
 			destPorts = append(destPorts, destPort{
 				Port:            fmt.Sprintf("%d", flowTypeDetail.DefaultPort()),
 				FromIntegration: fmt.Sprintf("netflow (%s)", flowTypeDetail.Name()),
@@ -111,10 +103,11 @@ func getNetFlowDestPorts(config config.Component) []destPort {
 		}
 
 		destPorts = append(destPorts, destPort{
-			Port:            fmt.Sprintf("%d", port),
-			FromIntegration: fmt.Sprintf("netflow (%s)", flowType),
+			Port:            fmt.Sprintf("%d", listener.Port),
+			FromIntegration: fmt.Sprintf("netflow (%s)", flowTypeDetail.Name()),
 		})
 	}
+
 	return destPorts
 }
 
