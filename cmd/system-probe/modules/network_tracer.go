@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux || windows
+//go:build (linux && linux_bpf) || (windows && npm)
 
 package modules
 
@@ -17,13 +17,9 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 
-	"go.uber.org/atomic"
-
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
@@ -36,6 +32,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	usmconsts "github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -83,11 +82,11 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 
 // Register all networkTracer endpoints
 func (nt *networkTracer) Register(httpMux *module.Router) error {
-	var runCounter = atomic.NewUint64(0)
+	var runCounter atomic.Uint64
 
 	httpMux.HandleFunc("/connections", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
-		id := getClientID(req)
+		id := utils.GetClientID(req)
 		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
@@ -102,7 +101,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		if nt.restartTimer != nil {
 			nt.restartTimer.Reset(inactivityRestartDuration)
 		}
-		count := runCounter.Inc()
+		count := runCounter.Add(1)
 		logRequests(id, count, len(cs.Conns), start)
 	}))
 
@@ -117,7 +116,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	}))
 
 	httpMux.HandleFunc("/register", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
-		id := getClientID(req)
+		id := utils.GetClientID(req)
 		err := nt.tracer.RegisterClient(id)
 		log.Debugf("Got request on /network_tracer/register?client_id=%s", id)
 		if err != nil {
@@ -142,14 +141,14 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/net_state", func(w http.ResponseWriter, req *http.Request) {
-		stats, err := nt.tracer.DebugNetworkState(getClientID(req))
+		stats, err := nt.tracer.DebugNetworkState(utils.GetClientID(req))
 		if err != nil {
 			log.Errorf("unable to retrieve tracer stats: %s", err)
 			w.WriteHeader(500)
 			return
 		}
 
-		utils.WriteAsJSON(w, stats)
+		utils.WriteAsJSON(w, stats, utils.CompactOutput)
 	})
 
 	httpMux.HandleFunc("/debug/http_monitoring", func(w http.ResponseWriter, req *http.Request) {
@@ -157,7 +156,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			writeDisabledProtocolMessage("http", w)
 			return
 		}
-		id := getClientID(req)
+		id := utils.GetClientID(req)
 		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
@@ -166,7 +165,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		defer cleanup()
 
-		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP, cs.DNS))
+		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP, cs.DNS), utils.GetPrettyPrintFromQueryParams(req))
 	})
 
 	httpMux.HandleFunc("/debug/kafka_monitoring", func(w http.ResponseWriter, req *http.Request) {
@@ -174,7 +173,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			writeDisabledProtocolMessage("kafka", w)
 			return
 		}
-		id := getClientID(req)
+		id := utils.GetClientID(req)
 		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
@@ -183,7 +182,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		defer cleanup()
 
-		utils.WriteAsJSON(w, kafkadebugging.Kafka(cs.Kafka))
+		utils.WriteAsJSON(w, kafkadebugging.Kafka(cs.Kafka), utils.GetPrettyPrintFromQueryParams(req))
 	})
 
 	httpMux.HandleFunc("/debug/postgres_monitoring", func(w http.ResponseWriter, req *http.Request) {
@@ -191,7 +190,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			writeDisabledProtocolMessage("postgres", w)
 			return
 		}
-		id := getClientID(req)
+		id := utils.GetClientID(req)
 		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
@@ -200,7 +199,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		defer cleanup()
 
-		utils.WriteAsJSON(w, postgresdebugging.Postgres(cs.Postgres))
+		utils.WriteAsJSON(w, postgresdebugging.Postgres(cs.Postgres), utils.GetPrettyPrintFromQueryParams(req))
 	})
 
 	httpMux.HandleFunc("/debug/redis_monitoring", func(w http.ResponseWriter, req *http.Request) {
@@ -208,7 +207,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			writeDisabledProtocolMessage("redis", w)
 			return
 		}
-		id := getClientID(req)
+		id := utils.GetClientID(req)
 		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
@@ -217,7 +216,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		defer cleanup()
 
-		utils.WriteAsJSON(w, redisdebugging.Redis(cs.Redis))
+		utils.WriteAsJSON(w, redisdebugging.Redis(cs.Redis), utils.GetPrettyPrintFromQueryParams(req))
 	})
 
 	httpMux.HandleFunc("/debug/http2_monitoring", func(w http.ResponseWriter, req *http.Request) {
@@ -225,7 +224,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			writeDisabledProtocolMessage("http2", w)
 			return
 		}
-		id := getClientID(req)
+		id := utils.GetClientID(req)
 		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
@@ -234,7 +233,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		defer cleanup()
 
-		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP2, cs.DNS))
+		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP2, cs.DNS), utils.GetPrettyPrintFromQueryParams(req))
 	})
 
 	// /debug/ebpf_maps as default will dump all registered maps/perfmaps
@@ -289,7 +288,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, cache)
+		utils.WriteAsJSON(w, cache, utils.CompactOutput)
 	})
 
 	httpMux.HandleFunc("/debug/usm_telemetry", telemetry.Handler)
@@ -333,14 +332,6 @@ func logRequests(client string, count uint64, connectionsCount int, start time.T
 	default:
 		log.Debugf(msg, args...)
 	}
-}
-
-func getClientID(req *http.Request) string {
-	var clientID = network.DEBUGCLIENT
-	if rawCID := req.URL.Query().Get("client_id"); rawCID != "" {
-		clientID = rawCID
-	}
-	return clientID
 }
 
 func writeConnections(w http.ResponseWriter, marshaler marshal.Marshaler, cs *network.Connections) {

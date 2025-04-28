@@ -14,6 +14,7 @@ issues:
   exclude-dirs:
     - pkg/proto/patches
     - pkg/security/utils/lru
+    - pkg/template
     - tasks/unit_tests/testdata/components_src
 
   exclude:
@@ -617,6 +618,26 @@ linters-settings:
         deny:
           - pkg: "github.com/cihub/seelog"
             desc: "seelog should not be used directly. Use `pkg/util/log` instead."
+      templates:
+        deny:
+          # see https://github.com/golang/go/issues/72895 for details
+          - pkg: "text/template"
+            desc: "Use \"github.com/DataDog/datadog-agent/pkg/template/text\" instead to avoid disabling dead code elimination."
+          - pkg: "html/template"
+            desc: "Use \"github.com/DataDog/datadog-agent/pkg/template/html\" instead to avoid disabling dead code elimination."
+        files:
+          - "**/cmd/**"
+          - "**/comp/**"
+          - "**/pkg/**"
+          - "!**/pkg/template/**"
+          - "!**/pkg/security/generators/**"
+          - "!**/pkg/network/go/lutgen/**"
+          - "!$test"
+          - "!**/tests/**"
+          # TODO: remove those once migrated
+          - "!**/pkg/dynamicinstrumentation/codegen/**"
+          - "!**/pkg/dynamicinstrumentation/ebpf/**"
+          - "!**/pkg/ebpf/bytecode/runtime/**"
 
   errcheck:
     exclude-functions:

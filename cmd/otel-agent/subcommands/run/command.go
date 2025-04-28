@@ -102,6 +102,10 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 	if err != nil && err != agentConfig.ErrNoDDExporter {
 		return err
 	}
+	if !acfg.GetBool("otelcollector.enabled") {
+		fmt.Println("*** OpenTelemetry Collector is not enabled, exiting application ***. Set the config option `otelcollector.enabled` or the environment variable `DD_OTELCOLLECTOR_ENABLED` at true to enable it.")
+		return nil
+	}
 	uris := append(params.ConfPaths, params.Sets...)
 	if err == agentConfig.ErrNoDDExporter {
 		return fxutil.Run(
@@ -221,9 +225,10 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fx.Supply(traceconfig.Params{FailIfAPIKeyMissing: false}),
 
 		fx.Supply(&traceagentcomp.Params{
-			CPUProfile:  "",
-			MemProfile:  "",
-			PIDFilePath: "",
+			CPUProfile:               "",
+			MemProfile:               "",
+			PIDFilePath:              "",
+			DisableInternalProfiling: true,
 		}),
 		traceagentfx.Module(),
 	)

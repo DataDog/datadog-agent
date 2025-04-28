@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
@@ -51,6 +52,7 @@ type dependencies struct {
 	HostInfo hostinfo.Component
 	SysCfg   sysprobeconfig.Component
 	Config   config.Component
+	Tagger   tagger.Component
 }
 
 func newRunner(deps dependencies) (runner.Component, error) {

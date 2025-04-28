@@ -38,7 +38,8 @@ const (
 	version              = "1.0"
 	customAttribute      = "custom.attribute"
 	customAttributeValue = "true"
-	logBody              = "random date"
+	log1Body             = "getting random date"
+	log2Body             = "random date"
 )
 
 // OTelTestSuite is an interface for the OTel e2e test suite.
@@ -305,9 +306,9 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 	s.T().Log("Waiting for logs")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		if iaParams.InfraAttributes {
-			logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(logBody), fakeintake.WithTags[*aggregator.Log]([]string{"kube_ownerref_kind:replicaset"}))
+			logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(log2Body), fakeintake.WithTags[*aggregator.Log]([]string{"kube_ownerref_kind:replicaset"}))
 		} else {
-			logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(logBody))
+			logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(log2Body))
 		}
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
@@ -318,14 +319,8 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 
 	require.NotEmpty(s.T(), logs)
 	for _, log := range logs {
-		tags := getTagMapFromSlice(s.T(), log.Tags)
-		attrs := make(map[string]interface{})
-		err = json.Unmarshal([]byte(log.Message), &attrs)
-		assert.NoError(s.T(), err)
-		for k, v := range attrs {
-			tags[k] = fmt.Sprint(v)
-		}
-		assert.Contains(s.T(), log.Message, logBody)
+		tags := getLogTagsAndAttrs(s.T(), log)
+		assert.Contains(s.T(), log.Message, log2Body)
 		assert.Equal(s.T(), CalendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])
 		assert.Equal(s.T(), version, tags["version"])
@@ -360,7 +355,7 @@ func TestHosts(s OTelTestSuite) {
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
 
-		logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(logBody))
+		logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(log2Body))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
 	}, 2*time.Minute, 10*time.Second)
@@ -481,7 +476,7 @@ func TestHostMetrics(s OTelTestSuite) {
 	}, 1*time.Minute, 10*time.Second)
 }
 
-func getLoadBalancingSpans(t assert.TestingT, traces []*aggregator.TracePayload) map[string][]*trace.Span {
+func getLoadBalancingSpans(t require.TestingT, traces []*aggregator.TracePayload) map[string][]*trace.Span {
 	spanMap := make(map[string][]*trace.Span)
 	spans := 0
 	for _, tracePayload := range traces {
@@ -499,11 +494,36 @@ func getLoadBalancingSpans(t assert.TestingT, traces []*aggregator.TracePayload)
 			}
 		}
 	}
-	assert.Equal(t, 12, spans)
+	require.Equal(t, 12, spans)
 	return spanMap
 }
 
-func getLoadBalancingMetrics(t assert.TestingT, metrics []*aggregator.MetricSeries) map[string][]map[string]string {
+func getLoadBalancingLogs(c require.TestingT, s OTelTestSuite, service string) {
+	logs1, err := s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageMatching(log1Body))
+	require.NoError(c, err)
+	require.NotEmpty(c, logs1)
+	log1 := logs1[0]
+	log1Tags := getLogTagsAndAttrs(c, log1)
+
+	logs2, err := s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageMatching(log2Body))
+	require.NoError(c, err)
+	require.NotEmpty(c, logs2)
+	matchedLog := false
+	for _, log2 := range logs2 {
+		// Find second log with the same trace id
+		log2Tags := getLogTagsAndAttrs(c, log2)
+		if log1Tags["message"] != log2Tags["message"] && log1Tags["dd.trace_id"] == log2Tags["dd.trace_id"] {
+			// Verify that logs with the same trace id are sent to the same backend
+			s.T().Log("Log service", service+",", "Log trace_id", log1Tags["dd.trace_id"]+",", "Log1 Backend", log1Tags["backend"]+",", "Log2 Backend", log2Tags["backend"])
+			require.Equal(c, log1Tags["backend"], log2Tags["backend"])
+			matchedLog = true
+			break
+		}
+	}
+	require.True(c, matchedLog)
+}
+
+func getLoadBalancingMetrics(t require.TestingT, metrics []*aggregator.MetricSeries) map[string][]map[string]string {
 	metricTagsMap := make(map[string][]map[string]string)
 	ms := 0
 	for _, metricSeries := range metrics {
@@ -517,7 +537,7 @@ func getLoadBalancingMetrics(t assert.TestingT, metrics []*aggregator.MetricSeri
 			return metricTagsMap
 		}
 	}
-	assert.Equal(t, 12, ms)
+	require.Equal(t, 12, ms)
 	return metricTagsMap
 }
 
@@ -539,8 +559,12 @@ func TestLoadBalancing(s OTelTestSuite) {
 		require.NoError(c, err)
 		require.NotEmpty(c, metrics)
 		metricTagsMap = getLoadBalancingMetrics(c, metrics)
-	}, 2*time.Minute, 10*time.Second)
-	s.T().Log("Got telemetry")
+
+		for service := range spanMap {
+			getLoadBalancingLogs(c, s, service)
+		}
+	}, 5*time.Minute, 10*time.Second)
+	s.T().Log("Got telemetry", s.T().Name())
 	for service, spans := range spanMap {
 		backend := ""
 		for _, span := range spans {
@@ -576,7 +600,7 @@ func TestCalendarApp(s OTelTestSuite, ust bool, service string) {
 
 	// Wait for calendar app to start
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		logs, err := s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(logBody))
+		logs, err := s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(log2Body))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
 	}, 30*time.Minute, 10*time.Second)
@@ -654,7 +678,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite, ust bool, service s
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name:            name,
-						Image:           "ghcr.io/datadog/apps-calendar-go:main@sha256:5334a3b5940aa2a213a5c8970cc8d91899deafddf32e8df27cb0441dd9d4bc0f",
+						Image:           "ghcr.io/datadog/apps-calendar-go:main@sha256:2ec37a7660b67967f62503bbb59582b8e18b744485dd2840fb901094e84ab6b8",
 						ImagePullPolicy: "IfNotPresent",
 						Ports: []corev1.ContainerPort{{
 							Name:          "http",
@@ -781,6 +805,17 @@ func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string,
 	}
 	splits := strings.Split(ctags, ",")
 	return getTagMapFromSlice(t, splits), true
+}
+
+func getLogTagsAndAttrs(t require.TestingT, log *aggregator.Log) map[string]string {
+	tags := getTagMapFromSlice(t, log.Tags)
+	attrs := make(map[string]interface{})
+	err := json.Unmarshal([]byte(log.Message), &attrs)
+	require.NoError(t, err)
+	for k, v := range attrs {
+		tags[k] = fmt.Sprint(v)
+	}
+	return tags
 }
 
 func getTagMapFromSlice(t assert.TestingT, tagSlice []string) map[string]string {

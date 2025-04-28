@@ -9,8 +9,11 @@ package tcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"os"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
@@ -50,11 +53,20 @@ func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time
 	respChan := make(chan packetResponse, 2)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+
+	// make sure listenPackets does not return while the goroutines are still reading
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	wg.Add(1)
 	go func() {
 		respChan <- handlePackets(ctx, tcpConn, localIP, localPort, remoteIP, remotePort, seqNum)
+		wg.Done()
 	}()
+	wg.Add(1)
 	go func() {
 		respChan <- handlePackets(ctx, icmpConn, localIP, localPort, remoteIP, remotePort, seqNum)
+		wg.Done()
 	}()
 
 	// wait for both responses to return
@@ -109,12 +121,10 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, localIP net.IP, loc
 			}
 		}
 		header, packet, _, err := conn.ReadFrom(buf)
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			continue
+		}
 		if err != nil {
-			if nerr, ok := err.(*net.OpError); ok {
-				if nerr.Timeout() {
-					continue
-				}
-			}
 			return packetResponse{
 				Err: err,
 			}

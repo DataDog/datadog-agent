@@ -36,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
@@ -132,9 +131,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			apiimpl.Module(),
 			grpcNonefx.Module(),
 			authtokenimpl.Module(),
-			// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
-			// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
-			// in others commands such as run.
 			fx.Supply(option.None[collector.Component]()),
 			fx.Supply(option.None[integrations.Component]()),
 			dualTaggerfx.Module(common.DualTaggerParams()),
@@ -147,7 +143,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
 				proccontainers.InitSharedContainerProvider(wmeta, tagger)
 			}),
-			fx.Provide(func() remoteagentregistry.Component { return nil }),
 			haagentfx.Module(),
 			logscompression.Module(),
 			metricscompression.Module(),

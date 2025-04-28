@@ -258,4 +258,8 @@ enum link_target_dentry_origin {
 	ORIGIN_RETHOOK___LOOKUP_HASH,
 };
 
+enum global_rate_limiter_type {
+    RAW_PACKET_LIMITER = 0,
+};
+
 #endif

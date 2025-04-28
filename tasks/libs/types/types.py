@@ -173,3 +173,12 @@ class SlackMessage:
         if self.coda:
             print(self.coda, file=buffer)
         return buffer.getvalue()
+
+
+class PermissionCheck(Enum):
+    """
+    Enum to have a choice of permissions as argument to the check-permissions task.
+    """
+
+    REPO = 'repo'
+    TEAM = 'team'

@@ -20,7 +20,7 @@ import (
 
 func TestSubscriptionManager(t *testing.T) {
 
-	entityID := types.NewEntityID("foo", "bar")
+	entityID := types.NewEntityID(types.ContainerID, "bar")
 
 	events := map[string]types.EntityEvent{
 		"added": {
@@ -55,7 +55,8 @@ func TestSubscriptionManager(t *testing.T) {
 		"added-with-unmatched-prefix": {
 			EventType: types.EventTypeAdded,
 			Entity: types.Entity{
-				ID: types.NewEntityID("gee", "goo"),
+				// KubernetesDeployment prefix doesn't match any of the subscription filters used below
+				ID: types.NewEntityID(types.KubernetesDeployment, "goo"),
 			},
 		},
 	}
@@ -65,7 +66,7 @@ func TestSubscriptionManager(t *testing.T) {
 
 	// Low Cardinality Subscriber
 	lowCardSubID := "low-card-sub"
-	lowCardSubscription, err := sm.Subscribe(lowCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.LowCardinality), nil)
+	lowCardSubscription, err := sm.Subscribe(lowCardSubID, types.NewFilterBuilder().Include(types.ContainerID).Build(types.LowCardinality), nil)
 	require.NoError(t, err)
 
 	sm.Notify([]types.EntityEvent{
@@ -80,7 +81,7 @@ func TestSubscriptionManager(t *testing.T) {
 
 	// Orchestrator Cardinality Subscriber
 	orchCardSubID := "orch-card-sub"
-	orchCardSubscription, err := sm.Subscribe(orchCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.OrchestratorCardinality), nil)
+	orchCardSubscription, err := sm.Subscribe(orchCardSubID, types.NewFilterBuilder().Include(types.ContainerID).Build(types.OrchestratorCardinality), nil)
 	require.NoError(t, err)
 
 	sm.Notify([]types.EntityEvent{
@@ -95,7 +96,7 @@ func TestSubscriptionManager(t *testing.T) {
 
 	// High Cardinality Subscriber
 	highCardSubID := "high-card-sub"
-	highCardSubscription, err := sm.Subscribe(highCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.HighCardinality), []types.EntityEvent{
+	highCardSubscription, err := sm.Subscribe(highCardSubID, types.NewFilterBuilder().Include(types.ContainerID).Build(types.HighCardinality), []types.EntityEvent{
 		events["added"],
 	})
 	require.NoError(t, err)
@@ -111,7 +112,7 @@ func TestSubscriptionManager(t *testing.T) {
 
 	// None Cardinality Subscriber
 	noneCardSubID := "none-card-sub"
-	noneCardSubscription, err := sm.Subscribe(noneCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.NoneCardinality), nil)
+	noneCardSubscription, err := sm.Subscribe(noneCardSubID, types.NewFilterBuilder().Include(types.ContainerID).Build(types.NoneCardinality), nil)
 	require.NoError(t, err)
 
 	sm.Notify([]types.EntityEvent{
@@ -248,9 +249,9 @@ func TestSubscriptionManagerDuplicateSubscriberID(t *testing.T) {
 
 	// Low Cardinality Subscriber
 	lowCardSubID := "low-card-sub"
-	_, err := sm.Subscribe(lowCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.LowCardinality), nil)
+	_, err := sm.Subscribe(lowCardSubID, types.NewFilterBuilder().Include(types.ContainerID).Build(types.LowCardinality), nil)
 	require.NoError(t, err)
 
-	_, err = sm.Subscribe(lowCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.LowCardinality), nil)
+	_, err = sm.Subscribe(lowCardSubID, types.NewFilterBuilder().Include(types.ContainerID).Build(types.LowCardinality), nil)
 	require.Error(t, err)
 }

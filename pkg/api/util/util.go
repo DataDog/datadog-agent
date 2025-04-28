@@ -71,21 +71,9 @@ func SetAuthToken(config model.Reader) error {
 		return err
 	}
 
-	certPool := x509.NewCertPool()
-	if ok := certPool.AppendCertsFromPEM(ipccert); !ok {
-		return fmt.Errorf("unable to use cert for creating CertPool")
-	}
-
-	clientTLSConfig = &tls.Config{
-		RootCAs: certPool,
-	}
-
-	tlsCert, err := tls.X509KeyPair(ipccert, ipckey)
+	err = setTLSConfigs(ipccert, ipckey)
 	if err != nil {
-		return err
-	}
-	serverTLSConfig = &tls.Config{
-		Certificates: []tls.Certificate{tlsCert},
+		return fmt.Errorf("error while setting TLS configs: %w", err)
 	}
 
 	// printing the fingerprint of the loaded auth stack is useful to troubleshoot IPC issues
@@ -125,21 +113,9 @@ func CreateAndSetAuthToken(config model.Reader) error {
 		return fmt.Errorf("error while creating or fetching IPC cert: %w", err)
 	}
 
-	certPool := x509.NewCertPool()
-	if ok := certPool.AppendCertsFromPEM(ipccert); !ok {
-		return fmt.Errorf("Unable to generate certPool from PERM IPC cert")
-	}
-
-	clientTLSConfig = &tls.Config{
-		RootCAs: certPool,
-	}
-
-	tlsCert, err := tls.X509KeyPair(ipccert, ipckey)
+	err = setTLSConfigs(ipccert, ipckey)
 	if err != nil {
-		return fmt.Errorf("Unable to generate x509 cert from PERM IPC cert and key")
-	}
-	serverTLSConfig = &tls.Config{
-		Certificates: []tls.Certificate{tlsCert},
+		return fmt.Errorf("error while setting TLS configs: %w", err)
 	}
 
 	// printing the fingerprint of the loaded auth stack is useful to troubleshoot IPC issues
@@ -335,4 +311,29 @@ func printAuthSignature(token string, ipccert, ipckey []byte) {
 
 	sign := h.Sum(nil)
 	log.Infof("successfully loaded the IPC auth primitives (fingerprint: %.8x)", sign)
+}
+
+// setTLSConfigs sets the TLS configs global variables for the client and server
+func setTLSConfigs(ipccert, ipckey []byte) error {
+	certPool := x509.NewCertPool()
+	if ok := certPool.AppendCertsFromPEM(ipccert); !ok {
+		return fmt.Errorf("Unable to generate certPool from PERM IPC cert")
+	}
+	tlsCert, err := tls.X509KeyPair(ipccert, ipckey)
+	if err != nil {
+		return fmt.Errorf("Unable to generate x509 cert from PERM IPC cert and key")
+	}
+
+	clientTLSConfig = &tls.Config{
+		RootCAs:      certPool,
+		Certificates: []tls.Certificate{tlsCert},
+	}
+
+	serverTLSConfig = &tls.Config{
+		Certificates: []tls.Certificate{tlsCert},
+		// The server parses the client certificate but does not make any verification, this is useful for telemetry
+		ClientAuth: tls.RequestClientCert,
+	}
+
+	return nil
 }

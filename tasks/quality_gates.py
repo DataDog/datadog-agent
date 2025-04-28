@@ -10,13 +10,15 @@ from invoke.exceptions import Exit
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
 from tasks.libs.common.color import color_message
-from tasks.libs.common.utils import is_conductor_scheduled_pipeline
+from tasks.libs.common.git import create_tree
+from tasks.libs.common.utils import is_conductor_scheduled_pipeline, running_in_ci
 from tasks.libs.package.size import InfraError
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string
 
-BUFFER_SIZE = 500000
+BUFFER_SIZE = 1000000
 FAIL_CHAR = "❌"
 SUCCESS_CHAR = "✅"
+GATE_CONFIG_PATH = "test/static/static_quality_gates.yml"
 
 body_pattern = """### {}
 
@@ -43,7 +45,7 @@ def display_pr_comment(
     :param metric_handler: Precise metrics of each quality gate
     :return:
     """
-    title = f"Static quality checks {SUCCESS_CHAR if final_state else FAIL_CHAR}"
+    title = "Static quality checks"
     body_info = "<details>\n<summary>Successful checks</summary>\n\n" + body_pattern.format("Info")
     body_error = body_pattern.format("Error")
     body_error_footer = body_error_footer_pattern
@@ -70,7 +72,7 @@ def display_pr_comment(
 
     body_error_footer += "\n</details>\n\nStatic quality gates prevent the PR to merge! You can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
     body_info += "\n</details>\n"
-    body = f"Please find below the results from static quality gates\n{body_error+body_error_footer if with_error else ''}\n\n{body_info if with_info else ''}"
+    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{body_error + body_error_footer if with_error else ''}\n\n{body_info if with_info else ''}"
 
     pr_commenter(ctx, title=title, body=body)
 
@@ -97,7 +99,7 @@ def _print_quality_gates_report(gate_states: list[dict[str, typing.Any]]):
 
 
 @task
-def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.yml"):
+def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
     """
     Parse and executes static quality gates
     :param ctx: Invoke context
@@ -114,12 +116,13 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
         git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
     )
     newline_tab = "\n\t"
-    print(f"The following gates are going to run:{newline_tab}- {(newline_tab+'- ').join(gate_list)}")
+    print(f"The following gates are going to run:{newline_tab}- {(newline_tab + '- ').join(gate_list)}")
     final_state = "success"
     gate_states = []
 
     nightly_run = False
     branch = os.environ["CI_COMMIT_BRANCH"]
+
     DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")
     if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
         nightly_run = True
@@ -154,16 +157,14 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
 
     metric_handler.send_metrics_to_datadog()
 
+    metric_handler.generate_metric_reports(ctx, branch=branch)
+
     github = GithubAPI()
     if github.get_pr_for_branch(branch).totalCount > 0:
         display_pr_comment(ctx, final_state == "success", gate_states, metric_handler)
 
-    # Generate PR to update static quality gates threshold once per day (scheduled main pipeline by conductor)
-    if nightly_run:
-        pr_url = update_quality_gates_threshold(ctx, metric_handler, github)
-        notify_threshold_update(pr_url)
-
-    if final_state != "success":
+    # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
+    if final_state != "success" and not nightly_run:
         raise Exit(code=1)
 
 
@@ -198,7 +199,7 @@ def generate_new_quality_gate_config(file_descriptor, metric_handler):
 
 def update_quality_gates_threshold(ctx, metric_handler, github):
     # Update quality gates threshold config
-    with open("test/static/static_quality_gates.yml") as f:
+    with open(GATE_CONFIG_PATH) as f:
         file_content, total_size_saved = generate_new_quality_gate_config(f, metric_handler)
 
     if total_size_saved == 0:
@@ -209,15 +210,26 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
     current_branch = github.repo.get_branch(os.environ["CI_COMMIT_BRANCH"])
     github.repo.create_git_ref(ref=f'refs/heads/{branch_name}', sha=current_branch.commit.sha)
 
-    # Update static_quality_gates.yml config file
-    contents = github.repo.get_contents("test/static/static_quality_gates.yml", ref=branch_name)
-    github.repo.update_file(
-        "test/static/static_quality_gates.yml",
-        "feat(gate): update static quality gates thresholds",
-        yaml.dump(file_content),
-        contents.sha,
-        branch=branch_name,
-    )
+    # Push changes
+    commit_message = "feat(gate): update static quality gates thresholds"
+    if running_in_ci():
+        # Update config locally and add it to the stage
+        with open(GATE_CONFIG_PATH, "w") as f:
+            yaml.dump(file_content, f)
+        ctx.run(f"git add {GATE_CONFIG_PATH}")
+        print("Creating signed commits using Github API")
+        tree = create_tree(ctx, f"origin/{current_branch.name}")
+        github.commit_and_push_signed(branch_name, commit_message, tree)
+    else:
+        print("Creating commits using your local git configuration, please make sure to sign them")
+        contents = github.repo.get_contents("test/static/static_quality_gates.yml", ref=branch_name)
+        github.repo.update_file(
+            GATE_CONFIG_PATH,
+            commit_message,
+            yaml.dump(file_content),
+            contents.sha,
+            branch=branch_name,
+        )
 
     # Create pull request
     milestone_version = list(github.latest_unreleased_release_branches())[0].name.replace("x", "0")
@@ -238,3 +250,13 @@ def notify_threshold_update(pr_url):
     waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
     message = f'Hello :{random.choice(waves)}:\nA new quality gates threshold <{pr_url}/s|update PR> has been generated !\nPlease take a look, thanks !'
     client.chat_postMessage(channel='#agent-delivery-reviews', text=message)
+
+
+@task
+def manual_threshold_update(self, filename="static_gate_report.json"):
+    metric_handler = GateMetricHandler(
+        git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"], filename=filename
+    )
+    github = GithubAPI()
+    pr_url = update_quality_gates_threshold(self, metric_handler, github)
+    notify_threshold_update(pr_url)

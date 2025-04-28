@@ -253,7 +253,7 @@ func stop(ag component) error {
 	if err := ag.Statsd.Flush(); err != nil {
 		log.Error("Could not flush statsd: ", err)
 	}
-	stopAgentSidekicks(ag.config, ag.Statsd)
+	stopAgentSidekicks(ag.config, ag.Statsd, ag.params.DisableInternalProfiling)
 	if ag.params.CPUProfile != "" {
 		pprof.StopCPUProfile()
 	}

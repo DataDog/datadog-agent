@@ -12,10 +12,8 @@ import (
 	"errors"
 	"fmt"
 
-	"go.uber.org/atomic"
-
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -30,6 +28,7 @@ import (
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -70,9 +69,10 @@ func Factory(store workloadmeta.Component, cfg config.Component, tagger tagger.C
 }
 
 func newCheck(store workloadmeta.Component, cfg config.Component, tagger tagger.Component) check.Check {
+	extraTags := cfg.GetStringSlice(oconfig.OrchestratorNSKey("extra_tags"))
 	return &Check{
 		CheckBase: core.NewCheckBase(CheckName),
-		config:    oconfig.NewDefaultOrchestratorConfig(),
+		config:    oconfig.NewDefaultOrchestratorConfig(extraTags),
 		store:     store,
 		cfg:       cfg,
 		tagger:    tagger,

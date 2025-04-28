@@ -6,24 +6,29 @@
 package status
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"fmt"
-	htemplate "html/template"
+	htemplate "html/template" //nolint:depguard
 	"io"
 	"path"
 	"strconv"
 	"strings"
 	"sync"
-	ttemplate "text/template"
+	ttemplate "text/template" //nolint:depguard
 	"time"
 	"unicode"
 
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/spf13/cast"
-
 	"golang.org/x/text/unicode/norm"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	pkghtmltemplate "github.com/DataDog/datadog-agent/pkg/template/html"
+	pkgtexttemplate "github.com/DataDog/datadog-agent/pkg/template/text"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -31,6 +36,13 @@ var (
 	htmlFuncMap  htemplate.FuncMap
 	textFuncOnce sync.Once
 	textFuncMap  ttemplate.FuncMap
+)
+
+var dceRenderErrors = telemetry.NewCounter(
+	"status",
+	"dce_render_errors",
+	[]string{"kind", "template_name"},
+	"Number of errors encountered while rendering a template",
 )
 
 // HTMLFmap return a map of utility functions for HTML templating
@@ -101,8 +113,26 @@ func RenderHTML(templateFS embed.FS, template string, buffer io.Writer, data any
 	if tmplErr != nil {
 		return tmplErr
 	}
+
+	var stdbuff bytes.Buffer
 	t := htemplate.Must(htemplate.New(template).Funcs(HTMLFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
+	err := t.Execute(&stdbuff, data)
+	_, _ = buffer.Write(stdbuff.Bytes())
+	if err != nil {
+		return err
+	}
+
+	var pkgbuff bytes.Buffer
+	tt := pkghtmltemplate.Must(pkghtmltemplate.New(template).Funcs(HTMLFmap()).Parse(string(tmpl)))
+	terr := tt.Execute(&pkgbuff, data)
+	if terr != nil {
+		dceRenderErrors.Inc("html", template)
+		log.Warnf("Error executing shadow pkg/template/html for %s: %s", template, terr)
+	} else if pkgbuff.String() != stdbuff.String() {
+		log.Infof("Shadow pkg/template/html output does not match html/template output for %s", template)
+	}
+
+	return nil
 }
 
 // RenderText reads, parse and execute template from embed.FS
@@ -111,8 +141,26 @@ func RenderText(templateFS embed.FS, template string, buffer io.Writer, data any
 	if tmplErr != nil {
 		return tmplErr
 	}
+
+	var stdbuff bytes.Buffer
 	t := ttemplate.Must(ttemplate.New(template).Funcs(TextFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
+	err := t.Execute(&stdbuff, data)
+	_, _ = buffer.Write(stdbuff.Bytes())
+	if err != nil {
+		return err
+	}
+
+	var pkgbuff bytes.Buffer
+	tt := pkgtexttemplate.Must(pkgtexttemplate.New(template).Funcs(TextFmap()).Parse(string(tmpl)))
+	terr := tt.Execute(&pkgbuff, data)
+	if terr != nil {
+		dceRenderErrors.Inc("text", template)
+		log.Warnf("Error executing shadow pkg/template/text for %s: %s", template, terr)
+	} else if pkgbuff.String() != stdbuff.String() {
+		log.Infof("Shadow pkg/template/text output does not match text/template output for %s", template)
+	}
+
+	return nil
 }
 
 func doNotEscape(value string) htemplate.HTML {

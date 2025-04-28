@@ -52,8 +52,8 @@ var (
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testInstaller},
 		{t: testAgent},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.Suse15}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
-		{t: testUpgradeScenario},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
+		{t: testUpgradeScenario, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 	}
 )
 
@@ -77,7 +77,7 @@ func shouldSkipInstallMethod(methods []InstallMethodOption, method InstallMethod
 
 func TestPackages(t *testing.T) {
 	// INCIDENT(35594): This will match rate limits. Please remove me once this is fixed
-	flake.MarkOnLog(t, "error: read \"\\.pulumi/meta.yaml\":.*429")
+	flake.MarkOnLogRegex(t, "error: read \"\\.pulumi/meta.yaml\":.*429")
 	if _, ok := os.LookupEnv("E2E_PIPELINE_ID"); !ok {
 		t.Log("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")
 		t.FailNow()
@@ -162,10 +162,24 @@ func (s *packageBaseSuite) ProvisionerOptions() []awshost.ProvisionerOption {
 
 func (s *packageBaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	s.setupFakeIntake()
-	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch)
+	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
 	s.disableUnattendedUpgrades()
 	s.updateCurlOnUbuntu()
+	s.updatePythonOnSuse()
+}
+
+func (s *packageBaseSuite) updatePythonOnSuse() {
+	// Suse15 comes with Python3.6 by default which is too old for injection
+	if s.os.Flavor != e2eos.Suse {
+		return
+	}
+	s.host.Run("sudo zypper --non-interactive ar http://download.opensuse.org/distribution/leap/15.5/repo/oss/ oss || true")
+	s.host.Run("sudo zypper --non-interactive --gpg-auto-import-keys in python311")
+	s.host.Run("sudo ln -sf /usr/bin/python3.11 /usr/bin/python3")
 }
 
 func (s *packageBaseSuite) disableUnattendedUpgrades() {
@@ -192,6 +206,27 @@ func (s *packageBaseSuite) RunInstallScriptProdOci(params ...string) error {
 }
 
 func (s *packageBaseSuite) RunInstallScriptWithError(params ...string) error {
+	hasRemoteUpdates := false
+	for _, param := range params {
+		if param == "DD_REMOTE_UPDATES=true" {
+			hasRemoteUpdates = true
+			break
+		}
+	}
+	if hasRemoteUpdates {
+		// This is temporary until the install script is updated to support calling the installer script
+		var scriptURLPrefix string
+		if pipelineID, ok := os.LookupEnv("E2E_PIPELINE_ID"); ok {
+			scriptURLPrefix = fmt.Sprintf("https://installtesting.datad0g.com/pipeline-%s/scripts/", pipelineID)
+		} else if commitHash, ok := os.LookupEnv("CI_COMMIT_SHA"); ok {
+			scriptURLPrefix = fmt.Sprintf("https://installtesting.datad0g.com/%s/scripts/", commitHash)
+		} else {
+			require.FailNowf(nil, "missing script identifier", "CI_COMMIT_SHA or CI_PIPELINE_ID must be set")
+		}
+		_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L %sinstall.sh)" > /tmp/datadog-installer-stdout.log 2> /tmp/datadog-installer-stderr.log`, strings.Join(params, " "), scriptURLPrefix), client.WithEnvVariables(InstallInstallerScriptEnvWithPackages()))
+		return err
+	}
+
 	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(InstallScriptEnv(s.arch)))
 	return err
 }
@@ -253,8 +288,12 @@ func (s *packageBaseSuite) Purge() {
 		s.Env().RemoteHost.Execute(fmt.Sprintf("sudo systemctl reset-failed %s", service))
 	}
 
-	s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer || sudo zypper remove -y datadog-installer")
-	s.Env().RemoteHost.MustExecute("sudo rm -rf /etc/datadog-agent")
+	// Unfortunately no guarantee that the datadog-installer symlink exists
+	s.Env().RemoteHost.Execute("sudo datadog-installer purge")
+	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-installer/stable/bin/installer/installer purge")
+	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-agent/stable/embedded/bin/installer purge")
+	s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer || sudo zypper remove -y datadog-installer")
+	s.Env().RemoteHost.Execute("sudo rm -rf /etc/datadog-agent")
 }
 
 // setupFakeIntake sets up the fake intake for the agent and trace agent.

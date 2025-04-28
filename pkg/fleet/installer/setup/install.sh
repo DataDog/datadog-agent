@@ -3,6 +3,7 @@
 # Copyright 2016-present Datadog, Inc.
 #
 set -euo pipefail
+umask 0
 
 os=$(uname -s)
 arch=$(uname -m)
@@ -40,6 +41,15 @@ if ((UID == 0)); then
 else
   sudo_cmd=(sudo)
   sudo_env_cmd=(sudo -E)
+fi
+
+# This migrates legacy installs by removing the legacy deb / rpm installer package
+if command -v dpkg >/dev/null && dpkg -s datadog-installer >/dev/null; then
+  "${sudo_cmd[@]}" datadog-installer purge >/dev/null 2>&1 || true
+  "${sudo_cmd[@]}" dpkg --purge datadog-installer >/dev/null 2>&1 || true
+elif command -v rpm >/dev/null && rpm -q datadog-installer >/dev/null; then
+  "${sudo_cmd[@]}" datadog-installer purge >/dev/null 2>&1 || true
+  "${sudo_cmd[@]}" rpm -e datadog-installer >/dev/null 2>&1 || true
 fi
 
 "${sudo_cmd[@]}" mkdir -p "$tmp_dir"

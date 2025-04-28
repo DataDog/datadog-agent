@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -237,7 +237,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	prevEnv := c.DefaultEnv
-	c.DefaultEnv = traceutil.NormalizeTagValue(c.DefaultEnv)
+	c.DefaultEnv = normalize.NormalizeTagValue(c.DefaultEnv)
 	if c.DefaultEnv != prevEnv {
 		log.Debugf("Normalized DefaultEnv from %q to %q", prevEnv, c.DefaultEnv)
 	}
@@ -410,6 +410,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		IgnoreMissingDatadogFields: core.GetBool("otlp_config.traces.ignore_missing_datadog_fields"),
 		ProbabilisticSampling:      core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
 		AttributesTranslator:       attributesTranslator,
+		GrpcMaxRecvMsgSizeMib:      core.GetInt("otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib"),
 	}
 
 	if core.IsSet("apm_config.install_id") {
@@ -649,6 +650,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if k := "ol_proxy_config.additional_endpoints"; core.IsSet(k) {
 		c.OpenLineageProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
+	}
+	if k := "ol_proxy_config.api_version"; core.IsSet(k) {
+		c.OpenLineageProxy.APIVersion = core.GetInt(k)
 	}
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
 	return nil

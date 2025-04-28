@@ -1,4 +1,5 @@
 import glob
+import json
 import math
 import os
 import types
@@ -88,11 +89,15 @@ class GateMetricHandler:
         "datadog.agent.static_quality_gate.max_allowed_on_disk_size": "max_on_disk_size",
     }
 
-    def __init__(self, git_ref, bucket_branch):
+    def __init__(self, git_ref, bucket_branch, filename=None):
         self.metrics = {}
         self.metadata = {}
         self.git_ref = git_ref
         self.bucket_branch = bucket_branch
+        self.series_is_complete = True
+
+        if filename is not None:
+            self._load_metrics_report(filename)
 
     def get_formatted_metric(self, gate_name, metric_name):
         return byte_to_string(self.metrics[gate_name][metric_name])
@@ -109,6 +114,10 @@ class GateMetricHandler:
 
         for key in kwargs:
             self.metadata[gate][key] = kwargs[key]
+
+    def _load_metrics_report(self, filename):
+        with open(filename) as f:
+            self.metrics = json.load(f)
 
     def _add_gauge(self, timestamp, common_tags, gate, metric_name, metric_key):
         if self.metrics[gate].get(metric_key):
@@ -152,6 +161,7 @@ class GateMetricHandler:
                             "orange",
                         )
                     )
+                    self.series_is_complete = False
         return series
 
     def send_metrics_to_datadog(self):
@@ -160,3 +170,22 @@ class GateMetricHandler:
         if series:
             send_metrics(series=series)
         print(color_message("Metric sending finished !", "blue"))
+
+    def generate_metric_reports(self, ctx, filename="static_gate_report.json", branch=None):
+        if not self.series_is_complete:
+            print(
+                color_message(
+                    "[WARN] Some static quality gates are missing some metrics, the generated report might not be trustworthy.",
+                    "orange",
+                )
+            )
+
+        with open(filename, "w") as f:
+            json.dump(self.metrics, f)
+
+        CI_COMMIT_SHA = os.environ.get("CI_COMMIT_SHA")
+        if branch == "main" and CI_COMMIT_SHA:
+            ctx.run(
+                f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {filename} s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/{CI_COMMIT_SHA}/{filename}",
+                hide="stdout",
+            )

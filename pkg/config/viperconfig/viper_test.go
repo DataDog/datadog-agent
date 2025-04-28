@@ -18,7 +18,7 @@ import (
 )
 
 func TestConcurrencySetGet(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	var wg sync.WaitGroup
 
@@ -41,7 +41,7 @@ func TestConcurrencySetGet(t *testing.T) {
 }
 
 func TestConcurrencyUnmarshalling(_ *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	config.SetDefault("foo", map[string]string{})
 	config.SetDefault("BAR", "test")
@@ -65,7 +65,7 @@ func TestConcurrencyUnmarshalling(_ *testing.T) {
 }
 
 func TestGetConfigEnvVars(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	config.BindEnv("app_key")
 	assert.Contains(t, config.GetEnvVars(), "DD_APP_KEY")
@@ -80,7 +80,7 @@ func TestGetConfigEnvVars(t *testing.T) {
 // config parameters using DD_CONFIG_OPTION, and asserting that
 // GetConfigVars only returns that env var once.
 func TestGetConfigEnvVarsDedupe(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	config.BindEnv("config_option_1", "DD_CONFIG_OPTION")
 	config.BindEnv("config_option_2", "DD_CONFIG_OPTION")
@@ -94,7 +94,7 @@ func TestGetConfigEnvVarsDedupe(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.Set("foo", "bar", model.SourceFile)
 	config.Set("foo", "baz", model.SourceEnvVar)
 	config.Set("foo", "qux", model.SourceAgentRuntime)
@@ -113,7 +113,7 @@ func TestSet(t *testing.T) {
 }
 
 func TestGetSource(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.Set("foo", "bar", model.SourceFile)
 	config.Set("foo", "baz", model.SourceEnvVar)
 	assert.Equal(t, model.SourceEnvVar, config.GetSource("foo"))
@@ -152,7 +152,7 @@ func TestIsKnown(t *testing.T) {
 		}
 		t.Run(testName, func(t *testing.T) {
 			for _, configName := range []string{"foo", "BAR", "BaZ", "foo_BAR", "foo.BAR", "foo.BAR.baz"} {
-				config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+				config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 				if tc.setKnown {
 					config.SetKnown(configName)
@@ -171,7 +171,7 @@ func TestIsKnown(t *testing.T) {
 }
 
 func TestAllFileSettingsWithoutDefault(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.Set("foo", "bar", model.SourceFile)
 	config.Set("baz", "qux", model.SourceFile)
 	config.UnsetForSource("foo", model.SourceFile)
@@ -185,7 +185,7 @@ func TestAllFileSettingsWithoutDefault(t *testing.T) {
 }
 
 func TestSourceFileReadConfig(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	yamlExample := []byte(`
 foo: bar
 `)
@@ -204,7 +204,7 @@ foo: bar
 }
 
 func TestNotification(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	updatedKeyCB1 := []string{}
 	updatedKeyCB2 := []string{}
@@ -223,7 +223,7 @@ func TestNotification(t *testing.T) {
 }
 
 func TestNotificationNoChange(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	updatedKeyCB1 := []string{}
 
@@ -243,7 +243,7 @@ func TestNotificationNoChange(t *testing.T) {
 }
 
 func TestCheckKnownKey(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")).(*safeConfig) // nolint: forbidigo
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")).(*safeConfig) // nolint: forbidigo
 
 	config.SetKnown("foo")
 	config.Get("foo")
@@ -258,7 +258,7 @@ func TestCheckKnownKey(t *testing.T) {
 }
 
 func TestExtraConfig(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	confs := []struct {
 		name    string
@@ -322,7 +322,7 @@ proxy:
 }
 
 func TestMergeFleetPolicy(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.SetConfigType("yaml")
 	config.Set("foo", "bar", model.SourceFile)
 
@@ -337,7 +337,7 @@ func TestMergeFleetPolicy(t *testing.T) {
 }
 
 func TestParseEnvAsStringSlice(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	config.BindEnv("slice_of_string")
 	config.ParseEnvAsStringSlice("slice_of_string", func(string) []string { return []string{"a", "b", "c"} })
@@ -347,7 +347,7 @@ func TestParseEnvAsStringSlice(t *testing.T) {
 }
 
 func TestParseEnvAsMapStringInterface(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	config.BindEnv("map_of_float")
 	config.ParseEnvAsMapStringInterface("map_of_float", func(string) map[string]interface{} { return map[string]interface{}{"a": 1.0, "b": 2.0, "c": 3.0} })
@@ -358,7 +358,7 @@ func TestParseEnvAsMapStringInterface(t *testing.T) {
 }
 
 func TestParseEnvAsSliceMapString(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	config.BindEnv("map")
 	config.ParseEnvAsSliceMapString("map", func(string) []map[string]string { return []map[string]string{{"a": "a", "b": "b", "c": "c"}} })
@@ -368,7 +368,7 @@ func TestParseEnvAsSliceMapString(t *testing.T) {
 }
 
 func TestListenersUnsetForSource(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	// Create a listener that will keep track of the changes
 	logLevels := []string{}
@@ -385,7 +385,7 @@ func TestListenersUnsetForSource(t *testing.T) {
 }
 
 func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
-	cfg := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewViperConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.BindEnv("api_key")
 	cfg.BuildSchema()
 

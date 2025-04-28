@@ -3,28 +3,38 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows
-
 package packages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 	"golang.org/x/sys/windows/svc"
-	"golang.org/x/sys/windows/svc/mgr"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// datadogAgentPackage is the package for the Datadog Agent
+var datadogAgentPackage = hooks{
+	postInstall:           postInstallDatadogAgent,
+	preRemove:             preRemoveDatadogAgent,
+	postStartExperiment:   postStartExperimentDatadogAgent,
+	postStopExperiment:    postStopExperimentDatadogAgent,
+	postPromoteExperiment: postPromoteExperimentDatadogAgent,
+}
 
 const (
 	datadogAgent          = "datadog-agent"
@@ -32,31 +42,17 @@ const (
 	oldInstallerDir       = "C:\\ProgramData\\Datadog Installer"
 )
 
-// PrepareAgent prepares the machine to install the agent
-func PrepareAgent(_ context.Context) error {
-	return nil // No-op on Windows
-}
-
-// SetupAgent installs and starts the agent
-//
-// Function requirements:
-//   - be its own process, not run within the daemon
-//   - be run from a copy of the installer, not from the install path,
-//     to avoid locking the executable
-func SetupAgent(ctx context.Context, args []string) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "setup_agent")
-	defer func() {
-		span.Finish(err)
-	}()
+// postInstallDatadogAgent runs post install scripts for a given package.
+func postInstallDatadogAgent(ctx HookContext) error {
 	// must get env before uninstalling the Agent since it may read from the registry
 	env := getenv()
 
 	// remove the installer if it is installed
 	// if nothing is installed this will return without an error
-	err = removeInstallerIfInstalled(ctx)
+	err := removeInstallerIfInstalled(ctx)
 	if err != nil {
 		// failed to remove the installer
-		return fmt.Errorf("Failed to remove installer: %w", err)
+		return fmt.Errorf("failed to remove installer: %w", err)
 	}
 
 	// remove the Agent if it is installed
@@ -64,16 +60,26 @@ func SetupAgent(ctx context.Context, args []string) (err error) {
 	err = removeAgentIfInstalled(ctx)
 	if err != nil {
 		// failed to remove the Agent
-		return fmt.Errorf("Failed to remove Agent: %w", err)
+		return fmt.Errorf("failed to remove Agent: %w", err)
 	}
 
 	// install the new stable Agent
-	err = installAgentPackage(env, "stable", args, "setup_agent.log")
+	err = installAgentPackage(env, "stable", ctx.WindowsArgs, "setup_agent.log")
 	return err
-
 }
 
-// StartAgentExperiment starts the agent experiment
+// preRemoveDatadogAgent runs pre remove scripts for a given package.
+func preRemoveDatadogAgent(ctx HookContext) (err error) {
+	// Don't return an error if the Agent is already not installed.
+	// returning an error here will prevent the package from being removed
+	// from the local repository.
+	if !ctx.Upgrade {
+		return removeAgentIfInstalled(ctx)
+	}
+	return nil
+}
+
+// postStartExperimentDatadogAgent runs post start scripts for a given package.
 //
 // Function requirements:
 //   - be its own process, not run within the daemon
@@ -93,15 +99,7 @@ func SetupAgent(ctx context.Context, args []string) (err error) {
 //   - If the new daemon fails to start, then after a timeout the watchdog will
 //     restore the previous version, which should start and then receive
 //     "stop experiment" from the backend.
-func StartAgentExperiment(ctx context.Context) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "start_experiment")
-	defer func() {
-		if err != nil {
-			log.Errorf("Failed to start agent experiment: %s", err)
-		}
-		span.Finish(err)
-	}()
-
+func postStartExperimentDatadogAgent(ctx HookContext) error {
 	// must get env before uninstalling the Agent since it may read from the registry
 	env := getenv()
 
@@ -112,7 +110,7 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 
 	timeout := getWatchdogTimeout()
 
-	err = removeAgentIfInstalled(ctx)
+	err := removeAgentIfInstalled(ctx)
 	if err != nil {
 		return err
 	}
@@ -140,11 +138,59 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 			// we failed to remove the experiment Agent
 			// we can't do much here
 			log.Errorf("Failed to remove experiment Agent: %s", err)
-			return fmt.Errorf("Failed to remove experiment Agent: %w", err)
+			return fmt.Errorf("failed to remove experiment Agent: %w", err)
 		}
 		// reinstall the stable Agent
 		_ = installAgentPackage(env, "stable", nil, "restore_stable_agent.log")
 		return err
+	}
+
+	return nil
+}
+
+// postStopExperimentDatadogAgent runs post stop scripts for a given package.
+//
+// Function requirements:
+//   - be its own process, not run within the daemon
+//   - be run from a copy of the installer, not from the install path,
+//     to avoid locking the executable
+func postStopExperimentDatadogAgent(ctx HookContext) (err error) {
+	// set watchdog stop to make sure the watchdog stops
+	// don't care if it fails cause we will proceed with the stop anyway
+	// this will just stop a watchdog that is running
+	_ = setWatchdogStopEvent()
+
+	// must get env before uninstalling the Agent since it may read from the registry
+	env := getenv()
+
+	// remove the Agent
+	err = removeAgentIfInstalled(ctx)
+	if err != nil {
+		// we failed to remove the Agent
+		// we can't do much here
+		return fmt.Errorf("failed to remove Agent: %w", err)
+	}
+
+	// reinstall the stable Agent
+	err = installAgentPackage(env, "stable", nil, "restore_stable_agent.log")
+	if err != nil {
+		// we failed to reinstall the stable Agent
+		// we can't do much here
+		return fmt.Errorf("failed to reinstall stable Agent: %w", err)
+	}
+
+	return nil
+}
+
+// postPromoteExperimentDatadogAgent runs post promote scripts for a given package.
+func postPromoteExperimentDatadogAgent(_ HookContext) error {
+	err := setWatchdogStopEvent()
+	if err != nil {
+		// if we can't set the event it means the watchdog has failed
+		// In this case, we were already premoting the experiment
+		// so we can return without an error as all we were about to do
+		// is stop the watchdog
+		log.Errorf("failed to set premote event: %s", err)
 	}
 
 	return nil
@@ -160,19 +206,20 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 	defer windows.CloseHandle(stopEvent)
 
 	// open services we are watching
-	m, err := mgr.Connect()
+	// use winutil.OpenSCManager so we can narrow the access permissions
+	m, err := winutil.OpenSCManager(windows.SC_MANAGER_CONNECT)
 	if err != nil {
 		return fmt.Errorf("failed to connect to service manager: %w", err)
 	}
 	defer m.Disconnect()
 
-	instService, err := m.OpenService("Datadog Installer")
+	instService, err := winutil.OpenService(m, "Datadog Installer", windows.SERVICE_QUERY_STATUS)
 	if err != nil {
 		return fmt.Errorf("could not access service: %w", err)
 	}
 	defer instService.Close()
 
-	dataDogService, err := m.OpenService("datadogagent")
+	dataDogService, err := winutil.OpenService(m, "datadogagent", windows.SERVICE_QUERY_STATUS)
 	if err != nil {
 		return fmt.Errorf("could not access service: %w", err)
 	}
@@ -189,7 +236,7 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 			// the service has died
 			// we need to restore the stable Agent
 			// return an error to signal the caller to restore the stable Agent
-			return fmt.Errorf("Agent is not running")
+			return fmt.Errorf("Datadog Agent is not running")
 		}
 
 		// check the Agent service
@@ -201,10 +248,10 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 			// the service has died
 			// we need to restore the stable Agent
 			// return an error to signal the caller to restore the stable Agent
-			return fmt.Errorf("Agent is not running")
+			return fmt.Errorf("Datadog Agent is not running")
 		}
 
-		// wait for the events to be singaled with a timeout
+		// wait for the events to be signaled with a timeout
 		events, err := windows.WaitForMultipleObjects([]windows.Handle{stopEvent}, false, 1000)
 		if err != nil {
 			return fmt.Errorf("could not wait for events: %w", err)
@@ -218,64 +265,8 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 
 	}
 
-	return fmt.Errorf("Watchdog timeout")
+	return fmt.Errorf("watchdog timeout")
 
-}
-
-// StopAgentExperiment stops the agent experiment, i.e. removes/uninstalls it.
-//
-// Function requirements:
-//   - be its own process, not run within the daemon
-//   - be run from a copy of the installer, not from the install path,
-//     to avoid locking the executable
-func StopAgentExperiment(ctx context.Context) (err error) {
-	// set watchdog stop to make sure the watchdog stops
-	// don't care if it fails cause we will proceed with the stop anyway
-	// this will just stop a watchdog that is running
-	_ = setWatchdogStopEvent()
-
-	// must get env before uninstalling the Agent since it may read from the registry
-	env := getenv()
-
-	// remove the Agent
-	err = removeAgentIfInstalled(ctx)
-	if err != nil {
-		// we failed to remove the Agent
-		// we can't do much here
-		return fmt.Errorf("Failed to remove Agent: %w", err)
-	}
-
-	// reinstall the stable Agent
-	err = installAgentPackage(env, "stable", nil, "restore_stable_agent.log")
-	if err != nil {
-		// we failed to reinstall the stable Agent
-		// we can't do much here
-		return fmt.Errorf("Failed to reinstall stable Agent: %w", err)
-	}
-
-	return nil
-}
-
-// PromoteAgentExperiment promotes the agent experiment
-func PromoteAgentExperiment(_ context.Context) error {
-	err := setWatchdogStopEvent()
-	if err != nil {
-		// if we can't set the event it means the watchdog has failed
-		// In this case, we were already premoting the experiment
-		// so we can return without an error as all we were about to do
-		// is stop the watchdog
-		log.Errorf("Failed to set premote event: %s", err)
-	}
-
-	return nil
-}
-
-// RemoveAgent stops and removes the agent
-func RemoveAgent(ctx context.Context) (err error) {
-	// Don't return an error if the Agent is already not installed.
-	// returning an error here will prevent the package from being removed
-	// from the local repository.
-	return removeAgentIfInstalled(ctx)
 }
 
 func installAgentPackage(env *env.Env, target string, args []string, logFileName string) error {
@@ -309,6 +300,9 @@ func installAgentPackage(env *env.Env, target string, args []string, logFileName
 	if env.AgentUserName != "" {
 		opts = append(opts, msi.WithDdAgentUserName(env.AgentUserName))
 	}
+	if env.AgentUserPassword != "" {
+		opts = append(opts, msi.WithDdAgentUserPassword(env.AgentUserPassword))
+	}
 	additionalArgs := []string{"FLEET_INSTALL=1", dataDir, projectLocation}
 
 	// append input args last so they can take precedence
@@ -333,11 +327,13 @@ func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 			if err != nil {
 				// removal failed, this should rarely happen.
 				// Rollback might have restored the Agent, but we can't be sure.
-				log.Errorf("Failed to remove agent: %s", err)
+				log.Errorf("failed to remove agent: %s", err)
 			}
 			span.Finish(err)
 		}()
-		err := msi.RemoveProduct(product)
+		err := msi.RemoveProduct(product,
+			msi.WithAdditionalArgs([]string{"FLEET_INSTALL=1"}),
+		)
 		if err != nil {
 			return err
 		}
@@ -349,6 +345,19 @@ func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 }
 
 func removeAgentIfInstalled(ctx context.Context) (err error) {
+	// Stop the Datadog Agent services before trying to remove it
+	// As datadogagent will shutdown the installer service when it stops
+	// we do not need to stop the installer service
+	log.Infof("stopping the datadogagent service")
+	err = winutil.StopService("datadogagent")
+	if err != nil {
+		if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+			log.Infof("the datadogagent service is not present on this machine, skipping stop action")
+		} else {
+			// Only fail if the service exists
+			return fmt.Errorf("failed to stop the datadogagent service: %w", err)
+		}
+	}
 	return removeProductIfInstalled(ctx, "Datadog Agent")
 }
 
@@ -366,7 +375,7 @@ func removeInstallerIfInstalled(ctx context.Context) (err error) {
 				return fmt.Errorf("could not remove old installer directory: %w", err)
 			}
 		} else {
-			log.Warnf("Old installer directory is not secure, not removing: %s", oldInstallerDir)
+			log.Warnf("old installer directory is not secure, not removing: %s", oldInstallerDir)
 		}
 	}
 	return nil
@@ -383,13 +392,13 @@ func createEvent() (windows.Handle, error) {
 func setWatchdogStopEvent() error {
 	event, err := windows.OpenEvent(windows.EVENT_MODIFY_STATE, false, windows.StringToUTF16Ptr(watchdogStopEventName))
 	if err != nil {
-		return fmt.Errorf("Failed to open event: %w", err)
+		return fmt.Errorf("failed to open event: %w", err)
 	}
 	defer windows.CloseHandle(event)
 
 	err = windows.SetEvent(event)
 	if err != nil {
-		return fmt.Errorf("Failed to set event: %w", err)
+		return fmt.Errorf("failed to set event: %w", err)
 	}
 	return nil
 }
@@ -467,9 +476,4 @@ func getenv() *env.Env {
 	}
 
 	return env
-}
-
-// PostInstallAgent runs post install scripts for a given package. Noop for Windows
-func PostInstallAgent(_ context.Context, _, _ string) error {
-	return nil
 }

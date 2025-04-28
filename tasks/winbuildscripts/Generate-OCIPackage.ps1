@@ -10,7 +10,7 @@ if (-not (Test-Path C:\tools\datadog-package.exe)) {
     (New-Object System.Net.WebClient).DownloadFile("https://dd-agent-omnibus.s3.amazonaws.com/datadog-package.exe", "C:\\tools\\datadog-package.exe")
 }
 if ([string]::IsNullOrWhitespace($version)) {
-    $version = "{0}-1" -f (dda inv agent.version --url-safe --major-version 7)
+    $version = "{0}-1" -f (dda inv -- agent.version --url-safe --major-version 7)
     Write-Host "Detected agent version ${version}"
 }
 if (-not $version.EndsWith("-1")) {

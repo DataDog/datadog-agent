@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build orchestrator
+//go:build orchestrator && test
 
 package ecs
 
@@ -156,7 +156,7 @@ func testECS(v4 bool, t *testing.T) {
 func prepareTest(t *testing.T, v4 bool, env string) (*Check, *fakeWorkloadmetaStore, *fakeSender) {
 	t.Helper()
 
-	orchConfig := oconfig.NewDefaultOrchestratorConfig()
+	orchConfig := oconfig.NewDefaultOrchestratorConfig(nil)
 	orchConfig.OrchestrationCollectionEnabled = true
 
 	store := &fakeWorkloadmetaStore{

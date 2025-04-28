@@ -240,8 +240,8 @@ func copyMap(target reflect.Value, source nodetreemodel.Node, fs *featureSet) er
 	mtype := reflect.MapOf(ktype, vtype)
 	results := reflect.MakeMap(mtype)
 
-	if fs.convertArrayToMap {
-		if leaf, ok := source.(nodetreemodel.LeafNode); ok {
+	if leaf, ok := source.(nodetreemodel.LeafNode); ok {
+		if fs.convertArrayToMap {
 			thing := leaf.Get()
 			if arr, ok := thing.([]interface{}); ok {
 				// convert []interface{} to map[interface{}]bool
@@ -255,6 +255,13 @@ func copyMap(target reflect.Value, source nodetreemodel.Node, fs *featureSet) er
 					return err
 				}
 				source = converted
+			}
+		}
+		if m, ok := leaf.Get().(map[string]interface{}); ok {
+			var err error
+			source, err = nodetreemodel.NewNodeTree(m, model.SourceUnknown)
+			if err != nil {
+				return err
 			}
 		}
 	}

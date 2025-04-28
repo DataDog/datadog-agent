@@ -10,9 +10,9 @@ package module
 import (
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	di "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation"
@@ -35,7 +35,16 @@ func NewModule(_ *Config) (*Module, error) {
 		},
 	})
 	if err != nil {
-		return nil, err
+		// FIXME: Logging the error instead of returning it is a temporary fix to avoid
+		// having the system-probe get caught in a restart loop when either the environment lacks
+		// the bpf feature requirements or the system-probe is not run with needeed permissions.
+		// The DI module can be mistakenly turned on as it shares the same environment variable
+		// as all DI runtimes, leading to problematic behavior.
+		//
+		// This means that legitimate errors will be logged, but not cause the module to restart
+		// as it should.
+		log.Errorf("Failed to start dynamic instrumentation: %v", err)
+		return &Module{}, nil
 	}
 	return &Module{godi}, nil
 }
@@ -68,7 +77,7 @@ func (m *Module) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests,
 		func(w http.ResponseWriter, _ *http.Request) {
 			stats := []string{}
-			utils.WriteAsJSON(w, stats)
+			utils.WriteAsJSON(w, stats, utils.CompactOutput)
 		}))
 
 	log.Info("Registering dynamic instrumentation module")

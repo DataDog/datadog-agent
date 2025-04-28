@@ -188,6 +188,12 @@ func (s statusProvider) populatePrometheusStatus(prometheusURL string) error {
 
 func (s statusProvider) populateStatus() map[string]interface{} {
 	extensionURL := s.Config.GetString("otelcollector.extension_url")
+	if !s.Config.GetBool("otelcollector.enabled") {
+		return map[string]interface{}{
+			"url":   extensionURL,
+			"error": "OTel Agent is not enabled.",
+		}
+	}
 
 	auth, err := s.authToken.Get()
 	if err != nil {

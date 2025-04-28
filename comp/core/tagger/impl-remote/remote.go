@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -98,6 +99,8 @@ type remoteTagger struct {
 
 	checksCardinality    types.TagCardinality
 	dogstatsdCardinality types.TagCardinality
+
+	wg sync.WaitGroup
 }
 
 // Options contains the options needed to configure the remote tagger.
@@ -229,12 +232,19 @@ func start(remoteTagger *remoteTagger) error {
 	remoteTagger.log.Info("remote tagger initialized successfully")
 
 	// Start the tagger stream.
-	go remoteTagger.run()
+	remoteTagger.wg.Add(1)
+	go func() {
+		defer remoteTagger.wg.Done()
+		remoteTagger.run()
+	}()
 	return nil
 }
 
 func stop(remoteTagger *remoteTagger) error {
 	remoteTagger.cancel()
+
+	// Wait for the run goroutine to finish before closing the connection
+	remoteTagger.wg.Wait()
 
 	onStopErr := remoteTagger.conn.Close()
 	if onStopErr != nil {
@@ -246,11 +256,6 @@ func stop(remoteTagger *remoteTagger) error {
 	remoteTagger.log.Info("remote tagger stopped successfully")
 
 	return nil
-}
-
-// GetTaggerTelemetryStore returns tagger telemetry store
-func (t *remoteTagger) GetTaggerTelemetryStore() *telemetry.Store {
-	return t.telemetryStore
 }
 
 // Tag returns tags for a given entity at the desired cardinality.
@@ -442,15 +447,21 @@ func (t *remoteTagger) run() {
 			t.store.collectTelemetry()
 			continue
 		case <-t.ctx.Done():
+			// Ensure we cancel the stream context when the main context is canceled
+			if t.streamCancel != nil {
+				t.streamCancel()
+			}
 			return
 		default:
 		}
 
+		taggerStreamInitialized := false
 		if t.stream == nil {
 			if err := t.startTaggerStream(noTimeout); err != nil {
 				t.log.Warnf("error received trying to start stream with target %q: %s", t.options.Target, err)
 				continue
 			}
+			taggerStreamInitialized = true
 		}
 
 		var response *pb.StreamTagsResponse
@@ -477,7 +488,9 @@ func (t *remoteTagger) run() {
 			continue
 		}
 
-		t.log.Info("tagger stream successfully initialized")
+		if taggerStreamInitialized {
+			t.log.Info("tagger stream successfully initialized")
+		}
 
 		t.telemetryStore.Receives.Inc()
 
@@ -543,43 +556,61 @@ func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
 	expBackoff.MaxInterval = 5 * time.Minute
 	expBackoff.MaxElapsedTime = maxElapsed
 
-	return backoff.Retry(func() error {
+	var err error
+	timer := time.NewTimer(0) // immediate first attempt
+	defer timer.Stop()
+
+	for {
 		select {
 		case <-t.ctx.Done():
-			return &backoff.PermanentError{Err: errTaggerStreamNotStarted}
-		default:
+			return errTaggerStreamNotStarted
+		case <-timer.C:
+			// Check the auth token
+			if t.token == "" {
+				t.log.Debug("RemoteTagger initialization failed: auth token is unset")
+				nextBackoff := expBackoff.NextBackOff()
+				if nextBackoff == backoff.Stop {
+					return err
+				}
+				timer.Reset(nextBackoff)
+				continue
+			}
+
+			// Cancel any existing stream context before creating a new one
+			if t.streamCancel != nil {
+				t.streamCancel()
+			}
+
+			t.streamCtx, t.streamCancel = context.WithCancel(
+				metadata.NewOutgoingContext(t.ctx, metadata.MD{
+					"authorization": []string{fmt.Sprintf("Bearer %s", t.token)},
+				}),
+			)
+
+			prefixes := make([]string, 0)
+			for prefix := range t.filter.GetPrefixes() {
+				prefixes = append(prefixes, string(prefix))
+			}
+
+			t.stream, err = t.client.TaggerStreamEntities(t.streamCtx, &pb.StreamTagsRequest{
+				Cardinality: pb.TagCardinality(t.filter.GetCardinality()),
+				StreamingID: uuid.New().String(),
+				Prefixes:    prefixes,
+			})
+
+			if err != nil {
+				t.log.Debugf("unable to establish stream, will retry: %s", err)
+				nextBackoff := expBackoff.NextBackOff()
+				if nextBackoff == backoff.Stop {
+					return err
+				}
+				timer.Reset(nextBackoff)
+				continue
+			}
+
+			return nil
 		}
-
-		var err error
-
-		// Check the auth token
-		if t.token == "" {
-			return errors.New("RemoteTagger initialization failed: auth token is unset")
-		}
-
-		t.streamCtx, t.streamCancel = context.WithCancel(
-			metadata.NewOutgoingContext(t.ctx, metadata.MD{
-				"authorization": []string{fmt.Sprintf("Bearer %s", t.token)},
-			}),
-		)
-
-		prefixes := make([]string, 0)
-		for prefix := range t.filter.GetPrefixes() {
-			prefixes = append(prefixes, string(prefix))
-		}
-
-		t.stream, err = t.client.TaggerStreamEntities(t.streamCtx, &pb.StreamTagsRequest{
-			Cardinality: pb.TagCardinality(t.filter.GetCardinality()),
-			StreamingID: uuid.New().String(),
-			Prefixes:    prefixes,
-		})
-		if err != nil {
-			t.log.Debug("unable to establish stream, will possibly retry: %s", err)
-			return err
-		}
-
-		return nil
-	}, expBackoff)
+	}
 }
 
 func (t *remoteTagger) writeList(w http.ResponseWriter, _ *http.Request) {

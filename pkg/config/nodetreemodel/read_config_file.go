@@ -33,7 +33,7 @@ func (c *ntmConfig) findConfigFile() {
 
 // ReadInConfig wraps Viper for concurrent access
 func (c *ntmConfig) ReadInConfig() error {
-	if !c.isReady() {
+	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		return log.Errorf("attempt to ReadInConfig before config is constructed")
 	}
 
@@ -57,7 +57,7 @@ func (c *ntmConfig) ReadInConfig() error {
 
 // ReadConfig wraps Viper for concurrent access
 func (c *ntmConfig) ReadConfig(in io.Reader) error {
-	if !c.isReady() {
+	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		return log.Errorf("attempt to ReadConfig before config is constructed")
 	}
 
@@ -91,7 +91,7 @@ func (c *ntmConfig) readConfigurationContent(target InnerNode, source model.Sour
 			return err
 		}
 	}
-	c.warnings = append(c.warnings, loadYamlInto(target, source, inData, "", c.schema)...)
+	c.warnings = append(c.warnings, loadYamlInto(target, source, inData, "", c.schema, c.allowDynamicSchema.Load())...)
 	return nil
 }
 
@@ -122,8 +122,8 @@ func toMapStringInterface(data any, path string) (map[string]interface{}, error)
 
 // loadYamlInto traverses input data parsed from YAML, checking if each node is defined by the schema.
 // If found, the value from the YAML blob is imported into the 'dest' tree. Otherwise, a warning will be created.
-func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interface{}, atPath string, schema InnerNode) []string {
-	warnings := []string{}
+func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interface{}, atPath string, schema InnerNode, allowDynamicSchema bool) []error {
+	warnings := []error{}
 	for key, value := range inData {
 		key = strings.ToLower(key)
 		currPath := joinKey(atPath, key)
@@ -131,8 +131,14 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 		// check if the key is defined in the schema
 		schemaChild, err := schema.GetChild(key)
 		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("unknown key from YAML: %s", currPath))
-			continue
+			warnings = append(warnings, fmt.Errorf("unknown key from YAML: %s", currPath))
+			if !allowDynamicSchema {
+				continue
+			} else if isScalar(value) {
+				schemaChild = newLeafNode(value, model.SourceSchema)
+			} else {
+				schemaChild = newInnerNode(make(map[string]Node))
+			}
 		}
 
 		// if the node in the schema is a leaf, then we create a new leaf in dest
@@ -141,7 +147,7 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 			c, _ := dest.GetChild(key)
 			if _, ok := c.(InnerNode); ok {
 				// Both default and dest have a child but they conflict in type. This should never happen.
-				warnings = append(warnings, "invalid tree: default and dest tree don't have the same layout")
+				warnings = append(warnings, fmt.Errorf("invalid tree: default and dest tree don't have the same layout"))
 			} else {
 				dest.InsertChildNode(key, newLeafNode(value, source))
 			}
@@ -152,12 +158,12 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 
 		childValue, err := toMapStringInterface(value, currPath)
 		if err != nil {
-			warnings = append(warnings, err.Error())
+			warnings = append(warnings, err)
 		}
 
 		if !dest.HasChild(key) {
 			destChildInner := newInnerNode(nil)
-			warnings = append(warnings, loadYamlInto(destChildInner, source, childValue, currPath, schemaInner)...)
+			warnings = append(warnings, loadYamlInto(destChildInner, source, childValue, currPath, schemaInner, allowDynamicSchema)...)
 			dest.InsertChildNode(key, destChildInner)
 			continue
 		}
@@ -166,10 +172,10 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 		destChildInner, ok := destChild.(InnerNode)
 		if !ok {
 			// Both default and dest have a child but they conflict in type. This should never happen.
-			warnings = append(warnings, "invalid tree: default and dest tree don't have the same layout")
+			warnings = append(warnings, fmt.Errorf("invalid tree: default and dest tree don't have the same layout"))
 			continue
 		}
-		warnings = append(warnings, loadYamlInto(destChildInner, source, childValue, currPath, schemaInner)...)
+		warnings = append(warnings, loadYamlInto(destChildInner, source, childValue, currPath, schemaInner, allowDynamicSchema)...)
 	}
 	return warnings
 }

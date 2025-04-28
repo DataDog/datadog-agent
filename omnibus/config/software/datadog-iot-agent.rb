@@ -61,7 +61,7 @@ build do
     mkdir conf_dir
     mkdir "#{install_dir}/bin/agent"
 
-    command "dda inv agent.build --flavor iot --no-development --major-version #{major_version_arg}", env: env
+    command "dda inv -- agent.build --flavor iot --no-development --major-version #{major_version_arg}", env: env
 
       # move around bin and config files
     move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"

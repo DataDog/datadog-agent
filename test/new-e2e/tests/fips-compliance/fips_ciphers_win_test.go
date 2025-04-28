@@ -55,6 +55,8 @@ func TestFIPSCiphersWindowsSuite(t *testing.T) {
 
 func (s *fipsServerWinSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
 
 	agentHost := s.Env().WindowsVM
 	dockerHost := s.Env().LinuxDockerVM

@@ -42,10 +42,10 @@ func (s *testAgentUpgradeSuite) TestUpgradeMSI() {
 	s.setAgentConfig()
 
 	s.installPreviousAgentVersion()
-	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().Version())
+	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
 	s.installCurrentAgentVersion()
-	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 }
 
 // TestUpgradeAgentPackage tests that the daemon can upgrade the Agent
@@ -57,9 +57,9 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 
 	// Act
 	s.MustStartExperimentCurrentVersion()
-	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
 	s.Installer().PromoteExperiment(consts.AgentPackage)
-	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
 }
@@ -75,15 +75,15 @@ func (s *testAgentUpgradeSuite) TestRunAgentMSIAfterExperiment() {
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
 	s.MustStartExperimentPreviousVersion()
-	s.AssertSuccessfulAgentStartExperiment(s.StableAgentVersion().Version())
+	s.AssertSuccessfulAgentStartExperiment(s.StableAgentVersion().PackageVersion())
 	s.Installer().PromoteExperiment(consts.AgentPackage)
-	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().Version())
+	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
 	// Act
 	s.installCurrentAgentVersion(
 		installerwindows.WithMSILogFile("install-current-version-again.log"),
 	)
-	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 }
 
 // TestUpgradeAgentPackage tests that the daemon can downgrade the Agent
@@ -95,9 +95,9 @@ func (s *testAgentUpgradeSuite) TestDowngradeAgentPackage() {
 
 	// Act
 	s.MustStartExperimentPreviousVersion()
-	s.AssertSuccessfulAgentStartExperiment(s.StableAgentVersion().Version())
+	s.AssertSuccessfulAgentStartExperiment(s.StableAgentVersion().PackageVersion())
 	s.Installer().PromoteExperiment(consts.AgentPackage)
-	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().Version())
+	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
 	// Assert
 }
@@ -111,9 +111,9 @@ func (s *testAgentUpgradeSuite) TestStopExperiment() {
 
 	// Act
 	s.MustStartExperimentCurrentVersion()
-	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
 	s.Installer().StopExperiment(consts.AgentPackage)
-	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
+	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
@@ -134,13 +134,13 @@ func (s *testAgentUpgradeSuite) TestExperimentForNonExistingPackageFails() {
 	_, err := s.Installer().StartExperiment(consts.AgentPackage, "unknown-version")
 	s.Require().ErrorContains(err, "could not get package")
 	s.Installer().StopExperiment(consts.AgentPackage)
-	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(consts.BinaryPath).
 		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, s.CurrentAgentVersion().GetNumberAndPre())
+			s.Require().Contains(version, s.CurrentAgentVersion().Version())
 		})
 }
 
@@ -155,13 +155,13 @@ func (s *testAgentUpgradeSuite) TestExperimentCurrentVersionFails() {
 	_, err := s.StartExperimentCurrentVersion()
 	s.Require().ErrorContains(err, "cannot set new experiment to the same version as the current experiment")
 	s.Installer().StopExperiment(consts.AgentPackage)
-	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(consts.BinaryPath).
 		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, s.CurrentAgentVersion().GetNumberAndPre())
+			s.Require().Contains(version, s.CurrentAgentVersion().Version())
 		})
 }
 
@@ -174,11 +174,11 @@ func (s *testAgentUpgradeSuite) TestStopWithoutExperiment() {
 	s.Installer().StopExperiment(consts.AgentPackage)
 
 	// Assert
-	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().PackageVersion())
 	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(consts.BinaryPath).
 		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, s.CurrentAgentVersion().GetNumberAndPre())
+			s.Require().Contains(version, s.CurrentAgentVersion().Version())
 		})
 }
 
@@ -191,7 +191,7 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDies() {
 
 	// Act
 	s.MustStartExperimentCurrentVersion()
-	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
 	windowscommon.StopService(s.Env().RemoteHost, consts.ServiceName)
 
 	// Assert
@@ -219,7 +219,7 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 
 	// Act
 	s.MustStartExperimentCurrentVersion()
-	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
 	err := s.waitForInstallerVersion(s.StableAgentVersion().Version())
@@ -235,7 +235,7 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 		})
 	// backend will send stop experiment now
 	s.Installer().StopExperiment(consts.AgentPackage)
-	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
+	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
 }
 
 // TestUpgradeWithAgentUser tests that the agent user is preserved across remote upgrades.
@@ -259,9 +259,9 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithAgentUser() {
 
 	// Act
 	s.MustStartExperimentCurrentVersion()
-	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
 	s.Installer().PromoteExperiment(consts.AgentPackage)
-	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
@@ -281,8 +281,7 @@ func (s *testAgentUpgradeSuite) setWatchdogTimeout(timeout int) {
 func (s *testAgentUpgradeSuite) installPreviousAgentVersion(opts ...installerwindows.MsiOption) {
 	agentVersion := s.StableAgentVersion().Version()
 	options := []installerwindows.MsiOption{
-		installerwindows.WithOption(installerwindows.WithURLFromPipeline("58948204")),
-		installerwindows.WithMSIDevEnvOverrides("PREVIOUS_AGENT"),
+		installerwindows.WithOption(installerwindows.WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-previous-version.log"),
 	}
 	options = append(options, opts...)
@@ -298,10 +297,10 @@ func (s *testAgentUpgradeSuite) installPreviousAgentVersion(opts ...installerwin
 }
 
 func (s *testAgentUpgradeSuite) installCurrentAgentVersion(opts ...installerwindows.MsiOption) {
-	agentVersion := s.CurrentAgentVersion().GetNumberAndPre()
+	agentVersion := s.CurrentAgentVersion().Version()
 
 	options := []installerwindows.MsiOption{
-		installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"),
+		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-current-version.log"),
 	}
 	options = append(options, opts...)

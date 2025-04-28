@@ -58,7 +58,7 @@ $outputDirectory = "$repoRoot\build-out"
 if (![string]::IsNullOrEmpty($VersionOverride)) {
     $rawAgentVersion = $VersionOverride
 } else {
-    $rawAgentVersion = (dda inv agent.version --url-safe --major-version 7)
+    $rawAgentVersion = (dda inv -- agent.version --url-safe --major-version 7)
 }
 $copyright = "Datadog {0}" -f (Get-Date).Year
 

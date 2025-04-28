@@ -78,7 +78,7 @@ func NewTestServerWithOptions(statusCode int, concurrentSends int, retryDestinat
 
 	endpoint := config.NewEndpoint("test", "", strings.Replace(url[1], "/", "", -1), port, false)
 	endpoint.BackoffFactor = 1
-	endpoint.BackoffBase = 1
+	endpoint.BackoffBase = 0.01
 	endpoint.BackoffMax = 10
 	endpoint.RecoveryInterval = 1
 

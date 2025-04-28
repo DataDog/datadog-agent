@@ -60,6 +60,7 @@ const CudaEventTypeKernelLaunch CudaEventType = 0x0
 const CudaEventTypeMemory CudaEventType = 0x1
 const CudaEventTypeSync CudaEventType = 0x2
 const CudaEventTypeSetDevice CudaEventType = 0x3
+const CudaEventTypeCount CudaEventType = 0x4
 
 const CudaMemAlloc = 0x0
 const CudaMemFree = 0x1

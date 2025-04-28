@@ -219,17 +219,16 @@ class TestSendMessage(unittest.TestCase):
             )
         )
         jobowners = """\
-        job1 @DataDog/agent-devx-infra
-        job2 @DataDog/agent-devx-infra
-        job3 @DataDog/agent-devx-infra @DataDog/agent-devx-loops
+        job1 @DataDog/agent-devx
+        job2 @DataDog/agent-devx
+        job3 @DataDog/agent-devx
         not* @DataDog/agent-delivery
         """
         read_owners_mock.return_value = CodeOwners(jobowners)
         owners = find_job_owners(failed)
         # Should send notifications to agent-e2e-testing and ci-experience
         self.assertIn("@DataDog/agent-e2e-testing", owners)
-        self.assertIn("@DataDog/agent-devx-infra", owners)
-        self.assertNotIn("@DataDog/agent-devx-loops", owners)
+        self.assertIn("@DataDog/agent-devx", owners)
         self.assertNotIn("@DataDog/agent-delivery", owners)
 
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
@@ -397,7 +396,7 @@ class TestSendStats(unittest.TestCase):
 
         trace_mock.assert_called()
         pipeline_mock.assert_called()
-        self.assertEqual(pipeline_mock.call_count, 2)
+        self.assertEqual(pipeline_mock.call_count, 1)
 
 
 class TestJobOwners(unittest.TestCase):

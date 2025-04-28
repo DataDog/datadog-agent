@@ -271,7 +271,7 @@ func run(log log.Component,
 	_ autoexit.Component,
 	settings settings.Component,
 	_ option.Option[gui.Component],
-	_ agenttelemetry.Component,
+	agenttelemetryComponent agenttelemetry.Component,
 	_ diagnose.Component,
 ) error {
 	defer func() {
@@ -337,6 +337,7 @@ func run(log log.Component,
 		cloudfoundrycontainer,
 		jmxlogger,
 		settings,
+		agenttelemetryComponent,
 	); err != nil {
 		return err
 	}
@@ -525,8 +526,14 @@ func startAgent(
 	_ cloudfoundrycontainer.Component,
 	jmxLogger jmxlogger.Component,
 	settings settings.Component,
+	agenttelemetryComponent agenttelemetry.Component,
 ) error {
 	var err error
+
+	span, _ := agenttelemetryComponent.StartStartupSpan("agent.startAgent")
+	defer func() {
+		span.Finish(err)
+	}()
 
 	if flavor.GetFlavor() == flavor.IotAgent {
 		log.Infof("Starting Datadog IoT Agent v%v", version.AgentVersion)
@@ -546,12 +553,12 @@ func startAgent(
 	// Setup Internal Profiling
 	common.SetupInternalProfiling(settings, pkgconfigsetup.Datadog(), "")
 
+	ctx, _ := pkgcommon.GetMainCtxCancel()
+
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()
 
 	http.Handle("/telemetry", telemetryHandler)
-
-	ctx, _ := pkgcommon.GetMainCtxCancel()
 
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
@@ -640,6 +647,8 @@ func startAgent(
 	})
 
 	// start dependent services
+	// must run in background go command because the agent might be in service start pending
+	// and not service running yet, and as such, the call will block or fail
 	go startDependentServices()
 
 	return nil
@@ -669,6 +678,9 @@ func stopAgent() {
 	// gracefully shut down any component
 	_, cancel := pkgcommon.GetMainCtxCancel()
 	cancel()
+
+	// shutdown dependent services
+	stopDependentServices()
 
 	pkglog.Info("See ya!")
 	pkglog.Flush()
