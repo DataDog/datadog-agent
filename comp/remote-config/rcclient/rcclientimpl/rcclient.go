@@ -261,7 +261,7 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 		err := rc.applyMRFRuntimeSetting("multi_region_failover.failover_logs", *enableLogs, enableLogsCfgPth, applyStateCallback)
 		if err != nil {
 			pkglog.Errorf("Multi-Region Failover failed to apply new logs settings : %s", err)
-			applyStateCallback(enableMetricsCfgPth, state.ApplyStatus{
+			applyStateCallback(enableLogsCfgPth, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
 			})
