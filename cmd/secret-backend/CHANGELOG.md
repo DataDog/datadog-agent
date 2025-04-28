@@ -1,5 +1,9 @@
 # CHANGELOG - datadog-secret-backend
 
+## 0.2.0 / 2025-04-28
+
+* Build the artifact without debug and DWARF symbol to produce smaller binaries (`-ldflags="-s -w"` is used).
+
 ## 0.1.14 / 2025-03-24
 
 * [Fix] Work around Azure issue 39434 & support escaped json strings
