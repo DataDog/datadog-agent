@@ -122,7 +122,11 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 		// we failed to install the Agent, we need to restore the stable Agent
 		// to leave the system in a consistent state.
 		// if the reinstall of the stable fails again we can't do much.
-		_ = installAgentPackage(env, "stable", nil, "restore_stable_agent.log")
+		restoreErr := restoreStableAgentFromExperiment(ctx, env)
+		if restoreErr != nil {
+			log.Error(restoreErr)
+			err = fmt.Errorf("%w, %w", err, restoreErr)
+		}
 		return err
 	}
 
@@ -133,20 +137,10 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 		log.Errorf("Watchdog failed: %s", err)
 		// we failed to start the watchdog, the Agent stopped, or we received a timeout
 		// we need to restore the stable Agent to leave the system in a consistent state.
-		installer, err := newInstallerExec(env)
-		if err != nil {
-			log.Errorf("Failed to create installer exec: %s", err)
-			return fmt.Errorf("failed to create installer exec: %w", err)
-		}
-		// call remove-experiment to:
-		// - remove current version and reinstall stable version
-		// - update repository state / remove experiment link
-		// The updated repository state will cause the daemon to skip the stop-experiment
-		// operation received from the backend.
-		err = installer.RemoveExperiment(ctx, ctx.Package)
-		if err != nil {
-			log.Errorf("Failed to remove experiment Agent: %s", err)
-			return fmt.Errorf("failed to remove experiment Agent: %w", err)
+		restoreErr := restoreStableAgentFromExperiment(ctx, env)
+		if restoreErr != nil {
+			log.Error(restoreErr)
+			err = fmt.Errorf("%w, %w", err, restoreErr)
 		}
 		return err
 	}
@@ -495,4 +489,25 @@ func newInstallerExec(env *env.Env) (*exec.InstallerExec, error) {
 	}
 	installer := exec.NewInstallerExec(env, installerBin)
 	return installer, nil
+}
+
+// restoreStableAgentFromExperiment restores the stable Agent using the remove-experiment command.
+//
+// call remove-experiment to:
+//   - remove current version and reinstall stable version
+//   - update repository state / remove experiment link
+//
+// The updated repository state will cause the stable daemon to skip the stop-experiment
+// operation received from the backend, which avoids reinstalling the stable Agent again.
+func restoreStableAgentFromExperiment(ctx HookContext, env *env.Env) error {
+	installer, err := newInstallerExec(env)
+	if err != nil {
+		return fmt.Errorf("failed to create installer exec: %w", err)
+	}
+	err = installer.RemoveExperiment(ctx, ctx.Package)
+	if err != nil {
+		return fmt.Errorf("failed to restore stable Agent: %w", err)
+	}
+
+	return nil
 }
