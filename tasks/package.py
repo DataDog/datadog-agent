@@ -1,33 +1,33 @@
 import os
 import tempfile
-import xml.etree.ElementTree as ET
 from datetime import datetime
 
-import requests
-from gitlab.v4.objects import Project, ProjectPipeline
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.diff import diff as _diff
 from tasks.libs.common.download import download as _download
 from tasks.libs.common.git import get_default_branch
+from tasks.libs.package.extract import extract_deb, extract_rpm
 from tasks.libs.package.size import (
     PACKAGE_SIZE_TEMPLATE,
     compare,
     compute_package_size_metrics,
 )
+from tasks.libs.package.url import get_deb_package_url, get_rpm_package_url
 from tasks.libs.package.utils import (
     PackageSize,
     display_message,
     get_ancestor,
+    get_package_name,
     list_packages,
     retrieve_package_sizes,
     upload_package_sizes,
 )
+from tasks.libs.pipeline.utils import get_pipeline_id
 
 
 @task
@@ -163,11 +163,9 @@ def diff(
     """
 
     repo = get_gitlab_repo("DataDog/datadog-agent")
-    base_pipeline_id = _get_pipeline_id(ctx, repo, base_ref, base_pipeline, pull_request_id, base=True)
-    target_pipeline_id = _get_pipeline_id(ctx, repo, target_ref, target_pipeline, pull_request_id, base=False)
+    base_pipeline_id = get_pipeline_id(ctx, repo, base_ref, base_pipeline, pull_request_id, base=True)
+    target_pipeline_id = get_pipeline_id(ctx, repo, target_ref, target_pipeline, pull_request_id, base=False)
     print(f"Comparing package from pipeline {base_pipeline_id} with pipeline {target_pipeline_id}")
-
-    print()
 
     tmpdir = tempfile.mkdtemp()
     print(f"Artifacts will be downloaded to {tmpdir}")
@@ -222,155 +220,16 @@ def download(
 
     match _type:
         case "deb":
-            _get_package_url = _get_deb_package_url
-            _extract = _extract_deb
+            _get_package_url = get_deb_package_url
+            _extract = extract_deb
         case "rpm":
-            _get_package_url = _get_rpm_package_url
-            _extract = _extract_rpm
+            _get_package_url = get_rpm_package_url
+            _extract = extract_rpm
         case _:
             raise Exit(code=1, message=f"Unknown package type: {_type}")
 
-    package_name = _get_package_name(binary, flavor)
+    package_name = get_package_name(binary, flavor)
     download_path = _download(_get_package_url(ctx, int(pipeline), package_name, arch), path)
 
     if extract:
         _extract(ctx, download_path, extract_dir)
-
-
-def _get_package_name(binary: str, flavor: str):
-    package_name = "datadog-"
-    if flavor:
-        package_name += f"{flavor}-"
-    package_name += binary
-    return package_name
-
-
-def _extract_deb(ctx: Context, deb_path: str, extract_path: str):
-    os.makedirs(extract_path)
-    ctx.run(f"tar xf {deb_path} -C {extract_path}")
-    with ctx.cd(extract_path):
-        ctx.run("tar xf data.tar.xz")
-        ctx.run("rm data.tar.xz")
-
-
-def _extract_rpm(ctx: Context, rpm_path: str, extract_path: str):
-    os.makedirs(extract_path)
-    ctx.run(f"tar xf {rpm_path} -C {extract_path}")
-
-
-def _get_rpm_package_url(ctx: Context, pipeline_id: int, package_name: str, arch: str):
-    base_url = "https://yumtesting.datad0g.com"
-    arch2 = "x86_64" if arch == "amd64" else "aarch64"
-    packages_url = f"{base_url}/testing/pipeline-{pipeline_id}-a7/7/{arch2}"
-
-    repomd_url = f"{packages_url}/repodata/repomd.xml"
-    response = requests.get(repomd_url, timeout=None)
-    response.raise_for_status()
-    repomd = ET.fromstring(response.text)
-
-    primary = next((data for data in repomd.findall('.//{*}data') if data.get('type') == 'primary'), None)
-    assert primary is not None, f"Could not find primary data in {repomd_url}"
-    location = primary.find('{*}location')
-    assert location is not None, f"Could not find location for primary data in {repomd_url}"
-
-    filename = tempfile.mktemp()
-    primary_url = f"{packages_url}/{location.get('href')}"
-    _download(primary_url, filename)
-    res = ctx.run(f"gunzip --stdout {filename}", hide=True)
-    assert res
-
-    primary = ET.fromstring(res.stdout.strip())
-    for package in primary.findall('.//{*}package'):
-        if package.get('type') != 'rpm':
-            continue
-        name = package.find('{*}name')
-        if name is None or name.text != package_name:
-            continue
-        location = package.find('{*}location')
-        assert location is not None, f"Could not find location for {package_name} in {primary_url}"
-        return f"{packages_url}/{location.get('href')}"
-    raise Exit(code=1, message=f"Could not find package {package_name} in {primary_url}")
-
-
-def _get_deb_package_url(_: Context, pipeline_id: int, package_name: str, arch: str):
-    arch2 = arch
-    if arch == "amd64":
-        arch2 = "x86_64"
-
-    base_url = "https://apttesting.datad0g.com"
-    packages_url = f"{base_url}/dists/pipeline-{pipeline_id}-a7-{arch2}/7/binary-{arch}/Packages"
-
-    filename = _deb_get_filename_for_package(packages_url, package_name)
-    return f"{base_url}/{filename}"
-
-
-def _deb_get_filename_for_package(packages_url: str, target_package_name: str) -> str:
-    response = requests.get(packages_url, timeout=None)
-    response.raise_for_status()
-
-    packages = [
-        f"Package:{content}" if not content.startswith("Package:") else content
-        for content in response.text.split("\nPackage:")
-    ]
-
-    for package in packages:
-        package_name = None
-        package_filename = None
-        for line in package.split('\n'):
-            match line.split(': ')[0]:
-                case "Package":
-                    package_name = line.split(': ', 1)[1]
-                    continue
-                case "Filename":
-                    package_filename = line.split(': ', 1)[1]
-                    continue
-
-        if target_package_name == package_name:
-            if package_filename is None:
-                raise Exit(code=1, message=f"Could not find filename for {target_package_name} in {packages_url}")
-            return package_filename
-
-    raise Exit(code=1, message=f"Could not find filename for {target_package_name} in {packages_url}")
-
-
-def _get_pipeline_id(
-    ctx: Context, repo: Project, ref: str | None, pipeline: str | None, pull_request_id: str | None, base: bool
-) -> int:
-    nargs = int(ref is not None) + int(pipeline is not None) + int(pull_request_id is not None)
-    assert nargs == 1, "Exactly one of commit, pipeline or pull_request_id must be provided"
-
-    if pipeline is not None:
-        return int(pipeline)
-
-    if ref is not None:
-        return _get_pipeline_from_ref(repo, ref).get_id()
-
-    assert pull_request_id is not None
-
-    gh = GithubAPI()
-    pr = gh.get_pr(int(pull_request_id))
-    if base:
-        res = ctx.run(f"git merge-base {pr.base.ref} {pr.head.ref}", hide=True)
-        assert res
-        base_ref = res.stdout.strip()
-        print(f"Base ref is {pr.base.ref}, merge-base is {base_ref}")
-        return _get_pipeline_from_ref(repo, base_ref).get_id()
-
-    print(f"Head ref is {pr.head.ref}")
-    return _get_pipeline_from_ref(repo, pr.head.ref).get_id()
-
-
-def _get_pipeline_from_ref(repo: Project, ref: str) -> ProjectPipeline:
-    # Get last updated pipeline
-    print(f"Getting pipeline for {ref}...")
-
-    pipelines = repo.pipelines.list(ref=ref, per_page=1, order_by='updated_at', get_all=False)
-    if len(pipelines) != 0:
-        return pipelines[0]
-
-    pipelines = repo.pipelines.list(sha=ref, per_page=1, order_by='updated_at', get_all=False)
-    if len(pipelines) != 0:
-        return pipelines[0]
-
-    print(f"No pipelines found for {ref}")
-    raise Exit(code=1)
