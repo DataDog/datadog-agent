@@ -10,7 +10,6 @@ import (
 	"cmp"
 	"fmt"
 	"math"
-	"os"
 	"slices"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -36,23 +35,11 @@ type baseCheckSuite struct {
 
 func getAgentOptions() []agentparams.Option {
 	agentOptions := []agentparams.Option{}
-	//TODO: remove once the PR is ready
-	if os.Getenv("CI_PIPELINE_ID") == "" {
-		// if running locally, use the hardcoded pipeline id + devmode
-		agentOptions = append(agentOptions,
-			// update pipeline id when you push changes to the disk check or the agent itself
-			agentparams.WithPipeline("63087029"),
-		)
-	}
 	return agentOptions
 }
 
 func (v *baseCheckSuite) getSuiteOptions() []e2e.SuiteOption {
 	suiteOptions := []e2e.SuiteOption{}
-	//TODO: remove once the PR is ready
-	if os.Getenv("CI_PIPELINE_ID") == "" {
-		suiteOptions = append(suiteOptions, e2e.WithDevMode())
-	}
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithAgentOptions(v.agentOptions...),
