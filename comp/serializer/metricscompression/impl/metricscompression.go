@@ -33,6 +33,6 @@ type Provides struct {
 // NewCompressorReqOtel returns the compression component for Otel
 func NewCompressorReqOtel() Provides {
 	return Provides{
-		Comp: zstd.New(zstd.Requires{Level: 1}),
+		Comp: zstd.New(zstd.Requires{Level: 22}),
 	}
 }
