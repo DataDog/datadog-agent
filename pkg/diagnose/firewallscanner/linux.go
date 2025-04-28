@@ -17,9 +17,6 @@ import (
 
 const (
 	blockerDiagnosisNameLinux = "Firewall blockers on Linux"
-
-	keyProtocolIndex = "ProtocolIndex"
-	keyDestPortIndex = "DestPortIndex"
 )
 
 type linuxFirewallScanner struct{}
@@ -68,19 +65,53 @@ func (scanner *linuxFirewallScanner) DiagnoseBlockedPorts(forProtocol string, de
 }
 
 func checkBlockedPortsIPTables(output []byte, forProtocol string, destPorts integrationsByDestPort) []blockedPort {
+	var blockedPorts []blockedPort
+
+	rules := strings.Split(string(output), "\n")
 	re := regexp.MustCompile(`(?i)-p (\S+)\b.*--dport (\d+)\b.*-j drop\b`)
-	return checkBlockedPortsLinux(string(output), re, map[string]int{
-		keyProtocolIndex: 1,
-		keyDestPortIndex: 2,
-	}, forProtocol, destPorts)
+	for _, rule := range rules {
+		matches := re.FindStringSubmatch(rule)
+		if matches == nil {
+			continue
+		}
+
+		matchedProtocol := matches[1]
+		matchedDestPort := matches[2]
+		forIntegrations, portExists := destPorts[matchedDestPort]
+		if strings.EqualFold(matchedProtocol, forProtocol) && portExists {
+			blockedPorts = append(blockedPorts, blockedPort{
+				Port:            matchedDestPort,
+				ForIntegrations: forIntegrations,
+			})
+		}
+	}
+
+	return blockedPorts
 }
 
 func checkBlockedPortsNFTables(output []byte, forProtocol string, destPorts integrationsByDestPort) []blockedPort {
+	var blockedPorts []blockedPort
+
+	rules := strings.Split(string(output), "\n")
 	re := regexp.MustCompile(`(?i)\b(\S+)\b.*\bdport (\d+)\b.*\bdrop\b`)
-	return checkBlockedPortsLinux(string(output), re, map[string]int{
-		keyProtocolIndex: 1,
-		keyDestPortIndex: 2,
-	}, forProtocol, destPorts)
+	for _, rule := range rules {
+		matches := re.FindStringSubmatch(rule)
+		if matches == nil {
+			continue
+		}
+
+		matchedProtocol := matches[1]
+		matchedDestPort := matches[2]
+		forIntegrations, portExists := destPorts[matchedDestPort]
+		if strings.EqualFold(matchedProtocol, forProtocol) && portExists {
+			blockedPorts = append(blockedPorts, blockedPort{
+				Port:            matchedDestPort,
+				ForIntegrations: forIntegrations,
+			})
+		}
+	}
+
+	return blockedPorts
 }
 
 func checkBlockedPortsUFW(output []byte, forProtocol string, destPorts integrationsByDestPort) []blockedPort {
@@ -89,25 +120,18 @@ func checkBlockedPortsUFW(output []byte, forProtocol string, destPorts integrati
 		return []blockedPort{}
 	}
 
-	re := regexp.MustCompile(`(?i)\b(\d+)/(\S+)\b.*\bdeny\b`)
-	return checkBlockedPortsLinux(outputString, re, map[string]int{
-		keyProtocolIndex: 2,
-		keyDestPortIndex: 1,
-	}, forProtocol, destPorts)
-}
-
-func checkBlockedPortsLinux(outputString string, re *regexp.Regexp, valIndexes map[string]int, forProtocol string, destPorts integrationsByDestPort) []blockedPort {
 	var blockedPorts []blockedPort
 
 	rules := strings.Split(outputString, "\n")
+	re := regexp.MustCompile(`(?i)\b(\d+)/(\S+)\b.*\bdeny\b`)
 	for _, rule := range rules {
 		matches := re.FindStringSubmatch(rule)
 		if matches == nil {
 			continue
 		}
 
-		matchedProtocol := matches[valIndexes[keyProtocolIndex]]
-		matchedDestPort := matches[valIndexes[keyDestPortIndex]]
+		matchedProtocol := matches[2]
+		matchedDestPort := matches[1]
 		forIntegrations, portExists := destPorts[matchedDestPort]
 		if strings.EqualFold(matchedProtocol, forProtocol) && portExists {
 			blockedPorts = append(blockedPorts, blockedPort{
