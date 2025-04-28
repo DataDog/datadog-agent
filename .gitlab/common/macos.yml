@@ -44,7 +44,7 @@
   - pyenv activate $VENV_NAME
 
 .install_python_dependencies:
-  - python3 -m pip install tasks/requirements.txt --break-system-packages
+  - python3 -m pip install -r tasks/requirements.txt --break-system-packages
   - pyenv rehash
 
 .vault_login:
