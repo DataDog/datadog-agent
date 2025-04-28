@@ -1041,9 +1041,12 @@ workflow:
   - changes:
       paths:
         - cmd/otel-agent/**/*
+        - comp/core/tagger/**/*
         - comp/otelcol/**/*
+        - pkg/config/setup/otlp.go
         - pkg/trace/api/otlp.go
         - pkg/trace/stats/otel_util.go
+        - pkg/trace/traceutil/otel_util.go
         - pkg/trace/transform/transform.go
         - test/new-e2e/tests/otel/**/*
       compare_to: $COMPARE_TO_BRANCH
