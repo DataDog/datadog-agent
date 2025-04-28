@@ -137,9 +137,9 @@ func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.RawC
 
 func normalize(policy *rules.Policy) {
 	// remove the version
-	_, normalized, found := strings.Cut(policy.Name, ".")
+	_, normalized, found := strings.Cut(policy.Info.Name, ".")
 	if found {
-		policy.Name = normalized
+		policy.Info.Name = normalized
 	}
 }
 
@@ -172,8 +172,13 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 			}
 		}
 
+		pInfo := &rules.PolicyInfo{
+			Name:   id,
+			Source: rules.PolicyProviderTypeRC,
+			Type:   policyType,
+		}
 		reader := bytes.NewReader(cfg)
-		policy, err := rules.LoadPolicy(id, rules.PolicyProviderTypeRC, policyType, reader, macroFilters, ruleFilters)
+		policy, err := rules.LoadPolicy(pInfo, reader, macroFilters, ruleFilters)
 		normalize(policy)
 		policies = append(policies, policy)
 		return err

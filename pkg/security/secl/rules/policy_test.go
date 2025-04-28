@@ -1425,9 +1425,11 @@ rules:
 				ruleFilters:  nil,
 			},
 			want: &Policy{
-				Name:   "myLocal.policy",
-				Source: PolicyProviderTypeRC,
-				Type:   CustomPolicyType,
+				Info: PolicyInfo{
+					Name:   "myLocal.policy",
+					Source: PolicyProviderTypeRC,
+					Type:   CustomPolicyType,
+				},
 				rules:  map[string][]*PolicyRule{},
 				macros: map[string][]*PolicyMacro{},
 			},
@@ -1463,10 +1465,12 @@ broken
 				macroFilters: nil,
 				ruleFilters:  nil,
 			},
-			want: fixupRulesPolicy(&Policy{
-				Name:   "myLocal.policy",
-				Source: PolicyProviderTypeRC,
-				Type:   CustomPolicyType,
+			want: &Policy{
+				Info: PolicyInfo{
+					Name:   "myLocal.policy",
+					Source: PolicyProviderTypeRC,
+					Type:   CustomPolicyType,
+				},
 				rules: map[string][]*PolicyRule{
 					"rule_test": {
 						{
@@ -1475,12 +1479,17 @@ broken
 								Expression: "",
 								Disabled:   true,
 							},
+							Policy: PolicyInfo{
+								Name:   "myLocal.policy",
+								Source: PolicyProviderTypeRC,
+								Type:   CustomPolicyType,
+							},
 							Accepted: true,
 						},
 					},
 				},
 				macros: map[string][]*PolicyMacro{},
-			}),
+			},
 			wantErr: assert.NoError,
 		},
 		{
@@ -1497,10 +1506,12 @@ broken
 				macroFilters: nil,
 				ruleFilters:  nil,
 			},
-			want: fixupRulesPolicy(&Policy{
-				Name:   "myLocal.policy",
-				Source: PolicyProviderTypeRC,
-				Type:   CustomPolicyType,
+			want: &Policy{
+				Info: PolicyInfo{
+					Name:   "myLocal.policy",
+					Source: PolicyProviderTypeRC,
+					Type:   CustomPolicyType,
+				},
 				rules: map[string][]*PolicyRule{
 					"rule_test": {
 						{
@@ -1509,12 +1520,17 @@ broken
 								Expression: "open.file.path == \"/etc/gshadow\"",
 								Combine:    OverridePolicy,
 							},
+							Policy: PolicyInfo{
+								Name:   "myLocal.policy",
+								Source: PolicyProviderTypeRC,
+								Type:   CustomPolicyType,
+							},
 							Accepted: true,
 						},
 					},
 				},
 				macros: map[string][]*PolicyMacro{},
-			}),
+			},
 			wantErr: assert.NoError,
 		},
 	}
@@ -1522,7 +1538,13 @@ broken
 		t.Run(tt.name, func(t *testing.T) {
 			r := strings.NewReader(tt.args.fileContent)
 
-			got, err := LoadPolicy(tt.args.name, tt.args.source, tt.args.policyType, r, tt.args.macroFilters, tt.args.ruleFilters)
+			info := &PolicyInfo{
+				Name:   tt.args.name,
+				Source: tt.args.source,
+				Type:   tt.args.policyType,
+			}
+
+			got, err := LoadPolicy(info, r, tt.args.macroFilters, tt.args.ruleFilters)
 
 			if !tt.wantErr(t, err, fmt.Sprintf("LoadPolicy(%v, %v, %v, %v, %v)", tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)) {
 				return

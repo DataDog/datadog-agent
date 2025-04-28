@@ -33,11 +33,17 @@ func (p *PolicyProvider) LoadPolicies([]rules.MacroFilter, []rules.RuleFilter) (
 		Rules:   newBundledPolicyRules(p.cfg),
 	}
 
-	policy, err := rules.LoadPolicyFromDefinition("bundled_policy", "bundled", rules.InternalPolicyType, policyDef, nil, nil)
+	pInfo := &rules.PolicyInfo{
+		Name:       "bundled_policy",
+		Source:     "bundled",
+		Type:       rules.InternalPolicyType,
+		IsInternal: true,
+	}
+
+	policy, err := rules.LoadPolicyFromDefinition(pInfo, policyDef, nil, nil)
 	if err != nil {
 		return nil, multierror.Append(nil, err)
 	}
-	policy.IsInternal = true
 	policy.SetInternalCallbackAction(RefreshUserCacheRuleID, RefreshSBOMRuleID)
 
 	return []*rules.Policy{policy}, nil

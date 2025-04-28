@@ -262,21 +262,12 @@ func (e HeartbeatEvent) ToJSON() ([]byte, error) {
 	return utils.MarshalEasyJSON(e)
 }
 
-// PolicyStateFromRule returns a policy state based on the rule definition
-func PolicyStateFromRule(rule *rules.PolicyRule) *PolicyState {
+// PolicyStateFromPolicyInfo returns a policy state based on the policy info
+func PolicyStateFromPolicyInfo(policyInfo *rules.PolicyInfo) *PolicyState {
 	return &PolicyState{
-		Name:    rule.Policy.Name,
-		Version: rule.Policy.Def.Version,
-		Source:  rule.Policy.Source,
-	}
-}
-
-// PolicyStateFromPolicy returns a policy state based on the policy definition
-func PolicyStateFromPolicy(policy *rules.Policy) *PolicyState {
-	return &PolicyState{
-		Name:    policy.Name,
-		Version: policy.Def.Version,
-		Source:  policy.Source,
+		Name:    policyInfo.Name,
+		Version: policyInfo.Version,
+		Source:  policyInfo.Source,
 	}
 }
 
@@ -284,7 +275,7 @@ func PolicyStateFromPolicy(policy *rules.Policy) *PolicyState {
 func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *RuleState {
 	ruleState := &RuleState{
 		ID:          rule.Def.ID,
-		Version:     rule.Policy.Def.Version,
+		Version:     rule.Policy.Version,
 		Expression:  rule.Def.Expression,
 		Status:      status,
 		Message:     message,
@@ -334,8 +325,8 @@ func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *R
 		ruleState.Actions = append(ruleState.Actions, ruleAction)
 	}
 
-	for _, modRule := range rule.ModifiedBy {
-		ruleState.ModifiedBy = append(ruleState.ModifiedBy, PolicyStateFromRule(modRule))
+	for _, pInfo := range rule.ModifiedBy {
+		ruleState.ModifiedBy = append(ruleState.ModifiedBy, PolicyStateFromPolicyInfo(&pInfo))
 	}
 
 	return ruleState
@@ -349,14 +340,14 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 	var exists bool
 
 	for _, rule := range rs.GetRules() {
-		if rule.Policy.IsInternal && !includeInternalPolicies {
-			continue
-		}
+		for _, pInfo := range rule.UsedBy {
+			if pInfo.IsInternal && !includeInternalPolicies {
+				continue
+			}
 
-		for _, policy := range rule.UsedBy {
-			if policyState, exists = mp[policy.Name]; !exists {
-				policyState = PolicyStateFromPolicy(policy)
-				mp[policy.Name] = policyState
+			if policyState, exists = mp[pInfo.Name]; !exists {
+				policyState = PolicyStateFromPolicyInfo(&pInfo)
+				mp[pInfo.Name] = policyState
 			}
 			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, "loaded", ""))
 		}
@@ -372,7 +363,7 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 				policyName := rerr.Rule.Policy.Name
 
 				if _, exists := mp[policyName]; !exists {
-					policyState = PolicyStateFromRule(rerr.Rule)
+					policyState = PolicyStateFromPolicyInfo(&rerr.Rule.Policy)
 					mp[policyName] = policyState
 				} else {
 					policyState = mp[policyName]
