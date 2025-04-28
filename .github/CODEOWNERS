@@ -240,8 +240,8 @@
 /cmd/system-probe/modules/ping*         @DataDog/ndm-core
 /cmd/system-probe/modules/language_detection* @DataDog/container-intake @DataDog/agent-discovery
 /cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger
-/cmd/system-probe/windows_resources/    @DataDog/windows-kernel-integrations
-/cmd/system-probe/main_windows*.go      @DataDog/windows-kernel-integrations
+/cmd/system-probe/windows_resources/    @DataDog/windows-agent
+/cmd/system-probe/main_windows*.go      @DataDog/windows-agent
 /cmd/system-probe/subcommands/runtime/  @DataDog/agent-security
 /cmd/systray/                           @DataDog/windows-agent
 /cmd/security-agent/                    @DataDog/agent-security
@@ -318,7 +318,7 @@
 /comp/agent/cloudfoundrycontainer @DataDog/agent-integrations
 /comp/agent/jmxlogger @DataDog/agent-metric-pipelines
 /comp/aggregator/diagnosesendermanager @DataDog/agent-configuration
-/comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
+/comp/checks/agentcrashdetect @DataDog/windows-agent
 /comp/checks/windowseventlog @DataDog/windows-agent
 /comp/checks/winregistry @DataDog/windows-agent
 /comp/core/autodiscovery @DataDog/container-platform
@@ -435,7 +435,7 @@
 /pkg/collector/corechecks/snmp/         @DataDog/ndm-core
 /pkg/collector/corechecks/system/                 @DataDog/agent-runtimes
 /pkg/collector/corechecks/system/**/*_windows*.go @DataDog/agent-runtimes @DataDog/windows-agent
-/pkg/collector/corechecks/system/wincrashdetect/  @DataDog/windows-kernel-integrations
+/pkg/collector/corechecks/system/wincrashdetect/  @DataDog/windows-agent
 /pkg/collector/corechecks/system/winkmem/         @DataDog/windows-agent
 /pkg/collector/corechecks/system/winproc/         @DataDog/windows-agent
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
@@ -450,7 +450,7 @@
 /pkg/config/setup/system_probe.go               @DataDog/ebpf-platform @DataDog/agent-configuration
 /pkg/config/setup/system_probe_cws.go           @DataDog/agent-security @DataDog/agent-configuration
 /pkg/config/setup/system_probe_cws_notwin.go    @DataDog/agent-security @DataDog/agent-configuration
-/pkg/config/setup/system_probe_cws_windows.go   @DataDog/windows-kernel-integrations @DataDog/agent-configuration
+/pkg/config/setup/system_probe_cws_windows.go   @DataDog/windows-agent @DataDog/agent-configuration
 /pkg/config/setup/security_agent.go             @DataDog/agent-security @DataDog/agent-configuration
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/meta/                @DataDog/remote-config @DataDog/sdlc-security
@@ -478,8 +478,8 @@
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-runtimes
 /pkg/system-probe/                      @DataDog/ebpf-platform
-/pkg/system-probe/api/client/client_windows.go      @DataDog/windows-kernel-integrations
-/pkg/system-probe/api/server/listener_windows.go    @DataDog/windows-kernel-integrations
+/pkg/system-probe/api/client/client_windows.go      @DataDog/windows-agent
+/pkg/system-probe/api/server/listener_windows.go    @DataDog/windows-agent
 /pkg/system-probe/config/adjust_npm.go  @DataDog/ebpf-platform @DataDog/Networks
 /pkg/system-probe/config/adjust_usm.go  @DataDog/ebpf-platform @DataDog/universal-service-monitoring
 /pkg/system-probe/config/adjust_security.go  @DataDog/ebpf-platform @DataDog/agent-security
@@ -512,7 +512,7 @@
 /pkg/util/cgroups/                      @DataDog/container-integrations
 /pkg/util/retry/                        @DataDog/container-platform
 /pkg/util/intern/                       @DataDog/ebpf-platform
-/pkg/util/crashreport/                  @DataDog/windows-kernel-integrations
+/pkg/util/crashreport/                  @DataDog/windows-agent
 /pkg/util/pdhutil/                      @DataDog/windows-agent
 /pkg/util/winutil/                      @DataDog/windows-agent
 /pkg/util/testutil/flake                @DataDog/agent-devx
@@ -539,7 +539,7 @@
 /pkg/process/util/address*.go           @DataDog/Networks
 /pkg/process/checks/net*.go             @DataDog/Networks
 /pkg/process/metadata/parser/           @DataDog/universal-service-monitoring @DataDog/container-intake @DataDog/Networks
-/pkg/process/metadata/parser/*windows*  @DataDog/universal-service-monitoring @DataDog/container-intake @DataDog/Networks @DataDog/windows-kernel-integrations
+/pkg/process/metadata/parser/*windows*  @DataDog/universal-service-monitoring @DataDog/container-intake @DataDog/Networks @DataDog/windows-agent
 /pkg/process/monitor/                   @DataDog/universal-service-monitoring
 /pkg/process/net/                       @DataDog/universal-service-monitoring @DataDog/Networks
 /pkg/proto/datadog/remoteconfig/        @DataDog/remote-config
@@ -555,11 +555,11 @@
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/Networks
 /pkg/network/*usm*                      @DataDog/universal-service-monitoring
-/pkg/network/*_windows*.go              @DataDog/windows-kernel-integrations
-/pkg/network/config/config_test.go      @DataDog/Networks @DataDog/universal-service-monitoring @DataDog/windows-kernel-integrations
-/pkg/network/driver_*.go                @DataDog/windows-kernel-integrations
-/pkg/network/dns/*_windows*.go          @DataDog/windows-kernel-integrations
-/pkg/network/driver/                    @DataDog/windows-kernel-integrations
+/pkg/network/*_windows*.go              @DataDog/windows-agent
+/pkg/network/config/config_test.go      @DataDog/Networks @DataDog/universal-service-monitoring @DataDog/windows-agent
+/pkg/network/driver_*.go                @DataDog/windows-agent
+/pkg/network/dns/*_windows*.go          @DataDog/windows-agent
+/pkg/network/driver/                    @DataDog/windows-agent
 /pkg/network/ebpf/c/prebuilt/usm*      @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/runtime/usm*       @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/prebuilt/shared-libraries*  @DataDog/universal-service-monitoring
@@ -567,16 +567,16 @@
 /pkg/network/ebpf/c/shared-libraries/           @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/protocols/          @DataDog/universal-service-monitoring
 /pkg/network/encoding/marshal/*usm*     @DataDog/universal-service-monitoring
-/pkg/network/encoding/marshal/*_windows*.go  @DataDog/windows-kernel-integrations
+/pkg/network/encoding/marshal/*_windows*.go  @DataDog/windows-agent
 /pkg/network/go/                        @DataDog/universal-service-monitoring
 /pkg/network/protocols/                 @DataDog/universal-service-monitoring
-/pkg/network/protocols/http/driver_*.go         @DataDog/windows-kernel-integrations
-/pkg/network/protocols/http/etw*.go             @DataDog/windows-kernel-integrations
-/pkg/network/protocols/http/*_windows*.go       @DataDog/windows-kernel-integrations
+/pkg/network/protocols/http/driver_*.go         @DataDog/windows-agent
+/pkg/network/protocols/http/etw*.go             @DataDog/windows-agent
+/pkg/network/protocols/http/*_windows*.go       @DataDog/windows-agent
 /pkg/network/tracer/testutil/proxy/              @DataDog/universal-service-monitoring
-/pkg/network/tracer/*_windows*.go               @DataDog/windows-kernel-integrations
+/pkg/network/tracer/*_windows*.go               @DataDog/windows-agent
 /pkg/network/usm/                       @DataDog/universal-service-monitoring
-/pkg/network/usm/tests/*_windows*.go    @DataDog/windows-kernel-integrations
+/pkg/network/usm/tests/*_windows*.go    @DataDog/windows-agent
 /pkg/ebpf/                              @DataDog/ebpf-platform
 /pkg/ebpf/map_cleaner*.go               @DataDog/universal-service-monitoring
 /pkg/compliance/                        @DataDog/agent-cspm
@@ -586,7 +586,7 @@
 /pkg/networkdevice/                     @DataDog/ndm-core
 /pkg/snmp/                              @DataDog/ndm-core
 /pkg/tagger/                            @DataDog/container-platform
-/pkg/windowsdriver/                     @DataDog/windows-kernel-integrations
+/pkg/windowsdriver/                     @DataDog/windows-agent
 /comp/core/workloadmeta/collectors/internal/cloudfoundry  @DataDog/agent-integrations
 /comp/core/workloadmeta/collectors/internal/containerd    @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/crio          @DataDog/container-platform @DataDog/container-integrations
@@ -686,15 +686,15 @@
 /test/new-e2e/tests/ndm/netflow               @DataDog/ndm-integrations
 /test/new-e2e/tests/netpath                   @DataDog/Networks
 /test/new-e2e/tests/npm                       @DataDog/Networks
-/test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/Networks @DataDog/windows-kernel-integrations
+/test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/Networks @DataDog/windows-agent
 /test/new-e2e/tests/orchestrator              @DataDog/container-app
 /test/new-e2e/tests/otel                      @DataDog/opentelemetry-agent
 /test/new-e2e/tests/process                   @DataDog/container-intake
-/test/new-e2e/tests/sysprobe-functional     @DataDog/windows-kernel-integrations
-/test/new-e2e/tests/security-agent-functional     @DataDog/windows-kernel-integrations @DataDog/agent-security
+/test/new-e2e/tests/sysprobe-functional     @DataDog/windows-agent
+/test/new-e2e/tests/security-agent-functional     @DataDog/windows-agent @DataDog/agent-security
 /test/new-e2e/tests/cws                       @DataDog/agent-security
 /test/new-e2e/tests/agent-log-pipelines       @DataDog/agent-log-pipelines
-/test/new-e2e/tests/windows                   @DataDog/windows-agent @DataDog/windows-kernel-integrations
+/test/new-e2e/tests/windows                   @DataDog/windows-agent @DataDog/windows-agent
 /test/new-e2e/tests/apm                       @DataDog/agent-apm
 /test/new-e2e/tests/remote-config             @DataDog/remote-config
 /test/new-e2e/tests/installer                 @DataDog/fleet @DataDog/windows-agent
@@ -713,7 +713,7 @@
 /tools/ebpf/                            @DataDog/ebpf-platform
 /tools/gdb/                             @DataDog/agent-runtimes
 /tools/go-update/                       @DataDog/agent-runtimes
-/tools/NamedPipeCmd/                    @DataDog/windows-kernel-integrations
+/tools/NamedPipeCmd/                    @DataDog/windows-agent
 /tools/retry_file_dump/                 @DataDog/agent-metric-pipelines
 /tools/windows/                         @DataDog/windows-agent
 /tools/windows/DatadogAgentInstaller/WixSetup/localization-en-us.wxl @DataDog/windows-agent @DataDog/documentation
