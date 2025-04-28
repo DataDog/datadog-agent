@@ -19,14 +19,14 @@ func TestSummaryMetrics(t *testing.T) {
 	}{
 		{
 			name:     "summary",
-			otlpfile: "testdata/otlpdata/summary/simple.json",
-			ddogfile: "testdata/datadogdata/summary/simple_summary.json",
+			otlpfile: "test/otlp/summary/simple.json",
+			ddogfile: "test/datadog/summary/simple_summary.json",
 			options:  []TranslatorOption{WithFallbackSourceProvider(testProvider("fallbackHostname"))},
 		},
 		{
 			name:     "summary-with-quantiles",
-			otlpfile: "testdata/otlpdata/summary/simple.json",
-			ddogfile: "testdata/datadogdata/summary/simple_summary-with-quantile.json",
+			otlpfile: "test/otlp/summary/simple.json",
+			ddogfile: "test/datadog/summary/simple_summary-quantile.json",
 			options: []TranslatorOption{
 				WithFallbackSourceProvider(testProvider("fallbackHostname")),
 				WithQuantiles(),
@@ -34,15 +34,15 @@ func TestSummaryMetrics(t *testing.T) {
 		},
 		{
 			name:     "summary-with-attributes",
-			otlpfile: "testdata/otlpdata/summary/with-attributes.json",
-			ddogfile: "testdata/datadogdata/summary/with-attributes_summary.json",
+			otlpfile: "test/otlp/summary/attributes.json",
+			ddogfile: "test/datadog/summary/attributes_summary.json",
 			options:  []TranslatorOption{WithFallbackSourceProvider(testProvider("fallbackHostname"))},
 			tags:     []string{"attribute_tag:attribute_value"},
 		},
 		{
 			name:     "summary-with-attributes-quantiles",
-			otlpfile: "testdata/otlpdata/summary/with-attributes.json",
-			ddogfile: "testdata/datadogdata/summary/with-attributes-quantile_summary.json",
+			otlpfile: "test/otlp/summary/attributes.json",
+			ddogfile: "test/datadog/summary/attributes-quantile_summary.json",
 			options: []TranslatorOption{
 				WithFallbackSourceProvider(testProvider("fallbackHostname")),
 				WithQuantiles(),

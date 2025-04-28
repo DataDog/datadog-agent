@@ -28,23 +28,23 @@ func TestMapMetrics(t *testing.T) {
 	}{
 		{
 			name:                      "no-options",
-			otlpfile:                  "testdata/otlpdata/mixed/simple.json",
-			ddogfile:                  "testdata/datadogdata/mixed/simple.json",
+			otlpfile:                  "test/otlp/mixed/simple.json",
+			ddogfile:                  "test/datadog/mixed/simple.json",
 			expectedUnknownMetricType: 1,
 			expectedUnsupportedAggregationTemporality: 2,
 		},
 		{
 			name:                      "resource-attributes-as-tags",
-			otlpfile:                  "testdata/otlpdata/mixed/simple.json",
-			ddogfile:                  "testdata/datadogdata/mixed/simple_res-tags.json",
+			otlpfile:                  "test/otlp/mixed/simple.json",
+			ddogfile:                  "test/datadog/mixed/simple_res-tags.json",
 			options:                   []TranslatorOption{},
 			expectedUnknownMetricType: 1,
 			expectedUnsupportedAggregationTemporality: 2,
 		},
 		{
 			name:     "count-sum",
-			otlpfile: "testdata/otlpdata/mixed/simple.json",
-			ddogfile: "testdata/datadogdata/mixed/simple_cs.json",
+			otlpfile: "test/otlp/mixed/simple.json",
+			ddogfile: "test/datadog/mixed/simple_cs.json",
 			options: []TranslatorOption{
 				WithHistogramAggregations(),
 			},
@@ -53,8 +53,8 @@ func TestMapMetrics(t *testing.T) {
 		},
 		{
 			name:     "instrumentation-library-metadata-as-tags",
-			otlpfile: "testdata/otlpdata/mixed/simple.json",
-			ddogfile: "testdata/datadogdata/mixed/simple_ilmd-tags.json",
+			otlpfile: "test/otlp/mixed/simple.json",
+			ddogfile: "test/datadog/mixed/simple_ilmd-tags.json",
 			options: []TranslatorOption{
 				WithInstrumentationLibraryMetadataAsTags(),
 			},
@@ -63,8 +63,8 @@ func TestMapMetrics(t *testing.T) {
 		},
 		{
 			name:     "instrumentation-scope-metadata-as-tags",
-			otlpfile: "testdata/otlpdata/mixed/simple.json",
-			ddogfile: "testdata/datadogdata/mixed/simple_ismd-tags.json",
+			otlpfile: "test/otlp/mixed/simple.json",
+			ddogfile: "test/datadog/mixed/simple_ismd-tags.json",
 			options: []TranslatorOption{
 				WithInstrumentationScopeMetadataAsTags(),
 			},
@@ -73,8 +73,8 @@ func TestMapMetrics(t *testing.T) {
 		},
 		{
 			name:     "count-sum-instrumentation-library-metadata-as-tags",
-			otlpfile: "testdata/otlpdata/mixed/simple.json",
-			ddogfile: "testdata/datadogdata/mixed/simple_cs-ilmd-tags.json",
+			otlpfile: "test/otlp/mixed/simple.json",
+			ddogfile: "test/datadog/mixed/simple_cs-ilmd-tags.json",
 			options: []TranslatorOption{
 				WithHistogramAggregations(),
 				WithInstrumentationLibraryMetadataAsTags(),
@@ -84,8 +84,8 @@ func TestMapMetrics(t *testing.T) {
 		},
 		{
 			name:     "resource-tags-instrumentation-library-metadata-as-tags",
-			otlpfile: "testdata/otlpdata/mixed/simple.json",
-			ddogfile: "testdata/datadogdata/mixed/simple_res-ilmd-tags.json",
+			otlpfile: "test/otlp/mixed/simple.json",
+			ddogfile: "test/datadog/mixed/simple_res-ilmd-tags.json",
 			options: []TranslatorOption{
 				WithInstrumentationLibraryMetadataAsTags(),
 			},
@@ -94,8 +94,8 @@ func TestMapMetrics(t *testing.T) {
 		},
 		{
 			name:     "count-sum-resource-tags-instrumentation-library-metadata-as-tags",
-			otlpfile: "testdata/otlpdata/mixed/simple.json",
-			ddogfile: "testdata/datadogdata/mixed/simple_cs-both-tags.json",
+			otlpfile: "test/otlp/mixed/simple.json",
+			ddogfile: "test/datadog/mixed/simple_cs-both-tags.json",
 			options: []TranslatorOption{
 				WithHistogramAggregations(),
 				WithInstrumentationLibraryMetadataAsTags(),
@@ -105,8 +105,8 @@ func TestMapMetrics(t *testing.T) {
 		},
 		{
 			name:     "with-all",
-			otlpfile: "testdata/otlpdata/mixed/simple.json",
-			ddogfile: "testdata/datadogdata/mixed/simple_all.json",
+			otlpfile: "test/otlp/mixed/simple.json",
+			ddogfile: "test/datadog/mixed/simple_all.json",
 			options: []TranslatorOption{
 				WithHistogramAggregations(),
 				WithInstrumentationLibraryMetadataAsTags(),
@@ -117,8 +117,8 @@ func TestMapMetrics(t *testing.T) {
 		},
 		{
 			name:     "with-initial-value-keep",
-			otlpfile: "testdata/otlpdata/mixed/simple.json",
-			ddogfile: "testdata/datadogdata/mixed/simple_keep.json",
+			otlpfile: "test/otlp/mixed/simple.json",
+			ddogfile: "test/datadog/mixed/simple_keep.json",
 			options: []TranslatorOption{
 				WithInitialCumulMonoValueMode(InitialCumulMonoValueModeKeep),
 			},
@@ -127,8 +127,8 @@ func TestMapMetrics(t *testing.T) {
 		},
 		{
 			name:     "with-initial-value-drop",
-			otlpfile: "testdata/otlpdata/mixed/simple.json",
-			ddogfile: "testdata/datadogdata/mixed/simple_drop.json",
+			otlpfile: "test/otlp/mixed/simple.json",
+			ddogfile: "test/datadog/mixed/simple_drop.json",
 			options: []TranslatorOption{
 				WithInitialCumulMonoValueMode(InitialCumulMonoValueModeDrop),
 			},

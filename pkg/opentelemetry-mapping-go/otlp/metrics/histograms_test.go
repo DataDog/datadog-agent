@@ -27,24 +27,24 @@ func TestDeltaHistogramTranslatorOptions(t *testing.T) {
 	}{
 		{
 			name:     "distributions",
-			otlpfile: "testdata/otlpdata/histogram/simple-delta.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-delta_dist-nocs.json",
+			otlpfile: "test/otlp/hist/simple-delta.json",
+			ddogfile: "test/datadog/hist/simple-delta_dist-nocs.json",
 			options: []TranslatorOption{
 				WithHistogramMode(HistogramModeDistributions),
 			},
 		},
 		{
 			name:     "distributions-test-min-max",
-			otlpfile: "testdata/otlpdata/histogram/simple-delta-min-max.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-delta-min-max_dist-nocs.json",
+			otlpfile: "test/otlp/hist/simple-delta-min-max.json",
+			ddogfile: "test/datadog/hist/simple-delta-min-max_dist-nocs.json",
 			options: []TranslatorOption{
 				WithHistogramMode(HistogramModeDistributions),
 			},
 		},
 		{
 			name:     "distributions-count-sum",
-			otlpfile: "testdata/otlpdata/histogram/simple-delta.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-delta_dist-cs.json",
+			otlpfile: "test/otlp/hist/simple-delta.json",
+			ddogfile: "test/datadog/hist/simple-delta_dist-cs.json",
 			options: []TranslatorOption{
 				WithHistogramMode(HistogramModeDistributions),
 				WithHistogramAggregations(),
@@ -52,8 +52,8 @@ func TestDeltaHistogramTranslatorOptions(t *testing.T) {
 		},
 		{
 			name:     "zero-count-histogram",
-			otlpfile: "testdata/otlpdata/histogram/zero-delta.json",
-			ddogfile: "testdata/datadogdata/histogram/zero-delta_dist-cs.json",
+			otlpfile: "test/otlp/hist/zero-delta.json",
+			ddogfile: "test/datadog/hist/zero-delta_dist-cs.json",
 			options: []TranslatorOption{
 				WithHistogramMode(HistogramModeDistributions),
 				WithHistogramAggregations(),
@@ -61,16 +61,16 @@ func TestDeltaHistogramTranslatorOptions(t *testing.T) {
 		},
 		{
 			name:     "buckets",
-			otlpfile: "testdata/otlpdata/histogram/simple-delta.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-delta_counters-nocs.json",
+			otlpfile: "test/otlp/hist/simple-delta.json",
+			ddogfile: "test/datadog/hist/simple-delta_counters-nocs.json",
 			options: []TranslatorOption{
 				WithHistogramMode(HistogramModeCounters),
 			},
 		},
 		{
 			name:     "buckets-count-sum",
-			otlpfile: "testdata/otlpdata/histogram/simple-delta.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-delta_counters-cs.json",
+			otlpfile: "test/otlp/hist/simple-delta.json",
+			ddogfile: "test/datadog/hist/simple-delta_counters-cs.json",
 			options: []TranslatorOption{
 				WithHistogramMode(HistogramModeCounters),
 				WithHistogramAggregations(),
@@ -78,8 +78,8 @@ func TestDeltaHistogramTranslatorOptions(t *testing.T) {
 		},
 		{
 			name:     "count-sum",
-			otlpfile: "testdata/otlpdata/histogram/simple-delta.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-delta_nobuckets-cs.json",
+			otlpfile: "test/otlp/hist/simple-delta.json",
+			ddogfile: "test/datadog/hist/simple-delta_nobuckets-cs.json",
 			options: []TranslatorOption{
 				WithHistogramMode(HistogramModeNoBuckets),
 				WithHistogramAggregations(),
@@ -87,32 +87,32 @@ func TestDeltaHistogramTranslatorOptions(t *testing.T) {
 		},
 		{
 			name:     "empty-delta-no-min-max",
-			otlpfile: "testdata/otlpdata/histogram/empty-delta-no-min-max.json",
-			ddogfile: "testdata/datadogdata/histogram/empty-delta-no-min-max.json",
+			otlpfile: "test/otlp/hist/empty-delta-no-min-max.json",
+			ddogfile: "test/datadog/hist/empty-delta-no-min-max.json",
 			options: []TranslatorOption{
 				WithHistogramMode(HistogramModeDistributions),
 			},
 		},
 		{
 			name:     "empty-delta-with-min-max",
-			otlpfile: "testdata/otlpdata/histogram/empty-delta-with-min-max.json",
-			ddogfile: "testdata/datadogdata/histogram/empty-delta-with-min-max.json",
+			otlpfile: "test/otlp/hist/empty-delta-with-min-max.json",
+			ddogfile: "test/datadog/hist/empty-delta-with-min-max.json",
 			options: []TranslatorOption{
 				WithHistogramMode(HistogramModeDistributions),
 			},
 		},
 		{
 			name:     "single-bucket-delta-no-min-max",
-			otlpfile: "testdata/otlpdata/histogram/single-bucket-delta-no-min-max.json",
-			ddogfile: "testdata/datadogdata/histogram/single-bucket-delta-no-min-max.json",
+			otlpfile: "test/otlp/hist/single-bucket-delta-no-min-max.json",
+			ddogfile: "test/datadog/hist/single-bucket-delta-no-min-max.json",
 			options: []TranslatorOption{
 				WithHistogramMode(HistogramModeDistributions),
 			},
 		},
 		{
 			name:     "single-bucket-delta-with-min-max",
-			otlpfile: "testdata/otlpdata/histogram/single-bucket-delta-with-min-max.json",
-			ddogfile: "testdata/datadogdata/histogram/single-bucket-delta-with-min-max.json",
+			otlpfile: "test/otlp/hist/single-bucket-delta-min-max.json",
+			ddogfile: "test/datadog/hist/single-bucket-delta-min-max.json",
 			options: []TranslatorOption{
 				WithHistogramMode(HistogramModeDistributions),
 			},
@@ -155,16 +155,16 @@ func TestCumulativeHistogramTranslatorOptions(t *testing.T) {
 	}{
 		{
 			name:     "distributions",
-			otlpfile: "testdata/otlpdata/histogram/simple-cumulative.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-cumulative_dist-nocs.json",
+			otlpfile: "test/otlp/hist/simple-cum.json",
+			ddogfile: "test/datadog/hist/simple-cum_dist-nocs.json",
 			options: []TranslatorOption{
 				WithHistogramMode(HistogramModeDistributions),
 			},
 		},
 		{
 			name:     "distributions",
-			otlpfile: "testdata/otlpdata/histogram/static-cumulative.json",
-			ddogfile: "testdata/datadogdata/histogram/static-cumulative_dist-cs.json",
+			otlpfile: "test/otlp/hist/static-cum.json",
+			ddogfile: "test/datadog/hist/static-cum_dist-cs.json",
 			options: []TranslatorOption{
 				WithHistogramMode(HistogramModeDistributions),
 				WithHistogramAggregations(),
@@ -172,8 +172,8 @@ func TestCumulativeHistogramTranslatorOptions(t *testing.T) {
 		},
 		{
 			name:     "distributions-count-sum",
-			otlpfile: "testdata/otlpdata/histogram/simple-cumulative.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-cumulative_dist-cs.json",
+			otlpfile: "test/otlp/hist/simple-cum.json",
+			ddogfile: "test/datadog/hist/simple-cum_dist-cs.json",
 			options: []TranslatorOption{
 				WithHistogramMode(HistogramModeDistributions),
 				WithHistogramAggregations(),
@@ -181,16 +181,16 @@ func TestCumulativeHistogramTranslatorOptions(t *testing.T) {
 		},
 		{
 			name:     "buckets",
-			otlpfile: "testdata/otlpdata/histogram/simple-cumulative.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-cumulative_counters-nocs.json",
+			otlpfile: "test/otlp/hist/simple-cum.json",
+			ddogfile: "test/datadog/hist/simple-cum_counters-nocs.json",
 			options: []TranslatorOption{
 				WithHistogramMode(HistogramModeCounters),
 			},
 		},
 		{
 			name:     "buckets-count-sum",
-			otlpfile: "testdata/otlpdata/histogram/simple-cumulative.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-cumulative_counters-cs.json",
+			otlpfile: "test/otlp/hist/simple-cum.json",
+			ddogfile: "test/datadog/hist/simple-cum_counters-cs.json",
 			options: []TranslatorOption{
 				WithHistogramMode(HistogramModeCounters),
 				WithHistogramAggregations(),
@@ -198,8 +198,8 @@ func TestCumulativeHistogramTranslatorOptions(t *testing.T) {
 		},
 		{
 			name:     "count-sum",
-			otlpfile: "testdata/otlpdata/histogram/simple-cumulative.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-cumulative_nobuckets-cs.json",
+			otlpfile: "test/otlp/hist/simple-cum.json",
+			ddogfile: "test/datadog/hist/simple-cum_nobuckets-cs.json",
 			options: []TranslatorOption{
 				WithHistogramMode(HistogramModeNoBuckets),
 				WithHistogramAggregations(),
@@ -230,36 +230,36 @@ func TestExponentialHistogramTranslatorOptions(t *testing.T) {
 	}{
 		{
 			name:                      "no-options",
-			otlpfile:                  "testdata/otlpdata/histogram/simple-exponential.json",
-			ddogfile:                  "testdata/datadogdata/histogram/simple-exponential.json",
+			otlpfile:                  "test/otlp/hist/simple-exp.json",
+			ddogfile:                  "test/datadog/hist/simple-exp.json",
 			expectedUnknownMetricType: 1,
 			expectedUnsupportedAggregationTemporality: 1,
 		},
 		{
 			// https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/26103
 			name:     "empty-delta-issue-26103",
-			otlpfile: "testdata/otlpdata/histogram/empty-delta-exponential.json",
-			ddogfile: "testdata/datadogdata/histogram/empty-delta-exponential.json",
+			otlpfile: "test/otlp/hist/empty-delta-exponential.json",
+			ddogfile: "test/datadog/hist/empty-delta-exponential.json",
 		},
 		{
 			// https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/26103
 			name:     "empty-cumulative-issue-26103",
-			otlpfile: "testdata/otlpdata/histogram/empty-cumulative-exponential.json",
-			ddogfile: "testdata/datadogdata/histogram/empty-cumulative-exponential.json",
+			otlpfile: "test/otlp/hist/empty-cum-exponential.json",
+			ddogfile: "test/datadog/hist/empty-cum-exponential.json",
 			expectedUnsupportedAggregationTemporality: 1,
 		},
 		{
 			name:                      "resource-attributes-as-tags",
-			otlpfile:                  "testdata/otlpdata/histogram/simple-exponential.json",
-			ddogfile:                  "testdata/datadogdata/histogram/simple-exponential_res-tags.json",
+			otlpfile:                  "test/otlp/hist/simple-exp.json",
+			ddogfile:                  "test/datadog/hist/simple-exp_res-tags.json",
 			options:                   []TranslatorOption{},
 			expectedUnknownMetricType: 1,
 			expectedUnsupportedAggregationTemporality: 1,
 		},
 		{
 			name:     "count-sum",
-			otlpfile: "testdata/otlpdata/histogram/simple-exponential.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-exponential_cs.json",
+			otlpfile: "test/otlp/hist/simple-exp.json",
+			ddogfile: "test/datadog/hist/simple-exp_cs.json",
 			options: []TranslatorOption{
 				WithHistogramAggregations(),
 			},
@@ -268,8 +268,8 @@ func TestExponentialHistogramTranslatorOptions(t *testing.T) {
 		},
 		{
 			name:     "instrumentation-library-metadata-as-tags",
-			otlpfile: "testdata/otlpdata/histogram/simple-exponential.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-exponential_ilmd-tags.json",
+			otlpfile: "test/otlp/hist/simple-exp.json",
+			ddogfile: "test/datadog/hist/simple-exp_ilmd-tags.json",
 			options: []TranslatorOption{
 				WithInstrumentationLibraryMetadataAsTags(),
 			},
@@ -278,8 +278,8 @@ func TestExponentialHistogramTranslatorOptions(t *testing.T) {
 		},
 		{
 			name:     "instrumentation-scope-metadata-as-tags",
-			otlpfile: "testdata/otlpdata/histogram/simple-exponential.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-exponential_ismd-tags.json",
+			otlpfile: "test/otlp/hist/simple-exp.json",
+			ddogfile: "test/datadog/hist/simple-exp_ismd-tags.json",
 			options: []TranslatorOption{
 				WithInstrumentationScopeMetadataAsTags(),
 			},
@@ -288,8 +288,8 @@ func TestExponentialHistogramTranslatorOptions(t *testing.T) {
 		},
 		{
 			name:     "count-sum-instrumentation-library-metadata-as-tags",
-			otlpfile: "testdata/otlpdata/histogram/simple-exponential.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-exponential_cs-ilmd-tags.json",
+			otlpfile: "test/otlp/hist/simple-exp.json",
+			ddogfile: "test/datadog/hist/simple-exp_cs-ilmd-tags.json",
 			options: []TranslatorOption{
 				WithHistogramAggregations(),
 				WithInstrumentationLibraryMetadataAsTags(),
@@ -299,8 +299,8 @@ func TestExponentialHistogramTranslatorOptions(t *testing.T) {
 		},
 		{
 			name:     "resource-tags-instrumentation-library-metadata-as-tags",
-			otlpfile: "testdata/otlpdata/histogram/simple-exponential.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-exponential_res-ilmd-tags.json",
+			otlpfile: "test/otlp/hist/simple-exp.json",
+			ddogfile: "test/datadog/hist/simple-exp_res-ilmd-tags.json",
 			options: []TranslatorOption{
 				WithInstrumentationLibraryMetadataAsTags(),
 			},
@@ -309,8 +309,8 @@ func TestExponentialHistogramTranslatorOptions(t *testing.T) {
 		},
 		{
 			name:     "count-sum-resource-tags-instrumentation-library-metadata-as-tags",
-			otlpfile: "testdata/otlpdata/histogram/simple-exponential.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-exponential_cs-both-tags.json",
+			otlpfile: "test/otlp/hist/simple-exp.json",
+			ddogfile: "test/datadog/hist/simple-exp_cs-both-tags.json",
 			options: []TranslatorOption{
 				WithHistogramAggregations(),
 				WithInstrumentationLibraryMetadataAsTags(),
@@ -320,8 +320,8 @@ func TestExponentialHistogramTranslatorOptions(t *testing.T) {
 		},
 		{
 			name:     "with-all",
-			otlpfile: "testdata/otlpdata/histogram/simple-exponential.json",
-			ddogfile: "testdata/datadogdata/histogram/simple-exponential_all.json",
+			otlpfile: "test/otlp/hist/simple-exp.json",
+			ddogfile: "test/datadog/hist/simple-exp_all.json",
 			options: []TranslatorOption{
 				WithHistogramAggregations(),
 				WithInstrumentationLibraryMetadataAsTags(),

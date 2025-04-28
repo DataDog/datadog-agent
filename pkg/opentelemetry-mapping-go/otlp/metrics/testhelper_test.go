@@ -225,9 +225,9 @@ func (m *testingTMock) Logf(format string, args ...interface{}) {
 
 // TestAssertTranslatorMapFailure tests that AssertTranslatorMap fails correctly when inputs and outputs mismatch.
 func TestAssertTranslatorMapFailure(t *testing.T) {
-	otlpfile := "testdata/otlpdata/histogram/simple-delta.json"
+	otlpfile := "test/otlp/hist/simple-delta.json"
 	// Compare OTLP file with incorrect output
-	ddogfile := "testdata/datadogdata/histogram/simple-delta_nobuckets-cs.json"
+	ddogfile := "test/datadog/hist/simple-delta_nobuckets-cs.json"
 	translator := NewTestTranslator(t, WithOriginProduct(OriginProductDatadogAgent), WithHistogramMode(HistogramModeDistributions))
 	mockTesting := &testingTMock{t}
 	assert.False(t, AssertTranslatorMap(mockTesting, translator, otlpfile, ddogfile), "AssertTranslatorMap should have failed but did not")
