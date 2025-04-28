@@ -49,7 +49,7 @@ agent_dmg-x64-a7:
 
 new-agent_dmg-x64-a7:
   stage: package_build
-  tags: ["macos:ventura-amd64"]
+  tags: ["macos:ventura-amd64", "specific:true"]
   needs: ["go_mod_tidy_check"]
   allow_failure: true
 
