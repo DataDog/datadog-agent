@@ -8,15 +8,20 @@ package firewall_scanner
 import (
 	"fmt"
 	"runtime"
-	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	snmpTrapsConfig "github.com/DataDog/datadog-agent/comp/snmptraps/config"
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
 )
 
 type integrationsByDestPort map[string][]string
+
+type destPort struct {
+	Port            string
+	FromIntegration string
+}
 
 type blockedPort struct {
 	Port            string
@@ -28,8 +33,8 @@ type firewallScanner interface {
 }
 
 // DiagnoseBlockers checks for firewall rules that may block SNMP traps and NetFlow packets.
-func DiagnoseBlockers(log log.Component) []diagnose.Diagnosis {
-	destPorts := getDestPorts()
+func DiagnoseBlockers(config config.Component, log log.Component) []diagnose.Diagnosis {
+	destPorts := getDestPorts(config)
 	if len(destPorts) == 0 {
 		return []diagnose.Diagnosis{}
 	}
@@ -43,22 +48,72 @@ func DiagnoseBlockers(log log.Component) []diagnose.Diagnosis {
 	return scanner.DiagnoseBlockedPorts("UDP", destPorts, log)
 }
 
-func getDestPorts() integrationsByDestPort {
-	type DestPort struct {
-		Port            uint16
-		FromIntegration string
-	}
-
-	var allDestPorts []DestPort
-	allDestPorts = append(allDestPorts, DestPort{Port: snmpTrapsConfig.GetLastReadPort(), FromIntegration: "snmp_traps"})
-	allDestPorts = append(allDestPorts, DestPort{Port: snmpTrapsConfig.GetLastReadPort(), FromIntegration: "netflow"})
+func getDestPorts(config config.Component) integrationsByDestPort {
+	var allDestPorts []destPort
+	allDestPorts = append(allDestPorts, getSNMPTrapsDestPorts(config)...)
+	allDestPorts = append(allDestPorts, getNetFlowDestPorts(config)...)
 
 	destPorts := make(integrationsByDestPort)
 	for _, destPort := range allDestPorts {
-		if destPort.Port != 0 {
-			portString := strconv.Itoa(int(destPort.Port))
-			destPorts[portString] = append(destPorts[portString], destPort.FromIntegration)
+		destPorts[destPort.Port] = append(destPorts[destPort.Port], destPort.FromIntegration)
+	}
+	return destPorts
+}
+
+func getSNMPTrapsDestPorts(config config.Component) []destPort {
+	if !config.GetBool("network_devices.snmp_traps.enabled") {
+		return []destPort{}
+	}
+
+	return []destPort{
+		{
+			Port:            config.GetString("network_devices.snmp_traps.port"),
+			FromIntegration: "snmp_traps",
+		},
+	}
+}
+
+func getNetFlowDestPorts(config config.Component) []destPort {
+	if !config.GetBool("network_devices.netflow.enabled") {
+		return []destPort{}
+	}
+
+	listenersInterface := config.Get("network_devices.netflow.listeners")
+	listeners, ok := listenersInterface.([]interface{})
+	if !ok {
+		return []destPort{}
+	}
+
+	var destPorts []destPort
+	for _, listener := range listeners {
+		listenerMap, ok := listener.(map[interface{}]interface{})
+		if !ok {
+			continue
 		}
+
+		flowType, ok := listenerMap["flow_type"].(string)
+		if !ok {
+			continue
+		}
+
+		port, ok := listenerMap["port"].(int)
+		if !ok {
+			flowTypeDetail, err := common.GetFlowTypeByName(common.FlowType(flowType))
+			if err != nil {
+				continue
+			}
+
+			destPorts = append(destPorts, destPort{
+				Port:            fmt.Sprintf("%d", flowTypeDetail.DefaultPort()),
+				FromIntegration: fmt.Sprintf("netflow (%s)", flowTypeDetail.Name()),
+			})
+			continue
+		}
+
+		destPorts = append(destPorts, destPort{
+			Port:            fmt.Sprintf("%d", port),
+			FromIntegration: fmt.Sprintf("netflow (%s)", flowType),
+		})
 	}
 	return destPorts
 }
