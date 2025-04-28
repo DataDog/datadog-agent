@@ -138,6 +138,12 @@ func (pa podPatcher) findAutoscaler(pod *corev1.Pod) (*model.PodAutoscalerIntern
 	}
 
 	ownerRef := pod.OwnerReferences[0]
+
+	// Ignore pods owned directly by a deployment
+	if ownerRef.Kind == kubernetes.DeploymentKind {
+		return nil, errDeploymentNotValidOwner
+	}
+
 	if ownerRef.Kind == kubernetes.ReplicaSetKind {
 		// Check if it's owned by a Deployment, otherwise ReplicaSet is direct owner
 		deploymentName := kubernetes.ParseDeploymentForReplicaSet(ownerRef.Name)

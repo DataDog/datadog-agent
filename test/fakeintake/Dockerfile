@@ -20,7 +20,6 @@ COPY pkg/metrics /pkg/metrics
 COPY pkg/network/payload /pkg/network/payload
 COPY pkg/networkpath/payload /pkg/networkpath/payload
 COPY pkg/tagger/types /pkg/tagger/types
-COPY pkg/trace /pkg/trace
 
 RUN go mod download
 

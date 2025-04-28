@@ -8,7 +8,6 @@ package http
 
 import (
 	"strconv"
-	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -25,11 +24,9 @@ func NewHTTPSender(
 	config pkgconfigmodel.Reader,
 	auditor auditor.Auditor,
 	bufferSize int,
-	senderDoneChan chan *sync.WaitGroup,
-	flushWg *sync.WaitGroup,
+	serverlessMeta sender.ServerlessMeta,
 	endpoints *config.Endpoints,
 	destinationsCtx *client.DestinationsContext,
-	serverless bool,
 	componentName string,
 	contentType string,
 	queueCount int,
@@ -51,8 +48,7 @@ func NewHTTPSender(
 		endpoints,
 		destinationsCtx,
 		pipelineMonitor,
-		serverless,
-		senderDoneChan,
+		serverlessMeta,
 		config,
 		componentName,
 		contentType,
@@ -60,13 +56,12 @@ func NewHTTPSender(
 		maxWorkerConcurrency,
 	)
 
-	return sender.NewSenderV2(
+	return sender.NewSender(
 		config,
 		auditor,
 		destinationFactory,
 		bufferSize,
-		senderDoneChan,
-		flushWg,
+		serverlessMeta,
 		queueCount,
 		workersPerQueue,
 		pipelineMonitor,
@@ -77,8 +72,7 @@ func httpDestinationFactory(
 	endpoints *config.Endpoints,
 	destinationsContext *client.DestinationsContext,
 	pipelineMonitor metrics.PipelineMonitor,
-	serverless bool,
-	senderDoneChan chan *sync.WaitGroup,
+	serverlessMeta sender.ServerlessMeta,
 	cfg pkgconfigmodel.Reader,
 	componentName string,
 	contentyType string,
@@ -90,16 +84,16 @@ func httpDestinationFactory(
 		additionals := []client.Destination{}
 		for i, endpoint := range endpoints.GetReliableEndpoints() {
 			destMeta := client.NewDestinationMetadata(componentName, pipelineMonitor.ID(), "reliable", strconv.Itoa(i))
-			if serverless {
-				reliable = append(reliable, http.NewSyncDestination(endpoint, contentyType, destinationsContext, senderDoneChan, destMeta, cfg))
+			if serverlessMeta.IsEnabled() {
+				reliable = append(reliable, http.NewSyncDestination(endpoint, contentyType, destinationsContext, serverlessMeta.SenderDoneChan(), destMeta, cfg))
 			} else {
 				reliable = append(reliable, http.NewDestination(endpoint, contentyType, destinationsContext, true, destMeta, cfg, minConcurrency, maxConcurrency, pipelineMonitor))
 			}
 		}
 		for i, endpoint := range endpoints.GetUnReliableEndpoints() {
 			destMeta := client.NewDestinationMetadata(componentName, pipelineMonitor.ID(), "unreliable", strconv.Itoa(i))
-			if serverless {
-				additionals = append(additionals, http.NewSyncDestination(endpoint, contentyType, destinationsContext, senderDoneChan, destMeta, cfg))
+			if serverlessMeta.IsEnabled() {
+				additionals = append(additionals, http.NewSyncDestination(endpoint, contentyType, destinationsContext, serverlessMeta.SenderDoneChan(), destMeta, cfg))
 			} else {
 				additionals = append(additionals, http.NewDestination(endpoint, contentyType, destinationsContext, false, destMeta, cfg, minConcurrency, maxConcurrency, pipelineMonitor))
 			}
