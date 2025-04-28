@@ -13,10 +13,13 @@ import (
 	"os/exec"
 	"testing"
 
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/avast/retry-go/v4"
 )
@@ -58,7 +61,14 @@ func TestSBOM(t *testing.T) {
 	}
 	defer dockerWrapper.stop()
 
+	var sbomResult *sbompkg.ScanResult
 	dockerWrapper.Run(t, "package-rule", func(t *testing.T, _ wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
+		if err := p.Resolvers.SBOMResolver.RegisterListener(sbom.SBOMComputed, func(sbom *sbompkg.ScanResult) {
+			sbomResult = sbom
+		}); err != nil {
+			t.Fatal(err)
+		}
+
 		test.WaitSignal(t, func() error {
 			retry.Do(func() error {
 				sbom := p.Resolvers.SBOMResolver.GetWorkload(containerutils.ContainerID(dockerWrapper.containerID))
@@ -77,7 +87,16 @@ func TestSBOM(t *testing.T) {
 			assertFieldEqual(t, event, "open.file.package.name", "base-files")
 			assertFieldEqual(t, event, "process.file.package.name", "coreutils")
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
-
+			assert.NotNil(t, sbomResult, "sbom result should not be nil")
+			assert.Equal(t, sbomResult.Error, nil, "sbom result should not have an error")
+			assert.Equal(t, sbomResult.RequestID, dockerWrapper.containerID, "sbom result should have the same request id as the container id")
+			cyclonedx, err := sbomResult.Report.ToCycloneDX()
+			if err != nil {
+				t.Errorf("failed to convert sbom result to cyclonedx: %w", err)
+			}
+			assert.NotNil(t, cyclonedx, "sbom result should not be nil")
+			components := *cyclonedx.Components
+			assert.NotZero(t, len(components))
 			test.validateOpenSchema(t, event)
 		})
 	})
