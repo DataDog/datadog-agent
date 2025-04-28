@@ -1,3 +1,5 @@
+from typing import cast
+
 from invoke.context import Context
 from invoke.exceptions import Exit
 
@@ -15,7 +17,7 @@ def get_pipeline_id(
         return int(pipeline)
 
     if ref is not None:
-        return get_pipeline_from_ref(repo, ref).get_id()
+        return get_pipeline_id_from_ref(repo, ref)
 
     assert pull_request_id is not None
 
@@ -25,18 +27,25 @@ def get_pipeline_id(
         res = ctx.run(f"git merge-base {pr.base.ref} {pr.head.ref}", hide=True)
         assert res
         base_ref = res.stdout.strip()
-        return get_pipeline_from_ref(repo, base_ref).get_id()
+        return get_pipeline_id_from_ref(repo, base_ref)
 
-    return get_pipeline_from_ref(repo, pr.head.ref).get_id()
+    return get_pipeline_id_from_ref(repo, pr.head.ref)
+
+
+def get_pipeline_id_from_ref(repo: Project, ref: str) -> int:
+    pipeline = get_pipeline_from_ref(repo, ref).get_id()
+    return cast(int, pipeline)
 
 
 def get_pipeline_from_ref(repo: Project, ref: str) -> ProjectPipeline:
     # Get last updated pipeline
     pipelines = repo.pipelines.list(ref=ref, per_page=1, order_by='updated_at', get_all=False)
+    pipelines = cast(list[ProjectPipeline], pipelines)
     if len(pipelines) != 0:
         return pipelines[0]
 
     pipelines = repo.pipelines.list(sha=ref, per_page=1, order_by='updated_at', get_all=False)
+    pipelines = cast(list[ProjectPipeline], pipelines)
     if len(pipelines) != 0:
         return pipelines[0]
 
