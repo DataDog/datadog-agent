@@ -23,6 +23,11 @@ type kernelTelemetry struct {
 	// produceNoRequiredAcks is the number of produce requests that did not require any acks.
 	produceNoRequiredAcks *libtelemetry.Counter
 
+	// classifiedFetchApiVersionHits and classifiedProduceApiVersionHits are the number of classified fetch and produce requests
+	// broken by API version (the index)
+	classifiedFetchApiVersionHits   [100]*libtelemetry.Counter
+	classifiedProduceApiVersionHits [100]*libtelemetry.Counter
+
 	// telemetryLastState represents the latest Kafka eBPF Kernel telemetry observed from the kernel
 	telemetryLastState RawKernelTelemetry
 }
@@ -39,6 +44,13 @@ func newKernelTelemetry() *kernelTelemetry {
 
 	kafkaKernelTel.produceNoRequiredAcks = metricGroup.NewCounter("produce_no_required_acks")
 
+	for bucketIndex := range kafkaKernelTel.classifiedFetchApiVersionHits {
+		kafkaKernelTel.classifiedFetchApiVersionHits[bucketIndex] = metricGroup.NewCounter("classified_hits", "operation:fetch", "api_version:"+strconv.Itoa(bucketIndex+1))
+	}
+	for bucketIndex := range kafkaKernelTel.classifiedProduceApiVersionHits {
+		kafkaKernelTel.classifiedProduceApiVersionHits[bucketIndex] = metricGroup.NewCounter("classified_hits", "operation:produce", "api_version:"+strconv.Itoa(bucketIndex+1))
+	}
+
 	return kafkaKernelTel
 }
 
@@ -50,6 +62,14 @@ func (t *kernelTelemetry) update(tel *RawKernelTelemetry) {
 		t.pathSizeBucket[bucketIndex].Add(int64(telemetryDelta.Topic_name_size_buckets[bucketIndex]))
 	}
 	t.produceNoRequiredAcks.Add(int64(telemetryDelta.Produce_no_required_acks))
+
+	for bucketIndex := range t.classifiedFetchApiVersionHits {
+		t.classifiedFetchApiVersionHits[bucketIndex].Add(int64(telemetryDelta.Classified_fetch_api_version_hits[bucketIndex]))
+	}
+	for bucketIndex := range t.classifiedProduceApiVersionHits {
+		t.classifiedProduceApiVersionHits[bucketIndex].Add(int64(telemetryDelta.Classified_produce_api_version_hits[bucketIndex]))
+	}
+
 	// Create a deep copy of the 'tel' parameter to prevent changes from the outer scope affecting the last state
 	t.telemetryLastState = *tel
 }
@@ -57,8 +77,10 @@ func (t *kernelTelemetry) update(tel *RawKernelTelemetry) {
 // Sub generates a new RawKernelTelemetry object by subtracting the values of this RawKernelTelemetry object from the other
 func (t *RawKernelTelemetry) Sub(other RawKernelTelemetry) *RawKernelTelemetry {
 	return &RawKernelTelemetry{
-		Topic_name_size_buckets:  computePathSizeBucketDifferences(t.Topic_name_size_buckets, other.Topic_name_size_buckets),
-		Produce_no_required_acks: t.Produce_no_required_acks - other.Produce_no_required_acks,
+		Topic_name_size_buckets:             computePathSizeBucketDifferences(t.Topic_name_size_buckets, other.Topic_name_size_buckets),
+		Produce_no_required_acks:            t.Produce_no_required_acks - other.Produce_no_required_acks,
+		Classified_produce_api_version_hits: computeApiVersionHitsBucketDifferences(t.Classified_produce_api_version_hits, other.Classified_produce_api_version_hits),
+		Classified_fetch_api_version_hits:   computeApiVersionHitsBucketDifferences(t.Classified_fetch_api_version_hits, other.Classified_fetch_api_version_hits),
 	}
 }
 
@@ -67,6 +89,16 @@ func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [Topic
 
 	for i := 0; i < TopicNameBuckets; i++ {
 		result[i] = pathSizeBucket[i] - otherPathSizeBucket[i]
+	}
+
+	return result
+}
+
+func computeApiVersionHitsBucketDifferences(bucket, otherBucket [30]uint64) [30]uint64 {
+	var result [len(bucket)]uint64
+
+	for i := 0; i < len(result); i++ {
+		result[i] = bucket[i] - otherBucket[i]
 	}
 
 	return result
