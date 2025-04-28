@@ -109,7 +109,11 @@ func compileRegExp(expr string, ignoreCase bool) (*regexp.Regexp, error) {
 	if ignoreCase {
 		expr = fmt.Sprintf("(?i)%s", expr)
 	}
-	return regexp.Compile(expr)
+	re, err := regexp.Compile(expr)
+	if err != nil {
+		log.Warnf("`%s` is not a valid regular expression and will be ignored", expr)
+	}
+	return re, err
 }
 
 // Check represents the Disk check that will be periodically executed via the Run() function
