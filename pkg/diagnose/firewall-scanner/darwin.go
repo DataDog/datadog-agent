@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
 package firewall_scanner
 
 import (
@@ -14,9 +19,9 @@ const (
 	blockerDiagnosisNameDarwin = "Firewall blockers on Darwin"
 )
 
-type DarwinFirewallScanner struct{}
+type darwinFirewallScanner struct{}
 
-func (scanner *DarwinFirewallScanner) DiagnoseBlockedPorts(forProtocol string, destPorts IntegrationsByDestPort, log log.Component) []diagnose.Diagnosis {
+func (scanner *darwinFirewallScanner) DiagnoseBlockedPorts(forProtocol string, destPorts integrationsByDestPort, log log.Component) []diagnose.Diagnosis {
 	if os.Geteuid() != 0 {
 		log.Warn("Cannot check firewall rules without admin/root access")
 		return []diagnose.Diagnosis{}
@@ -36,8 +41,8 @@ func (scanner *DarwinFirewallScanner) DiagnoseBlockedPorts(forProtocol string, d
 	}
 }
 
-func checkBlockedPortsDarwin(outputString string, forProtocol string, destPorts IntegrationsByDestPort) []BlockedPort {
-	var blockedPorts []BlockedPort
+func checkBlockedPortsDarwin(outputString string, forProtocol string, destPorts integrationsByDestPort) []blockedPort {
+	var blockedPorts []blockedPort
 
 	rules := strings.Split(outputString, "\n")
 	re := regexp.MustCompile(`(?i)\bblock\b.*\bproto (\S+)\b.*\bto\b.*\bport = (\d+)\b`)
@@ -56,7 +61,7 @@ func checkBlockedPortsDarwin(outputString string, forProtocol string, destPorts 
 		matchedDestPort := matches[2]
 		forIntegrations, portExists := destPorts[matchedDestPort]
 		if strings.EqualFold(matchedProtocol, forProtocol) && portExists {
-			blockedPorts = append(blockedPorts, BlockedPort{
+			blockedPorts = append(blockedPorts, blockedPort{
 				Port:            matchedDestPort,
 				ForIntegrations: forIntegrations,
 			})

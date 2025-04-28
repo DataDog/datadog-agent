@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
 package firewall_scanner
 
 import (
@@ -13,21 +18,21 @@ const (
 	blockerDiagnosisNameWindows = "Firewall blockers on Windows"
 )
 
-type WindowsFirewallScanner struct{}
+type windowsFirewallScanner struct{}
 
 type windowsRule struct {
-	Direction RuleDirection `json:"direction"`
+	Direction ruleDirection `json:"direction"`
 	Protocol  string        `json:"protocol"`
 	LocalPort string        `json:"localPort"`
 }
 
-type RuleDirection int
+type ruleDirection int
 
 const (
-	Inbound RuleDirection = 1
+	Inbound ruleDirection = 1
 )
 
-func (scanner *WindowsFirewallScanner) DiagnoseBlockedPorts(forProtocol string, destPorts IntegrationsByDestPort, log log.Component) []diagnose.Diagnosis {
+func (scanner *windowsFirewallScanner) DiagnoseBlockedPorts(forProtocol string, destPorts integrationsByDestPort, log log.Component) []diagnose.Diagnosis {
 	cmd := exec.Command(
 		"powershell",
 		"-Command",
@@ -49,8 +54,8 @@ func (scanner *WindowsFirewallScanner) DiagnoseBlockedPorts(forProtocol string, 
 	}
 }
 
-func checkBlockedPortsWindows(output []byte, forProtocol string, destPorts IntegrationsByDestPort) ([]BlockedPort, error) {
-	var blockedPorts []BlockedPort
+func checkBlockedPortsWindows(output []byte, forProtocol string, destPorts integrationsByDestPort) ([]blockedPort, error) {
+	var blockedPorts []blockedPort
 
 	var rules []windowsRule
 	err := json.Unmarshal(output, &rules)
@@ -61,7 +66,7 @@ func checkBlockedPortsWindows(output []byte, forProtocol string, destPorts Integ
 	for _, rule := range rules {
 		forIntegrations, portExists := destPorts[rule.LocalPort]
 		if rule.Direction == Inbound && strings.EqualFold(rule.Protocol, forProtocol) && portExists {
-			blockedPorts = append(blockedPorts, BlockedPort{
+			blockedPorts = append(blockedPorts, blockedPort{
 				Port:            rule.LocalPort,
 				ForIntegrations: forIntegrations,
 			})

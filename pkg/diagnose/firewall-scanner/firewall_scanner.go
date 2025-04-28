@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
 package firewall_scanner
 
 import (
@@ -11,17 +16,18 @@ import (
 	snmpTrapsConfig "github.com/DataDog/datadog-agent/comp/snmptraps/config"
 )
 
-type IntegrationsByDestPort map[string][]string
+type integrationsByDestPort map[string][]string
 
-type BlockedPort struct {
+type blockedPort struct {
 	Port            string
 	ForIntegrations []string
 }
 
-type FirewallScanner interface {
-	DiagnoseBlockedPorts(forProtocol string, destPorts IntegrationsByDestPort, log log.Component) []diagnose.Diagnosis
+type firewallScanner interface {
+	DiagnoseBlockedPorts(forProtocol string, destPorts integrationsByDestPort, log log.Component) []diagnose.Diagnosis
 }
 
+// DiagnoseBlockers checks for firewall rules that may block SNMP traps and NetFlow packets.
 func DiagnoseBlockers(log log.Component) []diagnose.Diagnosis {
 	destPorts := getDestPorts()
 	if len(destPorts) == 0 {
@@ -37,7 +43,7 @@ func DiagnoseBlockers(log log.Component) []diagnose.Diagnosis {
 	return scanner.DiagnoseBlockedPorts("UDP", destPorts, log)
 }
 
-func getDestPorts() IntegrationsByDestPort {
+func getDestPorts() integrationsByDestPort {
 	type DestPort struct {
 		Port            uint16
 		FromIntegration string
@@ -47,7 +53,7 @@ func getDestPorts() IntegrationsByDestPort {
 	allDestPorts = append(allDestPorts, DestPort{Port: snmpTrapsConfig.GetLastReadPort(), FromIntegration: "snmp_traps"})
 	allDestPorts = append(allDestPorts, DestPort{Port: snmpTrapsConfig.GetLastReadPort(), FromIntegration: "netflow"})
 
-	destPorts := make(IntegrationsByDestPort)
+	destPorts := make(integrationsByDestPort)
 	for _, destPort := range allDestPorts {
 		if destPort.Port != 0 {
 			portString := strconv.Itoa(int(destPort.Port))
@@ -57,22 +63,22 @@ func getDestPorts() IntegrationsByDestPort {
 	return destPorts
 }
 
-func getFirewallScanner() (FirewallScanner, error) {
-	var scanner FirewallScanner
+func getFirewallScanner() (firewallScanner, error) {
+	var scanner firewallScanner
 	switch runtime.GOOS {
 	case "windows":
-		scanner = &WindowsFirewallScanner{}
+		scanner = &windowsFirewallScanner{}
 	case "linux":
-		scanner = &LinuxFirewallScanner{}
+		scanner = &linuxFirewallScanner{}
 	case "darwin":
-		scanner = &DarwinFirewallScanner{}
+		scanner = &darwinFirewallScanner{}
 	default:
 		return nil, fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
 	}
 	return scanner, nil
 }
 
-func buildBlockedPortsDiagnosis(name string, forProtocol string, blockedPorts []BlockedPort) diagnose.Diagnosis {
+func buildBlockedPortsDiagnosis(name string, forProtocol string, blockedPorts []blockedPort) diagnose.Diagnosis {
 	if len(blockedPorts) == 0 {
 		return diagnose.Diagnosis{
 			Status:    diagnose.DiagnosisSuccess,
