@@ -239,7 +239,7 @@ func runLocalDiagnose(s *systrayImpl) []byte {
 			return connectivity.Diagnose(diagCfg, s.log)
 		},
 		diagnose.FirewallScan: func(_ diagnose.Config) []diagnose.Diagnosis {
-			return firewallscanner.DiagnoseBlockers(s.config, s.log)
+			return firewallscanner.Diagnose(s.config, s.log)
 		},
 	}
 

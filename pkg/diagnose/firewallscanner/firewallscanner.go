@@ -41,8 +41,8 @@ type firewallScanner interface {
 	DiagnoseBlockingRules(rulesToCheck sourcesByRule, log log.Component) []diagnose.Diagnosis
 }
 
-// DiagnoseBlockers checks for firewall rules that may block SNMP traps and Netflow packets.
-func DiagnoseBlockers(config config.Component, log log.Component) []diagnose.Diagnosis {
+// Diagnose checks for firewall rules that may block SNMP traps and Netflow packets.
+func Diagnose(config config.Component, log log.Component) []diagnose.Diagnosis {
 	scanner, err := getFirewallScanner()
 	if err != nil {
 		return []diagnose.Diagnosis{}

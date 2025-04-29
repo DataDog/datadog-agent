@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	blockerDiagnosisNameWindows = "Firewall blockers on Windows"
+	diagnosisNameWindows = "Firewall scan on Windows"
 )
 
 type windowsFirewallScanner struct{}
@@ -44,7 +44,7 @@ func (scanner *windowsFirewallScanner) DiagnoseBlockingRules(rulesToCheck source
 			// Windows returns an error when the firewall has no blocking rules
 			// In this case, we return a successful diagnosis with no blocked ports
 			return []diagnose.Diagnosis{
-				buildBlockingRulesDiagnosis(blockerDiagnosisNameWindows, nil),
+				buildBlockingRulesDiagnosis(diagnosisNameWindows, nil),
 			}
 		}
 
@@ -59,7 +59,7 @@ func (scanner *windowsFirewallScanner) DiagnoseBlockingRules(rulesToCheck source
 	}
 
 	return []diagnose.Diagnosis{
-		buildBlockingRulesDiagnosis(blockerDiagnosisNameWindows, blockingRules),
+		buildBlockingRulesDiagnosis(diagnosisNameWindows, blockingRules),
 	}
 }
 
