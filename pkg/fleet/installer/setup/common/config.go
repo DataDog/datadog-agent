@@ -6,6 +6,7 @@
 package common
 
 import (
+	"bytes"
 	"fmt"
 	"maps"
 	"os"
@@ -91,7 +92,7 @@ func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 	if err != nil {
 		return fmt.Errorf("could not serialize merged config: %w", err)
 	}
-	if len(existingConfig) == 0 {
+	if !bytes.HasPrefix(serializedMerged, []byte(disclaimerGenerated+"\n\n")) {
 		serializedMerged = []byte(disclaimerGenerated + "\n\n" + string(serializedMerged))
 	}
 	err = os.WriteFile(path, serializedMerged, perms)

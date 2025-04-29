@@ -4343,6 +4343,25 @@ api_key:
     ## be increased by 200 every 5 seconds until reaching 1000.
     # recovery_interval: 5s
 
+## @param ha_agent - custom object - optional
+## This section configures High Availability Agent feature.
+#
+# ha_agent:
+
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable High Availability Agent feature.
+  #
+  # enabled: false
+
+
+## @param config_id - string - optional
+## The config_id configuration is used by High Availability Agent to assign a specific config ID to an Agent.
+## When used with `ha_agent.enabled: true`, all Agents with the same config_id will be part of the same group of Agents;
+## meaning that, one Agent within this group is designated as primary and others as standby.
+#
+# config_id:
+
+
 {{end -}}
 {{- if .OTLP }}
 ###################################

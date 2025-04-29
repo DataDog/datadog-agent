@@ -70,7 +70,7 @@ new-e2e_windows_powershell_module_test:
     !reference [ .on_powershell_module_or_e2e_changes_or_manual ]
   variables:
     TARGETS: ./tests/windows/powershell-module-test
-    TEAM: windows-kernel-integrations
+    TEAM: windows-agent
   needs:
     - !reference [.needs_new_e2e_template]
 

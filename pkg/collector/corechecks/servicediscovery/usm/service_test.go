@@ -165,6 +165,42 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
+			name: "ruby - puma with app name in brackets",
+			cmdline: []string{
+				"puma", "6.4.3", "(unix:///var/opt/app/sockets/app.socket,tcp://127.0.0.1:8080)", "[app-worker]",
+			},
+			lang:                        language.Ruby,
+			expectedGeneratedName:       "app-worker",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "ruby - puma cluster worker with app name",
+			cmdline: []string{
+				"puma:", "cluster", "worker", "0:", "15381", "[app-worker]",
+			},
+			lang:                        language.Ruby,
+			expectedGeneratedName:       "app-worker",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "ruby - puma with simple app name",
+			cmdline: []string{
+				"puma", "6.6.0", "(tcp://localhost:8080)", "[app]",
+			},
+			lang:                        language.Ruby,
+			expectedGeneratedName:       "app",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "ruby - puma without app name",
+			cmdline: []string{
+				"puma", "6.6.0", "(tcp://localhost:8080)",
+			},
+			lang:                        language.Ruby,
+			expectedGeneratedName:       "puma",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
 			name: "java using the -jar flag to define the service",
 			cmdline: []string{
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-jar", "/opt/sheepdog/bin/myservice.jar",

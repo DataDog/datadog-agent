@@ -49,8 +49,7 @@ agent_dmg-x64-a7:
 
 new-agent_dmg-x64-a7:
   stage: package_build
-  # TODO(celian): Don't use the test image
-  tags: ["macos:ventura-amd64-test", "specific:true"]
+  tags: ["macos:ventura-amd64", "specific:true"]
   needs: ["go_mod_tidy_check"]
   allow_failure: true
 
