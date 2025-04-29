@@ -49,4 +49,3 @@
 '@datadog/telemetry-and-analytics': '#instrumentation-telemetry'
 '@datadog/universal-service-monitoring': '#universal-service-monitoring'
 '@datadog/windows-agent': '#windows-agent-ops'
-'@datadog/windows-kernel-integrations': '#windows-kernel-integrations-ops'
