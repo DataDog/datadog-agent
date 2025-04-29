@@ -13,7 +13,7 @@ from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.common.utils import download_to_tempfile, timed
-from tasks.libs.releasing.version import VERSION_RE, _create_version_from_match, get_version, load_dependencies
+from tasks.libs.releasing.version import VERSION_RE, _create_version_from_match, get_version, load_release_versions
 
 # Windows only import
 try:
@@ -72,8 +72,8 @@ def _get_vs_build_command(cmd, vstudio_root=None):
     return cmd
 
 
-def _get_env(ctx, major_version='7', flavor=None):
-    env = load_dependencies(ctx)
+def _get_env(ctx, major_version='7', release_version='nightly', flavor=None):
+    env = load_release_versions(ctx, release_version)
 
     if flavor is None:
         flavor = os.getenv("AGENT_FLAVOR", "")
@@ -292,6 +292,7 @@ def build(
     vstudio_root=None,
     arch="x64",
     major_version='7',
+    release_version='nightly',
     flavor=None,
     debug=False,
     build_upgrade=False,
@@ -299,7 +300,7 @@ def build(
     """
     Build the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version, flavor=flavor)
+    env = _get_env(ctx, major_version, release_version, flavor=flavor)
     env['OMNIBUS_TARGET'] = 'main'
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
@@ -398,11 +399,11 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
 
 
 @task
-def test(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
+def test(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
     """
     Run the unit test for the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version)
+    env = _get_env(ctx, major_version, release_version)
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
 
@@ -493,11 +494,11 @@ def MsiClosing(obj):
         obj.Close()
 
 
-def get_msm_info(ctx):
+def get_msm_info(ctx, release_version):
     """
-    Get the merge module info from the release.json
+    Get the merge module info from the release.json for the given release_version
     """
-    env = load_dependencies(ctx)
+    env = load_release_versions(ctx, release_version)
     base_url = "https://s3.amazonaws.com/dd-windowsfilter/builds"
     msm_info = {}
     if 'WINDOWS_DDNPM_VERSION' in env:
@@ -534,17 +535,20 @@ def get_msm_info(ctx):
     iterable=['drivers'],
     help={
         'drivers': 'List of drivers to fetch (default: DDNPM, DDPROCMON, APMINJECT)',
+        'release_version': 'Release version to fetch drivers from (default: nightly)',
     },
 )
-def fetch_driver_msm(ctx, drivers=None):
+def fetch_driver_msm(ctx, drivers=None, release_version=None):
     """
     Fetch the driver merge modules (.msm) that are consumed by the Agent MSI.
 
-    Defaults to the versions provided in the dependencies section of release.json
+    Defaults to the versions provided in the @release_version section of release.json
     """
     ALLOWED_DRIVERS = ['DDNPM', 'DDPROCMON', 'APMINJECT']
+    if not release_version:
+        release_version = 'nightly'
 
-    msm_info = get_msm_info(ctx)
+    msm_info = get_msm_info(ctx, release_version)
     if not drivers:
         # if user did not specify drivers, use the ones in the release.json
         drivers = msm_info.keys()

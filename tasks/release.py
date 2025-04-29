@@ -70,7 +70,6 @@ from tasks.libs.releasing.version import (
     FINAL_VERSION_RE,
     MINOR_RC_VERSION_RE,
     RC_VERSION_RE,
-    RELEASE_JSON_DEPENDENCIES,
     VERSION_RE,
     _create_version_from_match,
     current_version,
@@ -275,7 +274,7 @@ def tag_devel(ctx, release_branch, commit="HEAD", push=True, force=False):
 
 @task
 def finish(ctx, release_branch, upstream="origin"):
-    """Updates the release.json file for the new version.
+    """Updates the release entry in the release.json file for the new version.
 
     Updates internal module dependencies with the new version.
     """
@@ -734,7 +733,7 @@ def create_release_branches(
 
     That includes:
         - creates a release branch in datadog-agent, datadog-agent-macos, and omnibus-ruby repositories,
-        - updates release.json on new datadog-agent branch to point to newly created release branches
+        - updates release.json on new datadog-agent branch to point to newly created release branches in nightly section
         - updates entries in .gitlab-ci.yml and .gitlab/notify/notify.yml which depend on local branch name
 
     Args:
@@ -925,7 +924,7 @@ def check_omnibus_branches(ctx, release_branch=None, worktree=True):
                     f'git clone --depth=50 https://github.com/DataDog/{repo_name} --branch {branch} {tmpdir}/{repo_name}',
                     hide='stdout',
                 )
-                commit = _get_release_json_value(f'{RELEASE_JSON_DEPENDENCIES}::{release_json_field}')
+                commit = _get_release_json_value(f'nightly::{release_json_field}')
                 if ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited != 0:
                     raise Exit(
                         code=1,

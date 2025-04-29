@@ -39,6 +39,7 @@ Inner components to consider using instead
 
 #### Additional Parameters
 
+- `ReleaseVersion`: Specifies the release version of the build. Default is the value of the environment variable `RELEASE_VERSION`.
 - `Flavor`: Specifies the flavor of the agent. Default is the value of the environment variable `AGENT_FLAVOR`.
 
 ### Invoke-UnitTests

@@ -10,7 +10,6 @@ from tasks.libs.common.constants import TAG_FOUND_TEMPLATE
 from tasks.libs.common.git import get_default_branch, is_agent6
 from tasks.libs.releasing.documentation import _stringify_config
 from tasks.libs.releasing.version import (
-    RELEASE_JSON_DEPENDENCIES,
     VERSION_RE,
     _fetch_dependency_repo_version,
     _get_release_version_from_release_json,
@@ -62,12 +61,12 @@ def _save_release_json(release_json):
         release_json_stream.write('\n')
 
 
-def _get_jmxfetch_release_json_info(release_json):
+def _get_jmxfetch_release_json_info(release_json, is_first_rc=False):
     """
     Gets the JMXFetch version info from the previous entries in the release.json file.
     """
 
-    release_json_version_data = release_json[RELEASE_JSON_DEPENDENCIES]
+    release_json_version_data = _get_release_json_info_for_next_rc(release_json, is_first_rc)
 
     jmxfetch_version = release_json_version_data['JMXFETCH_VERSION']
     jmxfetch_shasum = release_json_version_data['JMXFETCH_HASH']
@@ -77,11 +76,11 @@ def _get_jmxfetch_release_json_info(release_json):
     return jmxfetch_version, jmxfetch_shasum
 
 
-def _get_windows_release_json_info(release_json):
+def _get_windows_release_json_info(release_json, is_first_rc=False):
     """
     Gets the Windows NPM driver info from the previous entries in the release.json file.
     """
-    release_json_version_data = release_json[RELEASE_JSON_DEPENDENCIES]
+    release_json_version_data = _get_release_json_info_for_next_rc(release_json, is_first_rc)
 
     win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum = _get_windows_driver_info(release_json_version_data, 'DDNPM')
     win_ddprocmon_driver, win_ddprocmon_version, win_ddprocmon_shasum = _get_windows_driver_info(
@@ -118,6 +117,19 @@ def _get_windows_driver_info(release_json_version_data, driver_name):
     return driver_value, version_value, shasum_value
 
 
+def _get_release_json_info_for_next_rc(release_json, is_first_rc=False):
+    """
+    Gets the version info from the previous entries in the release.json file.
+    """
+
+    # First RC should use the data from nightly section otherwise reuse the last RC info
+    previous_release_json_version = "nightly" if is_first_rc else "release"
+
+    print(f"Using '{previous_release_json_version}' values")
+
+    return release_json[previous_release_json_version]
+
+
 ##
 ## release_json object update function
 ##
@@ -125,6 +137,7 @@ def _get_windows_driver_info(release_json_version_data, driver_name):
 
 def _update_release_json_entry(
     release_json,
+    release_entry,
     integrations_version,
     omnibus_ruby_version,
     jmxfetch_version,
@@ -168,7 +181,7 @@ def _update_release_json_entry(
         new_release_json[key] = value
 
     # Then update the entry
-    new_release_json[RELEASE_JSON_DEPENDENCIES] = _stringify_config(new_version_config)
+    new_release_json[release_entry] = _stringify_config(new_version_config)
 
     return new_release_json
 
@@ -178,7 +191,7 @@ def _update_release_json_entry(
 ##
 
 
-def _update_release_json(release_json, new_version: Version, max_version: Version):
+def _update_release_json(release_json, release_entry, new_version: Version, max_version: Version):
     """
     Updates the provided release.json object by fetching compatible versions for all dependencies
     of the provided Agent version, constructing the new entry, adding it to the release.json object
@@ -228,7 +241,7 @@ def _update_release_json(release_json, new_version: Version, max_version: Versio
     # Part 2: repositories which have their own version scheme
 
     # jmxfetch version is updated directly by the AML team
-    jmxfetch_version, jmxfetch_shasum = _get_jmxfetch_release_json_info(release_json)
+    jmxfetch_version, jmxfetch_shasum = _get_jmxfetch_release_json_info(release_json, is_first_rc=(new_version.rc == 1))
 
     # security agent policies are updated directly by the CWS team
     security_agent_policies_version = _get_release_version_from_release_json(
@@ -243,11 +256,12 @@ def _update_release_json(release_json, new_version: Version, max_version: Versio
         windows_ddprocmon_driver,
         windows_ddprocmon_version,
         windows_ddprocmon_shasum,
-    ) = _get_windows_release_json_info(release_json)
+    ) = _get_windows_release_json_info(release_json, is_first_rc=(new_version.rc == 1))
 
     # Add new entry to the release.json object and return it
     return _update_release_json_entry(
         release_json,
+        release_entry,
         integrations_version,
         omnibus_ruby_version,
         jmxfetch_version,
@@ -269,10 +283,11 @@ def update_release_json(new_version: Version, max_version: Version):
     """
     release_json = load_release_json()
 
-    print(f"Updating release json for {new_version}")
+    release_entry = "release"
+    print(f"Updating {release_entry} for {new_version}")
 
     # Update release.json object with the entry for the new version
-    release_json = _update_release_json(release_json, new_version, max_version)
+    release_json = _update_release_json(release_json, release_entry, new_version, max_version)
 
     _save_release_json(release_json)
 
@@ -297,7 +312,7 @@ def set_new_release_branch(branch):
     rj["base_branch"] = branch
 
     for field in RELEASE_JSON_FIELDS_TO_UPDATE:
-        rj[RELEASE_JSON_DEPENDENCIES][field] = f"{branch}"
+        rj["nightly"][field] = f"{branch}"
 
     _save_release_json(rj)
 
@@ -322,7 +337,7 @@ def generate_repo_data(ctx, warning_mode, next_version, release_branch):
         repos = ["datadog-agent"]
     else:
         repos = ALL_REPOS
-    previous_tags = find_previous_tags(RELEASE_JSON_DEPENDENCIES, repos, RELEASE_JSON_FIELDS_TO_UPDATE)
+    previous_tags = find_previous_tags("release", repos, RELEASE_JSON_FIELDS_TO_UPDATE)
     data = {}
     for repo in repos:
         branch = release_branch
