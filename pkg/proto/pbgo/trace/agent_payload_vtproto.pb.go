@@ -7,12 +7,12 @@ package trace
 import (
 	binary "encoding/binary"
 	fmt "fmt"
-	idx "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	protohelpers "github.com/planetscale/vtprotobuf/protohelpers"
 	proto "google.golang.org/protobuf/proto"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	io "io"
 	math "math"
+	idx "pkg/proto/pbgo/trace/idx"
 )
 
 const (

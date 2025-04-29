@@ -9,9 +9,9 @@
 package trace
 
 import (
-	idx "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	idx "pkg/proto/pbgo/trace/idx"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
