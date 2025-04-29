@@ -298,7 +298,8 @@ func loadLogProcessingRules(s *common.Setup) {
 			s.Out.WriteString(fmt.Sprintf("Invalid log processing rules: %v\n", err))
 			log.Warnf("Failed to parse log processing rules: %v", err)
 		} else {
-			s.Config.DatadogYAML.LogsConfig = processingRules
+			logsConfig := common.LogsConfig{processingRules}
+			s.Config.DatadogYAML.LogsConfig = logsConfig
 			s.Out.WriteString(fmt.Sprintf("Loaded %d log processing rule(s) from DD_LOGS_CONFIG_PROCESSING_RULES\n", len(processingRules)))
 		}
 	}
