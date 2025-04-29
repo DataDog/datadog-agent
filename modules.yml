@@ -242,6 +242,7 @@ modules:
   pkg/template:
     should_replace_internal_modules: false
     should_test_condition: never
+    used_by_otel: true
   pkg/trace:
     used_by_otel: true
   pkg/trace/stats/oteltest:

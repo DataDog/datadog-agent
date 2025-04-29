@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func reset() {
@@ -229,8 +229,9 @@ func TestGetNTPHosts(t *testing.T) {
 	}))
 	defer ts.Close()
 
+	mockConfig := configmock.New(t)
 	metadataURL = ts.URL
-	pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"gcp"})
+	mockConfig.SetWithoutSource("cloud_provider_metadata", []string{"gcp"})
 	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)

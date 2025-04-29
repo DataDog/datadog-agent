@@ -33,6 +33,7 @@ import (
 )
 
 type mockLogLevelRuntimeSettings struct {
+	cfg           config.Component
 	expectedError error
 	logLevel      string
 }
@@ -46,7 +47,7 @@ func (m *mockLogLevelRuntimeSettings) Set(_ config.Component, v interface{}, sou
 		return m.expectedError
 	}
 	m.logLevel = v.(string)
-	pkgconfigsetup.Datadog().Set(m.Name(), m.logLevel, source)
+	m.cfg.Set(m.Name(), m.logLevel, source)
 	return nil
 }
 
@@ -153,7 +154,7 @@ func TestAgentConfigCallback(t *testing.T) {
 			fx.Supply(
 				settings.Params{
 					Settings: map[string]settings.RuntimeSetting{
-						"log_level": &mockLogLevelRuntimeSettings{logLevel: "info"},
+						"log_level": &mockLogLevelRuntimeSettings{cfg: cfg, logLevel: "info"},
 					},
 					Config: cfg,
 				},

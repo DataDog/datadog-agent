@@ -585,20 +585,13 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.False(t, cfg.OTLPReceiver.IgnoreMissingDatadogFields)
 	assert.Equal(t, map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, cfg.OTLPReceiver.SpanNameRemappings)
 
-	noProxy := true
-	if _, ok := os.LookupEnv("NO_PROXY"); ok {
-		// Happens in CircleCI: if the environment variable is set,
-		// it will overwrite our loaded configuration and will cause
-		// this test to fail.
-		noProxy = false
-	}
 	assert.ElementsMatch(t, []*traceconfig.Endpoint{
 		{Host: "https://datadog.unittests", APIKey: "api_key_test"},
 		{Host: "https://my1.endpoint.com", APIKey: "apikey1"},
 		{Host: "https://my1.endpoint.com", APIKey: "apikey2"},
-		{Host: "https://my2.endpoint.eu", APIKey: "apikey3", NoProxy: noProxy},
-		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: noProxy},
-		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: noProxy},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey3", NoProxy: true},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: true},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: true},
 	}, cfg.Endpoints)
 
 	assert.ElementsMatch(t, []*traceconfig.Tag{{K: "env", V: "prod"}, {K: "db", V: "mongodb"}}, cfg.RequireTags)

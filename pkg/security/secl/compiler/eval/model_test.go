@@ -126,7 +126,7 @@ func (m *testModel) GetIteratorLen(field Field) (func(ctx *Context) int, error) 
 	return nil, &ErrFieldNotFound{Field: field}
 }
 
-func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, error) {
+func (m *testModel) GetEvaluator(field Field, regID RegisterID, offset int) (Evaluator, error) {
 	switch field {
 
 	case "network.ip":
@@ -135,7 +135,8 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			EvalFnc: func(ctx *Context) net.IPNet {
 				return ctx.Event.(*testEvent).network.ip
 			},
-			Field: field,
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "network.cidr":
@@ -144,7 +145,8 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			EvalFnc: func(ctx *Context) net.IPNet {
 				return ctx.Event.(*testEvent).network.cidr
 			},
-			Field: field,
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "network.ips":
@@ -155,6 +157,8 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 				ipnets = append(ipnets, ctx.Event.(*testEvent).network.ips...)
 				return ipnets
 			},
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "network.cidrs":
@@ -163,15 +167,16 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			EvalFnc: func(ctx *Context) []net.IPNet {
 				return ctx.Event.(*testEvent).network.cidrs
 			},
-			Field: field,
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "process.name":
-
 		return &StringEvaluator{
 			EvalFnc:     func(ctx *Context) string { return ctx.Event.(*testEvent).process.name },
 			Field:       field,
 			OpOverrides: GlobCmp,
+			Offset:      offset,
 		}, nil
 
 	case "process.argv0":
@@ -179,18 +184,20 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 		return &StringEvaluator{
 			EvalFnc: func(ctx *Context) string { return ctx.Event.(*testEvent).process.argv0 },
 			Field:   field,
+			Offset:  offset,
 		}, nil
 
 	case "process.uid":
 
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int {
-				// to test optimisation
+				// to test optimization
 				ctx.Event.(*testEvent).uidEvaluated = true
 
 				return ctx.Event.(*testEvent).process.uid
 			},
-			Field: field,
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "process.gid":
@@ -202,7 +209,8 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 				return ctx.Event.(*testEvent).process.gid
 			},
-			Field: field,
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "process.pid":
@@ -214,7 +222,8 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 				return ctx.Event.(*testEvent).process.pid
 			},
-			Field: field,
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "process.is_root":
@@ -222,6 +231,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 		return &BoolEvaluator{
 			EvalFnc: func(ctx *Context) bool { return ctx.Event.(*testEvent).process.isRoot },
 			Field:   field,
+			Offset:  offset,
 		}, nil
 
 	case "process.list.length":
@@ -229,7 +239,8 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			EvalFnc: func(ctx *Context) int {
 				return ctx.Event.(*testEvent).process.list.Len()
 			},
-			Field: field,
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "process.list.key":
@@ -253,6 +264,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 					return nil
 				},
 				Field:  field,
+				Offset: offset,
 				Weight: IteratorWeight,
 			}, nil
 		}
@@ -273,6 +285,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 				return result
 			},
 			Field:  field,
+			Offset: offset,
 			Weight: IteratorWeight,
 		}, nil
 
@@ -297,6 +310,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 					return nil
 				},
 				Field:  field,
+				Offset: offset,
 				Weight: IteratorWeight,
 			}, nil
 		}
@@ -317,6 +331,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 				return values
 			},
 			Field:  field,
+			Offset: offset,
 			Weight: IteratorWeight,
 		}, nil
 
@@ -341,6 +356,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 					return nil
 				},
 				Field:  field,
+				Offset: offset,
 				Weight: IteratorWeight,
 			}, nil
 		}
@@ -362,6 +378,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			},
 			Field:  field,
 			Weight: IteratorWeight,
+			Offset: offset,
 		}, nil
 
 	case "process.array.length":
@@ -369,7 +386,8 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			EvalFnc: func(ctx *Context) int {
 				return len(ctx.Event.(*testEvent).process.array)
 			},
-			Field: field,
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "process.array.key":
@@ -383,6 +401,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 				},
 				Field:  field,
 				Weight: IteratorWeight,
+				Offset: offset,
 			}, nil
 		}
 
@@ -398,6 +417,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			},
 			Field:  field,
 			Weight: IteratorWeight,
+			Offset: offset,
 		}, nil
 
 	case "process.array.value":
@@ -411,6 +431,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 				},
 				Field:  field,
 				Weight: IteratorWeight,
+				Offset: offset,
 			}, nil
 		}
 
@@ -426,6 +447,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			},
 			Field:  field,
 			Weight: IteratorWeight,
+			Offset: offset,
 		}, nil
 
 	case "process.array.flag":
@@ -450,7 +472,8 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			EvalFnc: func(ctx *Context) int {
 				return int(ctx.Event.(*testEvent).process.createdAt)
 			},
-			Field: field,
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "process.or_name":

@@ -10,6 +10,7 @@ package gpu
 import (
 	"fmt"
 	"iter"
+	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -17,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -40,12 +41,13 @@ type globalStreamKey struct {
 }
 
 type streamCollection struct {
-	streams       map[streamKey]*StreamHandler
-	globalStreams map[globalStreamKey]*StreamHandler
-	sysCtx        *systemContext
-	telemetry     *streamTelemetry
-	streamLimits  streamLimits
-	maxStreams    int
+	streams             map[streamKey]*StreamHandler
+	globalStreams       map[globalStreamKey]*StreamHandler
+	sysCtx              *systemContext
+	telemetry           *streamTelemetry
+	streamLimits        streamLimits
+	maxStreams          int
+	maxStreamInactivity time.Duration
 }
 
 type streamTelemetry struct {
@@ -71,12 +73,13 @@ func getStreamLimits(config *config.Config) streamLimits {
 
 func newStreamCollection(sysCtx *systemContext, telemetry telemetry.Component, config *config.Config) *streamCollection {
 	return &streamCollection{
-		streams:       make(map[streamKey]*StreamHandler),
-		globalStreams: make(map[globalStreamKey]*StreamHandler),
-		sysCtx:        sysCtx,
-		telemetry:     newStreamTelemetry(telemetry),
-		streamLimits:  getStreamLimits(config),
-		maxStreams:    config.MaxStreams,
+		streams:             make(map[streamKey]*StreamHandler),
+		globalStreams:       make(map[globalStreamKey]*StreamHandler),
+		sysCtx:              sysCtx,
+		telemetry:           newStreamTelemetry(telemetry),
+		streamLimits:        getStreamLimits(config),
+		maxStreams:          config.MaxStreams,
+		maxStreamInactivity: config.MaxStreamInactivity,
 	}
 }
 
@@ -91,7 +94,7 @@ func newStreamTelemetry(tm telemetry.Component) *streamTelemetry {
 		missingDevices:           tm.NewCounter(subsystem, "missing_devices", nil, "Number of failures to get GPU devices for a stream"),
 		finalizedProcesses:       tm.NewCounter(subsystem, "finalized_processes", nil, "Number of processes that have ended"),
 		activeHandlers:           tm.NewGauge(subsystem, "active_handlers", nil, "Number of active stream handlers"),
-		removedHandlers:          tm.NewCounter(subsystem, "removed_handlers", []string{"device"}, "Number of removed stream handlers"),
+		removedHandlers:          tm.NewCounter(subsystem, "removed_handlers", []string{"device", "reason"}, "Number of removed stream handlers and why"),
 		rejectedStreams:          tm.NewCounter(subsystem, "rejected_streams_due_to_limit", nil, "Number of rejected streams due to the max stream limit"),
 	}
 }
@@ -242,20 +245,29 @@ func (sc *streamCollection) markProcessStreamsAsEnded(pid uint32) {
 	}
 }
 
-func (sc *streamCollection) clean() {
-	for key, handler := range sc.streams {
-		if handler.processEnded {
-			delete(sc.streams, key)
-			sc.telemetry.removedHandlers.Inc(handler.metadata.gpuUUID)
-		}
-	}
+// cleanHandlerMap cleans the handler map for a given stream collection, using generics to avoid code duplication.
+func cleanHandlerMap[K comparable](sc *streamCollection, handlerMap map[K]*StreamHandler, nowKtime int64) {
+	for key, handler := range handlerMap {
+		deleteReason := ""
 
-	for key, handler := range sc.globalStreams {
-		if handler.processEnded {
-			delete(sc.globalStreams, key)
-			sc.telemetry.removedHandlers.Inc(handler.metadata.gpuUUID)
+		if handler.ended {
+			deleteReason = "ended"
+		} else if handler.isInactive(nowKtime, sc.maxStreamInactivity) {
+			deleteReason = "inactive"
+		}
+
+		if deleteReason != "" {
+			delete(handlerMap, key)
+			sc.telemetry.removedHandlers.Inc(handler.metadata.gpuUUID, deleteReason)
 		}
 	}
+}
+
+// clean cleans the stream collection, removing inactive streams and marking processes as ended.
+// nowKtime is the current kernel time, used to check if streams are inactive.
+func (sc *streamCollection) clean(nowKtime int64) {
+	cleanHandlerMap(sc, sc.streams, nowKtime)
+	cleanHandlerMap(sc, sc.globalStreams, nowKtime)
 
 	sc.telemetry.activeHandlers.Set(float64(sc.streamCount()))
 }

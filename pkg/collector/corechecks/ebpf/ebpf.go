@@ -10,7 +10,6 @@ package ebpf
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -39,7 +38,7 @@ type EBPFCheckConfig struct {
 // EBPFCheck grabs eBPF map/program/perf buffer metrics
 type EBPFCheck struct {
 	config             *EBPFCheckConfig
-	sysProbeClient     *http.Client
+	sysProbeClient     *sysprobeclient.CheckClient
 	previousMapEntries map[string]int64
 	core.CheckBase
 }
@@ -70,7 +69,7 @@ func (m *EBPFCheck) Configure(senderManager sender.SenderManager, _ uint64, conf
 	if err := m.config.Parse(config); err != nil {
 		return fmt.Errorf("ebpf check config: %s", err)
 	}
-	m.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	m.sysProbeClient = sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	return nil
 }
 
@@ -78,6 +77,9 @@ func (m *EBPFCheck) Configure(senderManager sender.SenderManager, _ uint64, conf
 func (m *EBPFCheck) Run() error {
 	stats, err := sysprobeclient.GetCheck[ebpfcheck.EBPFStats](m.sysProbeClient, sysconfig.EBPFModule)
 	if err != nil {
+		if sysprobeclient.IgnoreStartupError(err) == nil {
+			return nil
+		}
 		return fmt.Errorf("get ebpf check: %s", err)
 	}
 

@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
-	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -138,7 +137,7 @@ func profilingConfig(tracecfg *tracecfg.AgentConfig, disableInternalProfiling bo
 		endpoint = fmt.Sprintf(profiling.ProfilingURLTemplate, tracecfg.Site)
 	}
 	tags := pkgconfigsetup.Datadog().GetStringSlice("internal_profiling.extra_tags")
-	tags = append(tags, fmt.Sprintf("version:%s", version.AgentVersion))
+	tags = profiling.GetBaseProfilingTags(tags)
 	return &profiling.Settings{
 		ProfilingURL: endpoint,
 

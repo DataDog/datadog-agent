@@ -7,6 +7,7 @@ package nodetreemodel
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -885,4 +886,18 @@ func TestEnvVarOrdering(t *testing.T) {
 		assert.Equal(t, true, config.IsConfigured("dd_url"))
 		assert.Equal(t, "https://app.datadoghq.dd_url.eu", config.GetString("dd_url"))
 	})
+}
+
+func TestWarningLogged(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg.BindEnv("bad_key", "DD_BAD_KEY")
+	t.Setenv("DD_BAD_KEY", "value")
+	original := splitKeyFunc
+	splitKeyFunc = func(_ string) []string {
+		return []string{} // Override to return an empty slice
+	}
+	defer func() { splitKeyFunc = original }()
+	cfg.BuildSchema()
+	// Check that the warning was logged
+	assert.Equal(t, &model.Warnings{Errors: []error{errors.New("empty key given to Set")}}, cfg.Warnings())
 }

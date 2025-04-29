@@ -20,7 +20,7 @@ import (
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	auditor "github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -55,6 +55,7 @@ type LauncherTestSuite struct {
 }
 
 func (suite *LauncherTestSuite) SetupTest() {
+	cfg := configmock.New(suite.T())
 	suite.pipelineProvider = mock.NewMockProvider()
 	suite.outputChan = suite.pipelineProvider.NextPipelineChan()
 	suite.tagger = taggerfxmock.SetupFakeTagger(suite.T())
@@ -80,7 +81,7 @@ func (suite *LauncherTestSuite) SetupTest() {
 	suite.s.pipelineProvider = suite.pipelineProvider
 	suite.s.registry = auditor.NewRegistry()
 	suite.s.activeSources = append(suite.s.activeSources, suite.source)
-	status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources([]*sources.LogSource{suite.source}))
+	status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{suite.source}))
 	suite.s.scan()
 }
 
@@ -221,6 +222,7 @@ func TestLauncherTestSuiteWithConfigID(t *testing.T) {
 }
 
 func TestLauncherScanStartNewTailer(t *testing.T) {
+	cfg := configmock.New(t)
 	var path string
 	var msg *message.Message
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -242,7 +244,7 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: configID, Path: path})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
 		defer status.Clear()
 
 		// create file
@@ -417,6 +419,8 @@ func TestLauncherConfigIdentifier(t *testing.T) {
 }
 
 func TestLauncherScanWithTooManyFiles(t *testing.T) {
+	cfg := configmock.New(t)
+
 	var err error
 	var path string
 
@@ -447,7 +451,7 @@ func TestLauncherScanWithTooManyFiles(t *testing.T) {
 	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
 	launcher.activeSources = append(launcher.activeSources, source)
 	status.Clear()
-	status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources([]*sources.LogSource{source}))
+	status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
 	defer status.Clear()
 
 	// test at scan
@@ -494,6 +498,8 @@ func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
 }
 
 func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
+	cfg := configmock.New(t)
+
 	var err error
 
 	testDir := t.TempDir()
@@ -535,7 +541,7 @@ func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: logDirectory})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
 
 		return launcher
 	}
@@ -564,6 +570,8 @@ func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 }
 
 func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
+	cfg := configmock.New(t)
+
 	var err error
 
 	testDir := t.TempDir()
@@ -592,7 +600,7 @@ func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: logDirectory})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
 
 		return launcher
 	}
@@ -630,6 +638,8 @@ func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
 }
 
 func TestLauncherFileRotation(t *testing.T) {
+	cfg := configmock.New(t)
+
 	var err error
 
 	testDir := t.TempDir()
@@ -654,7 +664,7 @@ func TestLauncherFileRotation(t *testing.T) {
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: logDirectory})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
 
 		return launcher
 	}
@@ -696,6 +706,8 @@ func TestLauncherFileRotation(t *testing.T) {
 }
 
 func TestLauncherFileDetectionSingleScan(t *testing.T) {
+	cfg := configmock.New(t)
+
 	var err error
 
 	testDir := t.TempDir()
@@ -720,7 +732,7 @@ func TestLauncherFileDetectionSingleScan(t *testing.T) {
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: logDirectory})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
 
 		return launcher
 	}

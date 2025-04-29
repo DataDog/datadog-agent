@@ -355,6 +355,7 @@ func setupInternalProfiling(config config.Component) error {
 
 		tags := config.GetStringSlice(secAgentKey("internal_profiling.extra_tags"))
 		tags = append(tags, fmt.Sprintf("version:%v", version.AgentVersion))
+		tags = append(tags, "__dd_internal_profiling:datadog-agent")
 
 		profSettings := profiling.Settings{
 			ProfilingURL:         site,

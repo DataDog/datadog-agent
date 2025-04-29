@@ -26,7 +26,7 @@ type hostmetricsreceiverTestSuite struct {
 var hostmetricsreceiverConfig string
 
 func TestOTelAgentHostmetricsReceiver(t *testing.T) {
-	values := enableOTELAgentonfig(`
+	values := enableOTELAgentConfig(`
 datadog:
   logs:
     containerCollectAll: false

@@ -8,6 +8,7 @@
 package safenvml
 
 import (
+	"errors"
 	"maps"
 	"testing"
 
@@ -75,7 +76,12 @@ func TestNewDeviceUUIDFailure(t *testing.T) {
 	// Verify failure
 	require.Error(t, err)
 	require.Nil(t, device)
-	require.Contains(t, err.Error(), "error getting UUID")
+
+	// Check that it's the correct type of error using errors.As
+	var nvmlErr *NvmlAPIError
+	require.True(t, errors.As(err, &nvmlErr), "Expected error to be of type *NvmlAPIError")
+	require.Equal(t, "GetUUID", nvmlErr.APIName)
+	require.Equal(t, nvml.ERROR_INVALID_ARGUMENT, nvmlErr.NvmlErrorCode)
 }
 
 func TestDeviceWithMissingSymbol(t *testing.T) {
@@ -102,8 +108,12 @@ func TestDeviceWithMissingSymbol(t *testing.T) {
 	// Test calling a method with a missing symbol
 	_, err = device.GetMaxClockInfo(nvml.CLOCK_MEM)
 	require.Error(t, err)
-	require.IsType(t, &ErrSymbolNotFound{}, err)
-	require.Contains(t, err.Error(), "nvmlDeviceGetMaxClockInfo symbol not found")
+
+	// Check that it's the correct type of error using errors.As
+	var nvmlErr *NvmlAPIError
+	require.True(t, errors.As(err, &nvmlErr), "Expected error to be of type *NvmlAPIError")
+	require.Equal(t, toNativeName("GetMaxClockInfo"), nvmlErr.APIName)
+	require.Equal(t, nvml.ERROR_FUNCTION_NOT_FOUND, nvmlErr.NvmlErrorCode)
 }
 
 func TestDeviceSafeMethodSuccess(t *testing.T) {

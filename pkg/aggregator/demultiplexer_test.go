@@ -28,7 +28,7 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/assert"
@@ -101,17 +101,10 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	// now, simulate a cluster-agent environment and enabled the orchestrator feature
 
-	oee := pkgconfigsetup.Datadog().Get("orchestrator_explorer.enabled")
-	cre := pkgconfigsetup.Datadog().Get("clc_runner_enabled")
-	ecp := pkgconfigsetup.Datadog().Get("extra_config_providers")
-	defer func() {
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.enabled", oee)
-		pkgconfigsetup.Datadog().SetWithoutSource("clc_runner_enabled", cre)
-		pkgconfigsetup.Datadog().SetWithoutSource("extra_config_providers", ecp)
-	}()
-	pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.enabled", true)
-	pkgconfigsetup.Datadog().SetWithoutSource("clc_runner_enabled", true)
-	pkgconfigsetup.Datadog().SetWithoutSource("extra_config_providers", []string{"clusterchecks"})
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("orchestrator_explorer.enabled", true)
+	cfg.SetWithoutSource("clc_runner_enabled", true)
+	cfg.SetWithoutSource("extra_config_providers", []string{"clusterchecks"})
 
 	// since we're running the tests with -tags orchestrator and we've enabled the
 	// needed feature above, we should have an orchestrator forwarder instantiated now
@@ -208,18 +201,13 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 }
 
 func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
-	pc := pkgconfigsetup.Datadog().GetInt("dogstatsd_pipeline_count")
-	aa := pkgconfigsetup.Datadog().GetInt("dogstatsd_pipeline_autoadjust")
-	defer func() {
-		pkgconfigsetup.Datadog().SetWithoutSource("dogstatsd_pipeline_count", pc)
-		pkgconfigsetup.Datadog().SetWithoutSource("dogstatsd_pipeline_autoadjust", aa)
-	}()
-
+	cfg := configmock.New(t)
+	pc := cfg.GetInt("dogstatsd_pipeline_count")
 	assert := assert.New(t)
 
 	// auto-adjust
 
-	pkgconfigsetup.Datadog().SetWithoutSource("dogstatsd_pipeline_autoadjust", true)
+	cfg.SetWithoutSource("dogstatsd_pipeline_autoadjust", true)
 
 	dsdWorkers, pipelines := getDogStatsDWorkerAndPipelineCount(16)
 	assert.Equal(8, dsdWorkers)
@@ -239,8 +227,8 @@ func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 
 	// no auto-adjust
 
-	pkgconfigsetup.Datadog().SetWithoutSource("dogstatsd_pipeline_autoadjust", false)
-	pkgconfigsetup.Datadog().SetWithoutSource("dogstatsd_pipeline_count", pc) // default value
+	cfg.SetWithoutSource("dogstatsd_pipeline_autoadjust", false)
+	cfg.SetWithoutSource("dogstatsd_pipeline_count", pc) // default value
 
 	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(16)
 	assert.Equal(14, dsdWorkers)
@@ -260,8 +248,8 @@ func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 
 	// no auto-adjust + pipeline count
 
-	pkgconfigsetup.Datadog().SetWithoutSource("dogstatsd_pipeline_autoadjust", false)
-	pkgconfigsetup.Datadog().SetWithoutSource("dogstatsd_pipeline_count", 4)
+	cfg.SetWithoutSource("dogstatsd_pipeline_autoadjust", false)
+	cfg.SetWithoutSource("dogstatsd_pipeline_count", 4)
 
 	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(16)
 	assert.Equal(11, dsdWorkers)

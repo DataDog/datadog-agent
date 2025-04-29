@@ -113,40 +113,40 @@ func (c *CIDRValues) AppendIP(ip string) error {
 }
 
 // Contains returns whether the values match the provided IPNet
-func (c *CIDRValues) Contains(ipnet *net.IPNet) bool {
+func (c *CIDRValues) Contains(ipnet *net.IPNet) (bool, *net.IPNet) {
 	for _, n := range c.ipnets {
 		if IPNetsMatch(n, ipnet) {
-			return true
+			return true, n
 		}
 	}
 
-	return false
+	return false, nil
 }
 
 // Match returns whether the values matches the provided IPNets
-func (c *CIDRValues) Match(ipnets []net.IPNet) bool {
+func (c *CIDRValues) Match(ipnets []net.IPNet) (bool, net.IPNet) {
 	for _, n := range c.ipnets {
 		for _, ipnet := range ipnets {
 			if IPNetsMatch(n, &ipnet) {
-				return true
+				return true, ipnet
 			}
 		}
 	}
 
-	return false
+	return false, net.IPNet{}
 }
 
 // MatchAll returns whether the values matches all the provided IPNets
-func (c *CIDRValues) MatchAll(ipnets []net.IPNet) bool {
+func (c *CIDRValues) MatchAll(ipnets []net.IPNet) (bool, []*net.IPNet) {
 	for _, n := range c.ipnets {
 		for _, ipnet := range ipnets {
 			if !IPNetsMatch(n, &ipnet) {
-				return false
+				return false, nil
 			}
 		}
 	}
 
-	return true
+	return true, c.ipnets
 }
 
 // IPNetsMatch returns whether the IPNets match
