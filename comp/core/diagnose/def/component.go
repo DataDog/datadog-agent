@@ -38,8 +38,8 @@ const (
 	EventPlatformConnectivity = "connectivity-datadog-event-platform"
 	// PortConflict is the suite name for the port-conflict suite
 	PortConflict = "port-conflict"
-	// FirewallBlockers is the suite name for the firewall-blockers suite
-	FirewallBlockers = "firewall-blockers"
+	// FirewallScan is the suite name for the firewall-scan suite
+	FirewallScan = "firewall-scan"
 )
 
 // AllSuites is a list of all available suites
@@ -49,7 +49,7 @@ var AllSuites = []string{
 	CoreEndpointsConnectivity,
 	EventPlatformConnectivity,
 	PortConflict,
-	FirewallBlockers,
+	FirewallScan,
 }
 
 var catalog *Catalog

@@ -647,7 +647,7 @@ func startAgent(
 		return connectivity.Diagnose(diagCfg, log)
 	})
 
-	diagnosecatalog.Register(diagnose.FirewallBlockers, func(_ diagnose.Config) []diagnose.Diagnosis {
+	diagnosecatalog.Register(diagnose.FirewallScan, func(_ diagnose.Config) []diagnose.Diagnosis {
 		return firewallscanner.DiagnoseBlockers(cfg, log)
 	})
 
