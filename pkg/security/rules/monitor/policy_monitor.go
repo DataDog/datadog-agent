@@ -362,19 +362,18 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 	if err != nil && err.Errors != nil {
 		for _, err := range err.Errors {
 			if rerr, ok := err.(*rules.ErrRuleLoad); ok {
-				for _, pInfo := range rerr.Rule.UsedBy {
-					if pInfo.IsInternal && !includeInternalPolicies {
-						continue
-					}
-
-					if _, exists := mp[pInfo.Name]; !exists {
-						policyState = PolicyStateFromPolicyInfo(&pInfo)
-						mp[pInfo.Name] = policyState
-					} else {
-						policyState = mp[pInfo.Name]
-					}
-					policyState.Rules = append(policyState.Rules, RuleStateFromRule(rerr.Rule, &pInfo, string(rerr.Type()), rerr.Err.Error()))
+				if rerr.Rule.Policy.IsInternal && !includeInternalPolicies {
+					continue
 				}
+				policyName := rerr.Rule.Policy.Name
+
+				if _, exists := mp[policyName]; !exists {
+					policyState = PolicyStateFromPolicyInfo(&rerr.Rule.Policy)
+					mp[policyName] = policyState
+				} else {
+					policyState = mp[policyName]
+				}
+				policyState.Rules = append(policyState.Rules, RuleStateFromRule(rerr.Rule, &rerr.Rule.Policy, string(rerr.Type()), rerr.Err.Error()))
 			}
 		}
 	}
