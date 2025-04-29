@@ -133,6 +133,12 @@ func (k *KubeletCheck) Configure(senderManager sender.SenderManager, _ uint64, c
 		return err
 	}
 
+	// Set sane defaults
+	if k.instance.Timeout == 0 {
+		// old default was 10 seconds, let's keep it
+		k.instance.Timeout = 10
+	}
+
 	k.instance.Namespace = common.KubeletMetricsPrefix
 	if k.instance.SendHistogramBuckets == nil {
 		sendBuckets := true
