@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -70,8 +71,7 @@ type networkInstanceConfig struct {
 	WhitelistConntrackMetrics []string `yaml:"whitelist_conntrack_metrics"`
 }
 
-type networkInitConfig struct {
-}
+type networkInitConfig struct{}
 
 type networkConfig struct {
 	instance networkInstanceConfig
@@ -358,7 +358,7 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 		}
 		if continueCase {
 			if statName != "" {
-				if contains(ethtoolGlobalMetrics, statName) {
+				if slices.Contains(ethtoolGlobalMetrics, statName) {
 					queueTag = "global"
 					newKey = statName
 					metricPrefix = "."
@@ -373,15 +373,6 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 		}
 	}
 	return result
-}
-
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
 }
 
 func submitProtocolMetrics(sender sender.Sender, protocolStats net.ProtoCountersStat) {
@@ -534,7 +525,7 @@ func netstatAndSnmpCounters(procfsPath string, protocolNames []string) (map[stri
 			if i == -1 {
 				return nil, errors.New(procfsPath + "/net/" + subdirectory + " is not fomatted correctly, expected ':'")
 			}
-			if contains(protocolNames, line[:i]) {
+			if slices.Contains(protocolNames, line[:i]) {
 				protocolName = line[:i]
 			} else {
 				continue
@@ -644,15 +635,15 @@ func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo
 		}
 		for _, metricName := range availableFiles {
 			if len(blacklistConntrackMetrics) > 0 {
-				if contains(blacklistConntrackMetrics, metricName) {
+				if slices.Contains(blacklistConntrackMetrics, metricName) {
 					continue
 				}
 			} else if len(whitelistConntrackMetrics) > 0 {
-				if !contains(whitelistConntrackMetrics, metricName) {
+				if !slices.Contains(whitelistConntrackMetrics, metricName) {
 					continue
 				}
 			} else {
-				if !contains([]string{"max", "count"}, metricName) {
+				if !slices.Contains([]string{"max", "count"}, metricName) {
 					continue
 				}
 			}
