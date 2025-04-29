@@ -139,7 +139,7 @@ func TestGetVisibleDevicesWithMIG(t *testing.T) {
 				IsMIG: true,
 			},
 			{
-				UUID:  "MIG-7890-1234-1234-1234",
+				UUID:  "MIG-7891-1234-1234-1234",
 				IsMIG: true,
 			},
 		},

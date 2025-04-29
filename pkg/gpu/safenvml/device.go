@@ -242,7 +242,7 @@ func NewMIGDevice(dev SafeDevice) (*MIGDevice, error) {
 		return nil, fmt.Errorf("error getting MIG device attributes: %w", err)
 	}
 
-	device.Memory = attr.MemorySizeMB
+	device.Memory = attr.MemorySizeMB * 1024 * 1024
 	device.CoreCount = int(attr.MultiprocessorCount)
 
 	return device, nil
