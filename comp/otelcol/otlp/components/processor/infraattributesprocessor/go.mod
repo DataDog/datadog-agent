@@ -20,7 +20,7 @@ require (
 	go.opentelemetry.io/collector/confmap v1.29.0
 	go.opentelemetry.io/collector/consumer v1.29.0
 	go.opentelemetry.io/collector/consumer/consumertest v0.123.0
-	go.opentelemetry.io/collector/pdata v1.29.0
+	go.opentelemetry.io/collector/pdata v1.30.0
 	go.opentelemetry.io/collector/processor v1.29.0
 	go.opentelemetry.io/collector/processor/processortest v0.123.0
 	go.opentelemetry.io/collector/semconv v0.123.0
