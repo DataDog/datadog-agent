@@ -43,7 +43,6 @@ func DiagnoseBlockers(config config.Component, log log.Component) []diagnose.Dia
 
 	scanner, err := getFirewallScanner()
 	if err != nil {
-		log.Warnf("Error diagnosing firewall: %v", err)
 		return []diagnose.Diagnosis{}
 	}
 
@@ -116,10 +115,6 @@ func getFirewallScanner() (firewallScanner, error) {
 	switch runtime.GOOS {
 	case "windows":
 		scanner = &windowsFirewallScanner{}
-	case "linux":
-		scanner = &linuxFirewallScanner{}
-	case "darwin":
-		scanner = &darwinFirewallScanner{}
 	default:
 		return nil, fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
 	}
