@@ -38,12 +38,12 @@ func loadProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, bool, 
 		profiles = customProfiles
 		haveLegacyProfile = haveLegacyCustomProfile
 	} else {
-		defaultProfiles, haveLegacyDefaultProfile, err := loadYamlProfiles()
+		defaultProfiles, haveLegacyYamlProfile, err := loadYamlProfiles()
 		if err != nil {
-			return nil, haveLegacyDefaultProfile, fmt.Errorf("failed to load yaml profiles: %w", err)
+			return nil, haveLegacyYamlProfile, fmt.Errorf("failed to load yaml profiles: %w", err)
 		}
 		profiles = defaultProfiles
-		haveLegacyProfile = haveLegacyDefaultProfile
+		haveLegacyProfile = haveLegacyYamlProfile
 	}
 	for _, profileDef := range profiles {
 		profiledefinition.NormalizeMetrics(profileDef.Definition.Metrics)

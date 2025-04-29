@@ -33,7 +33,7 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 	userProfiles, haveLegacyUserProfile := getYamlUserProfiles()
 	userProfiles = mergeProfiles(userProfiles, initConfigProfiles)
 
-	defaultProfiles, haveLegacyDefaultProfile := getYamlDefaultProfiles()
+	defaultProfiles := getYamlDefaultProfiles()
 	resolvedProfiles, haveLegacyResolvedProfile := resolveProfiles(userProfiles, defaultProfiles)
 
 	// When user profiles are from initConfigProfiles
@@ -46,6 +46,6 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 		filteredResolvedProfiles[key] = val
 	}
 
-	haveLegacyProfile = haveLegacyProfile || haveLegacyUserProfile || haveLegacyDefaultProfile || haveLegacyResolvedProfile
+	haveLegacyProfile = haveLegacyProfile || haveLegacyUserProfile || haveLegacyResolvedProfile
 	return filteredResolvedProfiles, haveLegacyProfile, nil
 }

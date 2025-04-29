@@ -43,12 +43,12 @@ func loadYamlProfiles() (ProfileConfigMap, bool, error) {
 	log.Debugf("build yaml profiles")
 
 	userProfiles, haveLegacyUserProfile := getYamlUserProfiles()
-	defaultProfiles, haveLegacyDefaultProfile := getYamlDefaultProfiles()
+	defaultProfiles := getYamlDefaultProfiles()
 	profiles, haveLegacyResolvedProfile := resolveProfiles(userProfiles, defaultProfiles)
 
 	SetGlobalProfileConfigMap(profiles)
 
-	haveLegacyProfile := haveLegacyUserProfile || haveLegacyDefaultProfile || haveLegacyResolvedProfile
+	haveLegacyProfile := haveLegacyUserProfile || haveLegacyResolvedProfile
 	return profiles, haveLegacyProfile, nil
 }
 
@@ -137,11 +137,11 @@ func getYamlUserProfiles() (ProfileConfigMap, bool) {
 	return userProfiles, haveLegacyProfile
 }
 
-func getYamlDefaultProfiles() (ProfileConfigMap, bool) {
-	userProfiles, haveLegacyProfile, err := getProfileDefinitions(defaultProfilesFolder, false)
+func getYamlDefaultProfiles() ProfileConfigMap {
+	userProfiles, _, err := getProfileDefinitions(defaultProfilesFolder, false)
 	if err != nil {
 		log.Warnf("failed to load default profile definitions: %s", err)
-		return ProfileConfigMap{}, haveLegacyProfile
+		return ProfileConfigMap{}
 	}
-	return userProfiles, haveLegacyProfile
+	return userProfiles
 }
