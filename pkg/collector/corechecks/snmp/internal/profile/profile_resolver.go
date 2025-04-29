@@ -42,7 +42,6 @@ func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMa
 			log.Warnf("failed to expand profile %q: %v", name, err)
 			continue
 		}
-
 		profiledefinition.NormalizeMetrics(newProfileConfig.Definition.Metrics)
 		errors := profiledefinition.ValidateEnrichMetadata(newProfileConfig.Definition.Metadata)
 		errors = append(errors, profiledefinition.ValidateEnrichMetrics(newProfileConfig.Definition.Metrics)...)

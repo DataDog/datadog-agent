@@ -60,21 +60,19 @@ func Test_resolveProfiles(t *testing.T) {
 	require.False(t, haveLegacyProfile)
 
 	tests := []struct {
-		name                      string
-		userProfiles              ProfileConfigMap
-		defaultProfiles           ProfileConfigMap
-		expectedProfileDefMap     ProfileConfigMap
-		expectedProfileMetrics    []string
-		expectedInterfaceIDTags   []string
-		expectedHaveLegacyProfile bool
-		expectedLogs              []LogCount
+		name                    string
+		userProfiles            ProfileConfigMap
+		defaultProfiles         ProfileConfigMap
+		expectedProfileDefMap   ProfileConfigMap
+		expectedProfileMetrics  []string
+		expectedInterfaceIDTags []string
+		expectedLogs            []LogCount
 	}{
 		{
-			name:                      "ok case",
-			userProfiles:              userTestConfdProfiles,
-			defaultProfiles:           defaultTestConfdProfiles,
-			expectedProfileDefMap:     FixtureProfileDefinitionMap(),
-			expectedHaveLegacyProfile: false,
+			name:                  "ok case",
+			userProfiles:          userTestConfdProfiles,
+			defaultProfiles:       defaultTestConfdProfiles,
+			expectedProfileDefMap: FixtureProfileDefinitionMap(),
 		},
 		{
 			name:            "ok user profiles case",
@@ -97,7 +95,6 @@ func Test_resolveProfiles(t *testing.T) {
 				"p5:interface",
 				"p6:interface",
 			},
-			expectedHaveLegacyProfile: false,
 		},
 		{
 			name: "invalid extends",
@@ -107,26 +104,23 @@ func Test_resolveProfiles(t *testing.T) {
 					IsUserProfile: true,
 				},
 			},
-			expectedProfileDefMap:     ProfileConfigMap{},
-			expectedHaveLegacyProfile: false,
+			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []LogCount{
 				{"failed to expand profile \"f5-big-ip\": extend does not exist: `does_not_exist`", 1},
 			},
 		},
 		{
-			name:                      "invalid recursive extends",
-			userProfiles:              profilesWithInvalidExtendProfiles,
-			expectedProfileDefMap:     ProfileConfigMap{},
-			expectedHaveLegacyProfile: false,
+			name:                  "invalid recursive extends",
+			userProfiles:          profilesWithInvalidExtendProfiles,
+			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []LogCount{
 				{"failed to expand profile \"generic-if\": extend does not exist: `invalid`", 1},
 			},
 		},
 		{
-			name:                      "invalid cyclic extends",
-			userProfiles:              invalidCyclicProfiles,
-			expectedProfileDefMap:     ProfileConfigMap{},
-			expectedHaveLegacyProfile: false,
+			name:                  "invalid cyclic extends",
+			userProfiles:          invalidCyclicProfiles,
+			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []LogCount{
 				{": failed to expand profile \"f5-big-ip\": cyclic profile extend detected", 1},
 			},
@@ -138,8 +132,7 @@ func Test_resolveProfiles(t *testing.T) {
 					Definition: *validationErrorProfile,
 				},
 			},
-			expectedProfileDefMap:     ProfileConfigMap{},
-			expectedHaveLegacyProfile: false,
+			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []LogCount{
 				{"cannot compile `match` (`global_metric_tags[\\w)(\\w+)`)", 1},
 				{"cannot compile `match` (`table_match[\\w)`)", 1},
@@ -164,12 +157,7 @@ func Test_resolveProfiles(t *testing.T) {
 				var ifIDTags []string
 				for name, profile := range profiles {
 					for _, metric := range profile.Definition.Metrics {
-						if metric.Symbol.Name != "" {
-							metricsNames = append(metricsNames, fmt.Sprintf("%s:%s", name, metric.Symbol.Name))
-						}
-						for _, symbols := range metric.Symbols {
-							metricsNames = append(metricsNames, fmt.Sprintf("%s:%s", name, symbols.Name))
-						}
+						metricsNames = append(metricsNames, fmt.Sprintf("%s:%s", name, metric.Symbol.Name))
 					}
 					ifMeta, ok := profile.Definition.Metadata["interface"]
 					if ok {
