@@ -6,10 +6,10 @@ go 1.23.0
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.147
-	github.com/DataDog/datadog-agent/comp/netflow/payload v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/metrics v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/proto v0.67.0-devel.0.20250428230612-6cd58aa80061
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.0.0-20250429095819-ff80f306e3a7
+	github.com/DataDog/datadog-agent/pkg/metrics v0.0.0-20250429095819-ff80f306e3a7
+	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250429095819-ff80f306e3a7
+	github.com/DataDog/datadog-agent/pkg/proto v0.0.0-20250429095819-ff80f306e3a7
 	github.com/DataDog/zstd v1.5.6
 	github.com/benbjohnson/clock v1.3.5
 	github.com/cenkalti/backoff/v4 v4.3.0
@@ -26,9 +26,9 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/network/payload v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/tagger/types v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/network/payload v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/tagger/types v0.0.0-20250429095819-ff80f306e3a7 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/beorn7/perks v1.0.1 // indirect

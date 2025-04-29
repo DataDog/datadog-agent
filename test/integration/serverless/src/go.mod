@@ -11,8 +11,8 @@ require (
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
 	github.com/DataDog/appsec-internal-go v1.10.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.0.0-20250429095819-ff80f306e3a7 // indirect
 	github.com/DataDog/datadog-go/v5 v5.6.0 // indirect
 	github.com/DataDog/go-libddwaf/v3 v3.5.2 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect

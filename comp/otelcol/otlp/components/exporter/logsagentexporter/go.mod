@@ -3,14 +3,14 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/lo
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/logs/message v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/logs/sources v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/util/otel v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.67.0-devel.0.20250428230612-6cd58aa80061
+	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.0.0-20250429095819-ff80f306e3a7
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.0.0-20250429095819-ff80f306e3a7
+	github.com/DataDog/datadog-agent/pkg/logs/message v0.0.0-20250429095819-ff80f306e3a7
+	github.com/DataDog/datadog-agent/pkg/logs/sources v0.0.0-20250429095819-ff80f306e3a7
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.0.0-20250429095819-ff80f306e3a7
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.0.0-20250429095819-ff80f306e3a7
+	github.com/DataDog/datadog-agent/pkg/util/otel v0.0.0-20250429095819-ff80f306e3a7
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.0.0-20250429095819-ff80f306e3a7
 	github.com/stormcat24/protodep v0.1.8
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/component v1.30.0
@@ -50,35 +50,35 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/create v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/utils v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/fips v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/create v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/utils v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.0.0-20250429095819-ff80f306e3a7 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.36.1 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.14.0 // indirect

@@ -3,16 +3,16 @@ module github.com/DataDog/datadog-agent/pkg/logs/metrics
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.67.0-devel.0.20250428230612-6cd58aa80061
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.0.0-20250429095819-ff80f306e3a7
 	github.com/benbjohnson/clock v1.3.5
 	github.com/stretchr/testify v1.10.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.0.0-20250429095819-ff80f306e3a7 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect

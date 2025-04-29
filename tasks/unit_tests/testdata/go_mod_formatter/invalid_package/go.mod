@@ -16,22 +16,22 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/config/model v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/tagset v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/util/buf v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/util/log v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/util/quantile v0.67.0-devel.0.20250428230612-6cd58aa80061
+	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.0.0-20250429095819-ff80f306e3a7
+	github.com/DataDog/datadog-agent/pkg/config/model v0.0.0-20250429095819-ff80f306e3a7
+	github.com/DataDog/datadog-agent/pkg/tagset v0.0.0-20250429095819-ff80f306e3a7
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.0.0-20250429095819-ff80f306e3a7
+	github.com/DataDog/datadog-agent/pkg/util/buf v0.0.0-20250429095819-ff80f306e3a7
+	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-20250429095819-ff80f306e3a7
+	github.com/DataDog/datadog-agent/pkg/util/quantile v0.0.0-20250429095819-ff80f306e3a7
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/atomic v1.11.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/sort v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.0.0-20250429095819-ff80f306e3a7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/sort v0.0.0-20250429095819-ff80f306e3a7 // indirect
 	github.com/DataDog/sketches-go v1.4.3 // indirect
 	github.com/DataDog/viper v1.12.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
