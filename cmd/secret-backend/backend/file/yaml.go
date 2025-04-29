@@ -9,7 +9,7 @@ package file
 import (
 	"os"
 
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog/log"

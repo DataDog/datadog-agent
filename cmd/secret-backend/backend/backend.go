@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/rs/zerolog/log"
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-secret-backend/backend/akeyless"
 	"github.com/DataDog/datadog-secret-backend/backend/aws"
