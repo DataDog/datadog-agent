@@ -52,6 +52,9 @@ func (p pythonDetector) detect(args []string) (ServiceMetadata, bool) {
 		if base == "gunicorn" || base == "gunicorn:" {
 			return p.gunicorn.detect(args[1:])
 		}
+		if base == "uvicorn" {
+			return detectUvicorn(args[1:])
+		}
 	}
 
 	var (
@@ -199,4 +202,31 @@ func extractGunicornNameFrom(args []string) (string, bool) {
 func parseNameFromWsgiApp(wsgiApp string) string {
 	name, _, _ := strings.Cut(wsgiApp, ":")
 	return name
+}
+
+func detectUvicorn(args []string) (ServiceMetadata, bool) {
+	skipNext := false
+	for _, arg := range args {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+
+		// Skip flags
+		if strings.HasPrefix(arg, "-") {
+			if arg == "--header" {
+				// This takes an argument which looks similar to a module:app
+				// pattern so skip that.
+				skipNext = true
+			}
+			continue
+		}
+
+		// Look for module:app pattern
+		if strings.Contains(arg, ":") {
+			module := strings.Split(arg, ":")[0]
+			return NewServiceMetadata(module, CommandLine), true
+		}
+	}
+	return NewServiceMetadata("uvicorn", CommandLine), true
 }
