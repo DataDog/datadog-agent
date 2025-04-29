@@ -50,12 +50,4 @@
 // The size of each kafka telemetry topic name bucket
 #define KAFKA_TELEMETRY_TOPIC_NAME_BUCKET_SIZE 10
 
-// The maximum version we'll support in telemetry, take the maximum supported version in classification
-// Adds 1 because it's zero based and we use index 0 to count unknown versions
-#if KAFKA_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION > KAFKA_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION
-#define KAFKA_TELEMETRY_API_VERSIONS_NUM_OF_BUCKETS (KAFKA_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION + 1)
-#else
-#define KAFKA_TELEMETRY_API_VERSIONS_NUM_OF_BUCKETS (KAFKA_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION + 1)
-#endif
-
 #endif
