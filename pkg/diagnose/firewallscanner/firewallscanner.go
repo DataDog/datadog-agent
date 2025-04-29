@@ -18,27 +18,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 )
 
+type firewallRule struct {
+	protocol string
+	destPort string
+}
+
 type ruleToCheck struct {
-	Protocol string
-	DestPort string
-	Source   string
+	firewallRule
+	source string
 }
 
-type rulesToCheckForPort struct {
-	ProtocolsSet map[string]struct{}
-	Sources      []string
-}
-
-type rulesToCheckByPort map[string]rulesToCheckForPort
+type sourcesByRule map[firewallRule][]string
 
 type blockingRule struct {
-	Protocol string
-	DestPort string
-	Sources  []string
+	firewallRule
+	sources []string
 }
 
 type firewallScanner interface {
-	DiagnoseBlockingRules(rulesToCheck rulesToCheckByPort, log log.Component) []diagnose.Diagnosis
+	DiagnoseBlockingRules(rulesToCheck sourcesByRule, log log.Component) []diagnose.Diagnosis
 }
 
 // DiagnoseBlockers checks for firewall rules that may block SNMP traps and Netflow packets.
@@ -56,26 +54,14 @@ func DiagnoseBlockers(config config.Component, log log.Component) []diagnose.Dia
 	return scanner.DiagnoseBlockingRules(rulesToCheck, log)
 }
 
-func getRulesToCheck(config config.Component) rulesToCheckByPort {
+func getRulesToCheck(config config.Component) sourcesByRule {
 	var rulesToCheck []ruleToCheck
 	rulesToCheck = append(rulesToCheck, getSNMPTrapsRulesToCheck(config)...)
 	rulesToCheck = append(rulesToCheck, getNetflowRulesToCheck(config)...)
 
-	rules := make(rulesToCheckByPort)
-	for _, rule := range rulesToCheck {
-		entry, exists := rules[rule.DestPort]
-
-		if !exists {
-			entry = rulesToCheckForPort{
-				ProtocolsSet: make(map[string]struct{}),
-				Sources:      []string{},
-			}
-		}
-
-		entry.ProtocolsSet[rule.Protocol] = struct{}{}
-		entry.Sources = append(entry.Sources, rule.Source)
-
-		rules[rule.DestPort] = entry
+	rules := make(sourcesByRule)
+	for _, r := range rulesToCheck {
+		rules[r.firewallRule] = append(rules[r.firewallRule], r.source)
 	}
 	return rules
 }
@@ -87,9 +73,11 @@ func getSNMPTrapsRulesToCheck(config config.Component) []ruleToCheck {
 
 	return []ruleToCheck{
 		{
-			Protocol: "UDP",
-			DestPort: config.GetString("network_devices.snmp_traps.port"),
-			Source:   "snmp_traps",
+			firewallRule: firewallRule{
+				protocol: "UDP",
+				destPort: config.GetString("network_devices.snmp_traps.port"),
+			},
+			source: "snmp_traps",
 		},
 	}
 }
@@ -114,17 +102,21 @@ func getNetflowRulesToCheck(config config.Component) []ruleToCheck {
 
 		if listener.Port == 0 {
 			rulesToCheck = append(rulesToCheck, ruleToCheck{
-				Protocol: "UDP",
-				DestPort: fmt.Sprintf("%d", flowTypeDetail.DefaultPort()),
-				Source:   fmt.Sprintf("netflow (%s)", flowTypeDetail.Name()),
+				firewallRule: firewallRule{
+					protocol: "UDP",
+					destPort: fmt.Sprintf("%d", flowTypeDetail.DefaultPort()),
+				},
+				source: fmt.Sprintf("netflow (%s)", flowTypeDetail.Name()),
 			})
 			continue
 		}
 
 		rulesToCheck = append(rulesToCheck, ruleToCheck{
-			Protocol: "UDP",
-			DestPort: fmt.Sprintf("%d", listener.Port),
-			Source:   fmt.Sprintf("netflow (%s)", flowTypeDetail.Name()),
+			firewallRule: firewallRule{
+				protocol: "UDP",
+				destPort: fmt.Sprintf("%d", listener.Port),
+			},
+			source: fmt.Sprintf("netflow (%s)", flowTypeDetail.Name()),
 		})
 	}
 	return rulesToCheck
@@ -155,7 +147,7 @@ func buildBlockingRulesDiagnosis(name string, blockingRules []blockingRule) diag
 	for _, blockingRule := range blockingRules {
 		msgBuilder.WriteString(
 			fmt.Sprintf("%s packets might be blocked because destination port %s is blocked for protocol %s\n",
-				strings.Join(blockingRule.Sources, ", "), blockingRule.DestPort, blockingRule.Protocol))
+				strings.Join(blockingRule.sources, ", "), blockingRule.destPort, blockingRule.protocol))
 	}
 	return diagnose.Diagnosis{
 		Status:    diagnose.DiagnosisWarning,

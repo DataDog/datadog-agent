@@ -35,17 +35,21 @@ func Test_buildBlockingRulesDiagnosis(t *testing.T) {
 			diagnosisName: "Diagnosis Name",
 			blockingRules: []blockingRule{
 				{
-					Protocol: "UDP",
-					DestPort: "9162",
-					Sources: []string{
+					firewallRule: firewallRule{
+						protocol: "UDP",
+						destPort: "9162",
+					},
+					sources: []string{
 						"snmp_traps",
 						"netflow (ipfix)",
 					},
 				},
 				{
-					Protocol: "UDP",
-					DestPort: "1234",
-					Sources: []string{
+					firewallRule: firewallRule{
+						protocol: "UDP",
+						destPort: "1234",
+					},
+					sources: []string{
 						"netflow (sflow5)",
 					},
 				},

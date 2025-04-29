@@ -15,7 +15,7 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
 	tests := []struct {
 		name                  string
 		output                []byte
-		rulesToCheck          rulesToCheckByPort
+		rulesToCheck          sourcesByRule
 		expectedBlockingRules []blockingRule
 		expectError           bool
 	}{
@@ -27,7 +27,7 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
 		{
 			name:                  "no rules",
 			output:                []byte(``),
-			rulesToCheck:          rulesToCheckByPort{},
+			rulesToCheck:          sourcesByRule{},
 			expectedBlockingRules: nil,
 		},
 		{
@@ -37,17 +37,19 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
     "protocol":  "UDP",
     "localPort":  "9162"
 }`),
-			rulesToCheck: rulesToCheckByPort{
-				"9162": {
-					ProtocolsSet: map[string]struct{}{"UDP": {}},
-					Sources:      []string{"snmp_traps"},
-				},
+			rulesToCheck: sourcesByRule{
+				firewallRule{
+					protocol: "UDP",
+					destPort: "9162",
+				}: []string{"snmp_traps"},
 			},
 			expectedBlockingRules: []blockingRule{
 				{
-					Protocol: "UDP",
-					DestPort: "9162",
-					Sources:  []string{"snmp_traps"},
+					firewallRule: firewallRule{
+						protocol: "UDP",
+						destPort: "9162",
+					},
+					sources: []string{"snmp_traps"},
 				},
 			},
 		},
@@ -58,11 +60,11 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
     "protocol":  "UDP",
     "localPort":  "9160"
 }`),
-			rulesToCheck: rulesToCheckByPort{
-				"9162": {
-					ProtocolsSet: map[string]struct{}{"UDP": {}},
-					Sources:      []string{"snmp_traps"},
-				},
+			rulesToCheck: sourcesByRule{
+				firewallRule{
+					protocol: "UDP",
+					destPort: "9162",
+				}: []string{"snmp_traps"},
 			},
 			expectedBlockingRules: nil,
 		},
@@ -73,11 +75,11 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
     "protocol":  "TCP",
     "localPort":  "9162"
 }`),
-			rulesToCheck: rulesToCheckByPort{
-				"9162": {
-					ProtocolsSet: map[string]struct{}{"UDP": {}},
-					Sources:      []string{"snmp_traps"},
-				},
+			rulesToCheck: sourcesByRule{
+				firewallRule{
+					protocol: "UDP",
+					destPort: "9162",
+				}: []string{"snmp_traps"},
 			},
 			expectedBlockingRules: nil,
 		},
@@ -100,30 +102,34 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
         "localPort":  "2000"
     }
 ]`),
-			rulesToCheck: rulesToCheckByPort{
-				"9162": {
-					ProtocolsSet: map[string]struct{}{"UDP": {}},
-					Sources:      []string{"snmp_traps", "netflow (netflow5)"},
-				},
-				"1111": {
-					ProtocolsSet: map[string]struct{}{"UDP": {}},
-					Sources:      []string{"netflow (netflow9)"},
-				},
-				"2000": {
-					ProtocolsSet: map[string]struct{}{"UDP": {}},
-					Sources:      []string{"netflow (ipfix)"},
-				},
+			rulesToCheck: sourcesByRule{
+				firewallRule{
+					protocol: "UDP",
+					destPort: "9162",
+				}: []string{"snmp_traps", "netflow (netflow5)"},
+				firewallRule{
+					protocol: "UDP",
+					destPort: "1111",
+				}: []string{"netflow (netflow9)"},
+				firewallRule{
+					protocol: "UDP",
+					destPort: "2000",
+				}: []string{"netflow (ipfix)"},
 			},
 			expectedBlockingRules: []blockingRule{
 				{
-					Protocol: "UDP",
-					DestPort: "9162",
-					Sources:  []string{"snmp_traps", "netflow (netflow5)"},
+					firewallRule: firewallRule{
+						protocol: "UDP",
+						destPort: "9162",
+					},
+					sources: []string{"snmp_traps", "netflow (netflow5)"},
 				},
 				{
-					Protocol: "UDP",
-					DestPort: "2000",
-					Sources:  []string{"netflow (ipfix)"},
+					firewallRule: firewallRule{
+						protocol: "UDP",
+						destPort: "2000",
+					},
+					sources: []string{"netflow (ipfix)"},
 				},
 			},
 		},
@@ -146,19 +152,19 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
         "localPort":  "3000"
     }
 ]`),
-			rulesToCheck: rulesToCheckByPort{
-				"9162": {
-					ProtocolsSet: map[string]struct{}{"UDP": {}},
-					Sources:      []string{"snmp_traps", "netflow (netflow5)"},
-				},
-				"1000": {
-					ProtocolsSet: map[string]struct{}{"UDP": {}},
-					Sources:      []string{"netflow (netflow9)"},
-				},
-				"2000": {
-					ProtocolsSet: map[string]struct{}{"UDP": {}},
-					Sources:      []string{"netflow (ipfix)"},
-				},
+			rulesToCheck: sourcesByRule{
+				firewallRule{
+					protocol: "UDP",
+					destPort: "9162",
+				}: []string{"snmp_traps", "netflow (netflow5)"},
+				firewallRule{
+					protocol: "UDP",
+					destPort: "1000",
+				}: []string{"netflow (netflow9)"},
+				firewallRule{
+					protocol: "UDP",
+					destPort: "2000",
+				}: []string{"netflow (ipfix)"},
 			},
 			expectedBlockingRules: nil,
 		},

@@ -32,7 +32,7 @@ const (
 	inbound ruleDirection = 1
 )
 
-func (scanner *windowsFirewallScanner) DiagnoseBlockingRules(rulesToCheck rulesToCheckByPort, log log.Component) []diagnose.Diagnosis {
+func (scanner *windowsFirewallScanner) DiagnoseBlockingRules(rulesToCheck sourcesByRule, log log.Component) []diagnose.Diagnosis {
 	cmd := exec.Command(
 		"powershell",
 		"-Command",
@@ -63,7 +63,7 @@ func (scanner *windowsFirewallScanner) DiagnoseBlockingRules(rulesToCheck rulesT
 	}
 }
 
-func checkBlockingRulesWindows(output []byte, rulesToCheck rulesToCheckByPort) ([]blockingRule, error) {
+func checkBlockingRulesWindows(output []byte, rulesToCheck sourcesByRule) ([]blockingRule, error) {
 	if len(output) == 0 {
 		return nil, nil
 	}
@@ -87,21 +87,19 @@ func checkBlockingRulesWindows(output []byte, rulesToCheck rulesToCheckByPort) (
 			continue
 		}
 
-		rulesForPort, portExists := rulesToCheck[rule.LocalPort]
-		if !portExists {
-			continue
+		sources, exists := rulesToCheck[firewallRule{
+			protocol: rule.Protocol,
+			destPort: rule.LocalPort,
+		}]
+		if exists {
+			blockingRules = append(blockingRules, blockingRule{
+				firewallRule: firewallRule{
+					protocol: rule.Protocol,
+					destPort: rule.LocalPort,
+				},
+				sources: sources,
+			})
 		}
-
-		_, protocolExists := rulesForPort.ProtocolsSet[rule.Protocol]
-		if !protocolExists {
-			continue
-		}
-
-		blockingRules = append(blockingRules, blockingRule{
-			Protocol: rule.Protocol,
-			DestPort: rule.LocalPort,
-			Sources:  rulesForPort.Sources,
-		})
 	}
 
 	return blockingRules, nil
