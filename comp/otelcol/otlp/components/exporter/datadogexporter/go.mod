@@ -71,7 +71,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
