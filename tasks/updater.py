@@ -12,7 +12,7 @@ from tasks.agent import bundle_install_omnibus, render_config
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_version, load_release_versions, timed
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_version, load_dependencies, timed
 
 BIN_PATH = os.path.join(".", "bin", "updater")
 MAJOR_VERSION = '7'
@@ -77,11 +77,10 @@ def build(
 def get_omnibus_env(
     ctx,
     skip_sign=False,
-    release_version="nightly",
     hardened_runtime=False,
     go_mod_cache=None,
 ):
-    env = load_release_versions(ctx, release_version)
+    env = load_dependencies(ctx)
 
     # If the host has a GOMODCACHE set, try to reuse it
     if not go_mod_cache and os.environ.get('GOMODCACHE'):
@@ -155,7 +154,6 @@ def omnibus_build(
     gem_path=None,
     skip_deps=False,
     skip_sign=False,
-    release_version="nightly",
     omnibus_s3_cache=False,
     hardened_runtime=False,
     go_mod_cache=None,
@@ -173,7 +171,6 @@ def omnibus_build(
     env = get_omnibus_env(
         ctx,
         skip_sign=skip_sign,
-        release_version=release_version,
         hardened_runtime=hardened_runtime,
         go_mod_cache=go_mod_cache,
     )

@@ -15,7 +15,7 @@ from invoke.exceptions import Exit
 from tasks.build_tags import get_build_tags, get_default_build_tags
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.go import deps
-from tasks.libs.common.utils import load_release_versions
+from tasks.libs.common.utils import load_dependencies
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
@@ -34,8 +34,6 @@ def build(
     development=True,
     skip_assets=False,
     policies_version=None,
-    release_version="nightly",
-    major_version='7',
 ):
     """
     Build Cluster Agent
@@ -54,15 +52,14 @@ def build(
         race,
         development,
         skip_assets,
-        major_version=major_version,
     )
 
     if policies_version is None:
-        print(f"Loading release versions for {release_version}")
-        env = load_release_versions(ctx, release_version)
+        print("Loading dependencies from release.json")
+        env = load_dependencies(ctx)
         if "SECURITY_AGENT_POLICIES_VERSION" in env:
             policies_version = env["SECURITY_AGENT_POLICIES_VERSION"]
-            print(f"Security Agent polices for {release_version}: {policies_version}")
+            print(f"Security Agent polices: {policies_version}")
 
     build_context = "Dockerfiles/cluster-agent"
     policies_path = f"{build_context}/security-agent-policies"

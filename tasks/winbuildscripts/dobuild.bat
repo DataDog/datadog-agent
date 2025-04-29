@@ -1,13 +1,11 @@
 @echo PARAMS %*
-@echo RELEASE_VERSION %RELEASE_VERSION%
 @echo MAJOR_VERSION %MAJOR_VERSION%
 @echo PY_RUNTIMES %PY_RUNTIMES%
 @echo GO_VERSION_CHECK %GO_VERSION_CHECK%
 
-if NOT DEFINED RELEASE_VERSION set RELEASE_VERSION=%~1
-if NOT DEFINED MAJOR_VERSION set MAJOR_VERSION=%~2
-if NOT DEFINED PY_RUNTIMES set PY_RUNTIMES=%~3
-if NOT DEFINED GO_VERSION_CHECK set GO_VERSION_CHECK=%~4
+if NOT DEFINED MAJOR_VERSION set MAJOR_VERSION=%~1
+if NOT DEFINED PY_RUNTIMES set PY_RUNTIMES=%~2
+if NOT DEFINED GO_VERSION_CHECK set GO_VERSION_CHECK=%~3
 
 set OMNIBUS_BUILD=agent.omnibus-build
 set OMNIBUS_ARGS=--python-runtimes "%PY_RUNTIMES%"
@@ -51,12 +49,12 @@ if "%GO_VERSION_CHECK%" == "true" (
     inv -e check-go-version || exit /b 104
 )
 
-@echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION%"
-inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% || exit /b 105
+@echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION%"
+inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% || exit /b 105
 
 REM only build MSI for main targets for now.
 if "%OMNIBUS_TARGET%" == "main" (
-    @echo "inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%" --release-version %RELEASE_VERSION%
-    inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%" --release-version %RELEASE_VERSION% || exit /b 106
+    @echo "inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%"
+    inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%" || exit /b 106
 )
 popd

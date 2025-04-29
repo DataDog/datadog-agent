@@ -47,11 +47,11 @@
     - .kitchen_azure_x64
   before_script:  # test all of the kernels to make sure the driver loads and runs properly
     - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
-    - export WINDOWS_DDPROCMON_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION::WINDOWS_DDPROCMON_DRIVER")
-    - export WINDOWS_DDPROCMON_VERSION=$(inv release.get-release-json-value "$RELEASE_VERSION::WINDOWS_DDPROCMON_VERSION")
-    - export WINDOWS_DDPROCMON_SHASUM=$(inv release.get-release-json-value "$RELEASE_VERSION::WINDOWS_DDPROCMON_SHASUM")
+    - export WINDOWS_DDPROCMON_DRIVER=$(inv release.get-release-json-value "$AGENT_DEPENDENCIES::WINDOWS_DDPROCMON_DRIVER")
+    - export WINDOWS_DDPROCMON_VERSION=$(inv release.get-release-json-value "$AGENT_DEPENDENCIES::WINDOWS_DDPROCMON_VERSION")
+    - export WINDOWS_DDPROCMON_SHASUM=$(inv release.get-release-json-value "$AGENT_DEPENDENCIES::WINDOWS_DDPROCMON_SHASUM")
 
-    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION::WINDOWS_DDNPM_DRIVER")
+    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$AGENT_DEPENDENCIES::WINDOWS_DDNPM_DRIVER")
     - cd $DD_AGENT_TESTING_DIR
     - tasks/kitchen_setup.sh
   script:
@@ -72,7 +72,7 @@
     - .kitchen_azure_x64
   before_script:  # test all of the kernels to make sure the driver loads and runs properly
     - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
-    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION::WINDOWS_DDNPM_DRIVER")
+    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$AGENT_DEPENDENCIES::WINDOWS_DDNPM_DRIVER")
     - cd $DD_AGENT_TESTING_DIR
     - tasks/kitchen_setup.sh
   script:
@@ -94,7 +94,7 @@
     KITCHEN_OSVERS: "win2016"
   before_script:  # Use only 2016 and 2019 for testing that we upgrade properly and don't install the driver when not specified
     - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
-    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION::WINDOWS_DDNPM_DRIVER")
+    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$AGENT_DEPENDENCIES::WINDOWS_DDNPM_DRIVER")
     - cd $DD_AGENT_TESTING_DIR
     - tasks/kitchen_setup.sh
   script:

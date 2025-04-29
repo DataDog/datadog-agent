@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
-from tasks.libs.common.utils import get_version, load_release_versions, timed
+from tasks.libs.common.utils import get_version, load_dependencies, timed
 
 # Windows only import
 try:
@@ -51,8 +51,8 @@ def _get_vs_build_command(cmd, vstudio_root=None):
     return cmd
 
 
-def _get_env(ctx, major_version='7', python_runtimes='3', release_version='nightly'):
-    env = load_release_versions(ctx, release_version)
+def _get_env(ctx, major_version='7', python_runtimes='3'):
+    env = load_dependencies(ctx)
 
     env['PACKAGE_VERSION'] = get_version(
         ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
@@ -245,13 +245,11 @@ def _build_msi(ctx, env, outdir, name):
 
 
 @task
-def build(
-    ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', release_version='nightly', debug=False
-):
+def build(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', debug=False):
     """
     Build the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version, python_runtimes, release_version)
+    env = _get_env(ctx, major_version, python_runtimes)
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
 
@@ -302,13 +300,11 @@ def build(
 
 
 @task
-def test(
-    ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', release_version='nightly', debug=False
-):
+def test(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', debug=False):
     """
     Run the unit test for the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version, python_runtimes, release_version)
+    env = _get_env(ctx, major_version, python_runtimes)
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
 

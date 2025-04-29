@@ -22,10 +22,9 @@ from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
+    RELEASE_JSON_DEPENDENCIES,
     check_clean_branch_state,
     get_version,
-    nightly_entry_for,
-    release_entry_for,
 )
 from tasks.libs.version import Version
 from tasks.pipeline import edit_schedule, run
@@ -470,40 +469,27 @@ def _get_highest_repo_version(
     return highest_version
 
 
-def _get_release_version_from_release_json(release_json, major_version, version_re, release_json_key=None):
+def _get_release_version_from_release_json(release_json, version_re, release_json_key):
     """
-    If release_json_key is None, returns the highest version entry in release.json.
-    If release_json_key is set, returns the entry for release_json_key of the highest version entry in release.json.
+    returns the release component version for release_json_key in the dependencies entry of the release.json
     """
 
-    release_version = None
     release_component_version = None
+    dependencies_entry = release_json.get(RELEASE_JSON_DEPENDENCIES, None)
 
-    # Get the release entry for the given Agent major version
-    release_entry_name = release_entry_for(major_version)
-    release_json_entry = release_json.get(release_entry_name, None)
+    if dependencies_entry is None:
+        raise Exit(f"release.json is missing a {RELEASE_JSON_DEPENDENCIES} entry.", 1)
 
-    # Check that the release entry exists, otherwise fail
-    if release_json_entry:
-        release_version = release_entry_name
+    # Check that the component's version is defined in the dependencies entry
+    match = version_re.match(dependencies_entry.get(release_json_key, ""))
+    if match:
+        release_component_version = _create_version_from_match(match)
+    else:
+        print(
+            f"{RELEASE_JSON_DEPENDENCIES} does not have a valid {release_json_key} ({dependencies_entry.get(release_json_key, '')}), ignoring"
+        )
 
-        # Check that the component's version is defined in the release entry
-        if release_json_key is not None:
-            match = version_re.match(release_json_entry.get(release_json_key, ""))
-            if match:
-                release_component_version = _create_version_from_match(match)
-            else:
-                print(
-                    f"{release_entry_name} does not have a valid {release_json_key} ({release_json_entry.get(release_json_key, '')}), ignoring"
-                )
-
-    if not release_version:
-        raise Exit(f"Couldn't find any matching {release_version} version.", 1)
-
-    if release_json_key is not None:
-        return release_component_version
-
-    return release_version
+    return release_component_version
 
 
 ##
@@ -573,12 +559,12 @@ def _fetch_dependency_repo_version(
     return version
 
 
-def _get_jmxfetch_release_json_info(release_json, agent_major_version, is_first_rc=False):
+def _get_jmxfetch_release_json_info(release_json):
     """
     Gets the JMXFetch version info from the previous entries in the release.json file.
     """
 
-    release_json_version_data = _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc)
+    release_json_version_data = release_json[RELEASE_JSON_DEPENDENCIES]
 
     jmxfetch_version = release_json_version_data['JMXFETCH_VERSION']
     jmxfetch_shasum = release_json_version_data['JMXFETCH_HASH']
@@ -588,11 +574,11 @@ def _get_jmxfetch_release_json_info(release_json, agent_major_version, is_first_
     return jmxfetch_version, jmxfetch_shasum
 
 
-def _get_windows_release_json_info(release_json, agent_major_version, is_first_rc=False):
+def _get_windows_release_json_info(release_json):
     """
     Gets the Windows NPM driver info from the previous entries in the release.json file.
     """
-    release_json_version_data = _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc)
+    release_json_version_data = release_json[RELEASE_JSON_DEPENDENCIES]
 
     win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum = _get_windows_driver_info(release_json_version_data, 'DDNPM')
     win_ddprocmon_driver, win_ddprocmon_version, win_ddprocmon_shasum = _get_windows_driver_info(
@@ -629,22 +615,6 @@ def _get_windows_driver_info(release_json_version_data, driver_name):
     return driver_value, version_value, shasum_value
 
 
-def _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc=False):
-    """
-    Gets the version info from the previous entries in the release.json file.
-    """
-
-    # First RC should use the data from nightly section otherwise reuse the last RC info
-    if is_first_rc:
-        previous_release_json_version = nightly_entry_for(agent_major_version)
-    else:
-        previous_release_json_version = release_entry_for(agent_major_version)
-
-    print(f"Using '{previous_release_json_version}' values")
-
-    return release_json[previous_release_json_version]
-
-
 ##
 ## release_json object update function
 ##
@@ -652,7 +622,6 @@ def _get_release_json_info_for_next_rc(release_json, agent_major_version, is_fir
 
 def _update_release_json_entry(
     release_json,
-    release_entry,
     integrations_version,
     omnibus_ruby_version,
     jmxfetch_version,
@@ -696,7 +665,7 @@ def _update_release_json_entry(
         new_release_json[key] = value
 
     # Then update the entry
-    new_release_json[release_entry] = _stringify_config(new_version_config)
+    new_release_json[RELEASE_JSON_DEPENDENCIES] = _stringify_config(new_version_config)
 
     return new_release_json
 
@@ -706,7 +675,7 @@ def _update_release_json_entry(
 ##
 
 
-def _update_release_json(release_json, release_entry, new_version: Version, max_version: Version):
+def _update_release_json(release_json, new_version: Version, max_version: Version):
     """
     Updates the provided release.json object by fetching compatible versions for all dependencies
     of the provided Agent version, constructing the new entry, adding it to the release.json object
@@ -778,7 +747,6 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
     # Add new entry to the release.json object and return it
     return _update_release_json_entry(
         release_json,
-        release_entry,
         integrations_version,
         omnibus_ruby_version,
         jmxfetch_version,
@@ -800,11 +768,10 @@ def update_release_json(new_version: Version, max_version: Version):
     """
     release_json = _load_release_json()
 
-    release_entry = release_entry_for(new_version.major)
-    print(f"Updating {release_entry} for {new_version}")
+    print(f"Updating release.json for {new_version}")
 
     # Update release.json object with the entry for the new version
-    release_json = _update_release_json(release_json, release_entry, new_version, max_version)
+    release_json = _update_release_json(release_json, new_version, max_version)
 
     _save_release_json(release_json)
 
@@ -1572,7 +1539,7 @@ def check_omnibus_branches(ctx):
                 f'git clone --depth=50 https://github.com/DataDog/{repo_name} --branch {branch} {tmpdir}/{repo_name}',
                 hide='stdout',
             )
-            commit = _get_release_json_value(f'nightly::{release_json_field}')
+            commit = _get_release_json_value(f'{RELEASE_JSON_DEPENDENCIES}::{release_json_field}')
             if ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited != 0:
                 raise Exit(
                     code=1,

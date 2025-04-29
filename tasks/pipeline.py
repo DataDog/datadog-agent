@@ -17,8 +17,6 @@ from tasks.libs.common.utils import (
     check_clean_branch_state,
     get_all_allowed_repo_branches,
     is_allowed_repo_branch,
-    nightly_entry_for,
-    release_entry_for,
 )
 from tasks.libs.pipeline_notifications import read_owners, send_slack_message
 from tasks.libs.pipeline_tools import (
@@ -188,7 +186,6 @@ def run(
     ctx,
     git_ref=None,
     here=False,
-    use_release_entries=False,
     major_versions='6,7',
     repo_branch="dev",
     deploy=False,
@@ -208,9 +205,6 @@ def run(
     Release Candidate related flags:
     Use --rc-build to mark the build as Release Candidate.
     Use --rc-k8s-deployments to trigger a child pipeline that will deploy Release Candidate build to staging k8s clusters.
-
-    By default, the nightly release.json entries (nightly) are used.
-    Use the --use-release-entries option to use the release release.json entries instead.
 
     By default, the pipeline builds both Agent 6 and Agent 7.
     Use the --major-versions option to specify a comma-separated string of the major Agent versions to build
@@ -235,7 +229,7 @@ def run(
       inv pipeline.run --here --e2e-tests
 
     Run a deploy pipeline on the 7.32.0 tag, uploading the artifacts to the stable branch of the staging repositories:
-      inv pipeline.run --deploy --use-release-entries --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
+      inv pipeline.run --deploy --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
     """
 
     gitlab = Gitlab(api_token=get_gitlab_token())
@@ -243,11 +237,6 @@ def run(
 
     if (not git_ref and not here) or (git_ref and here):
         raise Exit("ERROR: Exactly one of --here or --git-ref <git ref> must be specified.", code=1)
-
-    if use_release_entries:
-        release_version = release_entry_for(6)
-    else:
-        release_version = nightly_entry_for(6)
 
     major_versions = major_versions.split(',')
     if '6' not in major_versions:
@@ -295,7 +284,6 @@ def run(
         pipeline_id = trigger_agent_pipeline(
             gitlab,
             git_ref,
-            release_version,
             repo_branch,
             deploy=deploy,
             all_builds=all_builds,
