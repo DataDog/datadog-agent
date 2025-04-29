@@ -19,7 +19,7 @@ import (
 
 	"go.opentelemetry.io/collector/component/componenttest"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
