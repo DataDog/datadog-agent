@@ -23,13 +23,6 @@ deploy_mutable_image_tags-a7:
   stage: deploy_mutable_image_tags
   rules:
     !reference [.on_final]
-  needs:
-    - job: deploy_containers-a7
-      artifacts: false  
-    - job: deploy_containers-a7-win-only
-      artifacts: false
-    - job: deploy_containers-a7-full
-      artifacts: false
   parallel:
     matrix:
       - IMG_NEW_TAGS: 7,latest
@@ -60,13 +53,6 @@ deploy_mutable_image_tags-a7_internal:
   stage: deploy_mutable_image_tags
   rules:
     !reference [.on_internal_final]
-  needs:
-    - job: deploy_containers-a7_internal
-      artifacts: false
-    - job: deploy_containers-a7-fips_internal
-      artifacts: false
-    - job: deploy_containers-a7-full-internal
-      artifacts: false
   parallel:
     matrix:
       - IMG_NEW_TAGS: 7-jmx
@@ -81,9 +67,6 @@ deploy_mutable_image_tags-dogstatsd:
   stage: deploy_mutable_image_tags
   rules:
     !reference [.on_final]
-  needs:
-    - job: deploy_containers-dogstatsd
-      artifacts: false
   before_script:
     - VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_TAG_REFERENCE=${DSD_REPOSITORY}:${VERSION}
@@ -94,9 +77,6 @@ deploy_mutable_image_tags-a7-fips:
   stage: deploy_mutable_image_tags
   rules:
     !reference [.on_final]
-  needs:
-    - job: deploy_containers-a7-fips
-      artifacts: false
   parallel:
     matrix:
       - IMG_NEW_TAGS: 7-fips
