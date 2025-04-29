@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/tagset
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/sort v0.60.0
+	github.com/DataDog/datadog-agent/pkg/util/sort v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/stretchr/testify v1.10.0
 	github.com/twmb/murmur3 v1.1.8
 )
