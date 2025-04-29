@@ -17,6 +17,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	healthmock "github.com/DataDog/datadog-agent/comp/logs/health/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
@@ -38,12 +39,13 @@ func (suite *AuditorTestSuite) SetupTest() {
 
 	configComponent := configmock.NewMock(suite.T())
 	logComponent := logmock.New(suite.T())
-
+	healthRegistrar := healthmock.NewMockRegistrar()
 	configComponent.SetWithoutSource("logs_config.run_path", suite.testRunPathDir)
 
 	deps := Dependencies{
 		Config: configComponent,
 		Log:    logComponent,
+		Health: healthRegistrar,
 	}
 
 	suite.a = newAuditor(deps)

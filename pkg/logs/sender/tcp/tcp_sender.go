@@ -9,7 +9,6 @@ package tcp
 import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -21,7 +20,7 @@ import (
 // NewTCPSender returns a new tcp sender.
 func NewTCPSender(
 	config pkgconfigmodel.Reader,
-	auditor auditor.Auditor,
+	sink sender.Sink,
 	bufferSize int,
 	serverlessMeta sender.ServerlessMeta,
 	endpoints *config.Endpoints,
@@ -38,7 +37,7 @@ func NewTCPSender(
 
 	return sender.NewSender(
 		config,
-		auditor,
+		sink,
 		destinationFactory,
 		bufferSize,
 		serverlessMeta,
