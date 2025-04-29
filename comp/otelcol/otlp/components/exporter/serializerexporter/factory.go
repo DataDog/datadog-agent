@@ -185,14 +185,11 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		if err != nil {
 			return nil, err
 		}
-		go func() {
-			params.Logger.Info("starting forwarder")
-			err := forwarder.Start()
-			if err != nil {
-				params.Logger.Error("failed to start forwarder", zap.Error(err))
-			}
-		}()
-
+		params.Logger.Info("starting forwarder")
+		err := forwarder.Start()
+		if err != nil {
+			params.Logger.Error("failed to start forwarder", zap.Error(err))
+		}
 	}
 
 	// TODO: Ideally the attributes translator would be created once and reused
@@ -225,7 +222,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 	}
 
 	exporter, err := exporterhelper.NewMetrics(ctx, params, cfg, newExp.ConsumeMetrics,
-		exporterhelper.WithQueue(cfg.QueueConfig),
+		exporterhelper.WithQueue(cfg.QueueBatchConfig),
 		exporterhelper.WithTimeout(cfg.TimeoutConfig),
 		// the metrics remapping code mutates data
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: true}),
