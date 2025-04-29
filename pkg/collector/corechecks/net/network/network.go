@@ -247,8 +247,9 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) er
 		}
 	}
 
-	driverName := string(bytes.Trim([]byte(drvInfo.Driver[:]), "\x00"))
-	driverVersion := string(bytes.Trim([]byte(drvInfo.Version[:]), "\x00"))
+	replacer := strings.NewReplacer("\x00", "")
+	driverName := replacer.Replace(drvInfo.Driver)
+	driverVersion := replacer.Replace(drvInfo.Version)
 
 	// Fetch ethtool stats values (ETHTOOL_GSTATS)
 	statsMap, err := getEthtoolStats(string(ifaceBytes))
