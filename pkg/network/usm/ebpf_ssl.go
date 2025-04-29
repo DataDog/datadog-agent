@@ -467,7 +467,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 		ExcludeTargets:                 uprobes.ExcludeSelf | uprobes.ExcludeInternal | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,
 		EbpfConfig:                     &c.Config,
 		PerformInitialScan:             true,
-		EnablePeriodicScanNewProcesses: false,
+		EnablePeriodicScanNewProcesses: true,
 		SharedLibsLibset:               sharedlibraries.LibsetCrypto,
 	}
 
@@ -481,7 +481,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 	}
 
 	var err error
-	o.attacher, err = uprobes.NewUprobeAttacher(consts.USMModuleName, UsmTLSAttacherName, attacherConfig, m, nil, &uprobes.NativeBinaryInspector{}, monitor.GetProcessMonitor())
+	o.attacher, err = uprobes.NewUprobeAttacher(consts.USMModuleName, UsmTLSAttacherName, attacherConfig, m, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{}, monitor.GetProcessMonitor())
 	if err != nil {
 		return nil, fmt.Errorf("error initializing uprobes attacher: %s", err)
 	}
