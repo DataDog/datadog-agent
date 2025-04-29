@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec /opt/datadog-agent/bin/agent/checks-agent start --cfgpath=/etc/datadog-agent/datadog.yaml

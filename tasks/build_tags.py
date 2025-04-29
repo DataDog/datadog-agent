@@ -91,7 +91,6 @@ AGENT_TAGS = {
     "orchestrator",
     "otlp",
     "podman",
-    "python",
     "systemd",
     "trivy",
     "trivy_no_javadb",
@@ -242,6 +241,10 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
     }
 )
 
+
+# CHECKS_AGENT_TAGS lists the tags needed when building the checks agent
+CHECKS_AGENT_TAGS = {"zlib", "zstd", "python"}
+
 CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
 
 # AGENT_TEST_TAGS lists the tags that have to be added to run tests
@@ -323,6 +326,11 @@ build_tags = {
         "system-tests": AGENT_TAGS,
         "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+    },
+    AgentFlavor.checks: {
+        "agent": CHECKS_AGENT_TAGS,
+        "lint": CHECKS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "unit-tests": CHECKS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
     },
 }
 

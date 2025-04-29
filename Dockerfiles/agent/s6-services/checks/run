@@ -1,0 +1,4 @@
+#!/usr/bin/execlineb -P
+
+foreground { /initlog.sh "starting checks-agent" }
+checks-agent start --cfgpath=/etc/datadog-agent/datadog.yaml

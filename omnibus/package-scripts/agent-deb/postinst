@@ -34,6 +34,7 @@ elif command -v initctl >/dev/null 2>&1; then
     :
 elif command -v update-rc.d >/dev/null 2>&1; then
     update-rc.d $SERVICE_NAME defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME with update-rc.d"
+    update-rc.d $SERVICE_NAME-checks defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-checks with update-rc.d"
     update-rc.d $SERVICE_NAME-process defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-process with update-rc.d"
     update-rc.d $SERVICE_NAME-trace defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-trace with update-rc.d"
     update-rc.d $SERVICE_NAME-security defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-security with update-rc.d"

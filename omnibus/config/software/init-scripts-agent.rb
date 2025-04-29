@@ -5,7 +5,7 @@ description "Generate and configure init scripts packaging"
 always_build true
 
 build do
-  output_config_dir = ENV["OUTPUT_CONFIG_DIR"] || "" 
+  output_config_dir = ENV["OUTPUT_CONFIG_DIR"] || ""
   if linux_target?
     etc_dir = "#{output_config_dir}/etc/datadog-agent"
     mkdir "/etc/init"
@@ -17,6 +17,10 @@ build do
       systemd_directory = "/lib/systemd/system"
       erb source: "upstart_debian.conf.erb",
           dest: "/etc/init/datadog-agent.conf",
+          mode: 0644,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "upstart_debian.checks.conf.erb",
+          dest: "/etc/init/datadog-agent-checks.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_debian.process.conf.erb",
@@ -39,6 +43,10 @@ build do
           dest: "/etc/init.d/datadog-agent",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "sysvinit_debian.checks.erb",
+          dest: "/etc/init.d/datadog-agent-checks",
+          mode: 0755,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_debian.process.erb",
           dest: "/etc/init.d/datadog-agent-process",
           mode: 0755,
@@ -53,6 +61,7 @@ build do
           vars: { install_dir: install_dir, etc_dir: etc_dir }
 
       project.extra_package_file '/etc/init.d/datadog-agent'
+      project.extra_package_file '/etc/init.d/datadog-agent-checks'
       project.extra_package_file '/etc/init.d/datadog-agent-process'
       project.extra_package_file '/etc/init.d/datadog-agent-trace'
       project.extra_package_file '/etc/init.d/datadog-agent-security'
@@ -62,6 +71,10 @@ build do
       # version of upstart (0.6.5) that RHEL 6 provides.
       erb source: "upstart_redhat.conf.erb",
           dest: "/etc/init/datadog-agent.conf",
+          mode: 0644,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "upstart_redhat.checks.conf.erb",
+          dest: "/etc/init/datadog-agent-checks.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_redhat.process.conf.erb",
@@ -82,6 +95,7 @@ build do
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     end
     project.extra_package_file '/etc/init/datadog-agent.conf'
+    project.extra_package_file '/etc/init/datadog-agent-checks.conf'
     project.extra_package_file '/etc/init/datadog-agent-process.conf'
     project.extra_package_file '/etc/init/datadog-agent-sysprobe.conf'
     project.extra_package_file '/etc/init/datadog-agent-trace.conf'
@@ -89,6 +103,10 @@ build do
 
     erb source: "systemd.service.erb",
         dest: "#{systemd_directory}/datadog-agent.service",
+        mode: 0644,
+        vars: { install_dir: install_dir, etc_dir: etc_dir }
+    erb source: "systemd.checks.service.erb",
+        dest: "#{systemd_directory}/datadog-agent-checks.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
     erb source: "systemd.process.service.erb",
@@ -108,6 +126,7 @@ build do
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
     project.extra_package_file "#{systemd_directory}/datadog-agent.service"
+    project.extra_package_file "#{systemd_directory}/datadog-agent-checks.service"
     project.extra_package_file "#{systemd_directory}/datadog-agent-process.service"
     project.extra_package_file "#{systemd_directory}/datadog-agent-sysprobe.service"
     project.extra_package_file "#{systemd_directory}/datadog-agent-trace.service"
