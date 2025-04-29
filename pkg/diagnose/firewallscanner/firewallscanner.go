@@ -144,10 +144,10 @@ func buildBlockingRulesDiagnosis(name string, blockingRules []blockingRule) diag
 
 	var msgBuilder strings.Builder
 	msgBuilder.WriteString("Blocking firewall rules were found:\n")
-	for _, blockingRule := range blockingRules {
+	for _, rule := range blockingRules {
 		msgBuilder.WriteString(
 			fmt.Sprintf("%s packets might be blocked because destination port %s is blocked for protocol %s\n",
-				strings.Join(blockingRule.sources, ", "), blockingRule.destPort, blockingRule.protocol))
+				strings.Join(rule.sources, ", "), rule.destPort, rule.protocol))
 	}
 	return diagnose.Diagnosis{
 		Status:    diagnose.DiagnosisWarning,
