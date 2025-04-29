@@ -13,19 +13,17 @@ import (
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 )
 
-func Test_buildBlockedPortsDiagnosis(t *testing.T) {
+func Test_buildBlockingRulesDiagnosis(t *testing.T) {
 	tests := []struct {
 		name              string
 		diagnosisName     string
-		forProtocol       string
-		blockedPorts      []blockedPort
+		blockingRules     []blockingRule
 		expectedDiagnosis diagnose.Diagnosis
 	}{
 		{
-			name:          "no blocked ports",
+			name:          "no blocking rules",
 			diagnosisName: "Diagnosis Name",
-			forProtocol:   "TCP",
-			blockedPorts:  []blockedPort{},
+			blockingRules: []blockingRule{},
 			expectedDiagnosis: diagnose.Diagnosis{
 				Status:    diagnose.DiagnosisSuccess,
 				Name:      "Diagnosis Name",
@@ -33,19 +31,20 @@ func Test_buildBlockedPortsDiagnosis(t *testing.T) {
 			},
 		},
 		{
-			name:          "with blocked ports",
+			name:          "with blocking rules",
 			diagnosisName: "Diagnosis Name",
-			forProtocol:   "UDP",
-			blockedPorts: []blockedPort{
+			blockingRules: []blockingRule{
 				{
-					Port: "9162",
+					Protocol: "UDP",
+					Port:     "9162",
 					ForIntegrations: []string{
 						"snmp_traps",
 						"netflow (ipfix)",
 					},
 				},
 				{
-					Port: "1234",
+					Protocol: "UDP",
+					Port:     "1234",
 					ForIntegrations: []string{
 						"netflow (sflow5)",
 					},
@@ -63,7 +62,7 @@ func Test_buildBlockedPortsDiagnosis(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			diagnosis := buildBlockedPortsDiagnosis(tt.diagnosisName, tt.forProtocol, tt.blockedPorts)
+			diagnosis := buildBlockingRulesDiagnosis(tt.diagnosisName, tt.blockingRules)
 			assert.Equal(t, tt.expectedDiagnosis, diagnosis)
 		})
 	}

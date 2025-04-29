@@ -25,13 +25,14 @@ type destPort struct {
 	FromIntegration string
 }
 
-type blockedPort struct {
+type blockingRule struct {
+	Protocol        string
 	Port            string
 	ForIntegrations []string
 }
 
 type firewallScanner interface {
-	DiagnoseBlockedPorts(forProtocol string, destPorts integrationsByDestPort, log log.Component) []diagnose.Diagnosis
+	DiagnoseBlockingRules(forProtocol string, destPorts integrationsByDestPort, log log.Component) []diagnose.Diagnosis
 }
 
 // DiagnoseBlockers checks for firewall rules that may block SNMP traps and NetFlow packets.
@@ -46,7 +47,7 @@ func DiagnoseBlockers(config config.Component, log log.Component) []diagnose.Dia
 		return []diagnose.Diagnosis{}
 	}
 
-	return scanner.DiagnoseBlockedPorts("UDP", destPorts, log)
+	return scanner.DiagnoseBlockingRules("UDP", destPorts, log)
 }
 
 func getDestPorts(config config.Component) integrationsByDestPort {
@@ -121,8 +122,8 @@ func getFirewallScanner() (firewallScanner, error) {
 	return scanner, nil
 }
 
-func buildBlockedPortsDiagnosis(name string, forProtocol string, blockedPorts []blockedPort) diagnose.Diagnosis {
-	if len(blockedPorts) == 0 {
+func buildBlockingRulesDiagnosis(name string, blockingRules []blockingRule) diagnose.Diagnosis {
+	if len(blockingRules) == 0 {
 		return diagnose.Diagnosis{
 			Status:    diagnose.DiagnosisSuccess,
 			Name:      name,
@@ -132,10 +133,10 @@ func buildBlockedPortsDiagnosis(name string, forProtocol string, blockedPorts []
 
 	var msgBuilder strings.Builder
 	msgBuilder.WriteString("Blocking firewall rules were found:\n")
-	for _, blockedPort := range blockedPorts {
+	for _, blockingRule := range blockingRules {
 		msgBuilder.WriteString(
 			fmt.Sprintf("%s packets might be blocked because destination port %s is blocked for protocol %s\n",
-				strings.Join(blockedPort.ForIntegrations, ", "), blockedPort.Port, forProtocol))
+				strings.Join(blockingRule.ForIntegrations, ", "), blockingRule.Port, blockingRule.Protocol))
 	}
 	return diagnose.Diagnosis{
 		Status:    diagnose.DiagnosisWarning,
