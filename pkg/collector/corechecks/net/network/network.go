@@ -43,9 +43,9 @@ const (
 var (
 	filesystem = afero.NewOsFs()
 
-	ethtoolObject = ethtool.Ethtool{}
-	getDrvInfo    = ethtoolObject.DriverInfo
-	getStats      = ethtoolObject.Stats
+	ethtoolObject     = ethtool.Ethtool{}
+	getEthtoolDrvInfo = ethtoolObject.DriverInfo
+	getEthtoolStats   = ethtoolObject.Stats
 
 	runCommandFunction  = runCommand
 	ssAvailableFunction = checkSSExecutable
@@ -238,7 +238,7 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) er
 	}
 
 	// Fetch driver information (ETHTOOL_GDRVINFO)
-	drvInfo, err := getDrvInfo(string(ifaceBytes))
+	drvInfo, err := getEthtoolDrvInfo(string(ifaceBytes))
 	if err != nil {
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("driver info is not supported for interface: %s", interfaceIO.Name)
@@ -251,7 +251,7 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) er
 	driverVersion := string(bytes.Trim([]byte(drvInfo.Version[:]), "\x00"))
 
 	// Fetch ethtool stats values (ETHTOOL_GSTATS)
-	statsMap, err := getStats(string(ifaceBytes))
+	statsMap, err := getEthtoolStats(string(ifaceBytes))
 	if err != nil {
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("ethtool stats are not supported for interface: %s", interfaceIO.Name)
@@ -459,7 +459,14 @@ func parseQueue(queueStr string) uint64 {
 	return queue
 }
 
-func submitConnectionsMetrics(sender sender.Sender, protocolName string, stateMetricSuffixMapping map[string]string, connectionsStats []net.ConnectionStat, collectConnectionQueues bool, ssAvailable bool) {
+func submitConnectionsMetrics(
+	sender sender.Sender,
+	protocolName string,
+	stateMetricSuffixMapping map[string]string,
+	connectionsStats []net.ConnectionStat,
+	collectConnectionQueues bool,
+	ssAvailable bool,
+) {
 	metricCount := map[string]float64{}
 	for _, suffix := range stateMetricSuffixMapping {
 		metricCount[suffix] = 0
@@ -653,7 +660,7 @@ func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo
 			if err != nil {
 				log.Debugf("Error reading %s: %v", metricFileLocation, err)
 			}
-			sender.Gauge("system.net.conntrack."+metricName, float64(value), "", []string{})
+			sender.Gauge("system.net.conntrack."+metricName, float64(value), "", nil)
 		}
 	}
 }
