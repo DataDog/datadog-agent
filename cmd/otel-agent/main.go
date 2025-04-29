@@ -17,7 +17,9 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/version"
 )
 
+var IsBYOC string
+
 func main() {
 	flavor.SetFlavor(flavor.OTelAgent)
-	os.Exit(runcmd.Run(command.MakeRootCommand()))
+	os.Exit(runcmd.Run(command.MakeRootCommand(IsBYOC)))
 }

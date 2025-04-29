@@ -10,6 +10,7 @@ package collectorimpl
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -64,6 +65,7 @@ type Requires struct {
 
 	CollectorContrib collectorcontrib.Component
 	URIs             []string
+	Params           Params
 
 	// Below are dependencies required by Datadog exporter and other Agent functionalities
 	Log                 corelog.Component
@@ -129,9 +131,9 @@ func newConfigProviderSettings(uris []string, converter confmap.Converter, enhan
 
 func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.GatewayUsage) {
 	if v, ok := reqs.LogsAgent.Get(); ok {
-		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage)
+		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, reqs.Params.IsBYOC)
 	} else {
-		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage)
+		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, reqs.Params.IsBYOC)
 	}
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, hostname.Get)
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactoryForAgent(reqs.Tagger, hostname.Get)
@@ -147,6 +149,7 @@ var buildInfo = component.BuildInfo{
 
 // NewComponent returns a new instance of the collector component with full Agent functionalities.
 func NewComponent(reqs Requires) (Provides, error) {
+	fmt.Println("REQS IN NEWCOMPONENT : ", reqs.Params.IsBYOC)
 	if !reqs.Config.GetBool("otelcollector.enabled") {
 		reqs.Log.Info("*** OpenTelemetry Collector is not enabled, exiting application ***. Set the config option `otelcollector.enabled` or the environment variable `DD_OTELCOLLECTOR_ENABLED` at true to enable it.")
 		// Required to signal that the whole app must stop.

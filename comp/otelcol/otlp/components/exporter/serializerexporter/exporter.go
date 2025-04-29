@@ -83,6 +83,7 @@ type Exporter struct {
 	hostmetadata    datadogconfig.HostMetadataConfig
 	reporter        *inframetadata.Reporter
 	gatewayUsage    otel.GatewayUsage
+	IsBYOC          string
 }
 
 // TODO: expose the same function in OSS exporter and remove this
@@ -150,6 +151,7 @@ func NewExporter(
 	params exporter.Settings,
 	reporter *inframetadata.Reporter,
 	gatewayUsage otel.GatewayUsage,
+	isBYOC string,
 ) (*Exporter, error) {
 	err := enricher.SetCardinality(cfg.Metrics.TagCardinality)
 	if err != nil {
@@ -198,6 +200,7 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 		return err
 	}
 
+	consumer.addBYOCMetric(hostname, e.IsBYOC)
 	consumer.addTelemetryMetric(hostname)
 	consumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
 	consumer.addGatewayUsage(hostname, e.gatewayUsage)

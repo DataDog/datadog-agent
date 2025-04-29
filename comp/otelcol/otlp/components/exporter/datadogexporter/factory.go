@@ -47,6 +47,7 @@ type factory struct {
 	traceagentcmp  traceagent.Component
 	mclientwrapper *metricsclient.StatsdClientWrapper
 	gatewayUsage   otel.GatewayUsage
+	isBYOC         string
 }
 
 // setupTraceAgentCmp sets up the trace agent component.
@@ -78,6 +79,7 @@ func newFactoryWithRegistry(
 	h serializerexporter.SourceProviderFunc,
 	mclientwrapper *metricsclient.StatsdClientWrapper,
 	gatewayUsage otel.GatewayUsage,
+	isBYOC string,
 ) exporter.Factory {
 	f := &factory{
 		registry:       registry,
@@ -120,8 +122,9 @@ func NewFactory(
 	h serializerexporter.SourceProviderFunc,
 	mclientwrapper *metricsclient.StatsdClientWrapper,
 	gatewayUsage otel.GatewayUsage,
+	isBYOC string,
 ) exporter.Factory {
-	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper, gatewayUsage)
+	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper, gatewayUsage, isBYOC)
 }
 
 // CreateDefaultConfig creates the default exporter configuration
@@ -208,7 +211,7 @@ func (f *factory) createMetricsExporter(
 	statsv := set.BuildInfo.Command + set.BuildInfo.Version
 	ctx, cancel := context.WithCancel(ctx) // cancel() runs on shutdown
 	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
-	sf := serializerexporter.NewFactoryForOTelAgent(f.s, &tagEnricher{}, f.h, statsIn, f.gatewayUsage)
+	sf := serializerexporter.NewFactoryForOTelAgent(f.s, &tagEnricher{}, f.h, statsIn, f.gatewayUsage, f.isBYOC)
 	ex := &serializerexporter.ExporterConfig{
 		Metrics: serializerexporter.MetricsConfig{
 			Metrics: cfg.Metrics,
