@@ -40,6 +40,7 @@ agent_dmg-x64-a7:
     NOTARIZATION_TIMEOUT: 30m
     NOTARIZATION_ATTEMPTS: 3
     NOTARIZATION_WAIT_TIME: 15s
+  timeout: 2h
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
   before_script:
