@@ -51,8 +51,7 @@ def build(
         build_exclude,
         race,
         development,
-        skip_assets,
-        major_version=major_version,
+        skip_assets
     )
 
     if policies_version is None:
