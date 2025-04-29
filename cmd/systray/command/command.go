@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -126,6 +127,7 @@ func MakeCommand() *cobra.Command {
 				// require the systray component, causing it to start
 				fx.Invoke(func(_ systray.Component) {}),
 				haagentfx.Module(),
+				ipcfx.ModuleInsecure(), // Using the insecure IPC module to allow the systray to create flares even without IPC stack initialized.
 			)
 		},
 	}
