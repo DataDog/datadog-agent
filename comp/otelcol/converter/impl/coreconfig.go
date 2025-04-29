@@ -138,7 +138,7 @@ func addAPIKeySite(conf *confmap.Conf, coreCfg config.Component, compType string
 			}
 			// TODO: add logic to either fail or log message if api key not found
 			if (apiKey == nil || apiKey == "" || match) && coreCfg.Get("api_key") != nil {
-				apiMap["key"] = coreCfg.Get("api_key")
+				apiMap["key"] = coreCfg.GetString("api_key")
 			}
 		}
 	}

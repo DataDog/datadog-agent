@@ -39,7 +39,6 @@ def _run_calls_to_string(mock_calls):
         'CI_COMMIT_REF_NAME': '',
         'CI_PROJECT_DIR': '',
         'CI_PIPELINE_ID': '',
-        'RELEASE_VERSION': 'nightly',
         'S3_OMNIBUS_GIT_CACHE_BUCKET': 'omnibus-cache',
         'API_KEY_ORG2': 'api-key',
         'AGENT_API_KEY_ORG2': 'agent-api-key',
