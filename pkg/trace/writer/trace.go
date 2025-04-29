@@ -43,7 +43,7 @@ type samplerEnabledReader interface {
 type SampledChunks struct {
 	// TracerPayload contains all the chunks that were sampled as part of processing a payload.
 	TracerPayload *pb.TracerPayload
-	// Size represents the approximated message size in bytes.
+	// Size represents the approximated message size in bytes (upper bound).
 	Size int
 	// SpanCount specifies the number of spans that were sampled as part of a trace inside the TracerPayload.
 	SpanCount int64

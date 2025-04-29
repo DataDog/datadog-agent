@@ -56,20 +56,19 @@ func TestTraceWriter(t *testing.T) {
 		{gzip.NewComponent()},
 		{zstd.NewComponent()},
 	}
-
 	for _, tc := range testCases {
-		srv := newTestServer()
-		cfg := &config.AgentConfig{
-			Hostname:   testHostname,
-			DefaultEnv: testEnv,
-			Endpoints: []*config.Endpoint{{
-				APIKey: "123",
-				Host:   srv.URL,
-			}},
-			TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
-		}
-
 		t.Run(fmt.Sprintf("encoding:%s", tc.compressor.Encoding()), func(t *testing.T) {
+			srv := newTestServer()
+			defer srv.Close()
+			cfg := &config.AgentConfig{
+				Hostname:   testHostname,
+				DefaultEnv: testEnv,
+				Endpoints: []*config.Endpoint{{
+					APIKey: "123",
+					Host:   srv.URL,
+				}},
+				TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+			}
 			testSpans := []*SampledChunks{
 				randomSampledSpans(20, 8),
 				randomSampledSpans(10, 0),
@@ -199,6 +198,7 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledC
 
 func TestTraceWriterFlushSync(t *testing.T) {
 	srv := newTestServer()
+	defer srv.Close()
 	cfg := &config.AgentConfig{
 		Hostname:   testHostname,
 		DefaultEnv: testEnv,
@@ -231,6 +231,7 @@ func TestTraceWriterFlushSync(t *testing.T) {
 
 func TestResetBuffer(t *testing.T) {
 	srv := newTestServer()
+	defer srv.Close()
 	cfg := &config.AgentConfig{
 		Hostname:   testHostname,
 		DefaultEnv: testEnv,
@@ -272,6 +273,7 @@ func TestResetBuffer(t *testing.T) {
 
 func TestTraceWriterSyncStop(t *testing.T) {
 	srv := newTestServer()
+	defer srv.Close()
 	cfg := &config.AgentConfig{
 		Hostname:   testHostname,
 		DefaultEnv: testEnv,
@@ -304,6 +306,7 @@ func TestTraceWriterSyncStop(t *testing.T) {
 
 func TestTraceWriterSyncNoop(t *testing.T) {
 	srv := newTestServer()
+	defer srv.Close()
 	cfg := &config.AgentConfig{
 		Hostname:   testHostname,
 		DefaultEnv: testEnv,
@@ -382,6 +385,7 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 func TestTraceWriterUpdateAPIKey(t *testing.T) {
 	assert := assert.New(t)
 	srv := newTestServer()
+	defer srv.Close()
 	cfg := &config.AgentConfig{
 		Hostname:   testHostname,
 		DefaultEnv: testEnv,
@@ -413,6 +417,7 @@ func TestTraceWriterUpdateAPIKey(t *testing.T) {
 
 func TestTraceWriterInfo(t *testing.T) {
 	srv := newTestServer()
+	defer srv.Close()
 	cfg := &config.AgentConfig{
 		Hostname:   testHostname,
 		DefaultEnv: testEnv,
@@ -421,7 +426,8 @@ func TestTraceWriterInfo(t *testing.T) {
 			Host:   srv.URL,
 		}},
 		SynchronousFlushing: true,
-		TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40, FlushPeriodSeconds: 0.1},
+		// FlushPeriodSeconds is intentionally long to avoid our info stats being stepped on by a time flush
+		TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40, FlushPeriodSeconds: 100},
 	}
 
 	testSpans := []*SampledChunks{
@@ -447,10 +453,10 @@ func TestTraceWriterInfo(t *testing.T) {
 	assert.Equal(t, 2, srv.Accepted())
 	payloadsContain(t, srv.Payloads(), testSpans, zstd.NewComponent())
 
-	assert.Equal(t, tw.statsLastMinute.Spans.Load(), int64(70))
-	assert.Equal(t, tw.statsLastMinute.Events.Load(), int64(13))
-	assert.Equal(t, tw.statsLastMinute.Traces.Load(), int64(3))
-	assert.Equal(t, tw.statsLastMinute.Payloads.Load(), int64(2))
+	assert.Equal(t, int64(70), tw.statsLastMinute.Spans.Load())
+	assert.Equal(t, int64(13), tw.statsLastMinute.Events.Load())
+	assert.Equal(t, int64(3), tw.statsLastMinute.Traces.Load())
+	assert.Equal(t, int64(2), tw.statsLastMinute.Payloads.Load())
 	assert.NotEmpty(t, tw.statsLastMinute.Bytes.Load())
 	assert.NotEmpty(t, tw.statsLastMinute.BytesUncompressed.Load())
 	assert.Empty(t, tw.statsLastMinute.Errors.Load())
