@@ -35,7 +35,7 @@ require (
 
 require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.26.0 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.26.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/quantile v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	go.opentelemetry.io/collector/featuregate v1.30.0 // indirect
