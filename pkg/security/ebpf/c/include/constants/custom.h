@@ -35,8 +35,14 @@
 #define DR_MAX_SEGMENT_LENGTH 255
 #define DR_NO_CALLBACK -1
 
-#define DR_KPROBE_OR_FENTRY 1
-#define DR_TRACEPOINT 2
+enum TAIL_CALL_PROG_TYPE
+{
+    KPROBE_OR_FENTRY_TYPE = 0,
+    TRACEPOINT_TYPE = 1,
+};
+
+#define TAIL_CALL_PROGS(CTX, MAP_PREFIX, KEY) \
+    bpf_tail_call_compat(CTX, &MAP_PREFIX##_progs, KEY)
 
 enum DENTRY_RESOLVER_KEYS
 {

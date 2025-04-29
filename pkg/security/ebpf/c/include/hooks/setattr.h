@@ -88,7 +88,7 @@ int hook_security_inode_setattr(ctx_t *ctx) {
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+    resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall_with(security_inode_predicate);

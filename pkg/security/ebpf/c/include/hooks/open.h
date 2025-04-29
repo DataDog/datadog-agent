@@ -108,7 +108,7 @@ int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
     syscall->resolver.ret = 0;
 
     // tail call
-    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+    resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 
     return 0;
 }

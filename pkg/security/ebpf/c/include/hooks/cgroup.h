@@ -220,7 +220,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 
     cache_dentry_resolver_input(resolver);
 
-    resolve_dentry_no_syscall(ctx, DR_KPROBE_OR_FENTRY);
+    resolve_dentry_no_syscall(ctx, KPROBE_OR_FENTRY_TYPE);
 
     return 0;
 }
