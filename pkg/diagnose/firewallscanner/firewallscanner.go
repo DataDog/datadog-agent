@@ -41,17 +41,28 @@ type firewallScanner interface {
 
 // DiagnoseBlockers checks for firewall rules that may block SNMP traps and Netflow packets.
 func DiagnoseBlockers(config config.Component, log log.Component) []diagnose.Diagnosis {
-	rulesToCheck := getRulesToCheck(config)
-	if len(rulesToCheck) == 0 {
-		return []diagnose.Diagnosis{}
-	}
-
 	scanner, err := getFirewallScanner()
 	if err != nil {
 		return []diagnose.Diagnosis{}
 	}
 
+	rulesToCheck := getRulesToCheck(config)
+	if len(rulesToCheck) == 0 {
+		return []diagnose.Diagnosis{}
+	}
+
 	return scanner.DiagnoseBlockingRules(rulesToCheck, log)
+}
+
+func getFirewallScanner() (firewallScanner, error) {
+	var scanner firewallScanner
+	switch runtime.GOOS {
+	case "windows":
+		scanner = &windowsFirewallScanner{}
+	default:
+		return nil, fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
+	}
+	return scanner, nil
 }
 
 func getRulesToCheck(config config.Component) sourcesByRule {
@@ -120,17 +131,6 @@ func getNetflowRulesToCheck(config config.Component) []ruleToCheck {
 		})
 	}
 	return rulesToCheck
-}
-
-func getFirewallScanner() (firewallScanner, error) {
-	var scanner firewallScanner
-	switch runtime.GOOS {
-	case "windows":
-		scanner = &windowsFirewallScanner{}
-	default:
-		return nil, fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
-	}
-	return scanner, nil
 }
 
 func buildBlockingRulesDiagnosis(name string, blockingRules []blockingRule) diagnose.Diagnosis {
