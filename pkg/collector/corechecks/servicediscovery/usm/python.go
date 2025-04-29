@@ -131,8 +131,7 @@ func (p pythonDetector) detect(args []string) (ServiceMetadata, bool) {
 	case argMod:
 		return NewServiceMetadata(arg, CommandLine), true
 	case argFileName:
-		wd, _ := workingDirFromEnvs(p.ctx.Envs)
-		absPath := abs(arg, wd)
+		absPath := p.ctx.resolveWorkingDirRelativePath(arg)
 		fi, err := fs.Stat(p.ctx.fs, absPath)
 		if err != nil {
 			return ServiceMetadata{}, false
