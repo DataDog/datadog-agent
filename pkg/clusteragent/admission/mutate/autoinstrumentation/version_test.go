@@ -23,6 +23,12 @@ func TestVersion(t *testing.T) {
 		usesInjector   bool
 	}{
 		{
+			name:           "v1 doesnt use the injector",
+			version:        "v1",
+			expectsVersion: instrumentationV1,
+			usesInjector:   false,
+		},
+		{
 			name:           "v2 uses injector",
 			version:        "v2",
 			expectsVersion: instrumentationV2,
