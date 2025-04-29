@@ -261,7 +261,7 @@ func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 	err := s.WaitForInstallerService("Running")
 	s.Require().NoError(err)
 
-	// sanity check: make sure we did indeed install the stable version
+	// sanity check: make sure we did indeed install the current version
 	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(consts.BinaryPath).
 		WithVersionMatchPredicate(func(version string) {

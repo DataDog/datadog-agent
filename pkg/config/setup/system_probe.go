@@ -456,7 +456,7 @@ func suffixHostEtc(suffix string) string {
 func eventMonitorBindEnvAndSetDefault(config pkgconfigmodel.Config, key string, val interface{}) {
 	// Uppercase, replace "." with "_" and add "DD_" prefix to key so that we follow the same environment
 	// variable convention as the core agent.
-	emConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
+	emConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")
 	runtimeSecKey := strings.Replace(emConfigKey, "EVENT_MONITORING_CONFIG", "RUNTIME_SECURITY_CONFIG", 1)
 
 	envs := []string{emConfigKey, runtimeSecKey}
@@ -465,7 +465,7 @@ func eventMonitorBindEnvAndSetDefault(config pkgconfigmodel.Config, key string, 
 
 // eventMonitorBindEnv is the same as eventMonitorBindEnvAndSetDefault, but without setting a default.
 func eventMonitorBindEnv(config pkgconfigmodel.Config, key string) {
-	emConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
+	emConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")
 	runtimeSecKey := strings.Replace(emConfigKey, "EVENT_MONITORING_CONFIG", "RUNTIME_SECURITY_CONFIG", 1)
 
 	config.BindEnv(key, emConfigKey, runtimeSecKey)

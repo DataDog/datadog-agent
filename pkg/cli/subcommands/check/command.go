@@ -501,7 +501,7 @@ func run(
 			// Every instance will create its own directory
 			instanceID := strings.SplitN(string(c.ID()), ":", 2)[1]
 			// Colons can't be part of Windows file paths
-			instanceID = strings.Replace(instanceID, ":", "_", -1)
+			instanceID = strings.ReplaceAll(instanceID, ":", "_")
 			profileDataDir := filepath.Join(cliParams.profileMemoryDir, cliParams.checkName, instanceID)
 
 			snapshotDir := filepath.Join(profileDataDir, "snapshots")
