@@ -137,7 +137,7 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 	if err == nil {
 		for _, deviceIP := range deviceIPs {
 			entityID := subnet.config.Digest(deviceIP.String())
-			_, deviceInfo := l.checkDeviceInfo(subnet.config.Authentications[0], subnet.config.Port, deviceIP.String(), true)
+			deviceInfo := l.checkDeviceInfo(subnet.config.Authentications[0], subnet.config.Port, deviceIP.String())
 
 			l.createService(entityID, subnet, deviceIP.String(), deviceInfo, 0, false)
 		}
@@ -152,7 +152,7 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 	}
 	for _, device := range devices {
 		entityID := subnet.config.Digest(device.IP.String())
-		_, deviceInfo := l.checkDeviceInfo(subnet.config.Authentications[device.AuthIndex], subnet.config.Port, device.IP.String(), true)
+		deviceInfo := l.checkDeviceInfo(subnet.config.Authentications[device.AuthIndex], subnet.config.Port, device.IP.String())
 
 		l.createService(entityID, subnet, device.IP.String(), deviceInfo, device.AuthIndex, false)
 	}
@@ -196,10 +196,16 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 
 	deviceFound := false
 	for authIndex, authentication := range job.subnet.config.Authentications {
-		deviceFound, deviceInfo := l.checkDeviceInfo(authentication, job.subnet.config.Port, deviceIP, false)
+		deviceFound = l.checkDeviceReachable(authentication, job.subnet.config.Port, deviceIP)
 
 		l.deviceDeduper.MarkIPAsProcessed(deviceIP)
 		l.registerDedupedDevices()
+
+		if !deviceFound {
+			continue
+		}
+
+		deviceInfo := l.checkDeviceInfo(authentication, job.subnet.config.Port, deviceIP)
 
 		if deviceFound {
 			l.createService(entityID, job.subnet, deviceIP, deviceInfo, authIndex, true)
@@ -214,55 +220,86 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 	autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey), &autodiscoveryStatus)
 }
 
-func (l *SNMPListener) checkDeviceInfo(authentication snmp.Authentication, port uint16, deviceIP string, skipGetNext bool) (bool, devicededuper.DeviceInfo) {
+func (l *SNMPListener) checkDeviceReachable(authentication snmp.Authentication, port uint16, deviceIP string) bool {
 	params, err := authentication.BuildSNMPParams(deviceIP, port)
 	if err != nil {
 		log.Errorf("Error building params for device %s: %v", deviceIP, err)
-		return false, devicededuper.DeviceInfo{}
+		return false
 	}
 
 	if err := params.Connect(); err != nil {
 		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
-		return false, devicededuper.DeviceInfo{}
+		return false
 	}
 
 	defer params.Conn.Close()
 
-	if !skipGetNext {
-		// Since `params<GoSNMP>.ContextEngineID` is empty
-		// `params.GetNext` might lead to multiple SNMP GET calls when using SNMP v3
-		value, err := params.GetNext([]string{snmp.DeviceReachableGetNextOid})
-		if err != nil {
-			log.Debugf("SNMP get to %s error: %v", deviceIP, err)
-			return false, devicededuper.DeviceInfo{}
-		}
-		if len(value.Variables) < 1 || value.Variables[0].Value == nil {
-			log.Debugf("SNMP get to %s no data", deviceIP)
-			return false, devicededuper.DeviceInfo{}
-		}
-
-		log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
+	// Since `params<GoSNMP>.ContextEngineID` is empty
+	// `params.GetNext` might lead to multiple SNMP GET calls when using SNMP v3
+	value, err := params.GetNext([]string{snmp.DeviceReachableGetNextOid})
+	if err != nil {
+		log.Debugf("SNMP get to %s error: %v", deviceIP, err)
+		return false
+	}
+	if len(value.Variables) < 1 || value.Variables[0].Value == nil {
+		log.Debugf("SNMP get to %s no data", deviceIP)
+		return false
 	}
 
+	log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
+
+	return true
+}
+
+func (l *SNMPListener) checkDeviceInfo(authentication snmp.Authentication, port uint16, deviceIP string) devicededuper.DeviceInfo {
+	params, err := authentication.BuildSNMPParams(deviceIP, port)
+	if err != nil {
+		log.Errorf("Error building params for device %s: %v", deviceIP, err)
+		return devicededuper.DeviceInfo{}
+	}
+
+	if err := params.Connect(); err != nil {
+		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
+		return devicededuper.DeviceInfo{}
+	}
+
+	defer params.Conn.Close()
 	value, err := params.Get([]string{snmp.DeviceSysNameOid, snmp.DeviceSysDescrOid, snmp.DeviceSysUptimeOid, snmp.DeviceSysObjectIDOid})
 	if err != nil {
-		return true, devicededuper.DeviceInfo{}
+		return devicededuper.DeviceInfo{}
 	}
 	if len(value.Variables) < 4 || value.Variables[0].Value == nil || value.Variables[1].Value == nil || value.Variables[2].Value == nil || value.Variables[3].Value == nil {
-		return true, devicededuper.DeviceInfo{}
+		return devicededuper.DeviceInfo{}
 	}
 
-	sysName := string(value.Variables[0].Value.([]byte))
-	sysDescr := string(value.Variables[1].Value.([]byte))
-	sysUptime := value.Variables[2].Value.(uint32)
-	sysObjectID := value.Variables[3].Value.(string)
+	sysNameBytes, ok := extractSNMPValue[[]byte](value.Variables[0].Value)
+	if !ok {
+		return devicededuper.DeviceInfo{}
+	}
+	sysName := string(sysNameBytes)
+
+	sysDescrBytes, ok := extractSNMPValue[[]byte](value.Variables[1].Value)
+	if !ok {
+		return devicededuper.DeviceInfo{}
+	}
+	sysDescr := string(sysDescrBytes)
+
+	sysUptime, ok := extractSNMPValue[uint32](value.Variables[2].Value)
+	if !ok {
+		return devicededuper.DeviceInfo{}
+	}
+
+	sysObjectID, ok := extractSNMPValue[string](value.Variables[3].Value)
+	if !ok {
+		return devicededuper.DeviceInfo{}
+	}
 
 	// sysUptime is in hundredths of a second, convert it to milliseconds
 	uptime := time.Duration(sysUptime*10) * time.Millisecond
 
 	bootTimestamp := time.Now().Add(-uptime).UnixMilli()
 
-	return true, devicededuper.DeviceInfo{Name: sysName, Description: sysDescr, BootTimeMs: bootTimestamp, SysObjectID: sysObjectID}
+	return devicededuper.DeviceInfo{Name: sysName, Description: sysDescr, BootTimeMs: bootTimestamp, SysObjectID: sysObjectID}
 }
 
 func (l *SNMPListener) getDevicesFoundInSubnet(subnet snmpSubnet) []string {
@@ -637,4 +674,9 @@ func convertToCommaSepTags(tags []string) string {
 // GetSubnetVarKey returns a key for a subnet in the expvar map
 func GetSubnetVarKey(network string, cacheKey string) string {
 	return fmt.Sprintf("%s|%s", network, strings.Trim(cacheKey, fmt.Sprintf("%s:", cacheKeyPrefix)))
+}
+
+func extractSNMPValue[T any](value interface{}) (T, bool) {
+	typedValue, ok := value.(T)
+	return typedValue, ok
 }
