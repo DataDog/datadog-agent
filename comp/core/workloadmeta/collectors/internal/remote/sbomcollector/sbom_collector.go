@@ -156,7 +156,7 @@ func (s *streamHandler) HandleResponse(_ workloadmeta.Component, resp interface{
 	return collectorEvents, nil
 }
 
-func handleEvents[T any](collectorEvents []workloadmeta.CollectorEvent, sbomEvents []T, convertFunc func(T) (workloadmeta.Event, error)) []workloadmeta.CollectorEvent {
+func handleEvents(collectorEvents []workloadmeta.CollectorEvent, sbomEvents []*sbompb.SBOMMessage, convertFunc func(*sbompb.SBOMMessage) (workloadmeta.Event, error)) []workloadmeta.CollectorEvent {
 	for _, protoEvent := range sbomEvents {
 		workloadmetaEvent, err := convertFunc(protoEvent)
 		if err != nil {
