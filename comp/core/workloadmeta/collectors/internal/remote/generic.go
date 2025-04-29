@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
+	"path/filepath"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -114,7 +114,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 	}
 
 	opts = append(opts, grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
-		if strings.HasPrefix(url, "/") {
+		if filepath.IsAbs(url) {
 			return net.Dial("unix", url)
 		}
 
