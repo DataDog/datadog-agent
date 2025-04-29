@@ -167,6 +167,11 @@ type PolicyInfo struct {
 	IsInternal bool
 }
 
+// Equals compares two PolicyInfo objects and returns true if they are equal
+func (pi *PolicyInfo) Equals(other *PolicyInfo) bool {
+	return reflect.DeepEqual(pi, other)
+}
+
 // Policy represents a policy which is composed of a list of rules, macros and on-demand hook points
 type Policy struct {
 	// Def is the policy definition

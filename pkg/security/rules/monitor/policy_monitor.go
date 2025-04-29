@@ -272,7 +272,7 @@ func PolicyStateFromPolicyInfo(policyInfo *rules.PolicyInfo) *PolicyState {
 }
 
 // RuleStateFromRule returns a rule state based on the given rule
-func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *RuleState {
+func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status string, message string) *RuleState {
 	ruleState := &RuleState{
 		ID:          rule.Def.ID,
 		Version:     rule.Policy.Version,
@@ -326,6 +326,11 @@ func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *R
 	}
 
 	for _, pInfo := range rule.ModifiedBy {
+		// The policy of an override rule is listed in both the UsedBy and ModifiedBy fields of the rule
+		// In that case we want to avoid reporting the ModifiedBy field for the rule with the override field
+		if policy.Equals(&pInfo) {
+			continue
+		}
 		ruleState.ModifiedBy = append(ruleState.ModifiedBy, PolicyStateFromPolicyInfo(&pInfo))
 	}
 
@@ -349,7 +354,7 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 				policyState = PolicyStateFromPolicyInfo(&pInfo)
 				mp[pInfo.Name] = policyState
 			}
-			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, "loaded", ""))
+			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, &pInfo, "loaded", ""))
 		}
 	}
 
@@ -357,18 +362,19 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 	if err != nil && err.Errors != nil {
 		for _, err := range err.Errors {
 			if rerr, ok := err.(*rules.ErrRuleLoad); ok {
-				if rerr.Rule.Policy.IsInternal && !includeInternalPolicies {
-					continue
-				}
-				policyName := rerr.Rule.Policy.Name
+				for _, pInfo := range rerr.Rule.UsedBy {
+					if pInfo.IsInternal && !includeInternalPolicies {
+						continue
+					}
 
-				if _, exists := mp[policyName]; !exists {
-					policyState = PolicyStateFromPolicyInfo(&rerr.Rule.Policy)
-					mp[policyName] = policyState
-				} else {
-					policyState = mp[policyName]
+					if _, exists := mp[pInfo.Name]; !exists {
+						policyState = PolicyStateFromPolicyInfo(&pInfo)
+						mp[pInfo.Name] = policyState
+					} else {
+						policyState = mp[pInfo.Name]
+					}
+					policyState.Rules = append(policyState.Rules, RuleStateFromRule(rerr.Rule, &pInfo, string(rerr.Type()), rerr.Err.Error()))
 				}
-				policyState.Rules = append(policyState.Rules, RuleStateFromRule(rerr.Rule, string(rerr.Type()), rerr.Err.Error()))
 			}
 		}
 	}
