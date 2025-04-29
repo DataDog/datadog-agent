@@ -506,9 +506,10 @@ func netstatAndSnmpCounters(procfsPath string, protocolNames []string) (map[stri
 		counters[protocol] = net.ProtoCountersStat{Protocol: protocol, Stats: make(map[string]int64)}
 	}
 
-	for _, subdirectory := range []string{"netstat", "snmp"} {
+	for _, subdirectory := range procfsSubdirectories {
 		fs := filesystem
-		f, err := fs.Open(procfsPath + "/net/" + subdirectory)
+		procfsSubdirectoryPath := filepath.Join(procfsPath, "net", subdirectory)
+		f, err := fs.Open(procfsSubdirectoryPath)
 		if err != nil {
 			if subdirectory == "snmp" {
 				continue
@@ -523,7 +524,7 @@ func netstatAndSnmpCounters(procfsPath string, protocolNames []string) (map[stri
 			line := scanner.Text()
 			i := strings.IndexRune(line, ':')
 			if i == -1 {
-				return nil, errors.New(procfsPath + "/net/" + subdirectory + " is not fomatted correctly, expected ':'")
+				return nil, fmt.Errorf("%s is not fomatted correctly, expected ':'", procfsSubdirectoryPath)
 			}
 			if slices.Contains(protocolNames, line[:i]) {
 				protocolName = line[:i]
@@ -534,13 +535,13 @@ func netstatAndSnmpCounters(procfsPath string, protocolNames []string) (map[stri
 			counterNames := strings.Split(line[i+2:], " ")
 
 			if !scanner.Scan() {
-				return nil, errors.New(procfsPath + "/net/" + subdirectory + " is not fomatted correctly, not data line")
+				return nil, fmt.Errorf("%s is not fomatted correctly, not data line", procfsSubdirectoryPath)
 			}
 			line = scanner.Text()
 
 			counterValues := strings.Split(line[i+2:], " ")
 			if len(counterNames) != len(counterValues) {
-				return nil, errors.New(procfsPath + "/net/" + subdirectory + " is not fomatted correctly, expected same number of columns")
+				return nil, fmt.Errorf("%s is not fomatted correctly, expected same number of columns", procfsSubdirectoryPath)
 			}
 			for j := range counterNames {
 				value, err := strconv.ParseInt(counterValues[j], 10, 64)
