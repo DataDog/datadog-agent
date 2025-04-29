@@ -10,7 +10,9 @@ package traceroute
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -20,6 +22,8 @@ import (
 
 const (
 	clientID = "traceroute-agent-unix"
+
+	tcpNotSupportedMsg = "TCP traceroute is not currently supported on macOS"
 )
 
 // UnixTraceroute defines a structure for
@@ -33,6 +37,12 @@ type UnixTraceroute struct {
 // based on an input configuration
 func New(cfg config.Config, _ telemetry.Component) (*UnixTraceroute, error) {
 	log.Debugf("Creating new traceroute with config: %+v", cfg)
+
+	// TCP is not supported on darwin at the moment due to the
+	// way go listens for TCP in our implementation on BSD systems
+	if runtime.GOOS == "darwin" && cfg.Protocol == payload.ProtocolTCP {
+		return nil, errors.New(tcpNotSupportedMsg)
+	}
 	return &UnixTraceroute{
 		cfg:            cfg,
 		sysprobeClient: getSysProbeClient(),
