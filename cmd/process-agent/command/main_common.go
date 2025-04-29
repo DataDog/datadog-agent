@@ -32,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -172,14 +172,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			AgentType: workloadmeta.Remote,
 		}),
 
-		dualTaggerfx.Module(tagger.DualParams{
-			UseRemote: func(c config.Component) bool {
-				return c.GetBool("process_config.remote_tagger") ||
-					// If the agent is running in ECS or ECS Fargate and the ECS task collection is enabled, use the remote tagger
-					// as remote tagger can return more tags than the local tagger.
-					((env.IsECS() || env.IsECSFargate()) && c.GetBool("ecs_task_collection_enabled"))
-			},
-		}, tagger.RemoteParams{
+		remoteTaggerfx.Module(tagger.RemoteParams{
 			RemoteTarget: func(c config.Component) (string, error) {
 				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
 			},
