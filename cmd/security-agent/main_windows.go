@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -111,7 +112,6 @@ func (s *service) Run(svcctx context.Context) error {
 			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(defaultSysProbeConfPath)),
 			LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", setup.DefaultSecurityAgentLogFile),
-			IPCParams:            ipc.ForDaemon(),
 		}),
 		core.Bundle(),
 		statsd.Module(),
@@ -167,6 +167,7 @@ func (s *service) Run(svcctx context.Context) error {
 		}),
 		settingsimpl.Module(),
 		logscompressionfx.Module(),
+		ipcfx.ModuleReadWrite(),
 	)
 
 	return err
