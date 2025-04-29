@@ -223,6 +223,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "manager": {
                     "type": "string",
                     "description": "CGroup manager"
+                },
+                "variables": {
+                    "$ref": "#/$defs/Variables",
+                    "description": "Variables values"
                 }
             },
             "additionalProperties": false,
@@ -2372,6 +2376,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "manager": {
             "type": "string",
             "description": "CGroup manager"
+        },
+        "variables": {
+            "$ref": "#/$defs/Variables",
+            "description": "Variables values"
         }
     },
     "additionalProperties": false,
@@ -2385,7 +2393,11 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `id` | CGroup ID |
 | `manager` | CGroup manager |
+| `variables` | Variables values |
 
+| References |
+| ---------- |
+| [Variables](#variables) |
 
 ## `ConnectEvent`
 
