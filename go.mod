@@ -934,7 +934,7 @@ require (
 	go.opentelemetry.io/collector/extension/extensioncapabilities v0.123.0 // indirect
 	go.opentelemetry.io/collector/extension/zpagesextension v0.123.0 // indirect
 	go.opentelemetry.io/collector/filter v0.123.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.123.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.124.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.123.0 // indirect
 	go.opentelemetry.io/collector/pipeline v0.124.0 // indirect
 	go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.123.0 // indirect
