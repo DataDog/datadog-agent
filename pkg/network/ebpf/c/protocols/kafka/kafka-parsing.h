@@ -1620,6 +1620,8 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     kafka_header.correlation_id = bpf_ntohl(kafka_header.correlation_id);
     kafka_header.client_id_size = bpf_ntohs(kafka_header.client_id_size);
 
+    log_debug("kafka: kafka_header.api_key: %d api_version: %d", kafka_header.api_key, kafka_header.api_version);
+
     // Report api version hits telemetry
     switch (kafka_header.api_key) {
         case KAFKA_PRODUCE:
@@ -1633,8 +1635,6 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     if (!is_valid_kafka_request_header(&kafka_header)) {
         return false;
     }
-
-    log_debug("kafka: kafka_header.api_key: %d api_version: %d", kafka_header.api_key, kafka_header.api_version);
 
     kafka_transaction->request_started = bpf_ktime_get_ns();
     kafka_transaction->response_last_seen = 0;
