@@ -7,6 +7,7 @@
 package djm
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
@@ -123,6 +124,9 @@ func SetupDatabricks(s *common.Setup) error {
 		setupDatabricksDriver(s)
 	default:
 		setupDatabricksWorker(s)
+	}
+	if s.Config.DatadogYAML.LogsEnabled {
+		loadLogProcessingRules(s)
 	}
 	return nil
 }
@@ -274,4 +278,28 @@ func addCustomHostTags(s *common.Setup) {
 	}
 	s.Span.SetTag("host_tag_set.dd_tags", len(tagsArray))
 	s.Span.SetTag("host_tag_set.dd_extra_tags", len(extraTagsArray))
+}
+
+func ParseLogProcessingRules(input string) ([]common.LogProcessingRule, error) {
+	var rules []common.LogProcessingRule
+	// single quote are invalid for string in json
+	input = strings.ReplaceAll(input, `'`, `"`)
+	err := json.Unmarshal([]byte(input), &rules)
+	if err != nil {
+		return nil, err
+	}
+	return rules, nil
+}
+
+func loadLogProcessingRules(s *common.Setup) {
+	if rawRules := os.Getenv("DD_LOGS_CONFIG_PROCESSING_RULES"); rawRules != "" {
+		processingRules, err := ParseLogProcessingRules(rawRules)
+		if err != nil {
+			s.Out.WriteString(fmt.Sprintf("Invalid log processing rules: %v\n", err))
+			log.Warnf("Failed to parse log processing rules: %v", err)
+		} else {
+			s.Config.DatadogYAML.LogsConfig = processingRules
+			s.Out.WriteString(fmt.Sprintf("Loaded %d log processing rule(s) from DD_LOGS_CONFIG_PROCESSING_RULES\n", len(processingRules)))
+		}
+	}
 }
