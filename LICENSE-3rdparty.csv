@@ -240,7 +240,6 @@ core,github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/azure,Apach
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/ec2,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/gcp,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
-core,github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics/internal/instrumentationlibrary,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics/internal/instrumentationscope,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
