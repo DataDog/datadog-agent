@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package firewallscanner contains logic for diagnosing firewall rules that may
+// prevent services such as SNMP traps or Netflow from running correctly.
 package firewallscanner
 
 import (
