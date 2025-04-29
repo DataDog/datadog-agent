@@ -81,7 +81,6 @@ func NewDeviceCacheWithOptions(lib SafeNVML) (DeviceCache, error) {
 		cache.allPhysicalDevices = append(cache.allPhysicalDevices, dev)
 		cache.smVersionSet[dev.SMVersion] = struct{}{}
 
-		// Add also the MIG children to the cache by UUID, but not to the list of all devices because I'm not really sure why yet but i don't want to
 		for _, migChild := range dev.MIGChildren {
 			cache.uuidToDevice[migChild.UUID] = migChild
 			cache.allDevices = append(cache.allDevices, migChild)
@@ -121,7 +120,7 @@ func (c *deviceCache) All() []Device {
 	return c.allDevices
 }
 
-// AllPhysicalDevices returns all root devices in the cache
+// AllPhysicalDevices returns all physical devices in the cache
 func (c *deviceCache) AllPhysicalDevices() []Device {
 	return c.allPhysicalDevices
 }
