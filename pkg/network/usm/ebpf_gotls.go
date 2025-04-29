@@ -137,8 +137,8 @@ func newGoTLS(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error
 			},
 		}},
 		ExcludeTargets:                 uprobes.ExcludeInternal,
-		PerformInitialScan:             false,
-		EnablePeriodicScanNewProcesses: false,
+		PerformInitialScan:             false, // the process monitor will scan for new processes at startup
+		EnablePeriodicScanNewProcesses: true,
 		ScanProcessesInterval:          scanTerminatedProcessesInterval,
 	}
 
@@ -154,7 +154,7 @@ func newGoTLS(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error
 	}
 
 	procMon := monitor.GetProcessMonitor()
-	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, GoTLSAttacherName, attacherCfg, mgr, nil, inspector, procMon)
+	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, GoTLSAttacherName, attacherCfg, mgr, uprobes.NopOnAttachCallback, inspector, procMon)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create uprobe attacher: %w", err)
 	}
