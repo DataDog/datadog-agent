@@ -1090,7 +1090,7 @@ func methodHasBeenCalledWithPredicate(registry *MockFileRegistry, methodName str
 	return false
 }
 
-func TestAttachPIDRetryAndReattach(t *testing.T) {
+func TestSyncRetryAndReattach(t *testing.T) {
 	proc := FakeProcFSEntry{
 		Pid:     1,
 		Cmdline: "/bin/bash",
