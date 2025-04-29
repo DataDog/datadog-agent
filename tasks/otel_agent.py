@@ -50,6 +50,7 @@ def build(ctx):
     env = {"GO111MODULE": "on"}
     build_tags = ['otlp']
     ldflags = get_version_ldflags(ctx, major_version='7')
+    ldflags += ' -X main.IsBYOC=1'
 
     cmd = f"go build -mod=readonly -tags=\"{' '.join(build_tags)}\" -ldflags=\"{ldflags}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
 

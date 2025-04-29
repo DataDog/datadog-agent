@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"go.uber.org/multierr"
@@ -81,6 +82,7 @@ type SerializerConsumer interface {
 	addRuntimeTelemetryMetric(hostname string, languageTags []string)
 	addTelemetryMetric(hostname string)
 	addGatewayUsage(hostname string, gatewayUsage otel.GatewayUsage)
+	addBYOCMetric(hostname string, byoc string)
 }
 
 type serializerConsumer struct {
@@ -154,6 +156,19 @@ func (c *serializerConsumer) addTelemetryMetric(hostname string) {
 	c.series = append(c.series, &metrics.Serie{
 		Name:           "datadog.agent.otlp.metrics",
 		Points:         []metrics.Point{{Value: 1, Ts: float64(time.Now().Unix())}},
+		Tags:           tagset.CompositeTagsFromSlice([]string{}),
+		Host:           hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	})
+}
+
+// addBYOCMetric to know if an Agent is using OTLP metrics.
+func (c *serializerConsumer) addBYOCMetric(hostname string, byoc string) {
+	isBYOC, _ := strconv.Atoi(byoc)
+	c.series = append(c.series, &metrics.Serie{
+		Name:           "otel.agent.byoc",
+		Points:         []metrics.Point{{Value: float64(isBYOC), Ts: float64(time.Now().Unix())}},
 		Tags:           tagset.CompositeTagsFromSlice([]string{}),
 		Host:           hostname,
 		MType:          metrics.APIGaugeType,
