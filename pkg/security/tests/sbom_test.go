@@ -92,7 +92,7 @@ func TestSBOM(t *testing.T) {
 			assert.Equal(t, sbomResult.RequestID, dockerWrapper.containerID, "sbom result should have the same request id as the container id")
 			cyclonedx, err := sbomResult.Report.ToCycloneDX()
 			if err != nil {
-				t.Errorf("failed to convert sbom result to cyclonedx: %w", err)
+				t.Errorf("failed to convert sbom result to cyclonedx: %s", err.Error())
 			}
 			assert.NotNil(t, cyclonedx, "sbom result should not be nil")
 			components := *cyclonedx.Components
