@@ -12,7 +12,7 @@ static __always_inline bool kafka_allow_packet(skb_info_t *skb_info);
 static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, kafka_telemetry_t *kafka_tel);
 static __always_inline bool kafka_process_response(void *ctx, conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, skb_info_t *skb_info);
 static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *kafka_tel, __u64 size);
-static __always_inline void update_classified_api_version_hits_telemetry(kafka_telemetry_t *kafka_tel, s16 api_key, s16 api_version);
+static __always_inline void update_classified_api_version_hits_telemetry(kafka_telemetry_t *kafka_tel, __u8 api_key, __u8 api_version);
 
 // A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
 // The iterations reads up to MIN(max_buffer_size, real_size).
@@ -1809,12 +1809,12 @@ static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *
 }
 
 // update_classified_api_version_hits_telemetry updates arrays keeping track of api versions hits in the telemetry
-static __always_inline void update_classified_api_version_hits_telemetry(kafka_telemetry_t *kafka_tel, s16 api_key, s16 api_version) {
-    __u8 bucket_idx = api_version - 1;
+static __always_inline void update_classified_api_version_hits_telemetry(kafka_telemetry_t *kafka_tel, __u8 api_key, __u8 api_version) {
+    __u8 bucket_idx = api_version;
 
-    // Ensure that the bucket index falls within the valid range.
+    // Zero bucket index if out of valid range
     bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
-    bucket_idx = bucket_idx > (KAFKA_TELEMETRY_API_VERSIONS_NUM_OF_BUCKETS - 1) ? (KAFKA_TELEMETRY_API_VERSIONS_NUM_OF_BUCKETS - 1) : bucket_idx;
+    bucket_idx = bucket_idx > (KAFKA_TELEMETRY_API_VERSIONS_NUM_OF_BUCKETS - 1) ? 0 : bucket_idx;
 
     switch (api_key) {
     case KAFKA_FETCH:

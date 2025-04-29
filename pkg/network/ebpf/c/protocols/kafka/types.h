@@ -123,6 +123,7 @@ typedef struct {
     __u64 produce_no_required_acks;
 
     // Arrays to keep track of the number of occurrences of each API version that were classified as kafka, before decoding
+    // Index 0 is used to count unknown versions
     __u64 classified_fetch_api_version_hits[KAFKA_TELEMETRY_API_VERSIONS_NUM_OF_BUCKETS];
     __u64 classified_produce_api_version_hits[KAFKA_TELEMETRY_API_VERSIONS_NUM_OF_BUCKETS];
 } kafka_telemetry_t;

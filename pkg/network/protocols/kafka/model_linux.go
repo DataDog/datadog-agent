@@ -61,7 +61,7 @@ func (t *RawKernelTelemetry) String() string {
 		if t.Classified_fetch_api_version_hits[i] == 0 {
 			continue
 		}
-		fetchVersionsHits += fmt.Sprintf("\t\t\"api version %d\": %d,\n'", i+1, t.Classified_fetch_api_version_hits[i])
+		fetchVersionsHits += fmt.Sprintf("\t\t\"api version %d\": %d,\n'", i, t.Classified_fetch_api_version_hits[i])
 	}
 	if fetchVersionsHits == "" {
 		fetchVersionsHits = "\t\tno hits"
@@ -72,7 +72,7 @@ func (t *RawKernelTelemetry) String() string {
 		if t.Classified_produce_api_version_hits[i] == 0 {
 			continue
 		}
-		produceVersionsHits += fmt.Sprintf("\t\t\"api version %d\": %d,\n'", i+1, t.Classified_produce_api_version_hits[i])
+		produceVersionsHits += fmt.Sprintf("\t\t\"api version %d\": %d,\n'", i, t.Classified_produce_api_version_hits[i])
 	}
 	if produceVersionsHits == "" {
 		produceVersionsHits = "\t\tno hits"
