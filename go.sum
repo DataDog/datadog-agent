@@ -183,8 +183,6 @@ github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.26.0 h1:u
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.26.0/go.mod h1:xQ8SuoIm/0lZcUeotR9caLqF5vFp76Dy1mNgn0yBWxs=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0 h1:GlvoS6hJN0uANUC3fjx72rOgM4StAKYo2HtQGaasC7s=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0/go.mod h1:mYQmU7mbHH6DrCaS8N6GZcxwPoeNfyuopUoLQltwSzs=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.26.0 h1:2WxaBDx851fsThL7o+nbszfyxdhw6Y5H09sxmw6sxiw=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.26.0/go.mod h1:WOTqeY3ccHlN+5rGjvW0woZ0p7j+I/vgWVnfQKCfiAs=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.26.0 h1:BDAl6d00qnzOo1Kahv8QNKD0UOVhNnlPSXL24nRNTBQ=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.26.0/go.mod h1:c/+1Nq8dx+RruG1JBTYz0bVu4ZWP9FgSObnTqZ3zNs0=
 github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.26.0 h1:AdiclwuXhWbWbuGjwP10OGJVdlSfhim/LakhE9/NbwY=
@@ -1450,10 +1448,10 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.123.0 h1
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.123.0/go.mod h1:EAzpBsYIXoXQbyVTkvfOksaiq+jctnoxnPevB+/xsqw=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.123.0 h1:J7V/20Zq6QzSfQgOpwWszUSH3WJXbVEzr51RfuSwXLc=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.123.0/go.mod h1:64L9EDVzKuXcxCt5kNwO0qxpDlJGLLB6S9NqjmJgdJM=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.123.0 h1:zISmQ6FC0ZySjbNA48KvHLrHWYaSv7vXBNqAxdqA5cE=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.123.0/go.mod h1:yv3tSTQdVXHvNT+OZ95Drnwb5ntWdlhTthKAi/sB5QY=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.123.0 h1:dFNC9MEqpyVfnfu29Yxw69+Na1OkEXg/NaW9mo/fbP4=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.123.0/go.mod h1:hXC2pbybf1KcGnXB5RvHhR++/QMgS1HP0iFf/DSXBFg=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.124.1 h1:G2daAIXiQhAwQSz9RK71QsBH9rmH/m/vdkFuGIEPfS4=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.124.1/go.mod h1:/WAA1PKvHNz7E5SrtGg2KfAWl/PrmS0FVYOanoGxk0I=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.124.1 h1:mMVzpkpy6rKL1Q/xXNogZVtWebIlxTRzhsgp3b9ioCM=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.124.1/go.mod h1:jM8Gsd0fIiwRzWrzd7Gm6PZYi5AgHPRkz0625Rtqyxo=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.123.0 h1:vVdwGEZhIiKpNF5lT6SGQtJuhtgZ51QF/71iVhu55Ic=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.123.0/go.mod h1:+kjVikpsXkfDG/jF1uZOZQATRo37fKPghIp3KcWjiC4=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.123.0 h1:Ier5SUeKpni7xUMlLY7GqoIg0UOctfWYzWNFE7SY9Cw=

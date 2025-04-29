@@ -29,12 +29,15 @@ require (
 	github.com/DataDog/appsec-internal-go v1.10.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.67.0-devel.0.20250428230612-6cd58aa80061
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.67.0-devel.0.20250428230612-6cd58aa80061
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/pkg/trace v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/pkg/util/log v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.67.0-devel.0.20250428230612-6cd58aa80061
+	github.com/DataDog/datadog-agent/pkg/util/quantile v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	// TODO: pin to an operator released version once there is a release that includes the api module
@@ -42,9 +45,6 @@ require (
 	github.com/DataDog/ebpf-manager v0.7.11
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/util/quantile v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/DataDog/viper v1.14.0
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
@@ -719,6 +719,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
@@ -726,8 +728,10 @@ require (
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20241206090539-a14610dc22b6 // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.26.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.26.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.26.0 // indirect
 	github.com/GoogleCloudPlatform/docker-credential-gcr v2.0.5+incompatible // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.27.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
@@ -857,7 +861,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.123.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/experimentalmetricmetadata v0.123.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.123.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.123.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.124.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.123.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza v0.123.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.123.0 // indirect

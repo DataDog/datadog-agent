@@ -7,10 +7,10 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/util/otel v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.67.0-devel.0.20250428230612-6cd58aa80061
+	github.com/DataDog/datadog-agent/pkg/util/otel v0.67.0-devel.0.20250428230612-6cd58aa80061
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/stormcat24/protodep v0.1.8
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/component v1.30.0
@@ -66,6 +66,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/pkg/proto v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
@@ -78,8 +79,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-api-client-go/v2 v2.35.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
+	github.com/DataDog/datadog-api-client-go/v2 v2.36.1 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.14.0 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
@@ -140,7 +140,7 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
 	golang.org/x/net v0.39.0 // indirect
-	golang.org/x/oauth2 v0.27.0 // indirect
+	golang.org/x/oauth2 v0.29.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/term v0.31.0 // indirect
 	golang.org/x/text v0.24.0 // indirect

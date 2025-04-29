@@ -7,9 +7,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/pkg/config/model v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.67.0-devel.0.20250428230612-6cd58aa80061
-	github.com/DataDog/datadog-agent/pkg/proto v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.67.0-devel.0.20250428230612-6cd58aa80061
+	github.com/DataDog/datadog-agent/pkg/proto v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/pdata v1.30.0
@@ -70,9 +70,6 @@ require (
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.9.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	go.opentelemetry.io/otel/metric v1.35.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.35.0 // indirect
-	go.opentelemetry.io/otel/trace v1.35.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect

@@ -8,10 +8,10 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.67.0-devel.0.20250428230612-6cd58aa80061
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/pkg/proto v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-agent/pkg/trace v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/DataDog/datadog-go/v5 v5.6.0
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.67.0-devel.0.20250428230612-6cd58aa80061
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.123.0
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/component v1.30.0
@@ -54,6 +54,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
@@ -76,9 +77,10 @@ require (
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
 	github.com/DataDog/gostackparse v0.7.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/quantile v0.67.0-devel.0.20250428230612-6cd58aa80061 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.26.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.26.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.26.0 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.14.0 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
@@ -154,6 +156,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.123.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sconfig v0.123.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders v0.123.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.124.1 // indirect
 	github.com/openshift/api v3.9.0+incompatible // indirect
 	github.com/openshift/client-go v0.0.0-20210521082421-73d9475a9142 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
@@ -198,7 +201,7 @@ require (
 	go.opentelemetry.io/collector/exporter v0.123.0 // indirect
 	go.opentelemetry.io/collector/extension/xextension v0.123.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.30.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.123.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.124.0 // indirect
 	go.opentelemetry.io/collector/pipeline v0.124.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.124.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 // indirect
