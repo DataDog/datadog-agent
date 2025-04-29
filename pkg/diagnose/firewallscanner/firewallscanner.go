@@ -18,27 +18,33 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 )
 
-type integrationsByDestPort map[string][]string
-
-type destPort struct {
-	Port            string
-	FromIntegration string
+type ruleToCheck struct {
+	Protocol string
+	DestPort string
+	Source   string
 }
 
+type rulesToCheckForPort struct {
+	ProtocolsSet map[string]struct{}
+	Sources      []string
+}
+
+type rulesToCheckByPort map[string]rulesToCheckForPort
+
 type blockingRule struct {
-	Protocol        string
-	Port            string
-	ForIntegrations []string
+	Protocol string
+	DestPort string
+	Sources  []string
 }
 
 type firewallScanner interface {
-	DiagnoseBlockingRules(forProtocol string, destPorts integrationsByDestPort, log log.Component) []diagnose.Diagnosis
+	DiagnoseBlockingRules(rulesToCheck rulesToCheckByPort, log log.Component) []diagnose.Diagnosis
 }
 
-// DiagnoseBlockers checks for firewall rules that may block SNMP traps and NetFlow packets.
+// DiagnoseBlockers checks for firewall rules that may block SNMP traps and Netflow packets.
 func DiagnoseBlockers(config config.Component, log log.Component) []diagnose.Diagnosis {
-	destPorts := getDestPorts(config)
-	if len(destPorts) == 0 {
+	rulesToCheck := getRulesToCheck(config)
+	if len(rulesToCheck) == 0 {
 		return []diagnose.Diagnosis{}
 	}
 
@@ -47,47 +53,59 @@ func DiagnoseBlockers(config config.Component, log log.Component) []diagnose.Dia
 		return []diagnose.Diagnosis{}
 	}
 
-	return scanner.DiagnoseBlockingRules("UDP", destPorts, log)
+	return scanner.DiagnoseBlockingRules(rulesToCheck, log)
 }
 
-func getDestPorts(config config.Component) integrationsByDestPort {
-	var allDestPorts []destPort
-	allDestPorts = append(allDestPorts, getSNMPTrapsDestPorts(config)...)
-	allDestPorts = append(allDestPorts, getNetFlowDestPorts(config)...)
+func getRulesToCheck(config config.Component) rulesToCheckByPort {
+	var rulesToCheck []ruleToCheck
+	rulesToCheck = append(rulesToCheck, getSNMPTrapsRulesToCheck(config)...)
+	rulesToCheck = append(rulesToCheck, getNetflowRulesToCheck(config)...)
 
-	destPorts := make(integrationsByDestPort)
-	for _, destPort := range allDestPorts {
-		destPorts[destPort.Port] = append(destPorts[destPort.Port], destPort.FromIntegration)
+	rules := make(rulesToCheckByPort)
+	for _, rule := range rulesToCheck {
+		entry, exists := rules[rule.DestPort]
+
+		if !exists {
+			entry = rulesToCheckForPort{
+				ProtocolsSet: make(map[string]struct{}),
+				Sources:      []string{},
+			}
+		}
+
+		entry.ProtocolsSet[rule.Protocol] = struct{}{}
+		entry.Sources = append(entry.Sources, rule.Source)
+
+		rules[rule.DestPort] = entry
 	}
-	return destPorts
+	return rules
 }
 
-func getSNMPTrapsDestPorts(config config.Component) []destPort {
+func getSNMPTrapsRulesToCheck(config config.Component) []ruleToCheck {
 	if !config.GetBool("network_devices.snmp_traps.enabled") {
-		return []destPort{}
+		return []ruleToCheck{}
 	}
 
-	return []destPort{
+	return []ruleToCheck{
 		{
-			Port:            config.GetString("network_devices.snmp_traps.port"),
-			FromIntegration: "snmp_traps",
+			Protocol: "UDP",
+			DestPort: config.GetString("network_devices.snmp_traps.port"),
+			Source:   "snmp_traps",
 		},
 	}
 }
 
-func getNetFlowDestPorts(config config.Component) []destPort {
+func getNetflowRulesToCheck(config config.Component) []ruleToCheck {
 	if !config.GetBool("network_devices.netflow.enabled") {
-		return []destPort{}
+		return []ruleToCheck{}
 	}
 
 	var listeners []netflowConfig.ListenerConfig
 	err := structure.UnmarshalKey(config, "network_devices.netflow.listeners", &listeners)
 	if err != nil {
-		return []destPort{}
+		return []ruleToCheck{}
 	}
 
-	var destPorts []destPort
-
+	var rulesToCheck []ruleToCheck
 	for _, listener := range listeners {
 		flowTypeDetail, err := common.GetFlowTypeByName(listener.FlowType)
 		if err != nil {
@@ -95,20 +113,21 @@ func getNetFlowDestPorts(config config.Component) []destPort {
 		}
 
 		if listener.Port == 0 {
-			destPorts = append(destPorts, destPort{
-				Port:            fmt.Sprintf("%d", flowTypeDetail.DefaultPort()),
-				FromIntegration: fmt.Sprintf("netflow (%s)", flowTypeDetail.Name()),
+			rulesToCheck = append(rulesToCheck, ruleToCheck{
+				Protocol: "UDP",
+				DestPort: fmt.Sprintf("%d", flowTypeDetail.DefaultPort()),
+				Source:   fmt.Sprintf("netflow (%s)", flowTypeDetail.Name()),
 			})
 			continue
 		}
 
-		destPorts = append(destPorts, destPort{
-			Port:            fmt.Sprintf("%d", listener.Port),
-			FromIntegration: fmt.Sprintf("netflow (%s)", flowTypeDetail.Name()),
+		rulesToCheck = append(rulesToCheck, ruleToCheck{
+			Protocol: "UDP",
+			DestPort: fmt.Sprintf("%d", listener.Port),
+			Source:   fmt.Sprintf("netflow (%s)", flowTypeDetail.Name()),
 		})
 	}
-
-	return destPorts
+	return rulesToCheck
 }
 
 func getFirewallScanner() (firewallScanner, error) {
@@ -136,7 +155,7 @@ func buildBlockingRulesDiagnosis(name string, blockingRules []blockingRule) diag
 	for _, blockingRule := range blockingRules {
 		msgBuilder.WriteString(
 			fmt.Sprintf("%s packets might be blocked because destination port %s is blocked for protocol %s\n",
-				strings.Join(blockingRule.ForIntegrations, ", "), blockingRule.Port, blockingRule.Protocol))
+				strings.Join(blockingRule.Sources, ", "), blockingRule.DestPort, blockingRule.Protocol))
 	}
 	return diagnose.Diagnosis{
 		Status:    diagnose.DiagnosisWarning,

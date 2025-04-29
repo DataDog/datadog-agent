@@ -36,16 +36,16 @@ func Test_buildBlockingRulesDiagnosis(t *testing.T) {
 			blockingRules: []blockingRule{
 				{
 					Protocol: "UDP",
-					Port:     "9162",
-					ForIntegrations: []string{
+					DestPort: "9162",
+					Sources: []string{
 						"snmp_traps",
 						"netflow (ipfix)",
 					},
 				},
 				{
 					Protocol: "UDP",
-					Port:     "1234",
-					ForIntegrations: []string{
+					DestPort: "1234",
+					Sources: []string{
 						"netflow (sflow5)",
 					},
 				},

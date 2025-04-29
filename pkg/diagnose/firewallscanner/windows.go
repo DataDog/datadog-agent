@@ -32,7 +32,7 @@ const (
 	inbound ruleDirection = 1
 )
 
-func (scanner *windowsFirewallScanner) DiagnoseBlockingRules(forProtocol string, destPorts integrationsByDestPort, log log.Component) []diagnose.Diagnosis {
+func (scanner *windowsFirewallScanner) DiagnoseBlockingRules(rulesToCheck rulesToCheckByPort, log log.Component) []diagnose.Diagnosis {
 	cmd := exec.Command(
 		"powershell",
 		"-Command",
@@ -52,7 +52,7 @@ func (scanner *windowsFirewallScanner) DiagnoseBlockingRules(forProtocol string,
 		return []diagnose.Diagnosis{}
 	}
 
-	blockingRules, err := checkBlockingRulesWindows(output, forProtocol, destPorts)
+	blockingRules, err := checkBlockingRulesWindows(output, rulesToCheck)
 	if err != nil {
 		log.Warnf("Error checking blocked ports: %v", err)
 		return []diagnose.Diagnosis{}
@@ -63,7 +63,7 @@ func (scanner *windowsFirewallScanner) DiagnoseBlockingRules(forProtocol string,
 	}
 }
 
-func checkBlockingRulesWindows(output []byte, forProtocol string, destPorts integrationsByDestPort) ([]blockingRule, error) {
+func checkBlockingRulesWindows(output []byte, rulesToCheck rulesToCheckByPort) ([]blockingRule, error) {
 	if len(output) == 0 {
 		return nil, nil
 	}
@@ -83,14 +83,25 @@ func checkBlockingRulesWindows(output []byte, forProtocol string, destPorts inte
 	var blockingRules []blockingRule
 
 	for _, rule := range rules {
-		forIntegrations, portExists := destPorts[rule.LocalPort]
-		if rule.Direction == inbound && strings.EqualFold(rule.Protocol, forProtocol) && portExists {
-			blockingRules = append(blockingRules, blockingRule{
-				Protocol:        rule.Protocol,
-				Port:            rule.LocalPort,
-				ForIntegrations: forIntegrations,
-			})
+		if rule.Direction != inbound {
+			continue
 		}
+
+		rulesForPort, portExists := rulesToCheck[rule.LocalPort]
+		if !portExists {
+			continue
+		}
+
+		_, protocolExists := rulesForPort.ProtocolsSet[rule.Protocol]
+		if !protocolExists {
+			continue
+		}
+
+		blockingRules = append(blockingRules, blockingRule{
+			Protocol: rule.Protocol,
+			DestPort: rule.LocalPort,
+			Sources:  rulesForPort.Sources,
+		})
 	}
 
 	return blockingRules, nil

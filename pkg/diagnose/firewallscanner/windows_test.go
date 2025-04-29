@@ -15,8 +15,7 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
 	tests := []struct {
 		name                  string
 		output                []byte
-		forProtocol           string
-		destPorts             integrationsByDestPort
+		rulesToCheck          rulesToCheckByPort
 		expectedBlockingRules []blockingRule
 		expectError           bool
 	}{
@@ -28,8 +27,7 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
 		{
 			name:                  "no rules",
 			output:                []byte(``),
-			forProtocol:           "UDP",
-			destPorts:             integrationsByDestPort{},
+			rulesToCheck:          rulesToCheckByPort{},
 			expectedBlockingRules: nil,
 		},
 		{
@@ -39,15 +37,17 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
     "protocol":  "UDP",
     "localPort":  "9162"
 }`),
-			forProtocol: "UDP",
-			destPorts: integrationsByDestPort{
-				"9162": {"snmp_traps"},
+			rulesToCheck: rulesToCheckByPort{
+				"9162": {
+					ProtocolsSet: map[string]struct{}{"UDP": {}},
+					Sources:      []string{"snmp_traps"},
+				},
 			},
 			expectedBlockingRules: []blockingRule{
 				{
-					Protocol:        "UDP",
-					Port:            "9162",
-					ForIntegrations: []string{"snmp_traps"},
+					Protocol: "UDP",
+					DestPort: "9162",
+					Sources:  []string{"snmp_traps"},
 				},
 			},
 		},
@@ -58,9 +58,11 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
     "protocol":  "UDP",
     "localPort":  "9160"
 }`),
-			forProtocol: "UDP",
-			destPorts: integrationsByDestPort{
-				"9162": {"snmp_traps"},
+			rulesToCheck: rulesToCheckByPort{
+				"9162": {
+					ProtocolsSet: map[string]struct{}{"UDP": {}},
+					Sources:      []string{"snmp_traps"},
+				},
 			},
 			expectedBlockingRules: nil,
 		},
@@ -71,9 +73,11 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
     "protocol":  "TCP",
     "localPort":  "9162"
 }`),
-			forProtocol: "UDP",
-			destPorts: integrationsByDestPort{
-				"9162": {"snmp_traps"},
+			rulesToCheck: rulesToCheckByPort{
+				"9162": {
+					ProtocolsSet: map[string]struct{}{"UDP": {}},
+					Sources:      []string{"snmp_traps"},
+				},
 			},
 			expectedBlockingRules: nil,
 		},
@@ -96,22 +100,30 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
         "localPort":  "2000"
     }
 ]`),
-			forProtocol: "UDP",
-			destPorts: integrationsByDestPort{
-				"9162": {"snmp_traps", "netflow (netflow5)"},
-				"1111": {"netflow (netflow9)"},
-				"2000": {"netflow (ipfix)"},
+			rulesToCheck: rulesToCheckByPort{
+				"9162": {
+					ProtocolsSet: map[string]struct{}{"UDP": {}},
+					Sources:      []string{"snmp_traps", "netflow (netflow5)"},
+				},
+				"1111": {
+					ProtocolsSet: map[string]struct{}{"UDP": {}},
+					Sources:      []string{"netflow (netflow9)"},
+				},
+				"2000": {
+					ProtocolsSet: map[string]struct{}{"UDP": {}},
+					Sources:      []string{"netflow (ipfix)"},
+				},
 			},
 			expectedBlockingRules: []blockingRule{
 				{
-					Protocol:        "UDP",
-					Port:            "9162",
-					ForIntegrations: []string{"snmp_traps", "netflow (netflow5)"},
+					Protocol: "UDP",
+					DestPort: "9162",
+					Sources:  []string{"snmp_traps", "netflow (netflow5)"},
 				},
 				{
-					Protocol:        "UDP",
-					Port:            "2000",
-					ForIntegrations: []string{"netflow (ipfix)"},
+					Protocol: "UDP",
+					DestPort: "2000",
+					Sources:  []string{"netflow (ipfix)"},
 				},
 			},
 		},
@@ -134,11 +146,19 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
         "localPort":  "3000"
     }
 ]`),
-			forProtocol: "UDP",
-			destPorts: integrationsByDestPort{
-				"9162": {"snmp_traps", "netflow (netflow5)"},
-				"1000": {"netflow (netflow9)"},
-				"2000": {"netflow (ipfix)"},
+			rulesToCheck: rulesToCheckByPort{
+				"9162": {
+					ProtocolsSet: map[string]struct{}{"UDP": {}},
+					Sources:      []string{"snmp_traps", "netflow (netflow5)"},
+				},
+				"1000": {
+					ProtocolsSet: map[string]struct{}{"UDP": {}},
+					Sources:      []string{"netflow (netflow9)"},
+				},
+				"2000": {
+					ProtocolsSet: map[string]struct{}{"UDP": {}},
+					Sources:      []string{"netflow (ipfix)"},
+				},
 			},
 			expectedBlockingRules: nil,
 		},
@@ -146,7 +166,7 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			blockingRules, err := checkBlockingRulesWindows(tt.output, tt.forProtocol, tt.destPorts)
+			blockingRules, err := checkBlockingRulesWindows(tt.output, tt.rulesToCheck)
 			if !tt.expectError {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedBlockingRules, blockingRules)
