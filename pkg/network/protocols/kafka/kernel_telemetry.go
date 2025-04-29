@@ -25,8 +25,8 @@ type kernelTelemetry struct {
 
 	// classifiedFetchAPIVersionHits and classifiedProduceAPIVersionHits are the number of classified fetch and produce requests
 	// broken by API version (the index)
-	classifiedFetchAPIVersionHits   [20]*libtelemetry.Counter
-	classifiedProduceAPIVersionHits [20]*libtelemetry.Counter
+	classifiedFetchAPIVersionHits   [TelemetryAPIVersionBuckets]*libtelemetry.Counter
+	classifiedProduceAPIVersionHits [TelemetryAPIVersionBuckets]*libtelemetry.Counter
 
 	// telemetryLastState represents the latest Kafka eBPF Kernel telemetry observed from the kernel
 	telemetryLastState RawKernelTelemetry
@@ -94,7 +94,7 @@ func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [Topic
 	return result
 }
 
-func computeAPIVersionHitsBucketDifferences(bucket, otherBucket [20]uint64) [20]uint64 {
+func computeAPIVersionHitsBucketDifferences(bucket, otherBucket [TelemetryAPIVersionBuckets]uint64) [TelemetryAPIVersionBuckets]uint64 {
 	var result [len(bucket)]uint64
 
 	for i := 0; i < len(result); i++ {

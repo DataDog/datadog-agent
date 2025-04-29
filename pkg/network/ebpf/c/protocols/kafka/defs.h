@@ -51,6 +51,6 @@
 #define KAFKA_TELEMETRY_TOPIC_NAME_BUCKET_SIZE 10
 
 // The maximum version we'll support in telemetry.
-#define KAFKA_TELEMETRY_API_VERSIONS_NUM_OF_BUCKETS 20
+#define KAFKA_TELEMETRY_API_VERSIONS_NUM_OF_BUCKETS 30
 
 #endif
