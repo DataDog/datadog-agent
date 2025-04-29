@@ -73,8 +73,8 @@ qa_agent_ot:
     - !reference [.on_otel_or_e2e_changes]
     - !reference [.manual]
   needs:
-    - docker_build_ot_agent7
-    - docker_build_ot_agent7_arm64
+    - docker_build_agent7_full
+    - docker_build_agent7_full_arm64
   variables:
     IMG_REGISTRIES: agent-qa
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-arm64
