@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//go:build test
+
 package converterimpl
 
 import (
@@ -199,6 +201,12 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "dd-core-cfg/apikey/unset/acfg.yaml",
 		},
 		{
+			name:           "dd-core-cfg/apikey/unset-number",
+			provided:       "dd-core-cfg/apikey/unset-number/config.yaml",
+			expectedResult: "dd-core-cfg/apikey/unset-number/config-result.yaml",
+			agentConfig:    "dd-core-cfg/apikey/unset-number/acfg.yaml",
+		},
+		{
 			name:           "dd-core-cfg/apikey/secret",
 			provided:       "dd-core-cfg/apikey/secret/config.yaml",
 			expectedResult: "dd-core-cfg/apikey/secret/config-result.yaml",
@@ -366,4 +374,25 @@ func TestConvert(t *testing.T) {
 			assert.Equal(t, confResult.ToStringMap(), conf.ToStringMap())
 		})
 	}
+}
+
+func TestConvert_APIKeyFromEnvVar(t *testing.T) {
+	t.Setenv("DD_API_KEY", "123456")
+	t.Setenv("DD_SITE", "")
+	converter, err := NewConverterForAgent(Requires{config.NewMock(t)})
+	assert.NoError(t, err)
+
+	resolver, err := newResolver(uriFromFile("dd-core-cfg/apikey/unset-number/config.yaml"))
+	assert.NoError(t, err)
+	conf, err := resolver.Resolve(context.Background())
+	assert.NoError(t, err)
+
+	converter.Convert(context.Background(), conf)
+
+	resolverResult, err := newResolver(uriFromFile("dd-core-cfg/apikey/unset-number/config-result.yaml"))
+	assert.NoError(t, err)
+	confResult, err := resolverResult.Resolve(context.Background())
+	assert.NoError(t, err)
+
+	assert.Equal(t, confResult.ToStringMap(), conf.ToStringMap())
 }

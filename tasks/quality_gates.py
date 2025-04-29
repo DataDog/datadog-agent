@@ -13,7 +13,7 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.git import create_tree
 from tasks.libs.common.utils import is_conductor_scheduled_pipeline, running_in_ci
 from tasks.libs.package.size import InfraError
-from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string, is_first_commit_of_the_day
+from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string
 
 BUFFER_SIZE = 1000000
 FAIL_CHAR = "❌"
@@ -120,13 +120,8 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
     final_state = "success"
     gate_states = []
 
-    threshold_update_run = False
     nightly_run = False
     branch = os.environ["CI_COMMIT_BRANCH"]
-    bucket_branch = os.environ["BUCKET_BRANCH"]
-    # we avoid nightly pipelines because they have different package size than the main branch
-    if branch == "main" and bucket_branch != "nightly" and is_first_commit_of_the_day(ctx):
-        threshold_update_run = True
 
     DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")
     if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
@@ -167,11 +162,6 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
     github = GithubAPI()
     if github.get_pr_for_branch(branch).totalCount > 0:
         display_pr_comment(ctx, final_state == "success", gate_states, metric_handler)
-
-    # Generate PR to update static quality gates threshold once per day (scheduled main pipeline by conductor)
-    if threshold_update_run:
-        pr_url = update_quality_gates_threshold(ctx, metric_handler, github)
-        notify_threshold_update(pr_url)
 
     # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
     if final_state != "success" and not nightly_run:
@@ -228,7 +218,7 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
             yaml.dump(file_content, f)
         ctx.run(f"git add {GATE_CONFIG_PATH}")
         print("Creating signed commits using Github API")
-        tree = create_tree(ctx, current_branch.name)
+        tree = create_tree(ctx, f"origin/{current_branch.name}")
         github.commit_and_push_signed(branch_name, commit_message, tree)
     else:
         print("Creating commits using your local git configuration, please make sure to sign them")
@@ -260,3 +250,13 @@ def notify_threshold_update(pr_url):
     waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
     message = f'Hello :{random.choice(waves)}:\nA new quality gates threshold <{pr_url}/s|update PR> has been generated !\nPlease take a look, thanks !'
     client.chat_postMessage(channel='#agent-delivery-reviews', text=message)
+
+
+@task
+def manual_threshold_update(self, filename="static_gate_report.json"):
+    metric_handler = GateMetricHandler(
+        git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"], filename=filename
+    )
+    github = GithubAPI()
+    pr_url = update_quality_gates_threshold(self, metric_handler, github)
+    notify_threshold_update(pr_url)

@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
@@ -40,7 +41,8 @@ func newCmd(operation string) *cmd {
 	env := env.FromEnv()
 	t := newTelemetry(env)
 	span, ctx := telemetry.StartSpanFromEnv(context.Background(), operation)
-	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	ctx, stop := context.WithCancel(ctx)
+	handleSignals(ctx, stop)
 	setInstallerUmask(span)
 	return &cmd{
 		t:              t,
@@ -49,6 +51,21 @@ func newCmd(operation string) *cmd {
 		env:            env,
 		stopSigHandler: stop,
 	}
+}
+
+func handleSignals(ctx context.Context, stop context.CancelFunc) {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-sigChan:
+			// Wait for 10 seconds to allow the command to finish properly
+			time.Sleep(10 * time.Second)
+			stop()
+		}
+	}()
 }
 
 // Stop stops the command

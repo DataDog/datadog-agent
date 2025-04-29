@@ -148,7 +148,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, stats)
+		utils.WriteAsJSON(w, stats, utils.CompactOutput)
 	})
 
 	httpMux.HandleFunc("/debug/http_monitoring", func(w http.ResponseWriter, req *http.Request) {
@@ -165,7 +165,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		defer cleanup()
 
-		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP, cs.DNS))
+		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP, cs.DNS), utils.GetPrettyPrintFromQueryParams(req))
 	})
 
 	httpMux.HandleFunc("/debug/kafka_monitoring", func(w http.ResponseWriter, req *http.Request) {
@@ -182,7 +182,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		defer cleanup()
 
-		utils.WriteAsJSON(w, kafkadebugging.Kafka(cs.Kafka))
+		utils.WriteAsJSON(w, kafkadebugging.Kafka(cs.Kafka), utils.GetPrettyPrintFromQueryParams(req))
 	})
 
 	httpMux.HandleFunc("/debug/postgres_monitoring", func(w http.ResponseWriter, req *http.Request) {
@@ -199,7 +199,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		defer cleanup()
 
-		utils.WriteAsJSON(w, postgresdebugging.Postgres(cs.Postgres))
+		utils.WriteAsJSON(w, postgresdebugging.Postgres(cs.Postgres), utils.GetPrettyPrintFromQueryParams(req))
 	})
 
 	httpMux.HandleFunc("/debug/redis_monitoring", func(w http.ResponseWriter, req *http.Request) {
@@ -216,7 +216,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		defer cleanup()
 
-		utils.WriteAsJSON(w, redisdebugging.Redis(cs.Redis))
+		utils.WriteAsJSON(w, redisdebugging.Redis(cs.Redis), utils.GetPrettyPrintFromQueryParams(req))
 	})
 
 	httpMux.HandleFunc("/debug/http2_monitoring", func(w http.ResponseWriter, req *http.Request) {
@@ -233,7 +233,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		defer cleanup()
 
-		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP2, cs.DNS))
+		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP2, cs.DNS), utils.GetPrettyPrintFromQueryParams(req))
 	})
 
 	// /debug/ebpf_maps as default will dump all registered maps/perfmaps
@@ -288,7 +288,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, cache)
+		utils.WriteAsJSON(w, cache, utils.CompactOutput)
 	})
 
 	httpMux.HandleFunc("/debug/usm_telemetry", telemetry.Handler)

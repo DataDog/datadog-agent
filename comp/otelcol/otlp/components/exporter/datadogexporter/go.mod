@@ -19,24 +19,24 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.26.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.123.0
 	github.com/stretchr/testify v1.10.0
-	go.opentelemetry.io/collector/component v1.29.0
+	go.opentelemetry.io/collector/component v1.30.0
 	go.opentelemetry.io/collector/config/confignet v1.29.0
 	go.opentelemetry.io/collector/config/configretry v1.29.0
 	go.opentelemetry.io/collector/consumer v1.29.0
 	go.opentelemetry.io/collector/exporter v0.123.0
 	go.opentelemetry.io/collector/exporter/exportertest v0.123.0
-	go.opentelemetry.io/collector/featuregate v1.29.0
-	go.opentelemetry.io/collector/pdata v1.29.0
+	go.opentelemetry.io/collector/featuregate v1.30.0
+	go.opentelemetry.io/collector/pdata v1.30.0
 	go.opentelemetry.io/otel/metric v1.35.0
 	go.opentelemetry.io/otel/trace v1.35.0
 	go.uber.org/zap v1.27.0
 	google.golang.org/protobuf v1.36.6
 )
 
-require go.opentelemetry.io/collector/component/componenttest v0.123.0 // indirect
+require go.opentelemetry.io/collector/component/componenttest v0.124.0 // indirect
 
 require (
-	go.opentelemetry.io/collector/internal/telemetry v0.123.0 // indirect
+	go.opentelemetry.io/collector/internal/telemetry v0.124.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.10.0 // indirect
 	go.opentelemetry.io/otel/log v0.11.0 // indirect
 )
@@ -134,7 +134,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.64.2 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.36.1 // indirect
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 // indirect
-	github.com/DataDog/go-sqllexer v0.1.3 // indirect
+	github.com/DataDog/go-sqllexer v0.1.6 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.26.0 // indirect
@@ -230,9 +230,9 @@ require (
 	go.opentelemetry.io/collector/consumer/consumertest v0.123.0 // indirect
 	go.opentelemetry.io/collector/extension v1.29.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.123.0 // indirect
-	go.opentelemetry.io/collector/pipeline v0.123.0 // indirect
+	go.opentelemetry.io/collector/pipeline v0.124.0 // indirect
 	go.opentelemetry.io/collector/receiver v1.29.0 // indirect
-	go.opentelemetry.io/collector/semconv v0.123.0 // indirect
+	go.opentelemetry.io/collector/semconv v0.124.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 // indirect
 	go.opentelemetry.io/otel v1.35.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.35.0 // indirect
