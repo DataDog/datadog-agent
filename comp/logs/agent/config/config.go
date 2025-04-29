@@ -114,15 +114,14 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 			"please use '%s' and '%s' instead", logsConfig.getConfigKey("logs_dd_url"), logsConfig.getConfigKey("logs_no_ssl"))
 	}
 
-	mrfEnabled := coreConfig.GetBool("multi_region_failover.enabled")
-	if logsConfig.isForceHTTPUse() || logsConfig.obsPipelineWorkerEnabled() || mrfEnabled || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
+	if logsConfig.isForceHTTPUse() || logsConfig.obsPipelineWorkerEnabled() || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
 		return BuildHTTPEndpointsWithConfig(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 	}
 	log.Warnf("You are currently sending Logs to Datadog through TCP (either because %s or %s is set or the HTTP connectivity test has failed) "+
 		"To benefit from increased reliability and better network performances, "+
 		"we strongly encourage switching over to compressed HTTPS which is now the default protocol.",
 		logsConfig.getConfigKey("force_use_tcp"), logsConfig.getConfigKey("socks5_proxy_address"))
-	return buildTCPEndpoints(coreConfig, logsConfig)
+	return buildTCPEndpoints(coreConfig, logsConfig, intakeTrackType, intakeProtocol, intakeOrigin)
 }
 
 // BuildServerlessEndpoints returns the endpoints to send logs for the Serverless agent.
@@ -140,9 +139,10 @@ func IsExpectedTagsSet(coreConfig pkgconfigmodel.Reader) bool {
 	return ExpectedTagsDuration(coreConfig) > 0
 }
 
-func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys) (*Endpoints, error) {
+func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
 	useProto := logsConfig.devModeUseProto()
 	main := newTCPEndpoint(logsConfig)
+	defaultNoSSL := logsConfig.logsNoSSL()
 
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
 		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
@@ -172,6 +172,36 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 	}
 
 	additionals := loadTCPAdditionalEndpoints(main, logsConfig)
+
+	// Add in the MRF endpoint if MRF is enabled.
+	if coreConfig.GetBool("multi_region_failover.enabled") {
+		mrfURL, err := pkgconfigutils.GetMRFLogsEndpoint(coreConfig, tcpEndpointPrefix)
+		if err != nil {
+			return nil, fmt.Errorf("cannot construct MRF endpoint: %s", err)
+		}
+
+		mrfHost, mrfPort, mrfUseSSL, err := parseAddressWithScheme(mrfURL, defaultNoSSL, parseAddressAsHost)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse %s: %v", mrfURL, err)
+		}
+
+		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), "multi_region_failover.api_key", mrfHost, mrfPort, mrfUseSSL)
+		e.IsMRF = true
+		e.UseCompression = main.UseCompression
+		e.CompressionLevel = main.CompressionLevel
+		e.BackoffBase = main.BackoffBase
+		e.BackoffMax = main.BackoffMax
+		e.BackoffFactor = main.BackoffFactor
+		e.RecoveryInterval = main.RecoveryInterval
+		e.RecoveryReset = main.RecoveryReset
+		e.Version = main.Version
+		e.TrackType = intakeTrackType
+		e.Protocol = intakeProtocol
+		e.Origin = intakeOrigin
+
+		additionals = append(additionals, e)
+	}
+
 	return NewEndpoints(main, additionals, useProto, false), nil
 }
 
