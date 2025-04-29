@@ -643,12 +643,13 @@ func getEnvvar(_ context.Context, envVar string, svc listeners.Service) (string,
 }
 
 func allowEnvVar(envVar string) bool {
-	// If the option is not configured, all env vars are allowed
-	if !pkgconfigsetup.Datadog().IsConfigured("ad_allowed_env_vars") {
+	allowedEnvs := pkgconfigsetup.Datadog().GetStringSlice("ad_allowed_env_vars")
+
+	// If the option is not set or is empty, the default behavior applies: all
+	// envs are allowed.
+	if len(allowedEnvs) == 0 {
 		return true
 	}
-
-	allowedEnvs := pkgconfigsetup.Datadog().GetStringSlice("ad_allowed_env_vars")
 
 	return slices.ContainsFunc(allowedEnvs, func(env string) bool {
 		return strings.EqualFold(env, envVar)

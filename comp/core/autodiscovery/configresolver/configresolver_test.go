@@ -466,7 +466,7 @@ func TestResolve(t *testing.T) {
 			},
 		},
 		{
-			testName: "allow list for env vars is defined and it's empty", // Means that no env var is allowed
+			testName: "allow list for env vars is defined and it's empty", // Means that all env vars are allowed
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
@@ -477,7 +477,12 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("test: %%env_test_envvar_key%%")},
 			},
-			errorString: "envvar test_envvar_key is not allowed in check configs, skipping service a5901276aed1",
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("tags:\n- foo:bar\ntest: test_value\n")},
+				ServiceID:     "a5901276aed1",
+			},
 			configSettings: map[string]interface{}{
 				"ad_allowed_env_vars": []string{},
 			},

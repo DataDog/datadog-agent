@@ -2847,8 +2847,8 @@ api_key:
 ## @env DD_AD_ALLOWED_ENV_VARS - list of strings - optional
 ## The list of environment variables that are allowed to be resolved in check
 ## configurations.
-## The default is to allow all environment variables. If the list is set, but
-## empty, no environment variables will be resolved.
+## If the list is not set or is empty, the default behavior applies: all envs
+## are allowed.
 #
 # ad_allowed_env_vars:
 #   - <ENV_VAR_1>
