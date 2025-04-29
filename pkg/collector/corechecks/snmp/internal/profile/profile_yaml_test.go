@@ -185,8 +185,6 @@ func Test_loadYamlProfiles_validAndInvalidProfiles(t *testing.T) {
 func Test_getProfileDefinitions_legacyProfiles(t *testing.T) {
 	mockConfig := configmock.New(t)
 
-	legacyLoadLog := "found legacy profile \"legacy\""
-
 	legacyNoOIDLogs := TrapLogs(t, log.DebugLvl)
 	legacyNoOIDProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_no_oid.d"))
 	mockConfig.SetWithoutSource("confd_path", legacyNoOIDProfilesConfdPath)
@@ -196,8 +194,8 @@ func Test_getProfileDefinitions_legacyProfiles(t *testing.T) {
 	assert.Len(t, defaultProfiles, 2)
 	assert.Contains(t, defaultProfiles, "legacy")
 	assert.Contains(t, defaultProfiles, "valid")
-	assert.False(t, haveLegacyProfile)
-	legacyNoOIDLogs.AssertAbsent(t, legacyLoadLog)
+	assert.True(t, haveLegacyProfile)
+	legacyNoOIDLogs.AssertPresent(t, "found legacy metrics in profile")
 
 	legacySymbolTypeLogs := TrapLogs(t, log.DebugLvl)
 	legacySymbolTypeProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_symbol_type.d"))
@@ -208,14 +206,11 @@ func Test_getProfileDefinitions_legacyProfiles(t *testing.T) {
 	assert.Len(t, defaultProfiles, 1)
 	assert.Contains(t, defaultProfiles, "valid")
 	assert.True(t, haveLegacyProfile)
-	legacySymbolTypeLogs.AssertPresent(t, legacyLoadLog)
+	legacySymbolTypeLogs.AssertPresent(t, "found legacy symbol type in profile")
 }
 
 func Test_loadYamlProfiles_legacyProfiles(t *testing.T) {
 	mockConfig := configmock.New(t)
-
-	legacyLoadLog := "found legacy profile \"legacy\""
-	legacyMetricsLog := "found legacy metrics definition in profile \"legacy\""
 
 	legacyNoOIDLogs := TrapLogs(t, log.DebugLvl)
 	legacyNoOIDProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_no_oid.d"))
@@ -226,9 +221,7 @@ func Test_loadYamlProfiles_legacyProfiles(t *testing.T) {
 	assert.Len(t, defaultProfiles, 1)
 	assert.Contains(t, defaultProfiles, "valid")
 	assert.True(t, haveLegacyProfile)
-	// Legacy profiles due to an OID not being present should not be detected during loading time
-	legacyNoOIDLogs.AssertAbsent(t, legacyLoadLog)
-	legacyNoOIDLogs.AssertPresent(t, legacyMetricsLog)
+	legacyNoOIDLogs.AssertPresent(t, "found legacy metrics in profile")
 
 	legacySymbolTypeLogs := TrapLogs(t, log.DebugLvl)
 	legacySymbolTypeProfilesConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "legacy_symbol_type.d"))
@@ -239,7 +232,5 @@ func Test_loadYamlProfiles_legacyProfiles(t *testing.T) {
 	assert.Len(t, defaultProfiles, 1)
 	assert.Contains(t, defaultProfiles, "valid")
 	assert.True(t, haveLegacyProfile)
-	// Legacy profiles due to a string symbol type should be detected during loading time
-	legacySymbolTypeLogs.AssertPresent(t, legacyLoadLog)
-	legacySymbolTypeLogs.AssertAbsent(t, legacyMetricsLog)
+	legacySymbolTypeLogs.AssertPresent(t, "found legacy symbol type in profile")
 }

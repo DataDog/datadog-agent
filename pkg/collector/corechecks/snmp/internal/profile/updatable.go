@@ -28,7 +28,7 @@ func (up *UpdatableProvider) Update(userProfiles, defaultProfiles ProfileConfigM
 	defer up.lock.Unlock()
 	up.userProfiles = userProfiles
 	up.defaultProfiles = defaultProfiles
-	up.resolvedProfiles, _ = resolveProfiles(up.userProfiles, up.defaultProfiles)
+	up.resolvedProfiles = resolveProfiles(up.userProfiles, up.defaultProfiles)
 	up.lastUpdated = now
 }
 

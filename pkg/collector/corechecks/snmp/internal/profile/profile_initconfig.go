@@ -5,24 +5,27 @@
 
 package profile
 
-import "github.com/DataDog/datadog-agent/pkg/util/log"
+import (
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
 
 func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConfigMap, bool, error) {
 	initConfigProfiles := make(ProfileConfigMap, len(rawInitConfigProfiles))
-	var haveLegacyProfile bool
 
+	var haveLegacyInitConfigProfile bool
 	for name, profConfig := range rawInitConfigProfiles {
 		if profConfig.DefinitionFile != "" {
-			profDefinition, haveLegacyInitConfigProfile, err := readProfileDefinition(profConfig.DefinitionFile)
-			if haveLegacyInitConfigProfile {
-				log.Warnf("found legacy profile in init config %q", name)
-				haveLegacyProfile = true
-			}
+			profDefinition, isLegacyInitConfigProfile, err := readProfileDefinition(profConfig.DefinitionFile)
+			haveLegacyInitConfigProfile = haveLegacyInitConfigProfile || isLegacyInitConfigProfile
 			if err != nil {
 				log.Warnf("unable to load profile %q: %s", name, err)
 				continue
 			}
 			profConfig.Definition = *profDefinition
+		} else {
+			isLegacyMetrics := profiledefinition.IsLegacyMetrics(profConfig.Definition.Metrics)
+			haveLegacyInitConfigProfile = haveLegacyInitConfigProfile || isLegacyMetrics
 		}
 		if profConfig.Definition.Name == "" {
 			profConfig.Definition.Name = name
@@ -34,7 +37,7 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 	userProfiles = mergeProfiles(userProfiles, initConfigProfiles)
 
 	defaultProfiles := getYamlDefaultProfiles()
-	resolvedProfiles, haveLegacyResolvedProfile := resolveProfiles(userProfiles, defaultProfiles)
+	resolvedProfiles := resolveProfiles(userProfiles, defaultProfiles)
 
 	// When user profiles are from initConfigProfiles
 	// only profiles listed in initConfigProfiles are returned
@@ -46,6 +49,5 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 		filteredResolvedProfiles[key] = val
 	}
 
-	haveLegacyProfile = haveLegacyProfile || haveLegacyUserProfile || haveLegacyResolvedProfile
-	return filteredResolvedProfiles, haveLegacyProfile, nil
+	return filteredResolvedProfiles, haveLegacyInitConfigProfile || haveLegacyUserProfile, nil
 }

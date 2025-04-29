@@ -20,16 +20,15 @@ var (
 	profileExpVar = expvar.NewMap("snmpProfileErrors")
 )
 
-func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileConfigMap, bool) {
+func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) ProfileConfigMap {
 	rawProfiles := mergeProfiles(defaultProfiles, userProfiles)
-	userExpandedProfiles, haveLegacyProfile := normalizeProfiles(rawProfiles, defaultProfiles)
-	return userExpandedProfiles, haveLegacyProfile
+	userExpandedProfiles := normalizeProfiles(rawProfiles, defaultProfiles)
+	return userExpandedProfiles
 }
 
 // normalizeProfiles returns a copy of pConfig with all profiles normalized, validated, and fully expanded (i.e. values from their .extend attributes will be baked into the profile itself).
-func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMap) (ProfileConfigMap, bool) {
+func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMap) ProfileConfigMap {
 	profiles := make(ProfileConfigMap, len(pConfig))
-	var haveLegacyProfile bool
 
 	for name := range pConfig {
 		// No need to resolve abstract profile
@@ -42,12 +41,6 @@ func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMa
 		if err != nil {
 			log.Warnf("failed to expand profile %q: %v", name, err)
 			continue
-		}
-
-		isLegacyMetrics := profiledefinition.IsLegacyMetrics(newProfileConfig.Definition.Metrics)
-		if isLegacyMetrics {
-			log.Warnf("found legacy metrics definition in profile %q", name)
-			haveLegacyProfile = true
 		}
 
 		profiledefinition.NormalizeMetrics(newProfileConfig.Definition.Metrics)
@@ -64,7 +57,7 @@ func normalizeProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMa
 		profiles[name] = newProfileConfig
 	}
 
-	return profiles, haveLegacyProfile
+	return profiles
 }
 
 func recursivelyExpandBaseProfiles(parentExtend string, definition *profiledefinition.ProfileDefinition, extends []string, extendsHistory []string, profiles ProfileConfigMap, defaultProfiles ProfileConfigMap) error {

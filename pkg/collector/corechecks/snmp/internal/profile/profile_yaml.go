@@ -44,12 +44,11 @@ func loadYamlProfiles() (ProfileConfigMap, bool, error) {
 
 	userProfiles, haveLegacyUserProfile := getYamlUserProfiles()
 	defaultProfiles := getYamlDefaultProfiles()
-	profiles, haveLegacyResolvedProfile := resolveProfiles(userProfiles, defaultProfiles)
+	profiles := resolveProfiles(userProfiles, defaultProfiles)
 
 	SetGlobalProfileConfigMap(profiles)
 
-	haveLegacyProfile := haveLegacyUserProfile || haveLegacyResolvedProfile
-	return profiles, haveLegacyProfile, nil
+	return profiles, haveLegacyUserProfile, nil
 }
 
 func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileConfigMap, bool, error) {
@@ -77,10 +76,7 @@ func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileCo
 
 		absPath := filepath.Join(profilesRoot, fName)
 		definition, isLegacyProfile, err := readProfileDefinition(absPath)
-		if isLegacyProfile {
-			log.Warnf("found legacy profile %q", profileName)
-			haveLegacyProfile = true
-		}
+		haveLegacyProfile = haveLegacyProfile || isLegacyProfile
 		if err != nil {
 			log.Warnf("cannot load profile %q: %v", profileName, err)
 			continue
@@ -107,9 +103,17 @@ func readProfileDefinition(definitionFile string) (*profiledefinition.ProfileDef
 	err = yaml.Unmarshal(buf, profileDefinition)
 	if err != nil {
 		isLegacyProfile := errors.Is(err, profiledefinition.ErrLegacySymbolType)
+		if isLegacyProfile {
+			log.Warnf("found legacy symbol type in profile %q", definitionFile)
+		}
 		return nil, isLegacyProfile, fmt.Errorf("parse error in file %q: %w", filePath, err)
 	}
-	return profileDefinition, false, nil
+
+	isLegacyProfile := profiledefinition.IsLegacyMetrics(profileDefinition.Metrics)
+	if isLegacyProfile {
+		log.Warnf("found legacy metrics in profile %q", definitionFile)
+	}
+	return profileDefinition, isLegacyProfile, nil
 }
 
 func resolveProfileDefinitionPath(definitionFile string) string {
