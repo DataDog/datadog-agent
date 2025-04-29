@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Make the Core loader the loader by default for the SNMP integration and check for SNMP legacy profiles when loader is not specified.
+    SNMP integration now defaults to use the Core loader instead of Python.
