@@ -72,8 +72,7 @@ func (p pythonDetector) detect(args []string) (ServiceMetadata, bool) {
 		}
 
 		if !shouldSkipArg {
-			wd, _ := workingDirFromEnvs(p.ctx.Envs)
-			absPath := abs(a, wd)
+			absPath := p.ctx.resolveWorkingDirRelativePath(a)
 			fi, err := fs.Stat(p.ctx.fs, absPath)
 			if err != nil {
 				return ServiceMetadata{}, false
