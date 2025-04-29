@@ -4,3 +4,11 @@
 // Copyright 2025-present Datadog, Inc.
 
 package firewallscanner
+
+import (
+	"testing"
+)
+
+func Test_checkBlockedPortsDarwin(t *testing.T) {
+
+}

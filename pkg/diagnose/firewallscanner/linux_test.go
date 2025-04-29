@@ -4,3 +4,17 @@
 // Copyright 2025-present Datadog, Inc.
 
 package firewallscanner
+
+import "testing"
+
+func Test_checkBlockedPortsIPTables(t *testing.T) {
+
+}
+
+func Test_checkBlockedPortsNFTables(t *testing.T) {
+
+}
+
+func Test_checkBlockedPortsUFW(t *testing.T) {
+
+}

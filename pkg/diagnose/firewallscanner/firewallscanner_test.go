@@ -6,9 +6,11 @@
 package firewallscanner
 
 import (
-	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 )
 
 func Test_buildBlockedPortsDiagnosis(t *testing.T) {
