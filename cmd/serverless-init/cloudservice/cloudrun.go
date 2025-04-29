@@ -50,7 +50,7 @@ const (
 	functionSignature = "function_signature_type"
 )
 
-// metric prefix for cloud run
+// CloudRunMetricPrefix is the metric prefix for cloud run
 const CloudRunMetricPrefix = "gcp.run"
 
 var metadataHelperFunc = GetMetaData

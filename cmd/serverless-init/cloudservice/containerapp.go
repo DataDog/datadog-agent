@@ -44,7 +44,7 @@ const (
 	acaRevision       = "aca.app.revision"
 	acaSubscriptionID = "aca.subscription.id"
 
-	// metric prefix for container app
+	// ContainerAppMetricPrefix is the metric prefix for container app
 	ContainerAppMetricPrefix = "azure.containerapp"
 )
 

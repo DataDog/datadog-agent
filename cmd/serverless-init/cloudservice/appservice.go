@@ -26,7 +26,7 @@ const (
 	//nolint:revive // TODO(SERV) Fix revive linter
 	AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 
-	// metric prefix for app service
+	// AppServiceMetricPrefix is the metric prefix for app service
 	AppServiceMetricPrefix = "azure.appservice"
 )
 
