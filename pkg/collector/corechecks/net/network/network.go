@@ -26,10 +26,10 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/safchain/ethtool"
@@ -690,10 +690,10 @@ func Factory() option.Option[func() check.Check] {
 	return option.New(newCheck)
 }
 
-func newCheck() check.Check {
+func newCheck(cfg config.Component) check.Check {
 	procfsPath := "/proc"
-	if pkgconfigsetup.Datadog().IsConfigured("procfs_path") {
-		procfsPath = pkgconfigsetup.Datadog().GetString("procfs_path")
+	if cfg.Config.Datadog().IsConfigured("procfs_path") {
+		procfsPath = cfg.Config.Datadog().GetString("procfs_path")
 	}
 	return &NetworkCheck{
 		net:       defaultNetworkStats{procPath: procfsPath},
