@@ -1195,11 +1195,10 @@ func (c *HTTPClient) GetCDNConfigUpdate(
 	ctx context.Context,
 	products []string,
 	currentTargetsVersion, currentRootVersion uint64,
-	cachedTargetFiles []*pbgo.TargetFileMeta,
 ) (*state.Update, error) {
 	var err error
 	if !c.shouldUpdate() {
-		return c.getUpdate(ctx, products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
+		return c.getUpdate(products, currentTargetsVersion, currentRootVersion)
 	}
 
 	err = c.update(ctx)
@@ -1207,7 +1206,7 @@ func (c *HTTPClient) GetCDNConfigUpdate(
 		_ = log.Warn(fmt.Sprintf("Error updating CDN config repo: %v", err))
 	}
 
-	u, err := c.getUpdate(ctx, products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
+	u, err := c.getUpdate(products, currentTargetsVersion, currentRootVersion)
 	return u, err
 }
 
@@ -1235,10 +1234,8 @@ func (c *HTTPClient) shouldUpdate() bool {
 }
 
 func (c *HTTPClient) getUpdate(
-	_ context.Context,
 	products []string,
 	currentTargetsVersion, currentRootVersion uint64,
-	_ []*pbgo.TargetFileMeta,
 ) (*state.Update, error) {
 	c.Lock()
 	defer c.Unlock()
