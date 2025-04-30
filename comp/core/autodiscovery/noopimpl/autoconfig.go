@@ -53,10 +53,6 @@ func (n *noopAutoConfig) AddScheduler(string, scheduler.Scheduler, bool) {}
 
 func (n *noopAutoConfig) RemoveScheduler(string) {}
 
-func (n *noopAutoConfig) GetUnresolvedTemplates() map[string][]integration.Config {
-	return map[string][]integration.Config{}
-}
-
 func (n *noopAutoConfig) GetIDOfCheckWithEncryptedSecrets(checkid.ID) checkid.ID {
 	return ""
 }
