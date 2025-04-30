@@ -47,7 +47,7 @@ type factory struct {
 	onceReporter sync.Once
 	reporter     *inframetadata.Reporter
 	gatewayUsage otel.GatewayUsage
-	isBYOC       string
+	isBYOC       *string
 }
 
 type tagenricher interface {
@@ -74,16 +74,16 @@ type createConsumerFunc func(enricher tagenricher, extraTags []string, apmReceiv
 // Serializer exporter should never receive APM stats in Agent OTLP ingestion.
 func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc) exp.Factory {
 	cfgType := component.MustNewType(TypeStr)
-	return newFactoryForAgentWithType(s, enricher, hostGetter, nil, cfgType, otel.NewDisabledGatewayUsage(), "")
+	return newFactoryForAgentWithType(s, enricher, hostGetter, nil, cfgType, otel.NewDisabledGatewayUsage(), nil)
 }
 
 // NewFactoryForOTelAgent creates a new serializer exporter factory for the embedded collector.
 func NewFactoryForOTelAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, gatewayusage otel.GatewayUsage, isBYOC string) exp.Factory {
 	cfgType := component.MustNewType("datadog") // this is called in datadog exporter (NOT serializer exporter) in embedded collector
-	return newFactoryForAgentWithType(s, enricher, hostGetter, statsIn, cfgType, gatewayusage, isBYOC)
+	return newFactoryForAgentWithType(s, enricher, hostGetter, statsIn, cfgType, gatewayusage, &isBYOC)
 }
 
-func newFactoryForAgentWithType(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, typ component.Type, gatewayUsage otel.GatewayUsage, isBYOC string) exp.Factory {
+func newFactoryForAgentWithType(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, typ component.Type, gatewayUsage otel.GatewayUsage, isBYOC *string) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
 	if !pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithOTelPrefix())

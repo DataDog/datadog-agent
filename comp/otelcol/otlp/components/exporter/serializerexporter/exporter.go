@@ -83,7 +83,7 @@ type Exporter struct {
 	hostmetadata    datadogconfig.HostMetadataConfig
 	reporter        *inframetadata.Reporter
 	gatewayUsage    otel.GatewayUsage
-	IsBYOC          string
+	IsBYOC          *string
 }
 
 // TODO: expose the same function in OSS exporter and remove this
@@ -151,7 +151,7 @@ func NewExporter(
 	params exporter.Settings,
 	reporter *inframetadata.Reporter,
 	gatewayUsage otel.GatewayUsage,
-	isBYOC string,
+	isBYOC *string,
 ) (*Exporter, error) {
 	err := enricher.SetCardinality(cfg.Metrics.TagCardinality)
 	if err != nil {

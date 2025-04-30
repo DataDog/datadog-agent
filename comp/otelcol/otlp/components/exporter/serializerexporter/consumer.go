@@ -82,7 +82,7 @@ type SerializerConsumer interface {
 	addRuntimeTelemetryMetric(hostname string, languageTags []string)
 	addTelemetryMetric(hostname string)
 	addGatewayUsage(hostname string, gatewayUsage otel.GatewayUsage)
-	addBYOCMetric(hostname string, byoc string)
+	addBYOCMetric(hostname string, byoc *string)
 }
 
 type serializerConsumer struct {
@@ -164,16 +164,18 @@ func (c *serializerConsumer) addTelemetryMetric(hostname string) {
 }
 
 // addBYOCMetric to know if an Agent is using OTLP metrics.
-func (c *serializerConsumer) addBYOCMetric(hostname string, byoc string) {
-	isBYOC, _ := strconv.Atoi(byoc)
-	c.series = append(c.series, &metrics.Serie{
-		Name:           "otel.agent.byoc",
-		Points:         []metrics.Point{{Value: float64(isBYOC), Ts: float64(time.Now().Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{}),
-		Host:           hostname,
-		MType:          metrics.APIGaugeType,
-		SourceTypeName: "System",
-	})
+func (c *serializerConsumer) addBYOCMetric(hostname string, byoc *string) {
+	if byoc != nil {
+		isBYOC, _ := strconv.ParseFloat(*byoc, 64)
+		c.series = append(c.series, &metrics.Serie{
+			Name:           "otel.agent.byoc",
+			Points:         []metrics.Point{{Value: isBYOC, Ts: float64(time.Now().Unix())}},
+			Tags:           tagset.CompositeTagsFromSlice([]string{}),
+			Host:           hostname,
+			MType:          metrics.APIGaugeType,
+			SourceTypeName: "System",
+		})
+	}
 }
 
 // addRuntimeTelemetryMetric to know if an Agent is using OTLP runtime metrics.
