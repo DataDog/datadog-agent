@@ -41,7 +41,6 @@ notify:
   script:
     - !reference [.notify_setup]
     - !reference [.setup_agent_github_app]
-    - dda inv -- -e notify.send-message -p $CI_PIPELINE_ID
     - dda inv -- -e notify.check-consistent-failures -p $CI_PIPELINE_ID
 
 send_pipeline_stats:
