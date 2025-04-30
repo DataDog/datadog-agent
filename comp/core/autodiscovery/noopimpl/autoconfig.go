@@ -53,12 +53,6 @@ func (n *noopAutoConfig) AddScheduler(string, scheduler.Scheduler, bool) {}
 
 func (n *noopAutoConfig) RemoveScheduler(string) {}
 
-func (n *noopAutoConfig) MapOverLoadedConfigs(func(map[string]integration.Config)) {}
-
-func (n *noopAutoConfig) LoadedConfigs() []integration.Config {
-	return []integration.Config{}
-}
-
 func (n *noopAutoConfig) GetUnresolvedTemplates() map[string][]integration.Config {
 	return map[string][]integration.Config{}
 }
