@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -84,6 +85,7 @@ type networkStats interface {
 	Connections(kind string) ([]net.ConnectionStat, error)
 	NetstatAndSnmpCounters(protocols []string) (map[string]net.ProtoCountersStat, error)
 	GetProcPath() string
+	GetNetProcBasePath() string
 }
 
 type defaultNetworkStats struct {
@@ -103,11 +105,20 @@ func (n defaultNetworkStats) Connections(kind string) ([]net.ConnectionStat, err
 }
 
 func (n defaultNetworkStats) NetstatAndSnmpCounters(protocols []string) (map[string]net.ProtoCountersStat, error) {
-	return netstatAndSnmpCounters(n.procPath, protocols)
+	return netstatAndSnmpCounters(n.GetNetProcBasePath(), protocols)
 }
 
 func (n defaultNetworkStats) GetProcPath() string {
 	return n.procPath
+}
+
+func (n defaultNetworkStats) GetNetProcBasePath() string {
+	netProcfsPath := n.procPath
+	// in a containerized environment
+	if os.Getenv("DOCKER_DD_AGENT") != "" && procfsPath != "/proc" {
+		netProcfsPath = fmt.Sprintf("%s/1", procfsPath)
+	}
+	return netProcfsPath
 }
 
 // Run executes the check
@@ -146,6 +157,7 @@ func (c *NetworkCheck) Run() error {
 		}
 	}
 
+	netProcfsBasePath := c.net.GetNetProcBasePath()
 	if c.config.instance.CollectConnectionState {
 		ssAvailable := false
 		if ssAvailableFunction() == nil {
@@ -155,22 +167,22 @@ func (c *NetworkCheck) Run() error {
 		if err != nil {
 			return err
 		}
-		submitConnectionsMetrics(sender, "udp4", udpStateMetricsSuffixMapping, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable)
+		submitConnectionsMetrics(sender, "udp4", udpStateMetricsSuffixMapping, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable, netProcfsBasePath)
 
 		connectionsStats, err = c.net.Connections("udp6")
 		if err != nil {
 			return err
 		}
-		submitConnectionsMetrics(sender, "udp6", udpStateMetricsSuffixMapping, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable)
+		submitConnectionsMetrics(sender, "udp6", udpStateMetricsSuffixMapping, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable, netProcfsBasePath)
 
 		connectionsStats, err = c.net.Connections("tcp4")
 		if err != nil {
 			return err
 		}
 		if ssAvailable {
-			submitConnectionsMetrics(sender, "tcp4", tcpStateMetricsSuffixMapping_ss, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable)
+			submitConnectionsMetrics(sender, "tcp4", tcpStateMetricsSuffixMapping_ss, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable, netProcfsBasePath)
 		} else {
-			submitConnectionsMetrics(sender, "tcp4", tcpStateMetricsSuffixMapping_netstat, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable)
+			submitConnectionsMetrics(sender, "tcp4", tcpStateMetricsSuffixMapping_netstat, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable, netProcfsBasePath)
 		}
 
 		connectionsStats, err = c.net.Connections("tcp6")
@@ -178,9 +190,9 @@ func (c *NetworkCheck) Run() error {
 			return err
 		}
 		if ssAvailable {
-			submitConnectionsMetrics(sender, "tcp6", tcpStateMetricsSuffixMapping_ss, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable)
+			submitConnectionsMetrics(sender, "tcp6", tcpStateMetricsSuffixMapping_ss, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable, netProcfsBasePath)
 		} else {
-			submitConnectionsMetrics(sender, "tcp6", tcpStateMetricsSuffixMapping_netstat, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable)
+			submitConnectionsMetrics(sender, "tcp6", tcpStateMetricsSuffixMapping_netstat, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable, netProcfsBasePath)
 		}
 	}
 
@@ -395,9 +407,10 @@ func checkSSExecutable() error {
 	return nil
 }
 
-func getQueueMetrics(ipVersion string) (map[string][]uint64, error) {
+func getQueueMetrics(ipVersion string, procfsPath string) (map[string][]uint64, error) {
+	env := []string{"PROC_ROOT=" + procfsPath}
 	ipFlag := fmt.Sprintf("--ipv%s", ipVersion)
-	output, err := runCommandFunction([]string{"sh", "-c", "ss", "--numeric", "--tcp", "--all", ipFlag})
+	output, err := runCommandFunction([]string{"sh", "-c", "ss", "--numeric", "--tcp", "--all", ipFlag}, env)
 	if err != nil {
 		return nil, fmt.Errorf("error executing ss command: %v", err)
 	}
@@ -405,7 +418,7 @@ func getQueueMetrics(ipVersion string) (map[string][]uint64, error) {
 }
 
 func getQueueMetricsNetstat(ipVersion string) (map[string][]uint64, error) {
-	output, err := runCommandFunction([]string{"netstat", "-n", "-u", "-t", "-a"})
+	output, err := runCommandFunction([]string{"netstat", "-n", "-u", "-t", "-a"}, []string{})
 	if err != nil {
 		return nil, fmt.Errorf("error executing netstat command: %v", err)
 	}
@@ -467,6 +480,7 @@ func submitConnectionsMetrics(
 	connectionsStats []net.ConnectionStat,
 	collectConnectionQueues bool,
 	ssAvailable bool,
+	procfsPath string,
 ) {
 	metricCount := map[string]float64{}
 	for _, suffix := range stateMetricSuffixMapping {
@@ -484,7 +498,7 @@ func submitConnectionsMetrics(
 		var err error
 		// pass in version number
 		if ssAvailable {
-			queues, err = getQueueMetrics(protocolName[len(protocolName)-1:])
+			queues, err = getQueueMetrics(protocolName[len(protocolName)-1:], procfsPath)
 			if err != nil {
 				log.Debug("Error getting queue metrics with ss:", err)
 				return
@@ -581,7 +595,7 @@ func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSud
 		cmd = append([]string{"sudo"}, cmd...)
 	}
 
-	output, err := runCommandFunction(cmd)
+	output, err := runCommandFunction(cmd, []string{})
 	if err != nil {
 		log.Debugf("Couldn't use %s to get conntrack stats: %v", conntrackPath, err)
 		return
@@ -613,10 +627,11 @@ func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSud
 	}
 }
 
-func runCommand(cmd []string) (string, error) {
+func runCommand(cmd []string, env []string) (string, error) {
 	execCmd := exec.Command(cmd[0], cmd[1:]...)
 	var out bytes.Buffer
 	var stderr bytes.Buffer
+	execCmd.Env = append(osEnviron(), env...)
 	execCmd.Stdout = &out
 	execCmd.Stderr = &stderr
 	err := execCmd.Run()
@@ -629,7 +644,7 @@ func runCommand(cmd []string) (string, error) {
 func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo bool, procfsPath string, blacklistConntrackMetrics []string, whitelistConntrackMetrics []string) {
 	if conntrackPath != "None" {
 		addConntrackStatsMetrics(sender, conntrackPath, useSudo)
-		conntrackFilesLocation := procfsPath + "/sys/net/netfilter"
+		conntrackFilesLocation := filepath.Join(procfsPath, "sys", "net", "netfilter")
 		var availableFiles []string
 		fs := filesystem
 		files, err := afero.ReadDir(fs, conntrackFilesLocation)
@@ -701,8 +716,9 @@ func Factory() option.Option[func() check.Check] {
 func newCheck(cfg config.Component) check.Check {
 	procfsPath := "/proc"
 	if cfg.Config.Datadog().IsConfigured("procfs_path") {
-		procfsPath = cfg.Config.Datadog().GetString("procfs_path")
+		procfsPath = strings.TrimRight(cfg.Config.Datadog().GetString("procfs_path"), "/")
 	}
+
 	return &NetworkCheck{
 		net:       defaultNetworkStats{procPath: procfsPath},
 		CheckBase: core.NewCheckBase(CheckName),
