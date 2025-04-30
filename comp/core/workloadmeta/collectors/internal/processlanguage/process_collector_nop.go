@@ -5,7 +5,7 @@
 
 //go:build !linux
 
-// Package processlanguage implements the local process collector for Workloadmeta.
+// Package processlanguage implements the process language collector for Workloadmeta.
 package processlanguage
 
 import (

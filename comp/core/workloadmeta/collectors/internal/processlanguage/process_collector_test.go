@@ -5,7 +5,7 @@
 
 //go:build linux && test
 
-// Package processlanguage implements the local process collector for
+// Package processlanguage implements the process language collector for
 // Workloadmeta.
 package processlanguage
 
