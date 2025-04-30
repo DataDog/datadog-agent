@@ -102,7 +102,7 @@ func (c *windowsAWSCLI) check() bool {
 }
 
 func (c *windowsAWSCLI) download(path string, destPath string) error {
-	_, err := c.sshExecutor.Execute(fmt.Sprintf("& \"c:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" s3 cp %s %s", path, destPath))
+	_, err := c.sshExecutor.Execute(fmt.Sprintf("& \"c:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" s3 cp \"%s\" \"%s\"", path, destPath))
 	return err
 }
 
