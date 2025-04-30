@@ -1,4 +1,0 @@
----
-other:
-  - |
-    Renamed Workloadmeta process collector to process language collector in preparation for refactor
