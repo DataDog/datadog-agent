@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -63,7 +64,7 @@ type OTLPReceiver struct {
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
-	operationAndResourceNamesV2GateEnabled := cfg.HasFeature("enable_operation_and_resource_name_logic_v2")
+	operationAndResourceNamesV2GateEnabled := !cfg.HasFeature("disable_operation_and_resource_name_logic_v2")
 	operationAndResourceNamesV2GateEnabledVal := 0.0
 	if operationAndResourceNamesV2GateEnabled {
 		operationAndResourceNamesV2GateEnabledVal = 1.0
@@ -72,21 +73,13 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 
 	spanNameAsResourceNameEnabledVal := 0.0
 	if cfg.OTLPReceiver.SpanNameAsResourceName {
-		if operationAndResourceNamesV2GateEnabled {
-			log.Warnf("Detected SpanNameAsResourceName in config - this feature will be deprecated in a future version, and overrides feature gate \"enable_operation_and_resource_name_logic_v2\". Please remove it and set \"operation.name\" attribute on your spans instead.")
-		} else {
-			log.Warnf("Detected SpanNameAsResourceName in config - this feature will be deprecated in a future version. Please remove it, enable feature gate \"enable_operation_and_resource_name_logic_v2\", and set \"operation.name\" attribute on your spans instead.")
-		}
+		log.Warnf("Detected SpanNameAsResourceName in config - this feature will be deprecated in a future version. Please remove it and set \"operation.name\" attribute on your spans instead. See the migration guide at https://docs.datadoghq.com/opentelemetry/guide/migrate/migrate_operation_names/")
 		spanNameAsResourceNameEnabledVal = 1.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.span_name_as_resource_name_enabled", spanNameAsResourceNameEnabledVal, nil, 1)
 	spanNameRemappingsEnabledVal := 0.0
 	if len(cfg.OTLPReceiver.SpanNameRemappings) > 0 {
-		if operationAndResourceNamesV2GateEnabled {
-			log.Warnf("Detected SpanNameRemappings in config - this feature will be deprecated in a future version. Please remove it to access functionality from feature gate \"enable_operation_and_resource_name_logic_v2\".")
-		} else {
-			log.Warnf("Detected SpanNameRemappings in config - this feature will be deprecated in a future version. Please remove it and enable feature gate \"enable_operation_and_resource_name_logic_v2\"")
-		}
+		log.Warnf("Detected SpanNameRemappings in config - this feature will be deprecated in a future version. Please remove it to access new operation name functionality. See the migration guide at https://docs.datadoghq.com/opentelemetry/guide/migrate/migrate_operation_names/")
 		spanNameRemappingsEnabledVal = 1.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.span_name_remappings_enabled", spanNameRemappingsEnabledVal, nil, 1)
@@ -455,7 +448,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:        hostname,
 		Chunks:          o.createChunks(tracesByID, priorityByID),
-		Env:             traceutil.NormalizeTagValue(env),
+		Env:             normalize.NormalizeTagValue(env),
 		ContainerID:     containerID,
 		LanguageName:    tagstats.Lang,
 		LanguageVersion: tagstats.LangVersion,
@@ -629,7 +622,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	if _, ok := span.Meta["env"]; !ok {
 		// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
 		if _, env := transform.GetFirstFromMap(span.Meta, "deployment.environment.name", semconv.AttributeDeploymentEnvironment); env != "" {
-			transform.SetMetaOTLP(span, "env", traceutil.NormalizeTag(env))
+			transform.SetMetaOTLP(span, "env", normalize.NormalizeTag(env))
 		}
 	}
 	if in.TraceState().AsRaw() != "" {

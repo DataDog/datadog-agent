@@ -36,65 +36,126 @@ func newPythonDetector(ctx DetectionContext) detector {
 	return &pythonDetector{ctx: ctx, gunicorn: newGunicornDetector(ctx)}
 }
 
+type argType int
+
+const (
+	argNone argType = iota
+	argMod
+	argFileName
+)
+
+// parsePythonArgs parses the CPython command line arguments to find the module
+// name or the file name. For this, besides handling the -m option to get the
+// module name, we need to specifically handle any option that is known to take
+// an argument so that we can skip the argument and not misinterpret it as a
+// filename.
+//
+// We assume that all the other options other than the ones explicitly handled
+// below do not take any arguments.
+func parsePythonArgs(args []string) (argType, string) {
+	skipNext := false
+	modNext := false
+	for _, arg := range args {
+		if modNext {
+			return argMod, arg
+		}
+
+		if skipNext {
+			skipNext = false
+			continue
+		}
+
+		if strings.HasPrefix(arg, "--") {
+			// Only long arg with an argument.  CPython doesn't allow
+			// including the argument with an equals sign in the same arg.
+			if arg == "--check-hash-based-pycs" {
+				skipNext = true
+			}
+		} else if strings.HasPrefix(arg, "-") {
+		INNER:
+			for charidx, char := range arg[1:] {
+				rest := arg[1+charidx+1:]
+				switch char {
+				case 'c':
+					// Everything after -c is a command and it terminates
+					// the option parsing.
+					return argNone, ""
+				case 'm':
+					// Module name, either attached here or in the next arg.
+					if len(rest) > 0 {
+						return argMod, rest
+					}
+
+					modNext = true
+				case 'X', 'W':
+					// Takes an argument, either attached here or in the next arg.
+					if len(rest) > 0 {
+						break INNER
+					}
+
+					skipNext = true
+				}
+			}
+		} else {
+			return argFileName, arg
+		}
+	}
+	return argNone, ""
+}
+
 func (p pythonDetector) detect(args []string) (ServiceMetadata, bool) {
 	// When Gunicorn is invoked via its wrapper script the command line ends up
 	// looking like the example below, so redirect to the Gunicorn detector for
 	// this case:
 	//  /usr/bin/python3 /usr/bin/gunicorn foo:app()
-	if len(args) > 0 && filepath.Base(args[0]) == "gunicorn" {
-		return p.gunicorn.detect(args[1:])
+	//
+	// Another case where we want to redirect to the Gunicorn detector is when
+	// gunicorn replaces its command line with something like the below. Because
+	// of the [ready], we end up here first instead of going directly to the
+	// Gunicorn detector.
+	//  [ready] gunicorn: worker [airflow-webserver]
+	if len(args) > 0 {
+		base := filepath.Base(args[0])
+		if base == "gunicorn" || base == "gunicorn:" {
+			return p.gunicorn.detect(args[1:])
+		}
+		if base == "uvicorn" {
+			return detectUvicorn(args[1:])
+		}
 	}
 
-	var (
-		prevArgIsFlag bool
-		moduleFlag    bool
-	)
-
-	for _, a := range args {
-		hasFlagPrefix, isEnvVariable := strings.HasPrefix(a, "-"), strings.ContainsRune(a, '=')
-
-		shouldSkipArg := prevArgIsFlag || hasFlagPrefix || isEnvVariable
-
-		if moduleFlag {
-			return NewServiceMetadata(a, CommandLine), true
+	argType, arg := parsePythonArgs(args)
+	switch argType {
+	case argNone:
+		return ServiceMetadata{}, false
+	case argMod:
+		return NewServiceMetadata(arg, CommandLine), true
+	case argFileName:
+		absPath := p.ctx.resolveWorkingDirRelativePath(arg)
+		fi, err := fs.Stat(p.ctx.fs, absPath)
+		if err != nil {
+			return ServiceMetadata{}, false
+		}
+		stripped := absPath
+		var filename string
+		if !fi.IsDir() {
+			stripped, filename = path.Split(stripped)
+			// If the path is a root level file, return the filename
+			if stripped == "" {
+				return NewServiceMetadata(p.findNearestTopLevel(filename), CommandLine), true
+			}
+		}
+		if value, ok := p.deducePackageName(path.Clean(stripped), filename); ok {
+			return NewServiceMetadata(value, Python), true
 		}
 
-		if !shouldSkipArg {
-			wd, _ := workingDirFromEnvs(p.ctx.Envs)
-			absPath := abs(a, wd)
-			fi, err := fs.Stat(p.ctx.fs, absPath)
-			if err != nil {
-				return ServiceMetadata{}, false
-			}
-			stripped := absPath
-			var filename string
-			if !fi.IsDir() {
-				stripped, filename = path.Split(stripped)
-				// If the path is a root level file, return the filename
-				if stripped == "" {
-					return NewServiceMetadata(p.findNearestTopLevel(filename), CommandLine), true
-				}
-			}
-			if value, ok := p.deducePackageName(path.Clean(stripped), filename); ok {
-				return NewServiceMetadata(value, Python), true
-			}
-
-			name := p.findNearestTopLevel(stripped)
-			// If we have generic/useless directory names, fallback to the filename.
-			if name == "." || name == "/" || name == "bin" || name == "sbin" {
-				name = p.findNearestTopLevel(filename)
-			}
-
-			return NewServiceMetadata(name, CommandLine), true
+		name := p.findNearestTopLevel(stripped)
+		// If we have generic/useless directory names, fallback to the filename.
+		if name == "." || name == "/" || name == "bin" || name == "sbin" {
+			name = p.findNearestTopLevel(filename)
 		}
 
-		if hasFlagPrefix && a == "-m" {
-			moduleFlag = true
-		}
-
-		// The -u (unbuffered) option doesn't take an argument so we should
-		// consider the next arg even though this one is a flag.
-		prevArgIsFlag = hasFlagPrefix && a != "-u"
+		return NewServiceMetadata(name, CommandLine), true
 	}
 
 	return ServiceMetadata{}, false
@@ -190,4 +251,31 @@ func extractGunicornNameFrom(args []string) (string, bool) {
 func parseNameFromWsgiApp(wsgiApp string) string {
 	name, _, _ := strings.Cut(wsgiApp, ":")
 	return name
+}
+
+func detectUvicorn(args []string) (ServiceMetadata, bool) {
+	skipNext := false
+	for _, arg := range args {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+
+		// Skip flags
+		if strings.HasPrefix(arg, "-") {
+			if arg == "--header" {
+				// This takes an argument which looks similar to a module:app
+				// pattern so skip that.
+				skipNext = true
+			}
+			continue
+		}
+
+		// Look for module:app pattern
+		if strings.Contains(arg, ":") {
+			module := strings.Split(arg, ":")[0]
+			return NewServiceMetadata(module, CommandLine), true
+		}
+	}
+	return NewServiceMetadata("uvicorn", CommandLine), true
 }

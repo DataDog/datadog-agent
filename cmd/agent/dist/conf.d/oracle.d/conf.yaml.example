@@ -115,6 +115,11 @@ instances:
     #
     # reported_hostname: <REPORTED_HOSTNAME>
 
+    ## @param exclude_hostname - boolean - optional - default: false
+    ## Omit the hostname from tags and events. This is useful when the database host is not monitored by an agent.
+    #
+    # exclude_hostname: false
+
     ## Controls how the database is identified. The default value is the resolved hostname for the instance,
     ## which respects the `reported_hostname` option.
     ##

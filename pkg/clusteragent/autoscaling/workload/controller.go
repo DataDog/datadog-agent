@@ -78,6 +78,7 @@ type Controller struct {
 
 // NewController returns a new workload autoscaling controller
 func NewController(
+	clock clock.Clock,
 	clusterID string,
 	eventRecorder record.EventRecorder,
 	restMapper apimeta.RESTMapper,
@@ -92,7 +93,7 @@ func NewController(
 ) (*Controller, error) {
 	c := &Controller{
 		clusterID:         clusterID,
-		clock:             clock.RealClock{},
+		clock:             clock,
 		eventRecorder:     eventRecorder,
 		localSender:       localSender,
 		isFallbackEnabled: false, // keep fallback disabled by default

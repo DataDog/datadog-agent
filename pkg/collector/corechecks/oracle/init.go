@@ -83,7 +83,7 @@ func (c *Check) init() error {
 	} else if i.HostName.Valid {
 		c.dbResolvedHostname = i.HostName.String
 	}
-	if !c.config.EmptyDefaultHostname {
+	if !c.config.ExcludeHostname {
 		c.dbHostname = c.dbResolvedHostname
 	}
 	if c.dbHostname == "" {

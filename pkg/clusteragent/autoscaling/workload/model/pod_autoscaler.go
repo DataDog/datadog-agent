@@ -17,8 +17,6 @@ import (
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -126,12 +124,12 @@ func NewPodAutoscalerInternal(podAutoscaler *datadoghq.DatadogPodAutoscaler) Pod
 }
 
 // NewPodAutoscalerFromSettings creates a new PodAutoscalerInternal from settings received through remote configuration
-func NewPodAutoscalerFromSettings(ns, name string, podAutoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, settingsVersion uint64, settingsTimestamp time.Time) PodAutoscalerInternal {
+func NewPodAutoscalerFromSettings(ns, name string, podAutoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, settingsTimestamp time.Time) PodAutoscalerInternal {
 	pda := PodAutoscalerInternal{
 		namespace: ns,
 		name:      name,
 	}
-	pda.UpdateFromSettings(podAutoscalerSpec, settingsVersion, settingsTimestamp)
+	pda.UpdateFromSettings(podAutoscalerSpec, settingsTimestamp)
 
 	return pda
 }
@@ -155,15 +153,18 @@ func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq
 }
 
 // UpdateFromSettings updates the PodAutoscalerInternal from a new settings
-func (p *PodAutoscalerInternal) UpdateFromSettings(podAutoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, settingsVersion uint64, settingsTimestamp time.Time) {
+func (p *PodAutoscalerInternal) UpdateFromSettings(podAutoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, settingsTimestamp time.Time) {
+	if p.spec == nil || p.spec.RemoteVersion == nil || *p.spec.RemoteVersion != *podAutoscalerSpec.RemoteVersion {
+		// Reset the target GVK as it might have changed
+		// Resolving the target GVK is done in the controller sync to ensure proper sync and error handling
+		p.targetGVK = schema.GroupVersionKind{}
+		// Compute the horizontal events retention again in case .Spec.ApplyPolicy has changed
+		p.horizontalEventsRetention = getHorizontalEventsRetention(podAutoscalerSpec.ApplyPolicy, longestScalingRulePeriodAllowed)
+	}
+	// From settings, we don't need to deep copy as the object is not stored anywhere else
+	// We store spec all the time to avoid having duplicate memory in the retriever state and here
+	p.spec = podAutoscalerSpec
 	p.settingsTimestamp = settingsTimestamp
-	p.spec = podAutoscalerSpec // From settings, we don't need to deep copy as the object is not stored anywhere else
-	p.spec.RemoteVersion = pointer.Ptr(settingsVersion)
-	// Reset the target GVK as it might have changed
-	// Resolving the target GVK is done in the controller sync to ensure proper sync and error handling
-	p.targetGVK = schema.GroupVersionKind{}
-	// Compute the horizontal events retention again in case .Spec.ApplyPolicy has changed
-	p.horizontalEventsRetention = getHorizontalEventsRetention(podAutoscalerSpec.ApplyPolicy, longestScalingRulePeriodAllowed)
 }
 
 // MergeScalingValues updates the PodAutoscalerInternal scaling values based on the desired source of recommendations

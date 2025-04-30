@@ -1459,7 +1459,7 @@ api_key:
   ## The list of items available under apm_config.features is not guaranteed to persist across versions;
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
-  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sqllexer","enable_otlp_compute_top_level_by_span_kind","enable_receive_resource_spans_v2", "enable_operation_and_resource_name_logic_v2"]
+  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sqllexer","enable_otlp_compute_top_level_by_span_kind","disable_receive_resource_spans_v2", "disable_operation_and_resource_name_logic_v2"]
 
   ## @param additional_endpoints - object - optional
   ## @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional
@@ -2842,6 +2842,17 @@ api_key:
 ## on all registered configuration providers.
 #
 # ad_config_poll_interval: 10
+
+## @param ad_allowed_env_vars - list of strings - optional
+## @env DD_AD_ALLOWED_ENV_VARS - list of strings - optional
+## The list of environment variables that are allowed to be resolved in check
+## configurations.
+## If the list is not set or is empty, the default behavior applies: all envs
+## are allowed.
+#
+# ad_allowed_env_vars:
+#   - <ENV_VAR_1>
+#   - <ENV_VAR_2>
 
 ## @param cloud_foundry_garden - custom object - optional
 ## Settings for Cloudfoundry application container autodiscovery.
@@ -4331,6 +4342,25 @@ api_key:
     ## limit_per_sec.  For example, with limit_per_sec=1000, limit_throttled_per_sec=1, recovery_intervals=5, recovery_interval=5s, the limit will
     ## be increased by 200 every 5 seconds until reaching 1000.
     # recovery_interval: 5s
+
+## @param ha_agent - custom object - optional
+## This section configures High Availability Agent feature.
+#
+# ha_agent:
+
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable High Availability Agent feature.
+  #
+  # enabled: false
+
+
+## @param config_id - string - optional
+## The config_id configuration is used by High Availability Agent to assign a specific config ID to an Agent.
+## When used with `ha_agent.enabled: true`, all Agents with the same config_id will be part of the same group of Agents;
+## meaning that, one Agent within this group is designated as primary and others as standby.
+#
+# config_id:
+
 
 {{end -}}
 {{- if .OTLP }}

@@ -5,6 +5,7 @@ package datadogconnector
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -66,8 +67,14 @@ func creteConnectorNative(t *testing.T) (*traceToMetricConnector, *consumertest.
 	return creteConnectorNativeWithCfg(t, cfg)
 }
 
+const (
+	fallBackHostname = "test-host"
+)
+
 func creteConnectorNativeWithCfg(t *testing.T, cfg *Config) (*traceToMetricConnector, *consumertest.MetricsSink) {
-	factory := NewFactory()
+	factory := NewFactoryForAgent(testutil.NewTestTaggerClient(), func(_ context.Context) (string, error) {
+		return fallBackHostname, nil
+	})
 
 	creationParams := connectortest.NewNopSettings(Type)
 	metricsSink := &consumertest.MetricsSink{}
@@ -89,7 +96,7 @@ var (
 	spanEndTimestamp   = pcommon.NewTimestampFromTime(time.Date(2020, 2, 11, 20, 26, 13, 789, time.UTC))
 )
 
-func generateTrace() ptrace.Traces {
+func generateTrace(extraAttributes map[string]string) ptrace.Traces {
 	td := ptrace.NewTraces()
 	res := td.ResourceSpans().AppendEmpty().Resource()
 	res.Attributes().EnsureCapacity(3)
@@ -99,6 +106,9 @@ func generateTrace() ptrace.Traces {
 	res.Attributes().PutStr("cloud.region", "my-region")
 	// add a custom Resource attribute
 	res.Attributes().PutStr("az", "my-az")
+	for k, v := range extraAttributes {
+		res.Attributes().PutStr(k, v)
+	}
 
 	ss := td.ResourceSpans().At(0).ScopeSpans().AppendEmpty().Spans()
 	ss.EnsureCapacity(1)
@@ -153,7 +163,7 @@ func newTranslatorWithStatsChannel(t *testing.T, logger *zap.Logger, ch chan []b
 	return tr
 }
 
-func TestContainerTagsNative(t *testing.T) {
+func TestContainerTagsAndHostnameNative(t *testing.T) {
 	connector, metricsSink := creteConnectorNative(t)
 	err := connector.Start(context.Background(), componenttest.NewNopHost())
 	if err != nil {
@@ -164,13 +174,13 @@ func TestContainerTagsNative(t *testing.T) {
 		_ = connector.Shutdown(context.Background())
 	}()
 
-	trace1 := generateTrace()
+	trace1 := generateTrace(nil)
 
 	err = connector.ConsumeTraces(context.Background(), trace1)
 	assert.NoError(t, err)
 
 	// Send two traces to ensure unique container tags are added to the cache
-	trace2 := generateTrace()
+	trace2 := generateTrace(nil)
 	err = connector.ConsumeTraces(context.Background(), trace2)
 	assert.NoError(t, err)
 
@@ -198,6 +208,59 @@ func TestContainerTagsNative(t *testing.T) {
 	tags := sp.Stats[0].Tags
 	assert.Len(t, tags, 3)
 	assert.ElementsMatch(t, []string{"region:my-region", "zone:my-zone", "az:my-az"}, tags)
+
+	hostname := sp.Stats[0].Hostname
+	assert.Equal(t, fallBackHostname, hostname)
+}
+
+func TestHostnameFromAttributesPreferred(t *testing.T) {
+	connector, metricsSink := creteConnectorNative(t)
+	err := connector.Start(context.Background(), componenttest.NewNopHost())
+	if err != nil {
+		t.Errorf("Error starting connector: %v", err)
+		return
+	}
+	defer func() {
+		_ = connector.Shutdown(context.Background())
+	}()
+
+	trace1 := generateTrace(map[string]string{"host": "preferred-host"})
+
+	err = connector.ConsumeTraces(context.Background(), trace1)
+	assert.NoError(t, err)
+
+	// Send two traces to ensure unique container tags are added to the cache
+	trace2 := generateTrace(map[string]string{"host": "preferred-host"})
+	err = connector.ConsumeTraces(context.Background(), trace2)
+	assert.NoError(t, err)
+
+	for {
+		if len(metricsSink.AllMetrics()) > 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// check if the container tags are added to the metrics
+	metrics := metricsSink.AllMetrics()
+	assert.Len(t, metrics, 1)
+
+	ch := make(chan []byte, 100)
+	tr := newTranslatorWithStatsChannel(t, zap.NewNop(), ch)
+	_, err = tr.MapMetrics(context.Background(), metrics[0], nil, nil)
+	require.NoError(t, err)
+	msg := <-ch
+	sp := &pb.StatsPayload{}
+
+	err = proto.Unmarshal(msg, sp)
+	require.NoError(t, err)
+
+	tags := sp.Stats[0].Tags
+	assert.Len(t, tags, 3)
+	assert.ElementsMatch(t, []string{"region:my-region", "zone:my-zone", "az:my-az"}, tags)
+
+	hostname := sp.Stats[0].Hostname
+	assert.Equal(t, "preferred-host", hostname)
 }
 
 var (

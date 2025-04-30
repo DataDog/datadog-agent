@@ -43,14 +43,6 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: false,
 		},
 		{
-			key:          "process_config.remote_tagger",
-			defaultValue: false,
-		},
-		{
-			key:          "process_config.remote_workloadmeta",
-			defaultValue: false,
-		},
-		{
 			key:          "process_config.process_discovery.enabled",
 			defaultValue: true,
 		},
@@ -237,12 +229,6 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS",
 			value:    "1",
 			expected: 1,
-		},
-		{
-			key:      "process_config.remote_tagger",
-			env:      "DD_PROCESS_CONFIG_REMOTE_TAGGER",
-			value:    "true",
-			expected: true,
 		},
 		{
 			key:      "process_config.process_discovery.enabled",

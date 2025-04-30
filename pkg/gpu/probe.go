@@ -383,7 +383,8 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 		SharedLibsLibset:               sharedlibraries.LibsetGPU,
 		ScanProcessesInterval:          cfg.ScanProcessesInterval,
 		EnablePeriodicScanNewProcesses: true,
-		EnableDetailedLogging:          true,
+		EnableDetailedLogging:          false,
+		ExcludeTargets:                 uprobes.ExcludeInternal | uprobes.ExcludeSelf,
 	}
 }
 

@@ -6,6 +6,7 @@
 package runner
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -112,35 +113,15 @@ func newScheduler() *scheduler.Scheduler {
 }
 
 func assertAsyncWorkerCount(t *testing.T, count int) {
-	for idx := 0; idx < 75; idx++ {
-		workers := expvars.GetWorkerCount()
-		if workers == count {
-			// This may seem superfluous but we want to ensure that at least one
-			// assertion runs in all cases
-			require.Equal(t, count, workers)
-			return
-		}
-
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	require.Equal(t, count, expvars.GetWorkerCount())
+	require.Eventually(t, func() bool {
+		return expvars.GetWorkerCount() == count
+	}, 750*time.Millisecond, 10*time.Millisecond)
 }
 
 func assertAsyncBool(t *testing.T, actualValueFunc func() bool, expectedValue bool) {
-	for idx := 0; idx < 20; idx++ {
-		actualValue := actualValueFunc()
-		if actualValue == expectedValue {
-			// This may seem superfluous but we want to ensure that at least one
-			// assertion runs in all cases
-			require.Equal(t, expectedValue, actualValue)
-			return
-		}
-
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	require.Equal(t, expectedValue, actualValueFunc())
+	require.Eventually(t, func() bool {
+		return actualValueFunc() == expectedValue
+	}, 200*time.Millisecond, 10*time.Millisecond)
 }
 
 func testSetUp(t *testing.T) model.Config {
@@ -148,6 +129,27 @@ func testSetUp(t *testing.T) model.Config {
 	assertAsyncWorkerCount(t, 0)
 	expvars.Reset()
 	mockConfig.SetWithoutSource("hostname", "myhost")
+
+	// at the end of the test, ensure that the worker count is 0
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if expvars.GetWorkerCount() == 0 {
+					return
+				}
+			}
+		}
+	})
+
 	return mockConfig
 }
 

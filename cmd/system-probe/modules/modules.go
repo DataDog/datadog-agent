@@ -35,6 +35,9 @@ var moduleOrder = []types.ModuleName{
 
 // nolint: deadcode, unused // may be unused with certain build tag combinations
 func registerModule(mod *module.Factory) {
+	if mod.Name == "" {
+		return
+	}
 	all = append(all, mod)
 }
 

@@ -77,6 +77,10 @@ BINARIES: dict[str, dict] = {
         "flavor": AgentFlavor.heroku,
         "platforms": ["linux/x64"],
     },
+    "otel-agent": {
+        "entrypoint": "cmd/otel-agent",
+        "platforms": ["linux/x64", "linux/arm64"],
+    },
 }
 
 METRIC_GO_DEPS_DIFF = "datadog.agent.go_dependencies.diff"
