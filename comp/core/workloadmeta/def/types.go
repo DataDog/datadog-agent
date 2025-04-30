@@ -46,6 +46,7 @@ const (
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
+	KindService                Kind = "service"
 	KindGPU                    Kind = "gpu"
 )
 
@@ -1515,6 +1516,44 @@ type GPUComputeCapability struct {
 func (gcc GPUComputeCapability) String() string {
 	return fmt.Sprintf("%d.%d", gcc.Major, gcc.Minor)
 }
+
+// Service represents a Service process
+type Service struct {
+	EntityID // EntityID.ID is the PID
+}
+
+// GetID implements Entity#GetID.
+func (s Service) GetID() EntityID {
+	return s.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (s *Service) Merge(e Entity) error {
+	ss, ok := e.(*Service)
+	if !ok {
+		return fmt.Errorf("cannot merge Service with different kind %T", e)
+	}
+
+	return merge(s, ss)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (s Service) DeepCopy() Entity {
+	cp := deepcopy.Copy(s).(Service)
+	return &cp
+}
+
+// String implements Entity#String.
+func (s Service) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, s.EntityID.String(verbose))
+
+	return sb.String()
+}
+
+var _ Entity = &Service{}
 
 // CollectorStatus is the status of collector which is used to determine if the collectors
 // are not started, starting, started (pulled once)
