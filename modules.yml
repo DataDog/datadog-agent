@@ -210,6 +210,17 @@ modules:
   pkg/networkpath/payload: default
   pkg/obfuscate:
     used_by_otel: true
+  pkg/opentelemetry-mapping-go/inframetadata:
+    used_by_otel: true
+  pkg/opentelemetry-mapping-go/inframetadata/gohai/internal/gohaitest:
+    should_test_condition: never
+    used_by_otel: true
+  pkg/opentelemetry-mapping-go/otlp/attributes:
+    used_by_otel: true
+  pkg/opentelemetry-mapping-go/otlp/logs:
+    used_by_otel: true
+  pkg/opentelemetry-mapping-go/otlp/metrics:
+    used_by_otel: true
   pkg/orchestrator/model:
     used_by_otel: true
   pkg/process/procutil/resources: ignored
@@ -283,6 +294,10 @@ modules:
   pkg/util/pointer:
     used_by_otel: true
   pkg/util/prometheus: default
+  pkg/util/quantile:
+    used_by_otel: true
+  pkg/util/quantile/sketchtest:
+    used_by_otel: true
   pkg/util/scrubber:
     used_by_otel: true
   pkg/util/sort:

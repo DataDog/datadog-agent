@@ -164,3 +164,10 @@ var (
 	// BufferSelectorDNSResponseFilteredMonitorKey is the key used to select the filtered DNS responses
 	BufferSelectorDNSResponseFilteredMonitorKey = Uint32MapItem(4)
 )
+
+// Map is the interface for all eBPF maps
+type Map interface {
+	LookupBytes(interface{}) ([]byte, error)
+	Put(interface{}, interface{}) error
+	Delete(interface{}) error
+}
