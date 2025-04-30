@@ -106,8 +106,8 @@ func TestConfigScrubbedValidYaml(t *testing.T) {
 	assert.NoError(t, err, "Could not load YAML configuration after being scrubbed")
 
 	// We replace windows line break by linux so the tests pass on every OS
-	trimmedOutput := strings.TrimSpace(strings.Replace(string(outputConfData), "\r\n", "\n", -1))
-	trimmedCleaned := strings.TrimSpace(strings.Replace(string(cleaned), "\r\n", "\n", -1))
+	trimmedOutput := strings.TrimSpace(strings.ReplaceAll(string(outputConfData), "\r\n", "\n"))
+	trimmedCleaned := strings.TrimSpace(strings.ReplaceAll(string(cleaned), "\r\n", "\n"))
 
 	assert.Equal(t, trimmedOutput, trimmedCleaned)
 }
@@ -132,8 +132,8 @@ func TestConfigScrubbedYaml(t *testing.T) {
 	assert.NoError(t, err, "Could not load YAML configuration after being scrubbed")
 
 	// We replace windows line break by linux so the tests pass on every OS
-	trimmedOutput := strings.TrimSpace(strings.Replace(string(outputConfData), "\r\n", "\n", -1))
-	trimmedCleaned := strings.TrimSpace(strings.Replace(string(cleaned), "\r\n", "\n", -1))
+	trimmedOutput := strings.TrimSpace(strings.ReplaceAll(string(outputConfData), "\r\n", "\n"))
+	trimmedCleaned := strings.TrimSpace(strings.ReplaceAll(string(cleaned), "\r\n", "\n"))
 
 	assert.Equal(t, trimmedOutput, trimmedCleaned)
 }
