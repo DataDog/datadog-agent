@@ -168,7 +168,7 @@ func (c *serializerConsumer) addBYOCMetric(hostname string, byoc *string) {
 	if byoc != nil {
 		isBYOC, _ := strconv.ParseFloat(*byoc, 64)
 		c.series = append(c.series, &metrics.Serie{
-			Name:           "otel.agent.byoc",
+			Name:           "datadog.otel.byoc",
 			Points:         []metrics.Point{{Value: isBYOC, Ts: float64(time.Now().Unix())}},
 			Tags:           tagset.CompositeTagsFromSlice([]string{}),
 			Host:           hostname,
