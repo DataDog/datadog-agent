@@ -353,12 +353,9 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			Origin:        a.probe.Origin(),
 			KernelVersion: a.kernelVersion,
 			Distribution:  a.distribution,
+			PolicyName:    rule.Policy.Name,
+			PolicyVersion: rule.Policy.Version,
 		},
-	}
-
-	if policy := rule.Policy; policy != nil {
-		backendEvent.AgentContext.PolicyName = policy.Name
-		backendEvent.AgentContext.PolicyVersion = policy.Def.Version
 	}
 
 	seclog.Tracef("Prepare event message for rule `%s`", rule.ID)

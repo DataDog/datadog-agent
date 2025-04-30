@@ -198,8 +198,8 @@ type Reader interface {
 	// by a call to the 'Set' method. The configuration will sequentially call each receiver.
 	OnUpdate(callback NotificationReceiver)
 
-	// Stringify stringifies the config
-	Stringify(source Source) string
+	// Stringify stringifies the config, only available if "test" build tag is enabled
+	Stringify(source Source, opts ...StringifyOption) string
 }
 
 // Writer is a subset of Config that only allows writing the configuration
