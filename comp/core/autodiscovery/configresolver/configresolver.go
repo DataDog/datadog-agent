@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -622,6 +624,14 @@ func getEnvvar(_ context.Context, envVar string, svc listeners.Service) (string,
 		}
 		return "", fmt.Errorf("envvar name is missing")
 	}
+
+	if !allowEnvVar(envVar) {
+		if svc != nil {
+			return "", fmt.Errorf("envvar %s is not allowed in check configs, skipping service %s", envVar, svc.GetServiceID())
+		}
+		return "", fmt.Errorf("envvar %s is not allowed in check configs", envVar)
+	}
+
 	value, found := os.LookupEnv(envVar)
 	if !found {
 		if svc != nil {
@@ -630,4 +640,18 @@ func getEnvvar(_ context.Context, envVar string, svc listeners.Service) (string,
 		return "", fmt.Errorf("failed to retrieve envvar %s", envVar)
 	}
 	return value, nil
+}
+
+func allowEnvVar(envVar string) bool {
+	allowedEnvs := pkgconfigsetup.Datadog().GetStringSlice("ad_allowed_env_vars")
+
+	// If the option is not set or is empty, the default behavior applies: all
+	// envs are allowed.
+	if len(allowedEnvs) == 0 {
+		return true
+	}
+
+	return slices.ContainsFunc(allowedEnvs, func(env string) bool {
+		return strings.EqualFold(env, envVar)
+	})
 }

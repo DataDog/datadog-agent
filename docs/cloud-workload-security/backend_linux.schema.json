@@ -212,6 +212,10 @@
         "manager": {
           "type": "string",
           "description": "CGroup manager"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
         }
       },
       "additionalProperties": false,
