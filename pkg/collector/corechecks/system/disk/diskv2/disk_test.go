@@ -178,14 +178,14 @@ func createCheck() check.Check {
 
 type signalClock struct {
 	clock.Clock
-	afterCalled chan struct{}
+	afterCalled chan time.Time
 }
 
 func (sc *signalClock) After(d time.Duration) <-chan time.Time {
 	ch := sc.Clock.After(d)
 	// Signal that After has been called
 	select {
-	case sc.afterCalled <- struct{}{}:
+	case sc.afterCalled <- time.Now():
 	default:
 	}
 	return ch
@@ -1300,7 +1300,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenUsagePartitionTimeout_ThenUsageMet
 		}, nil
 	}
 	mockClock := clock.NewMock()
-	afterCalled := make(chan struct{}, 1)
+	afterCalled := make(chan time.Time, 1)
 	// Wrap your mockClock with the signaling clock
 	testClock := &signalClock{
 		Clock:       mockClock,
