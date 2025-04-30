@@ -178,6 +178,7 @@ func NewExporter(
 		hostmetadata:    cfg.HostMetadata,
 		reporter:        reporter,
 		gatewayUsage:    gatewayUsage,
+		IsBYOC:          isBYOC,
 	}, nil
 }
 
