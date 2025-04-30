@@ -99,6 +99,7 @@ func newFactoryForAgentWithType(s serializer.MetricSerializer, enricher tagenric
 		},
 		options:      options,
 		gatewayUsage: gatewayUsage,
+		isBYOC:       isBYOC,
 	}
 
 	return exp.NewFactory(

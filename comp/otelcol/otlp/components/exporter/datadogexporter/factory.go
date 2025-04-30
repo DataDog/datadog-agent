@@ -89,6 +89,7 @@ func newFactoryWithRegistry(
 		h:              h,
 		mclientwrapper: mclientwrapper,
 		gatewayUsage:   gatewayUsage,
+		isBYOC: isBYOC,
 	}
 
 	return exporter.NewFactory(
