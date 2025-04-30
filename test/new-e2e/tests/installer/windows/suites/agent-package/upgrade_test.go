@@ -7,6 +7,7 @@ package agenttests
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -376,4 +377,132 @@ func (s *testAgentUpgradeSuite) assertDaemonStaysRunning(f func()) {
 	newPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
 	s.Require().NoError(err)
 	s.Require().Equal(originalPID, newPID, "daemon should not have been restarted")
+}
+
+type testAgentUpgradeFromGASuite struct {
+	testAgentUpgradeSuite
+}
+
+// TestAgentUpgradesFromGA tests that we can upgrade from GA release (7.65.0) to current
+func TestAgentUpgradesFromGA(t *testing.T) {
+	s := &testAgentUpgradeFromGASuite{}
+	s.testAgentUpgradeSuite.BaseSuite.CreateStableAgent = s.createStableAgent
+	e2e.Run(t, s,
+		e2e.WithProvisioner(
+			winawshost.ProvisionerNoAgentNoFakeIntake(),
+		),
+	)
+}
+
+// createStableAgent provides AgentVersionManager for the 7.65.0 Agent release to the suite
+func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.AgentVersionManager, error) {
+	previousVersion := "7.65.0-rc.10"
+	previousVersionPackage := "7.65.0-rc.10-1"
+
+	// Get previous version OCI package
+	previousOCI, err := installerwindows.NewPackageConfig(
+		installerwindows.WithName(consts.AgentPackage),
+		installerwindows.WithVersion(previousVersion),
+		installerwindows.WithRegistry("install.datad0g.com"),
+		installerwindows.WithDevEnvOverrides("STABLE_AGENT"),
+	)
+	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
+
+	// Get previous version MSI package
+	url, err := windowsagent.GetChannelURL("beta")
+	s.Require().NoError(err)
+	previousMSI, err := windowsagent.NewPackage(
+		windowsagent.WithVersion(previousVersionPackage),
+		windowsagent.WithURLFromInstallersJSON(url, previousVersionPackage),
+		windowsagent.WithDevEnvOverrides("STABLE_AGENT"),
+	)
+	s.Require().NoError(err, "Failed to lookup MSI for previous agent version")
+
+	// Allow override of version and version package via environment variables
+	// if not running in the CI, to reduce risk of accidentally using the wrong version in the CI.
+	if os.Getenv("CI") == "" {
+		if val := os.Getenv("STABLE_AGENT_VERSION"); val != "" {
+			previousVersion = val
+		}
+		if val := os.Getenv("STABLE_AGENT_VERSION_PACKAGE"); val != "" {
+			previousVersionPackage = val
+		}
+	}
+
+	// Setup previous Agent artifacts
+	agent, err := installerwindows.NewAgentVersionManager(
+		previousVersion,
+		previousVersionPackage,
+		previousOCI,
+		previousMSI,
+	)
+	s.Require().NoError(err, "Stable agent version was in an incorrect format")
+
+	return agent, nil
+}
+
+// TestUpgradeAgentPackage tests that upgrade from GA release (7.65.0) to current works
+func (s *testAgentUpgradeFromGASuite) TestUpgradeAgentPackage() {
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+
+	// Act
+	s.mustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+
+	// Assert
+}
+
+// TestUpgradeAgentPackageAfterRollback tests that upgrade from GA release (7.65.0) to current works
+// even after an initial upgrade failed.
+//
+// This is a regression test for WINA-1469, where the Agent account password and
+// password from the LSA did not match after rollback.
+func (s *testAgentUpgradeFromGASuite) TestUpgradeAgentPackageAfterRollback() {
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+
+	// Act
+	s.mustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+
+	// stop experiment to trigger rollback
+	s.Installer().StopExperiment(consts.AgentPackage)
+	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
+
+	// Try upgrade again
+	s.mustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+
+	// Assert
+}
+
+// mustStartExperimentCurrentVersion is like MustStartExperimentCurrentVersion but is specific to the 7.65 daemon
+// which must use the start-installer-experiment subcommand to start an experiment for the Agent package.
+func (s *testAgentUpgradeFromGASuite) mustStartExperimentCurrentVersion() {
+	packageConfig, err := s.SetCatalogWithCustomPackage(
+		installerwindows.WithPackage(s.CurrentAgentVersion().OCIPackage()),
+	)
+	s.Require().NoError(err)
+
+	// 7.65 must use the start-installer-experiment subcommand to start an experiment for the Agent package
+	s.Installer().StartInstallerExperiment(consts.AgentPackage, packageConfig.Version)
+	// can't check error of start-installer-experiment because the process will be killed by the MSI "files in use"
+
+	// have to wait for experiment to finish installing
+	err = s.WaitForInstallerService("Running")
+
+	s.Require().NoError(err)
+	s.Require().Host(s.Env().RemoteHost).
+		HasBinary(consts.BinaryPath).
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.CurrentAgentVersion().Version())
+		}).
+		DirExists(consts.GetExperimentDirFor(consts.AgentPackage))
 }

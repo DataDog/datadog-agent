@@ -239,7 +239,9 @@ func (s *BaseSuite) BeforeTest(suiteName, testName string) {
 	s.installScriptImpl = NewDatadogInstallScript(s.Env())
 }
 
-func (s *BaseSuite) startExperimentWithCustomPackage(opts ...PackageOption) (string, error) {
+// SetCatalogWithCustomPackage sets the catalog with a custom package
+// and returns the package config created from the opts.
+func (s *BaseSuite) SetCatalogWithCustomPackage(opts ...PackageOption) (TestPackageConfig, error) {
 	packageConfig, err := NewPackageConfig(opts...)
 	s.Require().NoError(err)
 	packageConfig, err = CreatePackageSourceIfLocal(s.Env().RemoteHost, packageConfig)
@@ -255,6 +257,11 @@ func (s *BaseSuite) startExperimentWithCustomPackage(opts ...PackageOption) (str
 			},
 		},
 	})
+	return packageConfig, err
+}
+
+func (s *BaseSuite) startExperimentWithCustomPackage(opts ...PackageOption) (string, error) {
+	packageConfig, err := s.SetCatalogWithCustomPackage(opts...)
 	s.Require().NoError(err)
 	return s.Installer().StartExperiment(consts.AgentPackage, packageConfig.Version)
 }
