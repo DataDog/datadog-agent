@@ -5,9 +5,10 @@
 
 //go:build linux
 
-// Package process implements the local process collector for Workloadmeta.
+// Package processlanguage implements the local process collector for Workloadmeta.
 package processlanguage
 
+// Package proces
 import (
 	"time"
 
