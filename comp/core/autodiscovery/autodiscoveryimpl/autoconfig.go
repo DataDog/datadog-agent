@@ -284,7 +284,7 @@ func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 	response.ResolveWarnings = GetResolveWarnings()
 	response.ConfigErrors = GetConfigErrors()
 
-	unresolved := ac.GetUnresolvedTemplates()
+	unresolved := ac.getUnresolvedTemplates()
 	scrubbedUnresolved := make(map[string][]integration.Config, len(unresolved))
 
 	for ids, configs := range unresolved {
@@ -327,7 +327,7 @@ func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
 
 	response.ResolveWarnings = GetResolveWarnings()
 	response.ConfigErrors = GetConfigErrors()
-	response.Unresolved = ac.GetUnresolvedTemplates()
+	response.Unresolved = ac.getUnresolvedTemplates()
 
 	return response
 }
@@ -651,9 +651,9 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	ac.deleteMappingsOfCheckIDsWithSecrets(changes.Unschedule)
 }
 
-// GetUnresolvedTemplates returns all templates in the cache, in their unresolved
+// getUnresolvedTemplates returns all templates in the cache, in their unresolved
 // state.
-func (ac *AutoConfig) GetUnresolvedTemplates() map[string][]integration.Config {
+func (ac *AutoConfig) getUnresolvedTemplates() map[string][]integration.Config {
 	return ac.store.templateCache.getUnresolvedTemplates()
 }
 
