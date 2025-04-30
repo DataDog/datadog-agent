@@ -465,7 +465,12 @@ func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.Usage
 	go func() {
 		// UsageWithContext in gopsutil ignores the context for now (PR opened: https://github.com/shirou/gopsutil/pull/1837)
 		usage, err := DiskUsage(mountpoint)
-		resultCh <- usageResult{usage, err}
+		var usageCopy *gopsutil_disk.UsageStat
+		if usage != nil {
+			tmp := *usage // shallow copy is sufficient as usage doesn't contain internal pointers being concurrently modified
+			usageCopy = &tmp
+		}
+		resultCh <- usageResult{usageCopy, err}
 	}()
 	// Use select to wait for either the disk usage result or a timeout.
 	timeout := time.Duration(c.instanceConfig.Timeout) * time.Second
