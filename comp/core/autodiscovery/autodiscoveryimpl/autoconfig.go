@@ -261,7 +261,7 @@ func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
 func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 	var response integration.ConfigCheckResponse
 
-	configSlice := ac.LoadedConfigs()
+	configSlice := ac.GetAllConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {
 		return configSlice[i].Name < configSlice[j].Name
 	})
@@ -305,7 +305,7 @@ func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
 	var response integration.ConfigCheckResponse
 
-	configSlice := ac.LoadedConfigs()
+	configSlice := ac.GetAllConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {
 		return configSlice[i].Name < configSlice[j].Name
 	})
@@ -649,23 +649,6 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	changes := ac.cfgMgr.processDelConfigs(configs)
 	ac.applyChanges(changes)
 	ac.deleteMappingsOfCheckIDsWithSecrets(changes.Unschedule)
-}
-
-// LoadedConfigs returns a slice of all loaded configs.  Loaded configs are non-template
-// configs, either as received from a config provider or as resolved from a template and
-// a service.  They do not include service configs.
-//
-// The returned slice is freshly created and will not be modified after return.
-func (ac *AutoConfig) LoadedConfigs() []integration.Config {
-	var configs []integration.Config
-	ac.cfgMgr.mapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
-		configs = make([]integration.Config, 0, len(loadedConfigs))
-		for _, c := range loadedConfigs {
-			configs = append(configs, c)
-		}
-	})
-
-	return configs
 }
 
 // GetUnresolvedTemplates returns all templates in the cache, in their unresolved

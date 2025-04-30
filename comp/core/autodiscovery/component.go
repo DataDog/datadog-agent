@@ -29,7 +29,6 @@ type Component interface {
 	AddListeners(listenerConfigs []pkgconfigsetup.Listeners)
 	AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool)
 	RemoveScheduler(name string)
-	LoadedConfigs() []integration.Config
 	GetUnresolvedTemplates() map[string][]integration.Config
 	GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) checkid.ID
 	GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet
