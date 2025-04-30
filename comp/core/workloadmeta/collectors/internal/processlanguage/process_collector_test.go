@@ -7,7 +7,7 @@
 
 // Package process implements the local process collector for
 // Workloadmeta.
-package process
+package processlanguage
 
 import (
 	"context"
