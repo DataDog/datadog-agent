@@ -1,0 +1,60 @@
+## @section APM Configuration Rules
+##
+## Enable and configure various APM, profiling, and security monitoring features.
+## These settings can also be controlled via environment variables in supported platforms.
+
+apm_configuration_rules:
+
+  ## @param DD_APM_TRACING_ENABLED - boolean - optional - default: true
+  ## Enable Datadog tracing.
+  ## Docs: https://docs.datadoghq.com/tracing/trace_collection/
+  # DD_APM_TRACING_ENABLED: true
+
+  ## @param DD_RUNTIME_METRICS_ENABLED - boolean - optional - default: false
+  ## Enable runtime metrics.
+  ## Docs: https://docs.datadoghq.com/tracing/metrics/runtime_metrics/?tab=java#environment-variables
+  # DD_RUNTIME_METRICS_ENABLED: false
+
+  ## @param DD_LOGS_INJECTION - boolean - optional - default: false
+  ## Enable automatic trace and span ID injection into logs.
+  ## Docs: https://docs.datadoghq.com/tracing/other_telemetry/connect_logs_and_traces/
+  # DD_LOGS_INJECTION: false
+
+  ## @param DD_PROFILING_ENABLED - boolean - optional - default: false
+  ## Enable continuous profiling.
+  ## Docs: https://docs.datadoghq.com/profiler/
+  # DD_PROFILING_ENABLED: false
+
+  ## @param DD_DATA_STREAMS_ENABLED - boolean - optional - default: false
+  ## Enable data streams monitoring.
+  ## Docs: https://docs.datadoghq.com/data_streams/
+  # DD_DATA_STREAMS_ENABLED: false
+
+  ## @param DD_APPSEC_ENABLED - boolean - optional - default: false
+  ## Enable the Application Security product.
+  ## Docs: https://docs.datadoghq.com/security/application_security/
+  # DD_APPSEC_ENABLED: false
+
+  ## @param DD_IAST_ENABLED - boolean - optional - default: false
+  ## Enable Interactive Application Security Testing (IAST).
+  ## Docs: https://docs.datadoghq.com/security/code_security/iast/setup/#amazon-ecs
+  # DD_IAST_ENABLED: false
+
+  ## @param DD_DYNAMIC_INSTRUMENTATION_ENABLED - boolean - optional - default: false
+  ## Enable Dynamic Instrumentation.
+  ## Docs: https://docs.datadoghq.com/dynamic_instrumentation/
+  # DD_DYNAMIC_INSTRUMENTATION_ENABLED: false
+
+  ## @param DD_DATA_JOBS_ENABLED - boolean - optional - default: false
+  ## Enable data jobs visibility (experimental or internal feature).
+  # DD_DATA_JOBS_ENABLED: false
+
+  ## @param DD_APPSEC_SCA_ENABLED - boolean - optional - default: false
+  ## Enable Software Composition Analysis.
+  ## Docs: TODO
+  # DD_APPSEC_SCA_ENABLED: false
+
+  ## @param DD_TRACE_DEBUG - boolean - optional - default: false
+  ## Enable debug logging for the tracer.
+  ## Docs: https://docs.datadoghq.com/tracing/troubleshooting/tracer_debug_logs
+  # DD_TRACE_DEBUG: false
