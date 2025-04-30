@@ -3,6 +3,7 @@
 # Copyright 2016-present Datadog, Inc.
 #
 set -euo pipefail
+umask 0
 
 os=$(uname -s)
 arch=$(uname -m)
@@ -29,7 +30,7 @@ aarch64)
   ;;
 esac
 installer_domain=${DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE:-$([[ "$DD_SITE" == "datad0g.com" ]] && echo "install.datad0g.com" || echo "install.datadoghq.com")}
-installer_url="https://${installer_domain}/v2/installer-package/blobs/sha256:${installer_sha256}"
+installer_url="https://${installer_domain}/v2/PACKAGE_NAME/blobs/sha256:${installer_sha256}"
 
 tmp_dir="/opt/datadog-packages/tmp"
 tmp_bin="${tmp_dir}/installer"

@@ -16,6 +16,8 @@ from tasks.libs.common.user_interactions import yes_no_question
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+TAG_BATCH_SIZE = 3
+
 
 @contextmanager
 def clone(ctx, repo, branch, options=""):
@@ -54,6 +56,16 @@ def get_unstaged_files(ctx, re_filter=None, include_deleted_files=False) -> Iter
 
     for file in files:
         if (re_filter is None or re_filter.search(file)) and (include_deleted_files or os.path.isfile(file)):
+            yield file
+
+
+def get_untracked_files(ctx, re_filter=None) -> Iterable[str]:
+    """
+    Get the list of untracked files in the repository.
+    """
+    files = ctx.run("git ls-files --others --exclude-standard", hide=True).stdout.splitlines()
+    for file in files:
+        if re_filter is None or re_filter.search(file):
             yield file
 
 
@@ -334,3 +346,20 @@ def create_tree(ctx, base_branch):
         blob["content"] = content
         tree["tree"].append(blob)
     return tree
+
+
+def push_tags_in_batches(ctx, tags, force_option="", delete=False):
+    """
+    Push or delete tags to remote in batches
+    """
+    if not tags:
+        return
+
+    tags_list = ' '.join(tags)
+    command = "push --delete" if delete else "push"
+
+    for idx in range(0, len(tags), TAG_BATCH_SIZE):
+        batch_tags = tags[idx : idx + TAG_BATCH_SIZE]
+        ctx.run(f"git {command} origin {' '.join(batch_tags)}{force_option}")
+
+    print(f"{'Deleted' if delete else 'Pushed'} tags: {tags_list}")

@@ -2,14 +2,6 @@ global_config_source = "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL0RhdGFEb2cv
 qa_statuses = ["To Do", "In Progress", "Done"]
 ignored_labels = ["qa/done", "qa/no-code-change"]
 
-[teams."Agent Metrics Logs"]
-jira_project = "AMLII"
-jira_issue_type = "Task"
-jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-metrics-logs"
-github_labels = ["team/agent-metrics-logs"]
-exclude_members = ["olivielpeau"]
-
 [teams."Agent Log Pipelines"]
 jira_project = "AGNTLOG"
 jira_issue_type = "Task"
@@ -25,14 +17,6 @@ jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-metric-pipelines"
 github_labels = ["team/agent-metric-pipelines"]
 exclude_members = [""]
-
-[teams."Agent Processing and Routing"]
-jira_project = "APR"
-jira_issue_type = "Task"
-jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-processing-and-routing"
-github_labels = ["team/agent-processing-and-routing"]
-exclude_members = []
 
 [teams."Agent Runtimes"]
 jira_project = "AGENTRUN"
@@ -204,13 +188,6 @@ jira_issue_type = "QA Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "windows-agent"
 github_labels = ["team/windows-agent"]
-
-[teams."Windows Kernel Integrations"]
-jira_project = "WKINT"
-jira_issue_type = "Task"
-jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "windows-kernel-integrations"
-github_labels = ["team/windows-kernel-integrations"]
 
 [teams."Database Monitoring"]
 jira_project = "DBMON"

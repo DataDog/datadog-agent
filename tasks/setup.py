@@ -204,7 +204,8 @@ def pre_commit(ctx, interactive=True):
     # Uninstall in case someone switch from one config to the other
     ctx.run("pre-commit uninstall", hide=True)
     ctx.run("pre-commit clean", hide=True)
-    ctx.run(f"pre-commit install --config {config_file}", hide=True)
+    # build-vcs avoids errors when getting go dependencies
+    ctx.run(f"GOFLAGS=-buildvcs=false pre-commit install --config {config_file}", hide=True)
 
     if hooks_path:
         ctx.run(f"git config --global core.hooksPath {hooks_path}", hide=True)

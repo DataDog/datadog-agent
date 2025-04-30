@@ -344,14 +344,34 @@ func NewScopedIPArrayVariable(ipFnc func(ctx *Context) ([]net.IPNet, bool), setF
 	}
 }
 
+type variableWithTTL struct {
+	ttl       time.Duration
+	expiresAt time.Time
+}
+
+func (v *variableWithTTL) isExpired() bool {
+	return v.ttl > 0 && v.expiresAt.Before(time.Now())
+}
+
+func (v *variableWithTTL) touchTTL() {
+	if v.ttl > 0 {
+		v.expiresAt = time.Now().Add(v.ttl)
+	}
+}
+
 // IntVariable describes a global integer variable
 type IntVariable struct {
 	isSet bool
 	Value int
+	variableWithTTL
 }
 
 // GetValue returns the variable value
 func (m *IntVariable) GetValue() (interface{}, bool) {
+	if m.isExpired() {
+		var defaultValue int
+		return defaultValue, false
+	}
 	return m.Value, m.isSet
 }
 
@@ -359,6 +379,7 @@ func (m *IntVariable) GetValue() (interface{}, bool) {
 func (m *IntVariable) Set(_ *Context, value interface{}) error {
 	m.Value = value.(int)
 	m.isSet = true
+	m.touchTTL()
 	return nil
 }
 
@@ -368,6 +389,7 @@ func (m *IntVariable) Append(_ *Context, value interface{}) error {
 	case int:
 		m.Value += value
 		m.isSet = true
+		m.touchTTL()
 	default:
 		return errAppendNotSupported
 	}
@@ -378,7 +400,8 @@ func (m *IntVariable) Append(_ *Context, value interface{}) error {
 func (m *IntVariable) GetEvaluator() interface{} {
 	return &IntEvaluator{
 		EvalFnc: func(*Context) int {
-			return m.Value
+			value, _ := m.GetValue()
+			return value.(int)
 		},
 	}
 }
@@ -387,24 +410,35 @@ func (m *IntVariable) GetEvaluator() interface{} {
 type BoolVariable struct {
 	isSet bool
 	Value bool
+	variableWithTTL
 }
 
 // GetEvaluator returns the variable SECL evaluator
 func (m *BoolVariable) GetEvaluator() interface{} {
 	return &BoolEvaluator{
 		EvalFnc: func(*Context) bool {
-			return m.Value
+			value, _ := m.GetValue()
+			return value.(bool)
 		},
 	}
 }
 
 // NewIntVariable returns a new mutable integer variable
-func NewIntVariable(value int) *IntVariable {
-	return &IntVariable{Value: value}
+func NewIntVariable(value int, ttl time.Duration) *IntVariable {
+	return &IntVariable{
+		Value: value,
+		variableWithTTL: variableWithTTL{
+			ttl: ttl,
+		},
+	}
 }
 
 // GetValue returns the variable value
 func (m *BoolVariable) GetValue() (interface{}, bool) {
+	if m.isExpired() {
+		var defaultValue bool
+		return defaultValue, false
+	}
 	return m.Value, m.isSet
 }
 
@@ -412,6 +446,7 @@ func (m *BoolVariable) GetValue() (interface{}, bool) {
 func (m *BoolVariable) Set(_ *Context, value interface{}) error {
 	m.Value = value.(bool)
 	m.isSet = true
+	m.touchTTL()
 	return nil
 }
 
@@ -421,14 +456,20 @@ func (m *BoolVariable) Append(_ *Context, _ interface{}) error {
 }
 
 // NewBoolVariable returns a new mutable boolean variable
-func NewBoolVariable(value bool) *BoolVariable {
-	return &BoolVariable{Value: value}
+func NewBoolVariable(value bool, ttl time.Duration) *BoolVariable {
+	return &BoolVariable{
+		Value: value,
+		variableWithTTL: variableWithTTL{
+			ttl: ttl,
+		},
+	}
 }
 
 // StringVariable describes a mutable string variable
 type StringVariable struct {
 	Value string
 	isSet bool
+	variableWithTTL
 }
 
 // GetEvaluator returns the variable SECL evaluator
@@ -436,13 +477,18 @@ func (m *StringVariable) GetEvaluator() interface{} {
 	return &StringEvaluator{
 		ValueType: VariableValueType,
 		EvalFnc: func(_ *Context) string {
-			return m.Value
+			value, _ := m.GetValue()
+			return value.(string)
 		},
 	}
 }
 
 // GetValue returns the variable value
 func (m *StringVariable) GetValue() (interface{}, bool) {
+	if m.isExpired() {
+		var defaultValue string
+		return defaultValue, false
+	}
 	return m.Value, m.isSet
 }
 
@@ -452,6 +498,7 @@ func (m *StringVariable) Append(_ *Context, value interface{}) error {
 	case string:
 		m.Value += value
 		m.isSet = true
+		m.touchTTL()
 	default:
 		return errAppendNotSupported
 	}
@@ -462,22 +509,33 @@ func (m *StringVariable) Append(_ *Context, value interface{}) error {
 func (m *StringVariable) Set(_ *Context, value interface{}) error {
 	m.Value = value.(string)
 	m.isSet = true
+	m.touchTTL()
 	return nil
 }
 
 // NewStringVariable returns a new mutable string variable
-func NewStringVariable(value string) *StringVariable {
-	return &StringVariable{Value: value}
+func NewStringVariable(value string, ttl time.Duration) *StringVariable {
+	return &StringVariable{
+		Value: value,
+		variableWithTTL: variableWithTTL{
+			ttl: ttl,
+		},
+	}
 }
 
 // IPVariable describes a global IP variable
 type IPVariable struct {
 	Value net.IPNet
 	isSet bool
+	variableWithTTL
 }
 
 // GetValue returns the variable value
 func (m *IPVariable) GetValue() (interface{}, bool) {
+	if m.isExpired() {
+		var defaultValue net.IPNet
+		return defaultValue, false
+	}
 	return m.Value, m.isSet
 }
 
@@ -485,6 +543,7 @@ func (m *IPVariable) GetValue() (interface{}, bool) {
 func (m *IPVariable) Set(_ *Context, value interface{}) error {
 	m.Value = value.(net.IPNet)
 	m.isSet = true
+	m.touchTTL()
 	return nil
 }
 
@@ -497,14 +556,20 @@ func (m *IPVariable) Append(_ *Context, _ interface{}) error {
 func (m *IPVariable) GetEvaluator() interface{} {
 	return &CIDREvaluator{
 		EvalFnc: func(*Context) net.IPNet {
-			return m.Value
+			value, _ := m.GetValue()
+			return value.(net.IPNet)
 		},
 	}
 }
 
 // NewIPVariable returns a new mutable IP variable
-func NewIPVariable(value net.IPNet) *IPVariable {
-	return &IPVariable{Value: value}
+func NewIPVariable(value net.IPNet, ttl time.Duration) *IPVariable {
+	return &IPVariable{
+		Value: value,
+		variableWithTTL: variableWithTTL{
+			ttl: ttl,
+		},
+	}
 }
 
 // StringArrayVariable describes a mutable string array variable
@@ -788,13 +853,13 @@ func NewVariables() *Variables {
 func newSECLVariable(value interface{}, opts VariableOpts) (MutableSECLVariable, error) {
 	switch value := value.(type) {
 	case bool:
-		return NewBoolVariable(value), nil
+		return NewBoolVariable(value, opts.TTL), nil
 	case int:
-		return NewIntVariable(value), nil
+		return NewIntVariable(value, opts.TTL), nil
 	case string:
-		return NewStringVariable(value), nil
+		return NewStringVariable(value, opts.TTL), nil
 	case net.IPNet:
-		return NewIPVariable(value), nil
+		return NewIPVariable(value, opts.TTL), nil
 	case []string:
 		return NewStringArrayVariable(value, opts.Size, opts.TTL), nil
 	case []int:

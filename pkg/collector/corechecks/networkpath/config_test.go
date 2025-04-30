@@ -12,12 +12,14 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 func TestNewCheckConfig(t *testing.T) {
-	setup.Datadog().SetWithoutSource("network_devices.namespace", "my-namespace")
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("network_devices.namespace", "my-namespace")
 	tests := []struct {
 		name           string
 		rawInstance    integration.Data

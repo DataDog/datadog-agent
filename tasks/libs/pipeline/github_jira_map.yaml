@@ -6,6 +6,7 @@
 '@datadog/container-integrations': CONTINT
 '@datadog/container-platform': CONTP
 '@datadog/container-ecosystems': CECO
+'@datadog/container-autoscaling': CASCL
 '@datadog/agent-security': CWS
 '@datadog/agent-apm': APMSP
 '@datadog/network-device-monitoring': NDMII
@@ -27,7 +28,6 @@
 '@datadog/networks': NPM
 '@datadog/universal-service-monitoring': USMON
 '@datadog/windows-agent': WINA
-'@datadog/windows-kernel-integrations': WKINT
 '@datadog/opentelemetry': OTAGENT
 '@datadog/opentelemetry-agent': OTAGENT
 '@datadog/agent-e2e-testing': ADXT
@@ -44,5 +44,4 @@
 '@datadog/agent-devx': ACIX
 '@datadog/injection-platform': INPLAT
 '@datadog/agent-processing-and-routing': APR
-'@DataDog/container-ecosystems': CECO
 '@datadog/agent-discovery': DSCVR

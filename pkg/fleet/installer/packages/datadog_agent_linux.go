@@ -37,9 +37,8 @@ var datadogAgentPackage = hooks{
 }
 
 const (
-	agentPackage       = "datadog-agent"
-	agentSymlink       = "/usr/bin/datadog-agent"
-	legacyAgentSymlink = "/opt/datadog-agent"
+	agentPackage = "datadog-agent"
+	agentSymlink = "/usr/bin/datadog-agent"
 )
 
 var (
@@ -47,6 +46,8 @@ var (
 	agentDirectories = file.Directories{
 		{Path: "/etc/datadog-agent", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/var/log/datadog", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
+		{Path: "/opt/datadog-packages/run", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
+		{Path: "/opt/datadog-packages/tmp", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 	}
 
 	// agentConfigPermissions are the ownerships and modes that are enforced on the agent configuration files
@@ -110,12 +111,7 @@ func setupFilesystem(ctx HookContext) (err error) {
 	if err = file.EnsureSymlink(filepath.Join(ctx.PackagePath, "bin/agent/agent"), agentSymlink); err != nil {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
-	if ctx.PackageType == PackageTypeOCI {
-		if err = file.EnsureSymlink(ctx.PackagePath, legacyAgentSymlink); err != nil {
-			return fmt.Errorf("failed to create symlink: %v", err)
-		}
-	}
-	if err = file.EnsureSymlinkIfNotExists(filepath.Join(ctx.PackagePath, "embedded/bin/installer"), installerSymlink); err != nil {
+	if err = file.EnsureSymlink(filepath.Join(ctx.PackagePath, "embedded/bin/installer"), installerSymlink); err != nil {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
 
@@ -151,7 +147,6 @@ func removeFilesystem(ctx HookContext) {
 	installinfo.RemoveInstallInfo()
 	// Remove symlinks
 	os.Remove(agentSymlink)
-	os.Remove(legacyAgentSymlink)
 	if target, err := os.Readlink(installerSymlink); err == nil && strings.HasPrefix(target, ctx.PackagePath) {
 		os.Remove(installerSymlink)
 	}
@@ -254,6 +249,9 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 // preStartExperimentDatadogAgent performs pre-start steps for the experiment.
 // It must be executed by the stable unit before starting the experiment & before PostStartExperiment.
 func preStartExperimentDatadogAgent(ctx HookContext) error {
+	if err := removeAgentUnits(ctx, true); err != nil {
+		return err
+	}
 	if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Warnf("failed to save custom integrations: %s", err)
 	}
@@ -294,10 +292,7 @@ func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 	}
 
 	detachedCtx := context.WithoutCancel(ctx)
-	if err := setupAndStartAgentUnits(detachedCtx, stableUnits, agentUnit); err != nil {
-		return err
-	}
-	return stopAndRemoveAgentUnits(detachedCtx, true, agentExpUnit)
+	return setupAndStartAgentUnits(detachedCtx, stableUnits, agentUnit)
 }
 
 const (
@@ -348,6 +343,15 @@ func stopAndRemoveAgentUnits(ctx context.Context, experiment bool, mainUnit stri
 
 	if err := systemd.DisableUnit(ctx, mainUnit); err != nil {
 		return err
+	}
+
+	return removeAgentUnits(ctx, experiment)
+}
+
+func removeAgentUnits(ctx context.Context, experiment bool) error {
+	units, err := systemd.ListOnDiskAgentUnits(experiment)
+	if err != nil {
+		return fmt.Errorf("failed to list agent units: %v", err)
 	}
 
 	for _, unit := range units {

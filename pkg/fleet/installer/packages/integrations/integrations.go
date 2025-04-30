@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
@@ -31,8 +32,13 @@ func SaveCustomIntegrations(ctx context.Context, installPath string) (err error)
 		span.Finish(err)
 	}()
 
+	storagePath := installPath
+	if strings.HasPrefix(installPath, paths.PackagesPath) {
+		storagePath = paths.RootTmpDir
+	}
+
 	if _, err := os.Stat(filepath.Join(installPath, "embedded/bin/python")); err == nil {
-		cmd := exec.CommandContext(ctx, filepath.Join(installPath, "embedded/bin/python"), filepath.Join(installPath, "python-scripts/pre.py"), installPath)
+		cmd := exec.CommandContext(ctx, filepath.Join(installPath, "embedded/bin/python"), filepath.Join(installPath, "python-scripts/pre.py"), installPath, storagePath)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
@@ -54,8 +60,13 @@ func RestoreCustomIntegrations(ctx context.Context, installPath string) (err err
 		span.Finish(err)
 	}()
 
+	storagePath := installPath
+	if strings.HasPrefix(installPath, paths.PackagesPath) {
+		storagePath = paths.RootTmpDir
+	}
+
 	if _, err := os.Stat(filepath.Join(installPath, "embedded/bin/python")); err == nil {
-		cmd := exec.CommandContext(ctx, filepath.Join(installPath, "embedded/bin/python"), filepath.Join(installPath, "python-scripts/post.py"), installPath)
+		cmd := exec.CommandContext(ctx, filepath.Join(installPath, "embedded/bin/python"), filepath.Join(installPath, "python-scripts/post.py"), installPath, storagePath)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {

@@ -24,20 +24,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 )
 
-func getProduceVersionTest(produceVersion int16, targetAddress, serverAddress, topicName string, dialer *net.Dialer) protocolClassificationAttributes {
-	produceExpectedStack := &protocols.Stack{Application: protocols.Kafka}
-
-	if produceVersion < kafka.MinSupportedProduceRequestApiVersion || produceVersion > kafka.MaxSupportedProduceRequestApiVersion {
-		produceExpectedStack.Application = protocols.Unknown
-	}
-
-	version := kversion.V3_8_0()
-	version.SetMaxKeyVersion(produceAPIKey, produceVersion)
-
+func buildProduceVersionTest(name string, version *kversion.Versions, targetAddress, serverAddress, topicName string, dialer *net.Dialer, expectedProtocol protocols.ProtocolType) protocolClassificationAttributes {
 	return protocolClassificationAttributes{
-		name: fmt.Sprintf("produce v%d", produceVersion),
+		name: name,
 		context: testContext{
-			serverPort:    kafkaPort,
 			targetAddress: targetAddress,
 			serverAddress: serverAddress,
 			extras: map[string]interface{}{
@@ -61,22 +51,13 @@ func getProduceVersionTest(produceVersion int16, targetAddress, serverAddress, t
 			defer cancel()
 			require.NoError(t, produceClient.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 		},
-		validation: validateProtocolConnection(produceExpectedStack),
+		validation: validateProtocolConnection(&protocols.Stack{Application: expectedProtocol}),
 	}
 }
 
-func getFetchVersionTest(fetchVersion int16, targetAddress, serverAddress, topicName string, dialer *net.Dialer) protocolClassificationAttributes {
-	fetchExpectedStack := &protocols.Stack{Application: protocols.Kafka}
-
-	if fetchVersion < kafka.MinSupportedFetchRequestApiVersion || fetchVersion > kafka.MaxSupportedFetchRequestApiVersion {
-		fetchExpectedStack.Application = protocols.Unknown
-	}
-
-	version := kversion.V3_8_0()
-	version.SetMaxKeyVersion(fetchAPIKey, fetchVersion)
-
+func buildFetchVersionTest(name string, version *kversion.Versions, targetAddress, serverAddress, topicName string, dialer *net.Dialer, expectedProtocol protocols.ProtocolType) protocolClassificationAttributes {
 	return protocolClassificationAttributes{
-		name: fmt.Sprintf("fetch v%d", fetchVersion),
+		name: name,
 		context: testContext{
 			serverPort:    kafkaPort,
 			targetAddress: targetAddress,
@@ -116,7 +97,7 @@ func getFetchVersionTest(fetchVersion int16, targetAddress, serverAddress, topic
 			require.Len(t, records, 1)
 			require.Equal(t, ctx.extras["topic_name"].(string), records[0].Topic)
 		},
-		validation: validateProtocolConnection(fetchExpectedStack),
+		validation: validateProtocolConnection(&protocols.Stack{Application: expectedProtocol}),
 	}
 }
 
@@ -169,7 +150,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
 					DialFn:        defaultDialer.DialContext,
-					CustomOptions: []kgo.Opt{kgo.MaxVersions(kversion.V0_10_1())},
+					CustomOptions: []kgo.Opt{kgo.MaxVersions(kversion.V1_0_0())},
 				})
 				require.NoError(t, err)
 				ctx.extras["client"] = client
@@ -191,7 +172,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
 					DialFn:        defaultDialer.DialContext,
-					CustomOptions: []kgo.Opt{kgo.MaxVersions(kversion.V0_10_1())},
+					CustomOptions: []kgo.Opt{kgo.MaxVersions(kversion.V1_0_0())},
 				})
 				require.NoError(t, err)
 				ctx.extras["client"] = client
@@ -217,7 +198,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
 					DialFn:        defaultDialer.DialContext,
-					CustomOptions: []kgo.Opt{kgo.ClientID(""), kgo.MaxVersions(kversion.V0_10_1())},
+					CustomOptions: []kgo.Opt{kgo.ClientID(""), kgo.MaxVersions(kversion.V1_0_0())},
 				})
 				require.NoError(t, err)
 				ctx.extras["client"] = client
@@ -248,7 +229,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
 					DialFn:        defaultDialer.DialContext,
-					CustomOptions: []kgo.Opt{kgo.ClientID(""), kgo.MaxVersions(kversion.V0_10_1())},
+					CustomOptions: []kgo.Opt{kgo.ClientID(""), kgo.MaxVersions(kversion.V1_0_0())},
 				})
 				require.NoError(t, err)
 				ctx.extras["client"] = client
@@ -271,13 +252,61 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 	}
 
 	for produceVersion := kafka.MinSupportedProduceRequestApiVersion; produceVersion <= kafka.MaxSupportedProduceRequestApiVersion; produceVersion++ {
-		currentTest := getProduceVersionTest(int16(produceVersion), targetAddress, serverAddress, getTopicName(), defaultDialer)
+		expectedProtocol := protocols.Kafka
+		if produceVersion < kafka.MinSupportedProduceRequestApiVersion || produceVersion > kafka.MaxSupportedProduceRequestApiVersion {
+			expectedProtocol = protocols.Unknown
+		}
+
+		version := kversion.V4_0_0()
+		targetPort := kafkaPort
+
+		// on older versions of kafka, test against old kafka server
+		if produceVersion < 8 {
+			version = kversion.V3_8_0()
+			targetPort = kafka.KafkaOldPort
+		}
+		version.SetMaxKeyVersion(produceAPIKey, int16(produceVersion))
+
+		currentTest := buildProduceVersionTest(
+			fmt.Sprintf("produce v%d", produceVersion),
+			version,
+			net.JoinHostPort(targetHost, targetPort),
+			net.JoinHostPort(serverHost, targetPort),
+			getTopicName(),
+			defaultDialer,
+			expectedProtocol,
+		)
 		currentTest.teardown = kafkaTeardown
 		tests = append(tests, currentTest)
 	}
 
 	for fetchVersion := kafka.MinSupportedFetchRequestApiVersion; fetchVersion <= kafka.MaxSupportedFetchRequestApiVersion; fetchVersion++ {
-		currentTest := getFetchVersionTest(int16(fetchVersion), targetAddress, serverAddress, getTopicName(), defaultDialer)
+		expectedProtocol := protocols.Kafka
+		if fetchVersion < kafka.MinSupportedFetchRequestApiVersion || fetchVersion > kafka.MaxSupportedFetchRequestApiVersion {
+			expectedProtocol = protocols.Unknown
+		}
+
+		// Default to kafka v4 and port 9092 (kafka server 4.0)
+		version := kversion.V4_0_0()
+		targetPort := kafkaPort
+
+		// on older versions of kafka, test against old kafka server
+		if fetchVersion < 8 {
+			// The lib version has to be rolled-back from 4.0 because they dropped support for old versions of produce and fetch
+			version = kversion.V3_8_0()
+			targetPort = kafka.KafkaOldPort
+		}
+		version.SetMaxKeyVersion(fetchAPIKey, int16(fetchVersion))
+
+		currentTest := buildFetchVersionTest(
+			fmt.Sprintf("fetch v%d", fetchVersion),
+			version,
+			net.JoinHostPort(targetHost, targetPort),
+			net.JoinHostPort(serverHost, targetPort),
+			getTopicName(),
+			defaultDialer,
+			expectedProtocol,
+		)
 		currentTest.teardown = kafkaTeardown
 		tests = append(tests, currentTest)
 	}

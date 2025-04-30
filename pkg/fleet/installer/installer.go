@@ -409,7 +409,7 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 		return nil
 	}
 
-	if runtime.GOOS != "windows" && pkg == packageDatadogInstaller {
+	if runtime.GOOS != "windows" && (pkg == packageDatadogInstaller || pkg == packageDatadogAgent) {
 		// Special case for the Linux installer since `preStopExperiment`
 		// will kill the current process, delete the experiment first.
 		err := repository.DeleteExperiment(ctx)
@@ -912,5 +912,10 @@ func ensureRepositoriesExist() error {
 	if err != nil {
 		return fmt.Errorf("error creating tmp directory: %w", err)
 	}
+	err = os.MkdirAll(paths.RunPath, 0755)
+	if err != nil {
+		return fmt.Errorf("error creating tmp directory: %w", err)
+	}
+
 	return nil
 }

@@ -214,7 +214,7 @@ To install it, run:
 
 ```sh
 python3 -m pip install pre-commit
-pre-commit install
+GOFLAGS=-buildvcs=false pre-commit install  # buildvcs avoids errors when getting go dependencies
 ```
 
 The `shellcheck` pre-commit hook requires having the `shellcheck` binary installed and in your `$PATH`. To install it, run:

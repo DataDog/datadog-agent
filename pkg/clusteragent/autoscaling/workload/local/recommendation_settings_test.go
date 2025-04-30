@@ -15,24 +15,27 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestNewResourceRecommenderSettings(t *testing.T) {
 	tests := []struct {
-		name      string
-		objective datadoghqcommon.DatadogPodAutoscalerObjective
-		want      *resourceRecommenderSettings
-		err       error
+		name           string
+		objective      datadoghqcommon.DatadogPodAutoscalerObjective
+		fallbackPolicy *datadoghq.DatadogFallbackPolicy
+		want           *resourceRecommenderSettings
+		err            error
 	}{
 		{
 			name: "Invalid resource type",
 			objective: datadoghqcommon.DatadogPodAutoscalerObjective{
 				Type: "something-invalid",
 			},
-			want: nil,
-			err:  fmt.Errorf("Invalid target type: something-invalid"),
+			fallbackPolicy: nil,
+			want:           nil,
+			err:            fmt.Errorf("Invalid target type: something-invalid"),
 		},
 		{
 			name: "Pod resource - CPU target utilization",
@@ -46,10 +49,12 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 					},
 				},
 			},
+			fallbackPolicy: nil,
 			want: &resourceRecommenderSettings{
-				metricName:    "container.cpu.usage",
-				lowWatermark:  0.75,
-				highWatermark: 0.85,
+				metricName:                 "container.cpu.usage",
+				lowWatermark:               0.75,
+				highWatermark:              0.85,
+				fallbackStaleDataThreshold: 60,
 			},
 			err: nil,
 		},
@@ -65,10 +70,12 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 					},
 				},
 			},
+			fallbackPolicy: nil,
 			want: &resourceRecommenderSettings{
-				metricName:    "container.memory.usage",
-				lowWatermark:  0.75,
-				highWatermark: 0.85,
+				metricName:                 "container.memory.usage",
+				lowWatermark:               0.75,
+				highWatermark:              0.85,
+				fallbackStaleDataThreshold: 60,
 			},
 			err: nil,
 		},
@@ -78,8 +85,9 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				Type:        datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
 				PodResource: nil,
 			},
-			want: nil,
-			err:  fmt.Errorf("nil target"),
+			fallbackPolicy: nil,
+			want:           nil,
+			err:            fmt.Errorf("nil target"),
 		},
 		{
 			name: "Pod resource - invalid name",
@@ -93,8 +101,9 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 					},
 				},
 			},
-			want: nil,
-			err:  fmt.Errorf("invalid resource name: some-resource"),
+			fallbackPolicy: nil,
+			want:           nil,
+			err:            fmt.Errorf("invalid resource name: some-resource"),
 		},
 		{
 			name: "Pod resource - nil utilization",
@@ -107,8 +116,9 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 					},
 				},
 			},
-			want: nil,
-			err:  fmt.Errorf("invalid utilization value: missing utilization value"),
+			fallbackPolicy: nil,
+			want:           nil,
+			err:            fmt.Errorf("invalid utilization value: missing utilization value"),
 		},
 		{
 			name: "Pod resource - out of bounds utilization value",
@@ -122,8 +132,9 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 					},
 				},
 			},
-			want: nil,
-			err:  fmt.Errorf("invalid utilization value: utilization value must be between 1 and 100"),
+			fallbackPolicy: nil,
+			want:           nil,
+			err:            fmt.Errorf("invalid utilization value: utilization value must be between 1 and 100"),
 		},
 		{
 			name: "Container resource - CPU target utilization",
@@ -139,10 +150,11 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				},
 			},
 			want: &resourceRecommenderSettings{
-				metricName:    "container.cpu.usage",
-				lowWatermark:  0.75,
-				highWatermark: 0.85,
-				containerName: "container-foo",
+				metricName:                 "container.cpu.usage",
+				lowWatermark:               0.75,
+				highWatermark:              0.85,
+				containerName:              "container-foo",
+				fallbackStaleDataThreshold: 60,
 			},
 			err: nil,
 		},
@@ -160,10 +172,11 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				},
 			},
 			want: &resourceRecommenderSettings{
-				metricName:    "container.memory.usage",
-				lowWatermark:  0.75,
-				highWatermark: 0.85,
-				containerName: "container-foo",
+				metricName:                 "container.memory.usage",
+				lowWatermark:               0.75,
+				highWatermark:              0.85,
+				containerName:              "container-foo",
+				fallbackStaleDataThreshold: 60,
 			},
 			err: nil,
 		},
@@ -173,8 +186,9 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				Type:              datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
 				ContainerResource: nil,
 			},
-			want: nil,
-			err:  fmt.Errorf("nil target"),
+			fallbackPolicy: nil,
+			want:           nil,
+			err:            fmt.Errorf("nil target"),
 		},
 		{
 			name: "Container resource - invalid name",
@@ -188,8 +202,9 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 					},
 				},
 			},
-			want: nil,
-			err:  fmt.Errorf("invalid resource name: some-resource"),
+			fallbackPolicy: nil,
+			want:           nil,
+			err:            fmt.Errorf("invalid resource name: some-resource"),
 		},
 		{
 			name: "Container resource - nil utilization",
@@ -203,8 +218,9 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 					Container: "container-foo",
 				},
 			},
-			want: nil,
-			err:  fmt.Errorf("invalid utilization value: missing utilization value"),
+			fallbackPolicy: nil,
+			want:           nil,
+			err:            fmt.Errorf("invalid utilization value: missing utilization value"),
 		},
 		{
 			name: "Container resource - out of bounds utilization value",
@@ -219,14 +235,43 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 					Container: "container-foo",
 				},
 			},
-			want: nil,
-			err:  fmt.Errorf("invalid utilization value: utilization value must be between 1 and 100"),
+			fallbackPolicy: nil,
+			want:           nil,
+			err:            fmt.Errorf("invalid utilization value: utilization value must be between 1 and 100"),
+		},
+		{
+			name: "Custom fallback setting - stale data threshold",
+			objective: datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
+					Name: "cpu",
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
+						Utilization: pointer.Ptr(int32(80)),
+					},
+				},
+			},
+			fallbackPolicy: &datadoghq.DatadogFallbackPolicy{
+				Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+					Enabled: true,
+					Triggers: datadoghq.HorizontalFallbackTriggers{
+						StaleRecommendationThresholdSeconds: 120,
+					},
+				},
+			},
+			want: &resourceRecommenderSettings{
+				metricName:                 "container.cpu.usage",
+				lowWatermark:               0.75,
+				highWatermark:              0.85,
+				fallbackStaleDataThreshold: 120,
+			},
+			err: nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			recommenderSettings, err := newResourceRecommenderSettings(tt.objective)
+			recommenderSettings, err := newResourceRecommenderSettings(tt.fallbackPolicy, tt.objective)
 			if tt.err != nil {
 				assert.Error(t, err, tt.err.Error())
 			} else {

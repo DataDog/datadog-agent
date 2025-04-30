@@ -6,18 +6,13 @@
 package resolver
 
 import (
-	"strings"
 	"testing"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/stretchr/testify/assert"
 )
-
-// Makes a key exactly 32 chars long
-func makeKey(suffix string) string {
-	return strings.Repeat("0", 32-len(suffix)) + suffix
-}
 
 func TestSingleDomainResolverDedupedKey(t *testing.T) {
 	// Note key2 exists twice in the list.
@@ -32,36 +27,77 @@ func TestSingleDomainResolverDedupedKey(t *testing.T) {
 		[]string{"key1", "key2"})
 }
 
-func TestSingleDomainResolverSetApiKeysSimple(t *testing.T) {
+func TestSingleDomainUpdateAPIKeys(t *testing.T) {
 	apiKeys := []utils.APIKeys{
-		utils.NewAPIKeys("additional_endpoints", makeKey("key1"), makeKey("key2")),
-		utils.NewAPIKeys("multi_region_failover.api_key", makeKey("key2")),
+		utils.NewAPIKeys("api_key", "key1"),
+		utils.NewAPIKeys("additional_endpoints", "key1", "key2", "key3"),
 	}
 
 	resolver := NewSingleDomainResolver("example.com", apiKeys)
 
-	removed, added := resolver.SetAPIKeys([]string{makeKey("key1"), makeKey("key3")})
+	resolver.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", "key4", "key2", "key3")})
 
-	assert.Equal(t, []string{scrubber.HideKeyExceptLastFiveChars(makeKey("key2"))}, removed)
-	assert.Equal(t, []string{scrubber.HideKeyExceptLastFiveChars(makeKey("key3"))}, added)
+	assert.Equal(t, []string{"key1", "key4", "key2", "key3"}, resolver.GetAPIKeys())
 }
 
-func TestSingleDomainResolverSetApiKeysMany(t *testing.T) {
+func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	apiKeys := []utils.APIKeys{
-		utils.NewAPIKeys("additional_endpoints", makeKey("key1"), makeKey("key2"), makeKey("key3"), makeKey("key4"), makeKey("key5"), makeKey("key6")),
+		utils.NewAPIKeys("api_key", "key1"),
+		utils.NewAPIKeys("additional_endpoints", "key1", "key2", "key3"),
 	}
-
 	resolver := NewSingleDomainResolver("example.com", apiKeys)
 
-	removed, added := resolver.SetAPIKeys([]string{makeKey("key3"), makeKey("lock2"), makeKey("key1"), makeKey("lock4"), makeKey("key5"), makeKey("key6")})
+	// The duplicate key between the main endpoint and additional_endpoints is removed
+	assert.Equal(t, []string{"key1", "key2", "key3"}, resolver.GetAPIKeys())
 
-	assert.Equal(t, []string{
-		scrubber.HideKeyExceptLastFiveChars(makeKey("key2")),
-		scrubber.HideKeyExceptLastFiveChars(makeKey("key4")),
-	}, removed)
+	log := logmock.New(t)
+	mockConfig := configmock.New(t)
+	endpoints := map[string][]string{
+		"example.com": {"key4", "key2", "key3"},
+	}
+	mockConfig.SetWithoutSource("additional_endpoints", endpoints)
+	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
 
-	assert.Equal(t, []string{
-		scrubber.HideKeyExceptLastFiveChars(makeKey("lock2")),
-		scrubber.HideKeyExceptLastFiveChars(makeKey("lock4")),
-	}, added)
+	// The new key4 key is in the list and the main endpoint key1 is still there
+	assert.Equal(t, []string{"key1", "key4", "key2", "key3"}, resolver.GetAPIKeys())
+
+	// The config is updated so the duplicate key is there again
+	endpoints = map[string][]string{
+		"example.com": {"key4", "key1", "key3"},
+	}
+	mockConfig.SetWithoutSource("additional_endpoints", endpoints)
+	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
+
+	assert.Equal(t, []string{"key1", "key4", "key3"}, resolver.GetAPIKeys())
+}
+
+func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
+	apiKeys := []utils.APIKeys{
+		utils.NewAPIKeys("api_key", "key1"),
+		utils.NewAPIKeys("additional_endpoints", "key1", "key2", "key3"),
+	}
+	resolver := NewMultiDomainResolver("example.com", apiKeys)
+
+	// The duplicate key between the main endpoint and additional_endpoints is removed
+	assert.Equal(t, []string{"key1", "key2", "key3"}, resolver.GetAPIKeys())
+
+	log := logmock.New(t)
+	mockConfig := configmock.New(t)
+	endpoints := map[string][]string{
+		"example.com": {"key4", "key2", "key3"},
+	}
+	mockConfig.SetWithoutSource("additional_endpoints", endpoints)
+	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
+
+	// The new key4 key is in the list and the main endpoint key1 is still there
+	assert.Equal(t, []string{"key1", "key4", "key2", "key3"}, resolver.GetAPIKeys())
+
+	// The config is updated so the duplicate key is there again
+	endpoints = map[string][]string{
+		"example.com": {"key4", "key1", "key3"},
+	}
+	mockConfig.SetWithoutSource("additional_endpoints", endpoints)
+	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
+
+	assert.Equal(t, []string{"key1", "key4", "key3"}, resolver.GetAPIKeys())
 }

@@ -18,7 +18,7 @@ import (
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
@@ -70,16 +70,16 @@ func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
 }
 
 func TestStartPipeline(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
-	defer pkgconfigsetup.Datadog().SetWithoutSource("hostname", "")
+	cfg := pkgconfigmock.New(t)
+	cfg.SetWithoutSource("hostname", "otlp-testhostname")
 
 	pcfg := getTestPipelineConfig()
 	AssertSucessfulRun(t, pcfg)
 }
 
 func TestStartPipelineFromConfig(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
-	defer pkgconfigsetup.Datadog().SetWithoutSource("hostname", "")
+	cfg := pkgconfigmock.New(t)
+	cfg.SetWithoutSource("hostname", "otlp-testhostname")
 
 	tests := []struct {
 		path string

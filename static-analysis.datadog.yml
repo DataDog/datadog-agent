@@ -1,0 +1,24 @@
+---
+schema-version: v1
+rulesets:
+  - docker-best-practices
+  - go-best-practices
+  - go-security
+  - github-actions
+  - sit-ci-best-practices:
+    only:
+      - ".github/workflows"
+  - python-security
+  - python-best-practices:
+    rules:
+      nested-blocks:
+        ignore:
+          - "**"
+  - python-code-style:
+    rules:
+      max-function-lines:
+        ignore:
+          - "**/*"
+      max-class-lines:
+        ignore:
+          - "**"
