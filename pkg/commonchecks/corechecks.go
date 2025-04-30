@@ -52,6 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/windowscertificate"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winkmem"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
@@ -99,6 +100,7 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 		corecheckLoader.RegisterCheck(disk.CheckName, disk.Factory())
 	}
 	corecheckLoader.RegisterCheck(wincrashdetect.CheckName, wincrashdetect.Factory())
+	corecheckLoader.RegisterCheck(windowscertificate.CheckName, windowscertificate.Factory())
 	corecheckLoader.RegisterCheck(winkmem.CheckName, winkmem.Factory())
 	corecheckLoader.RegisterCheck(winproc.CheckName, winproc.Factory())
 	corecheckLoader.RegisterCheck(systemd.CheckName, systemd.Factory())
