@@ -39,5 +39,4 @@ type Component interface {
 	Stop()
 	// TODO (component): once cluster agent uses the API component remove this function
 	GetConfigCheck() integration.ConfigCheckResponse
-	IsStarted() bool
 }

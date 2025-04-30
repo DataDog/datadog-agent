@@ -81,10 +81,6 @@ func (n *noopAutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 	return integration.ConfigCheckResponse{}
 }
 
-func (n *noopAutoConfig) IsStarted() bool {
-	return false
-}
-
 func newAutoConfig() autodiscovery.Component {
 	return &noopAutoConfig{}
 }
