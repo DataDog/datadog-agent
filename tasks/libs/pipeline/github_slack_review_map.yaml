@@ -42,7 +42,7 @@
 '@datadog/network-device-monitoring': '#network-device-monitoring'
 '@datadog/networks': '#network-performance-monitoring'
 '@datadog/opentelemetry': '#opentelemetry-ops'
-'@datadog/opentelemetry-agent': '#opentelemetry-agent'
+'@datadog/opentelemetry-agent': '#opentelemetry-agent-ops'
 '@datadog/remote-config': '#remote-config-monitoring'
 '@datadog/sdlc-security': '#sit'
 '@datadog/serverless': '#serverless-agent'
