@@ -651,20 +651,6 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	ac.deleteMappingsOfCheckIDsWithSecrets(changes.Unschedule)
 }
 
-// MapOverLoadedConfigs calls the given function with the map of all
-// loaded configs (those that would be returned from LoadedConfigs).
-//
-// This is done with the config store locked, so callers should perform minimal
-// work within f.
-func (ac *AutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)) {
-	if ac == nil || ac.store == nil {
-		log.Error("AutoConfig store not initialized")
-		f(map[string]integration.Config{})
-		return
-	}
-	ac.cfgMgr.mapOverLoadedConfigs(f)
-}
-
 // LoadedConfigs returns a slice of all loaded configs.  Loaded configs are non-template
 // configs, either as received from a config provider or as resolved from a template and
 // a service.  They do not include service configs.
