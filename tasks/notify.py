@@ -1,4 +1,3 @@
-import io
 import json
 import os
 import re
@@ -11,9 +10,8 @@ from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.datadog_api import create_count, send_metrics
 from tasks.libs.pipeline_data import get_failed_jobs
-from tasks.libs.pipeline_notifications import base_message, check_for_missing_owners_slack_and_jira, send_slack_message
+from tasks.libs.pipeline_notifications import check_for_missing_owners_slack_and_jira, send_slack_message
 from tasks.libs.pipeline_stats import get_failed_jobs_stats
-from tasks.libs.types import SlackMessage
 
 PROJECT_NAME = "DataDog/datadog-agent"
 AWS_S3_CP_CMD = "aws s3 cp --only-show-errors --region us-east-1 --sse AES256"
@@ -34,58 +32,6 @@ def check_teams(_):
         raise Exit(code=1)
     else:
         print("All CODEOWNERS teams have their slack notification channel and jira project specified !!")
-
-
-@task
-def send_message(_, notification_type="merge", print_to_stdout=False):
-    """
-    Send notifications for the current pipeline. CI-only task.
-    Use the --print-to-stdout option to test this locally, without sending
-    real slack messages.
-    """
-    try:
-        failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
-        message = SlackMessage(jobs=failed_jobs)
-    except Exception as e:
-        buffer = io.StringIO()
-        print(base_message("datadog-agent", "is in an unknown state"), file=buffer)
-        print("Found exception when generating notification:", file=buffer)
-        traceback.print_exc(limit=-1, file=buffer)
-        print("See the notify job log for the full exception traceback.", file=buffer)
-
-        message = (SlackMessage(base=buffer.getvalue()),)
-        # Print traceback on job log
-        print(e)
-        traceback.print_exc()
-        raise Exit(code=1)
-
-    # From the job failures, set whether the pipeline succeeded or failed and craft the
-    # base message that will be sent.
-    if failed_jobs.all_mandatory_failures():  # At least one mandatory job failed
-        header_icon = ":host-red:"
-        state = "failed"
-        coda = "If there is something wrong with the notification please contact <#C06PBHLD4DQ>"
-    else:
-        header_icon = ":host-green:"
-        state = "succeeded"
-        coda = ""
-
-    header = ""
-    if notification_type == "merge":
-        header = f"{header_icon} :merged: datadog-agent merge"
-    elif notification_type == "deploy":
-        header = f"{header_icon} :rocket: datadog-agent deploy"
-    base = base_message(header, state)
-
-    # Send message
-    # We don't generate one message per owner, only the global one
-    channel = "#agent-agent6-ops"
-    message.base_message = base
-    message.coda = coda
-    if print_to_stdout:
-        print(f"Would send to {channel}:\n{str(message)}")
-    else:
-        send_slack_message(channel, str(message))  # TODO: use channel variable
 
 
 @task
