@@ -87,17 +87,16 @@ func checkBlockingRulesWindows(output []byte, rulesToCheck sourcesByRule) ([]blo
 			continue
 		}
 
-		sources, exists := rulesToCheck[firewallRule{
+		firewallRule := firewallRule{
 			protocol: rule.Protocol,
 			destPort: rule.LocalPort,
-		}]
+		}
+
+		sources, exists := rulesToCheck[firewallRule]
 		if exists {
 			blockingRules = append(blockingRules, blockingRule{
-				firewallRule: firewallRule{
-					protocol: rule.Protocol,
-					destPort: rule.LocalPort,
-				},
-				sources: sources,
+				firewallRule: firewallRule,
+				sources:      sources,
 			})
 		}
 	}

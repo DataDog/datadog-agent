@@ -113,21 +113,15 @@ func getNetflowRulesToCheck(config config.Component) []ruleToCheck {
 			continue
 		}
 
-		if listener.Port == 0 {
-			rulesToCheck = append(rulesToCheck, ruleToCheck{
-				firewallRule: firewallRule{
-					protocol: "UDP",
-					destPort: fmt.Sprintf("%d", flowTypeDetail.DefaultPort()),
-				},
-				source: fmt.Sprintf("netflow (%s)", flowTypeDetail.Name()),
-			})
-			continue
+		destPort := listener.Port
+		if destPort == 0 {
+			destPort = flowTypeDetail.DefaultPort()
 		}
 
 		rulesToCheck = append(rulesToCheck, ruleToCheck{
 			firewallRule: firewallRule{
 				protocol: "UDP",
-				destPort: fmt.Sprintf("%d", listener.Port),
+				destPort: fmt.Sprintf("%d", destPort),
 			},
 			source: fmt.Sprintf("netflow (%s)", flowTypeDetail.Name()),
 		})
