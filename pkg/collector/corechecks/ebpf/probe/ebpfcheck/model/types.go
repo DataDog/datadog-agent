@@ -12,8 +12,9 @@ import (
 
 // EBPFStats contains the statistics from the ebpf check
 type EBPFStats struct {
-	Maps     []EBPFMapStats
-	Programs []EBPFProgramStats
+	Maps        []EBPFMapStats
+	Programs    []EBPFProgramStats
+	KprobeStats []KprobeStats
 }
 
 // EBPFMapStats are the basic statistics for ebpf maps
@@ -44,4 +45,14 @@ type EBPFProgramStats struct {
 	Runtime         time.Duration
 	VerifiedInsns   uint32
 	Type            string
+}
+
+// KprobeMissStats are stats which compose of the miss count
+type KprobeStats struct {
+	Name                     string
+	Type                     string
+	Module                   string
+	KprobeMisses             uint64
+	KretprobeMaxActiveMisses uint64
+	KprobeHits               uint64
 }

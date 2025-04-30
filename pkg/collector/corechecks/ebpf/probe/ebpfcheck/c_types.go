@@ -15,3 +15,8 @@ import "C"
 type perfBufferKey C.perf_buffer_key_t
 type mmapRegion C.mmap_region_t
 type ringMmap C.ring_mmap_t
+type cookie C.cookie_t
+type kStatsError C.k_stats_error_t
+type kprobeKernelStats C.kprobe_stats_t
+type kprobeStatsCollectorErrors C.stats_collector_error_t
+type kprobeStatsErrors C.k_stats_error_t

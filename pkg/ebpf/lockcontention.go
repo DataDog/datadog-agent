@@ -320,7 +320,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	constants := make(map[string]uint64)
 	l.objects = new(bpfObjects)
 
-	kaddrs, err := getKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses...)
+	kaddrs, err := GetKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses...)
 	if err != nil {
 		return fmt.Errorf("unable to fetch kernel symbol addresses: %w", err)
 	}
@@ -568,7 +568,7 @@ type ksymIterProgram struct {
 	BpfIteratorDumpKsyms *ebpf.Program `ebpf:"bpf_iter__dump_ksyms"`
 }
 
-func getKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses ...string) (map[string]uint64, error) {
+func GetKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses ...string) (map[string]uint64, error) {
 	var prog ksymIterProgram
 
 	if err := LoadCOREAsset("ksyms_iter.o", func(bc bytecode.AssetReader, managerOptions manager.Options) error {

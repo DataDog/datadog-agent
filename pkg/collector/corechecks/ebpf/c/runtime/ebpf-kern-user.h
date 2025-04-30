@@ -18,4 +18,31 @@ typedef struct {
     mmap_region_t data;
 } ring_mmap_t;
 
+typedef struct {
+    unsigned int kprobe_id;
+    unsigned int query_id;
+} cookie_t;
+
+typedef struct {
+    unsigned long kprobe_hits;
+    unsigned long kprobe_nesting_misses;
+    unsigned long kretprobe_maxactive_misses;
+} kprobe_stats_t;
+
+typedef enum {
+    NO_ERROR                            = 0,
+    FILE_NOT_PERF_EVENT                 = 1,
+    PERF_EVENT_FD_IS_NOT_KPROBE         = 2,
+    PERF_EVENT_NOT_FOUND                = 3,
+    ERR_READING_KPROBE_HITS             = 4,
+    ERR_READING_KPROBE_MISSES           = 5,
+    ERR_READING_KRETPROBE_MISSES        = 6,
+    ERR_READING_TRACE_EVENT_CALL_FLAGS  = 7,
+} stats_collector_error_t;
+
+typedef struct {
+    stats_collector_error_t error_type;
+    cookie_t cookie;
+} k_stats_error_t;
+
 #endif

@@ -207,6 +207,9 @@ func (p *Probe) start() error {
 	if err := p.attacher.Start(); err != nil {
 		return fmt.Errorf("error starting uprobes attacher: %w", err)
 	}
+
+	ddebpf.AddProbeFDMappings(p.m.Manager, consts.GpuModuleName)
+
 	return nil
 }
 

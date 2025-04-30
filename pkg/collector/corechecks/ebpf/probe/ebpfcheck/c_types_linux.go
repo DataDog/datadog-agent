@@ -15,3 +15,21 @@ type ringMmap struct {
 	Consumer mmapRegion
 	Data     mmapRegion
 }
+type cookie struct {
+	Kprobe_id uint32
+	Query_id  uint32
+}
+type kStatsError struct {
+	Type   uint32
+	Cookie cookie
+}
+type kprobeKernelStats struct {
+	Kprobe_hits                uint64
+	Kprobe_nesting_misses      uint64
+	Kretprobe_maxactive_misses uint64
+}
+type kprobeStatsCollectorErrors uint32
+type kprobeStatsErrors struct {
+	Type   uint32
+	Cookie cookie
+}

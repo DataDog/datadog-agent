@@ -9,6 +9,7 @@ package ebpf
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -22,6 +23,13 @@ var mapModuleMapping = make(map[uint32]string)
 
 var progNameMapping = make(map[uint32]string)
 var progModuleMapping = make(map[uint32]string)
+
+type probeKey struct {
+	probeName  string
+	moduleName string
+}
+
+var probeIDToFDMappings = make(map[ebpf.ProgramID]uint32)
 
 var progIgnoredIDs = make(map[ebpf.ProgramID]struct{})
 
@@ -143,6 +151,19 @@ func GetModuleFromProgID(id uint32) (string, error) {
 	return getMappingFromID(id, progModuleMapping)
 }
 
+// GetFDByProbeID returns the fd mapped for a probe or an error if no mappings exists
+func GetPerfEventFDByProbeID(probeID ebpf.ProgramID) (uint32, error) {
+	mappingLock.RLock()
+	defer mappingLock.RUnlock()
+
+	fd, ok := probeIDToFDMappings[probeID]
+	if ok {
+		return fd, nil
+	}
+
+	return 0, fmt.Errorf("no fd exists for probe with id %d", probeID)
+}
+
 // RemoveNameMappings removes the full name mappings for ebpf maps in the manager
 func RemoveNameMappings(mgr *manager.Manager) {
 	maps, err := mgr.GetMaps()
@@ -236,4 +257,30 @@ func IsProgramIDIgnored(id ebpf.ProgramID) bool {
 
 	_, ok := progIgnoredIDs[id]
 	return ok
+}
+
+// AddProbeFDMappings creates mappings between a program and its perf event fd
+func AddProbeFDMappings(mgr *manager.Manager, moduleName string) {
+	mappingLock.Lock()
+	defer mappingLock.Unlock()
+
+	for _, p := range mgr.Probes {
+		if !p.IsRunning() {
+			continue
+		}
+
+		specs, _, err := mgr.GetProgramSpec(p.ProbeIdentificationPair)
+		if err != nil || len(specs) == 0 {
+			continue
+		}
+
+		if specs[0].Type != ebpf.Kprobe {
+			continue
+		}
+
+		fd, err := p.PerfEventFD()
+		if err == nil {
+			probeIDToFDMappings[ebpf.ProgramID(p.ID())] = fd
+		}
+	}
 }
