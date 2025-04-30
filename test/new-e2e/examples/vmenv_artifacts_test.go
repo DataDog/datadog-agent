@@ -8,9 +8,6 @@ package examples
 import (
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -24,9 +21,7 @@ type artifactsSuite struct {
 
 func TestArtifactsSuite(t *testing.T) {
 	e2e.Run(t, &artifactsSuite{}, e2e.WithProvisioner(
-		awshost.ProvisionerNoAgentNoFakeIntake(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
-		),
+		awshost.ProvisionerNoAgentNoFakeIntake(),
 	))
 }
 

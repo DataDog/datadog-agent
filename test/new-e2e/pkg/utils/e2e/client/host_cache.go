@@ -12,6 +12,10 @@ import (
 	oscomp "github.com/DataDog/test-infra-definitions/components/os"
 )
 
+const (
+	cacheBucketURL = "s3://agent-e2e-s3-bucket"
+)
+
 type unimplementedHostCache struct{}
 
 func (c *unimplementedHostCache) Get(_ string, _ string) error {
@@ -148,7 +152,7 @@ func (c *hostArtifactsClient) Get(path string, destPath string) error {
 			return err
 		}
 	}
-	return c.cli.download(path, destPath)
+	return c.cli.download(fmt.Sprintf("%s/%s", cacheBucketURL, path), destPath)
 }
 
 type aptPkgManager struct {

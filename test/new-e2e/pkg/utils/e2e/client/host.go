@@ -44,6 +44,7 @@ type buildCommandFn func(command string, envVars EnvVar) string
 
 type convertPathSeparatorFn func(string) string
 
+// HostArtifactClient is a client that can get files from the artifact bucket to the remote host
 type HostArtifactClient interface {
 	Get(path string, destPath string) error
 }
