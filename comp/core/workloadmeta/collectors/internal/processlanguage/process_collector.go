@@ -47,7 +47,7 @@ type collector struct {
 	containerProvider proccontainers.ContainerProvider
 }
 
-// NewProcessLanguageCollector returns a new local process collector provider and an error.
+// NewProcessLanguageCollector returns a new process language collector provider and an error.
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
 func NewProcessLanguageCollector() (workloadmeta.CollectorProvider, error) {
 	wlmExtractor := processwlm.GetSharedWorkloadMetaExtractor(pkgconfigsetup.SystemProbe())
