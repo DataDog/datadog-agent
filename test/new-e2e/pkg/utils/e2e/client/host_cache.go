@@ -138,7 +138,7 @@ func (c *unixAWSCLI) check() bool {
 }
 
 func (c *unixAWSCLI) download(path string, destPath string) error {
-	_, err := c.sshExecutor.Execute(fmt.Sprintf("aws s3 cp %s %s", path, destPath))
+	_, err := c.sshExecutor.Execute(fmt.Sprintf("aws s3 cp \"%s\" \"%s\"", path, destPath))
 	return err
 }
 
