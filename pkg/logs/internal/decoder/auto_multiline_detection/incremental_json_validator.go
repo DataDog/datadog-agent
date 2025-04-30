@@ -26,27 +26,24 @@ const (
 
 // IncrementalJSONValidator is a JSON validator that processes JSON messages incrementally.
 type IncrementalJSONValidator struct {
-	decoder      *json.Decoder
-	writer       *bytes.Buffer
-	resultBuffer *bytes.Buffer
-	objCount     int
+	decoder  *json.Decoder
+	writer   *bytes.Buffer
+	objCount int
 }
 
 // NewIncrementalJSONValidator creates a new IncrementalJSONValidator.
 func NewIncrementalJSONValidator() *IncrementalJSONValidator {
 	buf := &bytes.Buffer{}
 	return &IncrementalJSONValidator{
-		decoder:      json.NewDecoder(buf),
-		writer:       buf,
-		objCount:     0,
-		resultBuffer: &bytes.Buffer{},
+		decoder:  json.NewDecoder(buf),
+		writer:   buf,
+		objCount: 0,
 	}
 }
 
 // Write writes a byte slice to the IncrementalJSONValidator.
 func (d *IncrementalJSONValidator) Write(s []byte) JSONState {
 	_, err := d.writer.Write(s)
-	d.resultBuffer.Write(s)
 
 	if err != nil {
 		return Invalid
