@@ -381,6 +381,8 @@ func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) 
 		return fmt.Errorf("could not start ebpf manager: %s", err)
 	}
 
+	ddebpf.AddProbeFDMappings(t.m.Manager, "npm_tracer")
+
 	return nil
 }
 

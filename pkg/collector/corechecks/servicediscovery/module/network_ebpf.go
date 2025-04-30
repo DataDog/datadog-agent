@@ -68,6 +68,7 @@ func (c *eBPFNetworkCollector) setupManager(buf bytecode.AssetReader, options ma
 	}
 
 	ddebpf.AddNameMappings(c.m.Manager, moduleName)
+	ddebpf.AddProbeFDMappings(c.m.Manager, moduleName)
 
 	c.statsMap = statsMap
 
