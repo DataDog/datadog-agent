@@ -10,6 +10,7 @@ package systemd
 import (
 	"fmt"
 	"math"
+	"slices"
 	"testing"
 	"time"
 
@@ -772,11 +773,14 @@ unit_regexes: [%s]
 
 			// Then
 			mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, servicecheck.ServiceCheckOK, "", []string(nil), mock.Anything)
-			for _, unitName := range test.monitoredUnits {
+			for unitName, metrics := range unitsToMetrics {
 				tags := []string{fmt.Sprintf("unit:%s", unitName)}
-				metrics := unitsToMetrics[unitName]
+				assertSenderCall := mockSender.AssertNotCalled
+				if slices.Contains(test.monitoredUnits, unitName) {
+					assertSenderCall = mockSender.AssertCalled
+				}
 				for _, metric := range metrics {
-					mockSender.AssertCalled(t, "Gauge", metric, mock.Anything, "", tags)
+					assertSenderCall(t, "Gauge", metric, mock.Anything, "", tags)
 				}
 			}
 		})
