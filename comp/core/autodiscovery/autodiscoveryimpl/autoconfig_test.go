@@ -399,11 +399,10 @@ func TestResolveTemplate(t *testing.T) {
 }
 
 func countLoadedConfigs(ac *AutoConfig) int {
-	count := -1 // -1 would indicate f was not called
-	ac.MapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
-		count = len(loadedConfigs)
-	})
-	return count
+	if ac == nil || ac.store == nil {
+		return 0
+	}
+	return len(ac.GetAllConfigs())
 }
 
 func TestRemoveTemplate(t *testing.T) {

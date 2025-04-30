@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
@@ -39,7 +40,9 @@ func NewProvider(config *common.KubeletConfig) *Provider {
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
 	serviceCheckBase := common.KubeletMetricsPrefix + "kubelet.check"
 	// Collect raw data
-	healthCheckRaw, responseCode, err := kc.QueryKubelet(context.TODO(), "/healthz?verbose")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.config.Timeout)*time.Second)
+	healthCheckRaw, responseCode, err := kc.QueryKubelet(ctx, "/healthz?verbose")
+	cancel()
 	if err != nil {
 		errMsg := fmt.Sprintf("Kubelet health check failed: %s", err)
 		sender.ServiceCheck(serviceCheckBase, servicecheck.ServiceCheckCritical, "", p.config.Tags, errMsg)
