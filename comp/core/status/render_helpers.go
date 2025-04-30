@@ -182,7 +182,7 @@ func lastErrorTraceback(value string) string {
 	if err != nil || len(lastErrorArray) == 0 {
 		return "No traceback"
 	}
-	lastErrorArray[0]["traceback"] = strings.Replace(lastErrorArray[0]["traceback"], "\n", "\n      ", -1)
+	lastErrorArray[0]["traceback"] = strings.ReplaceAll(lastErrorArray[0]["traceback"], "\n", "\n      ")
 	lastErrorArray[0]["traceback"] = strings.TrimRight(lastErrorArray[0]["traceback"], "\n\t ")
 	return lastErrorArray[0]["traceback"]
 }
@@ -413,8 +413,8 @@ func getVersion(instances map[string]interface{}) string {
 func pythonLoaderErrorHTML(value string) htemplate.HTML {
 	value = htemplate.HTMLEscapeString(value)
 
-	value = strings.Replace(value, "\n", "<br>", -1)
-	value = strings.Replace(value, "  ", "&nbsp;&nbsp;&nbsp;", -1)
+	value = strings.ReplaceAll(value, "\n", "<br>")
+	value = strings.ReplaceAll(value, "  ", "&nbsp;&nbsp;&nbsp;")
 	return htemplate.HTML(value)
 }
 
@@ -428,8 +428,8 @@ func lastErrorTracebackHTML(value string) htemplate.HTML {
 
 	traceback := htemplate.HTMLEscapeString(lastErrorArray[0]["traceback"])
 
-	traceback = strings.Replace(traceback, "\n", "<br>", -1)
-	traceback = strings.Replace(traceback, "  ", "&nbsp;&nbsp;&nbsp;", -1)
+	traceback = strings.ReplaceAll(traceback, "\n", "<br>")
+	traceback = strings.ReplaceAll(traceback, "  ", "&nbsp;&nbsp;&nbsp;")
 
 	return htemplate.HTML(traceback)
 }

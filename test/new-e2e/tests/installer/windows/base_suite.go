@@ -39,10 +39,10 @@ import (
 //	STABLE_AGENT_VERSION_PACKAGE=7.55.2-1
 type BaseSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
-	installer     *DatadogInstaller
-	installScript *DatadogInstallScript
-	currentAgent  *AgentVersionManager
-	stableAgent   *AgentVersionManager
+	installer         *DatadogInstaller
+	installScriptImpl InstallScriptRunner
+	currentAgent      *AgentVersionManager
+	stableAgent       *AgentVersionManager
 }
 
 // Installer The Datadog Installer for testing.
@@ -50,8 +50,17 @@ func (s *BaseSuite) Installer() *DatadogInstaller {
 	return s.installer
 }
 
-// InstallScript The Datadog Install script for testing.
-func (s *BaseSuite) InstallScript() *DatadogInstallScript { return s.installScript }
+// InstallScript returns the installer implementation.
+// Override this method in your test suite to use a different implementation.
+func (s *BaseSuite) InstallScript() InstallScriptRunner {
+	return s.installScriptImpl
+}
+
+// SetInstallScriptImpl sets a custom installer implementation.
+// Use this in your test suite's SetupSuite to override the default implementation.
+func (s *BaseSuite) SetInstallScriptImpl(impl InstallScriptRunner) {
+	s.installScriptImpl = impl
+}
 
 // Require instantiates a suiteAssertions for the current suite.
 // This allows writing assertions in a "natural" way, i.e.:
@@ -174,7 +183,7 @@ func (s *BaseSuite) BeforeTest(suiteName, testName string) {
 	s.Require().NoError(os.MkdirAll(outputDir, 0755))
 
 	s.installer = NewDatadogInstaller(s.Env(), s.CurrentAgentVersion().MSIPackage().URL, outputDir)
-	s.installScript = NewDatadogInstallScript(s.Env())
+	s.installScriptImpl = NewDatadogInstallScript(s.Env())
 }
 
 func (s *BaseSuite) startExperimentWithCustomPackage(opts ...PackageOption) (string, error) {
@@ -252,7 +261,7 @@ func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 	err := s.WaitForInstallerService("Running")
 	s.Require().NoError(err)
 
-	// sanity check: make sure we did indeed install the stable version
+	// sanity check: make sure we did indeed install the current version
 	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(consts.BinaryPath).
 		WithVersionMatchPredicate(func(version string) {
