@@ -1156,3 +1156,66 @@ func TestSyncRetryAndReattach(t *testing.T) {
 	require.Equal(t, config.MaxPeriodicScansPerProcess, ua.scansPerPid[proc.Pid]) // attached correctly, so marked as already scanned to the max
 	registry.AssertExpectations(t)
 }
+
+func TestSyncNoAttach(t *testing.T) {
+	proc := FakeProcFSEntry{
+		Pid:     1,
+		Cmdline: "/bin/bash",
+		Command: "/bin/bash",
+		Exe:     "/bin/bash",
+	}
+	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
+	emptyProcFS := CreateFakeProcFS(t, []FakeProcFSEntry{})
+
+	config := AttacherConfig{
+		ProcRoot: procFS,
+		Rules: []*AttachRule{
+			{
+				Targets: AttachToExecutable,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}},
+				},
+			},
+		},
+		EnablePeriodicScanNewProcesses: true,
+		MaxPeriodicScansPerProcess:     2,
+	}
+
+	registry := &MockFileRegistry{}
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, nil, nil, nil, newMockProcessMonitor())
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	ua.fileRegistry = registry
+
+	// All attempts should fail
+	registry.On("Register", proc.Exe, proc.Pid, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("inspection failed")).Once()
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{}).Once()
+	err = ua.Sync(true, true)
+	require.NoError(t, err) // Sync itself doesn't return errors from individual attachments
+	require.Equal(t, 1, ua.scansPerPid[proc.Pid])
+	registry.AssertExpectations(t)
+
+	// Second attempt should still fail
+	registry.On("Register", proc.Exe, proc.Pid, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("inspection failed")).Once()
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{}).Once()
+	err = ua.Sync(true, true)
+	require.NoError(t, err)
+	require.Equal(t, 2, ua.scansPerPid[proc.Pid])
+	registry.AssertExpectations(t)
+
+	// Third attempt should not even get to the registry, so we don't expect any calls to the Register method
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{}).Once()
+	err = ua.Sync(true, true)
+	require.NoError(t, err)
+	require.Equal(t, 2, ua.scansPerPid[proc.Pid])
+	registry.AssertExpectations(t)
+
+	// Scan an empty procFS to simulate the process exiting, it should disapper from the scansPerPid map
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{}).Once()
+	ua.config.ProcRoot = emptyProcFS
+	err = ua.Sync(true, true)
+	require.NoError(t, err)
+	require.Empty(t, ua.scansPerPid)
+	registry.AssertExpectations(t)
+}

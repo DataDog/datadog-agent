@@ -579,6 +579,13 @@ func (ua *UprobeAttacher) Sync(trackCreations, trackDeletions bool) error {
 		return nil
 	})
 
+	// Clean up the scansPerPid map, removing all PIDs that are no longer alive
+	for pid := range ua.scansPerPid {
+		if _, ok := alivePIDs[pid]; !ok {
+			delete(ua.scansPerPid, pid)
+		}
+	}
+
 	if trackDeletions {
 		// At this point all entries from deletionCandidates are no longer alive, so
 		// we should detach our SSL probes from them
