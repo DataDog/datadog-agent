@@ -105,7 +105,7 @@ build do
     if linux_target?
         include_sds = "--include-sds" # we only support SDS on Linux targets for now
     end
-    command "dda inv -- -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
+    command "dda inv -- -e agent.build --race --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
 
     if heroku_target?
       command "dda inv -- -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent --bundle agent", env: env
