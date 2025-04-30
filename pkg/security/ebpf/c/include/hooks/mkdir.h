@@ -147,8 +147,8 @@ HOOK_SYSCALL_EXIT(mkdirat) {
     return sys_mkdir_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
-SEC("tracepoint/handle_sys_mkdir_exit")
-int tracepoint_handle_sys_mkdir_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_mkdir_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_mkdir_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
@@ -186,13 +186,11 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_mkdir_callback")
-int tail_call_target_dr_mkdir_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_mkdir_callback, ctx_t *ctx) {
     return dr_mkdir_callback(ctx);
 }
 
-SEC("tracepoint/dr_mkdir_callback")
-int tracepoint_dr_mkdir_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(dr_mkdir_callback, struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_mkdir_callback(args);
 }
 

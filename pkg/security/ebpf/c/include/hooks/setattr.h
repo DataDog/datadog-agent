@@ -96,8 +96,7 @@ int hook_security_inode_setattr(ctx_t *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_setattr_callback")
-int tail_call_target_dr_setattr_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_setattr_callback, ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(security_inode_predicate);
     if (!syscall) {
         return 0;

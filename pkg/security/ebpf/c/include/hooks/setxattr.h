@@ -101,8 +101,7 @@ int __attribute__((always_inline)) trace__vfs_setxattr(ctx_t *ctx, u64 event_typ
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_setxattr_callback")
-int tail_call_target_dr_setxattr_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_setxattr_callback, ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(xattr_predicate);
     if (!syscall) {
         return 0;
@@ -169,8 +168,7 @@ HOOK_SYSCALL_EXIT(lsetxattr) {
     return sys_xattr_ret(ctx, retval, EVENT_SETXATTR);
 }
 
-SEC("tracepoint/handle_sys_setxattr_exit")
-int tracepoint_handle_sys_setxattr_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_setxattr_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_xattr_ret(args, args->ret, EVENT_SETXATTR);
 }
 
@@ -189,8 +187,7 @@ HOOK_SYSCALL_EXIT(fremovexattr) {
     return sys_xattr_ret(ctx, retval, EVENT_REMOVEXATTR);
 }
 
-SEC("tracepoint/handle_sys_removexattr_exit")
-int tracepoint_handle_sys_removexattr_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_removexattr_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_xattr_ret(args, args->ret, EVENT_REMOVEXATTR);
 }
 

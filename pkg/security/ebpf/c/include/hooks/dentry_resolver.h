@@ -148,26 +148,22 @@ void __attribute__((always_inline)) dentry_resolver_kern_no_syscall(void *ctx, e
     dentry_resolver_kern_recursive(ctx, prog_type, inputs);
 }
 
-SEC("tracepoint/dentry_resolver_kern")
-int tracepoint_dentry_resolver_kern(void *ctx) {
+TAIL_CALL_TRACEPOINT_FNC(dentry_resolver_kern, void *ctx) {
     dentry_resolver_kern(ctx, TRACEPOINT_TYPE);
     return 0;
 }
 
-TAIL_CALL_TARGET("dentry_resolver_kern")
-int tail_call_target_dentry_resolver_kern(ctx_t *ctx) {
+TAIL_CALL_FNC(dentry_resolver_kern, ctx_t *ctx) {
     dentry_resolver_kern(ctx, KPROBE_OR_FENTRY_TYPE);
     return 0;
 }
 
-SEC("tracepoint/dentry_resolver_kern_no_syscall")
-int tracepoint_dentry_resolver_kern_no_syscall(void *ctx) {
+TAIL_CALL_TRACEPOINT_FNC(dentry_resolver_kern_no_syscall, void *ctx) {
     dentry_resolver_kern_no_syscall(ctx, TRACEPOINT_TYPE);
     return 0;
 }
 
-TAIL_CALL_TARGET("dentry_resolver_kern_no_syscall")
-int tail_call_target_dentry_resolver_kern_no_syscall(ctx_t *ctx) {
+TAIL_CALL_FNC(dentry_resolver_kern_no_syscall, ctx_t *ctx) {
     dentry_resolver_kern_no_syscall(ctx, KPROBE_OR_FENTRY_TYPE);
     return 0;
 }
@@ -244,8 +240,7 @@ exit:
     return 0;
 }
 
-TAIL_CALL_TARGET("dentry_resolver_erpc_write_user")
-int tail_call_target_dentry_resolver_erpc_write_user(ctx_t *ctx) {
+TAIL_CALL_FNC(dentry_resolver_erpc_write_user, ctx_t *ctx) {
     return dentry_resolver_erpc_write_user(ctx, KPROBE_OR_FENTRY_TYPE);
 }
 
@@ -328,13 +323,11 @@ exit:
     return 0;
 }
 
-TAIL_CALL_TARGET("dentry_resolver_erpc_mmap")
-int tail_call_target_dentry_resolver_erpc_mmap(ctx_t *ctx) {
+TAIL_CALL_FNC(dentry_resolver_erpc_mmap, ctx_t *ctx) {
     return dentry_resolver_erpc_mmap(ctx, KPROBE_OR_FENTRY_TYPE);
 }
 
-TAIL_CALL_TARGET("dentry_resolver_ad_filter")
-int tail_call_target_dentry_resolver_ad_filter(ctx_t *ctx) {
+TAIL_CALL_FNC(dentry_resolver_ad_filter, ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
     if (!syscall) {
         return 0;
@@ -348,8 +341,7 @@ int tail_call_target_dentry_resolver_ad_filter(ctx_t *ctx) {
     return 0;
 }
 
-SEC("tracepoint/dentry_resolver_ad_filter")
-int tracepoint_dentry_resolver_ad_filter(void *ctx) {
+TAIL_CALL_TRACEPOINT_FNC(dentry_resolver_ad_filter, void *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
     if (!syscall) {
         return 0;

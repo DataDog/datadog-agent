@@ -261,8 +261,7 @@ int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache
     return 0;
 }
 
-TAIL_CALL_TARGET("sys_open_ret_cb")
-int tail_call_target_sys_open_ret_cb(void *ctx) {
+TAIL_CALL_FNC(sys_open_ret_cb, void *ctx) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
     if (!syscall || !syscall->open.dentry) {
         return 0;
@@ -311,8 +310,7 @@ HOOK_SYSCALL_EXIT(openat2) {
     return sys_open_ret(ctx);
 }
 
-SEC("tracepoint/handle_sys_open_exit")
-int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_open_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
     if (!syscall || !syscall->open.dentry) {
         return 0;

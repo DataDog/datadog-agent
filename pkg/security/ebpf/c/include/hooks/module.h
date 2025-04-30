@@ -190,13 +190,11 @@ HOOK_SYSCALL_EXIT(delete_module) {
     return trace_delete_module_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
 
-SEC("tracepoint/handle_sys_init_module_exit")
-int tracepoint_handle_sys_init_module_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_init_module_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return trace_init_module_ret(args, args->ret, NULL);
 }
 
-SEC("tracepoint/handle_sys_delete_module_exit")
-int tracepoint_handle_sys_delete_module_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_delete_module_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return trace_delete_module_ret(args, args->ret);
 }
 

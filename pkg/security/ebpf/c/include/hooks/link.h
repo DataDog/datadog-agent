@@ -77,8 +77,7 @@ int hook_complete_walk(ctx_t *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_link_src_callback")
-int tail_call_target_dr_link_src_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_link_src_callback, ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
     if (!syscall) {
         return 0;
@@ -198,8 +197,7 @@ HOOK_SYSCALL_EXIT(linkat) {
     return sys_link_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
-SEC("tracepoint/handle_sys_link_exit")
-int tracepoint_handle_sys_link_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_link_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_link_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
@@ -234,13 +232,11 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_link_dst_callback")
-int tail_call_target_dr_link_dst_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_link_dst_callback, ctx_t *ctx) {
     return dr_link_dst_callback(ctx);
 }
 
-SEC("tracepoint/dr_link_dst_callback")
-int tracepoint_dr_link_dst_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(dr_link_dst_callback, struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_link_dst_callback(args);
 }
 

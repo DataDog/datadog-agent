@@ -101,8 +101,8 @@ HOOK_SYSCALL_EXIT(fchdir) {
     return sys_chdir_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
-SEC("tracepoint/handle_sys_chdir_exit")
-int tracepoint_handle_sys_chdir_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_chdir_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_chdir_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
@@ -138,13 +138,11 @@ int __attribute__((always_inline)) dr_chdir_callback(void *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_chdir_callback")
-int tail_call_target_dr_chdir_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_chdir_callback, ctx_t *ctx) {
     return dr_chdir_callback(ctx);
 }
 
-SEC("tracepoint/dr_chdir_callback")
-int tracepoint_dr_chdir_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(dr_chdir_callback, struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_chdir_callback(args);
 }
 

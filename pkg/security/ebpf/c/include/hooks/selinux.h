@@ -103,8 +103,7 @@ int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_selinux_callback")
-int tail_call_target_dr_selinux_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_selinux_callback, ctx_t *ctx) {
     // int retval = PT_REGS_RC(ctx);
     int retval = 0;
     return dr_selinux_callback(ctx, retval);

@@ -201,13 +201,11 @@ int __attribute__((always_inline)) dr_mount_stage_one_callback(void *ctx, enum T
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_mount_stage_one_callback")
-int tail_call_target_dr_mount_stage_one_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_mount_stage_one_callback, ctx_t *ctx) {
     return dr_mount_stage_one_callback(ctx, KPROBE_OR_FENTRY_TYPE);
 }
 
-SEC("tracepoint/dr_mount_stage_one_callback")
-int tracepoint_dr_mount_stage_one_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(dr_mount_stage_one_callback, struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_mount_stage_one_callback(args, TRACEPOINT_TYPE);
 }
 
@@ -249,13 +247,11 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_mount_stage_two_callback")
-int tail_call_target_dr_mount_stage_two_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_mount_stage_two_callback, ctx_t *ctx) {
     return dr_mount_stage_two_callback(ctx);
 }
 
-SEC("tracepoint/dr_mount_stage_two_callback")
-int tracepoint_dr_mount_stage_two_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(dr_mount_stage_two_callback, struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_mount_stage_two_callback(args);
 }
 
@@ -407,8 +403,7 @@ HOOK_SYSCALL_COMPAT_EXIT(mount) {
     return sys_mount_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
-SEC("tracepoint/handle_sys_mount_exit")
-int tracepoint_handle_sys_mount_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_mount_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_mount_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
