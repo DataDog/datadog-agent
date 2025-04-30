@@ -115,8 +115,8 @@ func (n defaultNetworkStats) GetProcPath() string {
 func (n defaultNetworkStats) GetNetProcBasePath() string {
 	netProcfsPath := n.procPath
 	// in a containerized environment
-	if os.Getenv("DOCKER_DD_AGENT") != "" && procfsPath != "/proc" {
-		netProcfsPath = fmt.Sprintf("%s/1", procfsPath)
+	if os.Getenv("DOCKER_DD_AGENT") != "" && netProcfsPath != "/proc" {
+		netProcfsPath = fmt.Sprintf("%s/1", netProcfsPath)
 	}
 	return netProcfsPath
 }
@@ -631,7 +631,7 @@ func runCommand(cmd []string, env []string) (string, error) {
 	execCmd := exec.Command(cmd[0], cmd[1:]...)
 	var out bytes.Buffer
 	var stderr bytes.Buffer
-	execCmd.Env = append(osEnviron(), env...)
+	execCmd.Env = append(execCmd.Environ(), env...)
 	execCmd.Stdout = &out
 	execCmd.Stderr = &stderr
 	err := execCmd.Run()
@@ -709,14 +709,14 @@ func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, r
 }
 
 // Factory creates a new check factory
-func Factory() option.Option[func() check.Check] {
+func Factory() option.Option[func(config.Component) check.Check] {
 	return option.New(newCheck)
 }
 
 func newCheck(cfg config.Component) check.Check {
 	procfsPath := "/proc"
-	if cfg.Config.Datadog().IsConfigured("procfs_path") {
-		procfsPath = strings.TrimRight(cfg.Config.Datadog().GetString("procfs_path"), "/")
+	if cfg.IsConfigured("procfs_path") {
+		procfsPath = strings.TrimRight(cfg.GetString("procfs_path"), "/")
 	}
 
 	return &NetworkCheck{
