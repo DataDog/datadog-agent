@@ -575,6 +575,7 @@ new-e2e-installer-windows:
       # agent-package
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeMSI$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackageAfterRollback$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestDowngradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestStopExperiment$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentForNonExistingPackageFails$"

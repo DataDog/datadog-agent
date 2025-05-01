@@ -65,6 +65,32 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 	// Assert
 }
 
+// TestUpgradeAgentPackageAfterRollback tests that upgrade works after an initial upgrade failed.
+//
+// This is a regression test for WINA-1469, where the Agent account password and
+// password from the LSA did not match after rollback to a version before LSA support was added.
+func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageAfterRollback() {
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+
+	// Act
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+
+	// stop experiment to trigger rollback
+	s.Installer().StopExperiment(consts.AgentPackage)
+	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
+
+	// Try upgrade again
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+
+	// Assert
+}
+
 // TestRunAgentMSIAfterExperiment tests that the Agent can be upgraded after
 // an experiment has been run.
 //
@@ -384,6 +410,8 @@ type testAgentUpgradeFromGASuite struct {
 }
 
 // TestAgentUpgradesFromGA tests that we can upgrade from GA release (7.65.0) to current
+//
+// It embeds testAgentUpgradeSuite so it can run any of the upgrade tests.
 func TestAgentUpgradesFromGA(t *testing.T) {
 	s := &testAgentUpgradeFromGASuite{}
 	s.testAgentUpgradeSuite.BaseSuite.CreateStableAgent = s.createStableAgent
@@ -439,70 +467,4 @@ func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.Age
 	s.Require().NoError(err, "Stable agent version was in an incorrect format")
 
 	return agent, nil
-}
-
-// TestUpgradeAgentPackage tests that upgrade from GA release (7.65.0) to current works
-func (s *testAgentUpgradeFromGASuite) TestUpgradeAgentPackage() {
-	// Arrange
-	s.setAgentConfig()
-	s.installPreviousAgentVersion()
-
-	// Act
-	s.mustStartExperimentCurrentVersion()
-	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
-	s.Installer().PromoteExperiment(consts.AgentPackage)
-	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
-
-	// Assert
-}
-
-// TestUpgradeAgentPackageAfterRollback tests that upgrade from GA release (7.65.0) to current works
-// even after an initial upgrade failed.
-//
-// This is a regression test for WINA-1469, where the Agent account password and
-// password from the LSA did not match after rollback.
-func (s *testAgentUpgradeFromGASuite) TestUpgradeAgentPackageAfterRollback() {
-	// Arrange
-	s.setAgentConfig()
-	s.installPreviousAgentVersion()
-
-	// Act
-	s.mustStartExperimentCurrentVersion()
-	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
-
-	// stop experiment to trigger rollback
-	s.Installer().StopExperiment(consts.AgentPackage)
-	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
-
-	// Try upgrade again
-	s.mustStartExperimentCurrentVersion()
-	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
-	s.Installer().PromoteExperiment(consts.AgentPackage)
-	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
-
-	// Assert
-}
-
-// mustStartExperimentCurrentVersion is like MustStartExperimentCurrentVersion but is specific to the 7.65 daemon
-// which must use the start-installer-experiment subcommand to start an experiment for the Agent package.
-func (s *testAgentUpgradeFromGASuite) mustStartExperimentCurrentVersion() {
-	packageConfig, err := s.SetCatalogWithCustomPackage(
-		installerwindows.WithPackage(s.CurrentAgentVersion().OCIPackage()),
-	)
-	s.Require().NoError(err)
-
-	// 7.65 must use the start-installer-experiment subcommand to start an experiment for the Agent package
-	s.Installer().StartInstallerExperiment(consts.AgentPackage, packageConfig.Version)
-	// can't check error of start-installer-experiment because the process will be killed by the MSI "files in use"
-
-	// have to wait for experiment to finish installing
-	err = s.WaitForInstallerService("Running")
-
-	s.Require().NoError(err)
-	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(consts.BinaryPath).
-		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, s.CurrentAgentVersion().Version())
-		}).
-		DirExists(consts.GetExperimentDirFor(consts.AgentPackage))
 }
