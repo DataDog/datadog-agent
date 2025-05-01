@@ -58,12 +58,13 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.Storag
 		return fmt.Errorf("couldn't marshall event metadata")
 	}
 
-	if handler := storage.activityDumpHandler; handler != nil {
-		handler.HandleActivityDump(selector, headerData, raw.Bytes())
+	if storage.activityDumpHandler == nil {
+		return nil
 	}
 
-	seclog.Infof("[%s] file for activity dump [%s] was forwarded to the security-agent", request.Format, selector)
-	return nil
+	err = storage.activityDumpHandler.HandleActivityDump(selector, headerData, raw.Bytes())
+	seclog.Infof("[%s] file for activity dump [%s] was forwarded to the security-agent", request.Format, selector, err)
+	return err
 }
 
 // SendTelemetry sends telemetry for the current storage

@@ -30,11 +30,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-type tooLargeEntityStatsEntry struct {
-	storageFormat config.StorageFormat
-	compression   bool
-}
-
 // ActivityDumpRemoteBackend is a remote backend that forwards dumps to the backend
 type ActivityDumpRemoteBackend struct {
 	urls             []string
@@ -86,7 +81,7 @@ func writeEventMetadata(writer *multipart.Writer, header []byte) error {
 
 func writeDump(writer *multipart.Writer, raw []byte) error {
 	h := make(textproto.MIMEHeader)
-	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="dump"; filename="dump.protobuf"`)) // TODO: maybe make the extension parametrable
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="dump"; filename="dump.%s"`, config.Protobuf))
 	h.Set("Content-Type", "application/json")
 
 	dataWriter, err := writer.CreatePart(h)

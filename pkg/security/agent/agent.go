@@ -201,7 +201,10 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 
 	// storage might be nil, on windows for example
 	if rsa.storage != nil {
-		rsa.storage.HandleActivityDump(cmSelector, msg.GetHeader(), msg.GetData())
+		err := rsa.storage.HandleActivityDump(cmSelector, msg.GetHeader(), msg.GetData())
+		if err != nil {
+			seclog.Errorf("couldn't handle activity dump: %v", err)
+		}
 	}
 }
 
