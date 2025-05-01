@@ -6,9 +6,9 @@ apm_config:
       - name: "Application Namespace"
         namespaceSelector:
           matchNames:
-          - "application"
+            - "application"
         ddTraceVersions:
-          python: "v2"
+          python: "v3"
         ddTraceConfigs:
           - name: "DD_PROFILING_ENABLED"
             value: "true"

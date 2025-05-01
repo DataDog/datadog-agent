@@ -39,7 +39,7 @@ const commonRegistry = "gcr.io/datadoghq"
 var (
 	defaultLibraries = map[string]string{
 		"java":   "v1",
-		"python": "v2",
+		"python": "v3",
 		"ruby":   "v2",
 		"dotnet": "v3",
 		"js":     "v5",
@@ -2738,13 +2738,13 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 					Value: uuid,
 				},
 			},
-			expectedInjectedLibraries: map[string]string{"java": "v1.28.0", "python": "v2.5.1"},
+			expectedInjectedLibraries: map[string]string{"java": "v1.28.0", "python": "v3.6.0"},
 			expectedSecurityContext:   &corev1.SecurityContext{},
 			wantErr:                   false,
 			wantWebhookInitErr:        false,
 			setupConfig: funcs{
 				enableAPMInstrumentation,
-				withLibVersions(map[string]string{"java": "v1.28.0", "python": "v2.5.1"}),
+				withLibVersions(map[string]string{"java": "v1.28.0", "python": "v3.6.0"}),
 			},
 		},
 		{
@@ -2794,7 +2794,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			wantWebhookInitErr:        false,
 			setupConfig: funcs{
 				enableAPMInstrumentation,
-				withLibVersions(map[string]string{"java": "v1.28.0", "python": "v2.5.1"}),
+				withLibVersions(map[string]string{"java": "v1.28.0", "python": "v3.6.0"}),
 			},
 		},
 		{
