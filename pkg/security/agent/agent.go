@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
 )
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
@@ -45,7 +45,13 @@ type RuntimeSecurityAgent struct {
 	cancel                  context.CancelFunc
 
 	// activity dump
-	storage *backend.ActivityDumpRemoteBackend
+	storage ADStorage
+}
+
+type ADStorage interface {
+	storage.ActivityDumpHandler
+
+	SendTelemetry(_ statsd.ClientInterface)
 }
 
 // RSAOptions represents the runtime security agent options
