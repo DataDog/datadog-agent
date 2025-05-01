@@ -204,6 +204,7 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	// add remote storage requests
+	// the actual fields are not really used, but this allows to report the correct request
 	configuredStorageRequests = append(configuredStorageRequests, config.NewStorageRequest(
 		config.RemoteStorage,
 		config.Protobuf,

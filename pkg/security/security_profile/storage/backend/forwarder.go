@@ -39,7 +39,7 @@ type tooLargeEntityStatsEntry struct {
 type ActivityDumpRemoteBackend struct {
 	urls             []string
 	apiKeys          []string
-	tooLargeEntities map[tooLargeEntityStatsEntry]*atomic.Uint64
+	tooLargeEntities *atomic.Uint64
 
 	client *http.Client
 }
@@ -47,20 +47,10 @@ type ActivityDumpRemoteBackend struct {
 // NewActivityDumpRemoteBackend returns a new ActivityDumpRemoteBackend
 func NewActivityDumpRemoteBackend() (*ActivityDumpRemoteBackend, error) {
 	backend := &ActivityDumpRemoteBackend{
-		tooLargeEntities: make(map[tooLargeEntityStatsEntry]*atomic.Uint64),
+		tooLargeEntities: atomic.NewUint64(0),
 		client: &http.Client{
 			Transport: ddhttputil.CreateHTTPTransport(pkgconfigsetup.Datadog()),
 		},
-	}
-
-	for _, format := range config.AllStorageFormats() {
-		for _, compression := range []bool{true, false} {
-			entry := tooLargeEntityStatsEntry{
-				storageFormat: format,
-				compression:   compression,
-			}
-			backend.tooLargeEntities[entry] = atomic.NewUint64(0)
-		}
 	}
 
 	endpoints, err := config.ActivityDumpRemoteStorageEndpoints("cws-intake.", "secdump", logsconfig.DefaultIntakeProtocol, "cloud-workload-security")
@@ -113,16 +103,10 @@ func buildBody(header []byte, data []byte) (*multipart.Writer, *bytes.Buffer, er
 	body := bytes.NewBuffer(nil)
 	var multipartWriter *multipart.Writer
 
-	// TODO: handle compression
-	compression := true
+	compressor := gzip.NewWriter(body)
+	defer compressor.Close()
 
-	if compression {
-		compressor := gzip.NewWriter(body)
-		defer compressor.Close()
-		multipartWriter = multipart.NewWriter(compressor)
-	} else {
-		multipartWriter = multipart.NewWriter(body)
-	}
+	multipartWriter = multipart.NewWriter(compressor)
 	defer multipartWriter.Close()
 
 	if err := writeEventMetadata(multipartWriter, header); err != nil {
@@ -156,11 +140,7 @@ func (backend *ActivityDumpRemoteBackend) sendToEndpoint(url string, apiKey stri
 		return nil
 	}
 	if resp.StatusCode == http.StatusRequestEntityTooLarge {
-		entry := tooLargeEntityStatsEntry{ // TODO: fix that
-			storageFormat: config.Protobuf,
-			compression:   true,
-		}
-		backend.tooLargeEntities[entry].Inc()
+		backend.tooLargeEntities.Inc()
 	}
 	return errors.New(resp.Status)
 }
@@ -186,10 +166,6 @@ func (backend *ActivityDumpRemoteBackend) HandleActivityDump(selector *cgroupMod
 // SendTelemetry sends telemetry for the current storage
 func (backend *ActivityDumpRemoteBackend) SendTelemetry(sender statsd.ClientInterface) {
 	// send too large entity metric
-	for entry, count := range backend.tooLargeEntities {
-		if entityCount := count.Swap(0); entityCount > 0 {
-			tags := []string{fmt.Sprintf("format:%s", entry.storageFormat.String()), fmt.Sprintf("compression:%v", entry.compression)}
-			_ = sender.Count(metrics.MetricActivityDumpEntityTooLarge, int64(entityCount), tags, 1.0)
-		}
-	}
+	tags := []string{fmt.Sprintf("format:%s", config.Protobuf), fmt.Sprintf("compression:%v", true)}
+	_ = sender.Count(metrics.MetricActivityDumpEntityTooLarge, int64(backend.tooLargeEntities.Load()), tags, 1.0)
 }
