@@ -485,6 +485,10 @@ namespace Datadog.CustomActions
                     _session.Log($"User {ddAgentUserName} doesn't exist.");
 
                     ParseUserName(ddAgentUserName, out userName, out domain);
+                    if (_isDomainController || _isReadOnlyDomainController) {
+                        // user must be domain account on DCs
+                        isDomainAccount = true;
+                    }
                 }
 
                 if (string.IsNullOrEmpty(userName))
