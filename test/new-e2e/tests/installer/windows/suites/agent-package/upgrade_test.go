@@ -133,10 +133,12 @@ func (s *testAgentUpgradeSuite) TestExperimentForNonExistingPackageFails() {
 	// Act
 	_, err := s.Installer().StartExperiment(consts.AgentPackage, "unknown-version")
 	s.Require().ErrorContains(err, "could not get package")
-	s.Installer().StopExperiment(consts.AgentPackage)
-	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
+	s.assertDaemonStaysRunning(func() {
+		s.Installer().StopExperiment(consts.AgentPackage)
+		s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().PackageVersion())
+	})
 	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(consts.BinaryPath).
 		WithVersionMatchPredicate(func(version string) {
@@ -154,10 +156,12 @@ func (s *testAgentUpgradeSuite) TestExperimentCurrentVersionFails() {
 	// Act
 	_, err := s.StartExperimentCurrentVersion()
 	s.Require().ErrorContains(err, "cannot set new experiment to the same version as the current experiment")
-	s.Installer().StopExperiment(consts.AgentPackage)
-	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
+	s.assertDaemonStaysRunning(func() {
+		s.Installer().StopExperiment(consts.AgentPackage)
+		s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().PackageVersion())
+	})
 	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(consts.BinaryPath).
 		WithVersionMatchPredicate(func(version string) {
@@ -171,10 +175,12 @@ func (s *testAgentUpgradeSuite) TestStopWithoutExperiment() {
 	s.installCurrentAgentVersion()
 
 	// Act
-	s.Installer().StopExperiment(consts.AgentPackage)
+	s.assertDaemonStaysRunning(func() {
+		s.Installer().StopExperiment(consts.AgentPackage)
+		s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().PackageVersion())
+	})
 
 	// Assert
-	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().PackageVersion())
 	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(consts.BinaryPath).
 		WithVersionMatchPredicate(func(version string) {
@@ -204,8 +210,10 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDies() {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		})
 	// backend will send stop experiment now
-	s.Installer().StopExperiment(consts.AgentPackage)
-	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
+	s.assertDaemonStaysRunning(func() {
+		s.Installer().StopExperiment(consts.AgentPackage)
+		s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
+	})
 }
 
 // TestRevertsExperimentWhenServiceDies tests that the watchdog will revert
@@ -234,8 +242,10 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		})
 	// backend will send stop experiment now
-	s.Installer().StopExperiment(consts.AgentPackage)
-	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
+	s.assertDaemonStaysRunning(func() {
+		s.Installer().StopExperiment(consts.AgentPackage)
+		s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
+	})
 }
 
 // TestUpgradeWithAgentUser tests that the agent user is preserved across remote upgrades.
@@ -349,4 +359,21 @@ func (s *testAgentUpgradeSuite) waitForInstallerVersionWithBackoff(version strin
 		}
 		return nil
 	}, b)
+}
+
+// assertDaemonStaysRunning asserts that the daemon service PID is the same before and after the function is called.
+//
+// For example, used to verify that "stop-experiment" does not reinstall stable when it is already installed.
+func (s *testAgentUpgradeSuite) assertDaemonStaysRunning(f func()) {
+	s.T().Helper()
+
+	originalPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
+	s.Require().NoError(err)
+	s.Require().Greater(originalPID, 0)
+
+	f()
+
+	newPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
+	s.Require().NoError(err)
+	s.Require().Equal(originalPID, newPID, "daemon should not have been restarted")
 }
