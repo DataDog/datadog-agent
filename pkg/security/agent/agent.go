@@ -7,7 +7,6 @@
 package agent
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -25,8 +24,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 )
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
@@ -45,7 +45,7 @@ type RuntimeSecurityAgent struct {
 	cancel                  context.CancelFunc
 
 	// activity dump
-	storage storage.ActivityDumpStorage
+	storage *backend.ActivityDumpRemoteBackend
 }
 
 // RSAOptions represents the runtime security agent options
@@ -186,23 +186,22 @@ func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 
 // DispatchActivityDump forwards an activity dump message to the backend
 func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStreamMessage) {
+	selector := msg.GetSelector()
+	cmSelector := &cgroupModel.WorkloadSelector{
+		Image: selector.GetName(),
+		Tag:   selector.GetTag(),
+	}
+
 	if rsa.profContainersTelemetry != nil {
 		// register for telemetry for this container
-		selector := msg.GetSelector()
-		imageName := selector.GetName()
-		imageTag := selector.GetTag()
-		if imageName != "" {
-			rsa.profContainersTelemetry.registerProfiledContainer(imageName, imageTag)
+		if cmSelector.Image != "" {
+			rsa.profContainersTelemetry.registerProfiledContainer(cmSelector.Image, cmSelector.Tag)
 		}
 	}
 
 	// storage might be nil, on windows for example
 	if rsa.storage != nil {
-		raw := bytes.NewBuffer(msg.GetData())
-
-		// TODO: send profile here
-		_ = raw
-		_ = msg.GetHeader()
+		rsa.storage.HandleActivityDump(cmSelector, msg.GetHeader(), msg.GetData())
 	}
 }
 

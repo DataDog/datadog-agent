@@ -22,10 +22,12 @@ import (
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	ddhttputil "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type tooLargeEntityStatsEntry struct {
@@ -179,4 +181,15 @@ func (backend *ActivityDumpRemoteBackend) HandleActivityDump(selector *cgroupMod
 	}
 
 	return nil
+}
+
+// SendTelemetry sends telemetry for the current storage
+func (backend *ActivityDumpRemoteBackend) SendTelemetry(sender statsd.ClientInterface) {
+	// send too large entity metric
+	for entry, count := range backend.tooLargeEntities {
+		if entityCount := count.Swap(0); entityCount > 0 {
+			tags := []string{fmt.Sprintf("format:%s", entry.storageFormat.String()), fmt.Sprintf("compression:%v", entry.compression)}
+			_ = sender.Count(metrics.MetricActivityDumpEntityTooLarge, int64(entityCount), tags, 1.0)
+		}
+	}
 }
