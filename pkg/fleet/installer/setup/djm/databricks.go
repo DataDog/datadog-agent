@@ -283,8 +283,8 @@ func addCustomHostTags(s *common.Setup) {
 func parseLogProcessingRules(input string) ([]common.LogProcessingRule, error) {
 	var rules []common.LogProcessingRule
 	// single quote are invalid for string in json
-	input = strings.ReplaceAll(input, `'`, `"`)
-	err := json.Unmarshal([]byte(input), &rules)
+	jsonInput := strings.ReplaceAll(input, `'`, `"`)
+	err := json.Unmarshal([]byte(jsonInput), &rules)
 	if err != nil {
 		return nil, err
 	}
@@ -295,8 +295,8 @@ func loadLogProcessingRules(s *common.Setup) {
 	if rawRules := os.Getenv("DD_LOGS_CONFIG_PROCESSING_RULES"); rawRules != "" {
 		processingRules, err := parseLogProcessingRules(rawRules)
 		if err != nil {
-			s.Out.WriteString(fmt.Sprintf("Invalid log processing rules: %v\n", err))
 			log.Warnf("Failed to parse log processing rules: %v", err)
+			s.Out.WriteString(fmt.Sprintf("Invalid log processing rules: %v\n", err))
 		} else {
 			logsConfig := common.LogsConfig{ProcessingRules: processingRules}
 			s.Config.DatadogYAML.LogsConfig = logsConfig
