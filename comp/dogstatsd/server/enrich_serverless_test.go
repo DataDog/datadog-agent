@@ -45,32 +45,32 @@ func TestGetServerlessMetricSource(t *testing.T) {
 	}{
 		{
 			name:           "AWS Lambda Custom",
-			tags:           []string{"function_arn:test-arn"},
+			tags:           []string{},
 			expectedSource: metrics.MetricSourceAwsLambdaCustom,
 		},
 		{
 			name:           "Azure Container App Custom",
-			tags:           []string{"origin:containerapp"},
+			tags:           []string{},
 			expectedSource: metrics.MetricSourceAzureContainerAppCustom,
 		},
 		{
 			name:           "Azure App Service Custom",
-			tags:           []string{"origin:appservice"},
+			tags:           []string{},
 			expectedSource: metrics.MetricSourceAzureAppServiceCustom,
 		},
 		{
 			name:           "Google Cloud Run Custom",
-			tags:           []string{"origin:cloudrun"},
+			tags:           []string{},
 			expectedSource: metrics.MetricSourceGoogleCloudRunCustom,
 		},
 		{
 			name:           "No change for regular tag",
-			tags:           []string{"some:other:tag"},
+			tags:           []string{},
 			expectedSource: GetDefaultMetricSource(),
 		},
 		{
 			name:           "No change for non-matching prefix",
-			tags:           []string{"dd.internal.something_else:value"},
+			tags:           []string{},
 			expectedSource: GetDefaultMetricSource(),
 		},
 	}
@@ -91,27 +91,27 @@ func TestGetServerlessMetricSourceRuntime(t *testing.T) {
 	}{
 		{
 			name:           "AWS Lambda Runtime",
-			tags:           []string{"function_arn:test-arn"},
+			tags:           []string{},
 			expectedSource: metrics.MetricSourceAwsLambdaRuntime,
 		},
 		{
 			name:           "Azure Container App Runtime",
-			tags:           []string{"origin:containerapp"},
+			tags:           []string{},
 			expectedSource: metrics.MetricSourceAzureContainerAppRuntime,
 		},
 		{
 			name:           "Azure App Service Runtime",
-			tags:           []string{"origin:appservice"},
+			tags:           []string{},
 			expectedSource: metrics.MetricSourceAzureAppServiceRuntime,
 		},
 		{
 			name:           "Google Cloud Run Runtime",
-			tags:           []string{"origin:cloudrun"},
+			tags:           []string{},
 			expectedSource: metrics.MetricSourceGoogleCloudRunRuntime,
 		},
 		{
 			name:           "No change for regular tag",
-			tags:           []string{"some:other:tag"},
+			tags:           []string{},
 			expectedSource: GetDefaultMetricSource(),
 		},
 	}
