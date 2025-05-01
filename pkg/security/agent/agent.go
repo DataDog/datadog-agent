@@ -47,6 +47,7 @@ type RuntimeSecurityAgent struct {
 	storage ADStorage
 }
 
+// ADStorage represents the interface for the activity dump storage
 type ADStorage interface {
 	storage.ActivityDumpHandler
 
