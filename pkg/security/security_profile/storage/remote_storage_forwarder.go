@@ -17,14 +17,13 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 )
 
 // ActivityDumpHandler represents an handler for the activity dumps sent by the probe
 type ActivityDumpHandler interface {
-	HandleActivityDump(selector *cgroupModel.WorkloadSelector, header []byte, data []byte) error
+	HandleActivityDump(imageName string, imageTag string, header []byte, data []byte) error
 }
 
 // ActivityDumpRemoteStorageForwarder is a remote storage that forwards dumps to the security-agent
@@ -62,7 +61,7 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.Storag
 		return nil
 	}
 
-	err = storage.activityDumpHandler.HandleActivityDump(selector, headerData, raw.Bytes())
+	err = storage.activityDumpHandler.HandleActivityDump(selector.Image, selector.Tag, headerData, raw.Bytes())
 	seclog.Infof("[%s] file for activity dump [%s] was forwarded to the security-agent", request.Format, selector)
 	return err
 }

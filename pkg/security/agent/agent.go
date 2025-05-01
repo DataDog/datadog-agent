@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
 )
@@ -193,21 +192,19 @@ func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 // DispatchActivityDump forwards an activity dump message to the backend
 func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStreamMessage) {
 	selector := msg.GetSelector()
-	cmSelector := &cgroupModel.WorkloadSelector{
-		Image: selector.GetName(),
-		Tag:   selector.GetTag(),
-	}
+	image := selector.GetName()
+	tag := selector.GetTag()
 
 	if rsa.profContainersTelemetry != nil {
 		// register for telemetry for this container
-		if cmSelector.Image != "" {
-			rsa.profContainersTelemetry.registerProfiledContainer(cmSelector.Image, cmSelector.Tag)
+		if image != "" {
+			rsa.profContainersTelemetry.registerProfiledContainer(image, tag)
 		}
 	}
 
 	// storage might be nil, on windows for example
 	if rsa.storage != nil {
-		err := rsa.storage.HandleActivityDump(cmSelector, msg.GetHeader(), msg.GetData())
+		err := rsa.storage.HandleActivityDump(image, tag, msg.GetHeader(), msg.GetData())
 		if err != nil {
 			seclog.Errorf("couldn't handle activity dump: %v", err)
 		}

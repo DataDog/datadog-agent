@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -330,11 +329,11 @@ func (c *CWSConsumer) APIServer() *APIServer {
 }
 
 // HandleActivityDump sends an activity dump to the backend
-func (c *CWSConsumer) HandleActivityDump(selector *cgroupModel.WorkloadSelector, header []byte, data []byte) error {
+func (c *CWSConsumer) HandleActivityDump(imageName string, imageTag string, header []byte, data []byte) error {
 	msg := &api.ActivityDumpStreamMessage{
 		Selector: &api.WorkloadSelectorMessage{
-			Name: selector.Image,
-			Tag:  selector.Tag,
+			Name: imageName,
+			Tag:  imageTag,
 		},
 		Header: header,
 		Data:   data,

@@ -141,10 +141,15 @@ func (backend *ActivityDumpRemoteBackend) sendToEndpoint(url string, apiKey stri
 }
 
 // HandleActivityDump sends the activity dump to the remote backend
-func (backend *ActivityDumpRemoteBackend) HandleActivityDump(selector *cgroupModel.WorkloadSelector, header []byte, data []byte) error {
+func (backend *ActivityDumpRemoteBackend) HandleActivityDump(imageName string, imageTag string, header []byte, data []byte) error {
 	writer, body, err := buildBody(header, data)
 	if err != nil {
 		return fmt.Errorf("couldn't build request: %w", err)
+	}
+
+	selector := &cgroupModel.WorkloadSelector{
+		Image: imageName,
+		Tag:   imageTag,
 	}
 
 	for i, url := range backend.urls {
