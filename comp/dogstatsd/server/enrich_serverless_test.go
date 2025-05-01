@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
@@ -34,4 +35,91 @@ func TestConvertParseDistributionServerless(t *testing.T) {
 	// this is the important part of the test: hostname.Get() should return
 	// an empty string and the parser / enricher should keep the host that way.
 	assert.Equal(t, "", parsed.Host, "In serverless mode, the hostname should be an empty string")
+}
+
+func TestGetServerlessMetricSource(t *testing.T) {
+	tests := []struct {
+		name           string
+		tags           []string
+		expectedSource metrics.MetricSource
+	}{
+		{
+			name:           "AWS Lambda Custom",
+			tags:           []string{"function_arn:test-arn"},
+			expectedSource: metrics.MetricSourceAwsLambdaCustom,
+		},
+		{
+			name:           "Azure Container App Custom",
+			tags:           []string{"origin:containerapp"},
+			expectedSource: metrics.MetricSourceAzureContainerAppCustom,
+		},
+		{
+			name:           "Azure App Service Custom",
+			tags:           []string{"origin:appservice"},
+			expectedSource: metrics.MetricSourceAzureAppServiceCustom,
+		},
+		{
+			name:           "Google Cloud Run Custom",
+			tags:           []string{"origin:cloudrun"},
+			expectedSource: metrics.MetricSourceGoogleCloudRunCustom,
+		},
+		{
+			name:           "No change for regular tag",
+			tags:           []string{"some:other:tag"},
+			expectedSource: GetDefaultMetricSource(),
+		},
+		{
+			name:           "No change for non-matching prefix",
+			tags:           []string{"dd.internal.something_else:value"},
+			expectedSource: GetDefaultMetricSource(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, _, result := extractTagsMetadata(tt.tags, "", 0, origindetection.LocalData{}, origindetection.ExternalData{}, "", enrichConfig{})
+			assert.Equal(t, tt.expectedSource.String(), result.String())
+		})
+	}
+}
+
+func TestGetServerlessMetricSourceRuntime(t *testing.T) {
+	tests := []struct {
+		name           string
+		tags           []string
+		expectedSource metrics.MetricSource
+	}{
+		{
+			name:           "AWS Lambda Runtime",
+			tags:           []string{"function_arn:test-arn"},
+			expectedSource: metrics.MetricSourceAwsLambdaRuntime,
+		},
+		{
+			name:           "Azure Container App Runtime",
+			tags:           []string{"origin:containerapp"},
+			expectedSource: metrics.MetricSourceAzureContainerAppRuntime,
+		},
+		{
+			name:           "Azure App Service Runtime",
+			tags:           []string{"origin:appservice"},
+			expectedSource: metrics.MetricSourceAzureAppServiceRuntime,
+		},
+		{
+			name:           "Google Cloud Run Runtime",
+			tags:           []string{"origin:cloudrun"},
+			expectedSource: metrics.MetricSourceGoogleCloudRunRuntime,
+		},
+		{
+			name:           "No change for regular tag",
+			tags:           []string{"some:other:tag"},
+			expectedSource: GetDefaultMetricSource(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, _, result := extractTagsMetadata(tt.tags, "", 0, origindetection.LocalData{}, origindetection.ExternalData{}, "", enrichConfig{})
+			assert.Equal(t, tt.expectedSource.String(), result.String())
+		})
+	}
 }

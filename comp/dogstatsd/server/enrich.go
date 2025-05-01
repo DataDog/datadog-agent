@@ -23,11 +23,6 @@ var (
 	//nolint:revive // TODO(AML) Fix revive linter
 	CardinalityTagPrefix = constants.CardinalityTagPrefix
 	jmxCheckNamePrefix   = "dd.internal.jmx_check_name:"
-	// Serverless
-	functionArnTagPrefix = "function_arn:"
-	appServiceTag        = "origin:appservice"
-	containerAppTag      = "origin:containerapp"
-	cloudRunTag          = "origin:cloudrun"
 )
 
 // enrichConfig contains static parameters used in various enrichment
@@ -44,7 +39,7 @@ type enrichConfig struct {
 // extractTagsMetadata returns tags (client tags + host tag) and information needed to query tagger (origins, cardinality).
 func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, localData origindetection.LocalData, externalData origindetection.ExternalData, cardinality string, conf enrichConfig) ([]string, string, taggertypes.OriginInfo, metrics.MetricSource) {
 	host := conf.defaultHostname
-	metricSource := metrics.MetricSourceDogstatsd
+	metricSource := GetDefaultMetricSource()
 
 	// Add Origin Detection metadata
 	origin := taggertypes.OriginInfo{
@@ -71,9 +66,6 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 			checkName := tag[len(jmxCheckNamePrefix):]
 			metricSource = metrics.JMXCheckNameToMetricSource(checkName)
 			continue
-		} else if source := getServerlessSourceFromTag(tag, false); source != 0 {
-			metricSource = source
-			continue
 		}
 		tags[n] = tag
 		n++
@@ -84,31 +76,17 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 	return tags, host, origin, metricSource
 }
 
-// getServerlessSourceFromTag returns the metric source from a tag.
-func getServerlessSourceFromTag(tag string, isRuntime bool) metrics.MetricSource {
-	var metricSource metrics.MetricSource
-	if strings.HasPrefix(tag, functionArnTagPrefix) {
-		metricSource = metrics.MetricSourceAwsLambdaCustom
-	} else if tag == appServiceTag {
-		metricSource = metrics.MetricSourceAzureAppServiceCustom
-	} else if tag == containerAppTag {
-		metricSource = metrics.MetricSourceAzureContainerAppCustom
-	} else if tag == cloudRunTag {
-		metricSource = metrics.MetricSourceGoogleCloudRunCustom
-	}
-
-	if isRuntime {
-		// Convert custom metric source to its corresponding runtime metric source
-		switch metricSource {
-		case metrics.MetricSourceAwsLambdaCustom:
-			metricSource = metrics.MetricSourceAwsLambdaRuntime
-		case metrics.MetricSourceAzureAppServiceCustom:
-			metricSource = metrics.MetricSourceAzureAppServiceRuntime
-		case metrics.MetricSourceAzureContainerAppCustom:
-			metricSource = metrics.MetricSourceAzureContainerAppRuntime
-		case metrics.MetricSourceGoogleCloudRunCustom:
-			metricSource = metrics.MetricSourceGoogleCloudRunRuntime
-		}
+// serverlessSourceCustomToRuntime converts Serverless custom metric source to its corresponding runtime metric source
+func serverlessSourceCustomToRuntime(metricSource metrics.MetricSource) metrics.MetricSource {
+	switch metricSource {
+	case metrics.MetricSourceAwsLambdaCustom:
+		metricSource = metrics.MetricSourceAwsLambdaRuntime
+	case metrics.MetricSourceAzureAppServiceCustom:
+		metricSource = metrics.MetricSourceAzureAppServiceRuntime
+	case metrics.MetricSourceAzureContainerAppCustom:
+		metricSource = metrics.MetricSourceAzureContainerAppRuntime
+	case metrics.MetricSourceGoogleCloudRunCustom:
+		metricSource = metrics.MetricSourceGoogleCloudRunRuntime
 	}
 	return metricSource
 }

@@ -21,7 +21,8 @@ func metricSourceToOriginProduct(ms metrics.MetricSource) int32 {
 		return serieMetadataOriginOriginProductGPU
 	}
 	switch ms {
-	case metrics.MetricSourceAwsLambdaCustom,
+	case metrics.MetricSourceServerless,
+		metrics.MetricSourceAwsLambdaCustom,
 		metrics.MetricSourceAwsLambdaEnhanced,
 		metrics.MetricSourceAwsLambdaRuntime,
 		metrics.MetricSourceAzureContainerAppCustom,
