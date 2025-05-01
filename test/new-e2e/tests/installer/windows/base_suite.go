@@ -339,7 +339,8 @@ func (s *BaseSuite) AssertSuccessfulAgentStartExperiment(version string) {
 		HasPackage("datadog-agent").
 		WithExperimentVersionMatchPredicate(func(actual string) {
 			s.Require().Contains(actual, version)
-		})
+		}).
+		HasARunningDatadogAgentService()
 }
 
 // AssertSuccessfulAgentPromoteExperiment that experiment was promoted successfully
@@ -352,7 +353,8 @@ func (s *BaseSuite) AssertSuccessfulAgentPromoteExperiment(version string) {
 		WithStableVersionMatchPredicate(func(actual string) {
 			s.Require().Contains(actual, version)
 		}).
-		WithExperimentVersionEqual("")
+		WithExperimentVersionEqual("").
+		HasARunningDatadogAgentService()
 }
 
 // WaitForInstallerService waits for installer service to be expected state
