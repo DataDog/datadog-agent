@@ -33,7 +33,6 @@ const (
 type Client struct {
 	httpClient *http.Client
 	endpoint   string
-	port       string
 	// TODO: add back with OAuth
 	// token               string
 	// tokenExpiry         time.Time
@@ -79,7 +78,6 @@ func NewClient(endpoint, username, password string, useHTTP bool, options ...Cli
 	client := &Client{
 		httpClient:          httpClient,
 		endpoint:            endpointURL.String(),
-		port:                "9182", // TODO: replace with 9183 for OAuth
 		username:            username,
 		password:            password,
 		authenticationMutex: &sync.Mutex{},
@@ -166,24 +164,6 @@ func WithLookback(lookback time.Duration) ClientOptions {
 	return func(c *Client) {
 		c.lookback = lookback
 	}
-}
-
-// GetOrganizationsNextgen is an alternative to GetOrganizations
-// that uses the new NextGen API to get the list of organizations
-// This API may not be available in all versions of Versa, so we
-// need to check the version before using it.
-func (client *Client) GetOrganizationsNextgen() ([]TenantConfig, error) {
-	// TODO: what is the lowest version of Versa that exposes this API?
-	// until we know, use the old API
-	// TODO: add pagination support
-	resp, err := get[[]TenantConfig](client, "/nextgen/organization", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tenants: %v", err)
-	}
-	if resp == nil {
-		return nil, errors.New("failed to get tenants: returned nil")
-	}
-	return *resp, nil
 }
 
 // GetOrganizations retrieves a list of organizations

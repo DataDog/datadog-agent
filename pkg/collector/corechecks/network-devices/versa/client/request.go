@@ -17,7 +17,7 @@ import (
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 // newRequest creates a new request for this client.
 func (client *Client) newRequest(method, uri string, body io.Reader) (*http.Request, error) {
-	return http.NewRequest(method, client.endpoint+":"+client.port+uri, body) // TODO: is it really more efficient to use +?
+	return http.NewRequest(method, client.endpoint+uri, body)
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
@@ -101,6 +101,9 @@ func get[T Content](client *Client, endpoint string, params map[string]string) (
 
 	err = json.Unmarshal(bytes, &data)
 	if err != nil {
+		log.Tracef("Failed to unmarshal response: %s", err)
+		// Log the response body for debugging
+		log.Tracef("Response body: %s", string(bytes))
 		return nil, err
 	}
 
