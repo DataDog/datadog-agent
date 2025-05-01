@@ -485,7 +485,8 @@ namespace Datadog.CustomActions
                     _session.Log($"User {ddAgentUserName} doesn't exist.");
 
                     ParseUserName(ddAgentUserName, out userName, out domain);
-                    if (_isDomainController || _isReadOnlyDomainController) {
+                    if (_isDomainController || _isReadOnlyDomainController)
+                    {
                         // user must be domain account on DCs
                         isDomainAccount = true;
                     }
@@ -558,7 +559,7 @@ namespace Datadog.CustomActions
                     ddAgentUserPassword = null;
                 }
 
-                if(!string.IsNullOrEmpty(ddAgentUserPassword))
+                if (!string.IsNullOrEmpty(ddAgentUserPassword))
                 {
                     TestValidAgentUserPassword(ddAgentUserPassword);
                 }
