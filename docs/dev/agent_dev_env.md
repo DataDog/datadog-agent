@@ -229,7 +229,7 @@ It is optional but recommended to install `pre-commit` to run a number of checks
 
 #### Installation
 
-To install pre-commit, follow [these instructions](https://pre-commit.com/#installation). The `deva setup` automatically enables the hooks, but you can do it manually running: `pre-commit install`.
+To install pre-commit, follow [these instructions](https://pre-commit.com/#installation). The `dda setup` automatically enables the hooks, but you can do it manually running: `GOFLAGS=-buildvcs=false pre-commit install`.
 
 The `shellcheck` pre-commit hook requires having the `shellcheck` binary installed and in your `$PATH`.
 To install it, run:

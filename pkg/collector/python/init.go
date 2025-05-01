@@ -461,7 +461,7 @@ func Initialize(paths ...string) error {
 
 	// store the Python version after killing \n chars within the string
 	if pyInfo != nil {
-		PythonVersion = strings.Replace(C.GoString(pyInfo.version), "\n", "", -1)
+		PythonVersion = strings.ReplaceAll(C.GoString(pyInfo.version), "\n", "")
 		// Set python version in the cache
 		cache.Cache.Set(pythonInfoCacheKey, PythonVersion, cache.NoExpiration)
 

@@ -1020,7 +1020,7 @@ func getSetHandler(allFields map[string]*common.StructField, field *common.Struc
 			if !field.IsOrigTypePtr {
 				ptr = "&"
 			}
-			return fmt.Sprintf(`%s(%sev.%s, "%s", value)`, field.SetHandler, ptr, field.Name, strings.Replace(fqn, field.Alias+".", "", -1))
+			return fmt.Sprintf(`%s(%sev.%s, "%s", value)`, field.SetHandler, ptr, field.Name, strings.ReplaceAll(fqn, field.Alias+".", ""))
 		}
 
 		idx := strings.LastIndex(name, ".")

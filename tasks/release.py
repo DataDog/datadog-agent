@@ -34,6 +34,7 @@ from tasks.libs.common.git import (
     get_last_commit,
     get_last_release_tag,
     is_agent6,
+    push_tags_in_batches,
     try_git_command,
 )
 from tasks.libs.common.gomodules import get_default_modules
@@ -70,6 +71,7 @@ from tasks.libs.releasing.version import (
     FINAL_VERSION_RE,
     MINOR_RC_VERSION_RE,
     RC_VERSION_RE,
+    RELEASE_JSON_DEPENDENCIES,
     VERSION_RE,
     _create_version_from_match,
     current_version,
@@ -83,7 +85,6 @@ from tasks.pipeline import edit_schedule, run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 
 BACKPORT_LABEL_COLOR = "5319e7"
-TAG_BATCH_SIZE = 3
 QUALIFICATION_TAG = "qualification"
 
 
@@ -210,12 +211,8 @@ def tag_modules(
                 tags.extend(new_tags)
 
         if push:
-            tags_list = ' '.join(tags)
             set_gitconfig_in_ci(ctx)
-            for idx in range(0, len(tags), TAG_BATCH_SIZE):
-                batch_tags = tags[idx : idx + TAG_BATCH_SIZE]
-                ctx.run(f"git push origin {' '.join(batch_tags)}{force_option}")
-            print(f"Pushed tag {tags_list}")
+            push_tags_in_batches(ctx, tags, force_option)
         print(f"Created module tags for version {agent_version}")
 
     if skip_agent_context:
@@ -265,21 +262,20 @@ def tag_version(
         tags = __tag_single_module(ctx, get_default_modules()["."], agent_version, commit, force_option, devel)
 
         set_gitconfig_in_ci(ctx)
-        # create or update the qualification tag using the force option (points tag to next RC)
         if is_agent6(ctx) and (start_qual or is_qualification(ctx, "6.53.x")):
+            # remove all the qualification tags if it is the final version
             if FINAL_VERSION_RE.match(agent_version):
-                ctx.run(f"git push --delete origin {QUALIFICATION_TAG}")
+                qualification_tags = [tag for _, tag in get_qualification_tags(ctx, release_branch)]
+                push_tags_in_batches(ctx, qualification_tags, delete=True)
+            # create or update the qualification tag on the current commit
             else:
-                force_option = __get_force_option(not start_qual)
                 tags += __tag_single_module(
-                    ctx, get_default_modules()["."], QUALIFICATION_TAG, commit, force_option, False
+                    ctx, get_default_modules()["."], f"{QUALIFICATION_TAG}-{int(time.time())}", commit, "", False
                 )
 
         if push:
-            tags_list = ' '.join(tags)
-            ctx.run(f"git push origin {tags_list}{force_option}")
-            print(f"Pushed tag {tags_list}")
-        print(f"Created tags for version {agent_version}")
+            push_tags_in_batches(ctx, tags, force_option)
+            print(f"Created tags for version {agent_version}")
 
     if skip_agent_context:
         _tag_version()
@@ -297,7 +293,7 @@ def tag_devel(ctx, release_branch, commit="HEAD", push=True, force=False):
 
 @task
 def finish(ctx, release_branch, upstream="origin"):
-    """Updates the release entry in the release.json file for the new version.
+    """Updates the release.json file for the new version.
 
     Updates internal module dependencies with the new version.
     """
@@ -540,16 +536,36 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
 
 @task
 def is_qualification(ctx, release_branch, output=False):
+    if qualification_tag_query(ctx, release_branch):
+        if output:
+            print('true')
+        return True
+    if output:
+        print("false")
+    return False
+
+
+def qualification_tag_query(ctx, release_branch, sort=False):
     with agent_context(ctx, release_branch):
-        try:
-            ctx.run(f"git tag | grep {QUALIFICATION_TAG}", hide=True)
-            if output:
-                print('true')
-            return True
-        except Failure:
-            if output:
-                print("false")
-            return False
+        sort_option = " --sort=-refname" if sort else ""
+        res = ctx.run(f"git ls-remote --tags{sort_option} origin '{QUALIFICATION_TAG}-*^{{}}'", hide=True)
+        if res.stdout:
+            return res.stdout.splitlines()
+        return None
+
+
+@task
+def get_qualification_tags(ctx, release_branch, latest_tag=False):
+    """Get the qualification tags in remote repository
+
+    Args:
+        latest_tag: if True, only return the latest commit and tag
+    """
+    qualification_tags = qualification_tag_query(ctx, release_branch, sort=True)
+    if latest_tag:
+        qualification_tags = [qualification_tags[0]]
+
+    return [ref.replace("^{}", "").split("\t") for ref in qualification_tags]
 
 
 @task
@@ -633,7 +649,8 @@ def get_qualification_rc_tag(ctx, release_branch):
     with agent_context(ctx, release_branch):
         err_msg = "Error: Expected exactly one release candidate tag associated with the qualification tag commit. Tags found:"
         try:
-            res = ctx.run(f"git tag --points-at $(git rev-list -n 1 {QUALIFICATION_TAG}) | grep 6.53")
+            latest_commit, _ = get_qualification_tags(ctx, release_branch, latest_tag=True)[0]
+            res = ctx.run(f"git tag --points-at {latest_commit} | grep 6.53")
         except Failure as err:
             raise Exit(message=f"{err_msg} []", code=1) from err
 
@@ -651,7 +668,6 @@ def run_rc_pipeline(ctx, gitlab_tag, k8s_deployments=False):
     run(
         ctx,
         git_ref=gitlab_tag,
-        use_release_entry=True,
         repo_branch="beta",
         deploy=True,
         rc_build=True,
@@ -756,7 +772,7 @@ def create_release_branches(
 
     That includes:
         - creates a release branch in datadog-agent, datadog-agent-macos, and omnibus-ruby repositories,
-        - updates release.json on new datadog-agent branch to point to newly created release branches in nightly section
+        - updates release.json on new datadog-agent branch to point to newly created release branches
         - updates entries in .gitlab-ci.yml and .gitlab/notify/notify.yml which depend on local branch name
 
     Args:
@@ -946,7 +962,7 @@ def check_omnibus_branches(ctx, release_branch=None, worktree=True):
                     f'git clone --depth=50 https://github.com/DataDog/{repo_name} --branch {branch} {tmpdir}/{repo_name}',
                     hide='stdout',
                 )
-                commit = _get_release_json_value(f'nightly::{release_json_field}')
+                commit = _get_release_json_value(f'{RELEASE_JSON_DEPENDENCIES}::{release_json_field}')
                 if ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited != 0:
                     raise Exit(
                         code=1,

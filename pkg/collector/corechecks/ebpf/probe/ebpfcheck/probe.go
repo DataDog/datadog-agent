@@ -186,9 +186,11 @@ func (k *Probe) attach(collSpec *ebpf.CollectionSpec) (err error) {
 				k.links = append(k.links, l)
 			} else if strings.HasPrefix(spec.SectionName, kretprobePrefix) {
 				attachPoint := spec.SectionName[len(kretprobePrefix):]
+				manager.TraceFSLock.Lock()
 				l, err := link.Kretprobe(attachPoint, prog, &link.KprobeOptions{
 					TraceFSPrefix: "ddebpfc",
 				})
+				manager.TraceFSLock.Unlock()
 				if err != nil {
 					return fmt.Errorf("link kretprobe %s to %s: %s", spec.Name, attachPoint, err)
 				}

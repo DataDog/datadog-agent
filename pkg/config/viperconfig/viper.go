@@ -811,7 +811,7 @@ func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Repla
 }
 
 // Stringify stringifies the config, but only for nodetremodel with the test build tag
-func (c *safeConfig) Stringify(_ model.Source) string {
+func (c *safeConfig) Stringify(_ model.Source, _ ...model.StringifyOption) string {
 	return "safeConfig{...}"
 }
 

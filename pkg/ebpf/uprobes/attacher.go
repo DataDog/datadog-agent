@@ -571,10 +571,27 @@ func (ua *UprobeAttacher) Stop() {
 	ua.wg.Wait()
 }
 
+func (ua *UprobeAttacher) shouldLogRegistryError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Always log all errors if detailed logging is enabled
+	if ua.config.EnableDetailedLogging {
+		return true
+	}
+
+	var unknownErr *utils.UnknownAttachmentError
+	return errors.As(err, &unknownErr)
+}
+
 // handleProcessStart is called when a new process is started, wraps AttachPIDWithOptions but ignoring the error
 // for API compatibility with processMonitor
 func (ua *UprobeAttacher) handleProcessStart(pid uint32) {
-	_ = ua.AttachPIDWithOptions(pid, false) // Do not try to attach to libraries on process start, it hasn't loaded them yet
+	err := ua.AttachPIDWithOptions(pid, false) // Do not try to attach to libraries on process start, it hasn't loaded them yet
+	if ua.shouldLogRegistryError(err) {
+		log.Warnf("could not attach to process %d: %v", pid, err)
+	}
 }
 
 // handleProcessExit is called when a process finishes, wraps DetachPID but ignoring the error
@@ -587,8 +604,8 @@ func (ua *UprobeAttacher) handleLibraryOpen(libpath sharedlibraries.LibPath) {
 	path := sharedlibraries.ToBytes(&libpath)
 
 	err := ua.AttachLibrary(string(path), libpath.Pid)
-	if err != nil {
-		log.Errorf("error attaching to library %s (PID %d): %v", path, libpath.Pid, err)
+	if ua.shouldLogRegistryError(err) {
+		log.Warnf("could not attach to library %s (PID %d): %v", path, libpath.Pid, err)
 	}
 }
 
@@ -683,6 +700,9 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) er
 	if ua.handlesExecutables() || (ua.config.ExcludeTargets&ExcludeInternal) != 0 {
 		binPath, err = procInfo.Exe()
 		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				return utils.NewUnknownAttachmentError(err)
+			}
 			return err
 		}
 	}
@@ -771,11 +791,13 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 
 	symbolsToRequest, err := ua.computeSymbolsToRequest(matchingRules)
 	if err != nil {
-		return fmt.Errorf("error computing symbols to request for rules %+v: %w", matchingRules, err)
+		return utils.NewUnknownAttachmentError(fmt.Errorf("error computing symbols to request for rules %+v: %w", matchingRules, err))
 	}
 
 	inspectResult, err := ua.inspector.Inspect(fpath, symbolsToRequest)
 	if err != nil {
+		// Not wrapping this one in an UnknownAttachmentError as it can happen if we're trying to
+		// attach to a process that just doesn't have the symbols we're looking for.
 		return fmt.Errorf("error inspecting %s: %w", fpath.HostPath, err)
 	}
 
@@ -785,7 +807,10 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 		for _, selector := range rule.ProbesSelector {
 			err = ua.attachProbeSelector(selector, fpath, uid, rule, inspectResult)
 			if err != nil {
-				return err
+				// At this point we have done enough validation so that the
+				// probe attachment should work, if it doesn't it's an issue we
+				// don't expect and we want to know about it.
+				return utils.NewUnknownAttachmentError(err)
 			}
 		}
 	}
@@ -948,7 +973,7 @@ func (ua *UprobeAttacher) attachToLibrariesOfPID(pid uint32) error {
 	successfulMatches := make([]string, 0)
 	libs, err := ua.getLibrariesFromMapsFile(int(pid))
 	if err != nil {
-		return err
+		return utils.NewUnknownAttachmentError(err)
 	}
 	for _, libpath := range libs {
 		err := ua.AttachLibrary(libpath, pid)
@@ -964,10 +989,10 @@ func (ua *UprobeAttacher) attachToLibrariesOfPID(pid uint32) error {
 		if len(registerErrors) == 0 {
 			return nil // No libraries found to attach
 		}
-		return fmt.Errorf("no rules matched for pid %d, errors: %v", pid, registerErrors)
+		return utils.NewUnknownAttachmentError(fmt.Errorf("no rules matched for pid %d, errors: %v", pid, registerErrors))
 	}
 	if len(registerErrors) > 0 {
-		return fmt.Errorf("partially hooked (%v), errors while attaching pid %d: %v", successfulMatches, pid, registerErrors)
+		return utils.NewUnknownAttachmentError(fmt.Errorf("partially hooked (%v), errors while attaching pid %d: %v", successfulMatches, pid, registerErrors))
 	}
 	return nil
 }

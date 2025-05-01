@@ -62,6 +62,7 @@ var GetCheckClient = funcs.MemoizeArgNoError(getCheckClient)
 // CheckClient is a client for communicating with the system-probe check API
 type CheckClient struct {
 	client         *http.Client
+	startupClient  *http.Client
 	started        bool
 	startTime      time.Time
 	mutex          sync.Mutex
@@ -83,8 +84,22 @@ func get(socketPath string) *http.Client {
 }
 
 func getCheckClient(socketPath string) *CheckClient {
+	timeout := pkgconfigsetup.Datadog().GetDuration("check_system_probe_timeout")
 	return &CheckClient{
-		client:         get(socketPath),
+		// This client has longer timeouts than the default, since some checks
+		// may need it.
+		client: &http.Client{
+			Timeout: timeout,
+			Transport: &http.Transport{
+				MaxIdleConns:          2,
+				IdleConnTimeout:       idleConnTimeout,
+				DialContext:           DialContextFunc(socketPath),
+				TLSHandshakeTimeout:   1 * time.Second,
+				ResponseHeaderTimeout: timeout,
+				ExpectContinueTimeout: 50 * time.Millisecond,
+			},
+		},
+		startupClient:  get(socketPath),
 		startTime:      time.Now(),
 		startupTimeout: pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
 	}
@@ -124,7 +139,7 @@ func (c *CheckClient) ensureStarted(module types.ModuleName) error {
 		return err
 	}
 
-	_, err = doReq(c.client, req, "status")
+	_, err = doReq(c.startupClient, req, "status")
 	if err != nil {
 		if time.Since(c.startTime) < c.startupTimeout {
 			// For the first few minutes after startup, only emit warnings
