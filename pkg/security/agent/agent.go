@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 )
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
@@ -49,7 +49,7 @@ type RuntimeSecurityAgent struct {
 
 // ADStorage represents the interface for the activity dump storage
 type ADStorage interface {
-	storage.ActivityDumpHandler
+	backend.ActivityDumpHandler
 
 	SendTelemetry(_ statsd.ClientInterface)
 }

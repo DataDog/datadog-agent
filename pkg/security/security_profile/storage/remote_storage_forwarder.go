@@ -19,20 +19,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 )
-
-// ActivityDumpHandler represents an handler for the activity dumps sent by the probe
-type ActivityDumpHandler interface {
-	HandleActivityDump(imageName string, imageTag string, header []byte, data []byte) error
-}
 
 // ActivityDumpRemoteStorageForwarder is a remote storage that forwards dumps to the security-agent
 type ActivityDumpRemoteStorageForwarder struct {
-	activityDumpHandler ActivityDumpHandler
+	activityDumpHandler backend.ActivityDumpHandler
 }
 
 // NewActivityDumpRemoteStorageForwarder returns a new instance of ActivityDumpRemoteStorageForwarder
-func NewActivityDumpRemoteStorageForwarder(handler ActivityDumpHandler) (*ActivityDumpRemoteStorageForwarder, error) {
+func NewActivityDumpRemoteStorageForwarder(handler backend.ActivityDumpHandler) (*ActivityDumpRemoteStorageForwarder, error) {
 	return &ActivityDumpRemoteStorageForwarder{
 		activityDumpHandler: handler,
 	}, nil
