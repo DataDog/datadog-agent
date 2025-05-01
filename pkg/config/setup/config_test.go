@@ -29,19 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-func unsetEnvForTest(t *testing.T, env string) {
-	oldValue, ok := os.LookupEnv(env)
-	os.Unsetenv(env)
-
-	t.Cleanup(func() {
-		if !ok {
-			os.Unsetenv(env)
-		} else {
-			os.Setenv(env, oldValue)
-		}
-	})
-}
-
 func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.Config {
 	conf := newTestConf(t)
 	conf.SetConfigType("yaml")
@@ -450,8 +437,6 @@ func TestProxy(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			// CircleCI sets NO_PROXY, so unset it for this test
-			unsetEnvForTest(t, "NO_PROXY")
 
 			config := newTestConf(t)
 			config.SetWithoutSource("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)
@@ -653,6 +638,8 @@ external_config:
 
 	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
 	assert.Equal(config.GetString("dd_url"), "https://app.datadoghq.eu", "this shouldn't be overrided")
+	assert.Equal(config.GetSource("api_key"), pkgconfigmodel.SourceAgentRuntime)
+	assert.Equal(config.GetSource("dd_url"), pkgconfigmodel.SourceFile)
 
 	pkgconfigmodel.AddOverrides(map[string]interface{}{
 		"dd_url": "http://localhost",
@@ -661,6 +648,8 @@ external_config:
 
 	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
 	assert.Equal(config.GetString("dd_url"), "http://localhost", "this dd_url should have been overrided")
+	assert.Equal(config.GetSource("api_key"), pkgconfigmodel.SourceAgentRuntime)
+	assert.Equal(config.GetSource("dd_url"), pkgconfigmodel.SourceAgentRuntime)
 }
 
 func TestGetValidHostAliasesWithConfig(t *testing.T) {
@@ -1199,8 +1188,6 @@ process_config:
 `)
 
 func TestConfigAssignAtPath(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
-	unsetEnvForTest(t, "NO_PROXY")
 
 	config := newTestConf(t)
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
@@ -1257,8 +1244,6 @@ use_proxy_for_cloud_metadata: true
 }
 
 func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
-	unsetEnvForTest(t, "NO_PROXY")
 
 	config := newTestConf(t)
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
@@ -1301,8 +1286,6 @@ secret_backend_arguments:
 `)
 
 func TestConfigAssignAtPathSimple(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
-	unsetEnvForTest(t, "NO_PROXY")
 
 	config := newTestConf(t)
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
@@ -1332,8 +1315,6 @@ use_proxy_for_cloud_metadata: true
 }
 
 func TestConfigMustMatchOrigin(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
-	unsetEnvForTest(t, "NO_PROXY")
 
 	testMinimalConf := []byte(`apm_config:
   apm_dd_url: ENC[some_url]
@@ -1409,8 +1390,6 @@ use_proxy_for_cloud_metadata: true
 }
 
 func TestConfigAssignAtPathForIntMapKeys(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
-	unsetEnvForTest(t, "NO_PROXY")
 
 	// Even if a map is using keys that looks like stringified ints, calling
 	// configAssignAtPath will still work correctly

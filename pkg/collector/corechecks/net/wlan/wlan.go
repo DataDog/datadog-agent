@@ -130,7 +130,7 @@ func (c *WLANCheck) Run() error {
 		bssid = "unknown"
 	}
 
-	macAddress := strings.ToLower(strings.Replace(wi.macAddress, " ", "_", -1))
+	macAddress := strings.ToLower(strings.ReplaceAll(wi.macAddress, " ", "_"))
 	if macAddress == "" {
 		macAddress = "unknown"
 	}
@@ -140,24 +140,24 @@ func (c *WLANCheck) Run() error {
 	tags = append(tags, "bssid:"+bssid)
 	tags = append(tags, "mac_address:"+macAddress)
 
-	sender.Gauge("wlan.rssi", float64(wi.rssi), "", tags)
+	sender.Gauge("system.wlan.rssi", float64(wi.rssi), "", tags)
 	if wi.noiseValid {
-		sender.Gauge("wlan.noise", float64(wi.noise), "", tags)
+		sender.Gauge("system.wlan.noise", float64(wi.noise), "", tags)
 	}
-	sender.Gauge("wlan.transmit_rate", float64(wi.transmitRate), "", tags)
+	sender.Gauge("system.wlan.txrate", float64(wi.transmitRate), "", tags)
 	if wi.receiveRateValid {
-		sender.Gauge("wlan.receive_rate", float64(wi.receiveRate), "", tags)
+		sender.Gauge("system.wlan.rxrate", float64(wi.receiveRate), "", tags)
 	}
 
 	if c.isRoaming(&wi) {
-		sender.Count("wlan.roaming_events", 1.0, "", tags)
-		sender.Count("wlan.channel_swap_events", 0.0, "", tags)
+		sender.Count("system.wlan.roaming_events", 1.0, "", tags)
+		sender.Count("system.wlan.channel_swap_events", 0.0, "", tags)
 	} else if c.isChannelSwap(&wi) {
-		sender.Count("wlan.roaming_events", 0.0, "", tags)
-		sender.Count("wlan.channel_swap_events", 1.0, "", tags)
+		sender.Count("system.wlan.roaming_events", 0.0, "", tags)
+		sender.Count("system.wlan.channel_swap_events", 1.0, "", tags)
 	} else {
-		sender.Count("wlan.roaming_events", 0.0, "", tags)
-		sender.Count("wlan.channel_swap_events", 0.0, "", tags)
+		sender.Count("system.wlan.roaming_events", 0.0, "", tags)
+		sender.Count("system.wlan.channel_swap_events", 0.0, "", tags)
 	}
 
 	// update last values
