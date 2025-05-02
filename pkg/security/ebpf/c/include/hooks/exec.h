@@ -328,7 +328,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
     return 0;
 }
 
-TAIL_CALL_FNC_WITH_HOOK_POINT(do_exit, flush_network_stats_exit, ctx_t *ctx) {
+TAIL_CALL_FNC_WITH_HOOK_POINT("do_exit", flush_network_stats_exit, ctx_t *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid;
     u32 tgid = pid_tgid >> 32;
@@ -775,7 +775,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     return 0;
 }
 
-TAIL_CALL_FNC_WITH_HOOK_POINT(mprotect_fixup, flush_network_stats_exec, ctx_t *ctx) {
+TAIL_CALL_FNC_WITH_HOOK_POINT("mprotect_fixup", flush_network_stats_exec, ctx_t *ctx) {
     // flush network stats
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;

@@ -273,7 +273,12 @@ enum global_rate_limiter_type {
 #define TAIL_CALL_TRACEPOINT_FNC(name, ...) TAIL_CALL_TRACEPOINT_TARGET("\"" #name "\"") \
     int TAIL_CALL_TRACEPOINT_FNC_NAME(name, __VA_ARGS__)
 
-#define TAIL_CALL_FNC_WITH_HOOK_POINT(hookpoint, name, ...) TAIL_CALL_TARGET_WITH_HOOK_POINT("\"" #hookpoint "\"") \
+#define TAIL_CALL_FNC_WITH_HOOK_POINT(hookpoint, name, ...) TAIL_CALL_TARGET_WITH_HOOK_POINT(hookpoint) \
     int TAIL_CALL_FNC_NAME(name, __VA_ARGS__)
+
+#define TAIL_CALL_CLASSIFIER_FNC_NAME(name, ...) tail_call_classifier_##name(__VA_ARGS__)
+#define TAIL_CALL_CLASSIFIER_TARGET(name) SEC("classifier/" name)
+#define TAIL_CALL_CLASSIFIER_FNC(name, ...) TAIL_CALL_CLASSIFIER_TARGET("\"" #name "\"") \
+    int TAIL_CALL_CLASSIFIER_FNC_NAME(name, __VA_ARGS__)
 
 #endif

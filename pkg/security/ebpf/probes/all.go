@@ -45,6 +45,10 @@ func tailCallTracepointFnc(name string) string {
 	return "tail_call_tracepoint_" + name
 }
 
+func tailCallClassifierFnc(name string) string {
+	return "tail_call_classifier_" + name
+}
+
 func appendSyscallProbes(probes []*manager.Probe, fentry bool, flag int, compat bool, syscalls ...string) []*manager.Probe {
 	for _, syscall := range syscalls {
 		probes = append(probes,
