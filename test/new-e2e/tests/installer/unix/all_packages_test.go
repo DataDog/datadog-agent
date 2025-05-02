@@ -57,6 +57,8 @@ var (
 	}
 )
 
+const latestPython2AnsibleVersion = "4.30.0"
+
 func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
 		if f.Flavor == flavor.Flavor && f.Version == flavor.Version {
@@ -260,7 +262,12 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		playbookPath := s.writeAnsiblePlaybook(env, params...)
 
 		// Run the playbook
-		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook -vvv %s", ansiblePrefix, playbookPath))
+		if (s.os.Flavor == e2eos.AmazonLinux && s.os.Version == e2eos.AmazonLinux2.Version) ||
+			(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
+			s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook -vvv %s:==%s", ansiblePrefix, playbookPath, latestPython2AnsibleVersion))
+		} else {
+			s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook -vvv %s", ansiblePrefix, playbookPath))
+		}
 
 		// touch install files for compatibility
 		s.Env().RemoteHost.MustExecute("touch /tmp/datadog-installer-stdout.log")
