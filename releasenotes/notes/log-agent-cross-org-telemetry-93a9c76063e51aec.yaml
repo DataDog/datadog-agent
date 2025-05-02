@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Adds a new compression_kind tag to the ``logs.encoded_bytes_sent`` telemetry metric, enabling aggregation and monitoring of log compression type usage for rollout monitoring.
