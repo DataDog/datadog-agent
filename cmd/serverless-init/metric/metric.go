@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,11 +49,11 @@ func add(name string, origin string, tags []string, timestamp time.Time, demux a
 
 func originToMetricSource(origin string) metrics.MetricSource {
 	switch origin {
-	case "cloudrun":
+	case cloudservice.CloudRunOrigin:
 		return metrics.MetricSourceGoogleCloudRunEnhanced
-	case "appservice":
+	case cloudservice.AppServiceOrigin:
 		return metrics.MetricSourceAzureAppServiceEnhanced
-	case "containerapp":
+	case cloudservice.ContainerAppOrigin:
 		return metrics.MetricSourceAzureContainerAppEnhanced
 	default:
 		return metrics.MetricSourceServerless

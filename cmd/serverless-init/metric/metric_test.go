@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -41,7 +42,7 @@ func TestAdd(t *testing.T) {
 func TestAddColdStartMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
 	timestamp := time.Now()
-	AddColdStartMetric("gcp.run", "cloudrun", []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
+	AddColdStartMetric("gcp.run", cloudservice.CloudRunOrigin, []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
@@ -56,7 +57,7 @@ func TestAddColdStartMetric(t *testing.T) {
 func TestAddShutdownMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
 	timestamp := time.Now()
-	AddShutdownMetric("gcp.run", "cloudrun", []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
+	AddShutdownMetric("gcp.run", cloudservice.CloudRunOrigin, []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
