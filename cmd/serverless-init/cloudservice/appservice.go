@@ -26,7 +26,7 @@ const (
 	//nolint:revive // TODO(SERV) Fix revive linter
 	AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 
-	// AppService origin tag value
+	// AppServiceOrigin origin tag value
 	AppServiceOrigin = "appservice"
 )
 

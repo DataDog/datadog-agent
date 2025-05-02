@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// CloudRun origin tag value
+// CloudRunOrigin origin tag value
 const CloudRunOrigin = "cloudrun"
 
 const (
