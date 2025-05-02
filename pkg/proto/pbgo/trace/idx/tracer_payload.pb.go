@@ -295,7 +295,7 @@ const file_datadog_trace_idx_tracer_payload_proto_rawDesc = "" +
 	"\x06chunks\x18\f \x03(\v2\x1d.datadog.trace.idx.TraceChunkR\x06chunks\x1aZ\n" +
 	"\x0fAttributesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\rR\x03key\x121\n" +
-	"\x05value\x18\x02 \x01(\v2\x1b.datadog.trace.idx.AnyValueR\x05value:\x028\x01B\x1aZ\x18pkg/proto/pbgo/trace/idxb\x06proto3"
+	"\x05value\x18\x02 \x01(\v2\x1b.datadog.trace.idx.AnyValueR\x05value:\x028\x01B;Z9github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idxb\x06proto3"
 
 var (
 	file_datadog_trace_idx_tracer_payload_proto_rawDescOnce sync.Once

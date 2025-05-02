@@ -819,7 +819,7 @@ const file_datadog_trace_idx_span_proto_rawDesc = "" +
 	"\x10SPAN_KIND_SERVER\x10\x02\x12\x14\n" +
 	"\x10SPAN_KIND_CLIENT\x10\x03\x12\x16\n" +
 	"\x12SPAN_KIND_PRODUCER\x10\x04\x12\x16\n" +
-	"\x12SPAN_KIND_CONSUMER\x10\x05B\x1aZ\x18pkg/proto/pbgo/trace/idxb\x06proto3"
+	"\x12SPAN_KIND_CONSUMER\x10\x05B;Z9github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idxb\x06proto3"
 
 var (
 	file_datadog_trace_idx_span_proto_rawDescOnce sync.Once

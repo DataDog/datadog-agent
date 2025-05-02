@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package datadog.trace.idx;
 
-option go_package="pkg/proto/pbgo/trace/idx"; // golang
+option go_package="github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"; // golang
 
 import "datadog/trace/idx/span.proto";
 
