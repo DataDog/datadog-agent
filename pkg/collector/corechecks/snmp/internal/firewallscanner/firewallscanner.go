@@ -31,11 +31,6 @@ type ruleToCheck struct {
 
 type sourcesByRule map[firewallRule][]string
 
-type blockingRule struct {
-	firewallRule
-	sources []string
-}
-
 type firewallScanner interface {
 	DiagnoseBlockingRules(rulesToCheck sourcesByRule) []diagnose.Diagnosis
 }
@@ -128,7 +123,7 @@ func getNetflowRulesToCheck(config config.Component) []ruleToCheck {
 	return rulesToCheck
 }
 
-func buildBlockingRulesDiagnosis(name string, blockingRules []blockingRule) diagnose.Diagnosis {
+func buildBlockingRulesDiagnosis(name string, blockingRules sourcesByRule) diagnose.Diagnosis {
 	if len(blockingRules) == 0 {
 		return diagnose.Diagnosis{
 			Status:    diagnose.DiagnosisSuccess,
@@ -139,10 +134,10 @@ func buildBlockingRulesDiagnosis(name string, blockingRules []blockingRule) diag
 
 	var msgBuilder strings.Builder
 	msgBuilder.WriteString("Blocking firewall rules were found:\n")
-	for _, rule := range blockingRules {
+	for rule, sources := range blockingRules {
 		msgBuilder.WriteString(
 			fmt.Sprintf("%s packets might be blocked because destination port %s is blocked for protocol %s\n",
-				strings.Join(rule.sources, ", "), rule.destPort, rule.protocol))
+				strings.Join(sources, ", "), rule.destPort, rule.protocol))
 	}
 	return diagnose.Diagnosis{
 		Status:    diagnose.DiagnosisWarning,

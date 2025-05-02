@@ -134,13 +134,13 @@ func Test_buildBlockingRulesDiagnosis(t *testing.T) {
 	tests := []struct {
 		name              string
 		diagnosisName     string
-		blockingRules     []blockingRule
+		blockingRules     sourcesByRule
 		expectedDiagnosis diagnose.Diagnosis
 	}{
 		{
 			name:          "no blocking rules",
 			diagnosisName: "Diagnosis Name",
-			blockingRules: []blockingRule{},
+			blockingRules: make(sourcesByRule),
 			expectedDiagnosis: diagnose.Diagnosis{
 				Status:    diagnose.DiagnosisSuccess,
 				Name:      "Diagnosis Name",
@@ -150,26 +150,15 @@ func Test_buildBlockingRulesDiagnosis(t *testing.T) {
 		{
 			name:          "with blocking rules",
 			diagnosisName: "Diagnosis Name",
-			blockingRules: []blockingRule{
-				{
-					firewallRule: firewallRule{
-						protocol: "UDP",
-						destPort: "9162",
-					},
-					sources: []string{
-						"snmp_traps",
-						"netflow (ipfix)",
-					},
-				},
-				{
-					firewallRule: firewallRule{
-						protocol: "UDP",
-						destPort: "1234",
-					},
-					sources: []string{
-						"netflow (sflow5)",
-					},
-				},
+			blockingRules: sourcesByRule{
+				firewallRule{
+					protocol: "UDP",
+					destPort: "9162",
+				}: []string{"snmp_traps", "netflow (ipfix)"},
+				firewallRule{
+					protocol: "UDP",
+					destPort: "1234",
+				}: []string{"netflow (sflow5)"},
 			},
 			expectedDiagnosis: diagnose.Diagnosis{
 				Status: diagnose.DiagnosisWarning,

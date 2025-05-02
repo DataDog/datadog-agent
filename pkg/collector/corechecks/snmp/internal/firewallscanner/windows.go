@@ -63,7 +63,7 @@ func (scanner *windowsFirewallScanner) DiagnoseBlockingRules(rulesToCheck source
 	}
 }
 
-func checkBlockingRulesWindows(output []byte, rulesToCheck sourcesByRule) ([]blockingRule, error) {
+func checkBlockingRulesWindows(output []byte, rulesToCheck sourcesByRule) (sourcesByRule, error) {
 	if len(output) == 0 {
 		return nil, nil
 	}
@@ -80,7 +80,7 @@ func checkBlockingRulesWindows(output []byte, rulesToCheck sourcesByRule) ([]blo
 		rules = []windowsRule{rule}
 	}
 
-	var blockingRules []blockingRule
+	var blockingRules sourcesByRule = make(sourcesByRule)
 
 	for _, rule := range rules {
 		if rule.Direction != inbound {
@@ -94,10 +94,7 @@ func checkBlockingRulesWindows(output []byte, rulesToCheck sourcesByRule) ([]blo
 
 		sources, exists := rulesToCheck[firewallRule]
 		if exists {
-			blockingRules = append(blockingRules, blockingRule{
-				firewallRule: firewallRule,
-				sources:      sources,
-			})
+			blockingRules[firewallRule] = sources
 		}
 	}
 

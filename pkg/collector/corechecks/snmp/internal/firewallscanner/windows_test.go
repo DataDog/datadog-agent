@@ -16,7 +16,7 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
 		name                  string
 		output                []byte
 		rulesToCheck          sourcesByRule
-		expectedBlockingRules []blockingRule
+		expectedBlockingRules sourcesByRule
 		expectError           bool
 	}{
 		{
@@ -43,14 +43,11 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
 					destPort: "9162",
 				}: []string{"snmp_traps"},
 			},
-			expectedBlockingRules: []blockingRule{
-				{
-					firewallRule: firewallRule{
-						protocol: "UDP",
-						destPort: "9162",
-					},
-					sources: []string{"snmp_traps"},
-				},
+			expectedBlockingRules: sourcesByRule{
+				firewallRule{
+					protocol: "UDP",
+					destPort: "9162",
+				}: []string{"snmp_traps"},
 			},
 		},
 		{
@@ -66,7 +63,7 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
 					destPort: "9162",
 				}: []string{"snmp_traps"},
 			},
-			expectedBlockingRules: nil,
+			expectedBlockingRules: make(sourcesByRule),
 		},
 		{
 			name: "blocked port but not protocol",
@@ -81,7 +78,7 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
 					destPort: "9162",
 				}: []string{"snmp_traps"},
 			},
-			expectedBlockingRules: nil,
+			expectedBlockingRules: make(sourcesByRule),
 		},
 		{
 			name: "multiple rules with multiple blocked",
@@ -116,21 +113,15 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
 					destPort: "2000",
 				}: []string{"netflow (ipfix)"},
 			},
-			expectedBlockingRules: []blockingRule{
-				{
-					firewallRule: firewallRule{
-						protocol: "UDP",
-						destPort: "9162",
-					},
-					sources: []string{"snmp_traps", "netflow (netflow5)"},
-				},
-				{
-					firewallRule: firewallRule{
-						protocol: "UDP",
-						destPort: "2000",
-					},
-					sources: []string{"netflow (ipfix)"},
-				},
+			expectedBlockingRules: sourcesByRule{
+				firewallRule{
+					protocol: "UDP",
+					destPort: "9162",
+				}: []string{"snmp_traps", "netflow (netflow5)"},
+				firewallRule{
+					protocol: "UDP",
+					destPort: "2000",
+				}: []string{"netflow (ipfix)"},
 			},
 		},
 		{
@@ -166,7 +157,7 @@ func Test_checkBlockingRulesWindows(t *testing.T) {
 					destPort: "2000",
 				}: []string{"netflow (ipfix)"},
 			},
-			expectedBlockingRules: nil,
+			expectedBlockingRules: make(sourcesByRule),
 		},
 	}
 
