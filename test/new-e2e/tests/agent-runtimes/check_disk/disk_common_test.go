@@ -92,12 +92,12 @@ instances:
 					if !gocmp.Equal(a.Tags, b.Tags, gocmpopts.SortSlices(cmp.Less[string])) {
 						return false
 					}
-					a_value := a.Points[0][1]
-					b_value := b.Points[0][1]
+					aValue := a.Points[0][1]
+					bValue := b.Points[0][1]
 					if isConstantMetric(a.Metric) {
-						return a_value == b_value
+						return aValue == bValue
 					}
-					return compareValuesWithRelativeMargin(a_value, b_value, p, metricCompareFraction)
+					return compareValuesWithRelativeMargin(aValue, bValue, p, metricCompareFraction)
 				}),
 				gocmpopts.SortSlices(metricPayloadCompare), // sort metrics
 			)
@@ -117,7 +117,7 @@ func isConstantMetric(name string) bool {
 func compareValuesWithRelativeMargin(a, b, p, fraction float64) bool {
 	x := math.Round(a*p) / p
 	y := math.Round(b*p) / p
-	relMarg := metricCompareFraction * math.Min(math.Abs(x), math.Abs(y))
+	relMarg := fraction * math.Min(math.Abs(x), math.Abs(y))
 	return math.Abs(x-y) <= relMarg
 }
 
