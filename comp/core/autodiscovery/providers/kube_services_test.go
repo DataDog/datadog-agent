@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -337,7 +338,7 @@ func TestInvalidateIfChanged(t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			ctx := context.Background()
-			provider := &KubeServiceConfigProvider{upToDate: true}
+			provider := &KubeServiceConfigProvider{upToDate: atomic.NewBool(true)}
 			provider.invalidateIfChanged(tc.old, tc.obj)
 
 			upToDate, err := provider.IsUpToDate(ctx)
