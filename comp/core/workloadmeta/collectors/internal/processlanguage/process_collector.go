@@ -73,7 +73,7 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !util.LocalProcessCollectorIsEnabled() {
+	if !util.ProcessLanguageCollectorIsEnabled() {
 		return errors.NewDisabled(componentName, "language detection or core agent process collection is disabled")
 	}
 
