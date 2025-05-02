@@ -160,97 +160,122 @@ func TestGetChildAppliancesDetail(t *testing.T) {
 				},
 			},
 			UcpeNodes: UcpeNodes{UcpeNodeStatusList: []interface{}{}},
-		},
-		{
-			Name: "Controller-1",
-			UUID: "fakeUUID-Controller-1",
-			ApplianceLocation: ApplianceLocation{
-				ApplianceName: "Controller-1",
-				ApplianceUUID: "fakeUUID-Controller-1",
-				LocationID:    "USA",
-				Latitude:      "0.00",
-				Longitude:     "0.00",
-				Type:          "controller",
-			},
-			LastUpdatedTime:         "2025-04-24 20:33:02.0",
-			PingStatus:              "REACHABLE",
-			SyncStatus:              "IN_SYNC",
-			YangCompatibilityStatus: "Unavailable",
-			ServicesStatus:          "GOOD",
-			OverallStatus:           "NOT-APPLICABLE",
-			PathStatus:              "Unavailable",
-			IntraChassisHAStatus:    HAStatus{HAConfigured: false}, // not provided, default value
-			InterChassisHAStatus:    HAStatus{HAConfigured: false},
-			TemplateStatus:          "", // not provided
-			OwnerOrgUUID:            "anotherFakeUUID-Controller-1",
-			Type:                    "controller",
-			SngCount:                0,
-			SoftwareVersion:         "Fake Version",
-			BranchID:                "1",
-			Services:                []string{"sdwan"},
-			IPAddress:               "10.0.200.100",
-			StartTime:               "Thu May  2 11:32:04 2024",
-			StolenSuspected:         false,
-			Hardware: Hardware{
-				Name:                         "Controller-1",
-				Model:                        "datadog.8xlarge",
-				CPUCores:                     0,
-				Memory:                       "14.87GiB",
-				FreeMemory:                   "4.37GiB",
-				DiskSize:                     "77.30GiB",
-				FreeDisk:                     "53.09GiB",
-				LPM:                          false,
-				Fanless:                      false,
-				IntelQuickAssistAcceleration: false,
-				FirmwareVersion:              "fakeFirmwareVersion",
-				Manufacturer:                 "Amazon EC2",
-				SerialNo:                     "fakeSerialNo",
-				HardWareSerialNo:             "fakeHardwareSerialNo",
-				CPUModel:                     "Intel(R) Xeon(R) Platinum 8124M CPU @ 3.00GHz",
-				CPUCount:                     8,
-				CPULoad:                      2,
-				InterfaceCount:               3,
-				PackageName:                  "fakePackageName",
-				SKU:                          "Not Specified",
-				SSD:                          false,
-			},
-			SPack: SPack{
-				Name:         "Controller-1",
-				SPackVersion: "418",
-				APIVersion:   "161",
-				Flavor:       "sample",
-				ReleaseDate:  "1970-01-01",
-				UpdateType:   "full",
-			},
-			OssPack: OssPack{
-				Name:           "Controller-1",
-				OssPackVersion: "19700101",
-				UpdateType:     "full",
-			},
-			AppIDDetails: AppIDDetails{
-				AppIDInstalledEngineVersion: "fakeVersion",
-				AppIDInstalledBundleVersion: "fakeVersion",
-			},
-			RefreshCycleCount:       46233,
-			SubType:                 "", // not provided
-			BranchMaintenanceMode:   false,
-			ApplianceTags:           []string{"Controller-1"},
-			ApplianceCapabilities:   CapabilitiesWrapper{Capabilities: []string{"path-state-monitor", "bw-in-interface-state", "config-encryption:v4", "route-filter-feature", "internet-speed-test:v1.2"}},
-			Unreachable:             false,
-			BranchInMaintenanceMode: false,
-			Nodes: Nodes{
-				NodeStatusList: NodeStatus{
-					VMName:     "NOT-APPLICABLE",
-					VMStatus:   "NOT-APPLICABLE",
-					NodeType:   "VCSN",
-					HostIP:     "NOT-APPLICABLE",
-					CPULoad:    2,
-					MemoryLoad: 5,
-					LoadFactor: 2,
-					SlotID:     0,
+			AlarmSummary: Table{
+				TableID:     "Alarms",
+				TableName:   "Alarms",
+				MonitorType: "Alarms",
+				ColumnNames: []string{
+					"columnName 0",
+				},
+				Rows: []TableRow{
+					{
+						FirstColumnValue: "critical",
+						ColumnValues:     []interface{}{float64(2)},
+					},
+					{
+						FirstColumnValue: "major",
+						ColumnValues:     []interface{}{float64(2)},
+					},
+					{
+						FirstColumnValue: "minor",
+						ColumnValues:     []interface{}{float64(0)},
+					},
+					{
+						FirstColumnValue: "warning",
+						ColumnValues:     []interface{}{float64(0)},
+					},
+					{
+						FirstColumnValue: "indeterminate",
+						ColumnValues:     []interface{}{float64(0)},
+					},
+					{
+						FirstColumnValue: "cleared",
+						ColumnValues:     []interface{}{float64(6)},
+					},
 				},
 			},
-			UcpeNodes: UcpeNodes{UcpeNodeStatusList: []interface{}{}},
+			CPEHealth: Table{
+				TableName:   "Appliance Health",
+				MonitorType: "Health",
+				ColumnNames: []string{
+					"Category",
+					"Up",
+					"Down",
+				},
+				Rows: []TableRow{
+					{
+						FirstColumnValue: "Physical Ports",
+						ColumnValues:     []interface{}{float64(0), float64(0), float64(0)},
+					},
+					{
+						FirstColumnValue: "Config Sync Status",
+						ColumnValues:     []interface{}{float64(0), float64(1), float64(0)},
+					},
+					{
+						FirstColumnValue: "Reachability Status",
+						ColumnValues:     []interface{}{float64(0), float64(1), float64(0)},
+					},
+					{
+						FirstColumnValue: "Service Status",
+						ColumnValues:     []interface{}{float64(0), float64(1), float64(0)},
+					},
+					{
+						FirstColumnValue: "Interfaces",
+						ColumnValues:     []interface{}{float64(1), float64(0), float64(0)},
+					},
+					{
+						FirstColumnValue: "BGP Adjacencies",
+						ColumnValues:     []interface{}{float64(2), float64(0), float64(0)},
+					},
+					{
+						FirstColumnValue: "IKE Status",
+						ColumnValues:     []interface{}{float64(2), float64(0), float64(0)},
+					},
+					{
+						FirstColumnValue: "Paths",
+						ColumnValues:     []interface{}{float64(2), float64(0), float64(0)},
+					},
+				},
+			},
+			ApplicationStats: Table{
+				TableID:     "App Activity",
+				TableName:   "App Activity",
+				MonitorType: "AppActivity",
+				ColumnNames: []string{
+					"App Name",
+					"Sessions",
+					"Transactions",
+					"Total BytesForward",
+					"TotalBytes Reverse",
+				},
+				Rows: []TableRow{
+					{
+						FirstColumnValue: "BITTORRENT",
+						ColumnValues:     []interface{}{float64(1), float64(1), float64(0), float64(0)},
+					},
+					{
+						FirstColumnValue: "ICMP",
+						ColumnValues:     []interface{}{float64(1), float64(1), float64(0), float64(0)},
+					},
+				},
+			},
+			PolicyViolation: Table{
+				TableID:     "Policy Violation",
+				TableName:   "Policy Violation",
+				MonitorType: "PolicyViolation",
+				ColumnNames: []string{
+					"Hit Count",
+					"Packet drop no valid available link",
+					"Packet drop attributed to SLA action",
+					"Packet Forward attributed to SLA action",
+				},
+				Rows: []TableRow{
+					{
+						FirstColumnValue: "datadog",
+						ColumnValues:     []interface{}{float64(0), float64(0), float64(0), float64(0)},
+					},
+				},
+			},
 		},
 	}
 
@@ -258,7 +283,7 @@ func TestGetChildAppliancesDetail(t *testing.T) {
 		queryParams := r.URL.Query()
 		if queryParams.Get("fetch") == "count" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`2`))
+			w.Write([]byte(`1`))
 			return
 		} else if queryParams.Get("fetch") == "all" {
 			w.WriteHeader(http.StatusOK)
@@ -279,6 +304,6 @@ func TestGetChildAppliancesDetail(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check contents
-	require.Equal(t, 2, len(actualAppliances))
+	require.Equal(t, 1, len(actualAppliances))
 	require.Equal(t, expectedAppliances, actualAppliances)
 }
