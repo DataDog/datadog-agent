@@ -97,7 +97,7 @@ instances:
 					if isConstantMetric(a.Metric) {
 						return a_value == b_value
 					}
-					return comparePointsWithRelativeMargin(a.Points[0][1], b.Points[0][1], p, metricCompareFraction)
+					return compareValuesWithRelativeMargin(a_value, b_value, p, metricCompareFraction)
 				}),
 				gocmpopts.SortSlices(metricPayloadCompare), // sort metrics
 			)
@@ -114,7 +114,7 @@ func isConstantMetric(name string) bool {
 	return false
 }
 
-func comparePointsWithRelativeMargin(a, b, p, fraction float64) bool {
+func compareValuesWithRelativeMargin(a, b, p, fraction float64) bool {
 	x := math.Round(a*p) / p
 	y := math.Round(b*p) / p
 	relMarg := metricCompareFraction * math.Min(math.Abs(x), math.Abs(y))
