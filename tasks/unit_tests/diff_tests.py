@@ -25,7 +25,8 @@ class TestDiff(unittest.TestCase):
         mock_islink.return_value = False
 
         # Same file sizes
-        def stat_side_effect(path, _=None):
+        def stat_side_effect(path, follow_symlinks=None):
+            self.assertEqual(follow_symlinks, False)
             stat_result = MagicMock()
             stat_result.st_size = 1000
             return stat_result
@@ -59,7 +60,8 @@ class TestDiff(unittest.TestCase):
         mock_islink.return_value = False
 
         # Different file sizes based on file path
-        def stat_side_effect(path, _=None):
+        def stat_side_effect(path, follow_symlinks=None):
+            self.assertEqual(follow_symlinks, False)
             stat_result = MagicMock()
             if 'file1.txt' in path:
                 if '/dir1' in path:
@@ -105,7 +107,8 @@ class TestDiff(unittest.TestCase):
         mock_islink.return_value = False
 
         # Same file sizes for the common file
-        def stat_side_effect(path, _=None):
+        def stat_side_effect(path, follow_symlinks=None):
+            self.assertEqual(follow_symlinks, False)
             stat_result = MagicMock()
             stat_result.st_size = 1000
             return stat_result
@@ -140,7 +143,8 @@ class TestDiff(unittest.TestCase):
         mock_islink.return_value = False
 
         # Same file sizes for common files
-        def stat_side_effect(path, _=None):
+        def stat_side_effect(path, follow_symlinks=None):
+            self.assertEqual(follow_symlinks, False)
             stat_result = MagicMock()
             stat_result.st_size = 1000
             return stat_result
@@ -186,7 +190,8 @@ class TestDiff(unittest.TestCase):
         mock_islink.return_value = False
 
         # Different file sizes for the common file
-        def stat_side_effect(path, _=None):
+        def stat_side_effect(path, follow_symlinks=None):
+            self.assertEqual(follow_symlinks, False)
             stat_result = MagicMock()
             if 'file1.txt' in path:
                 if '/dir1' in path:
@@ -243,7 +248,8 @@ class TestDiff(unittest.TestCase):
         mock_islink.side_effect = islink_side_effect
 
         # Same file sizes for non-symlink files
-        def stat_side_effect(path, _=None):
+        def stat_side_effect(path, follow_symlinks=None):
+            self.assertEqual(follow_symlinks, False)
             stat_result = MagicMock()
             if 'file1.txt' in path:
                 stat_result.st_size = 1000
