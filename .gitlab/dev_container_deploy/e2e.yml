@@ -77,7 +77,7 @@ qa_agent_ot:
     - docker_build_agent7_full_arm64
   variables:
     IMG_REGISTRIES: agent-qa
-    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-arm64
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-arm64
     IMG_DESTINATIONS: agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta
 
 qa_agent_full:
