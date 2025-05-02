@@ -133,9 +133,9 @@ generate_windows_gitlab_runner_bump_pr* @DataDog/agent-delivery
 
 # Integration test
 integration_tests_windows*    @DataDog/windows-agent
-integration_tests_otel        @DataDog/opentelemetry
-docker_image_build_otel       @DataDog/opentelemetry
-datadog_otel_components_ocb_build  @DataDog/opentelemetry
+integration_tests_otel        @DataDog/opentelemetry-agent
+docker_image_build_otel       @DataDog/opentelemetry-agent
+datadog_otel_components_ocb_build  @DataDog/opentelemetry-agent
 agent_integration_tests       @DataDog/container-integrations
 docker_integration_tests      @DataDog/container-integrations
 trace_agent_integration_tests @DataDog/agent-apm
@@ -148,7 +148,6 @@ oracle*                                        @DataDog/database-monitoring
 
 # E2E
 k8s-e2e-*                         @DataDog/container-integrations
-k8s-e2e-otlp-*                    @DataDog/opentelemetry
 k8s-e2e-cspm-*                    @DataDog/agent-security
 
 # New E2E
