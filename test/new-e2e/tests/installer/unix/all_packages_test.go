@@ -57,7 +57,7 @@ var (
 	}
 )
 
-const latestPython2AnsibleVersion = "4.30.0"
+const latestPython2AnsibleVersion = "5.10.0"
 
 func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
