@@ -47,7 +47,7 @@ type EBPFProgramStats struct {
 	Type            string
 }
 
-// KprobeMissStats are stats which compose of the miss count
+// KprobeStats are stats which compose of the miss count
 type KprobeStats struct {
 	Name                     string
 	Type                     string
