@@ -80,7 +80,7 @@ func checkBlockingRulesWindows(output []byte, rulesToCheck sourcesByRule) (sourc
 		rules = []windowsRule{rule}
 	}
 
-	var blockingRules sourcesByRule = make(sourcesByRule)
+	blockingRules := make(sourcesByRule)
 
 	for _, rule := range rules {
 		if rule.Direction != inbound {
