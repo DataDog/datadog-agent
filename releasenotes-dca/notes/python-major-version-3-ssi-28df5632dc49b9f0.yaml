@@ -7,4 +7,4 @@
 # Each section note must be formatted as reStructuredText.
 enhancements:
   - |
-    Single Step Instrumentation will now use the Python tracer major version 3 by default.
+    Single Step Instrumentation now uses the Python tracer major version 3 by default.
