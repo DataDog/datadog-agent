@@ -32,6 +32,7 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 		fieldCountLimit := ditypes.MaxFieldCount
 		setDepthLimit(preChange, depthLimit)
 		setFieldLimit(preChange, fieldCountLimit)
+		dontCaptureInterfaces(preChange)
 
 		// We make a copy of the parameter tree to avoid modifying the original
 		// for the sake of event translation when uploading to backend

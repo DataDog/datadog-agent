@@ -25,7 +25,7 @@ var policyCmpOpts = []cmp.Option{
 	cmpopts.IgnoreFields(Policy{}, "Def"),
 }
 
-// go test -v github.com/DataDog/datadog-agent/pkg/security/secl/rules --run="TestPolicyLoader_LoadPolicies"
+// go test -tags test -v github.com/DataDog/datadog-agent/pkg/security/secl/rules --run="TestPolicyLoader_LoadPolicies"
 func TestPolicyLoader_LoadPolicies(t *testing.T) {
 	type fields struct {
 		Providers []PolicyProvider
@@ -854,6 +854,51 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									def: PolicyDef{
 										Rules: []*RuleDefinition{
 											{ID: "rule_1", Expression: "exec.file.path == \"/etc/default/foo\"", Disabled: true},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.DR0 enabled, P0.DR1 enabled, P1.CR0 disabled, P1.CR1 disabled => P1.CR0 disabled, P1.CR1 disabled",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "exec.file.path == \"/etc/default/foo\""},
+											{ID: "rule_2", Expression: "exec.file.path == \"/etc/default/bar\""},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "exec.file.path == \"/etc/default/foo\"", Disabled: true},
+											{ID: "rule_2", Expression: "exec.file.path == \"/etc/default/bar\"", Disabled: true},
 										},
 									},
 								},
