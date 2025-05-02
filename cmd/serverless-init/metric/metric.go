@@ -18,18 +18,18 @@ import (
 // AddColdStartMetric adds the coldstart metric to the demultiplexer
 //
 //nolint:revive // TODO(SERV) Fix revive linter
-func AddColdStartMetric(metricPrefix string, tags []string, _ time.Time, demux aggregator.Demultiplexer) {
-	add(fmt.Sprintf("%v.enhanced.cold_start", metricPrefix), tags, time.Now(), demux)
+func AddColdStartMetric(metricPrefix string, origin string, tags []string, _ time.Time, demux aggregator.Demultiplexer) {
+	add(fmt.Sprintf("%v.enhanced.cold_start", metricPrefix), origin, tags, time.Now(), demux)
 }
 
 // AddShutdownMetric adds the shutdown metric to the demultiplexer
 //
 //nolint:revive // TODO(SERV) Fix revive linter
-func AddShutdownMetric(metricPrefix string, tags []string, _ time.Time, demux aggregator.Demultiplexer) {
-	add(fmt.Sprintf("%v.enhanced.shutdown", metricPrefix), tags, time.Now(), demux)
+func AddShutdownMetric(metricPrefix string, origin string, tags []string, _ time.Time, demux aggregator.Demultiplexer) {
+	add(fmt.Sprintf("%v.enhanced.shutdown", metricPrefix), origin, tags, time.Now(), demux)
 }
 
-func add(name string, tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
+func add(name string, origin string, tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
 	if demux == nil {
 		log.Debugf("Cannot add metric %s, the metric agent is not running", name)
 		return
@@ -42,5 +42,20 @@ func add(name string, tags []string, timestamp time.Time, demux aggregator.Demul
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  metricTimestamp,
+		Source:     originToMetricSource(origin),
 	})
+}
+
+func originToMetricSource(origin string) metrics.MetricSource {
+	switch origin {
+	case "cloudrun":
+		return metrics.MetricSourceGoogleCloudRunEnhanced
+	case "appservice":
+		return metrics.MetricSourceAzureAppServiceEnhanced
+	case "containerapp":
+		return metrics.MetricSourceAzureContainerAppEnhanced
+	default:
+		return metrics.MetricSourceServerless
+	}
+
 }
