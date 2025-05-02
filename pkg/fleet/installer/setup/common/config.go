@@ -131,6 +131,7 @@ type DatadogConfig struct {
 	RemotePolicies       bool                       `yaml:"remote_policies,omitempty"`
 	Installer            DatadogConfigInstaller     `yaml:"installer,omitempty"`
 	DDURL                string                     `yaml:"dd_url,omitempty"`
+	LogsConfig           LogsConfig                 `yaml:"logs_config,omitempty"`
 }
 
 // DatadogConfigProxy represents the configuration for the proxy
@@ -227,11 +228,16 @@ type SecurityAgentComplianceConfig struct {
 	Enabled bool `yaml:"enabled,omitempty"`
 }
 
+// LogsConfig represents the configuration for global log processing rules
+type LogsConfig struct {
+	ProcessingRules []LogProcessingRule `yaml:"processing_rules"`
+}
+
 // LogProcessingRule represents the configuration for a log processing rule
 type LogProcessingRule struct {
-	Type    string `yaml:"type"`
-	Name    string `yaml:"name"`
-	Pattern string `yaml:"pattern"`
+	Type    string `yaml:"type" json:"type"`
+	Name    string `yaml:"name" json:"name"`
+	Pattern string `yaml:"pattern" json:"pattern"`
 }
 
 // mergeConfig merges the current config with the setup config.
