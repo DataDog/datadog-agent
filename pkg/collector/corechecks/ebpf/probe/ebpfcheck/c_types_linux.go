@@ -33,3 +33,26 @@ type kprobeStatsErrors struct {
 	Type   uint32
 	Cookie cookie
 }
+
+func (err *kprobeStatsErrors) String() string {
+	switch err.Type {
+	case 1:
+		return "fd is not a perf event fd"
+	case 2:
+		return "perf event fd does not have a kprobe"
+	case 3:
+		return "could not read the pmu type of the perf event"
+	case 4:
+		return "could not read kprobe hits"
+	case 5:
+		return "could not read kprobe misses"
+	case 6:
+		return "could not read kretprobe misses"
+	case 7:
+		return "could not read struct trace_event_call flags"
+	case 8:
+		return "could not check if perf event is associated with a tracefs kprobe"
+	default:
+		return "unknown error in bpf program"
+	}
+}

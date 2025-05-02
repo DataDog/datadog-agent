@@ -50,6 +50,8 @@ var kernelAddresses = []string{
 	"perf_fops",
 	"perf_kprobe",
 	"__per_cpu_offset",
+	"kprobe_funcs",
+	"kretprobe_funcs",
 }
 
 const (
@@ -421,9 +423,7 @@ retry:
 			continue
 		}
 
-		// TODO: check uprobes and skip them
-		//		name, err := ddebpf.GetProgNameFromProgID(c.Kprobe_id)
-		//		progType, _, _ := strings.Cut(p.programSpec.SectionName, "/")
+		// the ebpf program will take care to skip u[ret]probes
 
 		// call ioctl with correct command and cookie pointer
 		cookiePtr := unsafe.Pointer(&c)
@@ -509,7 +509,7 @@ retry:
 		if err != nil {
 			log.Errorf("unable to get program name for kprobe id %d: %s", key.Kprobe_id, err)
 		} else {
-			log.Errorf("error in eBPF program while recording kprobe statistics for %s", name)
+			log.Errorf("error in eBPF program while recording kprobe statistics for %s: %s", name, bpfError)
 		}
 
 		// could not record stats for this cookie due to errors
@@ -526,8 +526,7 @@ retry:
 		log.Errorf("unable to batch delete cookies from map %s: %s", errorsGenericMap, err)
 	}
 
-	// if all cookies accounts for then return
-	// if retried collection 3 times then return
+	// return if all cookies are accounted for or exceed retry limit
 	if len(cookies) == 0 || retryCnt >= 3 {
 		return nil
 	}
