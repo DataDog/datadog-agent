@@ -12,7 +12,6 @@ package windowscertificate
 import (
 	"crypto/x509"
 	"fmt"
-	"strings"
 	"time"
 	"unsafe"
 
@@ -77,25 +76,30 @@ func (w *WinCertChk) Configure(senderManager sender.SenderManager, _ uint64, dat
 		w.config.DaysWarning = 14
 	}
 
-	log.Infof("Windows Certificate Check configured with %d certificate stores and %d cert subjects", len(w.config.CertificateStores), len(w.config.CertSubject))
+	log.Infof("Windows Certificate Check configured with Certificate Stores: %v and Certificate Subjects: %v", w.config.CertificateStores, w.config.CertSubject)
 	return nil
 }
 
 // Run is called each time the scheduler runs this particular check.
 func (w *WinCertChk) Run() error {
-	if len(w.config.CertificateStores) == 0 {
-		return fmt.Errorf("no certificate stores specified")
-	}
-
 	sender, err := w.GetSender()
 	if err != nil {
 		return err
+	}
+	defer sender.Commit()
+
+	if len(w.config.CertificateStores) == 0 {
+		return fmt.Errorf("no certificate stores specified")
 	}
 
 	for _, store := range w.config.CertificateStores {
 		certificates, err := getCertificates(store, w.config.CertSubject)
 		if err != nil {
 			return err
+		}
+		if len(certificates) == 0 {
+			log.Warnf("No certificates found in store: %s for subject filters: %v", store, w.config.CertSubject)
+			continue
 		}
 
 		for _, cert := range certificates {
@@ -138,7 +142,6 @@ func (w *WinCertChk) Run() error {
 		}
 	}
 
-	sender.Commit()
 	return nil
 }
 
@@ -166,6 +169,25 @@ func getCertificates(store string, certFilters []string) ([]*x509.Certificate, e
 	var certContext *windows.CertContext
 
 	log.Debugf("Enumerating certificates in store")
+
+	if len(certFilters) == 0 {
+		certificates, err = getEnumCertificatesInStore(certContext, storeHandle)
+	} else {
+		certificates, err = findCertificatesInStore(certContext, storeHandle, certFilters)
+	}
+	if err != nil {
+		log.Errorf("Error getting certificates: %v", err)
+		return nil, err
+	}
+
+	log.Debugf("Found %d certificates in store", len(certificates))
+	return certificates, nil
+}
+
+// getEnumCertificatesInStore retrieves all certificates in a certificate store
+func getEnumCertificatesInStore(certContext *windows.CertContext, storeHandle windows.Handle) ([]*x509.Certificate, error) {
+	var err error
+	certificates := []*x509.Certificate{}
 	for {
 		certContext, err = windows.CertEnumCertificatesInStore(storeHandle, certContext)
 		if err != nil {
@@ -185,17 +207,47 @@ func getCertificates(store string, certFilters []string) ([]*x509.Certificate, e
 			continue
 		}
 
-		// Check to see if we have any filters
-		if len(certFilters) == 0 {
-			certificates = append(certificates, cert)
-			continue
-		}
+		certificates = append(certificates, cert)
+	}
 
-		// If we have filters, check to see if the certificate matches any of them
-		for _, filter := range certFilters {
-			if strings.Contains(cert.Subject.String(), filter) {
-				certificates = append(certificates, cert)
+	return certificates, nil
+}
+
+// findCertificatesInStore finds certificates in a store with a given subject string
+func findCertificatesInStore(certContext *windows.CertContext, storeHandle windows.Handle, subjectFilters []string) ([]*x509.Certificate, error) {
+	var err error
+	certificates := []*x509.Certificate{}
+
+	for _, subject := range subjectFilters {
+		subjectName := windows.StringToUTF16Ptr(subject)
+
+		for {
+			certContext, err = windows.CertFindCertificateInStore(
+				storeHandle,
+				windows.X509_ASN_ENCODING|windows.PKCS_7_ASN_ENCODING,
+				0,
+				windows.CERT_FIND_SUBJECT_STR,
+				unsafe.Pointer(subjectName),
+				certContext,
+			)
+			if err != nil {
+				if certContext == nil {
+					log.Debugf("No more certificates in store")
+					break
+				}
+				log.Errorf("Error enumerating certificates in store: %v", err)
+				return nil, err
 			}
+
+			encodedCert := unsafe.Slice(certContext.EncodedCert, certContext.Length)
+
+			cert, err := parseCertificate(encodedCert)
+			if err != nil {
+				log.Errorf("Error parsing certificate: %v", err)
+				continue
+			}
+
+			certificates = append(certificates, cert)
 		}
 	}
 
