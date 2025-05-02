@@ -399,6 +399,8 @@ int BPF_KPROBE(k_map_update, int cmd, union bpf_attr *attr) {
 /** Ksyms **/
 volatile const u64 perf_fops = 0;
 volatile const u64 perf_kprobe = 0;
+volatile const u64 kprobe_funcs = 0;
+volatile const u64 kretprobe_funcs = 0;
 volatile const u64 nr_cpus = 0;
 volatile const u64 __per_cpu_offset = 0;
 
@@ -437,36 +439,67 @@ static __always_inline bool is_perf_event(u32 fd, struct file** perf_event_file)
     return true;
 }
 
-static __always_inline bool is_perf_kprobe(struct file* perf_event_file, struct perf_event** event) {
+static __always_inline int get_perf_event(struct file* perf_event_file, struct perf_event** event) {
+    int err = BPF_CORE_READ_INTO(event, perf_event_file, private_data);
+    if (err < 0)
+        return err;
+
+    return 0;
+}
+
+static __always_inline int is_perf_kprobe(struct perf_event* event, bool* is_kprobe) {
     struct pmu* pmu;
-    int err;
 
-    err = BPF_CORE_READ_INTO(event, perf_event_file, private_data);
+    int err = BPF_CORE_READ_INTO(&pmu, event, pmu);
     if (err < 0)
-        return false;
+        return err;
 
-    err = BPF_CORE_READ_INTO(&pmu, *event, pmu);
-    if (err < 0)
-        return false;
-
+    *is_kprobe = false;
     if (perf_kprobe) {
         if ((unsigned long)pmu != perf_kprobe)
-            return false;
+            return 0;
     } else {
-        return false;
+        return 0;
     }
 
-    return true;
+    *is_kprobe = true;
+    return 0;
+}
+
+static __always_inline int trace_event_call_from_perf_event(struct perf_event* event, struct trace_event_call** call) {
+    int err = BPF_CORE_READ_INTO(call, event, tp_event);
+    if (err < 0)
+        return err;
+
+    return 0;
+}
+
+static __always_inline int is_tracefs_kprobe(struct perf_event* event, bool* is_kprobe) {
+    struct trace_event_call* call = NULL;
+    struct trace_event_functions *funcs = NULL;
+
+    int err = trace_event_call_from_perf_event(event, &call);
+    if (err < 0)
+        return err;
+
+    err = BPF_CORE_READ_INTO(&funcs, call, event.funcs);
+    if (err < 0)
+        return err;
+
+    if (((u64)funcs == kprobe_funcs) || ((u64)funcs == kretprobe_funcs))
+        *is_kprobe = true;
+    else
+        *is_kprobe = false;
+
+    return 0;
 }
 
 static __always_inline struct trace_kprobe* trace_kprobe_from_perf_event(struct perf_event* event) {
-    struct trace_event_call* call;
-    int err;
+    struct trace_event_call* call = NULL;
 
-    err = BPF_CORE_READ_INTO(&call, event, tp_event);
+    int err = trace_event_call_from_perf_event(event, &call);
     if (err < 0)
         return NULL;
-
 
     struct trace_probe_event *tpe = container_of(call, struct trace_probe_event, call);
     if (!tpe)
@@ -607,8 +640,16 @@ int BPF_KPROBE(k_do_vfs_ioctl, struct file* fp, u32 fd, u32 cmd, cookie_t* cooki
 
     bpf_rcu_read_unlock();
 
-    bool kprobe_with_perf = is_perf_kprobe(perf_event_file, &event);
-    if (!event) {
+    err = get_perf_event(perf_event_file, &event);
+    if ((err < 0) || (!event)) {
+        stats_error.error_type = ERR_READING_PERF_PMU;
+        stats_error.cookie = this_cookie;
+        goto error;
+    }
+
+    bool kprobe_with_perf = false;
+    err = is_perf_kprobe(event, &kprobe_with_perf);
+    if (err < 0) {
         stats_error.error_type = PERF_EVENT_NOT_FOUND;
         stats_error.cookie = this_cookie;
         goto error;
@@ -623,12 +664,20 @@ int BPF_KPROBE(k_do_vfs_ioctl, struct file* fp, u32 fd, u32 cmd, cookie_t* cooki
         goto error;
     }
 
+    // cache uprobe perf event so we can ignore it
     if (is_uprobe) {
         bpf_map_update_elem(&cookie_to_uprobe_event, &this_cookie, &event, BPF_ANY);
         return 0;
     }
 
-    bool kprobe_with_tracefs = 0;
+    bool kprobe_with_tracefs = false;
+    err = is_tracefs_kprobe(event, &kprobe_with_tracefs);
+    if (err < 0) {
+        stats_error.error_type = ERR_READING_TRACEFS_KPROBE;
+        stats_error.cookie = this_cookie;
+        goto error;
+    }
+
     if (!(kprobe_with_perf || kprobe_with_tracefs)) {
         stats_error.error_type = PERF_EVENT_FD_IS_NOT_KPROBE;
         stats_error.cookie = this_cookie;
