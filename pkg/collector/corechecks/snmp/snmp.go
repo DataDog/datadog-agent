@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/firewallscanner"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -185,18 +186,21 @@ func (c *Check) Interval() time.Duration {
 
 // GetDiagnoses collects diagnoses for diagnose CLI
 func (c *Check) GetDiagnoses() ([]diagnose.Diagnosis, error) {
+	var diagnosis []diagnose.Diagnosis
+
 	if c.config.IsDiscovery() {
 		devices := c.discovery.GetDiscoveredDeviceConfigs()
-		var diagnosis []diagnose.Diagnosis
 
 		for _, deviceCheck := range devices {
 			diagnosis = append(diagnosis, deviceCheck.GetDiagnoses()...)
 		}
-
-		return diagnosis, nil
+	} else {
+		diagnosis = append(diagnosis, c.singleDeviceCk.GetDiagnoses()...)
 	}
 
-	return c.singleDeviceCk.GetDiagnoses(), nil
+	diagnosis = append(diagnosis, firewallscanner.Diagnose(c.agentConfig)...)
+
+	return diagnosis, nil
 }
 
 // IsHASupported returns true if the check supports HA

@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -32,7 +32,7 @@ const (
 	inbound ruleDirection = 1
 )
 
-func (scanner *windowsFirewallScanner) DiagnoseBlockingRules(rulesToCheck sourcesByRule, log log.Component) []diagnose.Diagnosis {
+func (scanner *windowsFirewallScanner) DiagnoseBlockingRules(rulesToCheck sourcesByRule) []diagnose.Diagnosis {
 	cmd := exec.Command(
 		"powershell",
 		"-Command",
