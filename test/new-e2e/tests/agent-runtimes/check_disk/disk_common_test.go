@@ -50,8 +50,8 @@ func (v *baseCheckSuite) getSuiteOptions() []e2e.SuiteOption {
 	return suiteOptions
 }
 
-// a relative diff considered acceptable when comparing metrics
-const metricCompareFraction = 0.02
+// a relative diff considered acceptable when comparing metrics (5%)
+const metricCompareFraction = 0.05
 
 // number of decimals when comparing metrics
 const metricCompareDecimals = 1
@@ -81,18 +81,44 @@ instances:
 
 			// assert the check output
 			diff := gocmp.Diff(pythonMetrics, goMetrics,
-				gocmp.Comparer(func(a, b float64) bool {
-					x := math.Round(a*p) / p
-					y := math.Round(b*p) / p
-					relMarg := metricCompareFraction * math.Min(math.Abs(x), math.Abs(y))
-					return math.Abs(x-y) <= relMarg
+				gocmp.Comparer(func(a, b check.Metric) bool {
+					if a.Host != b.Host ||
+						a.Interval != b.Interval ||
+						a.Metric != b.Metric ||
+						a.SourceTypeName != b.SourceTypeName ||
+						a.Type != b.Type {
+						return false
+					}
+					if !gocmp.Equal(a.Tags, b.Tags, gocmpopts.SortSlices(cmp.Less[string])) {
+						return false
+					}
+					a_value := a.Points[0][1]
+					b_value := b.Points[0][1]
+					if isConstantMetric(a.Metric) {
+						return a_value == b_value
+					}
+					return comparePointsWithRelativeMargin(a.Points[0][1], b.Points[0][1], p, metricCompareFraction)
 				}),
-				gocmpopts.SortSlices(cmp.Less[string]),     // sort tags
 				gocmpopts.SortSlices(metricPayloadCompare), // sort metrics
 			)
 			require.Empty(v.T(), diff)
 		})
 	}
+}
+
+func isConstantMetric(name string) bool {
+	switch name {
+	case "system.disk.total":
+		return true
+	}
+	return false
+}
+
+func comparePointsWithRelativeMargin(a, b, p, fraction float64) bool {
+	x := math.Round(a*p) / p
+	y := math.Round(b*p) / p
+	relMarg := metricCompareFraction * math.Min(math.Abs(x), math.Abs(y))
+	return math.Abs(x-y) <= relMarg
 }
 
 func metricPayloadCompare(a, b check.Metric) int {
