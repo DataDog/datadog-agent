@@ -773,6 +773,12 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		} else {
 			metricSamples[idx].Tags = metricSamples[0].Tags
 		}
+
+		// If we're receiving runtime metrics, we need to convert the default source to the runtime source
+		if s.enrichConfig.serverlessMode && strings.HasPrefix(metricSamples[idx].Name, "runtime.") {
+			metricSamples[idx].Source = serverlessSourceCustomToRuntime(metricSamples[idx].Source)
+		}
+
 		dogstatsdMetricPackets.Add(1)
 		okCnt.Inc()
 	}

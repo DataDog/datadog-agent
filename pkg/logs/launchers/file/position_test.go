@@ -12,11 +12,11 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
+	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 )
 
 func TestPosition(t *testing.T) {
-	registry := mock.NewRegistry()
+	registry := auditorMock.NewMockRegistry()
 
 	var err error
 	var offset int64

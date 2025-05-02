@@ -361,6 +361,21 @@ const (
 	MetricSourceOpenTelemetryCollectorBigipReceiver
 	MetricSourceOpenTelemetryCollectorChronyReceiver
 	MetricSourceOpenTelemetryCollectorCouchdbReceiver
+
+	// Serverless
+	MetricSourceServerless
+	MetricSourceAwsLambdaCustom
+	MetricSourceAwsLambdaEnhanced
+	MetricSourceAwsLambdaRuntime
+	MetricSourceAzureContainerAppCustom
+	MetricSourceAzureContainerAppEnhanced
+	MetricSourceAzureContainerAppRuntime
+	MetricSourceAzureAppServiceCustom
+	MetricSourceAzureAppServiceEnhanced
+	MetricSourceAzureAppServiceRuntime
+	MetricSourceGoogleCloudRunCustom
+	MetricSourceGoogleCloudRunEnhanced
+	MetricSourceGoogleCloudRunRuntime
 )
 
 // String returns a string representation of MetricSource
@@ -1028,6 +1043,32 @@ func (ms MetricSource) String() string {
 		return "opentelemetry_collector_chronyreceiver"
 	case MetricSourceOpenTelemetryCollectorCouchdbReceiver:
 		return "opentelemetry_collector_couchdbreceiver"
+	case MetricSourceServerless:
+		return "serverless"
+	case MetricSourceAwsLambdaCustom:
+		return "aws_lambda_custom"
+	case MetricSourceAwsLambdaEnhanced:
+		return "aws_lambda_enhanced"
+	case MetricSourceAwsLambdaRuntime:
+		return "aws_lambda_runtime"
+	case MetricSourceAzureContainerAppCustom:
+		return "azure_container_app_custom"
+	case MetricSourceAzureContainerAppEnhanced:
+		return "azure_container_app_enhanced"
+	case MetricSourceAzureContainerAppRuntime:
+		return "azure_container_app_runtime"
+	case MetricSourceAzureAppServiceCustom:
+		return "azure_app_service_custom"
+	case MetricSourceAzureAppServiceEnhanced:
+		return "azure_app_service_enhanced"
+	case MetricSourceAzureAppServiceRuntime:
+		return "azure_app_service_runtime"
+	case MetricSourceGoogleCloudRunCustom:
+		return "google_cloud_run_custom"
+	case MetricSourceGoogleCloudRunEnhanced:
+		return "google_cloud_run_enhanced"
+	case MetricSourceGoogleCloudRunRuntime:
+		return "google_cloud_run_runtime"
 	default:
 		return "<unknown>"
 	}
