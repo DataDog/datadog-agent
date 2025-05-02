@@ -246,8 +246,14 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		// Install ansible then install the agent
 		var ansiblePrefix string
 		for i := 0; i < 3; i++ {
+			var err error
 			ansiblePrefix = s.installAnsible(s.os)
-			_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+			if (s.os.Flavor == e2eos.AmazonLinux && s.os.Version == e2eos.AmazonLinux2.Version) ||
+				(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
+				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd:==%s", ansiblePrefix, latestPython2AnsibleVersion))
+			} else {
+				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+			}
 			if err == nil {
 				break
 			}
@@ -262,12 +268,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		playbookPath := s.writeAnsiblePlaybook(env, params...)
 
 		// Run the playbook
-		if (s.os.Flavor == e2eos.AmazonLinux && s.os.Version == e2eos.AmazonLinux2.Version) ||
-			(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
-			s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook -vvv %s:==%s", ansiblePrefix, playbookPath, latestPython2AnsibleVersion))
-		} else {
-			s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook -vvv %s", ansiblePrefix, playbookPath))
-		}
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook -vvv %s", ansiblePrefix, playbookPath))
 
 		// touch install files for compatibility
 		s.Env().RemoteHost.MustExecute("touch /tmp/datadog-installer-stdout.log")
