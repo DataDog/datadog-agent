@@ -3423,6 +3423,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			wmeta := common.FakeStoreWithDeployment(t, tt.langDetectionDeployments)
 
 			mockConfig = configmock.New(t)
+			mockConfig.SetWithoutSource("apm_config.instrumentation.version", "v1")
 			if tt.setupConfig != nil {
 				for _, f := range tt.setupConfig {
 					f()
@@ -3430,7 +3431,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			}
 
 			// N.B. Force v1 for these tests!
-			webhook, errInitAPMInstrumentation := maybeWebhook(wmeta, mockConfig, instrumentationV1)
+			webhook, errInitAPMInstrumentation := maybeWebhook(wmeta, mockConfig)
 			if tt.wantWebhookInitErr {
 				require.Error(t, errInitAPMInstrumentation)
 				return
@@ -3695,15 +3696,11 @@ func TestShouldInject(t *testing.T) {
 	}
 }
 
-func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component, versionOverride version) (*Webhook, error) {
+func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component) (*Webhook, error) {
 	config, err := NewConfig(ddConfig)
 	if err != nil {
 		return nil, err
 	}
-
-	// N.B. keeping this around to continue to have tests for v1,
-	// even though it is disabled
-	config.version = versionOverride
 
 	mutator, err := NewNamespaceMutator(config, wmeta)
 	if err != nil {
