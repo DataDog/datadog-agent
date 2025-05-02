@@ -17,52 +17,62 @@ type Content interface {
 
 // DirectorStatus /versa/ncs-services/vnms/dashboard/vdStatus
 type DirectorStatus struct {
-	HAConfig struct {
-		ClusterID                      string   `json:"clusterid"`
-		FailoverTimeout                int      `json:"failoverTimeout"`
-		SlaveStartTimeout              int      `json:"slaveStartTimeout"`
-		AutoSwitchOverTimeout          int      `json:"autoSwitchOverTimeout"`
-		AutoSwitchOverEnabled          bool     `json:"autoSwitchOverEnabled"`
-		DesignatedMaster               bool     `json:"designatedMaster"`
-		StartupMode                    string   `json:"startupMode"`
-		MyVnfManagementIPs             []string `json:"myVnfManagementIps"`
-		VDSBInterfaces                 []string `json:"vdsbinterfaces"`
-		StartupModeHA                  bool     `json:"startupModeHA"`
-		MyNcsHaSetAsMaster             bool     `json:"myNcsHaSet"`
-		PingViaAnyDeviceSuccessful     bool     `json:"pingViaAnyDeviceSuccessful"`
-		PeerReachableViaNcsPortDevices bool     `json:"peerReachableViaNcsPortAndDevices"`
-		HAEnabledOnBothNodes           bool     `json:"haEnabledOnBothNodes"`
-	} `json:"haConfig"`
-	HADetails struct {
-		Enabled           bool `json:"enabled"`
-		DesignatedMaster  bool `json:"designatedMaster"`
-		PeerVnmsHaDetails []struct {
-		} `json:"peerVnmsHaDetails"`
-		EnableHaInProgress bool `json:"enableHaInProgress"`
-	} `json:"haDetails"`
-	VDSBInterfaces []string `json:"vdSBInterfaces"`
-	SystemDetails  struct {
-		CPUCount   int    `json:"cpuCount"`
-		CPULoad    string `json:"cpuLoad"`
-		Memory     string `json:"memory"`
-		MemoryFree string `json:"memoryFree"`
-		Disk       string `json:"disk"`
-		DiskUsage  string `json:"diskUsage"`
-	} `json:"systemDetails"`
-	PkgInfo struct {
-		Version     string `json:"version"`
-		PackageDate string `json:"packageDate"`
-		Name        string `json:"name"`
-		PackageID   string `json:"packageId"`
-		UIPackageID string `json:"uiPackageId"`
-		Branch      string `json:"branch"`
-	} `json:"pkgInfo"`
-	SystemUpTime struct {
-		CurrentTime       string `json:"currentTime"`
-		ApplicationUpTime string `json:"applicationUpTime"`
-		SysProcUptime     string `json:"sysProcUptime"`
-		SysUpTimeDetail   string `json:"sysUpTimeDetail"`
-	} `json:"systemUpTime"`
+	HAConfig       DirectorHAConfig      `json:"haConfig"`
+	HADetails      DirectorHADetails     `json:"haDetails"`
+	VDSBInterfaces []string              `json:"vdSBInterfaces"`
+	SystemDetails  DirectorSystemDetails `json:"systemDetails"`
+	PkgInfo        DirectorPkgInfo       `json:"pkgInfo"`
+	SystemUpTime   DirectorSystemUpTime  `json:"systemUpTime"`
+}
+
+type DirectorHAConfig struct {
+	ClusterID                      string   `json:"clusterid"`
+	FailoverTimeout                int      `json:"failoverTimeout"`
+	SlaveStartTimeout              int      `json:"slaveStartTimeout"`
+	AutoSwitchOverTimeout          int      `json:"autoSwitchOverTimeout"`
+	AutoSwitchOverEnabled          bool     `json:"autoSwitchOverEnabled"`
+	DesignatedMaster               bool     `json:"designatedMaster"`
+	StartupMode                    string   `json:"startupMode"`
+	MyVnfManagementIPs             []string `json:"myVnfManagementIps"`
+	VDSBInterfaces                 []string `json:"vdsbinterfaces"`
+	StartupModeHA                  bool     `json:"startupModeHA"`
+	MyNcsHaSetAsMaster             bool     `json:"myNcsHaSetAsMaster"`
+	PingViaAnyDeviceSuccessful     bool     `json:"pingViaAnyDeviceSuccessful"`
+	PeerReachableViaNcsPortDevices bool     `json:"peerReachableViaNcsPortAndDevices"`
+	HAEnabledOnBothNodes           bool     `json:"haEnabledOnBothNodes"`
+}
+
+type DirectorHADetails struct {
+	Enabled           bool `json:"enabled"`
+	DesignatedMaster  bool `json:"designatedMaster"`
+	PeerVnmsHaDetails []struct {
+	} `json:"peerVnmsHaDetails"`
+	EnableHaInProgress bool `json:"enableHaInProgress"`
+}
+
+type DirectorSystemDetails struct {
+	CPUCount   int    `json:"cpuCount"`
+	CPULoad    string `json:"cpuLoad"`
+	Memory     string `json:"memory"`
+	MemoryFree string `json:"memoryFree"`
+	Disk       string `json:"disk"`
+	DiskUsage  string `json:"diskUsage"`
+}
+
+type DirectorPkgInfo struct {
+	Version     string `json:"version"`
+	PackageDate string `json:"packageDate"`
+	Name        string `json:"name"`
+	PackageID   string `json:"packageId"`
+	UIPackageID string `json:"uiPackageId"`
+	Branch      string `json:"branch"`
+}
+
+type DirectorSystemUpTime struct {
+	CurrentTime       string `json:"currentTime"`
+	ApplicationUpTime string `json:"applicationUpTime"`
+	SysProcUptime     string `json:"sysProcUptime"`
+	SysUpTimeDetail   string `json:"sysUpTimeDetail"`
 }
 
 // Appliance encapsulates metadata and some metrics for a Versa appliance

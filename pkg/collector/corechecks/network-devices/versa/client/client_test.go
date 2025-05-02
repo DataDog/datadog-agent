@@ -307,3 +307,65 @@ func TestGetChildAppliancesDetail(t *testing.T) {
 	require.Equal(t, 1, len(actualAppliances))
 	require.Equal(t, expectedAppliances, actualAppliances)
 }
+
+func TestGetDirectorStatus(t *testing.T) {
+	expectedDirectorStatus := &DirectorStatus{
+		HAConfig: DirectorHAConfig{
+			ClusterID:                      "clusterId",
+			FailoverTimeout:                100,
+			SlaveStartTimeout:              300,
+			AutoSwitchOverTimeout:          180,
+			AutoSwitchOverEnabled:          false,
+			DesignatedMaster:               true,
+			StartupMode:                    "STANDALONE",
+			MyVnfManagementIPs:             []string{"10.0.200.100"},
+			VDSBInterfaces:                 []string{"10.0.201.100"},
+			StartupModeHA:                  false,
+			MyNcsHaSetAsMaster:             true,
+			PingViaAnyDeviceSuccessful:     false,
+			PeerReachableViaNcsPortDevices: true,
+			HAEnabledOnBothNodes:           false,
+		},
+		HADetails: DirectorHADetails{
+			Enabled:            false,
+			DesignatedMaster:   true,
+			PeerVnmsHaDetails:  []struct{}{},
+			EnableHaInProgress: false,
+		},
+		VDSBInterfaces: []string{"10.0.201.100"},
+		SystemDetails: DirectorSystemDetails{
+			CPUCount:   32,
+			CPULoad:    "2.11",
+			Memory:     "64.01GB",
+			MemoryFree: "20.10GB",
+			Disk:       "128GB",
+			DiskUsage:  "fakeDiskUsage",
+		},
+		PkgInfo: DirectorPkgInfo{
+			Version:     "10.1",
+			PackageDate: "1970101",
+			Name:        "versa-director-1970101-000000-vissdf0cv-10.1.0-a",
+			PackageID:   "vissdf0cv",
+			UIPackageID: "versa-director-1970101-000000-vissdf0cv-10.1.0-a",
+			Branch:      "10.1",
+		},
+		SystemUpTime: DirectorSystemUpTime{
+			CurrentTime:       "Thu Jan 01 00:00:00 UTC 1970",
+			ApplicationUpTime: "160 Days, 12 Hours, 56 Minutes, 35 Seconds.",
+			SysProcUptime:     "230 Days, 17 Hours, 28 Minutes, 46 Seconds.",
+			SysUpTimeDetail:   "20:45:35 up 230 days, 17:28,  1 users,  load average: 0.24, 0.16, 0.23",
+		},
+	}
+
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	actualDirectorStatus, err := client.GetDirectorStatus()
+	require.NoError(t, err)
+
+	// Check contents
+	require.Equal(t, expectedDirectorStatus, actualDirectorStatus)
+}
