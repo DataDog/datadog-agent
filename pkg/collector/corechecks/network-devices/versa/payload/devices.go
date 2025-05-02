@@ -151,7 +151,7 @@ func mapNDMDeviceType(versaType string) string {
 }
 
 func buildApplianceDeviceTags(namespace string, device client.Appliance) []string {
-	return []string{
+	tags := []string{
 		"device_vendor:versa",
 		"device_namespace:" + namespace,
 		"hostname:" + device.Name,
@@ -162,6 +162,9 @@ func buildApplianceDeviceTags(namespace string, device client.Appliance) []strin
 		"device_hostname:" + device.Name,
 		"device_id:" + buildDeviceID(namespace, device.IPAddress),
 	}
+	tags = append(tags, device.ApplianceTags...)
+
+	return tags
 }
 
 func buildDirectorDeviceTags(namespace string, ipAddress string, directorStatus *client.DirectorStatus) []string {
