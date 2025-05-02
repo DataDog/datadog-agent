@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package configresolver resolves config templates using information from a
+// Package configresolver resolves configuration templates against a given
+// service by replacing template variables with corresponding data from the
 // service.
 package configresolver
 

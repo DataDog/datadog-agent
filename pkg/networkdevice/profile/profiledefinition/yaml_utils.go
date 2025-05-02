@@ -5,6 +5,8 @@
 
 package profiledefinition
 
+import "errors"
+
 // StringArray is list of string with a yaml un-marshaller that support both array and string.
 // See test file for example usage.
 // Credit: https://github.com/go-yaml/yaml/issues/100#issuecomment-324964723
@@ -61,4 +63,26 @@ func (mtcl *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error
 	}
 	*mtcl = multi
 	return nil
+}
+
+// UnmarshalYAML unmarshalls MetricsConfig
+func (mc *MetricsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type metricsConfig MetricsConfig
+	err := unmarshal((*metricsConfig)(mc))
+
+	var rawData map[string]interface{}
+	rawErr := unmarshal(&rawData)
+	if rawErr != nil {
+		return err
+	}
+
+	mibString, mibIsString := rawData["MIB"].(string)
+	if mibIsString && mibString != "" {
+		symbolString, symbolIsString := rawData["symbol"].(string)
+		if symbolIsString && symbolString != "" {
+			return errors.Join(err, ErrLegacySymbolType)
+		}
+	}
+
+	return err
 }
