@@ -44,6 +44,7 @@ const (
 	acaRevision       = "aca.app.revision"
 	acaSubscriptionID = "aca.subscription.id"
 
+	// ContainerApp origin tag value
 	ContainerAppOrigin = "containerapp"
 )
 
