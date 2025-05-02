@@ -88,7 +88,7 @@ func TestSendAndReceive(t *testing.T) {
 				mockConn.EXPECT().GetHop(gomock.Any(), gomock.Any(), gomock.Any()).Return(test.mockHopIP, test.mockEnd, test.mockGetHopError)
 			}
 
-			actual, err := tcpv4.sendAndReceive(mockConn, 1, 1*time.Second)
+			actual, err := tcpv4.sendAndReceiveSocket(mockConn, 1, 1*time.Second)
 			if test.errMsg != "" {
 				require.Error(t, err)
 				assert.True(t, strings.Contains(err.Error(), test.errMsg), "error mismatch: excpected %q, got %q", test.errMsg, err.Error())
