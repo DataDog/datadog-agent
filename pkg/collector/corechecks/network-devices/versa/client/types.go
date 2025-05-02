@@ -25,6 +25,7 @@ type DirectorStatus struct {
 	SystemUpTime   DirectorSystemUpTime  `json:"systemUpTime"`
 }
 
+// DirectorHAConfig encapsulates metadata for a Versa director's HA configuration
 type DirectorHAConfig struct {
 	ClusterID                      string   `json:"clusterid"`
 	FailoverTimeout                int      `json:"failoverTimeout"`
@@ -42,6 +43,7 @@ type DirectorHAConfig struct {
 	HAEnabledOnBothNodes           bool     `json:"haEnabledOnBothNodes"`
 }
 
+// DirectorHADetails encapsulates metadata for a Versa director's HA details
 type DirectorHADetails struct {
 	Enabled           bool `json:"enabled"`
 	DesignatedMaster  bool `json:"designatedMaster"`
@@ -50,6 +52,7 @@ type DirectorHADetails struct {
 	EnableHaInProgress bool `json:"enableHaInProgress"`
 }
 
+// DirectorSystemDetails encapsulates metadata for a Versa director's system details
 type DirectorSystemDetails struct {
 	CPUCount   int    `json:"cpuCount"`
 	CPULoad    string `json:"cpuLoad"`
@@ -59,6 +62,7 @@ type DirectorSystemDetails struct {
 	DiskUsage  string `json:"diskUsage"`
 }
 
+// DirectorPkgInfo encapsulates metadata for a Versa director's package information
 type DirectorPkgInfo struct {
 	Version     string `json:"version"`
 	PackageDate string `json:"packageDate"`
@@ -68,6 +72,7 @@ type DirectorPkgInfo struct {
 	Branch      string `json:"branch"`
 }
 
+// DirectorSystemUpTime encapsulates metadata for a Versa director's system uptime
 type DirectorSystemUpTime struct {
 	CurrentTime       string `json:"currentTime"`
 	ApplicationUpTime string `json:"applicationUpTime"`
