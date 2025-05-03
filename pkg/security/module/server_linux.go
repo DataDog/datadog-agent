@@ -8,13 +8,19 @@
 package module
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 
+	"github.com/CycloneDX/cyclonedx-go"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	sbompb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -283,4 +289,51 @@ func (a *APIServer) collectOSReleaseData() {
 
 	a.kernelVersion = kv.Code.String()
 	a.distribution = fmt.Sprintf("%s - %s", kv.OsRelease["ID"], kv.OsRelease["VERSION_ID"])
+}
+
+func (a *APIServer) collectSBOMS() {
+	if sbomResolver := a.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.SBOMResolver; sbomResolver != nil {
+		if err := sbomResolver.RegisterListener(sbom.SBOMComputed, func(sbom *sbompkg.ScanResult) {
+			select {
+			case a.sboms <- sbom:
+			default:
+				seclog.Warnf("dropping SBOM event")
+			}
+		}); err != nil {
+			seclog.Errorf("failed to register SBOM listener: %s", err)
+		}
+	}
+}
+
+// GetSBOMStream handles SBOM stream requests
+func (a *APIServer) GetSBOMStream(_ *sbompb.SBOMStreamParams, stream sbompb.SBOMCollector_GetSBOMStreamServer) error {
+	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-a.stopChan:
+			return nil
+		case sbom := <-a.sboms:
+			bom, err := sbom.Report.ToCycloneDX()
+			if err != nil {
+				return err
+			}
+
+			buffer := new(bytes.Buffer)
+			encoder := cyclonedx.NewBOMEncoder(buffer, cyclonedx.BOMFileFormatJSON)
+			if err := encoder.Encode(bom); err != nil {
+				return fmt.Errorf("failed to encode SBOM: %w", err)
+			}
+
+			msg := &sbompb.SBOMMessage{
+				Data: buffer.Bytes(),
+				Kind: string(workloadmeta.KindContainer),
+				ID:   sbom.RequestID,
+			}
+
+			if err := stream.Send(msg); err != nil {
+				return fmt.Errorf("failed to send SBOM: %s", err)
+			}
+		}
+	}
 }

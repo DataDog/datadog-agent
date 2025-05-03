@@ -23,6 +23,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	sbomapi "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -118,8 +120,10 @@ func mergeJSON(j1, j2 []byte) []byte {
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
 	api.UnimplementedSecurityModuleServer
+	sbomapi.UnimplementedSBOMCollectorServer
 	msgs               chan *api.SecurityEventMessage
 	activityDumps      chan *api.ActivityDumpStreamMessage
+	sboms              chan *sbom.ScanResult
 	expiredEventsLock  sync.RWMutex
 	expiredEvents      map[rules.RuleID]*atomic.Int64
 	expiredDumps       *atomic.Int64
@@ -599,6 +603,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	as := &APIServer{
 		msgs:            make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
 		activityDumps:   make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
+		sboms:           make(chan *sbom.ScanResult, 100),
 		expiredEvents:   make(map[rules.RuleID]*atomic.Int64),
 		expiredDumps:    atomic.NewInt64(0),
 		statsdClient:    client,
@@ -613,6 +618,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	}
 
 	as.collectOSReleaseData()
+	as.collectSBOMS()
 
 	if as.msgSender == nil {
 		if cfg.SendEventFromSystemProbe {
