@@ -359,13 +359,13 @@ func (l *CheckRunner) Run() error {
 // and triggers an immediate ConnectionsCheck run if needed.
 func (l *CheckRunner) runCapacityCheckLoop() {
 	defer l.wg.Done()
-	log.Info("Starting periodic connections capacity check loop.")
+	log.Info("Starting periodic connections capacity check loop")
 
 	tickerInterval := l.config.GetDuration("process_config.intervals.connections_capacity_check")
-	// Enforce a minimum interval of 5 seconds (matches previous behavior in net.go)
-	minInterval := 5 * time.Second
+	// Enforce a minimum interval of 10 seconds
+	minInterval := 10 * time.Second
 	if tickerInterval < minInterval {
-		log.Warnf("Interval %v for process_config.intervals.connections_capacity_check is below minimum of %v, using minimum value.", tickerInterval, minInterval)
+		log.Warnf("Interval %v for process_config.intervals.connections_capacity_check is below minimum of %v, using minimum value", tickerInterval, minInterval)
 		tickerInterval = minInterval
 	}
 	log.Infof("Periodic capacity check running every %v", tickerInterval)
@@ -402,26 +402,18 @@ func (l *CheckRunner) runCapacityCheckLoop() {
 
 				// Run the check immediately
 				go func() {
-					// Add a recover function for safety
-					defer func() {
-						if r := recover(); r != nil {
-							log.Errorf("Recovered from panic during triggered ConnectionsCheck run execution in runner: %v", r)
-						}
-					}()
-
 					start := time.Now()
-					runResult, err := l.connectionsCheck.Run(l.nextGroupID, nil) // RunOptions are nil
+					runResult, err := l.connectionsCheck.Run(l.nextGroupID, nil)
 					if err != nil {
 						log.Errorf("Error during triggered ConnectionsCheck run from runner: %v", err)
 						return
 					}
 
 					if runResult == nil || len(runResult.Payloads()) == 0 {
-						log.Info("Triggered ConnectionsCheck run from runner completed but yielded no data.")
+						log.Info("Triggered ConnectionsCheck run from runner completed but yielded no data")
 						return
 					}
 
-					// Submit the result
 					msg := &types.Payload{
 						CheckName: checks.ConnectionsCheckName,
 						Message:   runResult.Payloads(),
@@ -437,7 +429,7 @@ func (l *CheckRunner) runCapacityCheckLoop() {
 			}
 
 		case <-l.stopCapacityCheck:
-			log.Info("Stopping periodic connections capacity check loop.")
+			log.Info("Stopping periodic connections capacity check loop")
 			return
 		}
 	}
