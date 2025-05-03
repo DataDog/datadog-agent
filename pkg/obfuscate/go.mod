@@ -4,7 +4,7 @@ go 1.23.0
 
 require (
 	github.com/DataDog/datadog-go/v5 v5.6.0
-	github.com/DataDog/go-sqllexer v0.1.3
+	github.com/DataDog/go-sqllexer v0.1.6
 	github.com/outcaste-io/ristretto v0.2.3
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/atomic v1.11.0
@@ -30,12 +30,15 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/api/authtoken => ../../comp/api/authtoken
 	github.com/DataDog/datadog-agent/comp/core/config => ../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../comp/core/hostname/hostnameinterface
+	github.com/DataDog/datadog-agent/comp/core/ipc/def => ../../comp/core/ipc/def
+	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers => ../../comp/core/ipc/httphelpers
+	github.com/DataDog/datadog-agent/comp/core/ipc/impl => ../../comp/core/ipc/impl
+	github.com/DataDog/datadog-agent/comp/core/ipc/mock => ../../comp/core/ipc/mock
 	github.com/DataDog/datadog-agent/comp/core/log/def => ../../comp/core/log/def
 	github.com/DataDog/datadog-agent/comp/core/log/fx => ../../comp/core/log/fx
 	github.com/DataDog/datadog-agent/comp/core/log/impl => ../../comp/core/log/impl

@@ -20,7 +20,7 @@ fetch_openjdk                        @DataDog/agent-metric-pipelines
 tests_*                                 @DataDog/multiple
 tests_ebpf*                             @DataDog/ebpf-platform
 tests_serverless                        @DataDog/serverless
-tests_windows_sysprobe*                 @DataDog/windows-kernel-integrations
+tests_windows_sysprobe*                 @DataDog/windows-agent
 security_go_generate_check              @DataDog/agent-security
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
 prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
@@ -45,7 +45,7 @@ build_windows_container_entrypoint   @DataDog/windows-agent
 generate_minimized_btfs_*            @DataDog/ebpf-platform
 
 # Package build
-agent_dmg*                           @DataDog/agent-delivery
+*agent_dmg*                          @DataDog/agent-delivery
 datadog-agent-*                      @DataDog/agent-delivery
 datadog-ot-agent-*                   @DataDog/agent-delivery
 dogstatsd-*                          @DataDog/agent-delivery
@@ -133,9 +133,9 @@ generate_windows_gitlab_runner_bump_pr* @DataDog/agent-delivery
 
 # Integration test
 integration_tests_windows*    @DataDog/windows-agent
-integration_tests_otel        @DataDog/opentelemetry
-docker_image_build_otel       @DataDog/opentelemetry
-datadog_otel_components_ocb_build  @DataDog/opentelemetry
+integration_tests_otel        @DataDog/opentelemetry-agent
+docker_image_build_otel       @DataDog/opentelemetry-agent
+datadog_otel_components_ocb_build  @DataDog/opentelemetry-agent
 agent_integration_tests       @DataDog/container-integrations
 docker_integration_tests      @DataDog/container-integrations
 trace_agent_integration_tests @DataDog/agent-apm
@@ -143,11 +143,11 @@ trace_agent_integration_tests @DataDog/agent-apm
 # Functional test
 serverless_cold_start_performance-deb_x64      @DataDog/serverless
 static_quality_gates                           @DataDog/agent-delivery
+manual_gate_threshold_update                   @DataDog/agent-delivery
 oracle*                                        @DataDog/database-monitoring
 
 # E2E
 k8s-e2e-*                         @DataDog/container-integrations
-k8s-e2e-otlp-*                    @DataDog/opentelemetry
 k8s-e2e-cspm-*                    @DataDog/agent-security
 
 # New E2E

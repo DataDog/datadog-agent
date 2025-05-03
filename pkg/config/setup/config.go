@@ -82,7 +82,7 @@ const (
 	DefaultCompressorKind = "zstd"
 
 	// DefaultLogCompressionKind is the default log compressor. Options available are 'zstd' and 'gzip'
-	DefaultLogCompressionKind = "gzip"
+	DefaultLogCompressionKind = "zstd"
 
 	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
 	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially
@@ -312,6 +312,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// If true, Python is loaded when the first Python check is loaded.
 	// Otherwise, Python is loaded when the collector is initialized.
 	config.BindEnvAndSetDefault("python_lazy_loading", true)
+
+	// If true, then new version of disk v2 check will be used.
+	// Otherwise, the old version of disk check will be used (maintaining backward compatibility).
+	config.BindEnvAndSetDefault("use_diskv2_check", false)
 
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
@@ -981,6 +985,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnv("ol_proxy_config.dd_url")
 	config.BindEnv("ol_proxy_config.api_key")
 	config.BindEnv("ol_proxy_config.additional_endpoints")
+	config.BindEnvAndSetDefault("ol_proxy_config.api_version", 2)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -1126,6 +1131,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
 	config.BindEnvAndSetDefault("check_system_probe_startup_time", 5*time.Minute)
+	config.BindEnvAndSetDefault("check_system_probe_timeout", 60*time.Second)
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	// used to override the path where the IPC cert/key files are stored/retrieved
 	config.BindEnvAndSetDefault("ipc_cert_file_path", "")
@@ -1214,8 +1220,6 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 
 func autoconfig(config pkgconfigmodel.Setup) {
 	// Autoconfig
-	// Defaut Timeout in second when talking to storage for configuration (etcd, zookeeper, ...)
-	config.BindEnvAndSetDefault("autoconf_template_url_timeout", 5)
 	// Where to look for check templates if no custom path is defined
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
 	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
@@ -1236,6 +1240,7 @@ func autoconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("container_exclude_logs", []string{})
 	config.BindEnvAndSetDefault("container_exclude_stopped_age", DefaultAuditorTTL-1) // in hours
 	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10))                 // in seconds
+	config.BindEnvAndSetDefault("ad_allowed_env_vars", []string{})
 	config.BindEnvAndSetDefault("extra_listeners", []string{})
 	config.BindEnvAndSetDefault("extra_config_providers", []string{})
 	config.BindEnvAndSetDefault("ignore_autoconf", []string{})
@@ -2179,7 +2184,7 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 		return nil
 	}
 
-	log.Warnf("(Deprecated) fips-proxy support is deprecated and will be removed in version 7.65 of the agent. Please use the `datadog-fips-agent` instead.")
+	log.Warn("The FIPS Agent (`datadog-fips-agent`) will replace the FIPS Proxy as the FIPS-compliant implementation of the Agent in the future. Please ensure that you transition to `datadog-fips-agent` as soon as possible.")
 
 	const (
 		proxyStats                 = 0
