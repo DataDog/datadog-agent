@@ -2180,7 +2180,7 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 		return nil
 	}
 
-	log.Warnf("(Deprecated) fips-proxy support is deprecated and will be removed in version 7.65 of the agent. Please use the `datadog-fips-agent` instead.")
+	log.Warn("The FIPS Agent (`datadog-fips-agent`) will replace the FIPS Proxy as the FIPS-compliant implementation of the Agent in the future. Please ensure that you transition to `datadog-fips-agent` as soon as possible.")
 
 	const (
 		proxyStats                 = 0
