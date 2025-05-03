@@ -62,7 +62,7 @@ func (t *TCPv4) TracerouteSequentialSocket() (*common.Results, error) {
 		Target:     t.Target,
 		DstPort:    t.DestPort,
 		Hops:       hops,
-		Tags:       []string{"tcp_method:syn"},
+		Tags:       []string{"tcp_method:syn_socket"},
 	}, nil
 }
 
@@ -140,7 +140,6 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 		Tags:       []string{"tcp_method:syn"},
 	}, nil
 }
-
 func (t *TCPv4) sendAndReceive(rs winconn.RawConnWrapper, ttl int, seqNum uint32, timeout time.Duration) (*common.Hop, error) {
 	_, buffer, _, err := t.createRawTCPSynBuffer(seqNum, ttl)
 	if err != nil {
