@@ -12,9 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
+
+	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 )
 
 func TestStatusProvider(t *testing.T) {
@@ -90,8 +91,8 @@ func TestStatusProvider(t *testing.T) {
 `
 
 			// We replace windows line break by linux so the tests pass on every OS
-			expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			expectedResult := strings.ReplaceAll(expectedTextOutput, "\r\n", "\n")
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 			assert.Equal(t, expectedResult, output)
 		}},
 		{"HTML", func(t *testing.T) {
@@ -129,8 +130,8 @@ func TestStatusProvider(t *testing.T) {
     </span>
   </div>`
 
-			expectedResult := strings.Replace(expectedHTMLOutput, "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			expectedResult := strings.ReplaceAll(expectedHTMLOutput, "\r\n", "\n")
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 			assert.Equal(t, expectedResult, output)
 		}},
 	}

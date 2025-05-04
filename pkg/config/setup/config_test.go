@@ -638,6 +638,8 @@ external_config:
 
 	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
 	assert.Equal(config.GetString("dd_url"), "https://app.datadoghq.eu", "this shouldn't be overrided")
+	assert.Equal(config.GetSource("api_key"), pkgconfigmodel.SourceAgentRuntime)
+	assert.Equal(config.GetSource("dd_url"), pkgconfigmodel.SourceFile)
 
 	pkgconfigmodel.AddOverrides(map[string]interface{}{
 		"dd_url": "http://localhost",
@@ -646,6 +648,8 @@ external_config:
 
 	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
 	assert.Equal(config.GetString("dd_url"), "http://localhost", "this dd_url should have been overrided")
+	assert.Equal(config.GetSource("api_key"), pkgconfigmodel.SourceAgentRuntime)
+	assert.Equal(config.GetSource("dd_url"), pkgconfigmodel.SourceAgentRuntime)
 }
 
 func TestGetValidHostAliasesWithConfig(t *testing.T) {
