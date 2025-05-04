@@ -119,7 +119,7 @@ func NewRunnerWithChecks(
 	config pkgconfigmodel.Reader,
 	sysProbeCfg *checks.SysProbeConfig,
 	hostInfo *checks.HostInfo,
-	checksSlice []checks.Check,
+	checks []checks.Check,
 	runRealTime bool,
 	rtNotifierChan <-chan types.RTResponse,
 ) (*CheckRunner, error) {
@@ -133,7 +133,7 @@ func NewRunnerWithChecks(
 
 		rtIntervalCh:  make(chan time.Duration),
 		groupID:       atomic.NewInt32(rand.Int31()),
-		enabledChecks: checksSlice,
+		enabledChecks: checks,
 
 		// Defaults for real-time on start
 		realTimeInterval: 2 * time.Second,
@@ -459,7 +459,6 @@ func (l *CheckRunner) UpdateRTStatus(statuses []*model.CollectorStatus) {
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func (l *CheckRunner) Stop() {
-	log.Info("Stopping CheckRunner")
 	close(l.stop)
 	l.wg.Wait()
 

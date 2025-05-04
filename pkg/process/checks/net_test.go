@@ -751,8 +751,8 @@ func TestConnectionsCheckConditionalRun(t *testing.T) {
 	hostInfo := &HostInfo{HostName: "test-host"}
 	err := check.Init(sysProbeCfg, hostInfo, false)
 	require.NoError(t, err)
-	// Override clock used by resolver *after* Init completes
-	check.localresolver.SetClock(mockClock)
+	// Override clock used by resolver *after* Init completes by accessing the exported field
+	check.localresolver.Clock = mockClock
 
 	// 1. Initial run: Should always be a full run because lastFullRunTime starts at zero.
 	t.Run("initial run", func(t *testing.T) {
