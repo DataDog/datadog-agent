@@ -124,8 +124,8 @@ typedef struct {
 
     // Arrays to keep track of the number of occurrences of each API version that were classified as kafka, before decoding
     // Make them have MAX_SUPPORTED + 1 length because we want to support api version 0.
-    __u64 classified_fetch_api_version_hits[KAFKA_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION+1];
-    __u64 classified_produce_api_version_hits[KAFKA_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION+1];
+    __u64 classified_fetch_api_version_hits[KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION+1];
+    __u64 classified_produce_api_version_hits[KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION+1];
 } kafka_telemetry_t;
 
 #endif

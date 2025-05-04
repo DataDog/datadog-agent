@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kversion"
@@ -251,11 +252,9 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		},
 	}
 
-	for produceVersion := kafka.MinSupportedProduceRequestApiVersion; produceVersion <= kafka.MaxSupportedProduceRequestApiVersion; produceVersion++ {
+	// Generate tests for all support Produce versions
+	for produceVersion := kafka.ClassificationMinSupportedProduceRequestApiVersion; produceVersion <= kafka.ClassificationMaxSupportedProduceRequestApiVersion; produceVersion++ {
 		expectedProtocol := protocols.Kafka
-		if produceVersion < kafka.MinSupportedProduceRequestApiVersion || produceVersion > kafka.MaxSupportedProduceRequestApiVersion {
-			expectedProtocol = protocols.Unknown
-		}
 
 		version := kversion.V4_0_0()
 		targetPort := kafkaPort
@@ -265,6 +264,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			version = kversion.V3_8_0()
 			targetPort = kafka.KafkaOldPort
 		}
+		require.LessOrEqual(t, int16(produceVersion), lo.Must(version.LookupMaxKeyVersion(produceAPIKey)), "produce version unsupported by kafka lib")
 		version.SetMaxKeyVersion(produceAPIKey, int16(produceVersion))
 
 		currentTest := buildProduceVersionTest(
@@ -280,11 +280,9 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		tests = append(tests, currentTest)
 	}
 
-	for fetchVersion := kafka.MinSupportedFetchRequestApiVersion; fetchVersion <= kafka.MaxSupportedFetchRequestApiVersion; fetchVersion++ {
+	// Generate tests for all support Fetch versions
+	for fetchVersion := kafka.ClassificationMinSupportedFetchRequestApiVersion; fetchVersion <= kafka.ClassificationMaxSupportedFetchRequestApiVersion; fetchVersion++ {
 		expectedProtocol := protocols.Kafka
-		if fetchVersion < kafka.MinSupportedFetchRequestApiVersion || fetchVersion > kafka.MaxSupportedFetchRequestApiVersion {
-			expectedProtocol = protocols.Unknown
-		}
 
 		// Default to kafka v4 and port 9092 (kafka server 4.0)
 		version := kversion.V4_0_0()
@@ -296,6 +294,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			version = kversion.V3_8_0()
 			targetPort = kafka.KafkaOldPort
 		}
+		require.LessOrEqual(t, int16(fetchVersion), lo.Must(version.LookupMaxKeyVersion(fetchAPIKey)), "fetch version unsupported by kafka lib")
 		version.SetMaxKeyVersion(fetchAPIKey, int16(fetchVersion))
 
 		currentTest := buildFetchVersionTest(

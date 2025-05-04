@@ -26,8 +26,8 @@ type kernelTelemetry struct {
 	// classifiedFetchAPIVersionHits and classifiedProduceAPIVersionHits are the number of classified fetch and produce requests
 	// broken by API version (the index)
 	// Make them have MAX_SUPPORTED + 1 length because we want to support api version 0.
-	classifiedFetchAPIVersionHits   [MaxSupportedFetchRequestApiVersion + 1]*libtelemetry.Counter
-	classifiedProduceAPIVersionHits [MaxSupportedProduceRequestApiVersion + 1]*libtelemetry.Counter
+	classifiedFetchAPIVersionHits   [ClassificationMaxSupportedFetchRequestApiVersion + 1]*libtelemetry.Counter
+	classifiedProduceAPIVersionHits [ClassificationMaxSupportedProduceRequestApiVersion + 1]*libtelemetry.Counter
 
 	// telemetryLastState represents the latest Kafka eBPF Kernel telemetry observed from the kernel
 	telemetryLastState RawKernelTelemetry
@@ -95,7 +95,7 @@ func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [Topic
 	return result
 }
 
-func computeProduceAPIVersionHitsBucketDifferences(bucket, otherBucket [MaxSupportedProduceRequestApiVersion + 1]uint64) [MaxSupportedProduceRequestApiVersion + 1]uint64 {
+func computeProduceAPIVersionHitsBucketDifferences(bucket, otherBucket [ClassificationMaxSupportedProduceRequestApiVersion + 1]uint64) [ClassificationMaxSupportedProduceRequestApiVersion + 1]uint64 {
 	var result [len(bucket)]uint64
 
 	for i := 0; i < len(result); i++ {
@@ -105,7 +105,7 @@ func computeProduceAPIVersionHitsBucketDifferences(bucket, otherBucket [MaxSuppo
 	return result
 }
 
-func computeFetchAPIVersionHitsBucketDifferences(bucket, otherBucket [MaxSupportedFetchRequestApiVersion + 1]uint64) [MaxSupportedFetchRequestApiVersion + 1]uint64 {
+func computeFetchAPIVersionHitsBucketDifferences(bucket, otherBucket [ClassificationMaxSupportedFetchRequestApiVersion + 1]uint64) [ClassificationMaxSupportedFetchRequestApiVersion + 1]uint64 {
 	var result [len(bucket)]uint64
 
 	for i := 0; i < len(result); i++ {
