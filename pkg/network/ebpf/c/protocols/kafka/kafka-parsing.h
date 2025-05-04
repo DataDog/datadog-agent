@@ -1818,9 +1818,9 @@ static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *
 
 // update_classified_fetch_api_version_hits_telemetry updates the array keeping track of fetch api versions hits in the telemetry
 static __always_inline void update_classified_fetch_api_version_hits_telemetry(kafka_telemetry_t *kafka_tel, __u8 api_version) {
-    __u8 bucket_idx = api_version - 1;
+    __u8 bucket_idx = api_version; // Note that api_version may be 0
 
-    if (bucket_idx < 0 || bucket_idx > KAFKA_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION - 1) {
+    if (bucket_idx < 0 || bucket_idx > KAFKA_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) {
         return;
     }
 
@@ -1829,9 +1829,9 @@ static __always_inline void update_classified_fetch_api_version_hits_telemetry(k
 
 // update_classified_produce_api_version_hits_telemetry updates the array keeping track of produce api versions hits in the telemetry
 static __always_inline void update_classified_produce_api_version_hits_telemetry(kafka_telemetry_t *kafka_tel, __u8 api_version) {
-    __u8 bucket_idx = api_version - 1;
+    __u8 bucket_idx = api_version; // Note that api_version may be 0
 
-    if (bucket_idx < 0 || bucket_idx > KAFKA_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION - 1) {
+    if (bucket_idx < 0 || bucket_idx > KAFKA_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
         return;
     }
 
