@@ -1622,13 +1622,20 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
 
     log_debug("kafka: kafka_header.api_key: %d api_version: %d", kafka_header.api_key, kafka_header.api_version);
 
-    // Report api version hits telemetry
+    // Report api version hits telemetry & check if the api version is supported
+    // Classification has different supported versions for various API keys.
     switch (kafka_header.api_key) {
         case KAFKA_PRODUCE:
             update_classified_produce_api_version_hits_telemetry(kafka_tel, kafka_header.api_version);
+            if (kafka_header.api_version > KAFKA_DECODING_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
+                return false;
+            }
             break;
         case KAFKA_FETCH:
             update_classified_fetch_api_version_hits_telemetry(kafka_tel, kafka_header.api_version);
+            if (kafka_header.api_version > KAFKA_DECODING_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) {
+                return false;
+            }
             break;
     }
 
