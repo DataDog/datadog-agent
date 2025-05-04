@@ -242,6 +242,7 @@ var gnuTLSProbes = []manager.ProbesSelector{
 
 const (
 	sslSockByCtxMap    = "ssl_sock_by_ctx"
+	sslCtxByTupleMap   = "ssl_ctx_by_tuple"
 	sslCtxByPIDTGIDMap = "ssl_ctx_by_pid_tgid"
 )
 
@@ -251,6 +252,9 @@ var (
 	sharedLibrariesMaps = []*manager.Map{
 		{
 			Name: sslSockByCtxMap,
+		},
+		{
+			Name: sslCtxByTupleMap,
 		},
 		{
 			Name: "ssl_read_args",
@@ -500,7 +504,7 @@ func (o *sslProgram) Name() string {
 }
 
 func sharedLibrariesConfigureOptions(options *manager.Options, cfg *config.Config) {
-	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
+	options.MapSpecEditors["ssl_sock_by_ctx"] = manager.MapSpecEditor{
 		MaxEntries: cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
@@ -515,7 +519,22 @@ func sharedLibrariesConfigureOptions(options *manager.Options, cfg *config.Confi
 
 // ConfigureOptions changes map attributes to the given options.
 func (o *sslProgram) ConfigureOptions(options *manager.Options) {
+	// Adjust map sizes
+	maxTrackedConnections := o.cfg.MaxTrackedConnections
+	options.MapSpecEditors["ssl_sock_by_ctx"] = manager.MapSpecEditor{
+		MaxEntries: maxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	// Configure the new map ssl_ctx_by_tuple
+	options.MapSpecEditors["ssl_ctx_by_tuple"] = manager.MapSpecEditor{
+		MaxEntries: maxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+
+	// Shared library watching configuration
 	sharedLibrariesConfigureOptions(options, o.cfg)
+
+	// Add process exit probe
 	o.addProcessExitProbe(options)
 }
 
@@ -543,6 +562,15 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 		iter := currentMap.Iterate()
 		var key uintptr // C.void *
 		var value http.SslSock
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+
+	case sslCtxByTupleMap: // maps/ssl_ctx_by_tuple (BPF_MAP_TYPE_HASH), key C.conn_tuple_t, value C.void *
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.conn_tuple_t', value: 'uintptr // C.void *'\n")
+		iter := currentMap.Iterate()
+		var key http.ConnTuple
+		var value uintptr
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
