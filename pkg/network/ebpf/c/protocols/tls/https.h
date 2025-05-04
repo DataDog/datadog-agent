@@ -295,11 +295,6 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
     normalized_tup.pid = 0;
     normalized_tup.netns = 0;
     bpf_map_update_with_telemetry(ssl_ctx_by_tuple, &normalized_tup, &ssl_ctx, BPF_ANY);
-
-    // Also update the inverse map (sock -> ssl_sock_t struct)
-    // Note: We assume ssl_sock_t now contains the struct sock* skp itself, or we need to add it.
-    // ssl_sock.sock = skp; // Assuming ssl_sock_t has a sock member, store skp in it. // REMOVED logic for ssl_ctx_by_sock
-    // bpf_map_update_with_telemetry(ssl_ctx_by_sock, &skp, &ssl_sock, BPF_ANY); // REMOVED logic for ssl_ctx_by_sock
 }
 
 /**

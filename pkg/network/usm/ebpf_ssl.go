@@ -504,7 +504,11 @@ func (o *sslProgram) Name() string {
 }
 
 func sharedLibrariesConfigureOptions(options *manager.Options, cfg *config.Config) {
-	options.MapSpecEditors["ssl_sock_by_ctx"] = manager.MapSpecEditor{
+	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
+		MaxEntries: cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	options.MapSpecEditors[sslCtxByTupleMap] = manager.MapSpecEditor{
 		MaxEntries: cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
@@ -519,22 +523,8 @@ func sharedLibrariesConfigureOptions(options *manager.Options, cfg *config.Confi
 
 // ConfigureOptions changes map attributes to the given options.
 func (o *sslProgram) ConfigureOptions(options *manager.Options) {
-	// Adjust map sizes
-	maxTrackedConnections := o.cfg.MaxTrackedConnections
-	options.MapSpecEditors["ssl_sock_by_ctx"] = manager.MapSpecEditor{
-		MaxEntries: maxTrackedConnections,
-		EditorFlag: manager.EditMaxEntries,
-	}
-	// Configure the new map ssl_ctx_by_tuple
-	options.MapSpecEditors["ssl_ctx_by_tuple"] = manager.MapSpecEditor{
-		MaxEntries: maxTrackedConnections,
-		EditorFlag: manager.EditMaxEntries,
-	}
-
-	// Shared library watching configuration
 	sharedLibrariesConfigureOptions(options, o.cfg)
 
-	// Add process exit probe
 	o.addProcessExitProbe(options)
 }
 
