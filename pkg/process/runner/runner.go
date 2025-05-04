@@ -336,103 +336,7 @@ func (l *CheckRunner) Run() error {
 		}()
 	}
 
-	// Start the connections capacity check loop if the check is enabled
-	capacityCheckEnabled := l.config.GetBool("process_config.connections_capacity_check.enabled")
-	if l.connectionsCheck != nil && l.connectionsCheck.IsEnabled() && l.sysprobeClient != nil && capacityCheckEnabled {
-		l.wg.Add(1)
-		go l.runCapacityCheckLoop()
-		log.Info("Started connections capacity checker in CheckRunner.")
-	} else {
-		if l.connectionsCheck == nil || !l.connectionsCheck.IsEnabled() {
-			log.Info("Connections check disabled, not starting capacity checker.")
-		} else if l.sysprobeClient == nil {
-			log.Warn("System probe client not available, not starting capacity checker.")
-		} else if !capacityCheckEnabled {
-			log.Info("Connections capacity checker disabled via process_config.connections_capacity_check.enabled=false.")
-		}
-	}
-
 	return nil
-}
-
-// runCapacityCheckLoop periodically checks the system-probe connection buffer capacity
-// and triggers an immediate ConnectionsCheck run if needed.
-func (l *CheckRunner) runCapacityCheckLoop() {
-	defer l.wg.Done()
-	log.Info("Starting periodic connections capacity check loop")
-
-	tickerInterval := l.config.GetDuration("process_config.intervals.connections_capacity_check")
-	// Enforce a minimum interval of 10 seconds
-	minInterval := 10 * time.Second
-	if tickerInterval < minInterval {
-		log.Warnf("Interval %v for process_config.intervals.connections_capacity_check is below minimum of %v, using minimum value", tickerInterval, minInterval)
-		tickerInterval = minInterval
-	}
-	log.Infof("Periodic capacity check running every %v", tickerInterval)
-
-	ticker := time.NewTicker(tickerInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/connections/check_capacity?client_id="+defaultProcessAgentClientID)
-			req, err := http.NewRequest("GET", url, nil)
-			if err != nil {
-				log.Warnf("Error creating capacity check request %s: %v", url, err)
-				continue
-			}
-
-			log.Tracef("Runner calling capacity check endpoint: %s", url)
-			resp, err := l.sysprobeClient.Do(req)
-			if err != nil {
-				log.Debugf("Runner error calling capacity check endpoint %s: %v", url, err)
-				if resp != nil {
-					resp.Body.Close()
-				}
-				continue
-			}
-
-			statusCode := resp.StatusCode
-			resp.Body.Close()
-
-			switch statusCode {
-			case http.StatusOK: // 200 OK => Near capacity
-				log.Warnf("System-probe connections buffer nearing capacity. Triggering early check run from runner.")
-
-				// Run the check immediately
-				go func() {
-					start := time.Now()
-					runResult, err := l.connectionsCheck.Run(l.nextGroupID, nil)
-					if err != nil {
-						log.Errorf("Error during triggered ConnectionsCheck run from runner: %v", err)
-						return
-					}
-
-					if runResult == nil || len(runResult.Payloads()) == 0 {
-						log.Info("Triggered ConnectionsCheck run from runner completed but yielded no data")
-						return
-					}
-
-					msg := &types.Payload{
-						CheckName: checks.ConnectionsCheckName,
-						Message:   runResult.Payloads(),
-					}
-					l.Submitter.Submit(start, checks.ConnectionsCheckName, msg)
-					log.Infof("Triggered ConnectionsCheck run from runner completed successfully and submitted %d payloads.", len(runResult.Payloads()))
-				}()
-
-			case http.StatusNoContent: // 204 No Content => Not near capacity
-				log.Trace("Runner capacity check OK (204 No Content).")
-			default:
-				log.Warnf("Runner received unexpected status code %d from capacity check endpoint %s", statusCode, url)
-			}
-
-		case <-l.stopCapacityCheck:
-			log.Info("Stopping periodic connections capacity check loop")
-			return
-		}
-	}
 }
 
 func (l *CheckRunner) listenForRTUpdates() {
@@ -581,10 +485,6 @@ func (l *CheckRunner) UpdateRTStatus(statuses []*model.CollectorStatus) {
 func (l *CheckRunner) Stop() {
 	log.Info("Stopping CheckRunner")
 	close(l.stop)
-	// Stop the capacity check loop as well
-	if l.stopCapacityCheck != nil {
-		close(l.stopCapacityCheck)
-	}
 	l.wg.Wait()
 
 	for _, check := range l.enabledChecks {
