@@ -149,7 +149,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 
 	endpoint = endpoints.Main
 	suite.True(endpoint.UseCompression)
-	suite.Equal(endpoint.CompressionLevel, 6)
+	suite.Equal(endpoint.CompressionLevel, ZstdCompressionLevel)
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndCompressionAndOverride() {
@@ -157,9 +157,11 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	var endpoint Endpoint
 	var err error
 
+	zstdCompressionLevel := 2
+
 	suite.config.SetWithoutSource("logs_config.use_http", true)
 	suite.config.SetWithoutSource("logs_config.use_compression", true)
-	suite.config.SetWithoutSource("logs_config.compression_level", 1)
+	suite.config.SetWithoutSource("logs_config.zstd_compression_level", zstdCompressionLevel)
 
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
@@ -167,7 +169,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 
 	endpoint = endpoints.Main
 	suite.True(endpoint.UseCompression)
-	suite.Equal(endpoint.CompressionLevel, 1)
+	suite.Equal(endpoint.CompressionLevel, zstdCompressionLevel)
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndOverride() {
@@ -878,6 +880,55 @@ func (suite *EndpointsTestSuite) TestloadHTTPAdditionalEndpoints() {
 	suite.Suite.Require().Len(endpoints, 2)
 	compareEndpoint(suite.T(), expected1, endpoints[0])
 	compareEndpoint(suite.T(), expected2, endpoints[1])
+}
+
+func (suite *EndpointsTestSuite) TestCompressionKindWithAdditionalEndpoints() {
+	// Test on logs_config endpoints
+	logsConfig := defaultLogsConfigKeys(suite.config)
+
+	// Test compression kind when no additional endpoints are present
+	suite.config.SetWithoutSource("logs_config.additional_endpoints", nil)
+	suite.Equal("zstd", logsConfig.compressionKind())
+
+	// Test compression kind when additional endpoints are present
+	suite.config.SetWithoutSource("logs_config.additional_endpoints", `[{"api_key":"foo","host":"bar"}]`)
+	suite.Equal("gzip", logsConfig.compressionKind())
+
+	// Test compression kind when additional endpoints are present and compression_kind is set
+	suite.config.SetWithoutSource("logs_config.additional_endpoints", `[{"api_key":"foo","host":"bar"}]`)
+	suite.config.SetWithoutSource("logs_config.compression_kind", "zstd")
+	suite.Equal("zstd", logsConfig.compressionKind())
+
+	// Test invalid compression kind when additional endpoints are present and compression_kind is explicitly configured
+	suite.config.SetWithoutSource("logs_config.additional_endpoints", `[{"api_key":"foo","host":"bar"}]`)
+	suite.config.SetWithoutSource("logs_config.compression_kind", "meow")
+	suite.Equal("zstd", logsConfig.compressionKind())
+
+	// Test on other endpoint
+	dbmConfig := NewLogsConfigKeys("database_monitoring.metrics.", suite.config)
+
+	// Test compression kind when no additional endpoints are present
+	suite.config.SetWithoutSource("database_monitoring.metrics.compression_kind", "gzip")
+	suite.Equal("gzip", dbmConfig.compressionKind())
+
+	// Test compression kind when additional endpoints are present
+	suite.config.SetWithoutSource("logs_config.additional_endpoints", `[{"api_key":"foo","host":"bar"}]`)
+	suite.Equal("gzip", dbmConfig.compressionKind())
+
+	// Test compression kind when additional endpoints are present and compression_kind is set for other pipeline
+	suite.config.SetWithoutSource("database_monitoring.metrics.additional_endpoints", `[{"api_key":"foo","host":"bar"}]`)
+	suite.config.SetWithoutSource("database_monitoring.metrics.compression_kind", "zstd")
+	suite.Equal("zstd", dbmConfig.compressionKind())
+
+	// Test compression kind when global additional endpoints are present and compression_kind is set for other pipeline
+	suite.config.SetWithoutSource("logs_config.additional_endpoints", `[{"api_key":"foo","host":"bar"}]`)
+	suite.config.SetWithoutSource("database_monitoring.metrics.compression_kind", "gzip")
+	suite.Equal("gzip", dbmConfig.compressionKind())
+
+	// Test invalid compression kind when additional endpoints are present and compression_kind is explicitly configured for other pipeline
+	suite.config.SetWithoutSource("logs_config.additional_endpoints", `[{"api_key":"foo","host":"bar"}]`)
+	suite.config.SetWithoutSource("database_monitoring.metrics.compression_kind", "meow")
+	suite.Equal("zstd", dbmConfig.compressionKind())
 }
 
 func TestEndpointsTestSuite(t *testing.T) {
