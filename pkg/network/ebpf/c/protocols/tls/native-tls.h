@@ -362,11 +362,28 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_shutdown, void *ssl_ctx) {
     log_debug("uprobe/SSL_shutdown: pid_tgid=%llx ctx=%p", pid_tgid, ssl_ctx);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
     if (t == NULL) {
+        // If we can't find the tuple, we likely can't find the sock* either.
+        // Still attempt to delete the original map entry based on ssl_ctx.
+        bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
         return 0;
     }
 
+    // Attempt to get the sock* to clean the inverse map
+    // ssl_sock_t *ssl_sock = bpf_map_lookup_elem(&ssl_sock_by_ctx, &ssl_ctx); // No longer needed for ssl_ctx_by_sock cleanup
+
     // tls_finish can launch a tail call, thus cleanup should be done before.
-    bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
+    // Delete original ctx -> sock_t map first
+    bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx); // Delete original map
+    // Now delete from the tuple -> ctx map using the normalized tuple t
+    // (Tuple t from tup_from_ssl_ctx should already be normalized)
+    bpf_map_delete_elem(&ssl_ctx_by_tuple, t);
+
+    // Now delete from the inverse map using the sock* stored in ssl_sock_t // REMOVED logic for ssl_ctx_by_sock
+    // if (ssl_sock && ssl_sock->sock) { // Check if ssl_sock was found and sock ptr is valid // REMOVED
+    //     struct sock *sk = ssl_sock->sock; // REMOVED
+    //     bpf_map_delete_elem(&ssl_ctx_by_sock, &sk); // Delete inverse map // REMOVED
+    // } // REMOVED
+
     tls_finish(ctx, t, false);
 
     return 0;
@@ -527,11 +544,28 @@ static __always_inline void gnutls_goodbye(struct pt_regs *ctx, void *ssl_sessio
     log_debug("gnutls_goodbye: pid=%llu ctx=%p", pid_tgid, ssl_session);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
     if (t == NULL) {
+        // If we can't find the tuple, we likely can't find the sock* either.
+        // Still attempt to delete the original map entry based on ssl_session.
+        bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_session);
         return;
     }
 
+    // Attempt to get the sock* to clean the inverse map
+    // ssl_sock_t *ssl_sock = bpf_map_lookup_elem(&ssl_sock_by_ctx, &ssl_session); // No longer needed for ssl_ctx_by_sock cleanup
+
     // tls_finish can launch a tail call, thus cleanup should be done before.
-    bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_session);
+    // Delete original ctx -> sock_t map first
+    bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_session); // Delete original map
+    // Now delete from the tuple -> ctx map using the normalized tuple t
+    // (Tuple t from tup_from_ssl_ctx should already be normalized)
+    bpf_map_delete_elem(&ssl_ctx_by_tuple, t);
+
+    // Now delete from the inverse map using the sock* stored in ssl_sock_t // REMOVED logic for ssl_ctx_by_sock
+    // if (ssl_sock && ssl_sock->sock) { // Check if ssl_sock was found and sock ptr is valid // REMOVED
+    //     struct sock *sk = ssl_sock->sock; // REMOVED
+    //     bpf_map_delete_elem(&ssl_ctx_by_sock, &sk); // Delete inverse map // REMOVED
+    // } // REMOVED
+
     tls_finish(ctx, t, false);
 }
 

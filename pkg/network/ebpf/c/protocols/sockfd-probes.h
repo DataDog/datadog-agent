@@ -35,6 +35,24 @@ int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
         bpf_map_delete_elem(&pid_fd_by_tuple, &t);
     }
 
+    // Clean up TLS maps associated with this connection tuple
+    conn_tuple_t normalized_t = t;
+    normalize_tuple(&normalized_t); // Normalize tuple to match the key used during insertion
+    // Ensure PID and NetNS are zeroed for the key, matching normalization in tls_process/tls_finish/map_ssl_ctx_to_sock
+    normalized_t.pid = 0;
+    normalized_t.netns = 0;
+
+    void **ssl_ctx_ptr = bpf_map_lookup_elem(&ssl_ctx_by_tuple, &normalized_t);
+    if (ssl_ctx_ptr) {
+        void *ssl_ctx = *ssl_ctx_ptr;
+        // Delete from tuple -> ctx map first
+        bpf_map_delete_elem(&ssl_ctx_by_tuple, &normalized_t);
+        // Then delete from original ctx -> sock_t map
+        if (ssl_ctx) {
+            bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
+        }
+    }
+
     // The cleanup of the map happens either during TCP termination or during the TLS shutdown event.
     // TCP termination is managed by the socket filter, thus it cannot clean TLS entries,
     // as it does not have access to the PID and NETNS.
