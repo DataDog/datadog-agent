@@ -2897,7 +2897,7 @@ func createTestConnectionStats(cookie StatCookie) *ConnectionStats {
 	}
 }
 
-func TestNearCapacityFlag_SetAndCheck(t *testing.T) {
+func TestNearCapacityFlagSetAndCheck(t *testing.T) {
 	// Use a small size for easier testing
 	const maxClosedConns = 10
 	const capacityThreshold = (maxClosedConns * 9) / 10 // Should be 9
@@ -2910,7 +2910,7 @@ func TestNearCapacityFlag_SetAndCheck(t *testing.T) {
 	ns.RegisterClient(clientID) // Register the client
 
 	// Add connections below threshold
-	ns.Lock()                                  // Lock needed as storeClosedConnection assumes lock is held
+	ns.Lock()                                  // Lock needed as storeClosedConnection assumes lock is held by caller
 	for i := 0; i < capacityThreshold-1; i++ { // Add 8 connections
 		ns.storeClosedConnection(createTestConnectionStats(StatCookie(i)))
 	}
@@ -2936,7 +2936,7 @@ func TestNearCapacityFlag_SetAndCheck(t *testing.T) {
 	assert.True(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should remain true even when buffer is full/dropping") // Pass clientID
 }
 
-func TestNearCapacityFlag_ResetByGetDelta(t *testing.T) {
+func TestNearCapacityFlagResetByGetDelta(t *testing.T) {
 	const maxClosedConns = 10
 	const capacityThreshold = (maxClosedConns * 9) / 10
 
@@ -2948,7 +2948,7 @@ func TestNearCapacityFlag_ResetByGetDelta(t *testing.T) {
 	ns.RegisterClient(clientID)
 
 	// Add connections to trigger the flag
-	ns.Lock()
+	ns.Lock()                                // Lock needed as storeClosedConnection assumes lock is held by caller
 	for i := 0; i < capacityThreshold; i++ { // Add 9 connections
 		ns.storeClosedConnection(createTestConnectionStats(StatCookie(i)))
 	}
@@ -2963,7 +2963,7 @@ func TestNearCapacityFlag_ResetByGetDelta(t *testing.T) {
 	assert.False(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should be reset after GetDelta") // Pass clientID
 }
 
-func TestNearCapacityFlag_MultipleClients(t *testing.T) {
+func TestNearCapacityFlagMultipleClients(t *testing.T) {
 	// Test the behavior with multiple clients and the per-client flag
 	const maxClosedConns = 10
 	const capacityThreshold = (maxClosedConns * 9) / 10
@@ -2977,18 +2977,21 @@ func TestNearCapacityFlag_MultipleClients(t *testing.T) {
 	ns.RegisterClient(client1)
 	ns.RegisterClient(client2)
 
-	// Fill client1's buffer to trigger its flag
-	ns.Lock()
+	// Fill client1's buffer to trigger its flag.
+	// We manually insert into the client's buffer here and set the flag
+	// to directly test the flag's independence, rather than relying on
+	// the side effects of storeClosedConnection iterating over all clients.
+	ns.Lock() // Lock required to access internal client state
 	for i := 0; i < capacityThreshold; i++ {
-		// Simulate connections being stored for both clients (as storeClosedConnection iterates)
 		conn := createTestConnectionStats(StatCookie(i))
 		c1 := ns.getClient(client1)
+		require.NotNil(t, c1, "Client 1 should exist")
 		c1.closed.insert(conn, uint32(maxClosedConns)) // Simulate adding to client 1
 		// Check and set client 1's flag explicitly if needed for test clarity
 		if uint32(len(c1.closed.conns)) >= capacityThreshold {
 			c1.closedConnectionsNearCapacity.Store(true)
 		}
-		// Keep client 2 buffer empty
+		// Ensure client 2 buffer remains empty by just getting the client reference
 		_ = ns.getClient(client2)
 	}
 	flagSetByClient1 := ns.clients[client1].closedConnectionsNearCapacity.Load() // Check client1's flag
@@ -3002,13 +3005,14 @@ func TestNearCapacityFlag_MultipleClients(t *testing.T) {
 	assert.True(t, ns.IsClosedConnectionsNearCapacity(client1), "Client 1 flag should NOT be reset by GetDelta for client2")
 	assert.False(t, ns.IsClosedConnectionsNearCapacity(client2), "Client 2 flag should remain false after GetDelta for client2")
 
-	// Now fill client2's buffer to trigger its flag
-	ns.Lock()
+	// Now fill client2's buffer to trigger its flag (similar simulation)
+	ns.Lock() // Lock required to access internal client state
 	for i := 0; i < capacityThreshold; i++ {
 		conn := createTestConnectionStats(StatCookie(100 + i)) // Use different cookies
-		// Keep client 1 buffer as is
+		// Ensure client 1 buffer is not touched
 		_ = ns.getClient(client1)
 		c2 := ns.getClient(client2)
+		require.NotNil(t, c2, "Client 2 should exist")
 		c2.closed.insert(conn, uint32(maxClosedConns)) // Simulate adding to client 2
 		// Check and set client 2's flag
 		if uint32(len(c2.closed.conns)) >= capacityThreshold {

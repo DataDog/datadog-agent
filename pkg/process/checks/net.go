@@ -43,8 +43,6 @@ const (
 var (
 	// ProcessAgentClientID process-agent unique ID
 	ProcessAgentClientID = "process-agent-unique-id"
-	// defaultFullRunInterval is the default interval for forcing a full connection data fetch
-	defaultFullRunInterval = 30 * time.Second
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
@@ -69,7 +67,7 @@ type ConnectionsCheck struct {
 	networkID              string
 	notInitializedLogLimit *log.Limit
 	lastFullRunTime        time.Time
-	fullRunInterval        time.Duration
+	guaranteedRunInterval  time.Duration // Use the standard check interval for guaranteed runs
 
 	dockerFilter     *parser.DockerProxy
 	serviceExtractor *parser.ServiceExtractor
@@ -81,8 +79,6 @@ type ConnectionsCheck struct {
 	npCollector npcollector.Component
 
 	sysprobeClient *http.Client
-
-	runLock sync.Mutex // To prevent concurrent runs
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -123,12 +119,13 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 
 	// Initialize state for the capacity-based run logic
 	c.lastFullRunTime = time.Time{} // Ensure the first run is a full run
-	c.fullRunInterval = c.config.GetDuration("process_config.connections_full_run_interval")
-	if c.fullRunInterval <= 0 {
-		log.Infof("process_config.connections_full_run_interval is not configured or invalid, defaulting to %v", defaultFullRunInterval)
-		c.fullRunInterval = defaultFullRunInterval
-	}
-	log.Infof("Connections check running with full data collection forced every %v", c.fullRunInterval)
+	// Guaranteed run interval is driven by the standard connections check interval
+	c.guaranteedRunInterval = GetInterval(c.config, ConnectionsCheckName)
+	log.Infof(
+		"Connections check running: Capacity check interval=%v, Guaranteed full run interval=%v",
+		c.config.GetDuration("process_config.connections_capacity_check_interval"), // Log the capacity check interval for clarity
+		c.guaranteedRunInterval,
+	)
 
 	return nil
 }
@@ -169,14 +166,10 @@ func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 // that will be bundled up into a `CollectorConnections`.
 // See agent.proto for the schema of the message and models.
 func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
-	// Lock to prevent concurrent runs if the scheduler triggers them close together
-	c.runLock.Lock()
-	defer c.runLock.Unlock()
-
 	start := time.Now()
 
-	// Determine if we need to run the check
-	isTimeForFullRun := start.Sub(c.lastFullRunTime) >= c.fullRunInterval
+	// Determine if we need to run the check using capacity-aware logic
+	isTimeForGuaranteedRun := start.Sub(c.lastFullRunTime) >= c.guaranteedRunInterval
 	isNearCapacity := false
 	if c.sysprobeClient != nil {
 		var capacityErr error
@@ -189,14 +182,17 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 		log.Trace("System probe client not available, skipping capacity check.")
 	}
 
-	if !isNearCapacity && !isTimeForFullRun {
-		log.Tracef("Skipping full connections check run (Capacity OK, not time for full run). Last full run: %v ago", start.Sub(c.lastFullRunTime))
+	// Decide whether to run the full check
+	shouldRunFullCheck := isTimeForGuaranteedRun || isNearCapacity
+
+	if !shouldRunFullCheck {
+		log.Tracef("Skipping connections check run (Capacity OK, not time for guaranteed run). Last full run: %v ago", start.Sub(c.lastFullRunTime))
 		// Mark last collect time for status page, even if skipped
 		status.UpdateLastCollectTime(start)
 		return StandardRunResult(nil), nil
 	}
 
-	log.Debugf("Running full connections check. Reason: NearCapacity=%v, TimeForFullRun=%v", isNearCapacity, isTimeForFullRun)
+	log.Debugf("Running connections check. Reason: TimeForGuaranteedRun=%v, NearCapacity=%v", isTimeForGuaranteedRun, isNearCapacity)
 	// Update last run time *before* the potentially long-running operations
 	c.lastFullRunTime = start
 

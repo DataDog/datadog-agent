@@ -22,7 +22,6 @@ import (
 
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
@@ -711,17 +710,17 @@ func TestConnectionsCheckConditionalRun(t *testing.T) {
 	mockClock := clock.NewMock() // Mock the clock
 	wmeta := workloadmetamock.New(t)
 	config := configmock.New(t)
-	sysprobeConfig := configmock.NewSystemProbe(t)
+	sysprobeYamlConfig := configmock.NewSystemProbe(t)
 
 	// Configure intervals
-	checkInterval := 5 * time.Second // How often Run is called externally
+	checkInterval := 5 * time.Second // How often Run is called *externally* by the runner
 	fullRunInterval := 30 * time.Second
 	config.SetWithoutSource("process_config.intervals.connections_check", checkInterval)
 	config.SetWithoutSource("process_config.connections_full_run_interval", fullRunInterval)
-	sysprobeConfig.SetWithoutSource("system_probe_config.enabled", true)
+	sysprobeYamlConfig.SetWithoutSource("system_probe_config.enabled", true)
 
 	capacityStatus := http.StatusNoContent     // Default: Not near capacity
-	connectionsResponse := &model.Connections{ // Sample response for getConnections
+	connectionsResponse := &model.Connections{ // Sample response for /connections
 		Conns: []*model.Connection{makeConnection(123)},
 	}
 	connBody, _ := netEncoding.GetMarshaler(netEncoding.ContentTypeProtobuf).Marshal(connectionsResponse)
@@ -747,19 +746,17 @@ func TestConnectionsCheckConditionalRun(t *testing.T) {
 
 	sysprobeAddr := server.Listener.Addr().String()
 	sysProbeCfg := &SysProbeConfig{SystemProbeAddress: sysprobeAddr, MaxConnsPerMessage: 100}
-
-	check := NewConnectionsCheck(config, sysprobeConfig, &sysconfigtypes.Config{Enabled: true}, wmeta, nil) // Pass nil for npCollector for this test
+	// Use sysprobeYamlConfig for system probe settings, nil for actual sysconfig (as it's not directly used here)
+	check := NewConnectionsCheck(config, sysprobeYamlConfig, nil, wmeta, nil) // npCollector not needed for this test
 	hostInfo := &HostInfo{HostName: "test-host"}
 	err := check.Init(sysProbeCfg, hostInfo, false)
 	require.NoError(t, err)
-	// Override clock used by resolver after Init
+	// Override clock used by resolver *after* Init completes
 	check.localresolver.SetClock(mockClock)
 
-	// --- Test Cases ---
-
-	// 1. Initial run (should always be a full run because lastFullRunTime is zero)
+	// 1. Initial run: Should always be a full run because lastFullRunTime starts at zero.
 	t.Run("initial run", func(t *testing.T) {
-		capacityStatus = http.StatusNoContent // Capacity OK
+		capacityStatus = http.StatusNoContent // Ensure capacity is OK
 		mockClock.Set(time.Now())             // Use current time for the first run
 		result, err := check.Run(func() int32 { return 1 }, nil)
 		require.NoError(t, err)
@@ -769,12 +766,13 @@ func TestConnectionsCheckConditionalRun(t *testing.T) {
 		assert.Equal(t, mockClock.Now(), check.lastFullRunTime, "lastFullRunTime should be updated on initial run")
 	})
 
-	lastRunTime := check.lastFullRunTime
+	lastRunTime := check.lastFullRunTime // Capture time after the first full run
 
-	// 2. Skipped run (within interval, capacity OK)
+	// 2. Skipped run: Interval hasn't passed, capacity is OK.
 	t.Run("skipped run", func(t *testing.T) {
-		capacityStatus = http.StatusNoContent // Capacity OK
-		mockClock.Add(checkInterval)          // Advance time by less than fullRunInterval
+		capacityStatus = http.StatusNoContent // Ensure capacity is OK
+		// Advance time by less than the guaranteed run interval
+		mockClock.Add(check.guaranteedRunInterval / 2)
 		result, err := check.Run(func() int32 { return 2 }, nil)
 		require.NoError(t, err)
 		require.NotNil(t, result, "Skipped run result should not be nil")
@@ -783,10 +781,11 @@ func TestConnectionsCheckConditionalRun(t *testing.T) {
 		assert.Equal(t, lastRunTime, check.lastFullRunTime, "lastFullRunTime should NOT be updated on skipped run")
 	})
 
-	// 3. Capacity-triggered run (within interval, capacity HIGH)
+	// 3. Capacity-triggered run: Interval hasn't passed, but capacity is HIGH.
 	t.Run("capacity-triggered run", func(t *testing.T) {
-		capacityStatus = http.StatusOK // Capacity HIGH
-		mockClock.Add(checkInterval)   // Still within fullRunInterval relative to last FULL run
+		capacityStatus = http.StatusOK // Set capacity to HIGH
+		// Still within guaranteedRunInterval relative to last *full* run
+		mockClock.Add(check.guaranteedRunInterval / 2)
 		result, err := check.Run(func() int32 { return 3 }, nil)
 		require.NoError(t, err)
 		require.NotNil(t, result, "Capacity-triggered run should perform full collection")
@@ -795,13 +794,13 @@ func TestConnectionsCheckConditionalRun(t *testing.T) {
 		assert.Equal(t, mockClock.Now(), check.lastFullRunTime, "lastFullRunTime should be updated on capacity-triggered run")
 	})
 
-	lastRunTime = check.lastFullRunTime
+	lastRunTime = check.lastFullRunTime // Capture time after the capacity-triggered full run
 
-	// 4. Time-triggered run (past interval, capacity OK)
+	// 4. Time-triggered run: Interval *has* passed, capacity is OK.
 	t.Run("time-triggered run", func(t *testing.T) {
-		capacityStatus = http.StatusNoContent // Capacity OK
-		// Advance time past the fullRunInterval relative to the last full run
-		mockClock.Set(lastRunTime.Add(fullRunInterval + time.Second))
+		capacityStatus = http.StatusNoContent // Ensure capacity is OK
+		// Advance time past the guaranteedRunInterval relative to the last full run
+		mockClock.Set(lastRunTime.Add(check.guaranteedRunInterval + time.Second))
 		result, err := check.Run(func() int32 { return 4 }, nil)
 		require.NoError(t, err)
 		require.NotNil(t, result, "Time-triggered run should perform full collection")
@@ -810,25 +809,26 @@ func TestConnectionsCheckConditionalRun(t *testing.T) {
 		assert.Equal(t, mockClock.Now(), check.lastFullRunTime, "lastFullRunTime should be updated on time-triggered run")
 	})
 
-	lastRunTime = check.lastFullRunTime
+	lastRunTime = check.lastFullRunTime // Capture time after the time-triggered full run
 
-	// 5. Capacity check fails, time interval not met -> skip
+	// 5. Capacity check fails, time interval not met -> skip run.
 	t.Run("capacity check fails - skip", func(t *testing.T) {
-		capacityStatus = http.StatusInternalServerError // Capacity check fails
-		mockClock.Add(checkInterval)                    // Advance time, but still within fullRunInterval
+		capacityStatus = http.StatusInternalServerError // Simulate capacity check failure
+		// Advance time, but still within guaranteedRunInterval
+		mockClock.Add(check.guaranteedRunInterval / 2)
 		result, err := check.Run(func() int32 { return 5 }, nil)
-		require.NoError(t, err) // The check itself shouldn't error, just log warning
+		require.NoError(t, err) // The check itself shouldn't error, just log a warning internally
 		require.NotNil(t, result, "Run result should not be nil even if capacity check fails")
 		payloads := result.Payloads()
 		require.Empty(t, payloads, "Run should be skipped when capacity check fails and time interval not met")
 		assert.Equal(t, lastRunTime, check.lastFullRunTime, "lastFullRunTime should NOT be updated when skipped due to failed capacity check")
 	})
 
-	// 6. Capacity check fails, time interval IS met -> run
+	// 6. Capacity check fails, but time interval IS met -> run anyway.
 	t.Run("capacity check fails - time trigger", func(t *testing.T) {
-		capacityStatus = http.StatusInternalServerError // Capacity check fails
-		// Advance time past the fullRunInterval relative to the last full run
-		mockClock.Set(lastRunTime.Add(fullRunInterval + time.Second))
+		capacityStatus = http.StatusInternalServerError // Simulate capacity check failure
+		// Advance time past the guaranteedRunInterval relative to the last full run
+		mockClock.Set(lastRunTime.Add(check.guaranteedRunInterval + time.Second))
 		result, err := check.Run(func() int32 { return 6 }, nil)
 		require.NoError(t, err) // The check itself shouldn't error
 		require.NotNil(t, result, "Run should perform full collection based on time, despite capacity check failure")

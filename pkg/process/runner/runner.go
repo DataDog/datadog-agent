@@ -22,18 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
-	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	// defaultProcessAgentClientID defines the default client ID used by the process agent when communicating with the system probe
-	// Note: Renaming this might affect system-probe module allowlists
-	// This is exported from pkg/process/checks/net.go, redefine here for now.
-	// TODO: Consider moving this constant to a shared location.
-	defaultProcessAgentClientID = "process-agent-unique-id"
 )
 
 type checkResult struct {
@@ -135,29 +126,10 @@ func NewRunnerWithChecks(
 	config pkgconfigmodel.Reader,
 	sysProbeCfg *checks.SysProbeConfig,
 	hostInfo *checks.HostInfo,
-	checksSlice []checks.Check,
+	checks []checks.Check,
 	runRealTime bool,
 	rtNotifierChan <-chan types.RTResponse,
 ) (*CheckRunner, error) {
-
-	var connectionsCheckInstance *checks.ConnectionsCheck
-	var sysprobeClientInstance *http.Client
-
-	// Initialize system-probe client if needed
-	if sysProbeCfg != nil && sysProbeCfg.SystemProbeAddress != "" {
-		sysprobeClientInstance = sysprobeclient.Get(sysProbeCfg.SystemProbeAddress)
-	}
-
-	// Find the connections check instance
-	for _, chk := range checksSlice {
-		if chk.Name() == checks.ConnectionsCheckName {
-			if connChk, ok := chk.(*checks.ConnectionsCheck); ok {
-				connectionsCheckInstance = connChk
-				break // Assume only one instance
-			}
-		}
-	}
-
 	return &CheckRunner{
 		hostInfo:    hostInfo,
 		config:      config,
@@ -168,7 +140,7 @@ func NewRunnerWithChecks(
 
 		rtIntervalCh:  make(chan time.Duration),
 		groupID:       atomic.NewInt32(rand.Int31()),
-		enabledChecks: checksSlice,
+		enabledChecks: checks,
 
 		// Defaults for real-time on start
 		realTimeInterval: 2 * time.Second,
@@ -176,11 +148,6 @@ func NewRunnerWithChecks(
 
 		runRealTime:    runRealTime,
 		rtNotifierChan: rtNotifierChan,
-
-		// Fields for capacity check
-		connectionsCheck:  connectionsCheckInstance,
-		sysprobeClient:    sysprobeClientInstance,
-		stopCapacityCheck: make(chan struct{}),
 	}, nil
 }
 
@@ -408,7 +375,23 @@ func (l *CheckRunner) basicRunner(c checks.Check) func() {
 			l.runCheck(c)
 		}
 
-		ticker := time.NewTicker(checks.GetInterval(l.config, c.Name()))
+		tickerInterval := checks.GetInterval(l.config, c.Name())
+		if c.Name() == checks.ConnectionsCheckName {
+			// For connections check, the ticker interval is controlled by the specific capacity check interval config
+			capacityInterval := l.config.GetDuration("process_config.connections_capacity_check_interval")
+			if capacityInterval > 0 {
+				tickerInterval = capacityInterval
+			} else {
+				log.Warnf(
+					"Invalid process_config.connections_capacity_check_interval (%v), falling back to default %s interval %v",
+					capacityInterval,
+					c.Name(),
+					tickerInterval,
+				)
+			}
+		}
+
+		ticker := time.NewTicker(tickerInterval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -483,7 +466,6 @@ func (l *CheckRunner) UpdateRTStatus(statuses []*model.CollectorStatus) {
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func (l *CheckRunner) Stop() {
-	log.Info("Stopping CheckRunner")
 	close(l.stop)
 	l.wg.Wait()
 
@@ -491,7 +473,6 @@ func (l *CheckRunner) Stop() {
 		log.Debugf("Cleaning up %s check", check.Name())
 		check.Cleanup()
 	}
-	log.Info("CheckRunner stopped")
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter

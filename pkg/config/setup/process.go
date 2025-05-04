@@ -82,9 +82,6 @@ const (
 
 	// DefaultProcessDiscoveryHintFrequency is the default frequency in terms of number of checks which we send a process discovery hint
 	DefaultProcessDiscoveryHintFrequency = 60
-
-	// DefaultProcessConnectionsCapacityCheckInterval is the default interval used by the process_connections_capacity_check check
-	DefaultProcessConnectionsCapacityCheckInterval = 5 * time.Second
 )
 
 // setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so
@@ -209,8 +206,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnvAndSetDefault(config, "process_config.language_detection.grpc_port", DefaultProcessEntityStreamPort)
 
 	// Connection Capacity Check configuration
-	procBindEnvAndSetDefault(config, "process_config.connections_capacity_check.enabled", true)
-	procBindEnvAndSetDefault(config, "process_config.intervals.connections_capacity_check", DefaultProcessConnectionsCapacityCheckInterval)
+	procBindEnvAndSetDefault(config, "process_config.connections_capacity_check_interval", 10*time.Second)
 
 	processesAddOverrideOnce.Do(func() {
 		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
