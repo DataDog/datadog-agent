@@ -85,13 +85,6 @@ type CheckRunner struct {
 
 	// listens for when to enable and disable realtime mode
 	rtNotifierChan <-chan types.RTResponse
-
-	// Specific instance of the connections check for triggering
-	connectionsCheck *checks.ConnectionsCheck
-	// HTTP Client for system-probe communication
-	sysprobeClient *http.Client
-	// Stop channel for the capacity check goroutine
-	stopCapacityCheck chan struct{}
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -126,7 +119,7 @@ func NewRunnerWithChecks(
 	config pkgconfigmodel.Reader,
 	sysProbeCfg *checks.SysProbeConfig,
 	hostInfo *checks.HostInfo,
-	checks []checks.Check,
+	checksSlice []checks.Check,
 	runRealTime bool,
 	rtNotifierChan <-chan types.RTResponse,
 ) (*CheckRunner, error) {
@@ -140,7 +133,7 @@ func NewRunnerWithChecks(
 
 		rtIntervalCh:  make(chan time.Duration),
 		groupID:       atomic.NewInt32(rand.Int31()),
-		enabledChecks: checks,
+		enabledChecks: checksSlice,
 
 		// Defaults for real-time on start
 		realTimeInterval: 2 * time.Second,
@@ -466,6 +459,7 @@ func (l *CheckRunner) UpdateRTStatus(statuses []*model.CollectorStatus) {
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func (l *CheckRunner) Stop() {
+	log.Info("Stopping CheckRunner")
 	close(l.stop)
 	l.wg.Wait()
 
