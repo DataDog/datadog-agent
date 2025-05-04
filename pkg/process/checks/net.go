@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"runtime"
 	"sort"
-	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
