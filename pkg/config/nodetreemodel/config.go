@@ -71,6 +71,9 @@ type ntmConfig struct {
 	// - unknown keys can be assigned and retrieved
 	allowDynamicSchema *atomic.Bool
 
+	// tree debugger is used by the Stringify method, useful for debugging and test assertions
+	td *treeDebugger
+
 	// defaults contains the settings with a default value
 	defaults InnerNode
 	// unknown contains the settings set at runtime from unknown source. This should only evey be used by tests.
@@ -473,11 +476,11 @@ func (c *ntmConfig) buildSchema() {
 }
 
 // Stringify stringifies the config, but only with the test build tag
-func (c *ntmConfig) Stringify(source model.Source) string {
+func (c *ntmConfig) Stringify(source model.Source, opts ...model.StringifyOption) string {
 	c.Lock()
 	defer c.Unlock()
 	// only does anything if the build tag "test" is enabled
-	text, err := c.toDebugString(source)
+	text, err := c.toDebugString(source, opts...)
 	if err != nil {
 		return fmt.Sprintf("Stringify error: %s", err)
 	}
