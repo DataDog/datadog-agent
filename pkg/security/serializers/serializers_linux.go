@@ -91,6 +91,8 @@ type CGroupContextSerializer struct {
 	ID string `json:"id,omitempty"`
 	// CGroup manager
 	Manager string `json:"manager,omitempty"`
+	// Variables values
+	Variables Variables `json:"variables,omitempty"`
 }
 
 // UserContextSerializer serializes a user context to JSON
@@ -1302,8 +1304,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
 		manager := event.FieldHandlers.ResolveCGroupManager(event, event.CGroupContext)
 		s.CGroupContextSerializer = &CGroupContextSerializer{
-			ID:      string(event.CGroupContext.CGroupID),
-			Manager: manager,
+			ID:        string(event.CGroupContext.CGroupID),
+			Manager:   manager,
+			Variables: newVariablesContext(event, rule, "cgroup."),
 		}
 	}
 

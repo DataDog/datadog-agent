@@ -12,6 +12,7 @@ static __always_inline bool kafka_allow_packet(skb_info_t *skb_info);
 static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, kafka_telemetry_t *kafka_tel);
 static __always_inline bool kafka_process_response(void *ctx, conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, skb_info_t *skb_info);
 static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *kafka_tel, __u64 size);
+static __always_inline void update_classified_api_version_hits_telemetry(kafka_telemetry_t *kafka_tel, s16 api_key, s16 api_version);
 
 // A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
 // The iterations reads up to MIN(max_buffer_size, real_size).
@@ -1618,11 +1619,14 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     kafka_header.correlation_id = bpf_ntohl(kafka_header.correlation_id);
     kafka_header.client_id_size = bpf_ntohs(kafka_header.client_id_size);
 
-    log_debug("kafka: kafka_header.api_key: %d api_version: %d", kafka_header.api_key, kafka_header.api_version);
 
     if (!is_valid_kafka_request_header(&kafka_header)) {
         return false;
     }
+
+    // Report api version hits telemetry
+    log_debug("kafka: kafka_header.api_key: %d api_version: %d", kafka_header.api_key, kafka_header.api_version);
+    update_classified_api_version_hits_telemetry(kafka_tel, kafka_header.api_key, kafka_header.api_version);
 
     // Classification has different versions for different API keys.
     switch (kafka_header.api_key) {
@@ -1779,7 +1783,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         // If we have a produce request with required acks set to 0, we can enqueue it immediately, as there will be no produce response.
         kafka_batch_enqueue_wrapper(kafka, tup, kafka_transaction);
         return true;
-    }   
+    }
 
     // Copy to stack required by 4.14 verifier.
     kafka_transaction_t transaction;
@@ -1816,6 +1820,24 @@ static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *
     bucket_idx = bucket_idx > (KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS - 1) ? (KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS - 1) : bucket_idx;
 
     __sync_fetch_and_add(&kafka_tel->topic_name_size_buckets[bucket_idx], 1);
+}
+
+// update_classified_api_version_hits_telemetry updates arrays keeping track of api versions hits in the telemetry
+static __always_inline void update_classified_api_version_hits_telemetry(kafka_telemetry_t *kafka_tel, s16 api_key, s16 api_version) {
+    __u8 bucket_idx = api_version - 1;
+
+    // Ensure that the bucket index falls within the valid range.
+    bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
+    bucket_idx = bucket_idx > (KAFKA_TELEMETRY_API_VERSIONS_NUM_OF_BUCKETS - 1) ? (KAFKA_TELEMETRY_API_VERSIONS_NUM_OF_BUCKETS - 1) : bucket_idx;
+
+    switch (api_key) {
+    case KAFKA_FETCH:
+        __sync_fetch_and_add(&kafka_tel->classified_fetch_api_version_hits[bucket_idx], 1);
+        break;
+    case KAFKA_PRODUCE:
+        __sync_fetch_and_add(&kafka_tel->classified_produce_api_version_hits[bucket_idx], 1);
+        break;
+    }
 }
 
 #endif
