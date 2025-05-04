@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
+	"github.com/DataDog/datadog-agent/pkg/process/status"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -186,11 +187,10 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	if !shouldRunFullCheck {
 		log.Tracef("Skipping connections check run (Capacity OK, not time for guaranteed run). Last full run: %v ago", start.Sub(c.lastFullRunTime))
-		// Mark last collect time for status page, even if skipped
-		status.UpdateLastCollectTime(start)
 		return StandardRunResult(nil), nil
 	}
 
+	status.UpdateLastCollectTime(start)
 	log.Debugf("Running connections check. Reason: TimeForGuaranteedRun=%v, NearCapacity=%v", isTimeForGuaranteedRun, isNearCapacity)
 	// Update last run time *before* the potentially long-running operations
 	c.lastFullRunTime = start
