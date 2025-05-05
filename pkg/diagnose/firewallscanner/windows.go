@@ -49,7 +49,7 @@ func (scanner *windowsFirewallScanner) DiagnoseBlockingRules(rulesToCheck source
             }
             $results | ConvertTo-Json -Compress
         } catch {
-            exit 42
+            exit 1
         }`)
 
 	output, err := cmd.CombinedOutput()
@@ -57,7 +57,7 @@ func (scanner *windowsFirewallScanner) DiagnoseBlockingRules(rulesToCheck source
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) {
 		exitCode := exitErr.ExitCode()
-		if exitCode == 42 {
+		if exitCode == 1 {
 			// No blocking rules found
 			return []diagnose.Diagnosis{
 				buildBlockingRulesDiagnosis(diagnosisNameWindows, nil),
