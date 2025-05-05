@@ -15,3 +15,13 @@ serverless_cold_start_performance-deb_x64:
     - cd /tmp/serverless-ci # Docker does not like syslinks, that's why it's easier to build the image in /tmp
     - docker build -t datadogci/lambda-extension .
     - ./compute.sh
+  parallel:
+    matrix:
+      - STACK:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
+          - "5"
+          - "6"
+          - "7"
