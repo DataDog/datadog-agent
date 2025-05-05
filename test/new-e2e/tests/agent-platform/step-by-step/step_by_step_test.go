@@ -182,7 +182,7 @@ func (is *stepByStepSuite) CheckStepByStepAgentInstallation(VMclient *common.Tes
 func (is *stepByStepSuite) StepByStepDebianTest(VMclient *common.TestClient) {
 	aptTrustedDKeyring := "/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
 	aptUsrShareKeyring := "/usr/share/keyrings/datadog-archive-keyring.gpg"
-	aptrepo := "[signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] http://apttesting.datad0g.com/"
+	aptrepo := "[signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] http://s3.amazonaws.com/apttesting.datad0g.com/"
 	aptrepoDist := fmt.Sprintf("pipeline-%s-a%s-%s", os.Getenv("E2E_PIPELINE_ID"), *majorVersion, *architecture)
 	fileManager := VMclient.FileManager
 	var err error
@@ -195,7 +195,7 @@ func (is *stepByStepSuite) StepByStepDebianTest(VMclient *common.TestClient) {
 		ExecuteWithoutError(t, VMclient, "sudo touch %s && sudo chmod a+r %s", aptUsrShareKeyring, aptUsrShareKeyring)
 		keys := []string{"DATADOG_APT_KEY_CURRENT.public", "DATADOG_APT_KEY_C0962C7D.public", "DATADOG_APT_KEY_F14F620E.public", "DATADOG_APT_KEY_382E94DE.public"}
 		for _, key := range keys {
-			ExecuteWithoutError(t, VMclient, "sudo curl --retry 5 -o \"/tmp/%s\" \"https://keys.datadoghq.com/%s\"", key, key)
+			ExecuteWithoutError(t, VMclient, "sudo curl --retry 5 -o \"/tmp/%s\" \"https://s3.amazonaws.com/keys.datadoghq.com/%s\"", key, key)
 			ExecuteWithoutError(t, VMclient, "sudo cat \"/tmp/%s\" | sudo gpg --import --batch --no-default-keyring --keyring \"%s\"", key, aptUsrShareKeyring)
 		}
 	})
@@ -218,7 +218,7 @@ func (is *stepByStepSuite) StepByStepRhelTest(VMclient *common.TestClient) {
 	} else {
 		arch = *architecture
 	}
-	yumrepo := fmt.Sprintf("http://yumtesting.datad0g.com/testing/pipeline-%s-a%s/%s/%s/",
+	yumrepo := fmt.Sprintf("http://s3.amazonaws.com/yumtesting.datad0g.com/testing/pipeline-%s-a%s/%s/%s/",
 		os.Getenv("E2E_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
 	fileManager := VMclient.FileManager
 	var err error

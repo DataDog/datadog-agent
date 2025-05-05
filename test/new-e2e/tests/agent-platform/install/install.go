@@ -28,11 +28,11 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 
 	if params.PipelineID != "" && params.MajorVersion != "5" {
 		testEnvVars := []string{}
-		testEnvVars = append(testEnvVars, "TESTING_APT_URL=apttesting.datad0g.com")
+		testEnvVars = append(testEnvVars, "TESTING_APT_URL=s3.amazonaws.com/apttesting.datad0g.com")
 		// apt testing repo
 		// TESTING_APT_REPO_VERSION="pipeline-xxxxx-ay y"
 		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_APT_REPO_VERSION="pipeline-%v-a%v-%s %v"`, params.PipelineID, params.MajorVersion, params.Arch, params.MajorVersion))
-		testEnvVars = append(testEnvVars, "TESTING_YUM_URL=yumtesting.datad0g.com")
+		testEnvVars = append(testEnvVars, "TESTING_YUM_URL=s3.amazonaws.com/yumtesting.datad0g.com")
 		// yum testing repo
 		// TESTING_YUM_VERSION_PATH="testing/pipeline-xxxxx-ay/y"
 		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_YUM_VERSION_PATH="testing/pipeline-%v-a%v/%v"`, params.PipelineID, params.MajorVersion, params.MajorVersion))
@@ -64,7 +64,7 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 		var source string
 		if params.MajorVersion != "5" {
 			source = "S3"
-			downloadCmd = fmt.Sprintf(`curl -L  https://install.datadoghq.com/scripts/install_script_agent%v.sh > installscript.sh`, params.MajorVersion)
+			downloadCmd = fmt.Sprintf(`curl -L  https://s3.amazonaws.com/dd-agent/scripts/install_script_agent%v.sh > installscript.sh`, params.MajorVersion)
 		} else {
 			source = "dd-agent repository"
 			downloadCmd = "curl -L https://raw.githubusercontent.com/DataDog/dd-agent/master/packaging/datadog-agent/source/install_agent.sh > installscript.sh"
