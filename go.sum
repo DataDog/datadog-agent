@@ -1388,8 +1388,6 @@ github.com/onsi/gomega v1.33.0/go.mod h1:+925n5YtiFsLzzafLUHzVMBpvvRAzrydIBiSIxj
 github.com/onsi/gomega v1.33.1/go.mod h1:U4R44UsT+9eLIaYRB2a5qajjtQYn0hauxvRm16AVYg0=
 github.com/onsi/gomega v1.36.1 h1:bJDPBO7ibjxcbHMgSCoo4Yj18UWbKDlLwX1x9sybDcw=
 github.com/onsi/gomega v1.36.1/go.mod h1:PvZbdDc8J6XJEpDK4HCuRBm8a6Fzp9/DmhC9C7yFlog=
-github.com/open-policy-agent/opa v1.4.2 h1:ag4upP7zMsa4WE2p1pwAFeG4Pn3mNwfAx9DLhhJfbjU=
-github.com/open-policy-agent/opa v1.4.2/go.mod h1:DNzZPKqKh4U0n0ANxcCVlw8lCSv2c+h5G/3QvSYdWZ8=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.123.0 h1:d4IEhi0Hh3O1NGU+Iq82T8/aAEFlSaGU5o3EGYWy668=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.123.0/go.mod h1:2Gy21E1p4ycVaEjvTDMwrvNQo/aQaY5RCYf12zUvQgc=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.123.0 h1:XXdzFkJ29UXyMYhYtK3YFpp9a/HaIrb4v51UNw6M4wQ=
@@ -1553,6 +1551,8 @@ github.com/patrickmn/go-cache v2.1.0+incompatible h1:HRMgzkcYKYpi3C8ajMPV8OFXaaR
 github.com/patrickmn/go-cache v2.1.0+incompatible/go.mod h1:3Qf8kWWT7OJRJbdiICTKqZju1ZixQ/KpMGzzAfe6+WQ=
 github.com/paulcacheux/iouring-go v0.0.0-20241115154236-2c7785c40a0f h1:y9Dz6t0aNsYtm0UrwTbu85LlsKN8GjnEhABMSrxEmvU=
 github.com/paulcacheux/iouring-go v0.0.0-20241115154236-2c7785c40a0f/go.mod h1:LEzdaZarZ5aqROlLIwJ4P7h3+4o71008fSy6wpaEB+s=
+github.com/paulcacheux/opa v0.0.0-20250507091703-12dadb609ad1 h1:WC1f90tnhRiQdkmMuHZUtL+otsISOdkREHlFlVtwTTk=
+github.com/paulcacheux/opa v0.0.0-20250507091703-12dadb609ad1/go.mod h1:DNzZPKqKh4U0n0ANxcCVlw8lCSv2c+h5G/3QvSYdWZ8=
 github.com/pborman/getopt v0.0.0-20170112200414-7148bc3a4c30/go.mod h1:85jBQOZwpVEaDAr341tbn15RS4fCAsIst0qp7i8ex1o=
 github.com/pborman/uuid v0.0.0-20180122190007-c65b2f87fee3/go.mod h1:VyrYX9gd7irzKovcSS6BIIEwPRkP2Wm2m9ufcdFSJ34=
 github.com/pborman/uuid v1.2.1 h1:+ZZIw58t/ozdjRaXh/3awHfmWRbzYxJoAdNJxe/3pvw=
