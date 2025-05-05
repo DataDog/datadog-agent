@@ -8,6 +8,7 @@ package versa
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	yaml "gopkg.in/yaml.v2"
@@ -34,24 +35,26 @@ const (
 // Configuration for the Versa check
 type checkCfg struct {
 	// add versa specific fields
-	Name                            string `yaml:"name"` // TODO: remove this field, only added it for testing
-	DirectorEndpoint                string `yaml:"director_endpoint"`
-	Username                        string `yaml:"username"`
-	Password                        string `yaml:"password"`
-	UseHTTP                         bool   `yaml:"use_http"`
-	Namespace                       string `yaml:"namespace"`
-	SendNDMMetadata                 *bool  `yaml:"send_ndm_metadata"`
-	MinCollectionInterval           int    `yaml:"min_collection_interval"`
-	CollectHardwareMetrics          *bool  `yaml:"collect_hardware_metrics"`
-	CollectInterfaceMetrics         *bool  `yaml:"collect_interface_metrics"`
-	CollectTunnelMetrics            *bool  `yaml:"collect_tunnel_metrics"`
-	CollectControlConnectionMetrics *bool  `yaml:"collect_control_connection_metrics"`
-	CollectOMPPeerMetrics           *bool  `yaml:"collect_omp_peer_metrics"`
-	CollectDeviceCountersMetrics    *bool  `yaml:"collect_device_counters_metrics"`
-	CollectBFDSessionStatus         *bool  `yaml:"collect_bfd_session_status"`
-	CollectHardwareStatus           *bool  `yaml:"collect_hardware_status"`
-	CollectCloudApplicationsMetrics *bool  `yaml:"collect_cloud_applications_metrics"`
-	CollectBGPNeighborStates        *bool  `yaml:"collect_bgp_neighbor_states"`
+	Name                            string   `yaml:"name"` // TODO: remove this field, only added it for testing
+	DirectorEndpoint                string   `yaml:"director_endpoint"`
+	Username                        string   `yaml:"username"`
+	Password                        string   `yaml:"password"`
+	UseHTTP                         bool     `yaml:"use_http"`
+	Namespace                       string   `yaml:"namespace"`
+	IncludedTenants                 []string `yaml:"included_tenants"`
+	ExcludedTenants                 []string `yaml:"excluded_tenants"`
+	SendNDMMetadata                 *bool    `yaml:"send_ndm_metadata"`
+	MinCollectionInterval           int      `yaml:"min_collection_interval"`
+	CollectHardwareMetrics          *bool    `yaml:"collect_hardware_metrics"`
+	CollectInterfaceMetrics         *bool    `yaml:"collect_interface_metrics"`
+	CollectTunnelMetrics            *bool    `yaml:"collect_tunnel_metrics"`
+	CollectControlConnectionMetrics *bool    `yaml:"collect_control_connection_metrics"`
+	CollectOMPPeerMetrics           *bool    `yaml:"collect_omp_peer_metrics"`
+	CollectDeviceCountersMetrics    *bool    `yaml:"collect_device_counters_metrics"`
+	CollectBFDSessionStatus         *bool    `yaml:"collect_bfd_session_status"`
+	CollectHardwareStatus           *bool    `yaml:"collect_hardware_status"`
+	CollectCloudApplicationsMetrics *bool    `yaml:"collect_cloud_applications_metrics"`
+	CollectBGPNeighborStates        *bool    `yaml:"collect_bgp_neighbor_states"`
 }
 
 // VersaCheck contains the fields for the Versa check
@@ -80,6 +83,9 @@ func (v *VersaCheck) Run() error {
 	if err != nil {
 		return fmt.Errorf("error getting organizations from Versa client: %w", err)
 	}
+	log.Tracef("Unfiltered organizations: %v", organizations)
+	organizations = filterOrganizations(organizations, v.config.IncludedTenants, v.config.ExcludedTenants)
+	log.Tracef("Filtered organizations: %v", organizations)
 
 	// Gather appliances for each organization
 	var appliances []client.Appliance
@@ -188,6 +194,35 @@ func (v *VersaCheck) Interval() time.Duration {
 func (v *VersaCheck) IsHASupported() bool {
 	// TODO: Is this true? I would think probably?
 	return true
+}
+
+// filterOrganizations filters the list of organizations based on the included and excluded lists
+// If an organization is on the included and excluded list, it will be excluded
+func filterOrganizations(orgs []client.Organization, includedOrgs []string, excludedOrgs []string) []client.Organization {
+	includedTenantsSet := make(map[string]struct{}, len(includedOrgs))
+	for _, tenant := range includedOrgs {
+		includedTenantsSet[strings.ToLower(tenant)] = struct{}{}
+	}
+	excludedTenantsSet := make(map[string]struct{}, len(excludedOrgs))
+	for _, tenant := range excludedOrgs {
+		excludedTenantsSet[strings.ToLower(tenant)] = struct{}{}
+	}
+
+	filteredOrgs := make([]client.Organization, 0, len(orgs))
+	for _, org := range orgs {
+		orgName := strings.ToLower(org.Name) // Normalize the organization name to lowercase
+		// If includedTenants is not empty, only include tenants in the list
+		if _, ok := includedTenantsSet[orgName]; len(includedOrgs) > 0 && !ok {
+			continue
+		}
+		// If excludedTenants is not empty, exclude tenants in the list
+		if _, ok := excludedTenantsSet[orgName]; len(excludedOrgs) > 0 && ok {
+			continue
+		}
+		filteredOrgs = append(filteredOrgs, org)
+	}
+
+	return filteredOrgs
 }
 
 func boolPointer(b bool) *bool {
