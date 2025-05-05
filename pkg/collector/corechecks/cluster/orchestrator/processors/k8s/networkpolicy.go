@@ -79,7 +79,7 @@ func (h *NetworkPolicyHandlers) ResourceList(ctx processors.ProcessorContext, li
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources

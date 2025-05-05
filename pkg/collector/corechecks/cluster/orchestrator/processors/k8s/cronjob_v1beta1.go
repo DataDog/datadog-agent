@@ -80,7 +80,7 @@ func (h *CronJobV1Beta1Handlers) ResourceList(ctx processors.ProcessorContext, l
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources

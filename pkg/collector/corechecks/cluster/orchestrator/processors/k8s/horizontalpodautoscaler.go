@@ -79,7 +79,7 @@ func (h *HorizontalPodAutoscalerHandlers) ResourceList(ctx processors.ProcessorC
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources

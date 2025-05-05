@@ -12,8 +12,9 @@ import (
 	"errors"
 	"fmt"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"go.uber.org/atomic"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -168,12 +169,12 @@ func (c *Check) Run() error {
 		SystemInfo:         c.systemInfo,
 	}
 
-	processResult, processed := c.processor.Process(ctx, podList)
+	processResult, listed, processed := c.processor.Process(ctx, podList)
 	if processed == -1 {
 		return fmt.Errorf("unable to process pods: a panic occurred")
 	}
 
-	orchestrator.SetCacheStats(len(podList), processed, ctx.NodeType)
+	orchestrator.SetCacheStats(listed, processed, ctx.NodeType)
 
 	c.sender.OrchestratorMetadata(processResult.MetadataMessages, c.clusterID, int(orchestrator.K8sPod))
 	c.sender.OrchestratorManifest(processResult.ManifestMessages, c.clusterID)

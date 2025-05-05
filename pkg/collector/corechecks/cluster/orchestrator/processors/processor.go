@@ -187,7 +187,7 @@ func (p *Processor) Handlers() Handlers {
 }
 
 // Process is used to process a list of resources of a certain type.
-func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResult ProcessResult, processed int) {
+func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResult ProcessResult, listed, processed int) {
 	// This default allows detection of panic recoveries.
 	processed = -1
 
@@ -262,7 +262,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 		processResult.ManifestMessages = ChunkManifest(ctx, p.h.BuildManifestMessageBody, resourceManifestModels)
 	}
 
-	return processResult, len(resourceMetadataModels)
+	return processResult, len(resourceList), len(resourceMetadataModels)
 }
 
 // ChunkManifest is to chunk Manifest payloads
