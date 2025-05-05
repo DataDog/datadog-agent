@@ -8,17 +8,20 @@
 package k8s
 
 import (
+	"reflect"
+
+	storagev1 "k8s.io/api/storage/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	storagev1Informers "k8s.io/client-go/informers/storage/v1"
+	storagev1Listers "k8s.io/client-go/listers/storage/v1"
+	"k8s.io/client-go/tools/cache"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-
-	"k8s.io/apimachinery/pkg/labels"
-	storagev1Informers "k8s.io/client-go/informers/storage/v1"
-	storagev1Listers "k8s.io/client-go/listers/storage/v1"
-	"k8s.io/client-go/tools/cache"
 )
 
 // NewStorageClassCollectorVersions builds the group of collector versions.
@@ -57,6 +60,7 @@ func NewStorageClassCollector(metadataAsTags utils.MetadataAsTags) *StorageClass
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
+			ResourceType:                         reflect.TypeOf(&storagev1.StorageClass{}),
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.StorageClassHandlers)),
 	}

@@ -8,6 +8,9 @@
 package k8s
 
 import (
+	"reflect"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
@@ -40,6 +43,7 @@ func (r GenericResource) NewGenericCollector() (*CRCollector, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &CRCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -51,6 +55,7 @@ func (r GenericResource) NewGenericCollector() (*CRCollector, error) {
 			NodeType:                             r.NodeType,
 			Version:                              r.GroupVersion,
 			SupportsTerminatedResourceCollection: true,
+			ResourceType:                         reflect.TypeOf(&unstructured.Unstructured{}),
 		},
 		gvr:       gv.WithResource(r.Name),
 		processor: processors.NewProcessor(&k8sProcessors.CRHandlers{IsGenericResource: true}),

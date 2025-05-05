@@ -8,17 +8,20 @@
 package k8s
 
 import (
+	"reflect"
+
+	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	appsv1Informers "k8s.io/client-go/informers/apps/v1"
+	appsv1Listers "k8s.io/client-go/listers/apps/v1"
+	"k8s.io/client-go/tools/cache"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-
-	"k8s.io/apimachinery/pkg/labels"
-	appsv1Informers "k8s.io/client-go/informers/apps/v1"
-	appsv1Listers "k8s.io/client-go/listers/apps/v1"
-	"k8s.io/client-go/tools/cache"
 )
 
 // NewDeploymentCollectorVersions builds the group of collector versions.
@@ -57,6 +60,7 @@ func NewDeploymentCollector(metadataAsTags utils.MetadataAsTags) *DeploymentColl
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
+			ResourceType:                         reflect.TypeOf(&appsv1.Deployment{}),
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.DeploymentHandlers)),
 	}

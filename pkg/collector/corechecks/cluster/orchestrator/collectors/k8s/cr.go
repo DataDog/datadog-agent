@@ -9,16 +9,18 @@ package k8s
 
 import (
 	"fmt"
+	"reflect"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/tools/cache"
 )
 
 const (
@@ -46,6 +48,7 @@ func NewCRCollector(name string, groupVersion string) (*CRCollector, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &CRCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -57,6 +60,7 @@ func NewCRCollector(name string, groupVersion string) (*CRCollector, error) {
 			NodeType:                             orchestrator.K8sCR,
 			Version:                              groupVersion,
 			SupportsTerminatedResourceCollection: true,
+			ResourceType:                         reflect.TypeOf(&unstructured.Unstructured{}),
 		},
 		gvr:       gv.WithResource(name),
 		processor: processors.NewProcessor(new(k8sProcessors.CRHandlers)),

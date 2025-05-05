@@ -8,6 +8,14 @@
 package k8s
 
 import (
+	"reflect"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	corev1Informers "k8s.io/client-go/informers/core/v1"
+	corev1Listers "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -17,11 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-
-	"k8s.io/apimachinery/pkg/labels"
-	corev1Informers "k8s.io/client-go/informers/core/v1"
-	corev1Listers "k8s.io/client-go/listers/core/v1"
-	"k8s.io/client-go/tools/cache"
 )
 
 // NewUnassignedPodCollectorVersions builds the group of collector versions.
@@ -61,6 +64,7 @@ func NewUnassignedPodCollector(cfg config.Component, store workloadmeta.Componen
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: false,
+			ResourceType:                         reflect.TypeOf(&corev1.Pod{}),
 		},
 		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(cfg, store, tagger)),
 	}

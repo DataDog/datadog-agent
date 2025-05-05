@@ -10,6 +10,7 @@ package collectors
 
 import (
 	"fmt"
+	"reflect"
 
 	"go.uber.org/atomic"
 
@@ -55,6 +56,7 @@ type CollectorMetadata struct {
 	LabelsAsTags                         map[string]string
 	AnnotationsAsTags                    map[string]string
 	SupportsTerminatedResourceCollection bool
+	ResourceType                         reflect.Type
 }
 
 // FullName returns a string that contains the collector name and version.

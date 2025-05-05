@@ -8,7 +8,12 @@
 package k8s
 
 import (
-	v1 "k8s.io/api/core/v1"
+	"reflect"
+
+	corev1 "k8s.io/api/core/v1"
+	corev1Informers "k8s.io/client-go/informers/core/v1"
+	corev1Listers "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -20,10 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-
-	corev1Informers "k8s.io/client-go/informers/core/v1"
-	corev1Listers "k8s.io/client-go/listers/core/v1"
-	"k8s.io/client-go/tools/cache"
 )
 
 // NewTerminatedPodCollectorVersions builds the group of collector versions.
@@ -63,6 +64,7 @@ func NewTerminatedPodCollector(cfg config.Component, store workloadmeta.Componen
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
+			ResourceType:                         reflect.TypeOf(&corev1.Pod{}),
 		},
 		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(cfg, store, tagger)),
 	}
@@ -87,7 +89,7 @@ func (c *TerminatedPodCollector) Metadata() *collectors.CollectorMetadata {
 // Run triggers the collection process.
 func (c *TerminatedPodCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.CollectorRunResult, error) {
 	// TerminatedPodCollector does not process any resources as it is only used to collect terminated pods by deletion handler.
-	return c.Process(rcfg, []*v1.Pod{})
+	return c.Process(rcfg, []*corev1.Pod{})
 }
 
 // Process is used to process the list of resources and return the result.

@@ -8,18 +8,20 @@
 package k8s
 
 import (
+	"reflect"
+
+	v2 "k8s.io/api/autoscaling/v2"
+	"k8s.io/apimachinery/pkg/labels"
+	v2Informers "k8s.io/client-go/informers/autoscaling/v2"
+	v2Listers "k8s.io/client-go/listers/autoscaling/v2"
+	"k8s.io/client-go/tools/cache"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-
-	v2Informers "k8s.io/client-go/informers/autoscaling/v2"
-	v2Listers "k8s.io/client-go/listers/autoscaling/v2"
-
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
 )
 
 // NewHorizontalPodAutoscalerCollectorVersions builds the group of collector versions.
@@ -58,6 +60,7 @@ func NewHorizontalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *H
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
+			ResourceType:                         reflect.TypeOf(&v2.HorizontalPodAutoscaler{}),
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.HorizontalPodAutoscalerHandlers)),
 	}

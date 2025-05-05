@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -49,6 +50,12 @@ func (tb *TerminatedResourceBundle) Add(k8sCollector collectors.K8sCollector, re
 
 	if _, ok := tb.terminatedResources[k8sCollector]; !ok {
 		tb.terminatedResources[k8sCollector] = []interface{}{}
+	}
+
+	resource, ok := checkResourceType(k8sCollector, resource)
+	if !ok {
+		log.Warnf("unexpected type %T in terminated resource collector %s, ", resource, k8sCollector.Metadata().Name)
+		return
 	}
 
 	tb.terminatedResources[k8sCollector] = append(tb.terminatedResources[k8sCollector], insertDeletionTimestampIfPossible(resource))
@@ -103,14 +110,14 @@ func (tb *TerminatedResourceBundle) Stop() {
 
 func toTypedSlice(k8sCollector collectors.K8sCollector, list []interface{}) interface{} {
 	if len(list) == 0 {
-		return nil
+		return list
 	}
 
 	if k8sCollector.Metadata().NodeType == orchestrator.K8sCR || k8sCollector.Metadata().NodeType == orchestrator.K8sCRD {
 		typedList := make([]runtime.Object, 0, len(list))
 		for i := range list {
 			if _, ok := list[i].(runtime.Object); !ok {
-				log.Warn("Failed to convert object to runtime.Object")
+				log.Warnf("failed to cast object to runtime.Object, got type: %T", list[i])
 				continue
 			}
 			typedList = append(typedList, list[i].(runtime.Object))
@@ -118,14 +125,22 @@ func toTypedSlice(k8sCollector collectors.K8sCollector, list []interface{}) inte
 		return typedList
 	}
 
-	// Create a new slice with the type of the object
-	objType := reflect.TypeOf(list[0])
-	typedList := reflect.MakeSlice(reflect.SliceOf(objType), 0, len(list))
+	typedList := reflect.MakeSlice(reflect.SliceOf(k8sCollector.Metadata().ResourceType), 0, len(list))
 
 	for i := range list {
 		typedList = reflect.Append(typedList, reflect.ValueOf(list[i]))
 	}
 	return typedList.Interface()
+}
+
+// checkResourceType checks if the resource is of the correct type
+func checkResourceType(k8sCollector collectors.K8sCollector, resource interface{}) (interface{}, bool) {
+	obj := resource
+	if deletedState, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+		obj = deletedState.Obj
+	}
+
+	return obj, k8sCollector.Metadata().ResourceType == reflect.TypeOf(obj)
 }
 
 func insertDeletionTimestampIfPossible(obj interface{}) interface{} {

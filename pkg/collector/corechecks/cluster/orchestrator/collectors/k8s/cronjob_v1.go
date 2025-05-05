@@ -8,17 +8,20 @@
 package k8s
 
 import (
+	"reflect"
+
+	batchv1 "k8s.io/api/batch/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	batchv1Informers "k8s.io/client-go/informers/batch/v1"
+	batchv1Listers "k8s.io/client-go/listers/batch/v1"
+	"k8s.io/client-go/tools/cache"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-
-	"k8s.io/apimachinery/pkg/labels"
-	batchv1Informers "k8s.io/client-go/informers/batch/v1"
-	batchv1Listers "k8s.io/client-go/listers/batch/v1"
-	"k8s.io/client-go/tools/cache"
 )
 
 // CronJobV1Collector is a collector for Kubernetes CronJobs.
@@ -49,6 +52,7 @@ func NewCronJobV1Collector(metadataAsTags utils.MetadataAsTags) *CronJobV1Collec
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
+			ResourceType:                         reflect.TypeOf(&batchv1.CronJob{}),
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.CronJobV1Handlers)),
 	}

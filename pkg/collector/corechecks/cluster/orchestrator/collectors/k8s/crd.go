@@ -8,17 +8,19 @@
 package k8s
 
 import (
+	"reflect"
+
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/tools/cache"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/tools/cache"
 )
 
 // NewCRDCollectorVersions builds the group of collector versions.
@@ -51,6 +53,7 @@ func NewCRDCollector() *CRDCollector {
 			NodeType:                             orchestrator.K8sCRD,
 			Version:                              crdVersion,
 			SupportsTerminatedResourceCollection: true,
+			ResourceType:                         reflect.TypeOf(&v1.CustomResourceDefinition{}),
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.CRDHandlers)),
 	}
