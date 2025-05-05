@@ -147,7 +147,7 @@ func GetModuleFromProgID(id uint32) (string, error) {
 	return getMappingFromID(id, progModuleMapping)
 }
 
-// GetFDByProbeID returns the fd mapped for a probe or an error if no mappings exists
+// GetPerfEventFDByProbeID returns the fd mapped for a probe or an error if no mappings exists
 func GetPerfEventFDByProbeID(probeID ebpf.ProgramID) (uint32, error) {
 	mappingLock.RLock()
 	defer mappingLock.RUnlock()
