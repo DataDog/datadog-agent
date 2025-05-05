@@ -12,9 +12,9 @@ import (
 	"errors"
 	"fmt"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"go.uber.org/atomic"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -24,6 +24,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -162,10 +163,10 @@ func (c *Check) Run() error {
 			ManifestProducer: true,
 			Kind:             kubernetes.PodKind,
 			APIVersion:       "v1",
+			ExtraTags:        util.ImmutableTagsJoin(c.config.ExtraTags, []string{"kube_api_version:v1"}),
 		},
-		HostName:           c.hostName,
-		ApiGroupVersionTag: "kube_api_version:v1",
-		SystemInfo:         c.systemInfo,
+		HostName:   c.hostName,
+		SystemInfo: c.systemInfo,
 	}
 
 	processResult, processed := c.processor.Process(ctx, podList)

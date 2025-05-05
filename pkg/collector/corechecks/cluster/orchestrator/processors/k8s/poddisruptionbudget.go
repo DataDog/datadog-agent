@@ -54,7 +54,7 @@ func (h *PodDisruptionBudgetHandlers) BuildMessageBody(ctx processors.ProcessorC
 		GroupId:              pctx.MsgGroupID,
 		GroupSize:            int32(groupSize),
 		PodDisruptionBudgets: models,
-		Tags:                 append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:                 pctx.ExtraTags,
 	}
 }
 

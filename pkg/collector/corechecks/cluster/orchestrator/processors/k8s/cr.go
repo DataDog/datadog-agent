@@ -50,7 +50,7 @@ func (cr *CRHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext, 
 
 	return &model.CollectorManifestCR{
 		Manifest: cm,
-		Tags:     append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:     pctx.ExtraTags,
 	}
 }
 
