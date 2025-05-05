@@ -16,13 +16,6 @@ import (
 	gopsutilProcess "github.com/shirou/gopsutil/v4/process"
 )
 
-const (
-	// EBPFOrigin eBPF origin
-	EBPFOrigin = "ebpf"
-	// EBPFLessOrigin eBPF less origin
-	EBPFLessOrigin = "ebpfless"
-)
-
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	opts.normalize()
