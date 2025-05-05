@@ -51,7 +51,7 @@ apm_configuration_rules:
 
   ## @param DD_APPSEC_SCA_ENABLED - boolean - optional - default: false
   ## Enable Software Composition Analysis.
-  ## Docs: TODO
+  ## Docs: https://docs.datadoghq.com/security/code_security/software_composition_analysis/
   # DD_APPSEC_SCA_ENABLED: false
 
   ## @param DD_TRACE_DEBUG - boolean - optional - default: false
