@@ -100,7 +100,7 @@ func (c *StorageClassCollector) Process(rcfg *collectors.CollectorRunConfig, lis
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    processed,
 		ResourcesProcessed: processed,
 	}
 

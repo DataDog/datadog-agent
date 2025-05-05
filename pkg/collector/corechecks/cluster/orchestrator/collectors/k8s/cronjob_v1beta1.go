@@ -92,7 +92,7 @@ func (c *CronJobV1Beta1Collector) Process(rcfg *collectors.CollectorRunConfig, l
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    processed,
 		ResourcesProcessed: processed,
 	}
 

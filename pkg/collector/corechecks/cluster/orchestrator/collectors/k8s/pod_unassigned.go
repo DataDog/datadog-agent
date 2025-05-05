@@ -104,7 +104,7 @@ func (c *UnassignedPodCollector) Process(rcfg *collectors.CollectorRunConfig, li
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    processed,
 		ResourcesProcessed: processed,
 	}
 
