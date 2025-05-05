@@ -12,7 +12,7 @@ Release Notes
 Prelude
 -------
 
-Release on: 2025-05-05
+Release on: 2025-05-06
 
 - Please refer to the `7.65.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7650>`_ for the list of changes on the Core Checks
 
@@ -33,16 +33,16 @@ New Features
 ------------
 
 - The Agent MSI for Windows now installs the .NET APM Instrumentation libraries and automatically configures APM Instrumentation for IIS. To enable this feature, specify the following properties in the MSI command line:
-  
+
       `DD_APM_INSTRUMENTATION_ENABLED=iis DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:3`
-  
+
   Requires IIS 10.0 or later.
   For more information see [Single Step APM Instrumentation](https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/single-step-apm/).
 
 - APM: Added new OpenLineage event proxy endpoint.
 
 - A new implementation of auto multi-line detection for logs is now available.
-  This new implementation is more flexible and powerful than the previous one. 
+  This new implementation is more flexible and powerful than the previous one.
   It now supports arbitrary timestamps, continuous matching, and more flexible configuration.
   It will be enabled automatically when ``logs_config.auto_multi_line_detection`` is set to ``true``.
   You can opt out of the new implementation by setting ``logs_config.force_auto_multi_line_detection_v1`` to ``true``.
@@ -81,7 +81,7 @@ Enhancement Notes
 - Improved trace context creation from Step Function execution context:
   - Now utilizes `State.RetryCount` and `Execution.RedriveCount` to generate parent IDs deterministically, preventing collisions with retry spans.
   - Supports multi-level trace merging, allowing an arbitrary number of Lambda and Step Function traces to be linked together while maintaining root context.
-  
+
   This update brings feature parity with Node and Python Lambda layers in the Universal runtimes.
 
 - The hostname subcommand for the Agent now tries to reach out to the running Agent,
@@ -101,8 +101,8 @@ Enhancement Notes
 - Added configurations ``network_path.collector.source_excludes`` and ``network_path.collector.dest_excludes``, which allow ignoring CIDR ranges in the Network Path collector.
 
 - Added support for querying the pod list through the API server. This feature, enabled by setting `kubeletUseApiServer`
-  to `true`, allows the Agent to retrieve pod metadata directly from the API server instead of the kubelet. 
-  This resolves issues when direct access to the kubelet `/pods` endpoint is restricted. 
+  to `true`, allows the Agent to retrieve pod metadata directly from the API server instead of the kubelet.
+  This resolves issues when direct access to the kubelet `/pods` endpoint is restricted.
   The agent will continue to query the kubelet for `/metrics` and `/stats/summary`.
   Must add `pods` to Agent cluster role.
 
@@ -127,7 +127,7 @@ Enhancement Notes
 
 - Adds functionality to construct a DD span from `datadog.` attributes on an incoming span. By default, it checks for a span attribute starting with `datadog.`; if present, it uses this to compute the corresponding Datadog field (e.g., `datadog.service` is used to set `ddspan.Service`). This will override other sources for the same field (e.g., if both `datadog.service` and `service.name` are present, `datadog.service` is used).
   By default, if a field is missing, it will be recomputed (e.g., if there's no `datadog.env`, it will look for `env` in `deployment.environment`). However, if the config option `otlp_config.traces.ignore_missing_datadog_fields` is specified, the field will not be recomputed. This option allows users to explicitly specify blank fields if they desire (e.g., set `datadog.env = ""`).
-  
+
   The following functionality is removed: if both `http.response.status_code` and `http.status_code` were present in the span attributes, the former was preferred. Similarly, `http.request.method` was preferred over `http.method`. In this release, the key encountered first is the one used.
 
 
@@ -137,7 +137,7 @@ Security Notes
 --------------
 
 - The ``OPENSSL_CONF`` and ``OPENSSL_MODULES`` environment variables are now
-  set when running the `datadog-fips-agent` in FIPS mode. This allows applications to use the 
+  set when running the `datadog-fips-agent` in FIPS mode. This allows applications to use the
   OpenSSL configuration and modules configured with the Agent installation.
 
 
@@ -151,8 +151,8 @@ Bug Fixes
 - Fixes a race condition introduced in PR #33521 around the PythonHome getting
   set in an init hook.
 
-- Fix the NVIDIA Jetson check to support parsing the ``tegrastats`` output 
-  when there are multiple Graphics Processing Clusters (GPCs). In that case, the metric 
+- Fix the NVIDIA Jetson check to support parsing the ``tegrastats`` output
+  when there are multiple Graphics Processing Clusters (GPCs). In that case, the metric
   ``nvidia.jetson.gpu.freq`` is emitted for each GPC and tagged with ``gpc:0``, ``gpc:1``, and so on.
 
 - Fixes issue where the CRI-O image status endpoint would be queried when `container_image.enabled` was set to `false`.
