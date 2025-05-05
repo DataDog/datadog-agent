@@ -164,6 +164,7 @@ func (c *Check) init() error {
 		}
 		if hostname != "" {
 			c.dbHostname = hostname
+			c.dbResolvedHostname = hostname
 		}
 	}
 
