@@ -611,7 +611,6 @@ int BPF_KPROBE(k_do_vfs_ioctl, struct file* fp, u32 fd, u32 cmd, cookie_t* cooki
     cookie_t this_cookie = { 0 };
     err = bpf_probe_read_user(&this_cookie , sizeof(cookie_t), cookie_ptr);
     if (err != 0) {
-        log_info("bpf_probe_read_user: err: %d\n", err);
         // userspace will take care of retrying queryies for misses cookies
         return 0;
     }
