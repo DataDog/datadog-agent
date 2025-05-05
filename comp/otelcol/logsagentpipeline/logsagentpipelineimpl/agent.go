@@ -51,10 +51,11 @@ type Dependencies struct {
 
 // Agent represents the data pipeline that collects, decodes, processes and sends logs to the backend.
 type Agent struct {
-	log         log.Component
-	config      pkgconfigmodel.Reader
-	hostname    hostnameinterface.Component
-	compression compression.Component
+	log          log.Component
+	config       pkgconfigmodel.Reader
+	hostname     hostnameinterface.Component
+	compression  compression.Component
+	intakeOrigin config.IntakeOrigin
 
 	endpoints        *config.Endpoints
 	auditor          auditor.Auditor
@@ -65,7 +66,7 @@ type Agent struct {
 
 // NewLogsAgentComponent returns a new instance of Agent as a Component
 func NewLogsAgentComponent(deps Dependencies) option.Option[logsagentpipeline.Component] {
-	logsAgent := NewLogsAgent(deps)
+	logsAgent := NewLogsAgent(deps, config.DDOTIntakeOrigin)
 	if logsAgent == nil {
 		return option.None[logsagentpipeline.Component]()
 	}
@@ -73,17 +74,18 @@ func NewLogsAgentComponent(deps Dependencies) option.Option[logsagentpipeline.Co
 }
 
 // NewLogsAgent returns a new instance of Agent with the given dependencies
-func NewLogsAgent(deps Dependencies) logsagentpipeline.LogsAgent {
+func NewLogsAgent(deps Dependencies, intakeOrigin config.IntakeOrigin) logsagentpipeline.LogsAgent {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
 
 		logsAgent := &Agent{
-			log:         deps.Log,
-			config:      deps.Config,
-			hostname:    deps.Hostname,
-			compression: deps.Compression,
+			log:          deps.Log,
+			config:       deps.Config,
+			hostname:     deps.Hostname,
+			compression:  deps.Compression,
+			intakeOrigin: intakeOrigin,
 		}
 		if deps.Lc != nil {
 			deps.Lc.Append(fx.Hook{
@@ -104,7 +106,7 @@ func (a *Agent) Start(context.Context) error {
 	a.log.Debug("Starting logs-agent...")
 
 	// setup the server config
-	endpoints, err := buildEndpoints(a.config, a.log)
+	endpoints, err := buildEndpoints(a.config, a.log, a.intakeOrigin)
 
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
@@ -236,13 +238,13 @@ func (a *Agent) SetupPipeline(
 }
 
 // buildEndpoints builds endpoints for the logs agent
-func buildEndpoints(coreConfig pkgconfigmodel.Reader, log log.Component) (*config.Endpoints, error) {
+func buildEndpoints(coreConfig pkgconfigmodel.Reader, log log.Component, intakeOrigin config.IntakeOrigin) (*config.Endpoints, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpoints(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
+	if endpoints, err := config.BuildHTTPEndpoints(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, intakeOrigin); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main, coreConfig)
 		if !httpConnectivity {
 			log.Warn("Error while validating API key")
 		}
 	}
-	return config.BuildEndpoints(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	return config.BuildEndpoints(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, intakeOrigin)
 }

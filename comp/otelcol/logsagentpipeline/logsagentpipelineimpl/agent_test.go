@@ -186,7 +186,8 @@ func TestBuildEndpoints(t *testing.T) {
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 	))
 
-	endpoints, err := buildEndpoints(deps.Config, deps.Log)
+	endpoints, err := buildEndpoints(deps.Config, deps.Log, config.OTelCollectorIntakeOrigin)
 	assert.Nil(t, err)
 	assert.Equal(t, "agent-intake.logs.datadoghq.com", endpoints.Main.Host)
+	assert.Equal(t, config.OTelCollectorIntakeOrigin, endpoints.Main.Origin)
 }

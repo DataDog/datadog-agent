@@ -42,6 +42,12 @@ const DefaultIntakeOrigin IntakeOrigin = "agent"
 // ServerlessIntakeOrigin is the lambda extension origin
 const ServerlessIntakeOrigin IntakeOrigin = "lambda-extension"
 
+// DDOTIntakeOrigin is the DDOT Collector origin
+const DDOTIntakeOrigin IntakeOrigin = "ddot"
+
+// OTelCollectorIntakeOrigin is the OSS OTel Collector origin
+const OTelCollectorIntakeOrigin = "otel-collector"
+
 // logs-intake endpoints depending on the site and environment.
 var logsEndpoints = map[string]int{
 	"agent-intake.logs.datadoghq.com": 10516,
