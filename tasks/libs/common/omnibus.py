@@ -39,6 +39,7 @@ def _get_environment_for_cache() -> dict:
             'CONDUCTOR_',
             'DATADOG_AGENT_',
             'DD_',
+            'DDCI_',
             'DDR_',
             'DEB_',
             'DESTINATION_',
