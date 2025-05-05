@@ -248,6 +248,7 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 
 			provider := KubeServiceConfigProvider{
 				telemetryStore: telemetryStore,
+				upToDate:       atomic.NewBool(false),
 			}
 			cfgs, _ := provider.parseServiceAnnotations([]*v1.Service{tc.service}, cfg)
 			assert.EqualValues(t, tc.expectedOut, cfgs)
@@ -476,6 +477,7 @@ func TestGetConfigErrors_KubeServices(t *testing.T) {
 				lister:         lister,
 				configErrors:   test.currentErrors,
 				telemetryStore: telemetryStore,
+				upToDate:       atomic.NewBool(false),
 			}
 
 			configs, err := provider.Collect(context.TODO())
