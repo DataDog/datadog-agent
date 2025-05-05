@@ -976,6 +976,8 @@ core,github.com/facette/natsort,BSD-3-Clause,"Copyright (c) 2015, Vincent Batouf
 core,github.com/fatih/color,MIT,Copyright (c) 2013 Fatih Arslan
 core,github.com/fatih/structtag,BSD-3-Clause,"Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2017, Fatih Arslan"
 core,github.com/felixge/httpsnoop,MIT,Copyright (c) 2016 Felix Geisendörfer (felix@debuggable.com)
+core,github.com/foxboron/go-tpm-keyfiles,MIT,Copyright (c) 2024 Morten Linderud
+core,github.com/foxboron/go-tpm-keyfiles/template,MIT,Copyright (c) 2024 Morten Linderud
 core,github.com/freddierice/go-losetup,MIT,Copyright (c) 2017 Freddie Rice
 core,github.com/fsnotify/fsnotify,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved. | Copyright (c) 2012-2019 fsnotify Authors. All rights reserved.
 core,github.com/fsnotify/fsnotify/internal,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved. | Copyright (c) 2012-2019 fsnotify Authors. All rights reserved.
@@ -1144,6 +1146,11 @@ core,github.com/google/go-containerregistry/pkg/v1/stream,Apache-2.0,Copyright 2
 core,github.com/google/go-containerregistry/pkg/v1/tarball,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/types,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-querystring/query,BSD-3-Clause,Copyright (c) 2013 Google. All rights reserved
+core,github.com/google/go-tpm/legacy/tpm2,Apache-2.0,Copyright 2014 Google LLC. All Rights Reserved.
+core,github.com/google/go-tpm/tpm2,Apache-2.0,Copyright 2014 Google LLC. All Rights Reserved.
+core,github.com/google/go-tpm/tpm2/transport,Apache-2.0,Copyright 2014 Google LLC. All Rights Reserved.
+core,github.com/google/go-tpm/tpmutil,Apache-2.0,Copyright 2014 Google LLC. All Rights Reserved.
+core,github.com/google/go-tpm/tpmutil/tbs,Apache-2.0,Copyright 2014 Google LLC. All Rights Reserved.
 core,github.com/google/gofuzz,Apache-2.0,Copyright 2014 Google Inc. All rights reserved.
 core,github.com/google/gofuzz/bytesource,Apache-2.0,Copyright 2014 Google Inc. All rights reserved.
 core,github.com/google/gopacket,BSD-3-Clause,"Copyright (c) 2009-2011 Andreas Krennmair. All rights reserved. | Copyright (c) 2012 Google, Inc. All rights reserved."
@@ -2230,6 +2237,7 @@ core,go.opentelemetry.io/collector/config/configcompression,Apache-2.0,Copyright
 core,go.opentelemetry.io/collector/config/configgrpc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/confighttp,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/confighttp/internal,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/config/configmiddleware,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/confignet,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configopaque,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configretry,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2282,6 +2290,7 @@ core,go.opentelemetry.io/collector/exporter/xexporter,Apache-2.0,Copyright The O
 core,go.opentelemetry.io/collector/extension,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/extension/extensionauth,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/extension/extensioncapabilities,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/extension/extensionmiddleware,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/extension/extensiontest,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/extension/xextension/storage,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/extension/zpagesextension,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -3858,3 +3867,4 @@ core,sigs.k8s.io/structured-merge-diff/v4/typed,Apache-2.0,Copyright 2017 The Ku
 core,sigs.k8s.io/structured-merge-diff/v4/value,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/yaml,MIT,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/yaml/goyaml.v2,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/yaml/goyaml.v3,MIT,Copyright 2017 The Kubernetes Authors.
