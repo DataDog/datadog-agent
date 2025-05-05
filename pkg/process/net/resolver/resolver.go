@@ -50,8 +50,6 @@ type LocalResolver struct {
 	Clock              clock.Clock
 	ContainerProvider  proccontainers.ContainerProvider
 	done               chan bool
-	pidToCid           map[int32]string
-	procRoot           string
 }
 
 // NewLocalResolver creates a new LocalResolver
@@ -64,7 +62,6 @@ func NewLocalResolver(containerProvider proccontainers.ContainerProvider, clock 
 		maxAddrToCtrIDSize: maxAddrCacheSize,
 		ctrForPid:          make(map[int]*containerIDEntry),
 		maxCtrForPidSize:   maxPidCacheSize,
-		pidToCid:           make(map[int32]string),
 	}
 }
 
