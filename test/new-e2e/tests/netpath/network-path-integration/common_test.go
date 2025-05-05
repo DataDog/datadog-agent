@@ -11,12 +11,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -52,9 +53,22 @@ func assertMetrics(fakeIntake *components.FakeIntake, c *assert.CollectT, metric
 			fakeintakeclient.WithTags[*aggregator.MetricSeries](tags),
 			fakeintakeclient.WithMetricValueHigherThan(0),
 		)
+		fmt.Println("tags", tags)
+		fmt.Println("metrics", metrics)
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics, fmt.Sprintf("metric with tags `%v` not found", tags))
+
+		// assert at least one hop reachable
+		// this means even with firewall rules, we still can the destination hop
+		metrics, err = fakeClient.FilterMetrics("datadog.network_path.path.reachable",
+			fakeintakeclient.WithTags[*aggregator.MetricSeries](tags),
+			fakeintakeclient.WithMetricValueHigherThan(0),
+		)
+		assert.NoError(c, err)
+		assert.NotEmpty(c, metrics, fmt.Sprintf("metric with tags `%v` not found", tags))
+
 	}
+
 }
 
 func (s *baseNetworkPathIntegrationTestSuite) findNetpath(isMatch func(*aggregator.Netpath) bool) (*aggregator.Netpath, error) {

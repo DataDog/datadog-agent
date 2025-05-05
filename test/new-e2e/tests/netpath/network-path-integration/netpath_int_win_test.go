@@ -25,13 +25,18 @@ type windowsNetworkPathIntegrationTestSuite struct {
 	baseNetworkPathIntegrationTestSuite
 }
 
+//go:embed fixtures/network_path_windows.yaml
+var networkPathIntegrationWindows []byte
+
+var testAgentRunningMetricTagsTCPSocket = []string{"destination_hostname:8.8.8.8", "protocol:TCP", "destination_port:443"}
+
 // TestNetworkPathIntegrationSuiteLinux runs the Network Path Integration e2e suite for linux
 func TestWindowsNetworkPathIntegrationSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &windowsNetworkPathIntegrationTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
-			agentparams.WithIntegration("network_path.d", string(networkPathIntegration)),
+			agentparams.WithIntegration("network_path.d", string(networkPathIntegrationWindows)),
 		),
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 	)))
@@ -46,6 +51,7 @@ func (s *windowsNetworkPathIntegrationTestSuite) TestWindowsNetworkPathIntegrati
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assertMetrics(fakeIntake, c, [][]string{
 			testAgentRunningMetricTagsTCP,
+			testAgentRunningMetricTagsTCPSocket,
 			// TODO: Test UDP once implemented for windows, uncomment line below
 			//testAgentRunningMetricTagsUDP,
 		})
