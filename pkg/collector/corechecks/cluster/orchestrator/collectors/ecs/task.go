@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/ecs"
 	transformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/ecs"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -73,6 +74,7 @@ func (t *TaskCollector) Process(rcfg *collectors.CollectorRunConfig, list interf
 			NodeType:         t.metadata.NodeType,
 			ManifestProducer: t.metadata.IsManifestProducer,
 			ClusterID:        rcfg.ClusterID,
+			ExtraTags:        util.ImmutableTagsJoin(rcfg.Config.ExtraTags),
 		},
 		AWSAccountID: rcfg.AWSAccountID,
 		ClusterName:  rcfg.ClusterName,
