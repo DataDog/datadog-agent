@@ -51,7 +51,9 @@ func (scanner *windowsFirewallScanner) DiagnoseBlockingRules(rulesToCheck source
         } catch {
             exit 42
         }`)
+
 	output, err := cmd.CombinedOutput()
+
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) {
 		exitCode := exitErr.ExitCode()
