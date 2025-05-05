@@ -303,7 +303,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	}
 	metrics.BytesSent.Add(int64(payload.UnencodedSize))
 	var sourceTag string
-	var compressionKind string
+	compressionKind := "none"
 
 	if d.endpoint.UseCompression {
 		compressionKind = d.endpoint.CompressionKind
