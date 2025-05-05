@@ -22,17 +22,17 @@ import (
 func Test_getRulesToCheck(t *testing.T) {
 	tests := []struct {
 		name          string
-		bConf         []byte
+		conf          []byte
 		expectedRules sourcesByRule
 	}{
 		{
 			name:          "empty config",
-			bConf:         []byte(``),
+			conf:          []byte(``),
 			expectedRules: sourcesByRule{},
 		},
 		{
 			name: "snmp traps config",
-			bConf: []byte(`
+			conf: []byte(`
 network_devices:
   snmp_traps:
     enabled: true
@@ -47,7 +47,7 @@ network_devices:
 		},
 		{
 			name: "snmp traps config not enabled",
-			bConf: []byte(`
+			conf: []byte(`
 network_devices:
   snmp_traps:
     port: 1000
@@ -56,7 +56,7 @@ network_devices:
 		},
 		{
 			name: "netflow config",
-			bConf: []byte(`
+			conf: []byte(`
 network_devices:
   netflow:
     enabled: true
@@ -89,7 +89,7 @@ network_devices:
 		},
 		{
 			name: "snmp traps and netflow config",
-			bConf: []byte(`
+			conf: []byte(`
 network_devices:
   snmp_traps:
     enabled: true
@@ -117,7 +117,7 @@ network_devices:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rawConf := make(map[string]any)
-			require.NoError(t, yaml.Unmarshal(tt.bConf, &rawConf))
+			require.NoError(t, yaml.Unmarshal(tt.conf, &rawConf))
 
 			conf := fxutil.Test[config.Component](t,
 				config.MockModule(),
