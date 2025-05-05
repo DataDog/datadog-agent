@@ -114,3 +114,160 @@ func TestPythonDetect(t *testing.T) {
 		})
 	}
 }
+
+func TestParsePythonArgs(t *testing.T) {
+	tests := []struct {
+		args         []string
+		expectedType argType
+		expectedArg  string
+	}{
+		{
+			args:         []string{},
+			expectedType: argNone,
+			expectedArg:  "",
+		},
+		{
+			args:         []string{"-"},
+			expectedType: argNone,
+			expectedArg:  "",
+		},
+		{
+			args:         []string{"-B"},
+			expectedType: argNone,
+			expectedArg:  "",
+		},
+		{
+			args:         []string{"-X"},
+			expectedType: argNone,
+			expectedArg:  "",
+		},
+		{
+			args:         []string{""},
+			expectedType: argFileName,
+			expectedArg:  "",
+		},
+		{
+			args:         []string{"script.py"},
+			expectedType: argFileName,
+			expectedArg:  "script.py",
+		},
+		{
+			args:         []string{"-u", "script.py"},
+			expectedType: argFileName,
+			expectedArg:  "script.py",
+		},
+		{
+			args:         []string{"-B", "script.py"},
+			expectedType: argFileName,
+			expectedArg:  "script.py",
+		},
+		{
+			args:         []string{"-E", "script.py"},
+			expectedType: argFileName,
+			expectedArg:  "script.py",
+		},
+		{
+			args:         []string{"-OO", "script.py"},
+			expectedType: argFileName,
+			expectedArg:  "script.py",
+		},
+		{
+			args:         []string{"script.py", "-OO"},
+			expectedType: argFileName,
+			expectedArg:  "script.py",
+		},
+		{
+			args:         []string{"-u", "-B", "-E", "script.py"},
+			expectedType: argFileName,
+			expectedArg:  "script.py",
+		},
+		{
+			args:         []string{"-W", "default", "app.py"},
+			expectedType: argFileName,
+			expectedArg:  "app.py",
+		},
+		{
+			args:         []string{"-Wdefault", "app.py"},
+			expectedType: argFileName,
+			expectedArg:  "app.py",
+		},
+		{
+			args:         []string{"-c", "print('hello')", "app.py"},
+			expectedType: argNone,
+			expectedArg:  "",
+		},
+		{
+			args:         []string{"-cprint('hello')", "app.py"},
+			expectedType: argNone,
+			expectedArg:  "",
+		},
+		{
+			args:         []string{"-m", "module", "app.py"},
+			expectedType: argMod,
+			expectedArg:  "module",
+		},
+		{
+			args:         []string{"-mmodule", "app.py"},
+			expectedType: argMod,
+			expectedArg:  "module",
+		},
+		{
+			args:         []string{"-BEmmodule", "-u", "script.py"},
+			expectedType: argMod,
+			expectedArg:  "module",
+		},
+		{
+			args:         []string{"--check-hash-based-pycs", "always", "app.py"},
+			expectedType: argFileName,
+			expectedArg:  "app.py",
+		},
+		{
+			args:         []string{"--foo", "script.py"},
+			expectedType: argFileName,
+			expectedArg:  "script.py",
+		},
+		{
+			args:         []string{"-BE", "script.py"},
+			expectedType: argFileName,
+			expectedArg:  "script.py",
+		},
+		{
+			args:         []string{"-BEs", "-u", "script.py"},
+			expectedType: argFileName,
+			expectedArg:  "script.py",
+		},
+		{
+			args:         []string{"-BW", "ignore", "script.py"},
+			expectedType: argFileName,
+			expectedArg:  "script.py",
+		},
+		{
+			args:         []string{"-X", "dev", "script.py"},
+			expectedType: argFileName,
+			expectedArg:  "script.py",
+		},
+		{
+			args:         []string{"-Xdev", "script.py"},
+			expectedType: argFileName,
+			expectedArg:  "script.py",
+		},
+		{
+			args:         []string{"-W", "error::DeprecationWarning", "script.py"},
+			expectedType: argFileName,
+			expectedArg:  "script.py",
+		},
+		{
+			args:         []string{"-Werror::DeprecationWarning", "script.py"},
+			expectedType: argFileName,
+			expectedArg:  "script.py",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
+			argType, arg := parsePythonArgs(tt.args)
+			require.Equal(t, tt.expectedType, argType)
+			require.Equal(t, tt.expectedArg, arg)
+		})
+	}
+}
