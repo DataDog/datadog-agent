@@ -625,14 +625,13 @@ int BPF_KPROBE(k_do_vfs_ioctl, struct file* fp, u32 fd, u32 cmd, cookie_t* cooki
     kprobe_stats_t kstats = { 0 };
     k_stats_error_t stats_error = { 0 };
 
-    // TODO: filter command
     if (cmd != EBPF_CHECK_KPROBE_MISSES_CMD)
         return 0;
 
     cookie_t this_cookie = { 0 };
     err = bpf_probe_read_user(&this_cookie , sizeof(cookie_t), cookie_ptr);
     if (err != 0) {
-        // userspace will take care of retrying queryies for misses cookies
+        // userspace will take care of retrying queries for misses cookies
         return 0;
     }
 
