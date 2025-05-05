@@ -57,8 +57,8 @@ func RemoveProgramID(progID uint32, expectedModule string) {
 	}
 }
 
-// ClearNameMappings clears all name mappings for a given module
-func ClearNameMappings(module string) {
+// ClearProgramIDMappings clears all name mappings for a given module
+func ClearProgramIDMappings(module string) {
 	mappingLock.Lock()
 	defer mappingLock.Unlock()
 
@@ -66,6 +66,7 @@ func ClearNameMappings(module string) {
 		if progModule == module {
 			delete(progNameMapping, progID)
 			delete(progModuleMapping, progID)
+			delete(probeIDToFDMappings, ebpf.ProgramID(progID))
 		}
 	}
 

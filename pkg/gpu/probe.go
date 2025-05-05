@@ -217,7 +217,7 @@ func (p *Probe) start() error {
 func (p *Probe) Close() {
 	p.attacher.Stop()
 	_ = p.m.Stop(manager.CleanAll)
-	ddebpf.ClearNameMappings(consts.GpuModuleName)
+	ddebpf.ClearProgramIDMappings(consts.GpuModuleName)
 	p.consumer.Stop()
 	p.eventHandler.Stop()
 }
