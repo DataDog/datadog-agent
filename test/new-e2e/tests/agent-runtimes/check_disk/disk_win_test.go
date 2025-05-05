@@ -10,7 +10,6 @@ import (
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 )
 
@@ -19,7 +18,6 @@ type windowsStatusSuite struct {
 }
 
 func TestWindowsDiskSuite(t *testing.T) {
-	flake.Mark(t)
 	t.Parallel()
 	suite := &windowsStatusSuite{baseCheckSuite{descriptor: e2eos.WindowsDefault, agentOptions: getAgentOptions()}}
 	e2e.Run(t, suite, suite.getSuiteOptions()...)
