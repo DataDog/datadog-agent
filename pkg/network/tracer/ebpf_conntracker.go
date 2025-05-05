@@ -133,7 +133,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		return nil, fmt.Errorf("failed to start ebpf conntracker: %w", err)
 	}
 
-	ddebpf.AddProbeFDMappings(m, "npm_conntracker")
+	ddebpf.AddProbeFDMappings(m)
 
 	ctMap, err := maps.GetMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple](m, probes.ConntrackMap)
 	if err != nil {

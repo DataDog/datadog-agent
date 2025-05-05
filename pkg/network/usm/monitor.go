@@ -140,7 +140,7 @@ func (m *Monitor) Start() error {
 		return err
 	}
 
-	ddebpf.AddProbeFDMappings(m.ebpfProgram.Manager.Manager, "usm_monitor")
+	ddebpf.AddProbeFDMappings(m.ebpfProgram.Manager.Manager)
 
 	// Need to explicitly save the error in `err` so the defer function could save the startup error.
 	if usmconfig.NeedProcessMonitor(m.cfg) {

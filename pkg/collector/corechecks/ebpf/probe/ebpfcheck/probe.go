@@ -32,7 +32,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	ddmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -181,15 +180,15 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, err
 	constants["nr_cpus"] = uint64(cpus)
 
 	for k, v := range constants {
-		if vs, ok := collSpec.Variables[k]; !ok {
+		vs, ok := collSpec.Variables[k]
+		if !ok {
 			return nil, fmt.Errorf("missing ebpf variable %s", k)
-		} else {
-			if !vs.Constant() {
-				return nil, fmt.Errorf("non-constant ebpf variable %s", k)
-			}
-			if err := vs.Set(v); err != nil {
-				return nil, fmt.Errorf("failed to set ebpf variable %s: %w", k, err)
-			}
+		}
+		if !vs.Constant() {
+			return nil, fmt.Errorf("non-constant ebpf variable %s", k)
+		}
+		if err := vs.Set(v); err != nil {
+			return nil, fmt.Errorf("failed to set ebpf variable %s: %w", k, err)
 		}
 	}
 
@@ -414,9 +413,9 @@ func (k *Probe) getKprobeMisses(ebpfStats *model.EBPFStats, uniquePrograms map[p
 	// bpf_probe_read_user in the ebpf program. This may flake, so we try
 	// a few times before giving up.
 retry:
-	retryCnt += 1
+	retryCnt++
 
-	for c, _ := range cookies {
+	for c := range cookies {
 		perfEventFD, err := ddebpf.GetPerfEventFDByProbeID(ebpf.ProgramID(c.Kprobe_id))
 		// not all programs have associated perf events
 		if err != nil {
@@ -430,7 +429,7 @@ retry:
 		_, _, _ = syscall.Syscall(syscall.SYS_IOCTL, uintptr(perfEventFD), ioctlCollectKprobeMissedStatsCmd, uintptr(cookiePtr))
 	}
 
-	statsGenericMap, err := maps.Map[cookie, kprobeKernelStats](k.cookieToKprobeStats)
+	statsGenericMap, err := ddmaps.Map[cookie, kprobeKernelStats](k.cookieToKprobeStats)
 	if err != nil {
 		return fmt.Errorf("unable to create generic map: %w", err)
 	}
@@ -450,11 +449,11 @@ retry:
 
 		name, err := ddebpf.GetProgNameFromProgID(key.Kprobe_id)
 		if err != nil {
-			log.Errorf("unable to get program name for kprobe id %d: %w", key.Kprobe_id, err)
+			log.Errorf("unable to get program name for kprobe id %d: %v", key.Kprobe_id, err)
 		}
 		module, err := ddebpf.GetModuleFromProgID(key.Kprobe_id)
 		if err != nil {
-			log.Errorf("unable to get module name for kprobe id %d: %w", key.Kprobe_id, err)
+			log.Errorf("unable to get module name for kprobe id %d: %v", key.Kprobe_id, err)
 		}
 
 		progKey, ok := cookies[*key]
@@ -492,7 +491,7 @@ retry:
 
 	// if we have leftover cookies, then it means the eBPF program could not record their stats
 	// inspect the error map and decide if we want to retry collection
-	errorsGenericMap, err := maps.Map[cookie, kprobeStatsErrors](k.cookieToQueryError)
+	errorsGenericMap, err := ddmaps.Map[cookie, kprobeStatsErrors](k.cookieToQueryError)
 	if err != nil {
 		return fmt.Errorf("unable to create generic map: %w", err)
 	}

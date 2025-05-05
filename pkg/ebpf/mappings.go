@@ -24,11 +24,6 @@ var mapModuleMapping = make(map[uint32]string)
 var progNameMapping = make(map[uint32]string)
 var progModuleMapping = make(map[uint32]string)
 
-type probeKey struct {
-	probeName  string
-	moduleName string
-}
-
 var probeIDToFDMappings = make(map[ebpf.ProgramID]uint32)
 
 var progIgnoredIDs = make(map[ebpf.ProgramID]struct{})
@@ -261,7 +256,7 @@ func IsProgramIDIgnored(id ebpf.ProgramID) bool {
 }
 
 // AddProbeFDMappings creates mappings between a program and its perf event fd
-func AddProbeFDMappings(mgr *manager.Manager, moduleName string) {
+func AddProbeFDMappings(mgr *manager.Manager) {
 	mappingLock.Lock()
 	defer mappingLock.Unlock()
 

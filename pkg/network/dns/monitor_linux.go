@@ -108,7 +108,7 @@ func (m *dnsMonitor) Start() error {
 			return err
 		}
 
-		ddebpf.AddProbeFDMappings(m.p.Manager, "npm_dns")
+		ddebpf.AddProbeFDMappings(m.p.Manager)
 	}
 	return nil
 }
