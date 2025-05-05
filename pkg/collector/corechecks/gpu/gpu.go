@@ -9,7 +9,6 @@ package gpu
 
 import (
 	"fmt"
-	"strings"
 
 	"gopkg.in/yaml.v2"
 
@@ -31,6 +30,7 @@ import (
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -332,7 +332,7 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 
 	for _, container := range containers {
 		for _, resource := range container.AllocatedResources {
-			if resource.Name == "nvidia.com/gpu" || strings.HasPrefix(resource.Name, "nvidia.com/mig") {
+			if gpuutil.IsNvidiaKubernetesResource(resource.Name) {
 				gpuToContainers[resource.ID] = append(gpuToContainers[resource.ID], container)
 			}
 		}

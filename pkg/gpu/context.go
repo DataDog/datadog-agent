@@ -9,7 +9,6 @@ package gpu
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -17,11 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
-
-const nvidiaResourceName = "nvidia.com/gpu"
-const nvidiaMigResourceName = "nvidia.com/mig"
 
 // systemContext holds certain attributes about the system that are used by the GPU probe.
 type systemContext struct {
@@ -180,7 +177,7 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 	numContainerGPUs := 0
 	for _, resource := range container.AllocatedResources {
 		// Only consider NVIDIA GPUs
-		if resource.Name != nvidiaResourceName && !strings.HasPrefix(resource.Name, nvidiaMigResourceName) {
+		if !gpuutil.IsNvidiaKubernetesResource(resource.Name) {
 			continue
 		}
 

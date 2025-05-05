@@ -46,3 +46,10 @@ func ExtractSimpleGPUName(gpuName ResourceGPU) (string, bool) {
 	// Not a GPU resource (or not recognized)
 	return "", false
 }
+
+// IsNvidiaKubernetesResource returns true if the resource name is a Kubernetes resource
+// for an NVIDIA GPU, either a generic GPU or a MIG GPU.
+func IsNvidiaKubernetesResource(resourceName string) bool {
+	return strings.HasPrefix(resourceName, string(gpuNvidiaMigPrefix)) ||
+		resourceName == string(gpuNvidiaGeneric)
+}
