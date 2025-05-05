@@ -154,7 +154,7 @@ func getCertificates(store string, certFilters []string) ([]*x509.Certificate, e
 		windows.CERT_STORE_PROV_SYSTEM,
 		0,
 		0,
-		windows.CERT_SYSTEM_STORE_LOCAL_MACHINE,
+		windows.CERT_SYSTEM_STORE_LOCAL_MACHINE|windows.CERT_STORE_READONLY_FLAG,
 		uintptr(unsafe.Pointer(storeName)))
 	if err != nil {
 		log.Errorf("Error opening certificate store: %v", err)
