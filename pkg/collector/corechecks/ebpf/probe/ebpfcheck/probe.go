@@ -519,7 +519,7 @@ retry:
 		if err != nil {
 			log.Errorf("unable to get program name for kprobe id %d: %s", key.Kprobe_id, err)
 		} else {
-			log.Errorf("error in eBPF program while recording kprobe statistics for %s: %s", name, bpfError)
+			log.Warnf("error in eBPF program while recording kprobe statistics for %s: %s", name, bpfError)
 		}
 
 		// could not record stats for this cookie due to errors
