@@ -404,39 +404,45 @@ volatile const u64 kretprobe_funcs = 0;
 volatile const u64 nr_cpus = 0;
 volatile const u64 __per_cpu_offset = 0;
 
-static __always_inline bool is_perf_event(u32 fd, struct file** perf_event_file) {
+// The function checks if the fd points to a file which is a perf_event by check the file operations it points to
+static __always_inline int is_perf_event(u32 fd, struct file** perf_event_file, bool* is_kprobe) {
     struct file **fdarray;
     int err;
     u64 fops;
 
+    *is_kprobe = false;
+
     struct task_struct *tsk = (struct task_struct *)bpf_get_current_task();
     if (tsk == NULL)
-        return false;
+        return -1;
 
     err = BPF_CORE_READ_INTO(&fdarray, tsk, files, fdt, fd);
     if (err < 0)
-        return false;
+        return err;
 
     err = bpf_core_read(perf_event_file, sizeof(struct file *), fdarray + fd);
     if (err < 0)
-        return false;
+        return err;
 
     struct file* pef = *perf_event_file;
     err = bpf_core_read(&fops, sizeof(struct file_operations *), &pef->f_op);
     if (err < 0)
-        return false;
+        return err;
 
     if (!fops)
-        return false;
+        return -1;
 
     if (perf_fops) {
         if (fops != perf_fops)
-            return false;
+            // this is not an error path. We just got an fd which we are not interested in
+            return 0;
     } else {
-        return false;
+        return -1;
     }
 
-    return true;
+
+    *is_kprobe = true;
+    return 0;
 }
 
 static __always_inline int get_perf_event(struct file* perf_event_file, struct perf_event** event) {
@@ -516,7 +522,7 @@ static __always_inline struct trace_kprobe* trace_kprobe_from_perf_event(struct 
 
 
     if (first == &tpe->probes) {
-        return 0;
+        return NULL;
     }
 
     struct trace_probe* tp = container_of(first, struct trace_probe, list);
@@ -590,11 +596,20 @@ static __always_inline int is_event_uprobe(struct perf_event *event, bool* is_up
     return 0;
 }
 
+#define _report_error_and_exit(ec, c)                                              \
+    do {                                                                                \
+        stats_error.error_type = ec;                                                    \
+        stats_error.cookie = c;                                                    \
+        bpf_map_update_elem(&cookie_to_query_error, &c, &stats_error, BPF_ANY);    \
+        return 0;                                                                       \
+    } while(0);
+
+
 void bpf_rcu_read_lock(void) __ksym;
 void bpf_rcu_read_unlock(void) __ksym;
 
 // the ebpf-check module starts before any other module so we do not really know
-// how maybe programs will be installed, so we cannot update max entries from userspace.
+// how many programs will be installed, so we cannot update max entries from userspace.
 BPF_HASH_MAP(cookie_to_trace_kprobe, u64, u64, 8192)
 BPF_HASH_MAP(cookie_to_uprobe_event, u64, u64, 8192)
 BPF_HASH_MAP(cookie_to_kprobe_stats, cookie_t, kprobe_stats_t, 8192)
@@ -632,41 +647,35 @@ int BPF_KPROBE(k_do_vfs_ioctl, struct file* fp, u32 fd, u32 cmd, cookie_t* cooki
         return 0;
     }
 
-    // we need to hold an rcu lock becuase task_struct->files_struct->fdt
+    // we need to hold an rcu lock because task_struct->files_struct->fdt
     // must be read within an rcu read-size critical section.
+    bool is_fd_perf_event = false;
     bpf_rcu_read_lock();
-    if (!is_perf_event(fd, &perf_event_file)) {
-        bpf_rcu_read_unlock();
-
-        stats_error.error_type = FILE_NOT_PERF_EVENT;
-        stats_error.cookie = this_cookie;
-        goto error;
-    }
-
+    err = is_perf_event(fd, &perf_event_file, &is_fd_perf_event);
     bpf_rcu_read_unlock();
+
+    if ((err < 0) || (!is_fd_perf_event)) {
+        _report_error_and_exit(FILE_NOT_PERF_EVENT, this_cookie);
+    }
 
     err = get_perf_event(perf_event_file, &event);
     if ((err < 0) || (!event)) {
-        stats_error.error_type = ERR_READING_PERF_PMU;
-        stats_error.cookie = this_cookie;
-        goto error;
+        _report_error_and_exit(PERF_EVENT_NOT_FOUND, this_cookie);
     }
 
     bool kprobe_with_perf = false;
     err = is_perf_kprobe(event, &kprobe_with_perf);
     if (err < 0) {
-        stats_error.error_type = PERF_EVENT_NOT_FOUND;
-        stats_error.cookie = this_cookie;
-        goto error;
+        _report_error_and_exit(ERR_READING_PERF_PMU, this_cookie);
     }
 
-    // ignore uprobe and uretprobes
+    // ignore cookies for known uprobes. If the cookie is in this map,
+    // it means we have already inspected it and found out it's an uprobe,
+    // so avoid re-computing things and return early.
     bool is_uprobe = false;
     err = is_event_uprobe(event, &is_uprobe);
     if (err < 0) {
-        stats_error.error_type = ERR_READING_TRACE_EVENT_CALL_FLAGS;
-        stats_error.cookie = this_cookie;
-        goto error;
+        _report_error_and_exit(ERR_READING_TRACE_EVENT_CALL_FLAGS, this_cookie);
     }
 
     // cache uprobe perf event so we can ignore it
@@ -678,18 +687,17 @@ int BPF_KPROBE(k_do_vfs_ioctl, struct file* fp, u32 fd, u32 cmd, cookie_t* cooki
     bool kprobe_with_tracefs = false;
     err = is_tracefs_kprobe(event, &kprobe_with_tracefs);
     if (err < 0) {
-        stats_error.error_type = ERR_READING_TRACEFS_KPROBE;
-        stats_error.cookie = this_cookie;
-        goto error;
+        _report_error_and_exit(ERR_READING_TRACEFS_KPROBE, this_cookie);
     }
 
     if (!(kprobe_with_perf || kprobe_with_tracefs)) {
-        stats_error.error_type = PERF_EVENT_FD_IS_NOT_KPROBE;
-        stats_error.cookie = this_cookie;
-        goto error;
+        _report_error_and_exit(PERF_EVENT_FD_IS_NOT_KPROBE, this_cookie);
     }
 
     tk = trace_kprobe_from_perf_event(event);
+    if (tk == NULL) {
+        _report_error_and_exit(ERR_READING_TRACE_KPROBE_FROM_PERF_EVENT, this_cookie);
+    }
 
     // cache the trace_kprobe if cookie was provided
     if (this_cookie.kprobe_id != 0)
@@ -699,33 +707,21 @@ record_nhits:
 
     err = get_kprobe_hits(tk, &kstats.kprobe_hits);
     if (err < 0) {
-        stats_error.error_type = ERR_READING_KPROBE_HITS;
-        stats_error.cookie = this_cookie;
-        goto error;
+        _report_error_and_exit(ERR_READING_KPROBE_HITS, this_cookie);
     }
 
     err = get_kprobe_misses(tk, &kstats.kprobe_nesting_misses);
     if (err < 0) {
-        stats_error.error_type = ERR_READING_KPROBE_MISSES;
-        stats_error.cookie = this_cookie;
-        goto error;
+        _report_error_and_exit(ERR_READING_KPROBE_MISSES, this_cookie);
     }
 
     err = get_kretprobe_maxactive_misses(tk, &kstats.kretprobe_maxactive_misses);
     if (err < 0) {
-        stats_error.error_type = ERR_READING_KRETPROBE_MISSES;
-        stats_error.cookie = this_cookie;
-        goto error;
+        _report_error_and_exit(ERR_READING_KRETPROBE_MISSES, this_cookie);
     }
 
     // userspace will remove kprobe stats once they are read for the query
     bpf_map_update_elem(&cookie_to_kprobe_stats, &this_cookie, &kstats, BPF_ANY);
-
-    return 0;
-
-error:
-    bpf_map_update_elem(&cookie_to_query_error, &this_cookie, &stats_error, BPF_ANY);
-
     return 0;
 }
 
