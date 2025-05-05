@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && !ebpf_bindata && !btfhubsync
+//go:build linux_bpf && !ebpf_bindata && !btfhubsync && !cws_go_generate
 
 // Package ebpf holds ebpf related files
 package ebpf
