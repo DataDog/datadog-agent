@@ -80,7 +80,7 @@ func (h *ReplicaSetHandlers) ResourceList(ctx processors.ProcessorContext, list 
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources

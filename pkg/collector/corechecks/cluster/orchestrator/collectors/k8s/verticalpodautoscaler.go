@@ -101,7 +101,7 @@ func (c *VerticalPodAutoscalerCollector) Process(rcfg *collectors.CollectorRunCo
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    processed,
 		ResourcesProcessed: processed,
 	}
 
