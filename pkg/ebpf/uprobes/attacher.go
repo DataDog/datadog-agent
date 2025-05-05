@@ -634,7 +634,6 @@ func (ua *UprobeAttacher) handleProcessStart(pid uint32) {
 // for API compatibility with processMonitor
 func (ua *UprobeAttacher) handleProcessExit(pid uint32) {
 	_ = ua.DetachPID(pid)
-	delete(ua.scansPerPid, pid)
 }
 
 func (ua *UprobeAttacher) handleLibraryOpen(libpath sharedlibraries.LibPath) {
