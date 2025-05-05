@@ -505,6 +505,10 @@ static __always_inline struct trace_kprobe* trace_kprobe_from_perf_event(struct 
     if (!tpe)
         return NULL;
 
+    // This may look suspicious but this is exactly how the kernel gets the
+    // trace_kprobe associated with a perf event.
+    // See the call stack:
+    // perf_event_attach_bpf_prog -> trace_kprobe_on_func_entry -> trace_kprobe_primary_from_call
     struct list_head* first;
     err = BPF_CORE_READ_INTO(&first, tpe, probes.next);
     if (err < 0)
