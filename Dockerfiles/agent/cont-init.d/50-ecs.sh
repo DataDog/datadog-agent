@@ -1,6 +1,6 @@
 #!/bin/bash
-
-if [[ -z "${ECS_FARGATE}" ]]; then
+ 
+if [[ "${AWS_EXECUTION_ENV}" == "AWS_ECS_FARGATE" ]]; then
     exit 0
 fi
 
