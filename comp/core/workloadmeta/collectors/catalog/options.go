@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/podman"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector"
 	remoteworkloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/service"
 )
 
 func getCollectorOptions() []fx.Option {
@@ -44,5 +45,6 @@ func getCollectorOptions() []fx.Option {
 		remoteWorkloadmetaParams(),
 		processcollector.GetFxOptions(),
 		nvml.GetFxOptions(),
+		service.GetFxOptions(),
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/process"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/processlanguage"
 	remoteprocesscollector "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/service"
 )
 
 func getCollectorOptions() []fx.Option {
@@ -42,5 +43,6 @@ func getCollectorOptions() []fx.Option {
 		processlanguage.GetFxOptions(),
 		nvml.GetFxOptions(),
 		process.GetFxOptions(),
+		service.GetFxOptions(),
 	}
 }
