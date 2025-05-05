@@ -154,7 +154,7 @@ func (c *Check) init() error {
 		}
 	}
 
-	if ht == oci && c.dbHostname == "" {
+	if ht == oci && c.dbResolvedHostname == "" {
 		var hostname string
 		err = getWrapper(c, &hostname, `SELECT JSON_VALUE(cloud_identity, '$.DATABASE_NAME') || '.'
   ||JSON_VALUE(cloud_identity, '$.PUBLIC_DOMAIN_NAME') AS host_name
