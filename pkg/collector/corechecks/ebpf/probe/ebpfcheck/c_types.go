@@ -31,7 +31,7 @@ func (err *kprobeStatsErrors) String() string {
 		return "unable to get perf_event from file"
 	case 4:
 		return "could not read the pmu type of the perf event"
-	case 6:
+	case 5:
 		return "could not read kprobe hits"
 	case 6:
 		return "could not read kprobe misses"
