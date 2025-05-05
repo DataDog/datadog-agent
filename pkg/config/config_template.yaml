@@ -2849,10 +2849,17 @@ api_key:
 ## configurations.
 ## If the list is not set or is empty, the default behavior applies: all envs
 ## are allowed.
+## This list only applies when `ad_disable_env_var_resolution` is set to false.
 #
 # ad_allowed_env_vars:
 #   - <ENV_VAR_1>
 #   - <ENV_VAR_2>
+
+## @param ad_disable_env_var_resolution - boolean - optional - default: false
+## @env DD_AD_DISABLE_ENV_VAR_RESOLUTION - boolean - optional - default: false
+## Disable environment variable resolution in check configurations.
+#
+# ad_disable_env_var_resolution: false
 
 ## @param cloud_foundry_garden - custom object - optional
 ## Settings for Cloudfoundry application container autodiscovery.

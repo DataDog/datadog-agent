@@ -42,7 +42,7 @@ require (
 	go.uber.org/atomic v1.11.0
 	golang.org/x/sys v0.32.0
 	golang.org/x/time v0.11.0
-	google.golang.org/grpc v1.71.1
+	google.golang.org/grpc v1.72.0
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/ini.v1 v1.67.0
 	k8s.io/apimachinery v0.31.4

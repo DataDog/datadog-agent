@@ -28,6 +28,8 @@
       --variable IMG_REGISTRIES
       --variable IMG_SOURCES
       --variable IMG_DESTINATIONS
+      --variable IMG_TAG_REFERENCE
+      --variable IMG_NEW_TAGS
       --variable IMG_SIGNING
       --variable APPS
       --variable BAZEL_TARGET

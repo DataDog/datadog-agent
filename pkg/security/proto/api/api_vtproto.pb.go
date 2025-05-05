@@ -2255,8 +2255,15 @@ func (m *ActivityDumpStreamMessage) MarshalToSizedBufferVT(dAtA []byte) (int, er
 		i--
 		dAtA[i] = 0x1a
 	}
-	if m.Dump != nil {
-		size, err := m.Dump.MarshalToSizedBufferVT(dAtA[:i])
+	if len(m.Header) > 0 {
+		i -= len(m.Header)
+		copy(dAtA[i:], m.Header)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Header)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.Selector != nil {
+		size, err := m.Selector.MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -3814,8 +3821,12 @@ func (m *ActivityDumpStreamMessage) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
-	if m.Dump != nil {
-		l = m.Dump.SizeVT()
+	if m.Selector != nil {
+		l = m.Selector.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.Header)
+	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	l = len(m.Data)
@@ -9371,7 +9382,7 @@ func (m *ActivityDumpStreamMessage) UnmarshalVT(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Dump", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Selector", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -9398,11 +9409,45 @@ func (m *ActivityDumpStreamMessage) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Dump == nil {
-				m.Dump = &ActivityDumpMessage{}
+			if m.Selector == nil {
+				m.Selector = &WorkloadSelectorMessage{}
 			}
-			if err := m.Dump.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+			if err := m.Selector.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Header", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Header = append(m.Header[:0], dAtA[iNdEx:postIndex]...)
+			if m.Header == nil {
+				m.Header = []byte{}
 			}
 			iNdEx = postIndex
 		case 3:

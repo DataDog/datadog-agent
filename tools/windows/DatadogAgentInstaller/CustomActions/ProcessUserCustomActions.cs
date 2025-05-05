@@ -485,6 +485,11 @@ namespace Datadog.CustomActions
                     _session.Log($"User {ddAgentUserName} doesn't exist.");
 
                     ParseUserName(ddAgentUserName, out userName, out domain);
+                    if (_isDomainController || _isReadOnlyDomainController)
+                    {
+                        // user must be domain account on DCs
+                        isDomainAccount = true;
+                    }
                 }
 
                 if (string.IsNullOrEmpty(userName))
@@ -533,20 +538,28 @@ namespace Datadog.CustomActions
                     throw new InvalidAgentUserConfigurationException("A password was not provided. A password is a required when installing on Domain Controllers.");
                 }
 
-                if (!isServiceAccount &&
-                    !isDomainAccount &&
-                    string.IsNullOrEmpty(ddAgentUserPassword))
+                var isLocalAccount = !isServiceAccount && !isDomainAccount;
+                if (isLocalAccount)
                 {
-                    _session.Log("Generating a random password");
+                    if (string.IsNullOrEmpty(ddAgentUserPassword))
+                    {
+                        _session.Log("Generating a random password");
+                        ddAgentUserPassword = GetRandomPassword(128);
+                    }
+                    // For local accounts, we will set the Agent account password to this value.
+                    // This allows customers to change the password of the Agent account using the installer,
+                    // without having to separately manually change it.
+                    // It also ensures that the password we fetch from the LSA secret store won't
+                    // be the wrong password (older installers may have reset the password to a different random password).
                     _session["DDAGENTUSER_RESET_PASSWORD"] = "yes";
-                    ddAgentUserPassword = GetRandomPassword(128);
                 }
                 else if (isServiceAccount && !string.IsNullOrEmpty(ddAgentUserPassword))
                 {
                     _session.Log("Ignoring provided password because account is a service account");
                     ddAgentUserPassword = null;
                 }
-                else if (!string.IsNullOrEmpty(ddAgentUserPassword))
+
+                if (!string.IsNullOrEmpty(ddAgentUserPassword))
                 {
                     TestValidAgentUserPassword(ddAgentUserPassword);
                 }

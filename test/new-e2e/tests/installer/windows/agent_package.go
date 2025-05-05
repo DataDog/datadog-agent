@@ -73,3 +73,8 @@ func (avm *AgentVersionManager) OCIPackage() TestPackageConfig {
 func (avm *AgentVersionManager) MSIPackage() *windowsagent.Package {
 	return avm.msiPackage
 }
+
+// String returns the string representation of the AgentVersionManager
+func (avm *AgentVersionManager) String() string {
+	return fmt.Sprintf("AgentVersionManager{version: %s, packageVersion: %s, ociPackage: %+v, msiPackage: %+v}", avm.Version(), avm.PackageVersion(), avm.OCIPackage(), avm.MSIPackage())
+}
