@@ -76,14 +76,7 @@ instances:
 			// assert the check output
 			diff := gocmp.Diff(pythonMetrics, goMetrics,
 				gocmp.Comparer(func(a, b check.Metric) bool {
-					if a.Host != b.Host ||
-						a.Interval != b.Interval ||
-						a.Metric != b.Metric ||
-						a.SourceTypeName != b.SourceTypeName ||
-						a.Type != b.Type {
-						return false
-					}
-					if !gocmp.Equal(a.Tags, b.Tags, gocmpopts.SortSlices(cmp.Less[string])) {
+					if !equalMetrics(a, b) {
 						return false
 					}
 					aValue := a.Points[0][1]
@@ -98,6 +91,14 @@ instances:
 			require.Empty(v.T(), diff)
 		})
 	}
+}
+
+func equalMetrics(a, b check.Metric) bool {
+	return a.Host == b.Host &&
+		a.Interval == b.Interval &&
+		a.Metric == b.Metric &&
+		a.SourceTypeName == b.SourceTypeName &&
+		a.Type == b.Type && gocmp.Equal(a.Tags, b.Tags, gocmpopts.SortSlices(cmp.Less[string]))
 }
 
 func compareValuesWithRelativeMargin(a, b, p, fraction float64) bool {
