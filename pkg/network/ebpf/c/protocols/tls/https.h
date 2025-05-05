@@ -291,9 +291,6 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
     // Update the tuple -> ctx map
     conn_tuple_t normalized_tup = ssl_sock.tup;
     normalize_tuple(&normalized_tup);
-    // Ensure PID and NetNS are zeroed for the key, matching normalization in tls_process/tls_finish
-    normalized_tup.pid = 0;
-    normalized_tup.netns = 0;
     bpf_map_update_with_telemetry(ssl_ctx_by_tuple, &normalized_tup, &ssl_ctx, BPF_ANY);
 }
 
