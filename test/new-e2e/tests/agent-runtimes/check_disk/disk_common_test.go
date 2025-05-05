@@ -56,6 +56,11 @@ const metricCompareFraction = 0.05
 // number of decimals when comparing metrics
 const metricCompareDecimals = 1
 
+// metrics that remain constant
+var constantMetricsSet = map[string]struct{}{
+	"system.disk.total": {},
+}
+
 func (v *baseCheckSuite) TestCheckDisk() {
 	testCases := []struct {
 		name        string
@@ -94,7 +99,7 @@ instances:
 					}
 					aValue := a.Points[0][1]
 					bValue := b.Points[0][1]
-					if isConstantMetric(a.Metric) {
+					if _, ok := constantMetricsSet[a.Metric]; ok {
 						return aValue == bValue
 					}
 					return compareValuesWithRelativeMargin(aValue, bValue, p, metricCompareFraction)
@@ -104,14 +109,6 @@ instances:
 			require.Empty(v.T(), diff)
 		})
 	}
-}
-
-func isConstantMetric(name string) bool {
-	switch name {
-	case "system.disk.total":
-		return true
-	}
-	return false
 }
 
 func compareValuesWithRelativeMargin(a, b, p, fraction float64) bool {
