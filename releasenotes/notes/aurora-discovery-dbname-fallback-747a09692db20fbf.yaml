@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixes an issue where the `extra_dbname` variable in the Aurora
+    Discovery template would default to an empty string if no database name
+    was specified in the cluster resource. It now correctly falls back to the engine's default database name.

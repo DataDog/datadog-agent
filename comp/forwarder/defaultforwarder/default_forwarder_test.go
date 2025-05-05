@@ -41,7 +41,8 @@ func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
 			utils.NewAPIKeys("additional_endpoints", "api_key3"),
 		},
 	}
-	forwarderOptions := NewOptions(mockConfig, log, keysPerDomains)
+	forwarderOptions, err := NewOptions(mockConfig, log, keysPerDomains)
+	require.NoError(t, err)
 	forwarder := NewDefaultForwarder(mockConfig, log, forwarderOptions)
 
 	// API keys from the domain resolvers match
@@ -78,7 +79,8 @@ func TestDefaultForwarderUpdateAdditionalEndpointAPIKey(t *testing.T) {
 			utils.NewAPIKeys("additional_endpoints", "api_key3"),
 		},
 	}
-	forwarderOptions := NewOptions(mockConfig, log, keysPerDomains)
+	forwarderOptions, err := NewOptions(mockConfig, log, keysPerDomains)
+	require.NoError(t, err)
 	forwarder := NewDefaultForwarder(mockConfig, log, forwarderOptions)
 
 	// API keys from the domain resolvers match

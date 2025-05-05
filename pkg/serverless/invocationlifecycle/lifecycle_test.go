@@ -60,6 +60,7 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 		Tags:       extraTags.Tags,
 		SampleRate: 1,
 		Timestamp:  float64(endInvocationTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 }
 
@@ -789,6 +790,7 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 		Tags:       extraTags.Tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.Unix()),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, lateMetrics, 0)
 
@@ -882,6 +884,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 		Tags:       extraTags.Tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.Unix()),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, lateMetrics, 0)
 
@@ -965,6 +968,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.
 		Tags:       extraTags.Tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.Unix()),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, lateMetrics, 0)
 
@@ -1052,6 +1056,7 @@ func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
 		Tags:       extraTags.Tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.Unix()),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, lateMetrics, 0)
 
