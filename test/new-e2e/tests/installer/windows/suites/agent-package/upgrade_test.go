@@ -378,23 +378,6 @@ func (s *testAgentUpgradeSuite) waitForInstallerVersionWithBackoff(version strin
 	}, b)
 }
 
-// assertDaemonStaysRunning asserts that the daemon service PID is the same before and after the function is called.
-//
-// For example, used to verify that "stop-experiment" does not reinstall stable when it is already installed.
-func (s *testAgentUpgradeSuite) assertDaemonStaysRunning(f func()) {
-	s.T().Helper()
-
-	originalPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
-	s.Require().NoError(err)
-	s.Require().Greater(originalPID, 0)
-
-	f()
-
-	newPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
-	s.Require().NoError(err)
-	s.Require().Equal(originalPID, newPID, "daemon should not have been restarted")
-}
-
 type testAgentUpgradeFromGASuite struct {
 	testAgentUpgradeSuite
 }
