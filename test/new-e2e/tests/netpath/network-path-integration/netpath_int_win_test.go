@@ -42,6 +42,15 @@ func TestWindowsNetworkPathIntegrationSuite(t *testing.T) {
 	)))
 }
 
+func (s *windowsNetworkPathIntegrationTestSuite) SetupSuite() {
+	s.baseNetworkPathIntegrationTestSuite.SetupSuite()
+
+	// disable defender firewall for windows
+	// this is needed to avoid firewall rules blocking the network path
+	err := s.disableFirewall()
+	s.Require().NoError(err)
+}
+
 func (s *windowsNetworkPathIntegrationTestSuite) TestWindowsNetworkPathIntegrationMetrics() {
 	// TODO remove after fixing metrics flake
 	flake.Mark(s.T())
@@ -52,13 +61,18 @@ func (s *windowsNetworkPathIntegrationTestSuite) TestWindowsNetworkPathIntegrati
 		assertMetrics(fakeIntake, c, [][]string{
 			testAgentRunningMetricTagsTCP,
 			testAgentRunningMetricTagsTCPSocket,
-			// TODO: Test UDP once implemented for windows, uncomment line below
-			//testAgentRunningMetricTagsUDP,
+			testAgentRunningMetricTagsUDP,
 		})
 
 		s.checkDatadogEUTCP(c, hostname)
-		// TODO: Test UDP once implemented for windows, uncomment line below
-		// s.checkGoogleDNSUDP(c, hostname)
+		s.checkGoogleTCPSocket(c, hostname)
+		s.checkGoogleDNSUDP(c, hostname)
 
 	}, 5*time.Minute, 3*time.Second)
+}
+
+// disable defender firewall for windows
+func (s *windowsNetworkPathIntegrationTestSuite) disableFirewall() error {
+	_, err := s.Env().RemoteHost.Host.Execute("Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False")
+	return err
 }
