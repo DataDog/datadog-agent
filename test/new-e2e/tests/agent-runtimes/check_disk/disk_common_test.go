@@ -29,32 +29,21 @@ import (
 
 type baseCheckSuite struct {
 	e2e.BaseSuite[environments.Host]
-	descriptor   e2eos.Descriptor
-	agentOptions []agentparams.Option
-}
-
-func getAgentOptions() []agentparams.Option {
-	agentOptions := []agentparams.Option{}
-	return agentOptions
+	descriptor            e2eos.Descriptor
+	metricCompareFraction float64
+	metricCompareDecimals int
 }
 
 func (v *baseCheckSuite) getSuiteOptions() []e2e.SuiteOption {
 	suiteOptions := []e2e.SuiteOption{}
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithAgentOptions(v.agentOptions...),
 			awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
 		),
 	))
 
 	return suiteOptions
 }
-
-// a relative diff considered acceptable when comparing metrics (5%)
-const metricCompareFraction = 0.05
-
-// number of decimals when comparing metrics
-const metricCompareDecimals = 1
 
 // metrics that remain constant
 var constantMetricsSet = map[string]struct{}{
@@ -76,7 +65,7 @@ instances:
 			``,
 		},
 	}
-	p := math.Pow(10, float64(metricCompareDecimals))
+	p := math.Pow(10, float64(v.metricCompareDecimals))
 	for _, testCase := range testCases {
 		v.Run(testCase.name, func() {
 			v.T().Log("run the disk check using old version")
@@ -102,7 +91,7 @@ instances:
 					if _, ok := constantMetricsSet[a.Metric]; ok {
 						return aValue == bValue
 					}
-					return compareValuesWithRelativeMargin(aValue, bValue, p, metricCompareFraction)
+					return compareValuesWithRelativeMargin(aValue, bValue, p, v.metricCompareFraction)
 				}),
 				gocmpopts.SortSlices(metricPayloadCompare), // sort metrics
 			)
@@ -144,16 +133,10 @@ func (v *baseCheckSuite) runDiskCheck(agentConfig string, checkConfig string, us
 	diskCheckVersionTag := fmt.Sprintf("disk_check_version:%s", diskCheckVersion)
 	checkConfig += fmt.Sprintf("\n    tags:\n      - %s", diskCheckVersionTag)
 
-	agentOptions := v.agentOptions
-	agentOptions = append(agentOptions,
-		agentparams.WithAgentConfig(agentConfig),
-	)
-	agentOptions = append(agentOptions,
-		agentparams.WithIntegration("disk.d", checkConfig),
-	)
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
-		awshost.WithAgentOptions(agentOptions...)),
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig),
+			agentparams.WithIntegration("disk.d", checkConfig))),
 	)
 
 	// run the check
