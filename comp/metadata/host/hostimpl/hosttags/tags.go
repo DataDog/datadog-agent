@@ -9,6 +9,7 @@ package hosttags
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"strings"
 	"time"
 
@@ -65,6 +66,10 @@ func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {
 
 	if env.IsFeaturePresent(env.Docker) {
 		providers["docker"] = &providerDef{1, docker.GetTags}
+	}
+
+	if env.IsFeaturePresent(env.ECSEC2) {
+		providers["ecs"] = &providerDef{1, ecs.GetTags}
 	}
 	return providers
 }
