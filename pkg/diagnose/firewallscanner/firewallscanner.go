@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	netflowConfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -32,11 +33,11 @@ type ruleToCheck struct {
 type sourcesByRule map[firewallRule][]string
 
 type firewallScanner interface {
-	DiagnoseBlockingRules(rulesToCheck sourcesByRule) []diagnose.Diagnosis
+	DiagnoseBlockingRules(rulesToCheck sourcesByRule, log log.Component) []diagnose.Diagnosis
 }
 
 // Diagnose checks for firewall rules that may block SNMP traps and Netflow packets.
-func Diagnose(config config.Component) []diagnose.Diagnosis {
+func Diagnose(config config.Component, log log.Component) []diagnose.Diagnosis {
 	scanner, err := getFirewallScanner()
 	if err != nil {
 		return []diagnose.Diagnosis{}
@@ -47,7 +48,7 @@ func Diagnose(config config.Component) []diagnose.Diagnosis {
 		return []diagnose.Diagnosis{}
 	}
 
-	return scanner.DiagnoseBlockingRules(rulesToCheck)
+	return scanner.DiagnoseBlockingRules(rulesToCheck, log)
 }
 
 func getFirewallScanner() (firewallScanner, error) {

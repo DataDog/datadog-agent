@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/firewallscanner"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -236,6 +237,9 @@ func runLocalDiagnose(s *systrayImpl) []byte {
 		},
 		diagnose.CoreEndpointsConnectivity: func(diagCfg diagnose.Config) []diagnose.Diagnosis {
 			return connectivity.Diagnose(diagCfg, s.log)
+		},
+		diagnose.FirewallScan: func(_ diagnose.Config) []diagnose.Diagnosis {
+			return connectivity.DiagnoseFirewallScan(s.config, s.log)
 		},
 	}
 

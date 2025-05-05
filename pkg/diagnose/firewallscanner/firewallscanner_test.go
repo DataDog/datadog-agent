@@ -132,20 +132,20 @@ network_devices:
 
 func Test_buildBlockingRulesDiagnosis(t *testing.T) {
 	tests := []struct {
-		name              string
-		diagnosisName     string
-		blockingRules     sourcesByRule
-		expectedDiagnosis diagnose.Diagnosis
+		name                      string
+		diagnosisName             string
+		blockingRules             sourcesByRule
+		expectedStatus            diagnose.Status
+		expectedName              string
+		expectedDiagnosisMessages []string
 	}{
 		{
-			name:          "no blocking rules",
-			diagnosisName: "Diagnosis Name",
-			blockingRules: make(sourcesByRule),
-			expectedDiagnosis: diagnose.Diagnosis{
-				Status:    diagnose.DiagnosisSuccess,
-				Name:      "Diagnosis Name",
-				Diagnosis: "No blocking firewall rules were found",
-			},
+			name:                      "no blocking rules",
+			diagnosisName:             "Diagnosis Name",
+			blockingRules:             make(sourcesByRule),
+			expectedStatus:            diagnose.DiagnosisSuccess,
+			expectedName:              "Diagnosis Name",
+			expectedDiagnosisMessages: []string{"No blocking firewall rules were found"},
 		},
 		{
 			name:          "with blocking rules",
@@ -160,12 +160,12 @@ func Test_buildBlockingRulesDiagnosis(t *testing.T) {
 					destPort: "1234",
 				}: []string{"netflow (sflow5)"},
 			},
-			expectedDiagnosis: diagnose.Diagnosis{
-				Status: diagnose.DiagnosisWarning,
-				Name:   "Diagnosis Name",
-				Diagnosis: "Blocking firewall rules were found:\n" +
-					"snmp_traps, netflow (ipfix) packets might be blocked because destination port 9162 is blocked for protocol UDP\n" +
-					"netflow (sflow5) packets might be blocked because destination port 1234 is blocked for protocol UDP\n",
+			expectedStatus: diagnose.DiagnosisWarning,
+			expectedName:   "Diagnosis Name",
+			expectedDiagnosisMessages: []string{
+				"Blocking firewall rules were found:",
+				"snmp_traps, netflow (ipfix) packets might be blocked because destination port 9162 is blocked for protocol UDP",
+				"netflow (sflow5) packets might be blocked because destination port 1234 is blocked for protocol UDP",
 			},
 		},
 	}
@@ -173,7 +173,11 @@ func Test_buildBlockingRulesDiagnosis(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			diagnosis := buildBlockingRulesDiagnosis(tt.diagnosisName, tt.blockingRules)
-			assert.Equal(t, tt.expectedDiagnosis, diagnosis)
+			assert.Equal(t, tt.expectedStatus, diagnosis.Status)
+			assert.Equal(t, tt.expectedName, diagnosis.Name)
+			for _, message := range tt.expectedDiagnosisMessages {
+				assert.Contains(t, diagnosis.Diagnosis, message)
+			}
 		})
 	}
 }

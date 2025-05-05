@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Adds a new SNMP diagnostic check that identifies firewall rules blocking SNMP traps and NetFlow traffic on Windows systems.
+    Adds a new diagnostic check that identifies firewall rules blocking SNMP traps and NetFlow traffic on Windows systems.
