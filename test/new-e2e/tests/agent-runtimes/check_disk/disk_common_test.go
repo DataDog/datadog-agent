@@ -103,7 +103,7 @@ instances:
 func compareValuesWithRelativeMargin(a, b, p, fraction float64) bool {
 	x := math.Round(a*p) / p
 	y := math.Round(b*p) / p
-	relMarg := fraction * math.Min(math.Abs(x), math.Abs(y))
+	relMarg := fraction * math.Abs(x)
 	return math.Abs(x-y) <= relMarg
 }
 
