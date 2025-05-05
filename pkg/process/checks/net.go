@@ -176,7 +176,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 		isNearCapacity, capacityErr = c.checkCapacity()
 		if capacityErr != nil {
 			log.Warnf("Failed to check system-probe connection capacity: %v. Proceeding based on time interval.", capacityErr)
-			isNearCapacity = false // Don't trigger based on failed check
+			isNearCapacity = false
 		}
 	} else {
 		log.Trace("System probe client not available, skipping capacity check.")
