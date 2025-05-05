@@ -403,7 +403,7 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats, uniq *uniquePrograms) er
 func (k *Probe) getKprobeMisses(ebpfStats *model.EBPFStats, uniq *uniquePrograms) error {
 	kv, err := kernel.HostVersion()
 	if err != nil {
-		return nil, fmt.Errorf("kernel version: %s", err)
+		return fmt.Errorf("kernel version: %s", err)
 	}
 	if kv < kernel.VersionCode(6, 2, 0) {
 		return nil
