@@ -54,8 +54,8 @@ func (n *NoServiceError) Error() string {
 	return n.message
 }
 
-// NewNoServiceError returns a new NoServiceError
-func NewNoServiceError(message string) *NoServiceError {
+// newNoServiceError returns a new NoServiceError
+func newNoServiceError(message string) *NoServiceError {
 	return &NoServiceError{
 		message: message,
 	}
@@ -494,7 +494,7 @@ func tagsAdder(tags []string) func(interface{}) error {
 
 func getHost(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", NewNoServiceError("No service. %%%%host%%%% is not allowed")
+		return "", newNoServiceError("No service. %%%%host%%%% is not allowed")
 	}
 
 	hosts, err := svc.GetHosts(ctx)
@@ -543,7 +543,7 @@ func getFallbackHost(hosts map[string]string) (string, error) {
 // getPort returns ports of the service
 func getPort(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", NewNoServiceError("No service. %%%%port%%%% is not allowed")
+		return "", newNoServiceError("No service. %%%%port%%%% is not allowed")
 	}
 
 	ports, err := svc.GetPorts(ctx)
@@ -576,7 +576,7 @@ func getPort(ctx context.Context, tplVar string, svc listeners.Service) (string,
 // getPid returns the process identifier of the service
 func getPid(ctx context.Context, _ string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", NewNoServiceError("No service. %%%%pid%%%% is not allowed")
+		return "", newNoServiceError("No service. %%%%pid%%%% is not allowed")
 	}
 
 	pid, err := svc.GetPid(ctx)
@@ -590,7 +590,7 @@ func getPid(ctx context.Context, _ string, svc listeners.Service) (string, error
 // when the IP is unavailable or erroneous
 func getHostname(ctx context.Context, _ string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", NewNoServiceError("No service. %%%%hostname%%%% is not allowed")
+		return "", newNoServiceError("No service. %%%%hostname%%%% is not allowed")
 	}
 
 	name, err := svc.GetHostname(ctx)
@@ -607,7 +607,7 @@ func getHostname(ctx context.Context, _ string, svc listeners.Service) (string, 
 // the AD listener and what the template variable represents.
 func getAdditionalTplVariables(_ context.Context, tplVar string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", NewNoServiceError("No service. %%%%extra_*%%%% or %%%%kube_*%%%% are not allowed")
+		return "", newNoServiceError("No service. %%%%extra_*%%%% or %%%%kube_*%%%% are not allowed")
 	}
 
 	value, err := svc.GetExtraConfig(tplVar)
