@@ -105,6 +105,7 @@ def _get_environment_for_cache() -> dict:
             "CONDA_PROMPT_MODIFIER",
             "CONSUL_HTTP_ADDR",
             "DATACENTERS",
+            "DDCI",
             "DDR",
             "DEPLOY_AGENT",
             "DOGSTATSD_BINARIES_DIR",
