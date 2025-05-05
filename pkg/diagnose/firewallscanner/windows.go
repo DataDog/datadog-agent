@@ -7,8 +7,8 @@ package firewallscanner
 
 import (
 	"encoding/json"
+	"errors"
 	"os/exec"
-	"strings"
 
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -36,19 +36,33 @@ func (scanner *windowsFirewallScanner) DiagnoseBlockingRules(rulesToCheck source
 	cmd := exec.Command(
 		"powershell",
 		"-Command",
-		`Get-NetFirewallRule -Action Block | ForEach-Object { $rule = $_; Get-NetFirewallPortFilter -AssociatedNetFirewallRule $rule | Select-Object @{Name="direction"; Expression={$rule.Direction}}, @{Name="protocol"; Expression={$_.Protocol}}, @{Name="localPort"; Expression={$_.LocalPort}} } | ConvertTo-Json`)
+		`try {
+            $rules = Get-NetFirewallRule -Action Block -ErrorAction Stop
+            $results = foreach ($rule in $rules) {
+                Get-NetFirewallPortFilter -AssociatedNetFirewallRule $rule | ForEach-Object {
+                    [PSCustomObject]@{
+                        direction = $rule.Direction
+                        protocol  = $_.Protocol
+                        localPort = $_.LocalPort
+                    }
+                }
+            }
+            $results | ConvertTo-Json -Compress
+        } catch {
+            exit 42
+        }`)
 	output, err := cmd.CombinedOutput()
-	if err != nil {
-		outputString := string(output)
-		if strings.Contains(outputString, "No MSFT_NetFirewallRule objects found with property 'Action' equal to 'Block'") {
-			// Windows returns an error when the firewall has no blocking rules
-			// In this case, we return a successful diagnosis with no blocked ports
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		exitCode := exitErr.ExitCode()
+		if exitCode == 42 {
+			// No blocking rules found
 			return []diagnose.Diagnosis{
 				buildBlockingRulesDiagnosis(diagnosisNameWindows, nil),
 			}
 		}
 
-		log.Warnf("Error executing command %s: %v (%s)", cmd.String(), err, outputString)
+		log.Warnf("PowerShell exited with code %d: %s", exitCode, string(output))
 		return []diagnose.Diagnosis{}
 	}
 
