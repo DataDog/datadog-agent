@@ -644,6 +644,10 @@ func getEnvvar(_ context.Context, envVar string, svc listeners.Service) (string,
 }
 
 func allowEnvVar(envVar string) bool {
+	if pkgconfigsetup.Datadog().GetBool("ad_disable_env_var_resolution") {
+		return false
+	}
+
 	allowedEnvs := pkgconfigsetup.Datadog().GetStringSlice("ad_allowed_env_vars")
 
 	// If the option is not set or is empty, the default behavior applies: all
