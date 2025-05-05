@@ -32,11 +32,15 @@ import (
 
 // ActivityDumpRemoteBackend is a remote backend that forwards dumps to the backend
 type ActivityDumpRemoteBackend struct {
-	urls             []string
-	apiKeys          []string
+	endpoints        []remoteEndpoint
 	tooLargeEntities *atomic.Uint64
 
 	client *http.Client
+}
+
+type remoteEndpoint struct {
+	logsEndpoint logsconfig.Endpoint
+	url          string
 }
 
 // NewActivityDumpRemoteBackend returns a new ActivityDumpRemoteBackend
@@ -53,10 +57,10 @@ func NewActivityDumpRemoteBackend() (*ActivityDumpRemoteBackend, error) {
 		return nil, fmt.Errorf("couldn't generate storage endpoints: %w", err)
 	}
 	for _, endpoint := range endpoints.GetReliableEndpoints() {
-		backend.urls = append(backend.urls, utils.GetEndpointURL(endpoint, "api/v2/secdump"))
-		// TODO - runtime API key refresh: Storing the API key like this will no longer be valid once the
-		// security agent support API key refresh at runtime.
-		backend.apiKeys = append(backend.apiKeys, endpoint.GetAPIKey())
+		backend.endpoints = append(backend.endpoints, remoteEndpoint{
+			logsEndpoint: endpoint,
+			url:          utils.GetEndpointURL(endpoint, "api/v2/secdump"),
+		})
 	}
 
 	return backend, nil
@@ -152,11 +156,11 @@ func (backend *ActivityDumpRemoteBackend) HandleActivityDump(imageName string, i
 		Tag:   imageTag,
 	}
 
-	for i, url := range backend.urls {
-		if err := backend.sendToEndpoint(url, backend.apiKeys[i], writer, body); err != nil {
-			seclog.Warnf("couldn't sent activity dump to [%s, body size: %d, dump size: %d]: %v", url, body.Len(), len(data), err)
+	for _, endpoint := range backend.endpoints {
+		if err := backend.sendToEndpoint(endpoint.url, endpoint.logsEndpoint.GetAPIKey(), writer, body); err != nil {
+			seclog.Warnf("couldn't sent activity dump to [%s, body size: %d, dump size: %d]: %v", endpoint.url, body.Len(), len(data), err)
 		} else {
-			seclog.Infof("[%s] file for activity dump [%s] successfully sent to [%s]", config.Protobuf, selector, url)
+			seclog.Infof("[%s] file for activity dump [%s] successfully sent to [%s]", config.Protobuf, selector, endpoint.url)
 		}
 	}
 
