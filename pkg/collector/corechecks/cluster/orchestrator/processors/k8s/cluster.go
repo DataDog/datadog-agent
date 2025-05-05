@@ -166,7 +166,7 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 			ClusterId:   pctx.ClusterID,
 			GroupId:     pctx.MsgGroupID,
 			Cluster:     clusterModel,
-			Tags:        pctx.Cfg.ExtraTags,
+			Tags:        pctx.ExtraTags,
 		},
 	}
 	manifestMessages := []model.MessageBody{
@@ -184,7 +184,7 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 					Version:         "v1",
 				},
 			},
-			Tags: pctx.Cfg.ExtraTags,
+			Tags: pctx.ExtraTags,
 		},
 	}
 	processResult = processors.ProcessResult{
