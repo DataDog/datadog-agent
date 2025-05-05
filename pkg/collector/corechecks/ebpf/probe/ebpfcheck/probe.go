@@ -474,7 +474,7 @@ retry:
 			Type:                     progKey.typ,
 			Name:                     name,
 			Module:                   module,
-			KprobeMisses:             stats.Kprobe_hits,
+			KprobeMisses:             stats.Kprobe_nesting_misses,
 			KretprobeMaxActiveMisses: stats.Kretprobe_maxactive_misses,
 			KprobeHits:               stats.Kprobe_hits,
 		})
