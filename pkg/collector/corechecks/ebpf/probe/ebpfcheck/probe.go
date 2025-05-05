@@ -61,15 +61,6 @@ const (
 	ioctlCollectKprobeMissedStatsCmd = 0x70C14
 )
 
-const (
-	KprobeStatsNoError = iota
-	KprobeStatsFDNotKprobe
-	KprobeStatsPerfEventNotFound
-	KprobeStatsErrorReadingKprobeHits
-	KprobeStatsErrorReadingKprobeMisses
-	KprobeStatsErrorReadingKretprobeMisses
-)
-
 // Probe is the eBPF side of the eBPF check
 type Probe struct {
 	statsFD               io.Closer
@@ -173,7 +164,9 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, err
 	if kv < kernel.VersionCode(6, 2, 0) {
 		delete(collSpec.Programs, "k_do_vfs_ioctl")
 		delete(collSpec.Maps, "cookie_to_trace_kprobe")
+		delete(collSpec.Maps, "cookie_to_uprobe_event")
 		delete(collSpec.Maps, "cookie_to_kprobe_stats")
+		delete(collSpec.Maps, "cookie_to_query_error")
 	}
 
 	kaddrs, err := ddebpf.GetKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses...)
@@ -291,10 +284,6 @@ func (k *Probe) Close() {
 	}
 }
 
-type uniquePrograms struct {
-	programs map[programKey]ebpf.ProgramID
-}
-
 // GetAndFlush gets the stats
 func (k *Probe) GetAndFlush() (results model.EBPFStats) {
 	if err := k.getMapStats(&results); err != nil {
@@ -302,15 +291,13 @@ func (k *Probe) GetAndFlush() (results model.EBPFStats) {
 		return
 	}
 
-	p := uniquePrograms{
-		programs: make(map[programKey]ebpf.ProgramID),
-	}
-	if err := k.getProgramStats(&results, &p); err != nil {
+	programs := make(map[programKey]ebpf.ProgramID)
+	if err := k.getProgramStats(&results, programs); err != nil {
 		log.Debugf("error getting program stats: %s", err)
 	}
 
-	if err := k.getKprobeMisses(&results, &p); err != nil {
-		log.Infof("error getting kprobe miss stats: %s", err)
+	if err := k.getKprobeMisses(&results, programs); err != nil {
+		log.Warnf("error getting kprobe miss stats: %s", err)
 	}
 
 	return
@@ -328,7 +315,7 @@ func progKey(ps model.EBPFProgramStats) programKey {
 	}
 }
 
-func (k *Probe) getProgramStats(stats *model.EBPFStats, uniq *uniquePrograms) error {
+func (k *Probe) getProgramStats(stats *model.EBPFStats, uniquePrograms map[programKey]ebpf.ProgramID) error {
 	var err error
 	progid := ebpf.ProgramID(0)
 	for progid, err = ebpf.ProgramGetNextID(progid); err == nil; progid, err = ebpf.ProgramGetNextID(progid) {
@@ -383,10 +370,10 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats, uniq *uniquePrograms) er
 			RecursionMisses: info.RecursionMisses,
 		}
 		key := progKey(ps)
-		if _, ok := uniq.programs[key]; ok {
+		if _, ok := uniquePrograms[key]; ok {
 			continue
 		}
-		uniq.programs[key] = progid
+		uniquePrograms[key] = progid
 		stats.Programs = append(stats.Programs, ps)
 	}
 
@@ -400,7 +387,7 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats, uniq *uniquePrograms) er
 	return nil
 }
 
-func (k *Probe) getKprobeMisses(ebpfStats *model.EBPFStats, uniq *uniquePrograms) error {
+func (k *Probe) getKprobeMisses(ebpfStats *model.EBPFStats, uniquePrograms map[programKey]ebpf.ProgramID) error {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return fmt.Errorf("kernel version: %s", err)
@@ -412,7 +399,7 @@ func (k *Probe) getKprobeMisses(ebpfStats *model.EBPFStats, uniq *uniquePrograms
 	queryID := uint32(rand.Int31())
 
 	cookies := make(map[cookie]programKey)
-	for progKey, probeID := range uniq.programs {
+	for progKey, probeID := range uniquePrograms {
 		c := cookie{
 			Kprobe_id: uint32(probeID),
 			Query_id:  queryID,
@@ -423,6 +410,9 @@ func (k *Probe) getKprobeMisses(ebpfStats *model.EBPFStats, uniq *uniquePrograms
 
 	retryCnt := 0
 
+	// we attempt to collect kprobe stats with retries due to the use of
+	// bpf_probe_read_user in the ebpf program. This may flake, so we try
+	// a few times before giving up.
 retry:
 	retryCnt += 1
 
@@ -433,7 +423,7 @@ retry:
 			continue
 		}
 
-		// the ebpf program will take care to skip u[ret]probes
+		/* the ebpf program will take care to skip u[ret]probes */
 
 		// call ioctl with correct command and cookie pointer
 		cookiePtr := unsafe.Pointer(&c)
@@ -445,6 +435,8 @@ retry:
 		return fmt.Errorf("unable to create generic map: %w", err)
 	}
 
+	// we may the cost of multiple syscalls with single item iteration
+	// instead of paying for the higher memory usage due to batched iteration
 	entries := statsGenericMap.Iterate()
 	key, stats := &cookie{}, &kprobeKernelStats{}
 
@@ -492,6 +484,7 @@ retry:
 		log.Errorf("error iterating kprobe stats map %s: %s", statsGenericMap, err)
 	}
 
+	// since we already have the keys in memory, take advantage and use batch delete
 	_, err = statsGenericMap.BatchDelete(toDelete)
 	if err != nil {
 		log.Errorf("unable to batch delete cookies from map %s: %s", statsGenericMap, err)
@@ -505,6 +498,7 @@ retry:
 	}
 
 	var errorsToDelete []cookie
+	// similar to above lets pay the cost of single item iteration and save on memory
 	errorEntries := errorsGenericMap.Iterate()
 	key = &cookie{}
 	bpfError := &kprobeStatsErrors{}

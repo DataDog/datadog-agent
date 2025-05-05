@@ -593,6 +593,8 @@ static __always_inline int is_event_uprobe(struct perf_event *event, bool* is_up
 void bpf_rcu_read_lock(void) __ksym;
 void bpf_rcu_read_unlock(void) __ksym;
 
+// the ebpf-check module starts before any other module so we do not really know
+// how maybe programs will be installed, so we cannot update max entries from userspace.
 BPF_HASH_MAP(cookie_to_trace_kprobe, u64, u64, 8192)
 BPF_HASH_MAP(cookie_to_uprobe_event, u64, u64, 8192)
 BPF_HASH_MAP(cookie_to_kprobe_stats, cookie_t, kprobe_stats_t, 8192)
