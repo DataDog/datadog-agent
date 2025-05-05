@@ -12,7 +12,7 @@ Release Notes
 Prelude
 -------
 
-Released on: 2025-05-05
+Released on: 2025-05-06
 Pinned to datadog-agent v7.65.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7650>`_.
 
 .. _Release Notes_7.65.0_New Features:
@@ -20,10 +20,10 @@ Pinned to datadog-agent v7.65.0: `CHANGELOG <https://github.com/DataDog/datadog-
 New Features
 ------------
 
-- [PREVIEW] Add support for mounting Datadog CSI volumes instead of hostpath 
-  volumes in the admission controller config webhook for sharing DogStatsD 
-  and APM UDS sockets with user applications. This requires the Datadog 
-  CSI driver to be installed and running on the cluster. 
+- [PREVIEW] Add support for mounting Datadog CSI volumes instead of hostpath
+  volumes in the admission controller config webhook for sharing DogStatsD
+  and APM UDS sockets with user applications. This requires the Datadog
+  CSI driver to be installed and running on the cluster.
 
 
 .. _Release Notes_7.65.0_Enhancement Notes:
