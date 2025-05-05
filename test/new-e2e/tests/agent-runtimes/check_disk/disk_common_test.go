@@ -45,11 +45,6 @@ func (v *baseCheckSuite) getSuiteOptions() []e2e.SuiteOption {
 	return suiteOptions
 }
 
-// metrics that remain constant
-var constantMetricsSet = map[string]struct{}{
-	"system.disk.total": {},
-}
-
 func (v *baseCheckSuite) TestCheckDisk() {
 	testCases := []struct {
 		name        string
@@ -81,7 +76,8 @@ instances:
 					}
 					aValue := a.Points[0][1]
 					bValue := b.Points[0][1]
-					if _, ok := constantMetricsSet[a.Metric]; ok {
+					// system.disk.total metric is expected to be strictly equal between both checks
+					if a.Metric == "system.disk.total" {
 						return aValue == bValue
 					}
 					return compareValuesWithRelativeMargin(aValue, bValue, p, v.metricCompareFraction)
