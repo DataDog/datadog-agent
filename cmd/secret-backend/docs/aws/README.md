@@ -14,17 +14,38 @@ The `datadog-secret-backend` utility currently supports the following AWS servic
 
 Supported AWS backends can leverage the Default Credential Provider Chain as defined by the AWS SDKs and CLI. As a result, the following order of precedence is used to determine the AWS backend service credential.
 
-1. **IAM User Access Key**. An Access Key id and secret defined on the backed configuration's `aws_session` section within the datadog-secret-backend.yaml file.
+1. **Environment Variables**. Note these environment variables would have to be defined as environment variables within the Datadog Agent service configuration on the Datadog Agent host system.
 
-2. **Environment Variables**. Note these environment variables would have to be defined as environment variables within the Datadog Agent service configuration on the Datadog Agent host system.
+2. **CLI Configuration File**. Currently only the default **CLI Configuration File** of the Datadog Agent user is supported, e.g. `${HOME}/.aws/config` or `%USERPROFILE%\.aws\config`. The Datadog Agent user is typically `dd-agent`.
 
-3. **CLI Credentials File**. Currently only the default **CLI Credential File** of the Datadog Agent user is supported, e.g. `${HOME}/.aws/credentials` or `%USERPROFILE%\.aws\credentials`. The Datadog Agent user is typically `dd-agent`.
-
-4. **CLI Configuration File**. Currently only the default **CLI Configuration File** of the Datadog Agent user is supported, e.g. `${HOME}/.aws/config` or `%USERPROFILE%\.aws\config`. The Datadog Agent user is typically `dd-agent`.
-
-5. **Instance Profile Credentials**. Container or EC2 hosts with an assigned [IAM Instance Profile](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2.html)
+3. **Instance Profile Credentials**. Container or EC2 hosts with an assigned [IAM Instance Profile](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2.html)
 
 Using environment variables or session profiles are more complex as they must be configured within the service (daemon) environment configuration or the `dd-agent` user home directory on each Datadog Agent host. Using IAM User Access Keys or an EC2 Instance Profile are simpler configurations which do not require additional Datadog Agent host configuration.
+
+### Instance Profile Instructions
+
+We **highly encourage** to use the instance profile method of retrieving secrets, as AWS handles any environment variables or session profiles for you. 
+
+To use an Instance Profile, create an IAM role in the same account that you are hosting your EC2, ECS, etc. from. Set the "trusted entity type" to the "AWS Service" and choose the relevant service to you (for example, EC2 if you are using an EC2 instance). This IAM role can now be used by an instance of the service that you selected. 
+
+Then, choose a permission policy. Instructions on what permission policy to create are dependent on whether you are using [AWS Secrets](https://github.com/DataDog/datadog-secret-backend/blob/main/docs/aws/secrets.md#iam-permission-needed) or [AWS SSM](https://github.com/DataDog/datadog-secret-backend/blob/main/docs/aws/ssm.md#iam-permission-needed). Finally, set a trust policy--replace ${Service} with the service that you are using:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Service": "${Service}.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+        }
+    ]
+}
+```
+
+Now for the instance that you are retrieving secrets for, set the "IAM Role" section to be this role that you have just created. Restart your instance after doing this.
 
 ## AWS Session Settings
 
@@ -54,8 +75,6 @@ backends:
     backend_type: aws.ssm
     aws_session:
       aws_region: us-east-2
-      aws_access_key_id: AKIA*****
-      aws_secret_access_key: ************
     parameters: 
       - /My/Secret/Path/To/Secret
 ```
@@ -68,25 +87,7 @@ backends:
     backend_type: aws.secrets
     aws_session:
       aws_region: us-east-1
-      aws_profile: datadog-agent-profile # defined in .aws/config or .aws/credentials
     secret_id: 'datadog-agent'
 ```
-
-### AWS with cross-account assume role with an externalId trust condition
-```yaml
----
-backends:
-  my-ssm-secret:
-    backend_type: aws.secrets
-    aws_session:
-      aws_region: us-east-1
-      aws_access_key_id: AKIA*****
-      aws_secret_access_key: ************
-      aws_role_arn: arn:aws:iam::123456789012:role/DatadogSecretsBackend
-      aws_external_id: unique-external-id-string-value
-    secret_id: 'datadog-agent'
-```
-
-* `aws_role_arn` works with all AWS Default Credential Chain options. However, the credential from the Default Credential Chain must have enough permissions to assume the target role and include `aws_external_id` if the assume role trust policy requires it.
 
 Review the [aws.ssm](ssm.md) and [aws.secrets](secrets.md) backend documentation examples of configurations for Datadog Agent secrets.
