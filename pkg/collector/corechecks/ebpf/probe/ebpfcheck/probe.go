@@ -434,31 +434,37 @@ retry:
 		return fmt.Errorf("unable to create generic map: %w", err)
 	}
 
-	// we may the cost of multiple syscalls with single item iteration
+	// we pay the cost of multiple syscalls with single item iteration
 	// instead of paying for the higher memory usage due to batched iteration
 	entries := statsGenericMap.Iterate()
 	key, stats := &cookie{}, &kprobeKernelStats{}
 
 	var toDelete []cookie
 	for entries.Next(key, stats) {
-		// somehow an old query got leftover; record it for deletion
+		// record this key to be deleted later on
+		toDelete = append(toDelete, *key)
+
 		if key.Query_id != queryID {
-			toDelete = append(toDelete, *key)
 			continue
 		}
+
+		delete(cookies, *key)
 
 		name, err := ddebpf.GetProgNameFromProgID(key.Kprobe_id)
 		if err != nil {
 			log.Errorf("unable to get program name for kprobe id %d: %v", key.Kprobe_id, err)
+			continue
 		}
 		module, err := ddebpf.GetModuleFromProgID(key.Kprobe_id)
 		if err != nil {
 			log.Errorf("unable to get module name for kprobe id %d: %v", key.Kprobe_id, err)
+			continue
 		}
 
 		progKey, ok := cookies[*key]
 		if !ok {
 			log.Errorf("unable to find type for program with kprobe id %d (%s)", key.Kprobe_id, name)
+			continue
 		}
 
 		ebpfStats.KprobeStats = append(ebpfStats.KprobeStats, model.KprobeStats{
@@ -470,10 +476,6 @@ retry:
 			KprobeHits:               stats.Kprobe_hits,
 		})
 
-		delete(cookies, *key)
-
-		// record this key to be deleted later on
-		toDelete = append(toDelete, *key)
 	}
 
 	// we do not expect any errors including iteration aborted errors, since ebpf check
@@ -503,8 +505,9 @@ retry:
 	bpfError := &kprobeStatsErrors{}
 
 	for errorEntries.Next(key, bpfError) {
+		// could not record stats for this cookie due to errors
+		errorsToDelete = append(errorsToDelete, *key)
 		if key.Query_id != queryID {
-			errorsToDelete = append(errorsToDelete, *key)
 			continue
 		}
 
@@ -515,8 +518,6 @@ retry:
 			log.Warnf("error in eBPF program while recording kprobe statistics for %s: %s", name, bpfError)
 		}
 
-		// could not record stats for this cookie due to errors
-		errorsToDelete = append(errorsToDelete, *key)
 		delete(cookies, *key)
 	}
 

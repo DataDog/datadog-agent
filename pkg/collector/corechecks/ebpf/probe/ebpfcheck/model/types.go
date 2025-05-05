@@ -47,7 +47,7 @@ type EBPFProgramStats struct {
 	Type            string
 }
 
-// KprobeStats are stats which compose of the miss count
+// KprobeStats are the various stats used to build hit/miss counts of k[ret]probes
 type KprobeStats struct {
 	Name                     string
 	Type                     string
