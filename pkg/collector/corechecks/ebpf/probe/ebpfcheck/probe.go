@@ -491,8 +491,12 @@ retry:
 		log.Errorf("unable to batch delete cookies from map %s: %s", statsGenericMap, err)
 	}
 
-	// if we have leftover cookies, then it means the eBPF program could not record their stats
+	// If we have leftover cookies, then it means the eBPF program could not record their stats
 	// inspect the error map and decide if we want to retry collection
+	//
+	// The cookies for which we recorded errors are skipped during retry. If a cookie is also missing
+	// from the error map, then it means that we could not read the cookie value from userspace due
+	// to bpf_probe_read_user failing. We have to retry for this case.
 	errorsGenericMap, err := ddmaps.Map[cookie, kprobeStatsErrors](k.cookieToQueryError)
 	if err != nil {
 		return fmt.Errorf("unable to create generic map: %w", err)
