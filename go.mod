@@ -1,6 +1,7 @@
 module github.com/DataDog/datadog-agent
 
 go 1.23.7
+toolchain go1.24.1
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -123,7 +124,7 @@ require (
 	github.com/netsampler/goflow2 v1.3.3
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
-	github.com/open-policy-agent/opa v1.3.0
+	github.com/open-policy-agent/opa v1.4.2
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.123.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
@@ -144,7 +145,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/skydive-project/go-debouncer v1.0.1
 	github.com/smira/go-xz v0.1.0
-	github.com/spf13/afero v1.11.0
+	github.com/spf13/afero v1.12.0
 	github.com/spf13/cast v1.7.1
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.6
@@ -192,7 +193,7 @@ require (
 	golang.org/x/time v0.11.0
 	golang.org/x/tools v0.32.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
-	google.golang.org/genproto v0.0.0-20240903143218-8af14fe29dc1 // indirect
+	google.golang.org/genproto v0.0.0-20241118233622-e639e219e697 // indirect
 	google.golang.org/grpc v1.71.1
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.36.6
@@ -762,6 +763,7 @@ require (
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v1.0.0-rc.1 // indirect
 	github.com/dennwc/varint v1.0.0 // indirect
+	github.com/dgryski/go-farm v0.0.0-20240924180020-3414d57e47da // indirect
 	github.com/digitalocean/godo v1.126.0 // indirect
 	github.com/eapache/queue/v2 v2.0.0-20230407133247-75960ed334e4 // indirect
 	github.com/ebitengine/purego v0.8.2 // indirect
