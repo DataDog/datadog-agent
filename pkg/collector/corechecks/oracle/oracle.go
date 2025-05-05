@@ -153,6 +153,11 @@ func checkIntervalExpired(lastRun *time.Time, collectionInterval int64) bool {
 	return false
 }
 
+// IsHASupported returns true if the check supports HA
+func (c *Check) IsHASupported() bool {
+	return true
+}
+
 // Run executes the check.
 func (c *Check) Run() error {
 	var allErrors error

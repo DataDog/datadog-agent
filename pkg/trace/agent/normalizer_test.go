@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 
@@ -26,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
 func newTestSpan() *pb.Span {
@@ -98,7 +99,7 @@ func TestNormalizeEmptyServiceNoLang(t *testing.T) {
 	s.Meta[peerServiceKey] = ""
 	s.Meta[baseServiceKey] = ""
 	assert.NoError(t, a.normalize(ts, s))
-	assert.Equal(t, traceutil.DefaultServiceName, s.Service)
+	assert.Equal(t, normalize.DefaultServiceName, s.Service)
 	assert.Equal(t, "", s.Meta[peerServiceKey]) // no fallback on peer service tag
 	assert.Equal(t, "", s.Meta[baseServiceKey]) // no fallback on base service tag
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{ServiceEmpty: *atomic.NewInt64(1)}), ts)
@@ -129,9 +130,9 @@ func TestNormalizeLongService(t *testing.T) {
 	s.Meta[peerServiceKey] = strings.Repeat("BRIE", 100)
 	s.Meta[baseServiceKey] = strings.Repeat("ROQUEFORT", 100)
 	assert.NoError(t, a.normalize(ts, s))
-	assert.Equal(t, s.Service, s.Service[:traceutil.MaxServiceLen])
-	assert.Equal(t, s.Meta[peerServiceKey], s.Meta[peerServiceKey][:traceutil.MaxServiceLen])
-	assert.Equal(t, s.Meta[baseServiceKey], s.Meta[baseServiceKey][:traceutil.MaxServiceLen])
+	assert.Equal(t, s.Service, s.Service[:normalize.MaxServiceLen])
+	assert.Equal(t, s.Meta[peerServiceKey], s.Meta[peerServiceKey][:normalize.MaxServiceLen])
+	assert.Equal(t, s.Meta[baseServiceKey], s.Meta[baseServiceKey][:normalize.MaxServiceLen])
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{
 		ServiceTruncate:     *atomic.NewInt64(1),
 		PeerServiceTruncate: *atomic.NewInt64(1),
@@ -155,7 +156,7 @@ func TestNormalizeEmptyName(t *testing.T) {
 	s := newTestSpan()
 	s.Name = ""
 	assert.NoError(t, a.normalize(ts, s))
-	assert.Equal(t, s.Name, traceutil.DefaultSpanName)
+	assert.Equal(t, s.Name, normalize.DefaultSpanName)
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameEmpty: *atomic.NewInt64(1)}), ts)
 }
 
@@ -167,13 +168,13 @@ func TestNormalizeSpanLinkName(t *testing.T) {
 	emptyLinkNameSpan := newTestSpan()
 	emptyLinkNameSpan.SpanLinks[0].Attributes["link.name"] = ""
 	assert.NoError(t, a.normalize(ts, emptyLinkNameSpan))
-	assert.Equal(t, emptyLinkNameSpan.SpanLinks[0].Attributes["link.name"], traceutil.DefaultSpanName)
+	assert.Equal(t, emptyLinkNameSpan.SpanLinks[0].Attributes["link.name"], normalize.DefaultSpanName)
 
 	// Normalize a span that contains an invalid link name
 	invalidLinkNameSpan := newTestSpan()
 	invalidLinkNameSpan.SpanLinks[0].Attributes["link.name"] = "!@#$%^&*()_+"
 	assert.NoError(t, a.normalize(ts, invalidLinkNameSpan))
-	assert.Equal(t, invalidLinkNameSpan.SpanLinks[0].Attributes["link.name"], traceutil.DefaultSpanName)
+	assert.Equal(t, invalidLinkNameSpan.SpanLinks[0].Attributes["link.name"], normalize.DefaultSpanName)
 
 	// Normalize a span that contains a valid link name
 	validLinkNameSpan := newTestSpan()
@@ -188,7 +189,7 @@ func TestNormalizeLongName(t *testing.T) {
 	s := newTestSpan()
 	s.Name = strings.Repeat("CAMEMBERT", 100)
 	assert.NoError(t, a.normalize(ts, s))
-	assert.Equal(t, s.Name, s.Name[:traceutil.MaxNameLen])
+	assert.Equal(t, s.Name, s.Name[:normalize.MaxNameLen])
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameTruncate: *atomic.NewInt64(1)}), ts)
 }
 
@@ -198,7 +199,7 @@ func TestNormalizeNameNoAlphanumeric(t *testing.T) {
 	s := newTestSpan()
 	s.Name = "/"
 	assert.NoError(t, a.normalize(ts, s))
-	assert.Equal(t, s.Name, traceutil.DefaultSpanName)
+	assert.Equal(t, s.Name, normalize.DefaultSpanName)
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameInvalid: *atomic.NewInt64(1)}), ts)
 }
 

@@ -1,0 +1,26 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The log agent now uses zstd compression as default for improved performance and reduced bandwidth usage.
+    By default, zstd compression is used when no additional endpoints are configured.
+  - |
+    Improved logging compression settings across different agent pipelines. Debug logs now clearly indicate whether compression settings are coming from pipeline-specific configuration, global logs configuration, or default fallback settings. This helps debug compression behavior across different pipelines.
+fixes:
+  - |
+    Fixed potential compatibility issues with non-Datadog intakes by ensuring gzip compression is used
+    when additional endpoints are configured.
+  - |
+    Fixed event platform forwarder to use correct pipeline-specific compression settings instead of log endpoint settings.
+    All non-log pipelines now default to zstd compression unless configured otherwise.
+other:
+  - |
+    The compression behavior is now also determined by the presence of additional endpoints:
+    - When additional endpoints are configured: gzip compression is used
+    - When no additional endpoints are configured: the default zstd compression is used

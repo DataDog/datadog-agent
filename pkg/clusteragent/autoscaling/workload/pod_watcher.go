@@ -9,6 +9,7 @@ package workload
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -20,12 +21,15 @@ const (
 	patcherQueueSize = 100
 )
 
+var errDeploymentNotValidOwner = fmt.Errorf("deployment is not a valid owner")
+
 // NamespacedPodOwner represents a pod owner in a namespace
 type NamespacedPodOwner struct {
 	// Namespace is the namespace of the pod owner
 	Namespace string
 	// Kind is the kind of the pod owner (e.g. Deployment, StatefulSet etc.)
 	// ReplicaSet is replaced by Deployment
+	// Pods with Deployment as direct owner are not included
 	Kind string
 	// Name is the name of the pod owner
 	Name string
@@ -143,7 +147,12 @@ func (pw *PodWatcherImpl) HandleEvent(event workloadmeta.Event) {
 }
 
 func (pw *PodWatcherImpl) handleSetEvent(pod *workloadmeta.KubernetesPod) {
-	podOwner := getNamespacedPodOwner(pod.Namespace, &pod.Owners[0])
+	podOwner, err := getNamespacedPodOwner(pod.Namespace, &pod.Owners[0])
+	if err != nil {
+		log.Debugf("Ignoring pod %s with invalid owner %s", pod.ID, err)
+		return
+	}
+
 	log.Debugf("Adding pod %s to owner %s", pod.ID, podOwner)
 	if _, ok := pw.podsPerPodOwner[podOwner]; !ok {
 		pw.podsPerPodOwner[podOwner] = make(map[string]*workloadmeta.KubernetesPod)
@@ -173,7 +182,12 @@ func (pw *PodWatcherImpl) handleSetEvent(pod *workloadmeta.KubernetesPod) {
 }
 
 func (pw *PodWatcherImpl) handleUnsetEvent(pod *workloadmeta.KubernetesPod) {
-	podOwner := getNamespacedPodOwner(pod.Namespace, &pod.Owners[0])
+	podOwner, err := getNamespacedPodOwner(pod.Namespace, &pod.Owners[0])
+	if err != nil {
+		log.Debugf("Ignoring pod %s with invalid owner %s", pod.ID, err)
+		return
+	}
+
 	if podOwner.Name == "" {
 		log.Debugf("Ignoring pod %s without owner name", pod.Name)
 		return
@@ -206,7 +220,11 @@ func (pw *PodWatcherImpl) runPatcher(ctx context.Context) {
 	}
 }
 
-func getNamespacedPodOwner(ns string, owner *workloadmeta.KubernetesPodOwner) NamespacedPodOwner {
+func getNamespacedPodOwner(ns string, owner *workloadmeta.KubernetesPodOwner) (NamespacedPodOwner, error) {
+	if owner.Kind == kubernetes.DeploymentKind {
+		return NamespacedPodOwner{}, errDeploymentNotValidOwner
+	}
+
 	res := NamespacedPodOwner{
 		Name:      owner.Name,
 		Kind:      owner.Kind,
@@ -219,5 +237,5 @@ func getNamespacedPodOwner(ns string, owner *workloadmeta.KubernetesPodOwner) Na
 			res.Name = deploymentName
 		}
 	}
-	return res
+	return res, nil
 }
