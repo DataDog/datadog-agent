@@ -461,18 +461,25 @@ func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.Usage
 		err   error
 	}
 	resultCh := make(chan usageResult, 1)
+	timeout := time.Duration(c.instanceConfig.Timeout) * time.Second
+	timeoutCh := c.clock.After(timeout)
 	// Start the disk usage call in a separate goroutine.
 	go func() {
 		// UsageWithContext in gopsutil ignores the context for now (PR opened: https://github.com/shirou/gopsutil/pull/1837)
 		usage, err := DiskUsage(mountpoint)
-		resultCh <- usageResult{usage, err}
+		// Use select to avoid writing to resultCh if timeout already occurred.
+		select {
+		case resultCh <- usageResult{usage, err}:
+		case <-timeoutCh:
+			// timeout occurred — avoid writing to resultCh
+			return
+		}
 	}()
 	// Use select to wait for either the disk usage result or a timeout.
-	timeout := time.Duration(c.instanceConfig.Timeout) * time.Second
 	select {
 	case result := <-resultCh:
 		return result.usage, result.err
-	case <-c.clock.After(timeout):
+	case <-timeoutCh:
 		return nil, fmt.Errorf("disk usage call timed out after %s", timeout)
 	}
 }
