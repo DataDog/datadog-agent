@@ -85,6 +85,7 @@ var Spec = &protocols.ProtocolSpec{
 	},
 	Probes: []*manager.Probe{
 		{
+			KprobeAttachMethod: manager.AttachKprobeWithPerfEventOpen,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: netifProbe414,
 				UID:          eventStream,
