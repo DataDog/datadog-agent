@@ -235,7 +235,7 @@ func (c *Check) Run() error {
 			if !ok {
 				return nil
 			}
-			c.processor.processHostScanResult(scanResult)
+			c.processor.processHostFilesystemScanResult(scanResult)
 		case scanResult, ok := <-procfsSbomChan:
 			if !ok {
 				return nil
