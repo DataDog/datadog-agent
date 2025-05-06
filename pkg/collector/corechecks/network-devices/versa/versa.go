@@ -123,6 +123,16 @@ func (v *VersaCheck) Run() error {
 		v.metricsSender.SendMetadata(deviceMetadata, nil, nil)
 	}
 
+	// Send hardware metrics to the metrics sender
+	if *v.config.CollectHardwareMetrics {
+		uptimes := payload.GetDevicesUptime(appliances)
+		deviceStatus := payload.GetDevicesStatus(appliances)
+
+		v.metricsSender.SendDeviceMetrics(appliances)
+		v.metricsSender.SendUptimeMetrics(uptimes)
+		v.metricsSender.SendDeviceStatusMetrics(deviceStatus)
+	}
+
 	// TODO: send metrics from the appliance detail call
 
 	return nil
