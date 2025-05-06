@@ -284,6 +284,18 @@ func isAlphaNum(b byte) bool {
 	return isAlpha(b) || (b >= '0' && b <= '9')
 }
 
+func isValidNormalizedMetricName(name string) bool {
+	if name == "" {
+		return false
+	}
+	isValid := isAlphaLookup[name[0]]
+	for j := 1; j < len(name); j++ {
+		b := name[j]
+		isValid = isValid && (isAlphaNumLookup[b] || (b == '.' && !(name[j-1] == '_')) || (b == '_' && !(name[j-1] == '_')))
+	}
+	return isValid
+}
+
 // normMetricNameParse normalizes metric names with a parser instead of using
 // garbage-creating string replacement routines.
 func normMetricNameParse(name string) (string, bool) {
@@ -303,6 +315,14 @@ func normMetricNameParse(name string) (string, bool) {
 	// if there were no alphabetic characters it wasn't valid
 	if i == len(name) {
 		return "", false
+	}
+
+	if isValidNormalizedMetricName(name[i:]) {
+		normalized := name[i:]
+		if normalized[len(normalized)-1] == '_' {
+			normalized = normalized[:len(normalized)-1]
+		}
+		return normalized, true
 	}
 
 	for ; i < len(name); i++ {
