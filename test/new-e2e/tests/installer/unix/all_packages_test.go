@@ -57,6 +57,8 @@ var (
 	}
 )
 
+const latestPython2AnsibleVersion = "5.10.0"
+
 func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
 		if f.Flavor == flavor.Flavor && f.Version == flavor.Version {
@@ -170,7 +172,8 @@ func (s *packageBaseSuite) SetupSuite() {
 
 func (s *packageBaseSuite) disableUnattendedUpgrades() {
 	if _, err := s.Env().RemoteHost.Execute("which apt"); err == nil {
-		s.Env().RemoteHost.MustExecute("sudo apt remove -y unattended-upgrades")
+		// Try to disable unattended-upgrades to avoid interfering with the tests, it can fail if it is not installed, we ignore errors
+		s.Env().RemoteHost.Execute("sudo apt remove -y unattended-upgrades") //nolint:errcheck
 	}
 }
 
@@ -208,8 +211,14 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		// Install ansible then install the agent
 		var ansiblePrefix string
 		for i := 0; i < 3; i++ {
+			var err error
 			ansiblePrefix = s.installAnsible(s.os)
-			_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+			if (s.os.Flavor == e2eos.AmazonLinux && s.os.Version == e2eos.AmazonLinux2.Version) ||
+				(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
+				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd:==%s", ansiblePrefix, latestPython2AnsibleVersion))
+			} else {
+				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+			}
 			if err == nil {
 				break
 			}

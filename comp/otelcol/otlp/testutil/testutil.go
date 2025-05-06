@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"io"
 	"log"
 	"net/http"
@@ -609,4 +610,26 @@ func ProcessLogsAgentRequest(w http.ResponseWriter, r *http.Request) JSONLogs {
 	_, err = w.Write([]byte(`{"status":"ok"}`))
 	handleError(w, err, 0)
 	return jsonLogs
+}
+
+// TestTaggerClient is used to store sample tags for testing purposes
+type TestTaggerClient struct {
+	TagMap map[string][]string
+}
+
+// NewTestTaggerClient creates and returns a new testTaggerClient with an empty string map
+func NewTestTaggerClient() *TestTaggerClient {
+	return &TestTaggerClient{
+		TagMap: make(map[string][]string),
+	}
+}
+
+// Tag mocks taggerimpl.Tag functionality for the purpose of testing, removing dependency on Taggerimpl
+func (t *TestTaggerClient) Tag(entityID types.EntityID, _ types.TagCardinality) ([]string, error) {
+	return t.TagMap[entityID.String()], nil
+}
+
+// GlobalTags mocks taggerimpl.GlobalTags functionality for purpose of testing, removing dependency on Taggerimpl
+func (t *TestTaggerClient) GlobalTags(_ types.TagCardinality) ([]string, error) {
+	return t.TagMap[types.NewEntityID("internal", "global-entity-id").String()], nil
 }

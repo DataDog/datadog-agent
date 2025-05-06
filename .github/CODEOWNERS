@@ -42,7 +42,6 @@
 /repository.datadog.yml                 @DataDog/agent-devx-infra
 /generate_tools.go                      @DataDog/agent-devx-infra
 /service.datadog.yaml                   @DataDog/agent-delivery
-/static-analysis.datadog.yml            @DataDog/sdlc-security @DataDog/agent-devx-infra
 
 /modules.yml                            @DataDog/agent-runtimes
 # if go.work changes then either .go-version or modules.yml changed too, so ASC might as well own it
@@ -257,7 +256,7 @@
 /Dockerfiles/agent/entrypoint.d.windows/ @DataDog/container-integrations @DataDog/windows-agent
 /Dockerfiles/agent/entrypoint.ps1        @DataDog/container-integrations @DataDog/windows-agent
 /Dockerfiles/agent/windows/              @DataDog/container-integrations @DataDog/windows-agent
-/Dockerfiles/agent-ot                    @DataDog/opentelemetry-agent
+/Dockerfiles/agent-ddot                  @DataDog/opentelemetry-agent
 /Dockerfiles/agent/bouncycastle-fips     @DataDog/agent-metric-pipelines
 
 /docs/                                  @DataDog/agent-devx-loops
