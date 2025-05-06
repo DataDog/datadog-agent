@@ -296,7 +296,7 @@ func (pn *ProcessNode) findDNSNode(DNSName string, DNSMatchMaxDepth int, DNSType
 	for name, dnsNode := range pn.DNSNames {
 		if dnsFilterSubdomains(name, DNSMatchMaxDepth) == toSearch {
 			for _, req := range dnsNode.Requests {
-				if req.Type == DNSType {
+				if req.Question.Type == DNSType {
 					return true
 				}
 			}
@@ -309,11 +309,11 @@ func (pn *ProcessNode) findDNSNode(DNSName string, DNSMatchMaxDepth int, DNSType
 func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTag string, generationType NodeGenerationType, stats *Stats, DNSNames *utils.StringKeys, dryRun bool, dnsMatchMaxDepth int) bool {
 	if dryRun {
 		// Use DNSMatchMaxDepth only when searching for a node, not when trying to insert
-		return !pn.findDNSNode(evt.DNS.Name, dnsMatchMaxDepth, evt.DNS.Type)
+		return !pn.findDNSNode(evt.DNS.Question.Name, dnsMatchMaxDepth, evt.DNS.Question.Type)
 	}
 
-	DNSNames.Insert(evt.DNS.Name)
-	dnsNode, ok := pn.DNSNames[evt.DNS.Name]
+	DNSNames.Insert(evt.DNS.Question.Name)
+	dnsNode, ok := pn.DNSNames[evt.DNS.Question.Name]
 	if ok {
 		// update matched rules
 		dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, evt.Rules)
@@ -322,7 +322,7 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTag string, generat
 
 		// look for the DNS request type
 		for _, req := range dnsNode.Requests {
-			if req.Type == evt.DNS.Type {
+			if req.Question.Type == evt.DNS.Question.Type {
 				return false
 			}
 		}
@@ -332,7 +332,7 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTag string, generat
 		return true
 	}
 
-	pn.DNSNames[evt.DNS.Name] = NewDNSNode(&evt.DNS, evt.Rules, generationType, imageTag)
+	pn.DNSNames[evt.DNS.Question.Name] = NewDNSNode(&evt.DNS, evt.Rules, generationType, imageTag)
 	stats.DNSNodes++
 	return true
 }
