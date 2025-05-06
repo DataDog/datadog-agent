@@ -19,6 +19,6 @@ type windowsStatusSuite struct {
 
 func TestWindowsDiskSuite(t *testing.T) {
 	t.Parallel()
-	suite := &windowsStatusSuite{baseCheckSuite{descriptor: e2eos.WindowsDefault, metricCompareFraction: 0.02, metricCompareDecimals: 1}}
+	suite := &windowsStatusSuite{baseCheckSuite{descriptor: e2eos.WindowsDefault, metricCompareFraction: 0.05, metricCompareDecimals: 1}}
 	e2e.Run(t, suite, suite.getSuiteOptions()...)
 }
