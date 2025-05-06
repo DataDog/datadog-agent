@@ -60,7 +60,7 @@ instances:
 			``,
 		},
 	}
-	p := math.Pow(10, float64(v.metricCompareDecimals))
+	p := math.Pow10(v.metricCompareDecimals)
 	for _, testCase := range testCases {
 		v.Run(testCase.name, func() {
 			v.T().Log("run the disk check using old version")
