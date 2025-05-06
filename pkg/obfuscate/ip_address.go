@@ -6,10 +6,8 @@
 package obfuscate
 
 import (
-	"fmt"
 	"net"
 	"net/netip"
-	"regexp"
 	"strings"
 )
 
@@ -17,22 +15,42 @@ import (
 // Duplicate entries post-quantization or collapsed into a single unique value.
 // Entries which are not IP addresses are left unchanged.
 // Comma-separated host lists are common for peer tags like peer.cassandra.contact.points, peer.couchbase.seed.nodes, peer.kafka.bootstrap.servers
+//func QuantizePeerIPAddresses(raw string) string {
+//	values := strings.Split(raw, ",")
+//	uniq := values[:0]
+//	uniqSet := make(map[string]bool)
+//	for _, v := range values {
+//		q := quantizeIP(v)
+//		if !uniqSet[q] {
+//			uniqSet[q] = true
+//			uniq = append(uniq, q)
+//		}
+//	}
+//	return strings.Join(uniq, ",")
+//}
+
 func QuantizePeerIPAddresses(raw string) string {
-	values := strings.Split(raw, ",")
-	uniq := values[:0]
+	var builder strings.Builder
+	rest := raw
+	first := true
 	uniqSet := make(map[string]bool)
-	for _, v := range values {
-		q := quantizeIP(v)
+	for len(rest) > 0 {
+		var value string
+		value, rest, _ = strings.Cut(rest, ",")
+		q := quantizeIP(value)
 		if !uniqSet[q] {
+			if !first {
+				builder.WriteString(",")
+			}
+			builder.WriteString(q)
 			uniqSet[q] = true
-			uniq = append(uniq, q)
+			first = false
 		}
 	}
-	return strings.Join(uniq, ",")
+	return builder.String()
 }
 
 var schemes = []string{"dnspoll", "ftp", "file", "http", "https"}
-var protocolRegex = regexp.MustCompile(fmt.Sprintf(`((?:%s):/{2,3}).*`, strings.Join(schemes, "|")))
 
 var allowedIPAddresses = map[string]bool{
 	// localhost
@@ -50,22 +68,22 @@ func splitPrefix(raw string) (prefix, after string) {
 		return "ip-", after
 	}
 
-	isHintFound := false
-	for _, hint := range schemes {
-		if strings.Contains(raw, hint) {
-			isHintFound = true
-			break
+	for _, scheme := range schemes {
+		schemeIndex := strings.Index(raw, scheme)
+		if schemeIndex < 0 {
+			continue
+		}
+		schemeEnd := schemeIndex + len(scheme) + 4
+		if schemeEnd < len(raw) && raw[schemeIndex+len(scheme):schemeEnd] == ":///" {
+			return raw[schemeIndex:schemeEnd], raw[schemeEnd:]
+		}
+		schemeEnd--
+		if schemeEnd < len(raw) && raw[schemeIndex+len(scheme):schemeEnd] == "://" {
+			return raw[schemeIndex:schemeEnd], raw[schemeEnd:]
 		}
 	}
 
-	if isHintFound {
-		subMatches := protocolRegex.FindStringSubmatch(raw)
-		if len(subMatches) >= 2 {
-			prefix = subMatches[1]
-		}
-	}
-
-	return prefix, raw[len(prefix):]
+	return "", raw
 }
 
 // quantizeIP quantizes the ip address in the provided string, only if it exactly matches an ip with an optional port
