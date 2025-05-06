@@ -209,6 +209,7 @@ func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 
 func enableEmrLogs(s *common.Setup) {
 	s.Config.DatadogYAML.LogsEnabled = true
+	loadLogProcessingRules(s)
 	s.Span.SetTag("host_tag_set.logs_enabled", "true")
 	// Add dd-agent user to yarn group so that it gets read permission to the hadoop-yarn logs folder
 	s.DdAgentAdditionalGroups = append(s.DdAgentAdditionalGroups, "yarn")

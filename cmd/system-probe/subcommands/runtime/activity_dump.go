@@ -26,6 +26,7 @@ import (
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -531,7 +532,12 @@ func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ sec
 			output.Storage = append(output.Storage, storageRequest.ToStorageRequestMessage(p.Metadata.Name))
 		case secconfig.RemoteStorage:
 			if remoteStorage == nil && remoteStorageErr == nil {
-				remoteStorage, remoteStorageErr = storage.NewActivityDumpRemoteStorage()
+				backend, err := backend.NewActivityDumpRemoteBackend()
+				if err != nil {
+					return fmt.Errorf("couldn't instantiate remote storage backend: %w", err)
+				}
+
+				remoteStorage, remoteStorageErr = storage.NewActivityDumpRemoteStorageForwarder(backend)
 				if remoteStorageErr != nil {
 					return fmt.Errorf("couldn't instantiate remote storage: %w", remoteStorageErr)
 				}
