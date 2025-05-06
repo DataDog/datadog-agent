@@ -108,7 +108,7 @@ func (cm *RCConfigManager) Stop() {
 	for _, procInfo := range cm.mu.diProcs {
 		procInfo.CloseAllUprobeLinks()
 	}
-	log.Infof("Closed all uprobe links")
+	log.Infof("Closed all uprobe links, stopped process tracker")
 }
 
 // updateProcesses is the callback interface that ConfigManager uses to consume the map of `ProcessInfo`s
@@ -127,7 +127,6 @@ func (cm *RCConfigManager) updateProcesses(runningProcs ditypes.DIProcs) {
 			delete(cm.mu.diProcs, pid)
 		}
 	}
-	log.Infof("Attempting to install config probes for %d processes", len(runningProcs))
 	for pid, runningProcInfo := range runningProcs {
 		_, ok := cm.mu.diProcs[pid]
 		if !ok {
@@ -271,7 +270,6 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 				cm.mu.Unlock()
 				continue
 			}
-			log.Infof("Successfully inspected binary for %d %s %s", procInfo.PID, procInfo.ServiceName, probe.FuncName)
 			probe.InstrumentationInfo.ConfigurationHash = configPath.Hash
 			applyConfigUpdate(procInfo, probe)
 		}
@@ -282,10 +280,11 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
 	log.Infof("Applying config update for: %d %s %s (ID: %s)\n", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID)
 	for {
-		log.Infof("Attempting to generate and attach BPF program for %d %s %s (ID: %s)", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID)
 		if err := tryGenerateAndAttach(procInfo, probe); err == nil {
 			log.Infof("Successfully generated and attached BPF program for %d %s %s (ID: %s)", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID)
 			return
+		} else {
+			log.Infof("Failed to generate and attach BPF program for %d %s %s (ID: %s)", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID)
 		}
 	}
 }
