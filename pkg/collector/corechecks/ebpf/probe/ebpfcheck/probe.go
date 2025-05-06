@@ -160,7 +160,7 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, err
 
 	// version 6.2.0 is when the kfunc for bpf_rcu_read_lock/unlock was introduced
 	// which is used in the bpf program for collecting kprobe statistics
-	if kv < kernel.VersionCode(6, 2, 0) {
+	if !kprobeMissCollectionSupported() {
 		delete(collSpec.Programs, "k_do_vfs_ioctl")
 		delete(collSpec.Maps, "cookie_to_trace_kprobe")
 		delete(collSpec.Maps, "cookie_to_uprobe_event")
@@ -386,12 +386,21 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats, uniquePrograms map[progr
 	return nil
 }
 
-func (k *Probe) getKprobeMisses(ebpfStats *model.EBPFStats, uniquePrograms map[programKey]ebpf.ProgramID) error {
+func kprobeMissCollectionSupported() bool {
 	kv, err := kernel.HostVersion()
 	if err != nil {
-		return fmt.Errorf("kernel version: %s", err)
+		return false
 	}
-	if kv < kernel.VersionCode(6, 2, 0) {
+
+	if kv < kernel.VersionCode(6, 3, 0) {
+		return false
+	}
+
+	return true
+}
+
+func (k *Probe) getKprobeMisses(ebpfStats *model.EBPFStats, uniquePrograms map[programKey]ebpf.ProgramID) error {
+	if !kprobeMissCollectionSupported() {
 		return nil
 	}
 
