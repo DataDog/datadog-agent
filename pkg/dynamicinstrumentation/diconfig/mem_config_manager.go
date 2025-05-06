@@ -69,7 +69,7 @@ func (cm *ReaderConfigManager) Stop() {
 func (cm *ReaderConfigManager) update() error {
 	var updatedState = ditypes.NewDIProcs()
 	for serviceName, configsByID := range cm.configs {
-		for pid, proc := range cm.ConfigWriter.Processes {
+		for pid, proc := range cm.ConfigWriter.Processes() {
 			// If a config exists relevant to this proc
 			if proc.ServiceName == serviceName {
 				updatedState[pid] = &ditypes.ProcessInfo{
@@ -143,9 +143,10 @@ func (cm *ReaderConfigManager) updateServiceConfigs(configs configsByService) {
 type ConfigWriter struct {
 	io.Writer
 	updateChannel  chan ([]byte)
-	Processes      map[ditypes.PID]*ditypes.ProcessInfo
+	processes      map[ditypes.PID]*ditypes.ProcessInfo
 	configCallback ConfigWriterCallback
 	stopChannel    chan (bool)
+	mtx            sync.Mutex
 }
 
 // ConfigWriterCallback provides a callback interface for ConfigWriter
@@ -158,6 +159,14 @@ func NewConfigWriter(onConfigUpdate ConfigWriterCallback) *ConfigWriter {
 		configCallback: onConfigUpdate,
 		stopChannel:    make(chan bool),
 	}
+}
+
+// Processes returns a copy of the current processes
+func (r *ConfigWriter) Processes() map[ditypes.PID]*ditypes.ProcessInfo {
+	r.mtx.Lock()
+	procs := maps.Clone(r.processes)
+	r.mtx.Unlock()
+	return procs
 }
 
 func (r *ConfigWriter) Write(p []byte) (n int, e error) {
@@ -196,10 +205,13 @@ func (r *ConfigWriter) Stop() {
 // such that it's used whenever there's an update to the state of known service processes on the machine.
 // It simply overwrites the previous state of known service processes with the new one
 func (r *ConfigWriter) UpdateProcesses(procs ditypes.DIProcs) {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
 	current := procs
-	old := r.Processes
+	old := r.processes
 	if !reflect.DeepEqual(current, old) {
-		r.Processes = current
+		r.processes = current
 	}
 }
 
