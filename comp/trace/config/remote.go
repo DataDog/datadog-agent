@@ -8,8 +8,8 @@
 package config
 
 import (
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -17,12 +17,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-func remote(c corecompcfg.Component, ipcAddress string, at authtoken.Component) (config.RemoteClient, error) {
+func remote(c corecompcfg.Component, ipcAddress string, ipc ipc.Component) (config.RemoteClient, error) {
 	return rc.NewGRPCClient(
 		ipcAddress,
 		pkgconfigsetup.GetIPCPort(),
-		at.Get,
-		at.GetTLSClientConfig,
+		func() (string, error) { return ipc.GetAuthToken(), nil }, // TODO IPC: GRPC client will be provided by the IPC component
+		ipc.GetTLSClientConfig,
 		rc.WithAgent(rcClientName, version.AgentVersion),
 		rc.WithProducts(state.ProductAPMSampling, state.ProductAgentConfig),
 		rc.WithPollInterval(rcClientPollInterval),

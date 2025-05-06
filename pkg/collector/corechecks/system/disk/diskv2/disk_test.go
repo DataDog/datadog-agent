@@ -176,6 +176,21 @@ func createCheck() check.Check {
 	return diskCheck
 }
 
+type signalClock struct {
+	clock.Clock
+	afterCalled chan time.Time
+}
+
+func (sc *signalClock) After(d time.Duration) <-chan time.Time {
+	ch := sc.Clock.After(d)
+	// Signal that After has been called
+	select {
+	case sc.afterCalled <- time.Now():
+	default:
+	}
+	return ch
+}
+
 func createCheckWithClock(clock clock.Clock) check.Check {
 	diskCheckOpt := diskv2.FactoryWithClock(clock)
 	diskCheckFunc, _ := diskCheckOpt.Get()
@@ -1285,21 +1300,26 @@ func TestGivenADiskCheckWithDefaultConfig_WhenUsagePartitionTimeout_ThenUsageMet
 		}, nil
 	}
 	mockClock := clock.NewMock()
-	diskCheck := createCheckWithClock(mockClock)
+	afterCalled := make(chan time.Time, 1)
+	// Wrap your mockClock with the signaling clock
+	testClock := &signalClock{
+		Clock:       mockClock,
+		afterCalled: afterCalled,
+	}
+	diskCheck := createCheckWithClock(testClock)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 	done := make(chan error, 1)
 	go func() {
-		err = diskCheck.Run()
-		done <- err
+		done <- diskCheck.Run()
 	}()
-	// Sleep momentarily so that other goroutines can process.
-	time.Sleep(10 * time.Millisecond)
+	// Explicitly wait until diskCheck.Run calls mockClock.After()
+	<-afterCalled
 	// Move the clock forward longer than default timeout (5s)
 	mockClock.Add(10 * time.Second)
-	<-done
+	err := <-done
 
 	assert.Nil(t, err)
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))

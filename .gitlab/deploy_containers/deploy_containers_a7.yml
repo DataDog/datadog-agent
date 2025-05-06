@@ -49,7 +49,7 @@ include:
   stage: deploy_containers
   dependencies: []
   before_script:
-    - if [[ -z "$VERSION" ]]; then VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIELINE_ID)-fips" || exit $?; fi
+    - if [[ -z "$VERSION" ]]; then VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)-fips" || exit $?; fi
     - export IMG_SOURCES="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips${JMX}-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips${JMX}-arm64"
     - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${JMX}"
 
@@ -105,6 +105,11 @@ deploy_containers-a7-full:
   extends: .deploy_containers-a7-full-base
   rules:
     !reference [.manual_on_deploy_auto_on_rc]
+
+deploy_containers-a7-full-internal:
+  extends: .deploy_containers-a7-full-base
+  rules:
+    !reference [.on_internal_final]
 
 deploy_containers-a7-fips:
   extends: .deploy_containers-a7-base-fips
@@ -193,8 +198,9 @@ deploy_containers-a7-fips_internal-rc:
       - JMX:
           - ""
           - "-jmx"
+
 #
-# Latest publication
+# Latest publication - old mechanism
 #
 
 deploy_containers_latest-a7:

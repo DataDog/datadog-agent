@@ -153,10 +153,23 @@ func (d *DatadogInstaller) SetCatalog(newCatalog Catalog) (string, error) {
 
 // StartExperiment will use the Datadog Installer service to start an experiment.
 func (d *DatadogInstaller) StartExperiment(packageName string, packageVersion string) (string, error) {
+	if packageName == consts.AgentPackage {
+		// workaround for 7.65 daemon which must use the start-installer-experiment subcommand to start an experiment for the Agent package
+		// through the local API.
+		ver, err := d.Version()
+		if err != nil {
+			return "", err
+		}
+		if strings.HasPrefix(ver, "7.65.") {
+			return d.StartInstallerExperiment(consts.AgentPackage, packageVersion)
+		}
+	}
 	return d.execute(fmt.Sprintf("daemon start-experiment '%s' '%s'", packageName, packageVersion))
 }
 
-// StartInstallerExperiment will use the Datadog Installer service to start an experiment
+// StartInstallerExperiment will use the Datadog Installer service to start an experiment for the Agent package.
+//
+// Only neeeded for 7.65, future versions use the start-experiment subcommand instead.
 func (d *DatadogInstaller) StartInstallerExperiment(packageName string, packageVersion string) (string, error) {
 	return d.execute(fmt.Sprintf("daemon start-installer-experiment '%s' '%s'", packageName, packageVersion))
 }

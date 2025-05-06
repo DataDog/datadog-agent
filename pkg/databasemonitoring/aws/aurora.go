@@ -85,6 +85,19 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 				}
 				if db.DBName != nil {
 					instance.DbName = *db.DBName
+				} else {
+					if db.Engine != nil {
+						defaultDBName, err := dbNameFromEngine(*db.Engine)
+						if err != nil {
+							return nil, fmt.Errorf("error getting default db name from engine: %v", err)
+						}
+
+						instance.DbName = defaultDBName
+					} else {
+						// This should never happen, as engine is a required field in the API
+						// but we should handle it.
+						return nil, fmt.Errorf("engine is nil for instance %s", clusterID)
+					}
 				}
 				for _, tag := range db.TagList {
 					if tag.Key != nil && *tag.Key == "datadoghq.com/dbm" && tag.Value != nil {
@@ -109,6 +122,18 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 		return nil, fmt.Errorf("no endpoints found for aurora clusters with id(s): %s", strings.Join(dbClusterIdentifiers, ", "))
 	}
 	return clusters, nil
+}
+
+// dbNameFromEngine returns the default database name for a given engine type
+func dbNameFromEngine(engine string) (string, error) {
+	switch engine {
+	case auroraMysqlEngine:
+		return "mysql", nil
+	case auroraPostgresqlEngine:
+		return "postgres", nil
+	default:
+		return "", fmt.Errorf("unsupported engine type: %s", engine)
+	}
 }
 
 // GetAuroraClustersFromTags returns a list of Aurora clusters to query from a list of tags
