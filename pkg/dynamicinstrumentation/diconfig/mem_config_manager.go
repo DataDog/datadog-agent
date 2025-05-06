@@ -142,6 +142,9 @@ func (cm *ReaderConfigManager) updateProcessInfo(procs ditypes.DIProcs) {
 }
 
 func (cm *ReaderConfigManager) updateServiceConfigs(configs configsByService) {
+	cm.Lock()
+	defer cm.Unlock()
+
 	cm.configs = configs
 	err := cm.update()
 	if err != nil {
