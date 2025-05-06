@@ -447,7 +447,6 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
         if (!get_topic_offset_from_metadata_request(kafka_header, pkt, &offset)) {
             return false;
         }
-        log_debug("GUY classified Kafka metadata request - valid header");
         // TODO check boolean fields
         return true;
     default:

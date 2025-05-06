@@ -949,7 +949,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
            return RET_ERR;
         }
 
-        log_debug("GUY got num of brokers: %d", num_of_brokers);
+        log_debug("GUY got num of brokers: %llu", num_of_brokers);
 
 
         response->state = KAFKA_METADATA_RESPONSE_TOPICS;
@@ -1770,6 +1770,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
 
     bool flexible = false;
     bool topic_id_instead_of_name = false;
+    bool skip_parse_topic = false; // Used to skip parsing the topic, used for Metadata when we only care about the response
 
     s16 produce_required_acks = 0;
     switch (kafka_header.api_key) {
@@ -1790,8 +1791,10 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         topic_id_instead_of_name = kafka_header.api_version >= 13;
         break;
     case KAFKA_METADATA:
-        // TODO
-        log_debug("GUY Kafka decoding: Metadata request");
+        if (!get_topic_offset_from_metadata_request(&kafka_header, pkt, &offset)) {
+            return false;
+        }
+        skip_parse_topic = true;
         break;
     default:
         return false;
@@ -1800,15 +1803,15 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     // Skipping number of entries for now
     if (flexible) {
         if (get_varint_number_of_topics(pkt, &offset) > NUM_TOPICS_MAX) {
-                return false;
-            }
+            return false;
+        }
     } else {
         offset += sizeof(s32);
     }
 
     // Parsing the topic name
     // When we process metadata request we need to skip the topic name
-    if (kafka_header.api_key != KAFKA_METADATA) {
+    if (!skip_parse_topic) {
         if (topic_id_instead_of_name) {
             // The topic id is a UUID, which is 16 bytes long.
             u8 topic_id[16] = {};
