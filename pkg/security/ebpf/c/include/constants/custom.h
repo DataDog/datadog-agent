@@ -40,9 +40,6 @@ enum TAIL_CALL_PROG_TYPE {
     TRACEPOINT_TYPE = 1,
 };
 
-#define TAIL_CALL_PROGS(CTX, MAP_PREFIX, KEY) \
-    bpf_tail_call_compat(CTX, &MAP_PREFIX##_progs, KEY)
-
 enum DENTRY_RESOLVER_KEYS {
     DR_DENTRY_RESOLVER_KERN_KEY,
     DR_AD_FILTER_KEY,
