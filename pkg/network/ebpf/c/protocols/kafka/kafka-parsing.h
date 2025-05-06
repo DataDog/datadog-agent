@@ -1622,6 +1622,10 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
 
     log_debug("kafka: kafka_header.api_key: %d api_version: %d", kafka_header.api_key, kafka_header.api_version);
 
+    if (!is_valid_kafka_request_header(&kafka_header)) {
+        return false;
+    }
+
     // Report api version hits telemetry
     switch (kafka_header.api_key) {
         case KAFKA_PRODUCE:
@@ -1630,10 +1634,6 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         case KAFKA_FETCH:
             update_classified_fetch_api_version_hits_telemetry(kafka_tel, kafka_header.api_version);
             break;
-    }
-
-    if (!is_valid_kafka_request_header(&kafka_header)) {
-        return false;
     }
 
     kafka_transaction->request_started = bpf_ktime_get_ns();
