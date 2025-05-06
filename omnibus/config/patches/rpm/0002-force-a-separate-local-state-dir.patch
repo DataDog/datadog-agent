@@ -1,0 +1,56 @@
+From 9cdca0e35697cf5d355e9d1c074330de693552c6 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Tue, 17 Dec 2024 09:53:55 +0100
+Subject: [PATCH 2/2] force a separate local state dir
+
+We can't force the values computed by GNUInstallDir, which doesn't
+appear to support installing librpm in a prefix, while reading
+packages from another prefix
+---
+ CMakeLists.txt     | 2 +-
+ lib/CMakeLists.txt | 2 +-
+ macros.in          | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index f58bc0f7f..70482dff7 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -99,7 +99,7 @@ function(makemacros)
+ 	set(datadir "\${datarootdir}")
+ 	set(sysconfdir "${CMAKE_INSTALL_FULL_SYSCONFDIR}")
+ 	set(sharedstatedir "${CMAKE_INSTALL_FULL_SHAREDSTATEDIR}")
+-	set(localstatedir "${CMAKE_INSTALL_FULL_LOCALSTATEDIR}")
++	set(localstatedir "/var")
+ 	set(libdir "\${prefix}/=LIB=")
+ 	set(includedir "\${prefix}/${CMAKE_INSTALL_INCLUDEDIR}")
+ 	set(oldincludedir "${CMAKE_INSTALL_FULL_OLDINCLUDEDIR}")
+diff --git a/lib/CMakeLists.txt b/lib/CMakeLists.txt
+index 3674d0b83..10b2d4f2c 100644
+--- a/lib/CMakeLists.txt
++++ b/lib/CMakeLists.txt
+@@ -6,7 +6,7 @@ set_target_properties(librpm PROPERTIES
+ 
+ target_compile_definitions(librpm PRIVATE
+ 	LOCALEDIR="${CMAKE_INSTALL_FULL_LOCALEDIR}"
+-	LOCALSTATEDIR="${CMAKE_INSTALL_FULL_LOCALSTATEDIR}"
++	LOCALSTATEDIR="/var"
+ 	SYSCONFDIR="${CMAKE_INSTALL_FULL_SYSCONFDIR}"
+ 	LIBRPMALIAS_FILENAME="rpmpopt-${PROJECT_VERSION}"
+ 	LIBRPMALIAS_EXECPATH="${CMAKE_INSTALL_FULL_BINDIR}"
+diff --git a/macros.in b/macros.in
+index 7ff97cf85..053401827 100644
+--- a/macros.in
++++ b/macros.in
+@@ -994,7 +994,7 @@ Supplements:   (%{name} = %{version}-%{release} and langpacks-%{1})\
+ %_datadir		%{_prefix}/share
+ %_sysconfdir		/etc
+ %_sharedstatedir	%{_var}/lib
+-%_localstatedir		%{_prefix}/var
++%_localstatedir		/var
+ %_lib			lib
+ %_libdir		%{_exec_prefix}/%{_lib}
+ %_includedir		%{_prefix}/include
+-- 
+2.34.1
+
