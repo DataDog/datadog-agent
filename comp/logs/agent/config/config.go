@@ -46,7 +46,7 @@ const ServerlessIntakeOrigin IntakeOrigin = "lambda-extension"
 const DDOTIntakeOrigin IntakeOrigin = "ddot"
 
 // OTelCollectorIntakeOrigin is the OSS OTel Collector origin
-const OTelCollectorIntakeOrigin = "otel-collector"
+const OTelCollectorIntakeOrigin IntakeOrigin = "otel-collector"
 
 // logs-intake endpoints depending on the site and environment.
 var logsEndpoints = map[string]int{
@@ -115,6 +115,7 @@ func BuildEndpointsWithVectorOverride(coreConfig pkgconfigmodel.Reader, httpConn
 
 // BuildEndpointsWithConfig returns the endpoints to send logs.
 func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
+	fmt.Println("In BuildEndpointsWithConfig")
 	if logsConfig.devModeNoSSL() {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, "+
 			"please use '%s' and '%s' instead", logsConfig.getConfigKey("logs_dd_url"), logsConfig.getConfigKey("logs_no_ssl"))
@@ -147,6 +148,7 @@ func IsExpectedTagsSet(coreConfig pkgconfigmodel.Reader) bool {
 }
 
 func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys) (*Endpoints, error) {
+	fmt.Println("In buildTCPEndpoints")
 	useProto := logsConfig.devModeUseProto()
 	main := newTCPEndpoint(logsConfig)
 
@@ -193,6 +195,7 @@ func BuildHTTPEndpointsWithVectorOverride(coreConfig pkgconfigmodel.Reader, inta
 
 // BuildHTTPEndpointsWithConfig uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() w ldHTTPEndpointsWithConfigdefault variables logsConfigDefaultKeys and httpEndpointPrefix
 func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
+	fmt.Println("In BuildHTTPEndpointsWithConfig")
 	// Provide default values for legacy settings when the configuration key does not exist
 	defaultNoSSL := logsConfig.logsNoSSL()
 
@@ -203,6 +206,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 		main.TrackType = intakeTrackType
 		main.Protocol = intakeProtocol
 		main.Origin = intakeOrigin
+		fmt.Println("In useV2API")
 	} else {
 		main.Version = EPIntakeVersion1
 	}
