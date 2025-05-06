@@ -166,29 +166,29 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, err
 		delete(collSpec.Maps, "cookie_to_uprobe_event")
 		delete(collSpec.Maps, "cookie_to_kprobe_stats")
 		delete(collSpec.Maps, "cookie_to_query_error")
-	}
-
-	kaddrs, err := ddebpf.GetKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses...)
-	if err != nil {
-		return nil, fmt.Errorf("unable to fetch kernel symbol addresses: %w", err)
-	}
-
-	constants := make(map[string]uint64)
-	for ksym, addr := range kaddrs {
-		constants[ksym] = addr
-	}
-	constants["nr_cpus"] = uint64(cpus)
-
-	for k, v := range constants {
-		vs, ok := collSpec.Variables[k]
-		if !ok {
-			return nil, fmt.Errorf("missing ebpf variable %s", k)
+	} else {
+		kaddrs, err := ddebpf.GetKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses...)
+		if err != nil {
+			return nil, fmt.Errorf("unable to fetch kernel symbol addresses: %w", err)
 		}
-		if !vs.Constant() {
-			return nil, fmt.Errorf("non-constant ebpf variable %s", k)
+
+		constants := make(map[string]uint64)
+		for ksym, addr := range kaddrs {
+			constants[ksym] = addr
 		}
-		if err := vs.Set(v); err != nil {
-			return nil, fmt.Errorf("failed to set ebpf variable %s: %w", k, err)
+		constants["nr_cpus"] = uint64(cpus)
+
+		for k, v := range constants {
+			vs, ok := collSpec.Variables[k]
+			if !ok {
+				return nil, fmt.Errorf("missing ebpf variable %s", k)
+			}
+			if !vs.Constant() {
+				return nil, fmt.Errorf("non-constant ebpf variable %s", k)
+			}
+			if err := vs.Set(v); err != nil {
+				return nil, fmt.Errorf("failed to set ebpf variable %s: %w", k, err)
+			}
 		}
 	}
 
