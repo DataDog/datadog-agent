@@ -357,9 +357,9 @@ var structCaptures = fixtures{
 				"a": {
 					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.hasUnsupportedFields",
 					Fields: fieldMap{
-						"a": capturedValue("int", "1"),
-						"b": capturedValue("float32", ""),
-						"c": {
+						"b": capturedValue("int", "1"),
+						"c": &ditypes.CapturedValue{Type: "float32", Value: nil, NotCapturedReason: "unsupported"},
+						"d": {
 							Type: "[]uint8",
 							Elements: []ditypes.CapturedValue{
 								*capturedValue("uint8", "3"),
