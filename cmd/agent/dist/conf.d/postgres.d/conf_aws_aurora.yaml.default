@@ -15,7 +15,8 @@ instances:
     port: "%%port%%"
 
     ## @param dbm - string - optional - default: false
-    ## Enable DBM monitoring.
+    ## Enable DBM monitoring. The value of the template variable matches the value of the `datadoghq.com/dbm` tag on the instance,
+    ## for example, `datadoghq.com/dbm:true` to enable DBM.
     #
     dbm: "%%extra_dbm%%"
 
