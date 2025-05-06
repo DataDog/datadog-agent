@@ -374,7 +374,7 @@ var structCaptures = fixtures{
 		},
 	},
 
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_pointer_method_receiver": []CapturedValueMapWithOptions{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.(*receiver).test_pointer_method_receiver": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{
 				"r": {
@@ -394,7 +394,7 @@ var structCaptures = fixtures{
 		},
 	},
 
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_method_receiver": []CapturedValueMapWithOptions{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.receiver.test_method_receiver": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{
 				"r": {
