@@ -8,4 +8,4 @@
 ---
 issues:
   - |
-    Fix major data races in orchestrator check Kubernetes resource collection.
+    Fix major data races in the orchestrator check for the Kubernetes resource collection.
