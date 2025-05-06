@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/gopacket/layers"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -1086,23 +1087,36 @@ func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
 	return read + 48, nil
 }
 
+// UnmarshalDNSResponse unmarshalls a binary representation of itself
+func (e *DNSEvent) UnmarshalDNSResponse(dnsLayer *layers.DNS, size uint16) {
+	e.ID = dnsLayer.ID
+	e.Response = &DNSResponse{
+		ResponseCode: uint8(dnsLayer.ResponseCode),
+	}
+
+	e.Question.Count = dnsLayer.QDCount
+	e.Question.Name = string(dnsLayer.Questions[0].Name)
+	e.Question.Class = uint16(dnsLayer.Questions[0].Class)
+	e.Question.Type = uint16(dnsLayer.Questions[0].Type)
+	e.Question.Size = size
+}
+
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 10 {
 		return 0, ErrNotEnoughData
 	}
-
 	e.ID = binary.NativeEndian.Uint16(data[0:2])
-	e.Count = binary.NativeEndian.Uint16(data[2:4])
-	e.Type = binary.NativeEndian.Uint16(data[4:6])
-	e.Class = binary.NativeEndian.Uint16(data[6:8])
-	e.Size = binary.NativeEndian.Uint16(data[8:10])
+	e.Question.Count = binary.NativeEndian.Uint16(data[2:4])
+	e.Question.Type = binary.NativeEndian.Uint16(data[4:6])
+	e.Question.Class = binary.NativeEndian.Uint16(data[6:8])
+	e.Question.Size = binary.NativeEndian.Uint16(data[8:10])
 	var err error
-	e.Name, err = decodeDNSName(data[10:])
+	e.Question.Name, err = decodeDNSName(data[10:])
 	if err != nil {
-		return 0, fmt.Errorf("failed to decode %s (id: %d, count: %d, type:%d, size:%d)", data[10:], e.ID, e.Count, e.Type, e.Size)
+		return 0, fmt.Errorf("failed to decode %s (id: %d, count: %d, type:%d, size:%d)", data[10:], e.ID, e.Question.Count, e.Question.Type, e.Question.Size)
 	}
-	if err = validateDNSName(e.Name); err != nil {
+	if err = validateDNSName(e.Question.Name); err != nil {
 		return 0, err
 	}
 	return len(data), nil

@@ -564,14 +564,6 @@ new-e2e-installer-windows:
     # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
     - CURRENT_AGENT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_VERSION
     - CURRENT_AGENT_VERSION_PACKAGE=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_VERSION_PACKAGE
-    # TODO: temp override of version until we have a stable version
-    # - export STABLE_AGENT_VERSION_PACKAGE=$(curl --retry 10 --retry-all-errors -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
-    - export STABLE_AGENT_VERSION_PACKAGE="7.66.0-devel.git.488.1ddea94.pipeline.62296915-1"
-    # NOTE: pkg/version.GetNumberAndPre doesn't work on url-safe versions, it looks for the `+` character
-    - export STABLE_AGENT_VERSION=7.66.0-devel
-    - export STABLE_AGENT_MSI_URL=https://s3.amazonaws.com/dd-agent-mstesting/builds/dev/ddagent-cli-7.66.0-devel.git.488.1ddea94.pipeline.62296915.msi
-    - export STABLE_AGENT_OCI_REGISTRY=install.datad0g.com
-    - export STABLE_AGENT_OCI_VERSION=7.66.0-devel.git.488.1ddea94.pipeline.62296915-1
     - !reference [.new_e2e_template, before_script]
   variables:
     TARGETS: ./tests/installer/windows
@@ -583,6 +575,7 @@ new-e2e-installer-windows:
       # agent-package
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeMSI$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackageAfterRollback$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestDowngradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestStopExperiment$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentForNonExistingPackageFails$"
@@ -596,6 +589,10 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeMSI$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackageAfterRollback$"
+      # install-exe
+      - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
       # install-script
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallAgentPackage$"
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallFromOldInstaller$"

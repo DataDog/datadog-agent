@@ -335,7 +335,7 @@
 /comp/core/workloadmeta @DataDog/container-platform
 /comp/forwarder/eventplatform @DataDog/agent-log-pipelines
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
-/comp/forwarder/orchestrator @DataDog/agent-log-pipelines
+/comp/forwarder/orchestrator @DataDog/container-app
 /comp/metadata/clusteragent @DataDog/container-platform
 /comp/metadata/haagent @DataDog/ndm-core
 /comp/metadata/hostgpu @DataDog/ebpf-platform
@@ -468,6 +468,7 @@
 /pkg/flare/*_windows_test.go            @Datadog/windows-agent @DataDog/agent-configuration
 /pkg/fleet/                             @DataDog/fleet @DataDog/windows-agent
 /pkg/fleet/installer/setup/djm/         @DataDog/fleet @DataDog/data-jobs-monitoring
+/pkg/opentelemetry-mapping-go           @DataDog/opentelemetry-agent
 /pkg/pidfile/                           @DataDog/agent-runtimes
 /pkg/persistentcache/                   @DataDog/agent-runtimes
 /pkg/proto/                             @DataDog/agent-runtimes
@@ -506,6 +507,7 @@
 /pkg/util/port/                         @DataDog/agent-runtimes
 /pkg/util/port/portlist/*windows*.go    @DataDog/windows-agent
 /pkg/util/prometheus                    @DataDog/container-integrations
+/pkg/util/quantile/                     @DataDog/opentelemetry-agent
 /pkg/util/tags/                         @DataDog/container-platform
 /pkg/util/trivy/                        @DataDog/container-integrations @DataDog/agent-security
 /pkg/util/uuid/                         @DataDog/agent-runtimes

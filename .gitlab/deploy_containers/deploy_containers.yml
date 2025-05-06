@@ -11,7 +11,7 @@ deploy_containers-a7:
     BUCKET_BRANCH: $BUCKET_BRANCH
   trigger:
     include: .gitlab/deploy_containers/deploy_containers_a7.yml
-
+    include: .gitlab/deploy_containers/deploy_mutable_image_tags.yml
 
 deploy_containers-a7-on-failure:
   stage: deploy_containers
@@ -23,3 +23,4 @@ deploy_containers-a7-on-failure:
     FORCE_MANUAL: "true"
   trigger:
     include: .gitlab/deploy_containers/deploy_containers_a7.yml
+    include: .gitlab/deploy_containers/deploy_mutable_image_tags.yml
