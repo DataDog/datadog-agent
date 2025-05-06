@@ -95,6 +95,7 @@ def extract_dmg_archive(ctx, package_path, extract_dir):
 
 
 def extract_package(ctx, package_os, package_path, extract_dir):
+    print(f"[DEBUG] call extract_package(ctx, {package_os}, {package_path}, {extract_dir})")
     if package_os in (DEBIAN_OS, HEROKU_OS):
         return extract_deb_package(ctx, package_path, extract_dir)
     elif package_os in (CENTOS_OS, SUSE_OS):
@@ -151,6 +152,8 @@ def compute_package_size_metrics(
 
         package_compressed_size = file_size(path=package_path)
         package_uncompressed_size = directory_size(ctx, path=extract_dir)
+        print(f"[DEBUG] call file_size({package_path}) -> {package_compressed_size}")
+        print(f"[DEBUG] call directory_size({extract_dir} -> {package_uncompressed_size})")
 
         timestamp = int(datetime.utcnow().timestamp())
         common_tags = [
