@@ -5,8 +5,8 @@
 
 //go:build !linux
 
-// Package process implements the local process collector for Workloadmeta.
-package process
+// Package processlanguage implements the process language collector for Workloadmeta.
+package processlanguage
 
 import (
 	"go.uber.org/fx"
