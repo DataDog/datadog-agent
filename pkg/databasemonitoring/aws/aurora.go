@@ -33,6 +33,7 @@ type Instance struct {
 	IamEnabled bool
 	Engine     string
 	DbName     string
+	DbmEnabled bool
 }
 
 const (
@@ -84,6 +85,16 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 				}
 				if db.DBName != nil {
 					instance.DbName = *db.DBName
+				}
+				for _, tag := range db.TagList {
+					if tag.Key != nil && *tag.Key == "datadoghq.com/dbm" && tag.Value != nil {
+						if *tag.Value == "true" {
+							instance.DbmEnabled = true
+						} else {
+							instance.DbmEnabled = false
+						}
+						break
+					}
 				}
 				if _, ok := clusters[*db.DBClusterIdentifier]; !ok {
 					clusters[*db.DBClusterIdentifier] = &AuroraCluster{

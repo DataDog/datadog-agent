@@ -14,6 +14,11 @@ instances:
     #
     port: "%%port%%"
 
+    ## @param dbm - string - optional - default: false
+    ## Enable DBM monitoring.
+    #
+    dbm: "%%extra_dbm%%"
+
     ## This block defines the configuration for AWS RDS and Aurora instances.
     ##
     ## Complete this section if you have installed the Datadog AWS Integration
