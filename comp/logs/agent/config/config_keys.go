@@ -18,9 +18,10 @@ import (
 
 // LogsConfigKeys stores logs configuration keys stored in YAML configuration files
 type LogsConfigKeys struct {
-	prefix       string
-	vectorPrefix string
-	config       pkgconfigmodel.Reader
+	prefix            string
+	vectorPrefix      string
+	config            pkgconfigmodel.Reader
+	forcedCompression string
 }
 
 // CompressionKind constants
@@ -119,6 +120,11 @@ func (l *LogsConfigKeys) devModeUseProto() bool {
 }
 
 func (l *LogsConfigKeys) compressionKind() string {
+	if l.forcedCompression != "" {
+		log.Debugf("Pipeline %s is using forced compression: %s", l.prefix, l.forcedCompression)
+		return l.forcedCompression
+	}
+
 	configKey := l.getConfigKey("compression_kind")
 	compressionKind := l.getConfig().GetString(configKey)
 
@@ -339,4 +345,14 @@ func (l *LogsConfigKeys) getObsPipelineURL() (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// WithForcedCompression returns a new LogsConfigKeys with the forced compression kind set
+func (l *LogsConfigKeys) WithForcedCompression(kind string) *LogsConfigKeys {
+	return &LogsConfigKeys{
+		prefix:            l.prefix,
+		vectorPrefix:      l.vectorPrefix,
+		config:            l.config,
+		forcedCompression: kind,
+	}
 }
