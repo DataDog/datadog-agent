@@ -121,8 +121,7 @@ func (l *LogsConfigKeys) devModeUseProto() bool {
 
 func (l *LogsConfigKeys) compressionKind() string {
 	if l.forcedCompression != "" {
-		log.Debugf("Pipeline %s is using forced compression: %s", l.prefix, l.forcedCompression)
-		return l.forcedCompression
+		return "none" // Return "none" since actual compression will be set later
 	}
 
 	configKey := l.getConfigKey("compression_kind")
@@ -137,11 +136,6 @@ func (l *LogsConfigKeys) compressionKind() string {
 	}
 
 	if compressionKind == ZstdCompressionKind || compressionKind == GzipCompressionKind {
-		pipelineName := "Main logs agent pipeline"
-		if !strings.Contains(l.prefix, "logs_config") {
-			pipelineName = "Pipeline " + l.prefix
-		}
-		log.Debugf("%s is using compression: %s", pipelineName, compressionKind)
 		return compressionKind
 	}
 
@@ -152,12 +146,16 @@ func (l *LogsConfigKeys) compressionKind() string {
 func (l *LogsConfigKeys) compressionLevel() int {
 	if l.compressionKind() == ZstdCompressionKind {
 		level := l.getConfig().GetInt(l.getConfigKey("zstd_compression_level"))
-		log.Debugf("Pipeline %s is using zstd compression level: %d", l.prefix, level)
+		if strings.HasPrefix(l.prefix, "logs_config.") {
+			log.Debugf("Main logs pipeline is using compression zstd at level: %d", level)
+		}
 		return level
 	}
 
 	level := l.getConfig().GetInt(l.getConfigKey("compression_level"))
-	log.Debugf("Pipeline %s is using compression level: %d", l.prefix, level)
+	if strings.HasPrefix(l.prefix, "logs_config.") {
+		log.Debugf("Main logs pipeline is using compression gzip atlevel: %d", level)
+	}
 	return level
 }
 

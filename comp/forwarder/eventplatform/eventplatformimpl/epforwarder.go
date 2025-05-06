@@ -66,8 +66,9 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    10e6,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-		defaultInputChanSize: 500,
-		forceCompressionKind: "gzip",
+		defaultInputChanSize:  500,
+		forceCompressionKind:  config.GzipCompressionKind,
+		forceCompressionLevel: config.GzipCompressionLevel,
 	},
 	{
 		eventType:              eventTypeDBMMetrics,
@@ -81,8 +82,9 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-		defaultInputChanSize: 500,
-		forceCompressionKind: "gzip",
+		defaultInputChanSize:  500,
+		forceCompressionKind:  config.GzipCompressionKind,
+		forceCompressionLevel: config.GzipCompressionLevel,
 	},
 	{
 		eventType:   eventTypeDBMMetadata,
@@ -99,8 +101,9 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-		defaultInputChanSize: 500,
-		forceCompressionKind: "gzip",
+		defaultInputChanSize:  500,
+		forceCompressionKind:  config.GzipCompressionKind,
+		forceCompressionLevel: config.GzipCompressionLevel,
 	},
 	{
 		eventType:              eventTypeDBMActivity,
@@ -114,8 +117,9 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-		defaultInputChanSize: 500,
-		forceCompressionKind: "gzip",
+		defaultInputChanSize:  500,
+		forceCompressionKind:  config.GzipCompressionKind,
+		forceCompressionLevel: config.GzipCompressionLevel,
 	},
 	{
 		eventType:                     eventplatform.EventTypeNetworkDevicesMetadata,
@@ -379,6 +383,7 @@ type passthroughPipelineDesc struct {
 	defaultBatchMaxSize           int
 	defaultInputChanSize          int
 	forceCompressionKind          string
+	forceCompressionLevel         int
 }
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
@@ -422,6 +427,10 @@ func newHTTPPassthroughPipeline(
 	}
 	if endpoints.InputChanSize <= pkgconfigsetup.DefaultInputChanSize {
 		endpoints.InputChanSize = desc.defaultInputChanSize
+	}
+	if desc.forceCompressionKind != "" {
+		endpoints.Main.CompressionKind = desc.forceCompressionKind
+		endpoints.Main.CompressionLevel = desc.forceCompressionLevel
 	}
 
 	pipelineMonitor := metrics.NewNoopPipelineMonitor(strconv.Itoa(pipelineID))
@@ -469,8 +478,8 @@ func newHTTPPassthroughPipeline(
 			pipelineMonitor)
 	}
 
-	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
-		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
+	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d, compression_kind=%s, compression_level=%d",
+		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize, endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
 	return &passthroughPipeline{
 		sender:                senderImpl,
 		strategy:              strategy,
