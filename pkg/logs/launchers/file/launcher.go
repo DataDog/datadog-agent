@@ -9,6 +9,7 @@ package file
 import (
 	"regexp"
 	"slices"
+	"sync"
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -152,12 +153,16 @@ func (s *Launcher) runScanner() {
 		close(s.stopScan)
 	}()
 
+	var exectionMutex sync.Mutex
+
 	for {
 		select {
 		case <-ticker.C:
-			s.cleanUpRotatedTailers()
 			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
-			s.scan()
+			if exectionMutex.TryLock() {
+				s.cleanUpRotatedTailers()
+				s.scan()
+			}
 		case <-s.stopScan:
 			return
 		}
