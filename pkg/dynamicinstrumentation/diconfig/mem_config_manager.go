@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"reflect"
 	"sync"
 
@@ -57,7 +58,16 @@ func NewReaderConfigManager() (*ReaderConfigManager, error) {
 
 // GetProcInfos returns the process info state
 func (cm *ReaderConfigManager) GetProcInfos() ditypes.DIProcs {
-	return cm.state
+	cm.Lock()
+	defer cm.Unlock()
+	return maps.Clone(cm.state)
+}
+
+// GetProcInfo returns the process info state for a specific PID
+func (cm *ReaderConfigManager) GetProcInfo(pid ditypes.PID) *ditypes.ProcessInfo {
+	cm.Lock()
+	defer cm.Unlock()
+	return cm.state[pid]
 }
 
 // Stop causes the ReaderConfigManager to stop processing data

@@ -156,7 +156,7 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 
 func (goDI *GoDI) uploadSnapshot(event *ditypes.DIEvent) {
 	// goDI.printSnapshot(event)
-	procInfo := goDI.ConfigManager.GetProcInfos()[event.PID]
+	procInfo := goDI.ConfigManager.GetProcInfo(event.PID)
 	diLog := uploader.NewDILog(procInfo, event)
 	if diLog != nil {
 		err := goDI.lu.Enqueue(diLog)
