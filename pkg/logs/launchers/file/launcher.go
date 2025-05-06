@@ -45,6 +45,7 @@ type Launcher struct {
 	fileProvider        *fileprovider.FileProvider
 	tailers             *tailers.TailerContainer[*tailer.Tailer]
 	rotatedTailers      []*tailer.Tailer
+	rotatedTailersMutex sync.Mutex
 	registry            auditor.Registry
 	tailerSleepDuration time.Duration
 	stop                chan struct{}
@@ -133,11 +134,13 @@ func (s *Launcher) run() {
 func (s *Launcher) cleanup() {
 	stopper := startstop.NewParallelStopper()
 	s.cleanUpRotatedTailers()
+
+	s.rotatedTailersMutex.Lock()
 	for _, tailer := range s.rotatedTailers {
 		stopper.Add(tailer)
 	}
 	s.rotatedTailers = []*tailer.Tailer{}
-
+	s.rotatedTailersMutex.Unlock()
 	for _, tailer := range s.tailers.All() {
 		stopper.Add(tailer)
 		s.tailers.Remove(tailer)
@@ -262,6 +265,8 @@ func (s *Launcher) scan() {
 
 // cleanUpRotatedTailers removes any rotated tailers that have stopped from the list
 func (s *Launcher) cleanUpRotatedTailers() {
+	s.rotatedTailersMutex.Lock()
+	defer s.rotatedTailersMutex.Unlock()
 	pendingTailers := []*tailer.Tailer{}
 	for _, tailer := range s.rotatedTailers {
 		if !tailer.IsFinished() {
@@ -388,6 +393,9 @@ func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 // restartTailer safely stops tailer and starts a new one
 // returns true if the new tailer is up and running, false if an error occurred
 func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file *tailer.File) bool {
+	s.rotatedTailersMutex.Lock()
+	defer s.rotatedTailersMutex.Unlock()
+
 	log.Info("Log rotation happened to ", file.Path)
 	oldTailer.StopAfterFileRotation()
 
