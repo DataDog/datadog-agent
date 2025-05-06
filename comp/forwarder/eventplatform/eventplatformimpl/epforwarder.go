@@ -67,6 +67,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 		defaultInputChanSize: 500,
+		forceCompressionKind: "gzip",
 	},
 	{
 		eventType:              eventTypeDBMMetrics,
@@ -81,6 +82,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 		defaultInputChanSize: 500,
+		forceCompressionKind: "gzip",
 	},
 	{
 		eventType:   eventTypeDBMMetadata,
@@ -98,6 +100,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 		defaultInputChanSize: 500,
+		forceCompressionKind: "gzip",
 	},
 	{
 		eventType:              eventTypeDBMActivity,
@@ -112,6 +115,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 		defaultInputChanSize: 500,
+		forceCompressionKind: "gzip",
 	},
 	{
 		eventType:                     eventplatform.EventTypeNetworkDevicesMetadata,
@@ -374,6 +378,7 @@ type passthroughPipelineDesc struct {
 	defaultBatchMaxContentSize    int
 	defaultBatchMaxSize           int
 	defaultInputChanSize          int
+	forceCompressionKind          string
 }
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
@@ -388,6 +393,9 @@ func newHTTPPassthroughPipeline(
 ) (p *passthroughPipeline, err error) {
 
 	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig)
+	if desc.forceCompressionKind != "" {
+		configKeys = configKeys.WithForcedCompression(desc.forceCompressionKind)
+	}
 	endpoints, err := config.BuildHTTPEndpointsWithConfig(
 		coreConfig,
 		configKeys,
