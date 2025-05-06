@@ -42,11 +42,12 @@ const (
 type Dependencies struct {
 	fx.In
 
-	Lc          fx.Lifecycle
-	Log         log.Component
-	Config      configComponent.Component
-	Hostname    hostnameinterface.Component
-	Compression compression.Component
+	Lc           fx.Lifecycle
+	Log          log.Component
+	Config       configComponent.Component
+	Hostname     hostnameinterface.Component
+	Compression  compression.Component
+	IntakeOrigin config.IntakeOrigin
 }
 
 // Agent represents the data pipeline that collects, decodes, processes and sends logs to the backend.
@@ -66,7 +67,8 @@ type Agent struct {
 
 // NewLogsAgentComponent returns a new instance of Agent as a Component
 func NewLogsAgentComponent(deps Dependencies) option.Option[logsagentpipeline.Component] {
-	logsAgent := NewLogsAgent(deps, config.DDOTIntakeOrigin)
+	deps.IntakeOrigin = config.DDOTIntakeOrigin
+	logsAgent := NewLogsAgent(deps)
 	if logsAgent == nil {
 		return option.None[logsagentpipeline.Component]()
 	}
@@ -74,7 +76,7 @@ func NewLogsAgentComponent(deps Dependencies) option.Option[logsagentpipeline.Co
 }
 
 // NewLogsAgent returns a new instance of Agent with the given dependencies
-func NewLogsAgent(deps Dependencies, intakeOrigin config.IntakeOrigin) logsagentpipeline.LogsAgent {
+func NewLogsAgent(deps Dependencies) logsagentpipeline.LogsAgent {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
@@ -85,7 +87,7 @@ func NewLogsAgent(deps Dependencies, intakeOrigin config.IntakeOrigin) logsagent
 			config:       deps.Config,
 			hostname:     deps.Hostname,
 			compression:  deps.Compression,
-			intakeOrigin: intakeOrigin,
+			intakeOrigin: deps.IntakeOrigin,
 		}
 		if deps.Lc != nil {
 			deps.Lc.Append(fx.Hook{
