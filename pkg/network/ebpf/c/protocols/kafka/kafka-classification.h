@@ -159,7 +159,7 @@ static __always_inline u16 get_varint_number_of_topics(pktbuf_t pkt, u32 *offset
         return false;
     }
 
-    pktbuf_load_bytes(pkt, *offset, topic_count, sizeof(topic_count));
+    pktbuf_load_bytes(pkt, *offset, &topic_count, sizeof(topic_count));
     *offset += 2;
 
     return topic_count;
@@ -246,7 +246,7 @@ static __always_inline s16 read_nullable_string_size(pktbuf_t pkt, bool flexible
 static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexible, u32 offset) {
     // Skipping number of entries for now
     if (flexible) {
-        if (get_varint_number_of_topics(pkt, offset) > NUM_TOPICS_MAX) {
+        if (get_varint_number_of_topics(pkt, &offset) > NUM_TOPICS_MAX) {
             return false;
         }
     } else {
@@ -279,7 +279,7 @@ static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible,
 
     // Skipping number of entries for now
     if (flexible) {
-        if (get_varint_number_of_topics(pkt, offset) > NUM_TOPICS_MAX) {
+        if (get_varint_number_of_topics(pkt, &offset) > NUM_TOPICS_MAX) {
             return false;
         }
     } else {
@@ -445,9 +445,7 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
             return false;
         }
         log_debug("GUY classified Kafka metadata request - valid header");
-
-
-
+        // TODO check boolean fields
         return true;
     default:
         return false;

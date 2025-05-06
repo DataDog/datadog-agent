@@ -22,6 +22,7 @@
 #define TOPIC_NAME_MAX_STRING_SIZE 80
 
 #define NUM_TOPICS_MAX 0x3fff // 16383
+#define NUM_BROKERS_MAX  0x3fff // 16383
 
 // The number of varint bytes required to support the specified values.
 // 127
@@ -43,6 +44,8 @@
 #define VARINT_BYTES_NUM_ABORTED_TRANSACTIONS VARINT_BYTES_00003fff
 // Should ideally be as big as possible.
 #define VARINT_BYTES_RECORD_BATCHES_NUM_BYTES VARINT_BYTES_0fffffff
+// Reasonable limit
+#define VARINT_BYTES_NUM_BROKERS VARINT_BYTES_00003fff
 
 #define KAFKA_RESPONSE_PARSER_MAX_ITERATIONS 10
 

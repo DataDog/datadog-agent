@@ -68,6 +68,10 @@ typedef enum {
     KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS,
     KAFKA_PRODUCE_RESPONSE_PARTITION_START,
     KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START,
+
+    KAFKA_METADATA_RESPONSE_START,
+    KAFKA_METADATA_RESPONSE_BROKERS,
+    KAFKA_METADATA_RESPONSE_TOPICS,
 } __attribute__ ((packed)) kafka_response_state;
 
 typedef struct kafka_fetch_response_record_batches_array_t {
