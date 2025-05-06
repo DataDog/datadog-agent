@@ -11,6 +11,7 @@ package diconfig
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"sync"
@@ -28,6 +29,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// errReferenceDepthExhausted is returned by tryGenerateAndAttach when all retries by decrementing reference depth are exhausted.
+var errReferenceDepthExhausted = errors.New("reference depth exhausted during BPF program generation/attachment")
 
 type rcConfig struct {
 	ID        string
@@ -280,68 +284,75 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
 	log.Infof("Applying config update for: %d %s %s (ID: %s)\n", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID)
 	for {
-		if err := tryGenerateAndAttach(procInfo, probe); err == nil {
+		err := tryGenerateAndAttach(procInfo, probe)
+		if err == nil {
 			log.Infof("Successfully generated and attached BPF program for %d %s %s (ID: %s)", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID)
 			return
-		} else {
-			log.Infof("Failed to generate and attach BPF program for %d %s %s (ID: %s)", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID)
 		}
+		if errors.Is(err, errReferenceDepthExhausted) {
+			log.Infof("Exhausted retries (reference depth reached zero) while attempting to generate and attach BPF program for %d %s %s (ID: %s). Parameter capturing may be disabled.", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID)
+			return
+		}
+		log.Warnf("Failed to generate and attach BPF program for %d %s %s (ID: %s), will retry if possible: %v", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID, err)
 	}
 }
 
 // tryGenerateAndAttach attempts to generate and attach the BPF program for the probe
 // it will decrement the reference depth of the probe if it fails to generate and attach
-// the BPF program and try again until the reference depth is 0
+// the BPF program and try again until the reference depth is 0.
+// It returns nil on success, errReferenceDepthExhausted if retries are exhausted,
+// or the underlying error if a failure occurs and retries are still available.
 func tryGenerateAndAttach(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error {
 	log.Infof("Attempting to generate and attach BPF program for %d %s %s (ID: %s)", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID)
 	err := codegen.GenerateBPFParamsCode(procInfo, probe)
 	if err != nil {
 		log.Errorf("Couldn't generate BPF programs for %d %s %s: %v", procInfo.PID, procInfo.ServiceName, probe.FuncName, err)
-		if !haveExhaustedReferenceDepthDecrementing(probe) {
-			return err
+		if isReferenceDepthExhaustedAfterDecrementing(probe) {
+			return errReferenceDepthExhausted
 		}
-		return nil
+		return err
 	}
 	err = ebpf.CompileBPFProgram(probe)
 	if err != nil {
 		log.Errorf("Couldn't compile BPF object for function %d %s %s (ID: %s): %v", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID, err)
-		if !haveExhaustedReferenceDepthDecrementing(probe) {
-			return err
+		if isReferenceDepthExhaustedAfterDecrementing(probe) {
+			return errReferenceDepthExhausted
 		}
-		return nil
+		return err
 	}
 	err = ebpf.AttachBPFUprobe(procInfo, probe)
 	if err != nil {
 		log.Errorf("Couldn't load and attach bpf programs for function %d %s %s (ID: %s): %v", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID, err)
-		if !haveExhaustedReferenceDepthDecrementing(probe) {
-			return err
+		if isReferenceDepthExhaustedAfterDecrementing(probe) {
+			return errReferenceDepthExhausted
 		}
-		return nil
+		return err
 	}
 	log.Infof("Successfully generated and attached BPF program for %d %s %s (ID: %s)", procInfo.PID, procInfo.ServiceName, probe.FuncName, probe.ID)
 	return nil
 }
 
-// haveExhaustedReferenceDepthDecrementing checks if the reference depth has been exhausted
-// in the process of decrementing itand if so, marks all parameters as not captured
-func haveExhaustedReferenceDepthDecrementing(probe *ditypes.Probe) bool {
-	if !checkAndDecrementReferenceDepth(probe) {
+// isReferenceDepthExhaustedAfterDecrementing decrements the reference depth of the probe
+// and returns true if the reference depth has been exhausted.
+// If exhausted, it also sets CaptureParameters to false.
+func isReferenceDepthExhaustedAfterDecrementing(probe *ditypes.Probe) bool {
+	if !probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters ||
+		probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth <= 0 {
+		// Already exhausted or not capturing parameters, so nothing to decrement.
+		// Mark as exhausted to be safe, which might set CaptureParameters to false if it wasn't already.
+		probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters = false
+		return true
+	}
+
+	probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth--
+	log.Tracef("Decremented capture depth to: %d for %s %s", probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth, probe.ServiceName, probe.FuncName)
+
+	if probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth <= 0 {
+		log.Tracef("Reference depth exhausted for %s %s, disabling parameter capture.", probe.ServiceName, probe.FuncName)
 		probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters = false
 		return true
 	}
 	return false
-}
-
-// checkAndDecrementReferenceDepth decrements the reference depth of the probe
-// and returns true if the reference depth is still greater than 0
-func checkAndDecrementReferenceDepth(probe *ditypes.Probe) bool {
-	if !probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters ||
-		probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth <= 0 {
-		return false
-	}
-	probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth--
-	log.Tracef("Retrying after decrementing capture depth to: %d %s %s", probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth, probe.ServiceName, probe.FuncName)
-	return true
 }
 
 func newConfigProbe() *ditypes.Probe {
