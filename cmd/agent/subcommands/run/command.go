@@ -649,7 +649,7 @@ func startAgent(
 	})
 
 	diagnosecatalog.Register(diagnose.FirewallScan, func(_ diagnose.Config) []diagnose.Diagnosis {
-		return firewallscanner.Diagnose(cfg, log)
+		return firewallscanner.Diagnose(cfg)
 	})
 
 	// start dependent services
