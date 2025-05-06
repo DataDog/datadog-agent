@@ -127,6 +127,7 @@ func TestDBMAuroraListener(t *testing.T) {
 									Port:       5432,
 									IamEnabled: true,
 									Engine:     "aurora-postgresql",
+									DbmEnabled: true,
 								},
 							},
 						},
@@ -144,6 +145,7 @@ func TestDBMAuroraListener(t *testing.T) {
 						Port:       5432,
 						IamEnabled: true,
 						Engine:     "aurora-postgresql",
+						DbmEnabled: true,
 					},
 				},
 			},
@@ -297,6 +299,7 @@ func TestGetExtraConfig(t *testing.T) {
 					IamEnabled: true,
 					Engine:     "aurora-postgresql",
 					DbName:     "app",
+					DbmEnabled: true,
 				},
 			},
 			expectedExtra: map[string]string{
@@ -304,6 +307,7 @@ func TestGetExtraConfig(t *testing.T) {
 				"region":                         "us-east-1",
 				"managed_authentication_enabled": "true",
 				"dbclusteridentifier":            "my-cluster-1",
+				"dbm":                            "true",
 			},
 		},
 	}

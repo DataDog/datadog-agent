@@ -265,6 +265,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
+							TagList:                          []types.Tag{{Key: aws.String("datadoghq.com/dbm"), Value: aws.String("true")}},
 						},
 						{
 							Endpoint: &types.Endpoint{
@@ -306,6 +307,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							IamEnabled: true,
 							Engine:     "aurora-postgresql",
 							DbName:     "postgres",
+							DbmEnabled: true,
 						},
 						{
 							Endpoint:   "test-endpoint-2",
