@@ -37,9 +37,7 @@ type baseMultiProcessingLibSuite struct {
 }
 
 func (v *baseMultiProcessingLibSuite) getSuiteOptions(osInstance osVM.Descriptor) []e2e.SuiteOption {
-	suiteOptions := []e2e.SuiteOption{
-		e2e.WithDevMode(),
-	}
+	var suiteOptions []e2e.SuiteOption
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithAgentOptions(
