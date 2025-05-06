@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    The MacOS Agent now supports the Network Path feature by including system-probe and the `traceroute` module (only on system-wide installs).
+    The MacOS Agent now supports the Network Path feature by including system-probe and the `traceroute` module.

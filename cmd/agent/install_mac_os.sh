@@ -466,15 +466,15 @@ else
     $sudo_cmd chown -R "$systemdaemon_user_group" "$etc_dir" "$log_dir" "$run_dir"
     $sudo_cmd launchctl load -w "$systemwide_servicefile_name"
     $sudo_cmd launchctl kickstart "system/$service_name"
+fi
 
-    # Set up and start the system-probe service if this veresion includes support for it
-    if [ -f "${etc_dir}/com.datadoghq.sysprobe.plist.example" ]; then
-        printf "\033[34m\n* Setting up system-probe ($sysprobe_service_name) as a systemwide LaunchDaemon ...\n\n\033[0m"
-        $sudo_cmd mv "${etc_dir}/com.datadoghq.sysprobe.plist.example" "${sysprobe_servicefile_name}"
-        $sudo_cmd chown "0:0" "$sysprobe_servicefile_name"
-        $sudo_cmd launchctl load -w "$sysprobe_servicefile_name"
-        $sudo_cmd launchctl kickstart "system/$sysprobe_service_name"
-    fi
+# Set up and start the system-probe service if this version includes support for it
+if [ -f "${etc_dir}/com.datadoghq.sysprobe.plist.example" ]; then
+    printf "\033[34m\n* Setting up system-probe ($sysprobe_service_name) as a systemwide LaunchDaemon ...\n\n\033[0m"
+    $sudo_cmd mv "${etc_dir}/com.datadoghq.sysprobe.plist.example" "${sysprobe_servicefile_name}"
+    $sudo_cmd chown "0:0" "$sysprobe_servicefile_name"
+    $sudo_cmd launchctl load -w "$sysprobe_servicefile_name"
+    $sudo_cmd launchctl kickstart "system/$sysprobe_service_name"
 fi
 
 # Agent works, echo some instructions and exit
