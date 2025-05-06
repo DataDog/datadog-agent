@@ -8,6 +8,7 @@ package firewallscanner
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os/exec"
 
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
@@ -64,14 +65,24 @@ func (scanner *windowsFirewallScanner) DiagnoseBlockingRules(rulesToCheck source
 			}
 		}
 
-		log.Warnf("PowerShell exited with code %d: %s", exitCode, string(output))
-		return []diagnose.Diagnosis{}
+		return []diagnose.Diagnosis{
+			{
+				Status:    diagnose.DiagnosisUnexpectedError,
+				Name:      diagnosisNameWindows,
+				Diagnosis: fmt.Sprintf("PowerShell exited with code %d: %s", exitCode, string(output)),
+			},
+		}
 	}
 
 	blockingRules, err := checkBlockingRulesWindows(output, rulesToCheck)
 	if err != nil {
-		log.Warnf("Error checking blocked ports: %v", err)
-		return []diagnose.Diagnosis{}
+		return []diagnose.Diagnosis{
+			{
+				Status:    diagnose.DiagnosisUnexpectedError,
+				Name:      diagnosisNameWindows,
+				Diagnosis: fmt.Sprintf("Error checking blocked ports: %v", err),
+			},
+		}
 	}
 
 	return []diagnose.Diagnosis{
