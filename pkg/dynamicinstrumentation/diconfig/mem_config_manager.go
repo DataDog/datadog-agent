@@ -142,7 +142,7 @@ func (cm *ReaderConfigManager) updateServiceConfigs(configs configsByService) {
 // ConfigWriter handles writing configuration data
 type ConfigWriter struct {
 	io.Writer
-	updateChannel  chan ([]byte)
+	updateChannel  chan map[string]map[string]rcConfig
 	processes      map[ditypes.PID]*ditypes.ProcessInfo
 	configCallback ConfigWriterCallback
 	stopChannel    chan (bool)
@@ -155,7 +155,7 @@ type ConfigWriterCallback func(configsByService)
 // NewConfigWriter creates a new ConfigWriter
 func NewConfigWriter(onConfigUpdate ConfigWriterCallback) *ConfigWriter {
 	return &ConfigWriter{
-		updateChannel:  make(chan []byte, 1),
+		updateChannel:  make(chan map[string]map[string]rcConfig),
 		configCallback: onConfigUpdate,
 		stopChannel:    make(chan bool),
 	}
@@ -170,7 +170,12 @@ func (r *ConfigWriter) Processes() map[ditypes.PID]*ditypes.ProcessInfo {
 }
 
 func (r *ConfigWriter) Write(p []byte) (n int, e error) {
-	r.updateChannel <- p
+	conf := map[string]map[string]rcConfig{}
+	err := json.Unmarshal(p, &conf)
+	if err != nil {
+		return 0, log.Errorf("invalid config read from reader: %v", err)
+	}
+	r.updateChannel <- conf
 	return 0, nil
 }
 
@@ -180,13 +185,7 @@ func (r *ConfigWriter) Start() error {
 	configUpdateLoop:
 		for {
 			select {
-			case rawConfigBytes := <-r.updateChannel:
-				conf := map[string]map[string]rcConfig{}
-				err := json.Unmarshal(rawConfigBytes, &conf)
-				if err != nil {
-					log.Errorf("invalid config read from reader: %v", err)
-					continue
-				}
+			case conf := <-r.updateChannel:
 				r.configCallback(conf)
 			case <-r.stopChannel:
 				break configUpdateLoop
