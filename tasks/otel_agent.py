@@ -38,8 +38,11 @@ def byoc_release(ctx, image=DDOT_DEV_AGENT_TAG, branch=DDOT_DEV_AGENT_BRANCH, re
             file.write(line)
 
 
+def str_to_bool(val):
+    return str(val).lower() in ("1", "true", "yes", "on")
+
 @task
-def build(ctx):
+def build(ctx, is_byoc="false"):
     """
     Build the otel agent
     """
@@ -50,7 +53,9 @@ def build(ctx):
     env = {"GO111MODULE": "on"}
     build_tags = ['otlp']
     ldflags = get_version_ldflags(ctx, major_version='7')
-    ldflags += ' -X main.IsBYOC=1'
+
+    if str_to_bool(is_byoc):
+        ldflags += ' -X main.IsBYOC=1'
 
     cmd = f"go build -mod=readonly -tags=\"{' '.join(build_tags)}\" -ldflags=\"{ldflags}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
 
