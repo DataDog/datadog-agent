@@ -8,9 +8,12 @@ package tags
 
 import (
 	"context"
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	taggertags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -33,26 +36,26 @@ func GetStaticTagsSlice(ctx context.Context, datadogConfig config.Reader) []stri
 		return nil
 	}
 
-	tags := []string{}
+	tagSlice := []string{}
 
 	// DD_TAGS / DD_EXTRA_TAGS
-	tags = append(tags, configUtils.GetConfiguredTags(datadogConfig, false)...)
+	tagSlice = append(tagSlice, configUtils.GetConfiguredTags(datadogConfig, false)...)
 
-	// EKS Fargate specific tags
+	// EKS Fargate specific tagSlice
 	if env.IsFeaturePresent(env.EKSFargate) {
 		// eks_fargate_node
 		node, err := fargate.GetEKSFargateNodename()
 		if err != nil {
 			log.Infof("Couldn't build the 'eks_fargate_node' tag: %v", err)
 		} else {
-			tags = append(tags, "eks_fargate_node:"+node)
+			tagSlice = append(tagSlice, "eks_fargate_node:"+node)
 		}
 
 		// kube_cluster_name
 		clusterTagNamePrefix := taggertags.KubeClusterName + ":"
 		var tag string
 		var found bool
-		for _, tag = range tags {
+		for _, tag = range tagSlice {
 			if strings.HasPrefix(tag, clusterTagNamePrefix) {
 				found = true
 				break
@@ -65,16 +68,26 @@ func GetStaticTagsSlice(ctx context.Context, datadogConfig config.Reader) []stri
 			if cluster == "" {
 				log.Infof("Couldn't build the %q.. tag, DD_CLUSTER_NAME can be used to set it", clusterTagNamePrefix)
 			} else {
-				tags = append(tags, clusterTagNamePrefix+cluster)
+				tagSlice = append(tagSlice, clusterTagNamePrefix+cluster)
 			}
 		}
 		clusterIDValue, _ := clustername.GetClusterID()
 		if clusterIDValue != "" {
-			tags = append(tags, taggertags.OrchClusterID+":"+clusterIDValue)
+			tagSlice = append(tagSlice, taggertags.OrchClusterID+":"+clusterIDValue)
 		}
 	}
 
-	return tags
+	// ECS Fargate specific tagSlice
+	if env.IsFeaturePresent(env.ECSFargate) {
+		ecsMeta, err := ecs.NewECSMeta(ctx)
+		if err != nil {
+			tagSlice = append(tagSlice, fmt.Sprintf("%s:%s", tags.EcsClusterName, ecsMeta.ECSCluster))
+		} else {
+			log.Infof("Couldn't build the 'ecs_cluster_name' tag: %v", err)
+		}
+	}
+
+	return tagSlice
 }
 
 // GetStaticTags is similar to GetStaticTagsSlice, but returning a map[string][]string containing

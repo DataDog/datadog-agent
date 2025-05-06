@@ -9,6 +9,8 @@ package ecs
 
 import (
 	"context"
+	"fmt"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"time"
 )
 
@@ -18,10 +20,10 @@ func GetTags(ctx context.Context) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 
-	ecsMeta, _, err := getECSInstanceMetadata(ctx)
+	cluster, _, err := getECSInstanceMetadata(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return []string{"ecs_cluster_name" + ecsMeta}, nil
+	return []string{fmt.Sprintf("%s:%s", tags.EcsClusterName, cluster)}, nil
 }
