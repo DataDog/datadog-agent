@@ -19,6 +19,6 @@ type linuxStatusSuite struct {
 
 func TestLinuxDiskSuite(t *testing.T) {
 	t.Parallel()
-	suite := &linuxStatusSuite{baseCheckSuite{descriptor: e2eos.UbuntuDefault, agentOptions: getAgentOptions()}}
+	suite := &linuxStatusSuite{baseCheckSuite{descriptor: e2eos.UbuntuDefault, metricCompareFraction: 0.02, metricCompareDecimals: 1}}
 	e2e.Run(t, suite, suite.getSuiteOptions()...)
 }

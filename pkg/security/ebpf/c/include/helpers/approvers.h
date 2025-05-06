@@ -21,7 +21,9 @@ void __attribute__((always_inline)) monitor_event_approved(u64 event_type, u32 a
         return;
     }
 
-    if (approver_type == BASENAME_APPROVER_TYPE) {
+    if (approver_type == POLICY_APPROVER_TYPE) {
+        __sync_fetch_and_add(&stats->event_approved_by_policy, 1);
+    } else if (approver_type == BASENAME_APPROVER_TYPE) {
         __sync_fetch_and_add(&stats->event_approved_by_basename, 1);
     } else if (approver_type == FLAG_APPROVER_TYPE) {
         __sync_fetch_and_add(&stats->event_approved_by_flag, 1);
@@ -364,16 +366,14 @@ enum SYSCALL_STATE __attribute__((always_inline)) sysctl_approvers(struct syscal
 }
 
 enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 tgid, struct syscall_cache_t *syscall, enum SYSCALL_STATE (*check_approvers)(struct syscall_cache_t *syscall)) {
-    if (syscall->policy.mode == NO_FILTER) {
-        return syscall->state = ACCEPTED;
-    }
-
-    if (syscall->policy.mode == ACCEPT) {
+    if (syscall->policy.mode != DENY) {
+        monitor_event_approved(syscall->type, POLICY_APPROVER_TYPE);
         return syscall->state = APPROVED;
     }
 
-    if (syscall->policy.mode == DENY) {
-        syscall->state = check_approvers(syscall);
+    syscall->state = check_approvers(syscall);
+    if (syscall->state == DISCARDED) {
+        monitor_event_rejected(syscall->type);
     }
 
     u64 *cookie = bpf_map_lookup_elem(&traced_pids, &tgid);
@@ -398,11 +398,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 
 
 enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall(struct syscall_cache_t *syscall, enum SYSCALL_STATE (*check_approvers)(struct syscall_cache_t *syscall)) {
     u32 tgid = bpf_get_current_pid_tgid() >> 32;
-    enum SYSCALL_STATE state = approve_syscall_with_tgid(tgid, syscall, check_approvers);
-    if (state == DISCARDED) {
-        monitor_event_rejected(syscall->type);
-    }
-    return state;
+    return approve_syscall_with_tgid(tgid, syscall, check_approvers);
 }
 
 #endif

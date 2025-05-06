@@ -741,6 +741,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 			SyscallsMonitorEnabled:   true,
 			TTYFallbackEnabled:       true,
 			EBPFLessEnabled:          ebpfLessEnabled,
+			DNSPort:                  opts.staticOpts.dnsPort,
 		},
 	}
 

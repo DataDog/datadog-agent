@@ -7,13 +7,17 @@ package cloudservice
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// CloudRunOrigin origin tag value
+const CloudRunOrigin = "cloudrun"
 
 const (
 	// Environment var needed for service
@@ -68,8 +72,8 @@ type CloudRun struct {
 func (c *CloudRun) GetTags() map[string]string {
 	isCloudRun := c.spanNamespace == cloudRunService
 	tags := metadataHelperFunc(GetDefaultConfig(), isCloudRun)
-	tags["origin"] = c.GetOrigin()
-	tags["_dd.origin"] = c.GetOrigin()
+	tags["origin"] = CloudRunOrigin
+	tags["_dd.origin"] = CloudRunOrigin
 
 	revisionNameVal := os.Getenv(revisionNameEnvVar)
 	serviceNameVal := os.Getenv(ServiceNameEnvVar)
@@ -127,7 +131,7 @@ func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (c *CloudRun) GetOrigin() string {
-	return "cloudrun"
+	return CloudRunOrigin
 }
 
 // GetPrefix returns the prefix that we're prefixing all
