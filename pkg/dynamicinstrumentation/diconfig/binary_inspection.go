@@ -49,27 +49,25 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 		functions = append(functions, probe.FuncName)
 		targetFunctions[probe.FuncName] = true
 	}
-	log.Infof("Starting binary analysis for PID %d, path %s", procInfo.PID, procInfo.BinaryPath)
+	log.Infof("Starting binary analysis for PID %d, service %s", procInfo.PID, procInfo.ServiceName)
 
 	elfFile, err := safeelf.Open(procInfo.BinaryPath)
 	if err != nil {
 		return fmt.Errorf("could not open elf file %w", err)
 	}
 	defer elfFile.Close()
-	log.Infof("Successfully opened ELF file %s for PID %d", procInfo.BinaryPath, procInfo.PID)
 
 	dwarfData, ok := bininspect.HasDwarfInfo(elfFile)
 	if !ok || dwarfData == nil {
 		return errors.New("could not get debug information from binary")
 	}
-	log.Infof("Found DWARF information for PID %d", procInfo.PID)
 
 	typeMap, err := getTypeMap(dwarfData, targetFunctions)
 	if err != nil {
 		return fmt.Errorf("could not retrieve type information from binary %w", err)
 	}
-	log.Infof("Retrieved type map for PID %d", procInfo.PID)
 
+	log.Infof("Successfully retrieved type map for %s (pid %d)", procInfo.ServiceName, procInfo.PID)
 	procInfo.TypeMap = typeMap
 
 	// Enforce limit on number of parameters
@@ -78,10 +76,10 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 			if i >= ditypes.MaxFieldCount {
 				param.DoNotCapture = true
 				param.NotCaptureReason = ditypes.FieldLimitReached
+				log.Infof("Enforced parameter limits for %s (pid %d): %s(...%s", procInfo.ServiceName, procInfo.PID, funcName, param.Name)
 			}
 		}
 	}
-	log.Infof("Enforced parameter limits for PID %d", procInfo.PID)
 
 	fieldIDs := []bininspect.FieldIdentifier{}
 	for _, funcParams := range typeMap.Functions {
@@ -90,35 +88,30 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 				collectFieldIDs(param)...)
 		}
 	}
-	log.Infof("Collected field IDs for PID %d", procInfo.PID)
 
 	r, err := bininspect.InspectWithDWARF(elfFile, dwarfData, functions, fieldIDs)
 	if err != nil {
 		return fmt.Errorf("could not determine locations of variables from debug information (functions: %v): %w", functions, err)
 	}
-	log.Infof("Completed DWARF inspection for PID %d", procInfo.PID)
 
 	stringPtrIdentifier := bininspect.FieldIdentifier{StructName: "string", FieldName: "str"}
 	stringLenIdentifier := bininspect.FieldIdentifier{StructName: "string", FieldName: "len"}
 	r.StructOffsets[stringPtrIdentifier] = 0
 	r.StructOffsets[stringLenIdentifier] = 8
-	log.Infof("Added string offsets for PID %d", procInfo.PID)
 
 	// Use the result from InspectWithDWARF to populate the locations of parameters
 	for functionName, functionMetadata := range r.Functions {
 		putLocationsInParams(functionMetadata.Parameters, r.StructOffsets, procInfo.TypeMap.Functions, functionName)
 		populateLocationExpressionsForFunction(r.Functions, procInfo, functionName)
 	}
-	log.Infof("Populated parameter locations and expressions for PID %d", procInfo.PID)
 
-	log.Infof("Finished binary analysis for PID %d", procInfo.PID)
+	log.Infof("Finished binary analysis for %s (pid %d)", procInfo.ServiceName, procInfo.PID)
 	return nil
 }
 
 // collectFieldIDs returns all struct fields if there are any amongst types of parameters
 // including if there's structs that are nested deep within complex types
 func collectFieldIDs(param *ditypes.Parameter) []bininspect.FieldIdentifier {
-	log.Infof("Collecting field IDs for parameter: %v", param)
 	fieldIDs := []bininspect.FieldIdentifier{}
 	stack := append([]*ditypes.Parameter{param}, param.ParameterPieces...)
 
@@ -134,7 +127,6 @@ func collectFieldIDs(param *ditypes.Parameter) []bininspect.FieldIdentifier {
 		}
 
 		if current.Kind == uint(reflect.Struct) || current.Kind == uint(reflect.Slice) {
-			log.Infof("Processing struct/slice type: %s", current.Type)
 			for _, structField := range current.ParameterPieces {
 				if structField == nil || structField.Name == "" || current.Type == "" {
 					// these can be blank in anonymous types or embedded fields
@@ -146,7 +138,6 @@ func collectFieldIDs(param *ditypes.Parameter) []bininspect.FieldIdentifier {
 					StructName: current.Type,
 					FieldName:  structField.Name,
 				}
-				log.Infof("Adding field ID: %s.%s", fieldID, current.Type, structField.Name)
 				fieldIDs = append(fieldIDs, fieldID)
 				if len(fieldIDs) >= ditypes.MaxFieldCount {
 					log.Infof("Field limit reached (%d/%d) for type %s.%s, stopping collection.",
