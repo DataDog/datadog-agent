@@ -1469,47 +1469,47 @@
       "description": "DNS Responses are the supported response codes",
       "all": [
         {
-          "name": "NoError",
+          "name": "NOERROR",
           "architecture": "all"
         },
         {
-          "name": "FormErr",
+          "name": "FORMERR",
           "architecture": "all"
         },
         {
-          "name": "ServFail",
+          "name": "SERVFAIL",
           "architecture": "all"
         },
         {
-          "name": "NXDomain",
+          "name": "NXDOMAIN",
           "architecture": "all"
         },
         {
-          "name": "NotImp",
+          "name": "NOTIMP",
           "architecture": "all"
         },
         {
-          "name": "Refused",
+          "name": "REFUSED",
           "architecture": "all"
         },
         {
-          "name": "YXDomain",
+          "name": "YXDOMAIN",
           "architecture": "all"
         },
         {
-          "name": "YXRRSet",
+          "name": "YXRRSET",
           "architecture": "all"
         },
         {
-          "name": "NXRRSet",
+          "name": "NXRRSET",
           "architecture": "all"
         },
         {
-          "name": "NotAuth",
+          "name": "NOTAUTH",
           "architecture": "all"
         },
         {
-          "name": "NotZone",
+          "name": "NOTZONE",
           "architecture": "all"
         },
         {
