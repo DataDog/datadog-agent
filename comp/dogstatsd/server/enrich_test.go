@@ -140,6 +140,28 @@ func TestConvertParseSingle(t *testing.T) {
 	}
 }
 
+func TestConvertRuntimeOrigin(t *testing.T) {
+	conf := enrichConfig{
+		defaultHostname: "default-hostname",
+	}
+
+	for metricSymbol := range symbolToType {
+
+		parsed, err := parseAndEnrichMultipleMetricMessage(t, []byte("runtime.node:666|"+metricSymbol), conf)
+
+		assert.NoError(t, err)
+		require.Len(t, parsed, 1)
+
+		assert.Equal(t, "runtime.node", parsed[0].Name)
+		assert.InEpsilon(t, 666.0, parsed[0].Value, epsilon)
+
+		assert.Equal(t, origindetection.ProductOriginAPM, parsed[0].OriginInfo.ProductOrigin)
+		assert.Equal(t, "", parsed[0].OriginInfo.ContainerIDFromSocket)
+		assert.Equal(t, "", parsed[0].OriginInfo.LocalData.PodUID)
+		assert.Equal(t, "", parsed[0].OriginInfo.LocalData.ContainerID)
+	}
+}
+
 func TestConvertParseSingleWithTags(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
