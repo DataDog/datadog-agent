@@ -128,4 +128,11 @@ BPF_PROG_ARRAY(raw_packet_classifier_router, 32)
 BPF_PROG_ARRAY(flush_network_stats_progs, 2)
 BPF_PROG_ARRAY(open_ret_progs, 1)
 
+BPF_PERF_EVENT_ARRAY_MAP(events, u32)
+BPF_PERCPU_ARRAY_MAP(events_stats, struct perf_map_stats_t, EVENT_MAX)
+
+#if USE_RING_BUFFER == 1
+BPF_ARRAY_MAP(events_ringbuf_stats, u64, 1)
+#endif
+
 #endif
