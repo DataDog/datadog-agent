@@ -67,7 +67,6 @@ type Agent struct {
 
 // NewLogsAgentComponent returns a new instance of Agent as a Component
 func NewLogsAgentComponent(deps Dependencies) option.Option[logsagentpipeline.Component] {
-	deps.IntakeOrigin = config.DDOTIntakeOrigin
 	logsAgent := NewLogsAgent(deps)
 	if logsAgent == nil {
 		return option.None[logsagentpipeline.Component]()
