@@ -14,39 +14,18 @@ import (
 // Duplicate entries post-quantization or collapsed into a single unique value.
 // Entries which are not IP addresses are left unchanged.
 // Comma-separated host lists are common for peer tags like peer.cassandra.contact.points, peer.couchbase.seed.nodes, peer.kafka.bootstrap.servers
-//func QuantizePeerIPAddresses(raw string) string {
-//	values := strings.Split(raw, ",")
-//	uniq := values[:0]
-//	uniqSet := make(map[string]bool)
-//	for _, v := range values {
-//		q := quantizeIP(v)
-//		if !uniqSet[q] {
-//			uniqSet[q] = true
-//			uniq = append(uniq, q)
-//		}
-//	}
-//	return strings.Join(uniq, ",")
-//}
-
 func QuantizePeerIPAddresses(raw string) string {
-	var builder strings.Builder
-	rest := raw
-	first := true
+	values := strings.Split(raw, ",")
+	uniq := values[:0]
 	uniqSet := make(map[string]bool)
-	for len(rest) > 0 {
-		var value string
-		value, rest, _ = strings.Cut(rest, ",")
-		q := quantizeIP(value)
+	for _, v := range values {
+		q := quantizeIP(v)
 		if !uniqSet[q] {
-			if !first {
-				builder.WriteString(",")
-			}
-			builder.WriteString(q)
 			uniqSet[q] = true
-			first = false
+			uniq = append(uniq, q)
 		}
 	}
-	return builder.String()
+	return strings.Join(uniq, ",")
 }
 
 var schemes = []string{"dnspoll", "ftp", "file", "http", "https"}
