@@ -23,7 +23,7 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         return 0;
     }
 
-    if (IS_UNHANDLED_ERROR(retval)) {
+    if (IS_UNHANDLED_ERROR(retval) && retval != -EINPROGRESS) {
         return 0;
     }
 
