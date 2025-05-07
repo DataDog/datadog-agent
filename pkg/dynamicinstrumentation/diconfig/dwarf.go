@@ -28,6 +28,7 @@ func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditype
 }
 
 func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
+	fmt.Println("Loading function definitions: ", targetFunctions)
 	entryReader := dwarfData.Reader()
 	typeReader := dwarfData.Reader()
 	readingAFunction := false
@@ -127,7 +128,7 @@ entryLoop:
 			for _, field := range entry.Field {
 				if field.Attr == dwarf.AttrName {
 					funcName = strings.Clone(field.Val.(string))
-					if !targetFunctions[funcName] {
+					if _, ok := targetFunctions[funcName]; !ok {
 						continue entryLoop
 					}
 					params := make([]*ditypes.Parameter, 0)
@@ -142,7 +143,7 @@ entryLoop:
 			continue
 		}
 		if entry.Tag != dwarf.TagFormalParameter {
-			readingAFunction = false
+			readingAFunction = true
 			continue entryLoop
 		}
 		// This branch should only be reached if we're currently reading ditypes.Parameters of a function
