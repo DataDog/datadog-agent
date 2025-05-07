@@ -575,7 +575,7 @@ var structCaptures = fixtures{
 								*capturedValue("uint64", "3"),
 							},
 						},
-						"b": capturedValue("int", "4"),
+						"b": capturedValue("uint8", "4"),
 						"c": {
 							Type: "[5]int64",
 							Elements: []ditypes.CapturedValue{
