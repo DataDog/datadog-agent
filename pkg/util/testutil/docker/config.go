@@ -93,11 +93,13 @@ type baseConfig struct {
 
 // runConfig contains specific configurations for Docker containers, embedding BaseConfig.
 type runConfig struct {
-	baseConfig                   // Embed general configuration.
-	ImageName  string            // Docker image to use.
-	Binary     string            // Binary to run inside the container.
-	BinaryArgs []string          // Arguments for the binary.
-	Mounts     map[string]string // Mounts (host path -> container path).
+	baseConfig                    // Embed general configuration.
+	ImageName   string            // Docker image to use.
+	Binary      string            // Binary to run inside the container.
+	BinaryArgs  []string          // Arguments for the binary.
+	Mounts      map[string]string // Mounts (host path -> container path).
+	NetworkMode string            // Network mode to use for the container. If empty, the docker default will apply
+	PIDMode     string            // PID mode to use for the container. If empty, the docker default will apply
 }
 
 func (r runConfig) command() string {
@@ -123,6 +125,14 @@ func (r runConfig) commandArgs(t subCommandType) []string {
 
 		//append container name and container image name
 		args = append(args, "--name", r.Name(), r.ImageName)
+
+		if r.NetworkMode != "" {
+			args = append(args, "--network", r.NetworkMode)
+		}
+
+		if r.PIDMode != "" {
+			args = append(args, "--pid", r.PIDMode)
+		}
 
 		//provide main binary and binary arguments to run inside the docker container
 		args = append(args, r.Binary)
@@ -175,6 +185,18 @@ func WithBinaryArgs(binaryArgs []string) RunConfigOption {
 func WithMounts(mounts map[string]string) RunConfigOption {
 	return func(c *runConfig) {
 		c.Mounts = mounts
+	}
+}
+
+func WithNetworkMode(networkMode string) RunConfigOption {
+	return func(c *runConfig) {
+		c.NetworkMode = networkMode
+	}
+}
+
+func WithPIDMode(pidMode string) RunConfigOption {
+	return func(c *runConfig) {
+		c.PIDMode = pidMode
 	}
 }
 
