@@ -53,7 +53,7 @@ func (v *baseMultiProcessingLibSuite) TestMultiProcessingLib() {
 	v.T().Log("Running MultiProcessingLib test")
 
 	// Fetch the check status and metrics in JSON format
-	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"multi_file_check", "--json"}))
+	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"multi_pid_check", "--json"}))
 	data := checkutils.ParseJSONOutput(v.T(), []byte(check))
 	metrics := data[0].Aggregator.Metrics
 	assert.GreaterOrEqual(v.T(), len(metrics), 3)
