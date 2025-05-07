@@ -208,11 +208,11 @@ func setClearIfExists(s *common.Setup, envKey, tagKey string, normalize func(str
 
 func setHostTag(s *common.Setup, tagKey, value string) {
 	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, tagKey+":"+value)
-	if len(value) > 0 {
-		s.Span.SetTag("host_tag_set."+tagKey, "true")
-	} else {
-		s.Span.SetTag("host_tag_set."+tagKey, "false")
+	isTagPresent := "false"
+	if value != "" {
+		isTagPresent = "true"
 	}
+	s.Span.SetTag("host_tag_set."+tagKey, isTagPresent)
 }
 
 func setClearHostTag(s *common.Setup, tagKey, value string) {
