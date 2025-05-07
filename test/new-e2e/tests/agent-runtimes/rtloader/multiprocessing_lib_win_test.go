@@ -21,9 +21,7 @@ type windowsMultiProcessingLibSuite struct {
 func TestWindowsMultiProcessingLibSuite(t *testing.T) {
 	t.Parallel()
 	suite := &windowsMultiProcessingLibSuite{baseMultiProcessingLibSuite{
-		confdPath:   "C:/ProgramData/Datadog/conf.d/multi_file_check.yaml",
-		checksdPath: "C:/ProgramData/Datadog/checks.d/multi_file_check.py",
-		tempDir:     "C:/Users/ddagentuser/AppData/Local/Temp/multi_file_check",
+		checksdPath: "C:/ProgramData/Datadog/checks.d/multi_pid_check.py",
 	}}
 	e2e.Run(t, suite, suite.getSuiteOptions(os.WindowsDefault)...)
 }

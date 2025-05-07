@@ -21,9 +21,7 @@ type linuxMultiProcessingLibSuite struct {
 func TestLinuxMultiProcessingLibSuite(t *testing.T) {
 	t.Parallel()
 	suite := &linuxMultiProcessingLibSuite{baseMultiProcessingLibSuite{
-		confdPath:   "/etc/datadog-agent/conf.d/multi_file_check.yaml",
-		checksdPath: "/etc/datadog-agent/checks.d/multi_file_check.py",
-		tempDir:     "/tmp/multi_file_check",
+		checksdPath: "/etc/datadog-agent/checks.d/multi_pid_check.py",
 	}}
 	e2e.Run(t, suite, suite.getSuiteOptions(os.UbuntuDefault)...)
 }
