@@ -94,7 +94,6 @@ func TestIsProcessProtected(t *testing.T) {
 				pid = windows.GetCurrentProcessId()
 			} else {
 				pid, err = getPIDbyName(tc.processName)
-				fmt.Printf("pid: %d\n", pid)
 				require.NoError(t, err)
 			}
 
@@ -111,6 +110,7 @@ func TestIsProcessProtected(t *testing.T) {
 			}
 
 			isProcessProtected, err := IsProcessProtected(procHandle)
+			assert.NoError(t, err)
 			assert.Equal(t, tc.expected, isProcessProtected)
 		})
 	}

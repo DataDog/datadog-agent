@@ -497,8 +497,14 @@ func fillProcessDetails(pid int32, proc *Process) error {
 	}
 	proc.Username = userName
 
-	var cmdParams winutil.ProcessCommandParams
+	imagePath, err := winutil.GetImagePathForProcess(procHandle)
+	if err != nil {
+		log.Debugf("Error retrieving exe path for pid %v %v", pid, err)
+	}
+	proc.Exe = imagePath
+
 	// we cannot read the command line if the process is protected
+	var cmdLine string
 	if !isProtected {
 		processCmdParams, err := winutil.GetCommandParamsForProcess(procHandle, false)
 		if err != nil {
@@ -506,22 +512,14 @@ func fillProcessDetails(pid int32, proc *Process) error {
 		}
 
 		if processCmdParams != nil {
-			cmdParams = *processCmdParams
+			cmdLine = processCmdParams.CmdLine
 		}
-	} else {
-		imagePath, err := winutil.GetImagePathForProcess(procHandle)
-		if err != nil {
-			log.Debugf("Error retrieving exe path %v", err)
-		}
-		cmdParams.ImagePath = imagePath
 	}
 
-	proc.Cmdline = ParseCmdLineArgs(cmdParams.CmdLine)
-	if len(cmdParams.CmdLine) > 0 && len(proc.Cmdline) == 0 {
-		log.Warnf("Failed to parse the cmdline:%s for pid:%d", cmdParams.CmdLine, pid)
+	proc.Cmdline = ParseCmdLineArgs(cmdLine)
+	if len(cmdLine) > 0 && len(proc.Cmdline) == 0 {
+		log.Warnf("Failed to parse the cmdline:%s for pid:%d", cmdLine, pid)
 	}
-
-	proc.Exe = cmdParams.ImagePath
 
 	var CPU windows.Rusage
 	if err := windows.GetProcessTimes(procHandle, &CPU.CreationTime, &CPU.ExitTime, &CPU.KernelTime, &CPU.UserTime); err != nil {
@@ -545,6 +543,9 @@ func OpenProcessHandle(pid int32) (windows.Handle, bool, error) {
 	// check protection level to determine memory readability for PROCESS_VM_READ
 	// more info: https://learn.microsoft.com/en-us/windows/win32/procthread/process-security-and-access-rights#protected-processes
 	isProtected, err := winutil.IsProcessProtected(procHandle)
+	if err != nil {
+		log.Debugf("Couldn't access process %v protection info %v", pid, err)
+	}
 	if isProtected {
 		return procHandle, isProtected, err
 	}
