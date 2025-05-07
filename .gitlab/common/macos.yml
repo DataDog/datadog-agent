@@ -3,6 +3,7 @@
 # We don't have virtualization now so we need to clean the environment and install the proper dependencies before every job.
 .macos_clean_env:
   # Report current version to datadog
+  - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
   - dda inv -- -e macos.report-versions -l python || true
   - dda inv -- -e macos.report-versions -l go || true
 
