@@ -164,36 +164,42 @@ func (c composeConfig) commandArgs(t subCommandType) []string {
 	}
 }
 
+// WithImageName sets the Docker image name for the container configuration.
 func WithImageName(imageName string) RunConfigOption {
 	return func(c *runConfig) {
 		c.ImageName = imageName
 	}
 }
 
+// WithBinary sets the binary to run inside the container.
 func WithBinary(binary string) RunConfigOption {
 	return func(c *runConfig) {
 		c.Binary = binary
 	}
 }
 
+// WithBinaryArgs sets the arguments for the binary to run inside the container.
 func WithBinaryArgs(binaryArgs []string) RunConfigOption {
 	return func(c *runConfig) {
 		c.BinaryArgs = binaryArgs
 	}
 }
 
+// WithMounts sets the volume mounts for the container (host path -> container path).
 func WithMounts(mounts map[string]string) RunConfigOption {
 	return func(c *runConfig) {
 		c.Mounts = mounts
 	}
 }
 
+// WithNetworkMode sets the network mode for the container.
 func WithNetworkMode(networkMode string) RunConfigOption {
 	return func(c *runConfig) {
 		c.NetworkMode = networkMode
 	}
 }
 
+// WithPIDMode sets the PID mode for the container.
 func WithPIDMode(pidMode string) RunConfigOption {
 	return func(c *runConfig) {
 		c.PIDMode = pidMode
@@ -211,6 +217,7 @@ func NewRunConfig(base baseConfig, opts ...RunConfigOption) LifecycleConfig {
 	return *cfg
 }
 
+// WithFile sets the path to the docker-compose file.
 func WithFile(file string) ComposeConfigOption {
 	return func(c *composeConfig) {
 		c.File = file
@@ -232,30 +239,35 @@ type BaseConfigOption func(*baseConfig)
 type RunConfigOption func(*runConfig)
 type ComposeConfigOption func(*composeConfig)
 
+// WithName sets the name of the container or docker-compose setup.
 func WithName(name string) BaseConfigOption {
 	return func(c *baseConfig) {
 		c.name = name
 	}
 }
 
+// WithTimeout sets the timeout for the container operation.
 func WithTimeout(timeout time.Duration) BaseConfigOption {
 	return func(c *baseConfig) {
 		c.timeout = timeout
 	}
 }
 
+// WithRetries sets the number of retries for starting the container.
 func WithRetries(retries int) BaseConfigOption {
 	return func(c *baseConfig) {
 		c.retries = retries
 	}
 }
 
+// WithPatternScanner sets the pattern scanner for monitoring container logs.
 func WithPatternScanner(patternScanner *testutil.PatternScanner) BaseConfigOption {
 	return func(c *baseConfig) {
 		c.patternScanner = patternScanner
 	}
 }
 
+// WithEnv sets the environment variables for the container.
 func WithEnv(env []string) BaseConfigOption {
 	return func(c *baseConfig) {
 		c.env = env
