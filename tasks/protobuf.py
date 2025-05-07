@@ -8,7 +8,7 @@ from invoke import Exit, UnexpectedExit, task
 from tasks.install_tasks import TOOL_LIST_PROTO
 from tasks.libs.common.check_tools_version import check_tools_installed
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.git import get_unstaged_files
+from tasks.libs.common.git import get_unstaged_files, get_untracked_files
 
 PROTO_PKGS = {
     'model/v1': (False, False),
@@ -45,7 +45,8 @@ def generate(ctx, pre_commit=False):
     We must build the packages one at a time due to protoc-gen-go limitations
     """
     proto_file = re.compile(r"pkg/proto/pbgo/.*\.pb(\.gw)?\.go$")
-    old_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file))
+    old_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file, include_deleted_files=True))
+    old_untracked_proto_files = set(get_untracked_files(ctx, re_filter=proto_file))
     # Key: path, Value: grpc_gateway, inject_tags
     check_tools(ctx)
     base = os.path.dirname(os.path.abspath(__file__))
@@ -154,10 +155,15 @@ def generate(ctx, pre_commit=False):
             ctx.run(f"git apply {switches} --unsafe-paths --directory='{pbgo_dir}/{pkg}' {patch_file}")
 
     # Check the generated files were properly committed
-    current_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file))
-    if old_unstaged_proto_files != current_unstaged_proto_files:
+    current_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file, include_deleted_files=True))
+    current_untracked_proto_files = set(get_untracked_files(ctx, re_filter=proto_file))
+    if (
+        old_unstaged_proto_files != current_unstaged_proto_files
+        or old_untracked_proto_files != current_untracked_proto_files
+    ):
         if pre_commit:
             updated_files = [f"- {file}\n" for file in current_unstaged_proto_files - old_unstaged_proto_files]
+            updated_files += [f"- {file}\n" for file in current_untracked_proto_files - old_untracked_proto_files]
             raise Exit(f"Files modified\n{''.join(updated_files)}", code=1)
         else:
             print("Generation complete and new files were updated, don't forget to commit and push")

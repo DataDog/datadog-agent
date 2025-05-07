@@ -8,12 +8,12 @@ import requests
 
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
 from tasks.libs.common.utils import get_metric_origin
+from tasks.libs.releasing.version import RELEASE_JSON_DEPENDENCIES
 from tasks.release import _get_release_json_value
 
 
 def _get_omnibus_commits(field):
-    release_version = os.environ['RELEASE_VERSION']
-    return _get_release_json_value(f'{release_version}::{field}')
+    return _get_release_json_value(f'{RELEASE_JSON_DEPENDENCIES}::{field}')
 
 
 def _get_environment_for_cache() -> dict:
@@ -39,6 +39,7 @@ def _get_environment_for_cache() -> dict:
             'CONDUCTOR_',
             'DATADOG_AGENT_',
             'DD_',
+            'DDCI_',
             'DDR_',
             'DEB_',
             'DESTINATION_',
@@ -99,10 +100,12 @@ def _get_environment_for_cache() -> dict:
             "CLUSTERS",
             "CODECOV",
             "CODECOV_TOKEN",
+            "COMPARE_TO_BRANCH",
             "COMPUTERNAME",
             "CONDA_PROMPT_MODIFIER",
             "CONSUL_HTTP_ADDR",
             "DATACENTERS",
+            "DDCI",
             "DDR",
             "DEPLOY_AGENT",
             "DOGSTATSD_BINARIES_DIR",
@@ -144,6 +147,7 @@ def _get_environment_for_cache() -> dict:
             "PACKAGE_ARCH",
             "PIP_EXTRA_INDEX_URL",
             "PIP_INDEX_URL",
+            "PIPELINE_KEY_ALIAS",
             "PROCESS_S3_BUCKET",
             "PWD",
             "PROMPT",
@@ -201,6 +205,16 @@ def _last_omnibus_changes(ctx):
     result = hash.hexdigest()
     print(f'Hash for last omnibus changes is {result}')
     return result
+
+
+def get_dd_api_key(ctx):
+    if sys.platform == 'win32':
+        cmd = f'aws.cmd ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text'
+    elif sys.platform == 'darwin':
+        cmd = f'vault kv get -field=token kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
+    else:
+        cmd = f'vault kv get -field=token kv/k8s/gitlab-runner/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
+    return ctx.run(cmd, hide=True).stdout.strip()
 
 
 def omnibus_compute_cache_key(ctx):
@@ -320,17 +334,8 @@ def send_build_metrics(ctx, overall_duration):
                     "metadata": get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE, True),
                 }
             )
-    if sys.platform == 'win32':
-        dd_api_key = ctx.run(
-            f'aws.cmd ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
-            hide=True,
-        ).stdout.strip()
-    else:
-        dd_api_key = ctx.run(
-            f'vault kv get -field=token kv/k8s/gitlab-runner/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}',
-            hide=True,
-        ).stdout.strip()
-    headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
+
+    headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': get_dd_api_key(ctx)}
     r = requests.post("https://api.datadoghq.com/api/v2/series", json={'series': series}, headers=headers)
     if r.ok:
         print('Successfully sent build metrics to DataDog')
@@ -340,17 +345,7 @@ def send_build_metrics(ctx, overall_duration):
 
 
 def send_cache_miss_event(ctx, pipeline_id, job_name, job_id):
-    if sys.platform == 'win32':
-        dd_api_key = ctx.run(
-            f'aws.cmd ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
-            hide=True,
-        ).stdout.strip()
-    else:
-        dd_api_key = ctx.run(
-            f'vault kv get -field=token kv/k8s/gitlab-runner/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}',
-            hide=True,
-        ).stdout.strip()
-    headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
+    headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': get_dd_api_key(ctx)}
     payload = {
         'title': 'omnibus cache miss',
         'text': f"Couldn't fetch cache associated with cache key for job {job_name} in pipeline #{pipeline_id}",

@@ -67,7 +67,7 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
     cache_syscall(&syscall);
 
     // tail call
-    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+    resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_SELINUX);
@@ -103,8 +103,7 @@ int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_selinux_callback")
-int tail_call_target_dr_selinux_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_selinux_callback, ctx_t *ctx) {
     // int retval = PT_REGS_RC(ctx);
     int retval = 0;
     return dr_selinux_callback(ctx, retval);

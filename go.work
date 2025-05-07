@@ -1,4 +1,4 @@
-go 1.23.7
+go 1.23.8
 
 // Disable experimental post-quantum key exchange mechanism X25519Kyber768Draft00
 // This was causing errors with AWS Network Firewall
@@ -9,12 +9,15 @@ godebug tlskyber=0
 use (
 	.
 	comp/api/api/def
-	comp/api/authtoken
 	comp/core/config
 	comp/core/configsync
 	comp/core/flare/builder
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface
+	comp/core/ipc/def
+	comp/core/ipc/httphelpers
+	comp/core/ipc/impl
+	comp/core/ipc/mock
 	comp/core/log/def
 	comp/core/log/fx
 	comp/core/log/impl
@@ -109,6 +112,11 @@ use (
 	pkg/networkdevice/profile
 	pkg/networkpath/payload
 	pkg/obfuscate
+	pkg/opentelemetry-mapping-go/inframetadata
+	pkg/opentelemetry-mapping-go/inframetadata/gohai/internal/gohaitest
+	pkg/opentelemetry-mapping-go/otlp/attributes
+	pkg/opentelemetry-mapping-go/otlp/logs
+	pkg/opentelemetry-mapping-go/otlp/metrics
 	pkg/orchestrator/model
 	pkg/process/util/api
 	pkg/proto
@@ -145,6 +153,8 @@ use (
 	pkg/util/otel
 	pkg/util/pointer
 	pkg/util/prometheus
+	pkg/util/quantile
+	pkg/util/quantile/sketchtest
 	pkg/util/scrubber
 	pkg/util/sort
 	pkg/util/startstop

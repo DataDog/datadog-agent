@@ -499,19 +499,36 @@ func (pb *PayloadsBuilder) finishPayload() error {
 // MarshalJSON serializes timeseries to JSON so it can be sent to V1 endpoints
 // FIXME(maxime): to be removed when v2 endpoints are available
 func (series *IterableSeries) MarshalJSON() ([]byte, error) {
-	// use an alias to avoid infinite recursion while serializing a Series
-	type SeriesAlias Series
+	type SeriesWithMetadata struct {
+		*metrics.Serie
+		Metadata metrics.Metadata `json:"metadata,omitempty"`
+	}
 
-	seriesAlias := make(SeriesAlias, 0)
+	seriesWithMetadata := make([]SeriesWithMetadata, 0)
 	for series.MoveNext() {
 		serie := series.source.Current()
 		serie.PopulateDeviceField()
 		serie.PopulateResources()
-		seriesAlias = append(seriesAlias, serie)
+
+		serieWithMetadata := SeriesWithMetadata{
+			Serie: serie,
+		}
+
+		if serie.Source != 0 {
+			serieWithMetadata.Metadata = metrics.Metadata{
+				Origin: metrics.Origin{
+					OriginProduct:       metricSourceToOriginProduct(serie.Source),
+					OriginSubProduct:    metricSourceToOriginCategory(serie.Source),
+					OriginProductDetail: metricSourceToOriginService(serie.Source),
+				},
+			}
+		}
+
+		seriesWithMetadata = append(seriesWithMetadata, serieWithMetadata)
 	}
 
-	data := map[string][]*metrics.Serie{
-		"series": seriesAlias,
+	data := map[string][]SeriesWithMetadata{
+		"series": seriesWithMetadata,
 	}
 	reqBody := &bytes.Buffer{}
 	err := json.NewEncoder(reqBody).Encode(data)

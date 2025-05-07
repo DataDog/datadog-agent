@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamlogs"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -40,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	flareprofilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	flareprofilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
@@ -160,7 +160,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				inventoryotelimpl.Module(),
 				haagentmetadatafx.Module(),
 				resourcesimpl.Module(),
-				authtokenimpl.Module(),
 				// inventoryagent require a serializer. Since we're not actually sending the payload to
 				// the backend a nil will work.
 				fx.Provide(func() serializer.MetricSerializer {
@@ -171,6 +170,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				logscompressorfx.Module(),
 				metricscompressorfx.Module(),
 				diagnosefx.Module(),
+				ipcfx.ModuleInsecure(),
 			)
 		},
 	}
@@ -224,8 +224,8 @@ func makeFlare(flareComp flare.Component,
 	fmt.Fprintln(color.Output, color.BlueString("See https://docs.datadoghq.com/agent/troubleshooting/send_a_flare/?tab=agentv6v7#send-a-flare-from-the-datadog-site for more info."))
 
 	warnings := config.Warnings()
-	if warnings != nil && warnings.Err != nil {
-		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings.Err))
+	if warnings != nil && warnings.Errors != nil {
+		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings.Errors))
 	}
 	caseID := ""
 	if len(cliParams.args) > 0 {
