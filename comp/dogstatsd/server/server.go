@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -35,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -86,6 +88,7 @@ type provides struct {
 
 	Comp          Component
 	StatsEndpoint api.AgentEndpointProvider
+	RCListener    rctypes.ListenerProvider
 }
 
 // When the internal telemetry is enabled, used to tag the origin
@@ -192,9 +195,15 @@ func newServer(deps dependencies) provides {
 		})
 	}
 
+	var rcListener rctypes.ListenerProvider
+	rcListener.ListenerProvider = rctypes.RCListener{
+		state.ProductMetricControl: s.onBlocklistUpdateCallback,
+	}
+
 	return provides{
 		Comp:          s,
 		StatsEndpoint: api.NewAgentEndpointProvider(s.writeStats, "/dogstatsd-stats", "GET"),
+		RCListener:    rcListener,
 	}
 }
 
@@ -493,21 +502,12 @@ func (s *server) SetExtraTags(tags []string) {
 }
 
 // SetBlocklist updates the metric names blocklist on all running worker.
-func (s *server) SetBlocklist(metricsName []string) {
-	// store one to be able to return something with `GetBlocklist()`.
-	blocklist := newBlocklist(metricsName, s.config.GetBool("statsd_metric_blocklist_match_prefix"))
-	s.enrichConfig.metricBlocklist = blocklist
-
+func (s *server) SetBlocklist(metricsName []string, matchPrefix bool) {
 	// each worker receives its own copy
 	for _, worker := range s.workers {
-		blocklist := newBlocklist(metricsName, s.config.GetBool("statsd_metric_blocklist_match_prefix"))
+		blocklist := newBlocklist(metricsName, matchPrefix)
 		worker.BlocklistUpdate <- blocklist
 	}
-}
-
-// GetBlocklist returns the currently configured blocklist.
-func (s *server) GetBlocklist() []string {
-	return s.enrichConfig.metricBlocklist.data
 }
 
 func (s *server) handleMessages() {
@@ -543,10 +543,10 @@ func (s *server) handleMessages() {
 		s.workers = append(s.workers, worker)
 	}
 
-	// create the metrics name blocklist, one per worker
+	// create the metric names blocklist, one per worker
 	// -----------
 
-	s.SetBlocklist(s.config.GetStringSlice("statsd_metric_blocklist"))
+	s.SetBlocklist(s.config.GetStringSlice("statsd_metric_blocklist"), s.config.GetBool("statsd_metric_blocklist_match_prefix"))
 }
 
 func (s *server) UDPLocalAddr() string {

@@ -9,7 +9,6 @@ package settings
 import (
 	"fmt"
 	"strconv"
-	"strings"
 )
 
 // GetBool returns the bool value contained in value.
@@ -54,21 +53,5 @@ func GetInt(v interface{}) (int, error) {
 		return int(i), nil
 	default:
 		return 0, fmt.Errorf("GetInt: bad parameter value provided: %v", v)
-	}
-}
-
-// GetStrings interprets the given value as a list of string separated by the
-// given separator, returns them in a strings slice.
-// An error is returned if the given value can't be asserted as a string.
-func GetStrings(v interface{}, sep string) ([]string, error) {
-	switch v := v.(type) {
-	case string:
-		return strings.Split(v, sep), nil
-	default:
-		formated := fmt.Sprintf("%v", v)
-		if len(formated) > 200 {
-			formated = formated[:200] + "[...truncated]"
-		}
-		return []string{}, fmt.Errorf("GetStrings: bad parameter value provided: %v", formated)
 	}
 }

@@ -60,12 +60,8 @@ func (s *serverMock) UDPLocalAddr() string {
 	return ""
 }
 
-func (s *serverMock) SetBlocklist(v []string) {
+func (s *serverMock) SetBlocklist(v []string, _ bool) {
 	s.blocklist = v
-}
-
-func (s *serverMock) GetBlocklist() []string {
-	return s.blocklist
 }
 
 // ServerlessFlush is a noop mocked function
