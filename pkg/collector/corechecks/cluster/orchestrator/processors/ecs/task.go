@@ -51,7 +51,7 @@ func (t *TaskHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourc
 		Tasks:        models,
 		Info:         pctx.SystemInfo,
 		HostName:     pctx.Hostname,
-		Tags:         pctx.Cfg.ExtraTags,
+		Tags:         pctx.ExtraTags,
 	}
 }
 
