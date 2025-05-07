@@ -8,4 +8,5 @@
 ---
 fixes:
   - |
-    Use FQDNs when the Agent builds intake hostnames to prevent generating as many DNS queries as there are entries in the ``search`` section of the ``/etc/resolv.conf` file.
+    Use FQDNs when the Agent builds intake hostnames with ``DD_SITE`` to prevent generating as many DNS queries as there are entries in the ``search`` section of the ``/etc/resolv.conf` file.
+    If an intake full URL is explicitly set with a ``dd_url`` parameter, then, the parameter is used as-is and using FQDNs or not remains a user choice.
