@@ -428,7 +428,6 @@ func TestServiceName(t *testing.T) {
 
 		// Non-ASCII character removed due to normalization.
 		assert.Equal(collect, "foo_bar", startEvent.DDService)
-		assert.Equal(collect, startEvent.DDService, startEvent.Name)
 		assert.Equal(collect, "sleep", startEvent.GeneratedName)
 		assert.Equal(collect, string(usm.CommandLine), startEvent.GeneratedNameSource)
 		assert.False(collect, startEvent.DDServiceInjected)
@@ -465,7 +464,6 @@ func TestServiceLifetime(t *testing.T) {
 	checkService := func(t assert.TestingT, service *model.Service, expectedTime time.Time) {
 		// Non-ASCII character removed due to normalization.
 		assert.Equal(t, "foo_bar", service.DDService)
-		assert.Equal(t, service.DDService, service.Name)
 		assert.Equal(t, "sleep", service.GeneratedName)
 		assert.Equal(t, string(usm.CommandLine), service.GeneratedNameSource)
 		assert.False(t, service.DDServiceInjected)
@@ -787,7 +785,6 @@ func TestNodeDocker(t *testing.T) {
 		// test@... changed to test_... due to normalization.
 		assert.Equal(collect, "test_nodejs-https-server", startEvent.GeneratedName)
 		assert.Equal(collect, string(usm.Nodejs), startEvent.GeneratedNameSource)
-		assert.Equal(collect, startEvent.GeneratedName, startEvent.Name)
 		assert.Equal(collect, "provided", startEvent.APMInstrumentation)
 		assert.Equal(collect, "web_service", startEvent.Type)
 		assertStat(collect, *startEvent)
@@ -974,7 +971,6 @@ func TestDocker(t *testing.T) {
 	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid1111)
 	require.Contains(t, startEvent.Ports, uint16(1234))
 	require.Contains(t, startEvent.ContainerID, "dummyCID")
-	require.Contains(t, startEvent.Name, "http.server")
 	require.Contains(t, startEvent.GeneratedName, "http.server")
 	require.Contains(t, startEvent.GeneratedNameSource, string(usm.CommandLine))
 	require.Contains(t, startEvent.ContainerServiceName, "foo_from_app_tag")
