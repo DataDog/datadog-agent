@@ -398,9 +398,6 @@ func newHTTPPassthroughPipeline(
 ) (p *passthroughPipeline, err error) {
 
 	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig)
-	if desc.forceCompressionKind != "" {
-		configKeys = configKeys.WithForcedCompression(desc.forceCompressionKind)
-	}
 	endpoints, err := config.BuildHTTPEndpointsWithConfig(
 		coreConfig,
 		configKeys,
@@ -429,8 +426,13 @@ func newHTTPPassthroughPipeline(
 		endpoints.InputChanSize = desc.defaultInputChanSize
 	}
 	if desc.forceCompressionKind != "" {
-		endpoints.Main.CompressionKind = desc.forceCompressionKind
-		endpoints.Main.CompressionLevel = desc.forceCompressionLevel
+		// if pipeline description has override then assign endpoint compression kind and level to the override
+		endpoints.CompressionKind = desc.forceCompressionKind
+		endpoints.CompressionLevel = desc.forceCompressionLevel
+	} else {
+		// if pipeline description has no override then assign endpoint compression kind and level via configs
+		endpoints.CompressionKind = endpoints.Main.CompressionKind
+		endpoints.CompressionLevel = endpoints.Main.CompressionLevel
 	}
 
 	pipelineMonitor := metrics.NewNoopPipelineMonitor(strconv.Itoa(pipelineID))
@@ -457,7 +459,7 @@ func newHTTPPassthroughPipeline(
 	var encoder compressioncommon.Compressor
 	encoder = compressor.NewCompressor("none", 0)
 	if endpoints.Main.UseCompression {
-		encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
+		encoder = compressor.NewCompressor(endpoints.CompressionKind, endpoints.CompressionLevel)
 	}
 
 	var strategy sender.Strategy
@@ -479,7 +481,15 @@ func newHTTPPassthroughPipeline(
 	}
 
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d, compression_kind=%s, compression_level=%d",
-		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize, endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
+		desc.eventType,
+		joinHosts(endpoints.GetReliableEndpoints()),
+		joinHosts(endpoints.GetUnReliableEndpoints()),
+		endpoints.BatchMaxConcurrentSend,
+		endpoints.BatchMaxContentSize,
+		endpoints.BatchMaxSize,
+		endpoints.InputChanSize,
+		endpoints.CompressionKind,
+		endpoints.CompressionLevel)
 	return &passthroughPipeline{
 		sender:                senderImpl,
 		strategy:              strategy,

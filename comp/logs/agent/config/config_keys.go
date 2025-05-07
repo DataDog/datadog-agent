@@ -18,10 +18,9 @@ import (
 
 // LogsConfigKeys stores logs configuration keys stored in YAML configuration files
 type LogsConfigKeys struct {
-	prefix            string
-	vectorPrefix      string
-	config            pkgconfigmodel.Reader
-	forcedCompression string
+	prefix       string
+	vectorPrefix string
+	config       pkgconfigmodel.Reader
 }
 
 // CompressionKind constants
@@ -120,10 +119,6 @@ func (l *LogsConfigKeys) devModeUseProto() bool {
 }
 
 func (l *LogsConfigKeys) compressionKind() string {
-	if l.forcedCompression != "" {
-		return "none" // Return "none" since actual compression will be set later
-	}
-
 	configKey := l.getConfigKey("compression_kind")
 	compressionKind := l.getConfig().GetString(configKey)
 
@@ -147,14 +142,14 @@ func (l *LogsConfigKeys) compressionLevel() int {
 	if l.compressionKind() == ZstdCompressionKind {
 		level := l.getConfig().GetInt(l.getConfigKey("zstd_compression_level"))
 		if strings.HasPrefix(l.prefix, "logs_config.") {
-			log.Debugf("Main logs pipeline is using compression zstd at level: %d", level)
+			log.Debugf("Logs pipeline is using compression zstd at level: %d", level)
 		}
 		return level
 	}
 
 	level := l.getConfig().GetInt(l.getConfigKey("compression_level"))
 	if strings.HasPrefix(l.prefix, "logs_config.") {
-		log.Debugf("Main logs pipeline is using compression gzip atlevel: %d", level)
+		log.Debugf("Logs pipeline is using compression gzip atlevel: %d", level)
 	}
 	return level
 }
@@ -343,14 +338,4 @@ func (l *LogsConfigKeys) getObsPipelineURL() (string, bool) {
 		}
 	}
 	return "", false
-}
-
-// WithForcedCompression returns a new LogsConfigKeys with the forced compression kind set
-func (l *LogsConfigKeys) WithForcedCompression(kind string) *LogsConfigKeys {
-	return &LogsConfigKeys{
-		prefix:            l.prefix,
-		vectorPrefix:      l.vectorPrefix,
-		config:            l.config,
-		forcedCompression: kind,
-	}
 }

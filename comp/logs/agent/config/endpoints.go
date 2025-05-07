@@ -329,6 +329,8 @@ type Endpoints struct {
 	BatchMaxSize           int
 	BatchMaxContentSize    int
 	InputChanSize          int
+	CompressionKind        string
+	CompressionLevel       int
 }
 
 // GetStatus returns the endpoints status, one line per endpoint
