@@ -309,6 +309,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_ebpfless"), false, "DD_ENABLE_EBPFLESS", "DD_NETWORK_CONFIG_ENABLE_EBPFLESS")
 
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_fentry"), false)
+
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
 
