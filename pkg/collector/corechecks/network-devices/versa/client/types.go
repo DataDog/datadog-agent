@@ -9,11 +9,11 @@ package client
 // Content encapsulates the content types of the Versa API
 type Content interface {
 	[]Appliance |
-	int | // for row counts
-	[]TenantConfig |
-	OrganizationListResponse |
-	DirectorStatus |
-	SLAMetricsResponse
+		int | // for row counts
+		[]TenantConfig |
+		OrganizationListResponse |
+		DirectorStatus |
+		SLAMetricsResponse
 }
 
 // DirectorStatus /versa/ncs-services/vnms/dashboard/vdStatus

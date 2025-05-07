@@ -292,22 +292,17 @@ func parseAaData(data [][]interface{}) ([]SLAMetrics, error) {
 
 // GetSLAMetrics retrieves SLA metrics from the Versa Analytics API
 func (client *Client) GetSLAMetrics() ([]SLAMetrics, error) {
-	// TODO: clean up params for values with multiple of the same key so a map cannot be used
-	params := url.Values{}
-	params.Set("start-date", "15minutesAgo")
-	params.Set("qt", "tableData")
-	params.Set("q", "slam(localsite,remotesite,localaccckt,remoteaccckt,fc)")
-	params.Set("ds", "aggregate")
-	params.Add("metrics", "delay")
-	params.Add("metrics", "fwdDelayVar")
-	params.Add("metrics", "revDelayVar")
-	params.Add("metrics", "fwdLossRatio")
-	params.Add("metrics", "revLossRatio")
-	params.Add("metrics", "pduLossRatio")
 	baseURL := "/versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN"
-	fullURL := baseURL + "?" + params.Encode()
+	analyticsURL := buildAnalyticsURL(baseURL, "15minutesAgo", "slam(localsite,remotesite,localaccckt,remoteaccckt,fc)", "tableData", []string{
+		"delay",
+		"fwdDelayVar",
+		"revDelayVar",
+		"fwdLossRatio",
+		"revLossRatio",
+		"pduLossRatio",
+	})
 
-	resp, err := get[SLAMetricsResponse](client, fullURL, nil)
+	resp, err := get[SLAMetricsResponse](client, analyticsURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get SLA metrics: %v", err)
 	}
@@ -317,4 +312,27 @@ func (client *Client) GetSLAMetrics() ([]SLAMetrics, error) {
 		return nil, fmt.Errorf("failed to parse SLA metrics: %v", err)
 	}
 	return metrics, nil
+}
+
+// BuildSlamURL constructs a Versa Analytics query URL in a cleaner way so multiple metrics can be added.
+//
+// Parameters:
+//   - basePath: base API endpoint path (e.g., "/versa/analytics/...").
+//   - startDate: relative start date (e.g., "15minutesAgo", "1h", "24h").
+//   - query: Versa query expression (e.g., "slam(...columns...)").
+//   - queryType: type of query (e.g., "tableData").
+//   - metrics: list of metric strings (e.g., "delay", "fwdLossRatio").
+//
+// Returns the full encoded URL string.
+func buildAnalyticsURL(baseURL string, startDate string, query string, queryType string, metrics []string) string {
+	params := url.Values{
+		"start-date": []string{startDate},
+		"qt":         []string{queryType},
+		"q":          []string{query},
+		"ds":         []string{"aggregate"}, // this seems to be the only datastore supported (from docs)
+	}
+	for _, m := range metrics {
+		params.Add("metrics", m)
+	}
+	return baseURL + "?" + params.Encode()
 }
