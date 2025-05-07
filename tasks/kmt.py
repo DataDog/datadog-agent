@@ -1288,9 +1288,9 @@ def get_kmt_or_alien_stack(ctx, stack, vms, alien_vms):
         return stack
 
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    assert stacks.stack_exists(stack), (
+        f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    )
     return stack
 
 
@@ -1374,9 +1374,9 @@ def build(
 @task
 def clean(ctx: Context, stack: str | None = None, container=False, image=False):
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    assert stacks.stack_exists(stack), (
+        f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    )
 
     ctx.run("rm -rf ./test/new-e2e/tests/sysprobe-functional/artifacts/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
@@ -1969,9 +1969,9 @@ def selftest(ctx: Context, allow_infra_changes=False, filter: str | None = None)
 @task
 def show_last_test_results(ctx: Context, stack: str | None = None):
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    assert stacks.stack_exists(stack), (
+        f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    )
     assert tabulate is not None, "tabulate module is not installed, please install it to continue"
 
     paths = KMTPaths(stack, Arch.local())
@@ -2289,8 +2289,8 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, k
 
     for pipeline_id in pipeline_ids:
         pipeline = gitlab.pipelines.get(pipeline_id)
-        if pipeline.source != "push":
-            print(f"Ignoring pipeline {pipeline_id}, only using push pipelines")
+        if pipeline.source != "push" and pipeline.source != "api":
+            print(f"Ignoring pipeline {pipeline_id} with source {pipeline.source}, only using push/api pipelines")
             continue
 
         _, test_jobs = get_all_jobs_for_pipeline(pipeline_id)
