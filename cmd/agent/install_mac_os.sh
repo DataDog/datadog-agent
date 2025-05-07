@@ -469,9 +469,10 @@ else
 fi
 
 # Set up and start the system-probe service if this version includes support for it
-if [ -f "${etc_dir}/com.datadoghq.sysprobe.plist.example" ]; then
+sysprobe_plist_example_file="${etc_dir}/${sysprobe_service_name}.plist.example"
+if [ -f "$sysprobe_plist_example_file" ]; then
     printf "\033[34m\n* Setting up system-probe ($sysprobe_service_name) as a systemwide LaunchDaemon ...\n\n\033[0m"
-    $sudo_cmd mv "${etc_dir}/com.datadoghq.sysprobe.plist.example" "${sysprobe_servicefile_name}"
+    $sudo_cmd mv "$sysprobe_plist_example_file" "$sysprobe_servicefile_name"
     $sudo_cmd chown "0:0" "$sysprobe_servicefile_name"
     $sudo_cmd launchctl load -w "$sysprobe_servicefile_name"
     $sudo_cmd launchctl kickstart "system/$sysprobe_service_name"
