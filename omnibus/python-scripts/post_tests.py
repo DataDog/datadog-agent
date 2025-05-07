@@ -34,6 +34,8 @@ class TestPost(unittest.TestCase):
         storage_location = tempfile.mkdtemp()
         post_file = os.path.join(storage_location, '.post_python_installed_packages.txt')
         diff_file = os.path.join(storage_location, '.diff_python_installed_packages.txt')
+        skip_file = os.path.join(storage_location, '.skip_install_python_third_party_deps')
+
 
         # Create empty post file
         with open(post_file, 'w', encoding='utf-8') as f:
@@ -41,6 +43,10 @@ class TestPost(unittest.TestCase):
 
         # Create empty diff file
         with open(diff_file, 'w', encoding='utf-8') as f:
+            pass
+
+        # Create empty skip file
+        with open(skip_file, 'w', encoding='utf-8') as f:
             pass
 
         result = post(install_directory, storage_location, skip_flag=False)
@@ -57,6 +63,7 @@ class TestPost(unittest.TestCase):
         # Cleanup
         os.remove(post_file)
         os.remove(diff_file)
+        os.remove(skip_file)
 
         # running rmdir verifies that the directory is empty
         os.rmdir(install_directory)
