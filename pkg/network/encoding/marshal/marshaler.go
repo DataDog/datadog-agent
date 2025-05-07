@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build (linux && linux_bpf) || (windows && npm)
+
 // Package marshal implements the marshaling side of network encoding
 package marshal
 

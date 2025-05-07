@@ -8,6 +8,7 @@
 package network
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
@@ -22,4 +23,16 @@ func ConnectionKeysFromConnectionStats(connectionStats ConnectionStats) []types.
 	}
 
 	return connectionKeys
+}
+
+// USMProtocolsData represents the windows version
+type USMProtocolsData struct {
+	HTTP map[http.Key]*http.RequestStats
+}
+
+// NewUsmProtocolsData windows
+func NewUsmProtocolsData() USMProtocolsData {
+	return USMProtocolsData{
+		HTTP: make(map[http.Key]*http.RequestStats),
+	}
 }
