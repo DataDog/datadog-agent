@@ -9,9 +9,9 @@ package client
 // Content encapsulates the content types of the Versa API
 type Content interface {
 	ApplianceLiteResponse |
-	ControllerResponse |
-	DirectorStatus |
-	SLAMetricsResponse
+		ControllerResponse |
+		DirectorStatus |
+		SLAMetricsResponse
 }
 
 // ApplianceLiteResponse /versa/ncs-services/vnms/appliance/appliance/lite
