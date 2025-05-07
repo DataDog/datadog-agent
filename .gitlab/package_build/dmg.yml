@@ -19,6 +19,8 @@ agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64", "specific:true"]
   needs: ["go_mod_tidy_check"]
+  # TODO
+  parallel: 6
   rules:
      - !reference [.on_macos_gui_change]
      - !reference [.on_packaging_change]
@@ -39,6 +41,7 @@ agent_dmg-x64-a7:
     NOTARIZATION_TIMEOUT: 30m
     NOTARIZATION_ATTEMPTS: 3
     NOTARIZATION_WAIT_TIME: 15s
+    OMNIBUS_RUBY_VERSION: celian/fix-git-race-condition
   timeout: 2h
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
