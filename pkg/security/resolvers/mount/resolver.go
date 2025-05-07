@@ -10,6 +10,7 @@ package mount
 
 import (
 	"encoding/json"
+	"fmt"
 	"path"
 	"slices"
 	"strings"
@@ -97,6 +98,7 @@ type Resolver struct {
 	minMountID      uint32 // used to find the first userspace visible mount ID
 	redemption      *simplelru.LRU[uint32, *redemptionEntry]
 	fallbackLimiter *utils.Limiter[uint64]
+	debugLog        string
 
 	// stats
 	cacheHitsStats *atomic.Int64
@@ -105,16 +107,26 @@ type Resolver struct {
 	procMissStats  *atomic.Int64
 }
 
+// ResetDebugLog clears the debug log
+func (mr *Resolver) ResetDebugLog() {
+	mr.debugLog = ""
+}
+
 // IsMountIDValid returns whether the mountID is valid
 func (mr *Resolver) IsMountIDValid(mountID uint32) (bool, error) {
+	mr.debugLog += fmt.Sprintf("IsMountIDValid() [In] mountID = %d\n", mountID)
+
 	if mountID == 0 {
+		mr.debugLog += fmt.Sprintf("IsMountIDValid() [Out] mountID = %d is undefined\n", mountID)
 		return false, ErrMountUndefined
 	}
 
 	if mountID < mr.minMountID {
+		mr.debugLog += fmt.Sprintf("IsMountIDValid() [Out] mountID = %d is a kernel ID (< %d)\n", mountID, mr.minMountID)
 		return false, ErrMountKernelID
 	}
 
+	mr.debugLog += fmt.Sprintf("IsMountIDValid() [Out] mountID = %d is valid\n", mountID)
 	return true, nil
 }
 
@@ -301,86 +313,123 @@ func (mr *Resolver) insert(m *model.Mount, pid uint32) {
 }
 
 func (mr *Resolver) getFromRedemption(mountID uint32) *model.Mount {
+	mr.debugLog += fmt.Sprintf("getFromRedemption() [In] mountID = %d\n", mountID)
+
 	entry, exists := mr.redemption.Get(mountID)
 	if !exists || time.Since(entry.insertedAt) > redemptionTime {
+		mr.debugLog += fmt.Sprintf("getFromRedemption() [Out] mountID = %d not found or expired\n", mountID)
 		return nil
 	}
+
+	mr.debugLog += fmt.Sprintf("getFromRedemption() [Out] mountID = %d found\n", mountID)
 	return entry.mount
 }
 
 func (mr *Resolver) lookupByMountID(mountID uint32) *model.Mount {
+	mr.debugLog += fmt.Sprintf("lookupByMountID() [In] mountID = %d\n", mountID)
+
 	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
+		mr.debugLog += fmt.Sprintf("lookupByMountID() [Out] mountID = %d found in mounts cache\n", mountID)
 		return mount
 	}
 
+	mr.debugLog += fmt.Sprintf("lookupByMountID() [Out] mountID = %d not found in mounts cache, trying redemption\n", mountID)
 	return mr.getFromRedemption(mountID)
 }
 
 func (mr *Resolver) lookupByDevice(device uint32, pid uint32) *model.Mount {
+	mr.debugLog += fmt.Sprintf("lookupByDevice() [In] device = %d, pid = %d\n", device, pid)
+
 	var result *model.Mount
 
 	mr.pidToMounts.WalkInner(pid, func(_ uint32, mount *model.Mount) bool {
 		if mount.Device == device {
 			// should be consistent across all the mounts
 			if result != nil && result.MountPointStr != mount.MountPointStr {
+				mr.debugLog += fmt.Sprintf("lookupByDevice() inconsistent mountpoints for device = %d\n", device)
 				result = nil
 				return false
 			}
+			mr.debugLog += fmt.Sprintf("lookupByDevice() found mount with device = %d, mountID = %d\n", device, mount.MountID)
 			result = mount
 		}
 		return true
 	})
 
+	if result == nil {
+		mr.debugLog += fmt.Sprintf("lookupByDevice() [Out] no mount found for device = %d, pid = %d\n", device, pid)
+	} else {
+		mr.debugLog += fmt.Sprintf("lookupByDevice() [Out] found mount with mountID = %d for device = %d, pid = %d\n", result.MountID, device, pid)
+	}
+
 	return result
 }
 
 func (mr *Resolver) lookupMount(mountID uint32, device uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin) {
+	mr.debugLog += fmt.Sprintf("lookupMount() [In] mountID = %d, device = %d, pid = %d\n", mountID, device, pid)
+
 	mount := mr.lookupByMountID(mountID)
 	if mount != nil {
+		mr.debugLog += fmt.Sprintf("lookupMount() [Out] found by mountID = %d\n", mountID)
 		return mount, model.MountSourceMountID, mount.Origin
 	}
 
+	mr.debugLog += fmt.Sprintf("lookupMount() not found by mountID, trying by device\n")
 	mount = mr.lookupByDevice(device, pid)
 	if mount == nil {
+		mr.debugLog += fmt.Sprintf("lookupMount() [Out] mount not found\n")
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown
 	}
+
+	mr.debugLog += fmt.Sprintf("lookupMount() [Out] found by device = %d\n", device)
 	return mount, model.MountSourceDevice, mount.Origin
 }
 
 func (mr *Resolver) _getMountPath(mountID uint32, device uint32, pid uint32, cache map[uint32]bool) (string, model.MountSource, model.MountOrigin, error) {
+	mr.debugLog += fmt.Sprintf("_getMountPath() [In] mountID = %d, device = %d, pid = %d\n", mountID, device, pid)
+
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
+		mr.debugLog += fmt.Sprintf("_getMountPath() [Out] invalid mountID: %v\n", err)
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
 	mount, source, origin := mr.lookupMount(mountID, device, pid)
 	if mount == nil {
+		mr.debugLog += fmt.Sprintf("_getMountPath() [Out] mount not found\n")
 		return "", source, origin, &ErrMountNotFound{MountID: mountID}
 	}
 
 	if len(mount.Path) > 0 {
+		mr.debugLog += fmt.Sprintf("_getMountPath() [Out] cached path: %s\n", mount.Path)
 		return mount.Path, source, origin, nil
 	}
 
 	mountPointStr := mount.MountPointStr
 	if mountPointStr == "/" {
+		mr.debugLog += fmt.Sprintf("_getMountPath() [Out] root path: %s\n", mountPointStr)
 		return mountPointStr, source, mount.Origin, nil
 	}
 
 	// avoid infinite loop
 	if _, exists := cache[mountID]; exists {
+		mr.debugLog += fmt.Sprintf("_getMountPath() [Out] loop detected for mountID = %d\n", mountID)
 		return "", source, mount.Origin, ErrMountLoop
 	}
 	cache[mountID] = true
 
 	if mount.ParentPathKey.MountID == 0 {
+		mr.debugLog += fmt.Sprintf("_getMountPath() [Out] undefined parent mountID\n")
 		return "", source, mount.Origin, ErrMountUndefined
 	}
 
+	mr.debugLog += fmt.Sprintf("_getMountPath() recursing to parent mountID = %d\n", mount.ParentPathKey.MountID)
 	parentMountPath, parentSource, parentOrigin, err := mr._getMountPath(mount.ParentPathKey.MountID, mount.Device, pid, cache)
 	if err != nil {
+		mr.debugLog += fmt.Sprintf("_getMountPath() [Out] error resolving parent path: %v\n", err)
 		return "", parentSource, parentOrigin, err
 	}
 	mountPointStr = path.Join(parentMountPath, mountPointStr)
+	mr.debugLog += fmt.Sprintf("_getMountPath() joined path: %s\n", mountPointStr)
 
 	if parentSource != model.MountSourceMountID {
 		source = parentSource
@@ -391,16 +440,21 @@ func (mr *Resolver) _getMountPath(mountID uint32, device uint32, pid uint32, cac
 	}
 
 	if len(mountPointStr) == 0 {
+		mr.debugLog += fmt.Sprintf("_getMountPath() [Out] empty path\n")
 		return "", source, origin, ErrMountPathEmpty
 	}
 
 	mount.Path = mountPointStr
+	mr.debugLog += fmt.Sprintf("_getMountPath() [Out] resolved path: %s\n", mountPointStr)
 
 	return mountPointStr, source, origin, nil
 }
 
 func (mr *Resolver) getMountPath(mountID uint32, device uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
-	return mr._getMountPath(mountID, device, pid, map[uint32]bool{})
+	mr.debugLog += fmt.Sprintf("getMountPath() [In] mountID = %d, device = %d, pid = %d\n", mountID, device, pid)
+	path, source, origin, err := mr._getMountPath(mountID, device, pid, map[uint32]bool{})
+	mr.debugLog += fmt.Sprintf("getMountPath() [Out] path = %s, source = %d, origin = %d, err = %v\n", path, source, origin, err)
+	return path, source, origin, err
 }
 
 // ResolveMountRoot returns the root of a mount identified by its mount ID.
@@ -412,10 +466,13 @@ func (mr *Resolver) ResolveMountRoot(mountID uint32, device uint32, pid uint32, 
 }
 
 func (mr *Resolver) resolveMountRoot(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error) {
+	mr.debugLog += fmt.Sprintf("resolveMountRoot() [In] mountID = %d, device = %d, pid = %d, containerID = %s\n", mountID, device, pid, containerID)
 	mount, source, origin, err := mr.resolveMount(mountID, device, pid, containerID)
 	if err != nil {
+		mr.debugLog += fmt.Sprintf("resolveMountRoot() [Out] error resolving mount: %v\n", err)
 		return "", source, origin, err
 	}
+	mr.debugLog += fmt.Sprintf("resolveMountRoot() [Out] root = %s\n", mount.RootStr)
 	return mount.RootStr, source, origin, err
 }
 
@@ -432,49 +489,65 @@ func (mr *Resolver) syncCacheMiss() {
 }
 
 func (mr *Resolver) reSyncCache(mountID uint32, pids []uint32, containerID containerutils.ContainerID, workload *cmodel.CacheEntry) error {
+	mr.debugLog += fmt.Sprintf("reSyncCache() [In] mountID = %d, containerID = %s\n", mountID, containerID)
+
 	if workload != nil {
 		pids = append(pids, workload.GetPIDs()...)
+		mr.debugLog += fmt.Sprintf("reSyncCache() added workload PIDs, total PIDs: %d\n", len(pids))
 	} else if len(containerID) == 0 && !slices.Contains(pids, 1) {
 		pids = append(pids, 1)
+		mr.debugLog += fmt.Sprintf("reSyncCache() added PID 1\n")
 	}
 
 	if err := mr.syncCache(mountID, pids); err != nil {
 		mr.syncCacheMiss()
+		mr.debugLog += fmt.Sprintf("reSyncCache() [Out] sync cache failed: %v\n", err)
 		return err
 	}
 
+	mr.debugLog += fmt.Sprintf("reSyncCache() [Out] sync completed successfully\n")
 	return nil
 }
 
 func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error) {
+	mr.debugLog += fmt.Sprintf("resolveMountPath() [In] mountID = %d, device = %d, pid = %d, containerID = %s\n", mountID, device, pid, containerID)
+
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
+		mr.debugLog += fmt.Sprintf("resolveMountPath() [Out] invalid mountID: %v\n", err)
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
 	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
+	mr.debugLog += fmt.Sprintf("resolveMountPath() retrieved workload for containerID = %s\n", containerID)
 
 	path, source, origin, err := mr.getMountPath(mountID, device, pid)
 	if err == nil {
 		mr.cacheHitsStats.Inc()
+		mr.debugLog += fmt.Sprintf("resolveMountPath() [Out] cache hit, path = %s\n", path)
 		return path, source, origin, nil
 	}
 	mr.cacheMissStats.Inc()
+	mr.debugLog += fmt.Sprintf("resolveMountPath() cache miss: %v\n", err)
 
 	if !mr.opts.UseProcFS {
+		mr.debugLog += fmt.Sprintf("resolveMountPath() [Out] procfs disabled\n")
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 	}
 
 	if err := mr.reSyncCache(mountID, []uint32{pid}, containerID, workload); err != nil {
+		mr.debugLog += fmt.Sprintf("resolveMountPath() [Out] resync failed: %v\n", err)
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
 	path, source, origin, err = mr.getMountPath(mountID, device, pid)
 	if err == nil {
 		mr.procHitsStats.Inc()
+		mr.debugLog += fmt.Sprintf("resolveMountPath() [Out] procfs hit, path = %s\n", path)
 		return path, source, origin, nil
 	}
 	mr.procMissStats.Inc()
+	mr.debugLog += fmt.Sprintf("resolveMountPath() [Out] procfs miss: %v\n", err)
 
 	return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 }
@@ -488,33 +561,43 @@ func (mr *Resolver) ResolveMount(mountID uint32, device uint32, pid uint32, cont
 }
 
 func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+	mr.debugLog += fmt.Sprintf("resolveMount() [In] mountID = %d, device = %d, pid = %d, containerID = %s\n", mountID, device, pid, containerID)
+
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
+		mr.debugLog += fmt.Sprintf("resolveMount() [Out] invalid mountID: %v\n", err)
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
 	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
+	mr.debugLog += fmt.Sprintf("resolveMount() retrieved workload for containerID = %s\n", containerID)
 
 	mount, source, origin := mr.lookupMount(mountID, device, pid)
 	if mount != nil {
 		mr.cacheHitsStats.Inc()
+		mr.debugLog += fmt.Sprintf("resolveMount() [Out] cache hit, mountID = %d\n", mountID)
 		return mount, source, origin, nil
 	}
 	mr.cacheMissStats.Inc()
+	mr.debugLog += fmt.Sprintf("resolveMount() cache miss\n")
 
 	if !mr.opts.UseProcFS {
+		mr.debugLog += fmt.Sprintf("resolveMount() [Out] procfs disabled\n")
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 	}
 
 	if err := mr.reSyncCache(mountID, []uint32{pid}, containerID, workload); err != nil {
+		mr.debugLog += fmt.Sprintf("resolveMount() [Out] resync failed: %v\n", err)
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
 	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
 		mr.procHitsStats.Inc()
+		mr.debugLog += fmt.Sprintf("resolveMount() [Out] procfs hit, mountID = %d\n", mountID)
 		return mount, model.MountSourceMountID, mount.Origin, nil
 	}
 	mr.procMissStats.Inc()
+	mr.debugLog += fmt.Sprintf("resolveMount() [Out] procfs miss\n")
 
 	return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 }
@@ -591,6 +674,7 @@ func (mr *Resolver) SendStats() error {
 func (mr *Resolver) ToJSON() ([]byte, error) {
 	dump := struct {
 		Entries []json.RawMessage
+		Trace   string
 	}{}
 
 	mr.lock.RLock()
@@ -603,6 +687,7 @@ func (mr *Resolver) ToJSON() ([]byte, error) {
 		}
 	}
 
+	dump.Trace = mr.debugLog
 	return json.Marshal(dump)
 }
 

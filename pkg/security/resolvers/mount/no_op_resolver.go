@@ -71,3 +71,6 @@ func (mr *NoOpResolver) SendStats() error {
 func (mr *NoOpResolver) ToJSON() ([]byte, error) {
 	return nil, nil
 }
+
+func (mr *NoOpResolver) ResetDebugLog() {
+}

@@ -859,6 +859,9 @@ func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, cgrou
 }
 
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
+
+	p.Resolvers.DentryResolver.ResetDebugLog()
+	p.Resolvers.MountResolver.ResetDebugLog()
 	// handle play snapshot
 	if p.playSnapShotState.Swap(false) {
 		// do not notify consumers as we are replaying the snapshot after a ruleset reload
