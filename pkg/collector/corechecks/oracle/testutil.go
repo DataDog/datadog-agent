@@ -167,6 +167,10 @@ func newTestCheck(t *testing.T, connectConfig config.ConnectionConfig, instanceC
 		c.config.InstanceConfig.OracleClient = true
 	}
 
+	var n int
+	err = getWrapper(&c, &n, "select 1 from dual")
+	require.NoError(t, err, "can't execute a test query")
+
 	return c, sender
 }
 
