@@ -1,5 +1,9 @@
 # CHANGELOG - datadog-secret-backend
 
+## 0.2.1 / 2025-05-07
+
+* Release latest version of the datadog-secret-backend without debug and DWARF symbol.
+
 ## 0.2.0 / 2025-04-28
 
 * Build the artifact without debug and DWARF symbol to produce smaller binaries (`-ldflags="-s -w"` is used).
