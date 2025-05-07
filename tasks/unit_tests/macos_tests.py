@@ -1,16 +1,10 @@
 import unittest
 import unittest.mock
 
-from invoke.context import Context
-
 from tasks.macos import remove_inactive_versions
 
 
 class TestRemoveInactiveVersions(unittest.TestCase):
-    def setUp(self) -> None:
-        super().setUp()
-        self.ctx = Context()
-
     @unittest.mock.patch('builtins.print')
     @unittest.mock.patch('tasks.macos.list_runner_active_versions')
     @unittest.mock.patch('tasks.macos.list_ci_active_versions')
