@@ -21,6 +21,8 @@ const (
 	// BasenameApproverKernelMapName defines the basename approver kernel map name
 	BasenameApproverKernelMapName = "basename_approvers"
 
+	// PolicyApproverType is the type of policy approver
+	PolicyApproverType = "policy"
 	// BasenameApproverType is the type of basename approver
 	BasenameApproverType = "basename"
 	// FlagApproverType is the type of flags approver
