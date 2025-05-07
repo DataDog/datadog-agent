@@ -73,7 +73,7 @@ go_tools_deps:
     # Long term solution will be to provide the datadog-packages as a binary hosted internally
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - go env -w GOPRIVATE="github.com/DataDog/*"
-    - go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
+    - go install github.com/DataDog/datadog-packages/cmd/datadog-package@revert-43-revert-42-revert-41-revert-40-baptiste.foy/FA/aws-sdk-v2
     - cd $GOPATH/pkg/mod/cache/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz .
   artifacts:
     expire_in: 1 day
