@@ -231,8 +231,13 @@ func NewComposeConfig(opts ...ComposeConfigOption) LifecycleConfig {
 	return *cfg
 }
 
+// BaseConfigOption represents options for the base configuration for all docker lifecycle configs
 type BaseConfigOption func(*baseConfig)
+
+// RunConfigOption represents options for the run configuration for a docker container
 type RunConfigOption func(*runConfig)
+
+// ComposeConfigOption represents options for the compose configuration for a docker-compose setup
 type ComposeConfigOption func(*composeConfig)
 
 // WithName sets the name of the container or docker-compose setup.
@@ -270,12 +275,14 @@ func WithEnv(env []string) BaseConfigOption {
 	}
 }
 
+// WithBaseConfigForCompose allows setting the base configuration for a docker-compose setup
 func WithBaseConfigForCompose(opts ...BaseConfigOption) ComposeConfigOption {
 	return func(c *composeConfig) {
 		c.baseConfig = newBaseConfig(opts...)
 	}
 }
 
+// WithBaseConfigForRun allows setting the base configuration for a docker container
 func WithBaseConfigForRun(opts ...BaseConfigOption) RunConfigOption {
 	return func(c *runConfig) {
 		c.baseConfig = newBaseConfig(opts...)
