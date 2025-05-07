@@ -42,32 +42,16 @@ type systemData struct {
 	// AMI.
 	cudaSanityCheckImage string
 
+	// hasEcrCredentialsHelper is true if the system has the ECR credentials helper installed
+	// or if it needs to be installed from the repos
 	hasEcrCredentialsHelper bool
+
+	// hasAllNVMLCriticalAPIs is true if the system has all the critical APIs in NVML
+	// that we need to run the GPU check.
+	hasAllNVMLCriticalAPIs bool
 }
 
 type systemName string
-
-const (
-	gpuSystemUbuntu2204 systemName = "ubuntu2204"
-	gpuSystemUbuntu1804 systemName = "ubuntu1804"
-	defaultGpuSystem    systemName = gpuSystemUbuntu2204
-)
-
-// gpuSystems is a map of AMIs for different Ubuntu versions
-var gpuSystems = map[systemName]systemData{
-	gpuSystemUbuntu2204: {
-		ami:                     "ami-03ee78da2beb5b622",
-		os:                      os.Ubuntu2204,
-		cudaSanityCheckImage:    "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/nvidia/cuda:12.6.3-base-ubuntu22.04",
-		hasEcrCredentialsHelper: false, // needs to be installed from the repos
-	},
-	gpuSystemUbuntu1804: {
-		ami:                     "ami-0e9944b4509c5bbda",
-		cudaSanityCheckImage:    "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/pytorch/pytorch:1.9.0-cuda10.2-cudnn7-runtime", // We don't have base CUDA 10 images from NVIDIA, so we use the PyTorch image
-		os:                      os.Ubuntu2004,                                                                                          // We don't have explicit support for Ubuntu 18.04, but this descriptor is not super-strict
-		hasEcrCredentialsHelper: true,                                                                                                   // already installed in the AMI, as it's not present in the 18.04 repos
-	},
-}
 
 // gpuInstanceType is the instance type to use. By default we use g4dn.xlarge,
 // which is the cheapest GPU instance type
@@ -129,7 +113,7 @@ const dockerPullMaxRetries = 3
 type provisionerParams struct {
 	agentOptions           []agentparams.Option
 	kubernetesAgentOptions []kubernetesagentparams.Option
-	systemName             systemName
+	systemData             systemData
 	instanceType           string
 	dockerImages           []string
 }
@@ -141,7 +125,6 @@ func getDefaultProvisionerParams() *provisionerParams {
 			agentparams.WithAgentConfig("enable_nvml_detection: true"),
 		},
 		kubernetesAgentOptions: nil,
-		systemName:             defaultGpuSystem,
 		instanceType:           gpuInstanceType,
 	}
 }
@@ -155,15 +138,10 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("aws.NewEnvironment: %w", err)
 		}
 
-		systemData, ok := gpuSystems[params.systemName]
-		if !ok {
-			return fmt.Errorf("invalid system name: %s", params.systemName)
-		}
-
 		// Create the EC2 instance
 		host, err := ec2.NewVM(awsEnv, name,
 			ec2.WithInstanceType(params.instanceType),
-			ec2.WithAMI(systemData.ami, systemData.os, os.AMD64Arch),
+			ec2.WithAMI(params.systemData.ami, params.systemData.os, os.AMD64Arch),
 		)
 		if err != nil {
 			return fmt.Errorf("ec2.NewVM: %w", err)
@@ -210,7 +188,7 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 
 		// Validate that Docker can run CUDA samples
 		dockerCudaDeps := append(dockerPullCmds, validateGPUDevicesCmd...)
-		dockerCudaValidateCmd, err := validateDockerCuda(&awsEnv, host, systemData.cudaSanityCheckImage, dockerCudaDeps...)
+		dockerCudaValidateCmd, err := validateDockerCuda(&awsEnv, host, params.systemData.cudaSanityCheckImage, dockerCudaDeps...)
 		if err != nil {
 			return fmt.Errorf("validateDockerCuda failed: %w", err)
 		}
@@ -248,14 +226,9 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("aws.NewEnvironment: %w", err)
 		}
 
-		systemData, ok := gpuSystems[params.systemName]
-		if !ok {
-			return fmt.Errorf("invalid system name: %s", params.systemName)
-		}
-
 		host, err := ec2.NewVM(awsEnv, name,
 			ec2.WithInstanceType(params.instanceType),
-			ec2.WithAMI(systemData.ami, systemData.os, os.AMD64Arch),
+			ec2.WithAMI(params.systemData.ami, params.systemData.os, os.AMD64Arch),
 		)
 		if err != nil {
 			return fmt.Errorf("ec2.NewVM: %w", err)
@@ -275,7 +248,7 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 
 		clusterOpts := nvidia.NewKindClusterOptions(
 			nvidia.WithKubeVersion(awsEnv.KubernetesVersion()),
-			nvidia.WithCudaSanityCheckImage(systemData.cudaSanityCheckImage),
+			nvidia.WithCudaSanityCheckImage(params.systemData.cudaSanityCheckImage),
 		)
 
 		kindCluster, err := nvidia.NewKindCluster(&awsEnv, host, name, clusterOpts, utils.PulumiDependsOn(deps...))
