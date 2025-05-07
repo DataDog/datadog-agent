@@ -682,11 +682,11 @@ def _tag_complexity_job(ctx: Context, tags: dict[str, str]):
     ctx.run(f"datadog-ci tag --level job {tags_str}")
 
 
-def _add_metrics_to_complexity_job(ctx: Context, metrics: dict[str, str]):
-    """Add the given metrics to the complexity job"""
+def _add_measures_to_complexity_job(ctx: Context, measures: dict[str, str]):
+    """Add the given measures to the complexity job"""
     tag_prefix = "ebpf."
-    metrics_str = " ".join(f"--metrics '{tag_prefix}{k}:{v}'" for k, v in metrics.items())
-    ctx.run(f"datadog-ci metric --level job {metrics_str}")
+    measures_str = " ".join(f"--measures '{tag_prefix}{k}:{v}'" for k, v in measures.items())
+    ctx.run(f"datadog-ci measure --level job {measures_str}")
 
 
 @task(
@@ -822,7 +822,7 @@ def generate_complexity_summary_for_pr(
                 )
             )
 
-    _add_metrics_to_complexity_job(
+    _add_measures_to_complexity_job(
         ctx,
         {
             "successful_programs": successful_programs,
