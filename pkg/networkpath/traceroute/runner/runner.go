@@ -192,7 +192,6 @@ func performTCPFallback(tcpMethod payload.TCPMethod, doSyn, doSack, doSynSocket 
 	case payload.TCPConfigSACK:
 		return doSack()
 	case payload.TCPConfigSYNSocket:
-		log.Debugf("Running SYN socket traceroute")
 		return doSynSocket()
 	case payload.TCPConfigPreferSACK:
 		results, err := doSack()
