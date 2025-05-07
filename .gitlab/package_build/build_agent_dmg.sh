@@ -21,16 +21,6 @@ if [ -n "$INTEGRATIONS_CORE_REF" ]; then
     export INTEGRATIONS_CORE_VERSION="$INTEGRATIONS_CORE_REF"
 fi
 
-# --- Setup Go ---
-echo Setting up Go
-mkdir -p ~/go
-export GO_VERSION="$(cat .go-version)"
-eval "$(gimme $GO_VERSION)"
-export PATH="$PATH:$GOROOT/bin"
-echo Go version should be $GO_VERSION
-go version
-dda inv check-go-version
-
 # --- Setup signing ---
 if [ "$SIGN" = true ]; then
     # Add certificates to temporary keychain
