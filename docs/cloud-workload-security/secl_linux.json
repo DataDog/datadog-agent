@@ -2033,6 +2033,16 @@
       "experimental": false,
       "properties": [
         {
+          "name": "exec.abi",
+          "definition": "[Experimental] ABI of the file (only for executable ones)",
+          "property_doc_link": "exec-abi-doc"
+        },
+        {
+          "name": "exec.architecture",
+          "definition": "[Experimental] Architecture of the file (only for executable ones)",
+          "property_doc_link": "exec-architecture-doc"
+        },
+        {
           "name": "exec.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -2106,6 +2116,11 @@
           "name": "exec.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
+        },
+        {
+          "name": "exec.compression",
+          "definition": "[Experimental] Compression type of the file (only for compressed files)",
+          "property_doc_link": "exec-compression-doc"
         },
         {
           "name": "exec.container.id",
@@ -2388,6 +2403,16 @@
           "property_doc_link": "common-process-is_exec-doc"
         },
         {
+          "name": "exec.is_executable",
+          "definition": "[Experimental] Tells if the file is executable or not",
+          "property_doc_link": "exec-is_executable-doc"
+        },
+        {
+          "name": "exec.is_garble_obfuscated",
+          "definition": "[Experimental] Tells if the binary has been obfuscated using garble",
+          "property_doc_link": "exec-is_garble_obfuscated-doc"
+        },
+        {
           "name": "exec.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
@@ -2398,6 +2423,11 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "exec.is_upx_packed",
+          "definition": "[Experimental] Tells if the binary has been packed using UPX",
+          "property_doc_link": "exec-is_upx_packed-doc"
+        },
+        {
           "name": "exec.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -2406,6 +2436,11 @@
           "name": "exec.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-process-ppid-doc"
+        },
+        {
+          "name": "exec.size",
+          "definition": "[Experimental] Size of the file",
+          "property_doc_link": "exec-size-doc"
         },
         {
           "name": "exec.syscall.path",
@@ -2421,6 +2456,11 @@
           "name": "exec.tty_name",
           "definition": "Name of the TTY associated with the process",
           "property_doc_link": "common-process-tty_name-doc"
+        },
+        {
+          "name": "exec.type",
+          "definition": "[Experimental] Type of the file",
+          "property_doc_link": "exec-type-doc"
         },
         {
           "name": "exec.uid",
@@ -10348,6 +10388,90 @@
       "examples": []
     },
     {
+      "name": "exec.abi",
+      "link": "exec-abi-doc",
+      "type": "int",
+      "definition": "[Experimental] ABI of the file (only for executable ones)",
+      "prefixes": [
+        "exec"
+      ],
+      "constants": "ABI",
+      "constants_link": "abi",
+      "examples": []
+    },
+    {
+      "name": "exec.architecture",
+      "link": "exec-architecture-doc",
+      "type": "int",
+      "definition": "[Experimental] Architecture of the file (only for executable ones)",
+      "prefixes": [
+        "exec"
+      ],
+      "constants": "Architecture",
+      "constants_link": "architecture",
+      "examples": []
+    },
+    {
+      "name": "exec.compression",
+      "link": "exec-compression-doc",
+      "type": "int",
+      "definition": "[Experimental] Compression type of the file (only for compressed files)",
+      "prefixes": [
+        "exec"
+      ],
+      "constants": "CompressionType",
+      "constants_link": "compressiontype",
+      "examples": []
+    },
+    {
+      "name": "exec.is_executable",
+      "link": "exec-is_executable-doc",
+      "type": "bool",
+      "definition": "[Experimental] Tells if the file is executable or not",
+      "prefixes": [
+        "exec"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.is_garble_obfuscated",
+      "link": "exec-is_garble_obfuscated-doc",
+      "type": "bool",
+      "definition": "[Experimental] Tells if the binary has been obfuscated using garble",
+      "prefixes": [
+        "exec"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.is_upx_packed",
+      "link": "exec-is_upx_packed-doc",
+      "type": "bool",
+      "definition": "[Experimental] Tells if the binary has been packed using UPX",
+      "prefixes": [
+        "exec"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.size",
+      "link": "exec-size-doc",
+      "type": "int",
+      "definition": "[Experimental] Size of the file",
+      "prefixes": [
+        "exec"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "exec.syscall.path",
       "link": "exec-syscall-path-doc",
       "type": "string",
@@ -10357,6 +10481,18 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.type",
+      "link": "exec-type-doc",
+      "type": "int",
+      "definition": "[Experimental] Type of the file",
+      "prefixes": [
+        "exec"
+      ],
+      "constants": "FileType",
+      "constants_link": "filetype",
       "examples": []
     },
     {
@@ -11309,6 +11445,52 @@
     }
   ],
   "constants": [
+    {
+      "name": "ABI",
+      "link": "abi",
+      "description": "ABI used for binary compilation.",
+      "all": [
+        {
+          "name": "BIT32",
+          "architecture": "all"
+        },
+        {
+          "name": "BIT64",
+          "architecture": "all"
+        },
+        {
+          "name": "UNKNOWN_ABI",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Architecture",
+      "link": "architecture",
+      "description": "Architecture of the binary.",
+      "all": [
+        {
+          "name": "X86",
+          "architecture": "all"
+        },
+        {
+          "name": "X86_64",
+          "architecture": "all"
+        },
+        {
+          "name": "ARM",
+          "architecture": "all"
+        },
+        {
+          "name": "ARM64",
+          "architecture": "all"
+        },
+        {
+          "name": "UNKNOWN_ARCHITECTURE",
+          "architecture": "all"
+        }
+      ]
+    },
     {
       "name": "BPF attach types",
       "link": "bpf-attach-types",
@@ -12572,6 +12754,41 @@
       ]
     },
     {
+      "name": "CompressionType",
+      "link": "compressiontype",
+      "description": "Compression algorithm.",
+      "all": [
+        {
+          "name": "NONE",
+          "architecture": "all"
+        },
+        {
+          "name": "GZIP",
+          "architecture": "all"
+        },
+        {
+          "name": "ZIP",
+          "architecture": "all"
+        },
+        {
+          "name": "ZSTD",
+          "architecture": "all"
+        },
+        {
+          "name": "7Z",
+          "architecture": "all"
+        },
+        {
+          "name": "BZIP2",
+          "architecture": "all"
+        },
+        {
+          "name": "XZ",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "DNS Responses",
       "link": "dns-responses",
       "description": "DNS Responses are the supported response codes",
@@ -13631,6 +13848,53 @@
       ]
     },
     {
+      "name": "FileType",
+      "link": "filetype",
+      "description": "File types.",
+      "all": [
+        {
+          "name": "EMPTY",
+          "architecture": "all"
+        },
+        {
+          "name": "SHELL_SCRIPT",
+          "architecture": "all"
+        },
+        {
+          "name": "TEXT",
+          "architecture": "all"
+        },
+        {
+          "name": "COMPRESSED",
+          "architecture": "all"
+        },
+        {
+          "name": "ENCRYPTED",
+          "architecture": "all"
+        },
+        {
+          "name": "BINARY",
+          "architecture": "all"
+        },
+        {
+          "name": "LINUX_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "WINDOWS_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "MACOS_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "FILE_LESS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "Inode mode constants",
       "link": "inode-mode-constants",
       "description": "Inode mode constants are the supported file type constants as well as the file mode constants.",
@@ -14378,6 +14642,25 @@
         },
         {
           "name": "IP_PROTO_RAW",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "LinkageType",
+      "link": "linkagetype",
+      "description": "Linkage types.",
+      "all": [
+        {
+          "name": "NONE",
+          "architecture": "all"
+        },
+        {
+          "name": "STATIC",
+          "architecture": "all"
+        },
+        {
+          "name": "DYNAMIC",
           "architecture": "all"
         }
       ]

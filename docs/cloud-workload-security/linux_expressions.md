@@ -581,6 +581,8 @@ A process was executed (does not trigger on fork syscalls).
 
 | Property | Definition |
 | -------- | ------------- |
+| [`exec.abi`](#exec-abi-doc) | [Experimental] ABI of the file (only for executable ones) |
+| [`exec.architecture`](#exec-architecture-doc) | [Experimental] Architecture of the file (only for executable ones) |
 | [`exec.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`exec.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`exec.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -596,6 +598,7 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`exec.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`exec.compression`](#exec-compression-doc) | [Experimental] Compression type of the file (only for compressed files) |
 | [`exec.container.id`](#common-process-container-id-doc) | Container ID |
 | [`exec.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exec.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -652,13 +655,18 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`exec.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`exec.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
+| [`exec.is_executable`](#exec-is_executable-doc) | [Experimental] Tells if the file is executable or not |
+| [`exec.is_garble_obfuscated`](#exec-is_garble_obfuscated-doc) | [Experimental] Tells if the binary has been obfuscated using garble |
 | [`exec.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`exec.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`exec.is_upx_packed`](#exec-is_upx_packed-doc) | [Experimental] Tells if the binary has been packed using UPX |
 | [`exec.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`exec.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`exec.size`](#exec-size-doc) | [Experimental] Size of the file |
 | [`exec.syscall.path`](#exec-syscall-path-doc) | path argument of the syscall |
 | [`exec.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`exec.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`exec.type`](#exec-type-doc) | [Experimental] Type of the file |
 | [`exec.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`exec.user`](#common-credentials-user-doc) | User of the process |
 | [`exec.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
@@ -2952,10 +2960,78 @@ Definition: Timestamp of the event
 
 
 
+### `exec.abi` {#exec-abi-doc}
+Type: int
+
+Definition: [Experimental] ABI of the file (only for executable ones)
+
+
+Constants: [ABI](#abi)
+
+
+
+### `exec.architecture` {#exec-architecture-doc}
+Type: int
+
+Definition: [Experimental] Architecture of the file (only for executable ones)
+
+
+Constants: [Architecture](#architecture)
+
+
+
+### `exec.compression` {#exec-compression-doc}
+Type: int
+
+Definition: [Experimental] Compression type of the file (only for compressed files)
+
+
+Constants: [CompressionType](#compressiontype)
+
+
+
+### `exec.is_executable` {#exec-is_executable-doc}
+Type: bool
+
+Definition: [Experimental] Tells if the file is executable or not
+
+
+
+### `exec.is_garble_obfuscated` {#exec-is_garble_obfuscated-doc}
+Type: bool
+
+Definition: [Experimental] Tells if the binary has been obfuscated using garble
+
+
+
+### `exec.is_upx_packed` {#exec-is_upx_packed-doc}
+Type: bool
+
+Definition: [Experimental] Tells if the binary has been packed using UPX
+
+
+
+### `exec.size` {#exec-size-doc}
+Type: int
+
+Definition: [Experimental] Size of the file
+
+
+
 ### `exec.syscall.path` {#exec-syscall-path-doc}
 Type: string
 
 Definition: path argument of the syscall
+
+
+
+### `exec.type` {#exec-type-doc}
+Type: int
+
+Definition: [Experimental] Type of the file
+
+
+Constants: [FileType](#filetype)
 
 
 
@@ -3564,6 +3640,26 @@ Definition: Path argument of the syscall
 
 Constants are used to improve the readability of your rules. Some constants are common to all architectures, others are specific to some architectures.
 
+### `ABI` {#abi}
+ABI used for binary compilation.
+
+| Name | Architectures |
+| ---- |---------------|
+| `BIT32` | all |
+| `BIT64` | all |
+| `UNKNOWN_ABI` | all |
+
+### `Architecture` {#architecture}
+Architecture of the binary.
+
+| Name | Architectures |
+| ---- |---------------|
+| `X86` | all |
+| `X86_64` | all |
+| `ARM` | all |
+| `ARM64` | all |
+| `UNKNOWN_ARCHITECTURE` | all |
+
 ### `BPF attach types` {#bpf-attach-types}
 BPF attach types are the supported eBPF program attach types.
 
@@ -3905,6 +4001,19 @@ Boolean constants are the supported boolean constants.
 | `true` | all |
 | `false` | all |
 
+### `CompressionType` {#compressiontype}
+Compression algorithm.
+
+| Name | Architectures |
+| ---- |---------------|
+| `NONE` | all |
+| `GZIP` | all |
+| `ZIP` | all |
+| `ZSTD` | all |
+| `7Z` | all |
+| `BZIP2` | all |
+| `XZ` | all |
+
 ### `DNS Responses` {#dns-responses}
 DNS Responses are the supported response codes
 
@@ -4191,6 +4300,22 @@ File mode constants are the supported file permissions as well as constants for 
 | `S_IWOTH` | all |
 | `S_IXOTH` | all |
 
+### `FileType` {#filetype}
+File types.
+
+| Name | Architectures |
+| ---- |---------------|
+| `EMPTY` | all |
+| `SHELL_SCRIPT` | all |
+| `TEXT` | all |
+| `COMPRESSED` | all |
+| `ENCRYPTED` | all |
+| `BINARY` | all |
+| `LINUX_EXECUTABLE` | all |
+| `WINDOWS_EXECUTABLE` | all |
+| `MACOS_EXECUTABLE` | all |
+| `FILE_LESS` | all |
+
 ### `Inode mode constants` {#inode-mode-constants}
 Inode mode constants are the supported file type constants as well as the file mode constants.
 
@@ -4395,6 +4520,15 @@ L4 protocols are the supported Layer 4 protocols.
 | `IP_PROTO_UDPLITE` | all |
 | `IP_PROTO_MPLS` | all |
 | `IP_PROTO_RAW` | all |
+
+### `LinkageType` {#linkagetype}
+Linkage types.
+
+| Name | Architectures |
+| ---- |---------------|
+| `NONE` | all |
+| `STATIC` | all |
+| `DYNAMIC` | all |
 
 ### `MMap flags` {#mmap-flags}
 MMap flags are the supported flags for the mmap syscall.
