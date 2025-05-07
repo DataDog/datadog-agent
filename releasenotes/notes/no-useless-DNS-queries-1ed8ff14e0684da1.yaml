@@ -8,6 +8,4 @@
 ---
 fixes:
   - |
-    Make the agent use FQDN when building intake hostnames to avoid
-    generating as many useless DNS queries as entries in the
-    ``search`` section of the ``/etc/resolv.conf` file.
+    Use FQDNs when the Agent builds intake hostnames to prevent generating as many DNS queries as there are entries in the ``search`` section of the ``/etc/resolv.conf` file.
