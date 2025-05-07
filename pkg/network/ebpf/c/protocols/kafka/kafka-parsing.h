@@ -1626,7 +1626,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         return false;
     }
 
-    // Report api version hits telemetry
+    // Report api version hits telemetry before checking whether the api version is supported
     switch (kafka_header.api_key) {
         case KAFKA_PRODUCE:
             update_classified_produce_api_version_hits_telemetry(kafka_tel, kafka_header.api_version);
@@ -1634,6 +1634,11 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         case KAFKA_FETCH:
             update_classified_fetch_api_version_hits_telemetry(kafka_tel, kafka_header.api_version);
             break;
+    }
+
+    // Check if the api key and version are supported
+    if(!is_supported_kafka_api_version(kafka_header.api_key, kafka_header.api_version)) {
+        return false;
     }
 
     kafka_transaction->request_started = bpf_ktime_get_ns();
@@ -1820,7 +1825,7 @@ static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *
 static __always_inline void update_classified_fetch_api_version_hits_telemetry(kafka_telemetry_t *kafka_tel, __u8 api_version) {
     __u8 bucket_idx = api_version; // Note that api_version may be 0
 
-    if (bucket_idx < 0 || bucket_idx > KAFKA_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) {
+    if (bucket_idx < 0 || bucket_idx > KAFKA_TELEMETRY_MAX_API_VERSION) {
         return;
     }
 
@@ -1831,7 +1836,7 @@ static __always_inline void update_classified_fetch_api_version_hits_telemetry(k
 static __always_inline void update_classified_produce_api_version_hits_telemetry(kafka_telemetry_t *kafka_tel, __u8 api_version) {
     __u8 bucket_idx = api_version; // Note that api_version may be 0
 
-    if (bucket_idx < 0 || bucket_idx > KAFKA_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
+    if (bucket_idx < 0 || bucket_idx > KAFKA_TELEMETRY_MAX_API_VERSION) {
         return;
     }
 
