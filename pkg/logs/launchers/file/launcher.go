@@ -43,6 +43,7 @@ type Launcher struct {
 	pendingSources      []*sources.LogSource
 	pendingSourcesMutex sync.Mutex
 	activeSources       []*sources.LogSource
+	activeSourcesMutex  sync.Mutex
 	tailingLimit        int
 	fileProvider        *fileprovider.FileProvider
 	tailers             *tailers.TailerContainer[*tailer.Tailer]
@@ -163,6 +164,7 @@ func (s *Launcher) cleanup() {
 // The Scanner needs to stop that previous tailer, and start a new one for the new file.
 func (s *Launcher) scan() {
 	s.pendingSourcesMutex.Lock()
+	s.activeSourcesMutex.Lock()
 
 	// Process pending sources from addedSources
 	for len(s.pendingSources) > 0 {
@@ -175,6 +177,7 @@ func (s *Launcher) scan() {
 	s.pendingSourcesMutex.Unlock()
 
 	files := s.fileProvider.FilesToTail(s.validatePodContainerID, s.activeSources)
+	s.activeSourcesMutex.Unlock()
 	filesTailed := make(map[string]bool)
 	var allFiles []string
 
@@ -283,6 +286,9 @@ func (s *Launcher) addSource(source *sources.LogSource) {
 
 // removeSource removes the source from cache.
 func (s *Launcher) removeSource(source *sources.LogSource) {
+	s.activeSourcesMutex.Lock()
+	defer s.activeSourcesMutex.Unlock()
+
 	for i, src := range s.activeSources {
 		if src == source {
 			// no need to stop the tailer here, it will be stopped in the next iteration of scan.
