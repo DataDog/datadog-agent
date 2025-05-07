@@ -256,6 +256,46 @@ func (fh *EBPFLessFieldHandlers) ResolveFileFilesystem(_ *model.Event, e *model.
 	return e.Filesystem
 }
 
+// ResolveFileMetadatasSize resolves file metadata size
+func (fh *EBPFLessFieldHandlers) ResolveFileMetadatasSize(_ *model.Event, _ *model.FileMetadatas) int {
+	return 0
+}
+
+// ResolveFileMetadatasType resolves file metadata type
+func (fh *EBPFLessFieldHandlers) ResolveFileMetadatasType(_ *model.Event, _ *model.FileMetadatas) int {
+	return 0
+}
+
+// ResolveFileMetadatasIsExecutable resolves file metadata is_executable
+func (fh *EBPFLessFieldHandlers) ResolveFileMetadatasIsExecutable(_ *model.Event, _ *model.FileMetadatas) bool {
+	return false
+}
+
+// ResolveFileMetadatasArchitecture resolves file metadata architecture
+func (fh *EBPFLessFieldHandlers) ResolveFileMetadatasArchitecture(_ *model.Event, _ *model.FileMetadatas) int {
+	return 0
+}
+
+// ResolveFileMetadatasABI resolves file metadata ABI
+func (fh *EBPFLessFieldHandlers) ResolveFileMetadatasABI(_ *model.Event, _ *model.FileMetadatas) int {
+	return 0
+}
+
+// ResolveFileMetadatasIsUPXPacked resolves file metadata is_upx_packed
+func (fh *EBPFLessFieldHandlers) ResolveFileMetadatasIsUPXPacked(_ *model.Event, _ *model.FileMetadatas) bool {
+	return false
+}
+
+// ResolveFileMetadatasCompression resolves file metadata compression
+func (fh *EBPFLessFieldHandlers) ResolveFileMetadatasCompression(_ *model.Event, _ *model.FileMetadatas) int {
+	return 0
+}
+
+// ResolveFileMetadatasIsGarbleObfuscated resolves file metadata is_garble_obfuscated
+func (fh *EBPFLessFieldHandlers) ResolveFileMetadatasIsGarbleObfuscated(_ *model.Event, _ *model.FileMetadatas) bool {
+	return false
+}
+
 // ResolveK8SGroups resolves the k8s groups of the event
 func (fh *EBPFLessFieldHandlers) ResolveK8SGroups(_ *model.Event, e *model.UserSessionContext) []string {
 	return e.K8SGroups
