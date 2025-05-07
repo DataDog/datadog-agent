@@ -38,7 +38,7 @@ func (m *MockRDSClient) EXPECT() *MockRDSClientMockRecorder {
 }
 
 // GetAuroraClusterEndpoints mocks base method.
-func (m *MockRDSClient) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string) (map[string]*AuroraCluster, error) {
+func (m *MockRDSClient) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string, dbmTag string) (map[string]*AuroraCluster, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAuroraClusterEndpoints", ctx, dbClusterIdentifiers)
 	ret0, _ := ret[0].(map[string]*AuroraCluster)

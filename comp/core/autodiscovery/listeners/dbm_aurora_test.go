@@ -25,6 +25,7 @@ import (
 type mockRDSClientConfigurer func(k *aws.MockRDSClient)
 
 const defaultClusterTag = "datadoghq.com/scrape:true"
+const defaultDbmTag = "datadoghq.com/dbm:true"
 
 func TestDBMAuroraListener(t *testing.T) {
 	testCases := []struct {
@@ -114,6 +115,7 @@ func TestDBMAuroraListener(t *testing.T) {
 				DiscoveryInterval: 1,
 				Region:            "us-east-1",
 				Tags:              []string{defaultClusterTag},
+				DbmTag:            "usedbm",
 			},
 			numDiscoveryIntervals: 1,
 			rdsClientConfigurer: func(k *aws.MockRDSClient) {

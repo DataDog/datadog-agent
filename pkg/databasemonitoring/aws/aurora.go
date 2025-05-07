@@ -43,7 +43,7 @@ const (
 
 // GetAuroraClusterEndpoints queries an AWS account for the endpoints of an Aurora cluster
 // requires the dbClusterIdentifier for the cluster
-func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string) (map[string]*AuroraCluster, error) {
+func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string, dbmTag string) (map[string]*AuroraCluster, error) {
 	if len(dbClusterIdentifiers) == 0 {
 		return nil, fmt.Errorf("at least one database cluster identifier is required")
 	}
@@ -100,7 +100,14 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 					}
 				}
 				for _, tag := range db.TagList {
-					if tag.Key != nil && *tag.Key == "datadoghq.com/dbm" && tag.Value != nil {
+					tagString := ""
+					if tag.Key != nil {
+						tagString += *tag.Key
+					}
+					if tag.Value != nil {
+						tagString += ":" + *tag.Value
+					}
+					if tagString == dbmTag {
 						if *tag.Value == "true" {
 							instance.DbmEnabled = true
 						} else {

@@ -21,6 +21,8 @@ import (
 
 type mockrdsServiceConfigurer func(k *MockrdsService)
 
+const defaultDbmTag = "datadoghq.com/dbm:true"
+
 func TestGetAuroraClusterEndpoints(t *testing.T) {
 	testCases := []struct {
 		name                           string
@@ -339,7 +341,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 			mockClient := NewMockrdsService(ctrl)
 			tt.configureClient(mockClient)
 			client := &Client{client: mockClient}
-			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs)
+			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs, defaultDbmTag)
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 				return
@@ -512,7 +514,7 @@ func TestGetAuroraClusterEndpointsDbName(t *testing.T) {
 			mockClient := NewMockrdsService(ctrl)
 			tt.configureClient(mockClient)
 			client := &Client{client: mockClient}
-			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs)
+			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs, defaultDbmTag)
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 				return
