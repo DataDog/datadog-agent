@@ -28,12 +28,15 @@ func RunServer(t testing.TB, serverPort string) error {
 	dir, _ := testutil.CurDir()
 	scanner, err := globalutils.NewScanner(regexp.MustCompile("go-httpbin listening on https://0.0.0.0:8080"), globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
-	dockerCfg := dockerutils.NewComposeConfig("https-gotls",
-		dockerutils.DefaultTimeout,
-		dockerutils.DefaultRetries,
-		scanner,
-		env,
-		dir+"/../testdata/docker-compose.yml")
-	return dockerutils.Run(t, dockerCfg)
 
+	dockerCfg := dockerutils.NewComposeConfig(
+		dockerutils.NewBaseConfig(
+			dockerutils.WithName("https-gotls"),
+			dockerutils.WithTimeout(dockerutils.DefaultTimeout),
+			dockerutils.WithRetries(dockerutils.DefaultRetries),
+			dockerutils.WithPatternScanner(scanner),
+			dockerutils.WithEnv(env),
+		),
+		dockerutils.WithFile(dir+"/../testdata/docker-compose.yml"))
+	return dockerutils.Run(t, dockerCfg)
 }

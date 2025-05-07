@@ -154,31 +154,99 @@ func (c composeConfig) commandArgs(t subCommandType) []string {
 	}
 }
 
-func createBaseConfig(name string, timeout time.Duration, retries int, patternScanner *testutil.PatternScanner, env []string) baseConfig {
-	return baseConfig{
-		name:           name,
-		timeout:        timeout,
-		retries:        retries,
-		patternScanner: patternScanner,
-		env:            env,
+func WithImageName(imageName string) RunConfigOption {
+	return func(c *runConfig) {
+		c.ImageName = imageName
+	}
+}
+
+func WithBinary(binary string) RunConfigOption {
+	return func(c *runConfig) {
+		c.Binary = binary
+	}
+}
+
+func WithBinaryArgs(binaryArgs []string) RunConfigOption {
+	return func(c *runConfig) {
+		c.BinaryArgs = binaryArgs
+	}
+}
+
+func WithMounts(mounts map[string]string) RunConfigOption {
+	return func(c *runConfig) {
+		c.Mounts = mounts
 	}
 }
 
 // NewRunConfig creates a new runConfig instance for a single docker container.
-func NewRunConfig(name string, timeout time.Duration, retries int, patternScanner *testutil.PatternScanner, env []string, imageName, binary string, binaryArgs []string, mounts map[string]string) LifecycleConfig {
-	return runConfig{
-		baseConfig: createBaseConfig(name, timeout, retries, patternScanner, env),
-		ImageName:  imageName,
-		Binary:     binary,
-		BinaryArgs: binaryArgs,
-		Mounts:     mounts,
+func NewRunConfig(base baseConfig, opts ...RunConfigOption) LifecycleConfig {
+	cfg := &runConfig{
+		baseConfig: base,
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	return *cfg
+}
+
+func WithFile(file string) ComposeConfigOption {
+	return func(c *composeConfig) {
+		c.File = file
 	}
 }
 
 // NewComposeConfig creates a new composeConfig instance for the docker-compose.
-func NewComposeConfig(name string, timeout time.Duration, retries int, patternScanner *testutil.PatternScanner, env []string, file string) LifecycleConfig {
-	return composeConfig{
-		baseConfig: createBaseConfig(name, timeout, retries, patternScanner, env),
-		File:       file,
+func NewComposeConfig(base baseConfig, opts ...ComposeConfigOption) LifecycleConfig {
+	cfg := &composeConfig{
+		baseConfig: base,
 	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	return *cfg
+}
+
+type BaseConfigOption func(*baseConfig)
+type RunConfigOption func(*runConfig)
+type ComposeConfigOption func(*composeConfig)
+
+func WithName(name string) BaseConfigOption {
+	return func(c *baseConfig) {
+		c.name = name
+	}
+}
+
+func WithTimeout(timeout time.Duration) BaseConfigOption {
+	return func(c *baseConfig) {
+		c.timeout = timeout
+	}
+}
+
+func WithRetries(retries int) BaseConfigOption {
+	return func(c *baseConfig) {
+		c.retries = retries
+	}
+}
+
+func WithPatternScanner(patternScanner *testutil.PatternScanner) BaseConfigOption {
+	return func(c *baseConfig) {
+		c.patternScanner = patternScanner
+	}
+}
+
+func WithEnv(env []string) BaseConfigOption {
+	return func(c *baseConfig) {
+		c.env = env
+	}
+}
+
+func NewBaseConfig(opts ...BaseConfigOption) baseConfig {
+	cfg := baseConfig{
+		timeout: DefaultTimeout,
+		retries: DefaultRetries,
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return cfg
 }
