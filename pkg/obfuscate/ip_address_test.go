@@ -116,7 +116,7 @@ func BenchmarkQuantizePeerIpAddresses(b *testing.B) {
 
 func FuzzQuantizePeerIPAddresses(f *testing.F) {
 	// Ensure this never panics
-	f.Fuzz(func(t *testing.T, s string) {
+	f.Fuzz(func(_ *testing.T, s string) {
 		QuantizePeerIPAddresses(s)
 	})
 }
