@@ -9,6 +9,7 @@ package file
 import (
 	"regexp"
 	"slices"
+	"sync"
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -55,6 +56,7 @@ type Launcher struct {
 	scanPeriod             time.Duration
 	flarecontroller        *flareController.FlareController
 	tagger                 tagger.Component
+	wg                     sync.WaitGroup
 }
 
 // NewLauncher returns a new launcher.
@@ -117,15 +119,24 @@ func (s *Launcher) run() {
 		case source := <-s.removedSources:
 			s.removeSource(source)
 		case <-scanTicker.C:
-			s.cleanUpRotatedTailers()
-			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
-			s.scan()
+			s.wg.Add(1)
+			go s.cleanupRotatedTailersAndScan()
 		case <-s.stop:
+			s.wg.Wait()
 			// no more file should be tailed
 			s.cleanup()
 			return
 		}
 	}
+}
+
+// cleanupRotatedTailersAndScan combines the cleanupRotatedTailers and scan functions
+func (s *Launcher) cleanupRotatedTailersAndScan() {
+	defer s.wg.Done()
+
+	s.cleanUpRotatedTailers()
+	// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
+	s.scan()
 }
 
 // cleanup all tailers
