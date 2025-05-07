@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Fix data race in orchestrator check sensitive data scrubber. Note this
-    would only occur when running the check on datadog cluster check runners.
+    Fix data race in the orchestrator check for the sensitive data scrubber. Note: This
+    would only occur when running the check on Datadog cluster check runners.
