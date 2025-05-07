@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"text/template"
@@ -53,6 +54,17 @@ func TestGoDI(t *testing.T) {
 		t.Skip("ringbuffers not supported on this kernel")
 	}
 
+	for function, expectedCaptureTuples := range expectedCaptures {
+		for _, expectedCaptureValue := range expectedCaptureTuples {
+			justFunctionName := string(function[strings.LastIndex(function, ".")+1:])
+			t.Run(justFunctionName, func(t *testing.T) {
+				runTestCase(t, function, expectedCaptureValue)
+			})
+		}
+	}
+}
+
+func runTestCase(t *testing.T, function string, expectedCaptureValue CapturedValueMapWithOptions) {
 	serviceName := "go-di-sample-service-" + randomLabel()
 	sampleServicePath := BuildSampleService(t)
 	cmd := exec.Command(sampleServicePath)
@@ -79,7 +91,7 @@ func TestGoDI(t *testing.T) {
 
 	require.NoError(t, cmd.Start())
 	t.Cleanup(func() {
-		t.Log(cmd.Process.Kill())
+		cmd.Process.Kill()
 	})
 
 	eventOutputWriter := &eventOutputTestWriter{
@@ -113,49 +125,44 @@ func TestGoDI(t *testing.T) {
 	require.NoError(t, err)
 
 	b := []byte{}
-	var buf *bytes.Buffer
-	doCapture = false
-	for function, expectedCaptureTuples := range expectedCaptures {
-		for _, expectedCaptureValue := range expectedCaptureTuples {
-			// Generate config for this function
-			buf = bytes.NewBuffer(b)
-			functionWithoutPackagePrefix, _ := strings.CutPrefix(function, "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.")
-			t.Log("Instrumenting ", functionWithoutPackagePrefix)
-			results[function] = &testResult{
-				testName:          functionWithoutPackagePrefix,
-				expectation:       expectedCaptureValue.CapturedValueMap,
-				matches:           []bool{},
-				unexpectedResults: []ditypes.CapturedValueMap{},
-			}
-			err = cfgTemplate.Execute(buf, configDataType{
-				ServiceName:  serviceName,
-				FunctionName: functionWithoutPackagePrefix,
-				CaptureDepth: expectedCaptureValue.Options.CaptureDepth,
-			})
-			require.NoError(t, err)
-			eventOutputWriter.expectedResult = expectedCaptureValue.CapturedValueMap
+	buf := bytes.NewBuffer(b)
 
-			// Read the configuration via the config manager
-			_, err := cm.ConfigWriter.Write(buf.Bytes())
-			time.Sleep(time.Second * 2)
-			doCapture = true
-			if err != nil {
-				t.Errorf("could not read new configuration: %s", err)
-			}
-			time.Sleep(time.Second * 2)
-			doCapture = false
-		}
+	// Generate config for this function
+	functionWithoutPackagePrefix, _ := strings.CutPrefix(function, "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.")
+	t.Log("Instrumenting ", functionWithoutPackagePrefix)
+	result := &testResult{
+		testName:          function,
+		expectation:       expectedCaptureValue.CapturedValueMap,
+		matches:           []bool{},
+		unexpectedResults: []ditypes.CapturedValueMap{},
 	}
+	results[function] = result
+	err = cfgTemplate.Execute(buf, configDataType{
+		ServiceName:  serviceName,
+		FunctionName: functionWithoutPackagePrefix,
+		CaptureDepth: expectedCaptureValue.Options.CaptureDepth,
+	})
+	require.NoError(t, err)
+	eventOutputWriter.expectedResult = expectedCaptureValue.CapturedValueMap
 
-	for i := range results {
-		for _, ok := range results[i].matches {
-			if !ok {
-				t.Errorf("Failed test for: %s\nReceived event: %v\nExpected: %v",
-					results[i].testName,
-					pretty.Sprint(results[i].unexpectedResults),
-					pretty.Sprint(results[i].expectation))
-				break
-			}
+	// Read the configuration via the config manager
+	_, err = cm.ConfigWriter.Write(buf.Bytes())
+	time.Sleep(time.Second * 2)
+	doCapture = true
+	if err != nil {
+		t.Errorf("could not read new configuration: %s", err)
+	}
+	time.Sleep(time.Second * 2)
+	doCapture = false
+
+	// Check results
+	for _, ok := range result.matches {
+		if !ok {
+			t.Errorf("Failed test for: %s\nReceived event: %v\nExpected: %v",
+				result.testName,
+				pretty.Sprint(result.unexpectedResults),
+				pretty.Sprint(result.expectation))
+			break
 		}
 	}
 }
@@ -166,6 +173,64 @@ type eventOutputTestWriter struct {
 }
 
 var doCapture bool
+
+// compareCapturedValues compares two CapturedValueMap objects in a deterministic way.
+// This function is needed because the test results are stored in maps, which don't guarantee
+// a consistent iteration order.
+//
+// The function ensures consistent comparison by:
+// 1. Comparing map lengths first
+// 2. Sorting keys before comparison
+// 3. Recursively comparing nested fields
+// 4. Comparing all relevant fields (Type, NotCapturedReason, Value) in a deterministic order
+func compareCapturedValues(expected, actual ditypes.CapturedValueMap) bool {
+	if len(expected) != len(actual) {
+		return false
+	}
+
+	expectedKeys := make([]string, 0, len(expected))
+	for k := range expected {
+		expectedKeys = append(expectedKeys, k)
+	}
+	sort.Strings(expectedKeys)
+
+	actualKeys := make([]string, 0, len(actual))
+	for k := range actual {
+		actualKeys = append(actualKeys, k)
+	}
+	sort.Strings(actualKeys)
+
+	if !reflect.DeepEqual(expectedKeys, actualKeys) {
+		return false
+	}
+
+	for _, k := range expectedKeys {
+		expectedVal := expected[k]
+		actualVal := actual[k]
+
+		if expectedVal.Type != actualVal.Type {
+			return false
+		}
+
+		if expectedVal.NotCapturedReason != actualVal.NotCapturedReason {
+			return false
+		}
+
+		if expectedVal.Value != nil && actualVal.Value != nil {
+			if *expectedVal.Value != *actualVal.Value {
+				return false
+			}
+		} else if expectedVal.Value != nil || actualVal.Value != nil {
+			return false
+		}
+
+		if !compareCapturedValues(expectedVal.Fields, actualVal.Fields) {
+			return false
+		}
+	}
+
+	return true
+}
 
 func (e *eventOutputTestWriter) Write(p []byte) (n int, err error) {
 	if !doCapture {
@@ -184,7 +249,7 @@ func (e *eventOutputTestWriter) Write(p []byte) (n int, err error) {
 		e.t.Errorf("received event from unexpected probe: %s", funcName)
 		return
 	}
-	if !reflect.DeepEqual(e.expectedResult, actual) {
+	if !compareCapturedValues(e.expectedResult, actual) {
 		b.matches = append(b.matches, false)
 		b.unexpectedResults = append(b.unexpectedResults, actual)
 		e.t.Error("received unexpected value")

@@ -28,12 +28,11 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	spconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	spconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
@@ -134,7 +133,7 @@ func (tm *testModule) Root() string {
 	return tm.st.root
 }
 
-func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) bool {
+func (tm *testModule) RuleMatch(_ *eval.Context, rule *rules.Rule, event eval.Event) bool {
 	tm.eventHandlers.RLock()
 	callback := tm.eventHandlers.onRuleMatch
 	tm.eventHandlers.RUnlock()
@@ -557,7 +556,7 @@ func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHa
 
 //nolint:deadcode,unused
 func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
-	b, err := serializers.MarshalEvent(ev)
+	b, err := serializers.MarshalEvent(ev, nil)
 	return string(b), err
 }
 
@@ -812,6 +811,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"EnforcementDisarmerExecutablePeriod":        opts.enforcementDisarmerExecutablePeriod,
 		"EventServerRetention":                       opts.eventServerRetention,
 		"EnableSelfTests":                            opts.enableSelfTests,
+		"DnsPort":                                    opts.dnsPort,
 		"NetworkFlowMonitorEnabled":                  opts.networkFlowMonitorEnabled,
 	}); err != nil {
 		return nil, nil, err

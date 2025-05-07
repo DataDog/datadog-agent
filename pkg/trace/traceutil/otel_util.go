@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
 // Util functions for converting OTel semantics to DD semantics.
@@ -203,7 +204,7 @@ func GetOTelAttrVal(attrs pcommon.Map, normalize bool, keys ...string) string {
 	}
 
 	if normalize {
-		val = NormalizeTagValue(val)
+		val = normalizeutil.NormalizeTagValue(val)
 	}
 
 	return val
@@ -276,11 +277,11 @@ func GetOTelService(res pcommon.Resource, normalize bool) string {
 		svc = "otlpresourcenoservicename"
 	}
 	if normalize {
-		newsvc, err := NormalizeService(svc, "")
+		newsvc, err := normalizeutil.NormalizeService(svc, "")
 		switch err {
-		case ErrTooLong:
-			log.Debugf("Fixing malformed trace. Service is too long (reason:service_truncate), truncating span.service to length=%d: %s", MaxServiceLen, svc)
-		case ErrInvalid:
+		case normalizeutil.ErrTooLong:
+			log.Debugf("Fixing malformed trace. Service is too long (reason:service_truncate), truncating span.service to length=%d: %s", normalizeutil.MaxServiceLen, svc)
+		case normalizeutil.ErrInvalid:
 			log.Debugf("Fixing malformed trace. Service is invalid (reason:service_invalid), replacing invalid span.service=%s with fallback span.service=%s", svc, newsvc)
 		}
 		svc = newsvc
@@ -322,8 +323,8 @@ func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) 
 			resName = span.Name()
 		}
 	}
-	if len(resName) > MaxResourceLen {
-		resName = resName[:MaxResourceLen]
+	if len(resName) > normalizeutil.MaxResourceLen {
+		resName = resName[:normalizeutil.MaxResourceLen]
 	}
 	return
 }
@@ -331,8 +332,8 @@ func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) 
 // GetOTelResourceV2 returns the DD resource name based on OTel span and resource attributes.
 func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) (resName string) {
 	defer func() {
-		if len(resName) > MaxResourceLen {
-			resName = resName[:MaxResourceLen]
+		if len(resName) > normalizeutil.MaxResourceLen {
+			resName = resName[:normalizeutil.MaxResourceLen]
 		}
 	}()
 	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "resource.name"); m != "" {
@@ -405,7 +406,7 @@ func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) (resName string) 
 func GetOTelOperationNameV2(
 	span ptrace.Span,
 ) string {
-	if operationName := GetOTelAttrVal(span.Attributes(), false, "operation.name"); operationName != "" {
+	if operationName := GetOTelAttrVal(span.Attributes(), true, "operation.name"); operationName != "" {
 		return operationName
 	}
 
@@ -522,13 +523,13 @@ func GetOTelOperationNameV1(
 	}
 
 	if normalize {
-		normalizeName, err := NormalizeName(name)
+		normalizeName, err := normalizeutil.NormalizeName(name)
 		switch err {
-		case ErrEmpty:
+		case normalizeutil.ErrEmpty:
 			log.Debugf("Fixing malformed trace. Name is empty (reason:span_name_empty), setting span.name=%s", normalizeName)
-		case ErrTooLong:
-			log.Debugf("Fixing malformed trace. Name is too long (reason:span_name_truncate), truncating span.name to length=%d", MaxServiceLen)
-		case ErrInvalid:
+		case normalizeutil.ErrTooLong:
+			log.Debugf("Fixing malformed trace. Name is too long (reason:span_name_truncate), truncating span.name to length=%d", normalizeutil.MaxServiceLen)
+		case normalizeutil.ErrInvalid:
 			log.Debugf("Fixing malformed trace. Name is invalid (reason:span_name_invalid), setting span.name=%s", normalizeName)
 		}
 		name = normalizeName
@@ -587,13 +588,13 @@ func GetOTelContainerTags(rattrs pcommon.Map, tagKeys []string) []string {
 		if mappedKey, ok := attributes.ContainerMappings[key]; ok {
 			// If the key has a mapping in ContainerMappings, use the mapped key
 			if val, ok := containerTagsMap[mappedKey]; ok {
-				t := NormalizeTag(mappedKey + ":" + val)
+				t := normalizeutil.NormalizeTag(mappedKey + ":" + val)
 				containerTags = append(containerTags, t)
 			}
 		} else {
 			// Otherwise populate as additional container tags
 			if val := GetOTelAttrVal(rattrs, false, key); val != "" {
-				t := NormalizeTag(key + ":" + val)
+				t := normalizeutil.NormalizeTag(key + ":" + val)
 				containerTags = append(containerTags, t)
 			}
 		}

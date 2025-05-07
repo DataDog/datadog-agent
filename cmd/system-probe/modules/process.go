@@ -8,32 +8,26 @@
 package modules
 
 import (
-	"errors"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
-	"go.uber.org/atomic"
-
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-
-	//nolint:revive // TODO(PROC) Fix revive linter
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ErrProcessUnsupported is an error type indicating that the process module is not support in the running environment
-var ErrProcessUnsupported = errors.New("process module unsupported")
+func init() { registerModule(Process) }
 
 // Process is a module that fetches process level data
-var Process = module.Factory{
+var Process = &module.Factory{
 	Name:             config.ProcessModule,
 	ConfigNamespaces: []string{},
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
@@ -42,8 +36,7 @@ var Process = module.Factory{
 		// we disable returning zero values for stats to reduce parsing work on process-agent side
 		p := procutil.NewProcessProbe(procutil.WithReturnZeroPermStats(false))
 		return &process{
-			probe:     p,
-			lastCheck: atomic.NewInt64(0),
+			probe: p,
 		}, nil
 	},
 	NeedsEBPF: func() bool {
@@ -55,7 +48,7 @@ var _ module.Module = &process{}
 
 type process struct {
 	probe     procutil.Probe
-	lastCheck *atomic.Int64
+	lastCheck atomic.Int64
 }
 
 // GetStats returns stats for the module
@@ -67,7 +60,7 @@ func (t *process) GetStats() map[string]interface{} {
 
 // Register registers endpoints for the module to expose data
 func (t *process) Register(httpMux *module.Router) error {
-	runCounter := atomic.NewUint64(0)
+	var runCounter atomic.Uint64
 	httpMux.HandleFunc("/stats", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		t.lastCheck.Store(start.Unix())
@@ -88,7 +81,7 @@ func (t *process) Register(httpMux *module.Router) error {
 		marshaler := encoding.GetMarshaler(contentType)
 		writeStats(w, marshaler, stats)
 
-		count := runCounter.Inc()
+		count := runCounter.Add(1)
 		logProcTracerRequests(count, len(stats), start)
 	}).Methods("POST")
 
@@ -103,7 +96,7 @@ func (t *process) Close() {
 }
 
 func logProcTracerRequests(count uint64, statsCount int, start time.Time) {
-	args := []interface{}{string(sysconfig.ProcessModule), count, statsCount, time.Since(start)}
+	args := []interface{}{string(config.ProcessModule), count, statsCount, time.Since(start)}
 	msg := "Got request on /%s/stats (count: %d): retrieved %d stats in %s"
 	switch {
 	case count <= 5, count%20 == 0:
@@ -123,7 +116,7 @@ func writeStats(w http.ResponseWriter, marshaler encoding.Marshaler, stats map[i
 
 	w.Header().Set("Content-type", marshaler.ContentType())
 	w.Write(buf)
-	log.Tracef("/%s/stats: %d stats, %d bytes", string(sysconfig.ProcessModule), len(stats), len(buf))
+	log.Tracef("/%s/stats: %d stats, %d bytes", string(config.ProcessModule), len(stats), len(buf))
 }
 
 func getPids(r *http.Request) ([]int32, error) {

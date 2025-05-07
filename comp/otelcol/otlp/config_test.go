@@ -372,7 +372,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
 							"endpoint":              "0.0.0.0:9999",
-							"max_recv_msg_size_mib": "10",
+							"max_recv_msg_size_mib": 10,
 						},
 					},
 				},

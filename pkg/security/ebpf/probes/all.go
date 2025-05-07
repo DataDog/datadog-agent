@@ -36,6 +36,19 @@ var (
 	EventsPerfRingBufferSize = 256 * os.Getpagesize()
 )
 
+// see kernel definitions
+func tailCallFnc(name string) string {
+	return "tail_call_" + name
+}
+
+func tailCallTracepointFnc(name string) string {
+	return "tail_call_tracepoint_" + name
+}
+
+func tailCallClassifierFnc(name string) string {
+	return "tail_call_classifier_" + name
+}
+
 func appendSyscallProbes(probes []*manager.Probe, fentry bool, flag int, compat bool, syscalls ...string) []*manager.Probe {
 	for _, syscall := range syscalls {
 		probes = append(probes,
@@ -184,6 +197,7 @@ type MapSpecEditorOpts struct {
 	ReducedProcPidCacheSize   bool
 	NetworkFlowMonitorEnabled bool
 	NetworkSkStorageEnabled   bool
+	SpanTrackMaxCount         int
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -217,11 +231,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"rate_limiters": {
+		"pid_rate_limiters": {
 			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
-
 		"active_flows": {
 			MaxEntries: activeFlowsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
@@ -256,6 +269,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		},
 		"secprofs_syscalls": {
 			MaxEntries: uint32(opts.SecurityProfileMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"span_tls": {
+			MaxEntries: uint32(opts.SpanTrackMaxCount),
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}
@@ -368,7 +385,7 @@ func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, networkFlowMonit
 // AllBPFProbeWriteUserProgramFunctions returns the list of program functions that use the bpf_probe_write_user helper
 func AllBPFProbeWriteUserProgramFunctions() []string {
 	return []string{
-		"tail_call_target_dentry_resolver_erpc_write_user",
+		tailCallFnc("dentry_resolver_erpc_write_user"),
 	}
 }
 

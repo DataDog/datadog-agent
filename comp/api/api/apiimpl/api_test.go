@@ -16,35 +16,19 @@ import (
 
 	"golang.org/x/net/http2"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 
 	// package dependencies
-
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	// third-party dependencies
 	dto "github.com/prometheus/client_model/go"
@@ -59,7 +43,7 @@ type testdeps struct {
 
 	API       api.Component
 	Telemetry telemetry.Mock
-	AuthToken authtoken.Component
+	IPC       ipc.Component
 }
 
 func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option) testdeps {
@@ -67,22 +51,7 @@ func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option
 		t,
 		Module(),
 		fx.Replace(params),
-		hostnameimpl.MockModule(),
-		secretsimpl.MockModule(),
-		demultiplexerimpl.MockModule(),
-		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
-		fx.Supply(context.Background()),
-		taggerfxmock.MockModule(),
-		fx.Provide(func(mock taggermock.Mock) tagger.Component {
-			return mock
-		}),
-		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
-		autodiscoveryimpl.MockModule(),
-		fx.Provide(func(mock autodiscovery.Mock) autodiscovery.Component {
-			return mock
-		}),
-		fx.Supply(option.None[collector.Component]()),
-		pidmapimpl.Module(),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
 		fx.Provide(func() api.AgentEndpointProvider {
 			return api.AgentEndpointProvider{
@@ -92,29 +61,16 @@ func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option
 		telemetryimpl.MockModule(),
 		config.MockModule(),
 		grpcNonefx.Module(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Options(fxOptions...),
 	)
 }
 
-func testAPIServer(params config.MockParams, fxOptions ...fx.Option) (*fx.App, testdeps, error) {
+func testAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option) (*fx.App, testdeps, error) {
 	return fxutil.TestApp[testdeps](
 		Module(),
 		fx.Replace(params),
-		hostnameimpl.MockModule(),
-		secretsimpl.MockModule(),
-		demultiplexerimpl.MockModule(),
-		fx.Provide(func(t *testing.T) authtoken.Component { return authtokenmock.New(t) }),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Supply(context.Background()),
-		taggerfxmock.MockModule(),
-		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
-		autodiscoveryimpl.MockModule(),
-		fx.Provide(func(mock autodiscovery.Mock) autodiscovery.Component {
-			return mock
-		}),
-		fx.Supply(option.None[collector.Component]()),
-		pidmapimpl.Module(),
 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
 		fx.Provide(func() api.AgentEndpointProvider {
 			return api.AgentEndpointProvider{
@@ -124,8 +80,6 @@ func testAPIServer(params config.MockParams, fxOptions ...fx.Option) (*fx.App, t
 		telemetryimpl.MockModule(),
 		config.MockModule(),
 		grpcNonefx.Module(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Options(fxOptions...),
 	)
 }
@@ -290,7 +244,7 @@ func TestStartServerWithGrpcServer(t *testing.T) {
 	req.Header.Set("Content-Type", "application/grpc")
 
 	transport := &http.Transport{
-		TLSClientConfig: deps.AuthToken.GetTLSClientConfig(),
+		TLSClientConfig: deps.IPC.GetTLSClientConfig(),
 	}
 
 	http2.ConfigureTransport(transport)
@@ -318,7 +272,7 @@ func TestStartServerWithGrpcServerFailGateway(t *testing.T) {
 		"agent_ipc.port": 0,
 	}}
 
-	_, _, errApp := testAPIServer(cfgOverride, fx.Options(
+	_, _, errApp := testAPIServer(t, cfgOverride, fx.Options(
 		fx.Replace(
 			fx.Annotate(&grpcServer{
 				grpcServer: true,
@@ -354,7 +308,7 @@ func TestStartServerWithoutGrpcServer(t *testing.T) {
 	req.Header.Set("Content-Type", "application/grpc")
 
 	transport := &http.Transport{
-		TLSClientConfig: deps.AuthToken.GetTLSClientConfig(),
+		TLSClientConfig: deps.IPC.GetTLSClientConfig(),
 	}
 
 	http2.ConfigureTransport(transport)

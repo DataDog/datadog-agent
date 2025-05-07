@@ -20,6 +20,8 @@ import (
 
 // CRHandlers implements the Handlers interface for Kubernetes CronJobs.
 type CRHandlers struct {
+	// IsGenericResource is a flag to indicate if the resource is a generic resource.
+	IsGenericResource bool
 	common.BaseHandlers
 }
 
@@ -42,9 +44,13 @@ func (cr *CRHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 func (cr *CRHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
 	pctx := ctx.(*processors.K8sProcessorContext)
 	cm := common.ExtractModelManifests(ctx, resourceManifests, groupSize)
+	if cr.IsGenericResource {
+		return cm
+	}
+
 	return &model.CollectorManifestCR{
 		Manifest: cm,
-		Tags:     append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:     pctx.ExtraTags,
 	}
 }
 
@@ -64,7 +70,7 @@ func (cr *CRHandlers) ResourceList(ctx processors.ProcessorContext, list interfa
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopyObject())
 	}
 
 	return resources

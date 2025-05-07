@@ -244,18 +244,21 @@ func (bs *BaseSuite[Env]) CleanupOnSetupFailure() {
 	if err := recover(); err != nil || bs.T().Failed() {
 		bs.firstFailTest = "Initial provisioning SetupSuite" // This is required to handle skipDeleteOnFailure
 		defer func() {
-			bs.T().Fatalf("SetupSuite failed, aborting test suite and calling TearDownSuite")
+			bs.T().Logf("Calling TearDownSuite after SetupSuite failed with the following error: %v", err)
 			bs.TearDownSuite()
+			bs.T().Fatal("TearDownSuite called after SetupSuite failed")
 		}()
 
 		// run environment diagnose
-		if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
-			// at least one test failed, diagnose the environment
-			diagnose, diagnoseErr := diagnosableEnv.Diagnose(bs.SessionOutputDir())
-			if diagnoseErr != nil {
-				bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
-			} else {
-				bs.T().Logf("Diagnose result:\n\n%s", diagnose)
+		if bs.env != nil {
+			if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
+				// at least one test failed, diagnose the environment
+				diagnose, diagnoseErr := diagnosableEnv.Diagnose(bs.SessionOutputDir())
+				if diagnoseErr != nil {
+					bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
+				} else {
+					bs.T().Logf("Diagnose result:\n\n%s", diagnose)
+				}
 			}
 		}
 	}

@@ -93,7 +93,7 @@ var processesAddOverrideOnce sync.Once
 func procBindEnvAndSetDefault(config pkgconfigmodel.Setup, key string, val interface{}) {
 	// Uppercase, replace "." with "_" and add "DD_" prefix to key so that we follow the same environment
 	// variable convention as the core agent.
-	processConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
+	processConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")
 	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 
 	envs := []string{processConfigKey, processAgentKey}
@@ -103,7 +103,7 @@ func procBindEnvAndSetDefault(config pkgconfigmodel.Setup, key string, val inter
 // procBindEnv is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key, but does not set a default.
 // We need this helper function because the standard BindEnv can only generate one prefix from a key.
 func procBindEnv(config pkgconfigmodel.Setup, key string) {
-	processConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
+	processConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")
 	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 
 	config.BindEnv(key, processConfigKey, processAgentKey)
@@ -126,18 +126,18 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 		"DD_PROCESS_CONFIG_URL",
 	)
 	procBindEnv(config, "process_config.events_dd_url")
-	config.SetKnown("process_config.dd_agent_env")
-	config.SetKnown("process_config.intervals.process_realtime")
+	procBindEnv(config, "process_config.dd_agent_env")
+	procBindEnv(config, "process_config.intervals.process_realtime")
 	procBindEnvAndSetDefault(config, "process_config.queue_size", DefaultProcessQueueSize)
 	procBindEnvAndSetDefault(config, "process_config.process_queue_bytes", DefaultProcessQueueBytes)
 	procBindEnvAndSetDefault(config, "process_config.rt_queue_size", DefaultProcessRTQueueSize)
 	procBindEnvAndSetDefault(config, "process_config.max_per_message", DefaultProcessMaxPerMessage)
 	procBindEnvAndSetDefault(config, "process_config.max_message_bytes", DefaultProcessMaxMessageBytes)
 	procBindEnvAndSetDefault(config, "process_config.cmd_port", DefaultProcessCmdPort)
-	config.SetKnown("process_config.intervals.process")
-	config.SetKnown("process_config.blacklist_patterns")
-	config.SetKnown("process_config.intervals.container")
-	config.SetKnown("process_config.intervals.container_realtime")
+	procBindEnv(config, "process_config.intervals.process")
+	procBindEnv(config, "process_config.blacklist_patterns")
+	procBindEnv(config, "process_config.intervals.container")
+	procBindEnv(config, "process_config.intervals.container_realtime")
 	procBindEnvAndSetDefault(config, "process_config.dd_agent_bin", DefaultDDAgentBin)
 	config.BindEnv("process_config.custom_sensitive_words",
 		"DD_CUSTOM_SENSITIVE_WORDS",
@@ -177,8 +177,6 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
 	procBindEnvAndSetDefault(config, "process_config.internal_profiling.enabled", false)
 	procBindEnvAndSetDefault(config, "process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs)
-	procBindEnvAndSetDefault(config, "process_config.remote_tagger", false)
-	procBindEnvAndSetDefault(config, "process_config.remote_workloadmeta", false) // This flag might change. It's still being tested.
 	procBindEnvAndSetDefault(config, "process_config.disable_realtime_checks", false)
 	procBindEnvAndSetDefault(config, "process_config.ignore_zombie_processes", false)
 

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,7 +23,7 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc,
 	fipsEndpointState := aws.FIPSEndpointStateUnset
 	if shouldUseFips {
 		fipsEndpointState = aws.FIPSEndpointStateEnabled
-		log.Debug("Govcloud region detected. Using FIPs endpoints for secrets management.")
+		log.Debug("Using FIPS endpoints for secrets management.")
 	}
 
 	decryptedEnvVars := make(map[string]string)
@@ -73,8 +74,12 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc,
 // DD_LOGS_CONFIGURATION, and will have dual shipping enabled without exposing
 // their API key in plaintext through environment variables.
 func setSecretsFromEnv(envVars []string) {
-	awsRegion := os.Getenv(lambdaRegionEnvVar)
-	shouldUseFips := strings.HasPrefix(awsRegion, "us-gov-")
+	shouldUseFips, err := fips.Enabled()
+	if err != nil {
+		log.Debugf("Could not determine if FIPS is enabled, assuming it is not: %v", err)
+		shouldUseFips = false
+	}
+
 	for envKey, envVal := range getSecretEnvVars(envVars, readAPIKeyFromKMS, readAPIKeyFromSecretsManager, shouldUseFips) {
 		os.Setenv(envKey, strings.TrimSpace(envVal))
 	}

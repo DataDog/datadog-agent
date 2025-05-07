@@ -134,6 +134,9 @@ static __always_inline int dereference_to_output(expression_context_t *context, 
     __u64 encodedValueHolder = valueHolder & mask;
 
     log_debug("Writing %llu to output (dereferenced)", encodedValueHolder);
+    if (element_size > 8) {
+        element_size = 8;
+    }
     err = bpf_probe_read_kernel(&context->event->output[(context->output_offset)], element_size, &encodedValueHolder);
     if (err != 0) {
         return_err = err;
@@ -298,16 +301,31 @@ static __always_inline int read_str_to_output(expression_context_t *context, __u
     }
     context->stack_counter -= 1;
 
-    char* characterPointer = 0;
-    err = bpf_probe_read_user(&characterPointer, sizeof(characterPointer), (void*)(stringStructAddressHolder));
-    log_debug("Reading from 0x%p", characterPointer);
+    if (stringStructAddressHolder == 0) {
+        log_debug("invalid string struct address: 0");
+        return -1;
+    }
 
+    char* characterPointer;
+    err = bpf_probe_read_user(&characterPointer, sizeof(characterPointer), (void*)(stringStructAddressHolder));
+    if (err != 0) {
+        log_debug("error reading character pointer: %ld", err);
+        return err;
+    }
+
+    log_debug("Reading string from 0x%p", characterPointer);
+
+    // Use temporary length variable to satisfy verifier
+    // It's not entirely clear why, but it appears the verifier can't trace the origin
+    // of length if it isn't via a register assignment.
     __u32 length;
-    err = bpf_probe_read_user(&length, sizeof(length), (void*)(stringStructAddressHolder+8));
+    __u32 temp_length;
+    err = bpf_probe_read_user(&temp_length, sizeof(temp_length), (void*)(stringStructAddressHolder+8));
     if (err != 0) {
         log_debug("error reading string length: %ld", err);
         return err;
     }
+    length = temp_length;
     if (length > limit) {
         length = limit;
     }

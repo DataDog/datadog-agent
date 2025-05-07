@@ -40,11 +40,11 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"spark_host_ip:192.168.1.100",
 				"databricks_instance_type:m4.xlarge",
 				"databricks_is_job_cluster:true",
-				"job_name:example__job_name",
-				"databricks_cluster_name:example___job_name",
+				"job_name:example_job_name",
+				"databricks_cluster_name:example_job_name",
 				"databricks_cluster_id:cluster123",
 				"cluster_id:cluster123",
-				"cluster_name:example___job_name",
+				"cluster_name:example_job_name",
 				"databricks_workspace:example_workspace",
 				"workspace:example_workspace",
 			},
@@ -85,12 +85,37 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"spark_host_ip:192.168.1.100",
 				"databricks_instance_type:m4.xlarge",
 				"databricks_is_job_cluster:true",
-				"job_name:example__job_name",
-				"databricks_cluster_name:example___job_name",
+				"job_name:example_job_name",
+				"databricks_cluster_name:example_job_name",
 				"databricks_cluster_id:cluster123",
 				"cluster_id:cluster123",
-				"cluster_name:example___job_name",
+				"cluster_name:example_job_name",
 				"databricks_workspace:\"example_workspace\"",
+				"workspace:example_workspace",
+			},
+		},
+		{
+			name: "workspace name forbidden chars",
+			env: map[string]string{
+				"DB_DRIVER_IP":         "192.168.1.100",
+				"DB_INSTANCE_TYPE":     "m4.xlarge",
+				"DB_IS_JOB_CLUSTER":    "true",
+				"DD_JOB_NAME":          "example,'job,name",
+				"DB_CLUSTER_NAME":      "example[,'job]name",
+				"DB_CLUSTER_ID":        "cluster123",
+				"DATABRICKS_WORKSPACE": "Example Workspace",
+			},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+				"spark_host_ip:192.168.1.100",
+				"databricks_instance_type:m4.xlarge",
+				"databricks_is_job_cluster:true",
+				"job_name:example_job_name",
+				"databricks_cluster_name:example_job_name",
+				"databricks_cluster_id:cluster123",
+				"cluster_id:cluster123",
+				"cluster_name:example_job_name",
+				"databricks_workspace:Example Workspace",
 				"workspace:example_workspace",
 			},
 		},
@@ -152,6 +177,75 @@ func TestGetJobAndRunIDs(t *testing.T) {
 			assert.Equal(t, tt.expectedJobID, jobID)
 			assert.Equal(t, tt.expectedRunID, runID)
 			assert.Equal(t, tt.expectedOk, ok)
+		})
+	}
+}
+
+func TestLoadLogProcessingRules(t *testing.T) {
+	tests := []struct {
+		name           string
+		envValue       string
+		expectedRules  []common.LogProcessingRule
+		expectErrorLog bool
+	}{
+		{
+			name:     "Valid rules",
+			envValue: `[{"type":"exclude_at_match","name":"exclude_health_check","pattern":"GET /health"}]`,
+			expectedRules: []common.LogProcessingRule{
+				{
+					Type:    "exclude_at_match",
+					Name:    "exclude_health_check",
+					Pattern: "GET /health",
+				},
+			},
+			expectErrorLog: false,
+		},
+		{
+			name:     "Valid rules with single quotes",
+			envValue: `[{'type':'exclude_at_match','name':'exclude_health_check','pattern':'GET /health'}]`,
+			expectedRules: []common.LogProcessingRule{
+				{
+					Type:    "exclude_at_match",
+					Name:    "exclude_health_check",
+					Pattern: "GET /health",
+				},
+			},
+			expectErrorLog: false,
+		},
+		{
+			name:           "Empty input",
+			envValue:       ``,
+			expectedRules:  nil,
+			expectErrorLog: false,
+		},
+		{
+			name:           "Invalid JSON",
+			envValue:       `[{"type":"exclude_at_match","name":"bad_rule",]`,
+			expectedRules:  nil,
+			expectErrorLog: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Clearenv()
+			require.NoError(t, os.Setenv("DD_LOGS_CONFIG_PROCESSING_RULES", tt.envValue))
+
+			output := &common.Output{}
+
+			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
+			s := &common.Setup{
+				Span: span,
+				Out:  output,
+				Config: common.Config{
+					DatadogYAML: common.DatadogConfig{},
+				},
+			}
+
+			loadLogProcessingRules(s)
+
+			assert.Equal(t, tt.expectedRules, s.Config.DatadogYAML.LogsConfig.ProcessingRules)
+
 		})
 	}
 }

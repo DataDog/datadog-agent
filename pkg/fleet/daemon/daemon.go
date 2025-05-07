@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -45,6 +46,9 @@ const (
 var (
 	// errStateDoesntMatch is the error returned when the state doesn't match
 	errStateDoesntMatch = errors.New("state doesn't match")
+
+	// installExperimentFunc is the method to install an experiment. Overridden in tests.
+	installExperimentFunc = bootstrap.InstallExperiment
 )
 
 // PackageState represents a package state.
@@ -62,7 +66,6 @@ type Daemon interface {
 	Install(ctx context.Context, url string, args []string) error
 	Remove(ctx context.Context, pkg string) error
 	StartExperiment(ctx context.Context, url string) error
-	StartInstallerExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 	StartConfigExperiment(ctx context.Context, pkg string, hash string) error
@@ -80,7 +83,7 @@ type daemonImpl struct {
 	stopChan chan struct{}
 
 	env             *env.Env
-	installer       func(env *env.Env) installer.Installer
+	installer       func(*env.Env) installer.Installer
 	rc              *remoteConfig
 	catalog         catalog
 	catalogOverride catalog
@@ -106,7 +109,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 	if err != nil {
 		return nil, fmt.Errorf("could not get resolve installer executable path: %w", err)
 	}
-	dbPath := filepath.Join(config.GetString("run_path"), "installer_tasks.db")
+	dbPath := filepath.Join(paths.RunPath, "installer_tasks.db")
 	taskDB, err := newTaskDB(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not create task DB: %w", err)
@@ -356,33 +359,11 @@ func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Starting experiment for package from %s", url)
-	err = d.installer(d.env).InstallExperiment(ctx, url)
+	err = installExperimentFunc(ctx, d.env, url)
 	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
 	log.Infof("Daemon: Successfully started experiment for package from %s", url)
-	return nil
-}
-
-// StartInstallerExperiment starts an installer experiment with the given package.
-func (d *daemonImpl) StartInstallerExperiment(ctx context.Context, url string) error {
-	d.m.Lock()
-	defer d.m.Unlock()
-	return d.startInstallerExperiment(ctx, url)
-}
-
-func (d *daemonImpl) startInstallerExperiment(ctx context.Context, url string) (err error) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, "start_installer_experiment")
-	defer func() { span.Finish(err) }()
-	d.refreshState(ctx)
-	defer d.refreshState(ctx)
-
-	log.Infof("Daemon: Starting installer experiment for package from %s", url)
-	err = bootstrap.InstallExperiment(ctx, d.env, url)
-	if err != nil {
-		return fmt.Errorf("could not install installer experiment: %w", err)
-	}
-	log.Infof("Daemon: Successfully started installer experiment for package from %s", url)
 	return nil
 }
 
@@ -594,14 +575,6 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			)
 		}
 		log.Infof("Installer: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
-		if request.Package == "datadog-installer" {
-			// Special case for the installer package as we want the experiment installer to start the experiment itself
-			return d.startInstallerExperiment(ctx, experimentPackage.URL)
-		}
-		if request.Package == "datadog-agent" && runtime.GOOS == "windows" {
-			// Special case for the agent package on Windows as we want the experiment installer to start the experiment itself
-			return d.startInstallerExperiment(ctx, experimentPackage.URL)
-		}
 		return d.startExperiment(ctx, experimentPackage.URL)
 
 	case methodStopExperiment:

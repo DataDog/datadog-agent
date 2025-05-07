@@ -46,7 +46,20 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, a.hostname)
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(a.config.GetInt("logs_config.pipelines"), auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config, a.compression)
+	pipelineProvider := pipeline.NewProvider(
+		a.config.GetInt("logs_config.pipelines"),
+		auditor,
+		diagnosticMessageReceiver,
+		processingRules,
+		a.endpoints,
+		destinationsCtx,
+		NewStatusProvider(),
+		a.hostname,
+		a.config,
+		a.compression,
+		a.config.GetBool("logs_config.disable_distributed_senders"), // legacy
+		false, // serverless
+	)
 
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, auditor, a.tracker)

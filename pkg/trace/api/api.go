@@ -440,6 +440,7 @@ const (
 	// tagContainersTags specifies the name of the tag which holds key/value
 	// pairs representing information about the container (Docker, EC2, etc).
 	tagContainersTags = "_dd.tags.container"
+	tagProcessTags    = "_dd.tags.process"
 )
 
 // TagStats returns the stats and tags coinciding with the information found in header.
@@ -657,13 +658,20 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		}
 		tp.Tags[tagContainersTags] = ctags
 	}
-
+	ptags := getProcessTags(req.Header, tp)
+	if ptags != "" {
+		if tp.Tags == nil {
+			tp.Tags = make(map[string]string)
+		}
+		tp.Tags[tagProcessTags] = ptags
+	}
 	payload := &Payload{
 		Source:                 ts,
 		TracerPayload:          tp,
 		ClientComputedTopLevel: isHeaderTrue(header.ComputedTopLevel, req.Header.Get(header.ComputedTopLevel)),
 		ClientComputedStats:    isHeaderTrue(header.ComputedStats, req.Header.Get(header.ComputedStats)),
 		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
+		ProcessTags:            ptags,
 	}
 	r.out <- payload
 }
@@ -698,6 +706,42 @@ func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 		}
 	}
 	return dropped
+}
+
+// todo:raphael cleanup unused methods of extraction once implementation
+// in all tracers is completed
+// order of priority:
+// 1. tags in the v07 payload
+// 2. tags in the first span of the first chunk
+// 3. tags in the header
+func getProcessTags(h http.Header, p *pb.TracerPayload) string {
+	if p.Tags != nil {
+		if ptags, ok := p.Tags[tagProcessTags]; ok {
+			return ptags
+		}
+	}
+	if span, ok := getFirstSpan(p); ok {
+		if ptags, ok := span.Meta[tagProcessTags]; ok {
+			return ptags
+		}
+	}
+	return h.Get(header.ProcessTags)
+}
+
+func getFirstSpan(p *pb.TracerPayload) (*pb.Span, bool) {
+	if len(p.Chunks) == 0 {
+		return nil, false
+	}
+	for _, chunk := range p.Chunks {
+		if chunk == nil || len(chunk.Spans) == 0 {
+			continue
+		}
+		if chunk.Spans[0] == nil {
+			continue
+		}
+		return chunk.Spans[0], true
+	}
+	return nil, false
 }
 
 // handleServices handle a request with a list of several services

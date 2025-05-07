@@ -8,8 +8,11 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	iexec "github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 )
 
 const (
@@ -25,7 +28,18 @@ func Install(ctx context.Context, env *env.Env, url string) error {
 	return install(ctx, env, url, false)
 }
 
-// InstallExperiment self-installs the installer package from the given URL as an experiment.
+// InstallExperiment installs a package from the given URL as an experiment.
+// It first tries to grab the installer from a specific layer to start the experiment with,
+// and falls back to the current installer if it doesn't exist.
 func InstallExperiment(ctx context.Context, env *env.Env, url string) error {
 	return install(ctx, env, url, true)
+}
+
+// getLocalInstaller returns an installer executor from the current binary
+func getLocalInstaller(env *env.Env) (*iexec.InstallerExec, error) {
+	installerBin, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get executable path: %w", err)
+	}
+	return iexec.NewInstallerExec(env, installerBin), nil
 }

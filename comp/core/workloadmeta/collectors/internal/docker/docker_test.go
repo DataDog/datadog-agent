@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/image"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
@@ -34,7 +33,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 	tests := []struct {
 		name     string
 		history  []image.HistoryResponseItem
-		inspect  types.ImageInspect
+		inspect  image.InspectResponse
 		expected []workloadmeta.ContainerImageLayer
 	}{
 		{
@@ -46,8 +45,8 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 					Created:   baseTimeUnix,
 				},
 			},
-			inspect: types.ImageInspect{
-				RootFS: types.RootFS{
+			inspect: image.InspectResponse{
+				RootFS: image.RootFS{
 					Layers: []string{layerID},
 				},
 			},
@@ -71,8 +70,8 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 					Created: baseTimeUnix,
 				},
 			},
-			inspect: types.ImageInspect{
-				RootFS: types.RootFS{
+			inspect: image.InspectResponse{
+				RootFS: image.RootFS{
 					Layers: []string{layerID},
 				},
 			},
@@ -96,8 +95,8 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 					Created:   baseTimeUnix,
 				},
 			},
-			inspect: types.ImageInspect{
-				RootFS: types.RootFS{
+			inspect: image.InspectResponse{
+				RootFS: image.RootFS{
 					Layers: []string{layerID},
 				},
 			},
@@ -130,8 +129,8 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 					Created: baseTimeUnix,
 				},
 			},
-			inspect: types.ImageInspect{
-				RootFS: types.RootFS{
+			inspect: image.InspectResponse{
+				RootFS: image.RootFS{
 					Layers: []string{"1", "2"},
 				},
 			},
@@ -164,20 +163,45 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 			},
 		},
 		{
-			name: "Number of inspect layers exceeds history layers breaks our assumption and results in no layers returned",
+			name: "Number of assignable history layers exceeds inspect layers does not result in panic",
 			history: []image.HistoryResponseItem{
 				{
 					Size:      nonEmptySize,
 					CreatedBy: cmd,
 					Created:   baseTimeUnix,
 				},
-			},
-			inspect: types.ImageInspect{
-				RootFS: types.RootFS{
-					Layers: []string{layerID, layerID},
+				{
+					Size:      nonEmptySize,
+					CreatedBy: cmd,
+					Created:   baseTimeUnix,
+					ID:        "abc",
 				},
 			},
-			expected: []workloadmeta.ContainerImageLayer{},
+			inspect: image.InspectResponse{
+				RootFS: image.RootFS{
+					Layers: []string{"1"},
+				},
+			},
+			expected: []workloadmeta.ContainerImageLayer{
+				{
+					Digest:    "",
+					SizeBytes: nonEmptySize,
+					History: &v1.History{
+						Created:    &baseTime,
+						CreatedBy:  cmd,
+						EmptyLayer: false,
+					},
+				},
+				{
+					Digest:    "abc",
+					SizeBytes: nonEmptySize,
+					History: &v1.History{
+						Created:    &baseTime,
+						CreatedBy:  cmd,
+						EmptyLayer: false,
+					},
+				},
+			},
 		},
 	}
 	for _, tt := range tests {

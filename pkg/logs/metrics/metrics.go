@@ -45,7 +45,7 @@ var (
 	BytesSent = expvar.Int{}
 	// TlmBytesSent is the total number of sent bytes before encoding if any
 	TlmBytesSent = telemetry.NewCounter("logs", "bytes_sent",
-		nil, "Total number of bytes send before encoding if any")
+		[]string{"source"}, "Total number of bytes sent before encoding if any")
 	// RetryCount is the total number of times we have retried payloads that failed to send
 	RetryCount = expvar.Int{}
 	// TlmRetryCountis the total number of times we have retried payloads that failed to send
@@ -57,7 +57,7 @@ var (
 	EncodedBytesSent = expvar.Int{}
 	// TlmEncodedBytesSent is the total number of sent bytes after encoding if any
 	TlmEncodedBytesSent = telemetry.NewCounter("logs", "encoded_bytes_sent",
-		nil, "Total number of sent bytes after encoding if any")
+		[]string{"source", "compression_kind"}, "Total number of sent bytes after encoding if any")
 	// BytesMissed is the number of bytes lost before they could be consumed by the agent, such as after a log rotation
 	BytesMissed = expvar.Int{}
 	// TlmBytesMissed is the number of bytes lost before they could be consumed by the agent, such as after log rotation
@@ -76,8 +76,8 @@ var (
 	//nolint:revive // TODO(AML) Fix revive linter
 	TlmDestinationHttpRespByStatusAndUrl = telemetry.NewCounter("logs", "destination_http_resp", []string{"status_code", "url"}, "Count of http responses by status code and destination url")
 
-	// TlmAutoMultilineAggregatorFlush Count of each line flushed from the auto mulitline aggregator.
-	TlmAutoMultilineAggregatorFlush = telemetry.NewCounter("logs", "auto_multi_line_aggregator_flush", []string{"truncated", "line_type"}, "Count of each line flushed from the auto mulitline aggregator")
+	// TlmAutoMultilineAggregatorFlush Count of each line flushed from the auto multiline aggregator.
+	TlmAutoMultilineAggregatorFlush = telemetry.NewCounter("logs", "auto_multi_line_aggregator_flush", []string{"truncated", "line_type"}, "Count of each line flushed from the auto multiline aggregator")
 
 	// TlmLogsDiscardedFromSDSBuffer how many messages were dropped when waiting for an SDS configuration because the buffer is full
 	TlmLogsDiscardedFromSDSBuffer = telemetry.NewCounter("logs", "sds__dropped_from_buffer", nil, "Count of messages dropped from the buffer while waiting for an SDS configuration")

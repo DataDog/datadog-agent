@@ -15,15 +15,16 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
 
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 type fieldsCollector struct {
-	device       nvml.Device
+	device       ddnvml.SafeDevice
 	fieldMetrics []fieldValueMetric
 }
 
-func newFieldsCollector(device nvml.Device) (Collector, error) {
+func newFieldsCollector(device ddnvml.SafeDevice) (Collector, error) {
 	c := &fieldsCollector{
 		device: device,
 	}
@@ -71,9 +72,9 @@ func (c *fieldsCollector) getFieldValues() ([]nvml.FieldValue, error) {
 		fields[i].ScopeId = metric.scopeID
 	}
 
-	ret := c.device.GetFieldValues(fields)
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("failed to get field values: %s", nvml.ErrorString(ret))
+	err := c.device.GetFieldValues(fields)
+	if err != nil {
+		return nil, err
 	}
 
 	return fields, nil
@@ -94,7 +95,7 @@ func (c *fieldsCollector) Collect() ([]Metric, error) {
 			continue
 		}
 
-		value, convErr := metricValueToDouble(nvml.ValueType(val.ValueType), val.Value)
+		value, convErr := fieldValueToNumber[float64](nvml.ValueType(val.ValueType), val.Value)
 		if convErr != nil {
 			err = multierror.Append(err, fmt.Errorf("failed to convert field value %s: %w", name, convErr))
 		}

@@ -204,11 +204,15 @@ type HashAction struct {
 // RuleSetAction is used to report 'set' action
 // easyjson:json
 type RuleSetAction struct {
-	Name   string      `json:"name,omitempty"`
-	Value  interface{} `json:"value,omitempty"`
-	Field  string      `json:"field,omitempty"`
-	Append bool        `json:"append,omitempty"`
-	Scope  string      `json:"scope,omitempty"`
+	Name         string      `json:"name,omitempty"`
+	Value        interface{} `json:"value,omitempty"`
+	DefaultValue interface{} `json:"default_value,omitempty"`
+	Field        string      `json:"field,omitempty"`
+	Expression   string      `json:"expression,omitempty"`
+	Append       bool        `json:"append,omitempty"`
+	Scope        string      `json:"scope,omitempty"`
+	Size         int         `json:"size,omitempty"`
+	TTL          string      `json:"ttl,omitempty"`
 }
 
 // RuleKillAction is used to report the 'kill' action
@@ -258,29 +262,20 @@ func (e HeartbeatEvent) ToJSON() ([]byte, error) {
 	return utils.MarshalEasyJSON(e)
 }
 
-// PolicyStateFromRule returns a policy state based on the rule definition
-func PolicyStateFromRule(rule *rules.PolicyRule) *PolicyState {
+// PolicyStateFromPolicyInfo returns a policy state based on the policy info
+func PolicyStateFromPolicyInfo(policyInfo *rules.PolicyInfo) *PolicyState {
 	return &PolicyState{
-		Name:    rule.Policy.Name,
-		Version: rule.Policy.Def.Version,
-		Source:  rule.Policy.Source,
-	}
-}
-
-// PolicyStateFromPolicy returns a policy state based on the policy definition
-func PolicyStateFromPolicy(policy *rules.Policy) *PolicyState {
-	return &PolicyState{
-		Name:    policy.Name,
-		Version: policy.Def.Version,
-		Source:  policy.Source,
+		Name:    policyInfo.Name,
+		Version: policyInfo.Version,
+		Source:  policyInfo.Source,
 	}
 }
 
 // RuleStateFromRule returns a rule state based on the given rule
-func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *RuleState {
+func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status string, message string) *RuleState {
 	ruleState := &RuleState{
 		ID:          rule.Def.ID,
-		Version:     rule.Policy.Def.Version,
+		Version:     rule.Policy.Version,
 		Expression:  rule.Def.Expression,
 		Status:      status,
 		Message:     message,
@@ -298,11 +293,17 @@ func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *R
 			}
 		case action.Def.Set != nil:
 			ruleAction.Set = &RuleSetAction{
-				Name:   action.Def.Set.Name,
-				Value:  action.Def.Set.Value,
-				Field:  action.Def.Set.Field,
-				Append: action.Def.Set.Append,
-				Scope:  string(action.Def.Set.Scope),
+				Name:         action.Def.Set.Name,
+				Value:        action.Def.Set.Value,
+				DefaultValue: action.Def.Set.DefaultValue,
+				Field:        action.Def.Set.Field,
+				Expression:   action.Def.Set.Expression,
+				Append:       action.Def.Set.Append,
+				Scope:        string(action.Def.Set.Scope),
+				Size:         action.Def.Set.Size,
+			}
+			if action.Def.Set.TTL != nil {
+				ruleAction.Set.TTL = action.Def.Set.TTL.String()
 			}
 		case action.Def.Hash != nil:
 			ruleAction.Hash = &HashAction{
@@ -324,8 +325,13 @@ func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *R
 		ruleState.Actions = append(ruleState.Actions, ruleAction)
 	}
 
-	for _, modRule := range rule.ModifiedBy {
-		ruleState.ModifiedBy = append(ruleState.ModifiedBy, PolicyStateFromRule(modRule))
+	for _, pInfo := range rule.ModifiedBy {
+		// The policy of an override rule is listed in both the UsedBy and ModifiedBy fields of the rule
+		// In that case we want to avoid reporting the ModifiedBy field for the rule with the override field
+		if policy.Equals(&pInfo) {
+			continue
+		}
+		ruleState.ModifiedBy = append(ruleState.ModifiedBy, PolicyStateFromPolicyInfo(&pInfo))
 	}
 
 	return ruleState
@@ -339,16 +345,16 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 	var exists bool
 
 	for _, rule := range rs.GetRules() {
-		if rule.Policy.IsInternal && !includeInternalPolicies {
-			continue
-		}
-
-		for _, policy := range rule.UsedBy {
-			if policyState, exists = mp[policy.Name]; !exists {
-				policyState = PolicyStateFromPolicy(policy)
-				mp[policy.Name] = policyState
+		for _, pInfo := range rule.UsedBy {
+			if pInfo.IsInternal && !includeInternalPolicies {
+				continue
 			}
-			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, "loaded", ""))
+
+			if policyState, exists = mp[pInfo.Name]; !exists {
+				policyState = PolicyStateFromPolicyInfo(&pInfo)
+				mp[pInfo.Name] = policyState
+			}
+			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, &pInfo, "loaded", ""))
 		}
 	}
 
@@ -362,12 +368,12 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 				policyName := rerr.Rule.Policy.Name
 
 				if _, exists := mp[policyName]; !exists {
-					policyState = PolicyStateFromRule(rerr.Rule)
+					policyState = PolicyStateFromPolicyInfo(&rerr.Rule.Policy)
 					mp[policyName] = policyState
 				} else {
 					policyState = mp[policyName]
 				}
-				policyState.Rules = append(policyState.Rules, RuleStateFromRule(rerr.Rule, string(rerr.Type()), rerr.Err.Error()))
+				policyState.Rules = append(policyState.Rules, RuleStateFromRule(rerr.Rule, &rerr.Rule.Policy, string(rerr.Type()), rerr.Err.Error()))
 			}
 		}
 	}

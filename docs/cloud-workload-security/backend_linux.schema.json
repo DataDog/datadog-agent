@@ -212,6 +212,10 @@
         "manager": {
           "type": "string",
           "description": "CGroup manager"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
         }
       },
       "additionalProperties": false,
@@ -283,16 +287,26 @@
           "type": "integer",
           "description": "id is the unique identifier of the DNS request"
         },
+        "is_query": {
+          "type": "boolean",
+          "description": "is_query if true means it's a question, if false is a response"
+        },
         "question": {
           "$ref": "#/$defs/DNSQuestion",
           "description": "question is a DNS question for the DNS request"
+        },
+        "response": {
+          "$ref": "#/$defs/DNSResponseEvent",
+          "description": "response is a DNS response for the DNS request"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
         "id",
-        "question"
+        "is_query",
+        "question",
+        "response"
       ],
       "description": "DNSEventSerializer serializes a DNS event to JSON"
     },
@@ -330,6 +344,20 @@
       ],
       "description": "DNSQuestionSerializer serializes a DNS question to JSON"
     },
+    "DNSResponseEvent": {
+      "properties": {
+        "code": {
+          "type": "integer",
+          "description": "RCode is the response code present in the response"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "code"
+      ],
+      "description": "DNSResponseEventSerializer serializes a DNS response event to JSON"
+    },
     "EventContext": {
       "properties": {
         "name": {
@@ -358,6 +386,10 @@
         "variables": {
           "$ref": "#/$defs/Variables",
           "description": "Variables values"
+        },
+        "rule_context": {
+          "$ref": "#/$defs/RuleContext",
+          "description": "RuleContext rule context"
         }
       },
       "additionalProperties": false,
@@ -850,6 +882,27 @@
       "additionalProperties": false,
       "type": "object",
       "description": "MatchedRuleSerializer serializes a rule"
+    },
+    "MatchingSubExpr": {
+      "properties": {
+        "offset": {
+          "type": "integer"
+        },
+        "length": {
+          "type": "integer"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "offset",
+        "length",
+        "value"
+      ],
+      "description": "MatchingSubExpr serializes matching sub expression to JSON"
     },
     "ModuleEvent": {
       "properties": {
@@ -1487,6 +1540,22 @@
         "network_direction"
       ],
       "description": "RawPacketSerializer defines a raw packet serializer"
+    },
+    "RuleContext": {
+      "properties": {
+        "matching_subexprs": {
+          "items": {
+            "$ref": "#/$defs/MatchingSubExpr"
+          },
+          "type": "array"
+        },
+        "expression": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "RuleContext serializes rule context to JSON"
     },
     "SELinuxBoolChange": {
       "properties": {

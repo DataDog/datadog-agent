@@ -9,14 +9,18 @@
 package tcp
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"net"
+	"net/netip"
+	"syscall"
 	"time"
 
 	"golang.org/x/net/ipv4"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/filter"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -44,22 +48,13 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 	}
 	conn.Close() // we don't need the UDP port here
 	t.srcIP = addr.IP
-
-	// So far I haven't had success trying to simply create a socket
-	// using syscalls directly, but in theory doing so would allow us
-	// to avoid creating two listeners since we could see all IP traffic
-	// this way
-	//
-	// Create a raw ICMP listener to catch ICMP responses
-	icmpConn, err := net.ListenPacket("ip4:icmp", addr.IP.String())
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ICMP listener: %w", err)
+	localAddr, ok := common.UnmappedAddrFromSlice(addr.IP)
+	if !ok {
+		return nil, fmt.Errorf("failed to get netipAddr for source %s", addr)
 	}
-	defer icmpConn.Close()
-	// RawConn is necessary to set the TTL and ID fields
-	rawIcmpConn, err := ipv4.NewRawConn(icmpConn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get raw ICMP listener: %w", err)
+	targetAddr, ok := common.UnmappedAddrFromSlice(t.Target)
+	if !ok {
+		return nil, fmt.Errorf("failed to get netipAddr for target %s", t.Target)
 	}
 
 	// Create a TCP listener with port 0 to get a random port from the OS
@@ -71,19 +66,33 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 	defer tcpListener.Close()
 	t.srcPort = port
 
-	// Create a raw TCP listener to catch the TCP response from our final
-	// hop if we get one
-	tcpConn, err := net.ListenPacket("ip4:tcp", addr.IP.String())
-	if err != nil {
-		return nil, fmt.Errorf("failed to create TCP listener: %w", err)
+	// create a socket filter for TCP to reduce CPU usage
+	filterCfg := filter.TCP4FilterConfig{
+		Src: netip.AddrPortFrom(targetAddr, t.DestPort),
+		Dst: netip.AddrPortFrom(localAddr, port),
 	}
-	defer tcpConn.Close()
-	log.Tracef("Listening for TCP on: %s\n", addr.IP.String()+":"+addr.AddrPort().String())
-	// RawConn is necessary to set the TTL and ID fields
-	rawTCPConn, err := ipv4.NewRawConn(tcpConn)
+	filterProg, err := filterCfg.GenerateTCP4Filter()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get raw TCP listener: %w", err)
+		return nil, fmt.Errorf("failed to generate TCP4 filter: %w", err)
 	}
+	tcpLc := &net.ListenConfig{
+		Control: func(_network, _address string, c syscall.RawConn) error {
+			return filter.SetBPFAndDrain(c, filterProg)
+		},
+	}
+	log.Tracef("filtered on: %+v", filterCfg)
+
+	// create raw sockets to listen to TCP and ICMP
+	rawIcmpConn, err := filter.MakeRawConn(context.Background(), &net.ListenConfig{}, "ip4:icmp", localAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make ICMP raw socket: %w", err)
+	}
+	rawTCPConn, err := filter.MakeRawConn(context.Background(), tcpLc, "ip4:tcp", localAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make TCP raw socket: %w", err)
+	}
+
+	log.Tracef("Listening for TCP on: %s\n", addr.IP.String())
 
 	// hops should be of length # of hops
 	hops := make([]*common.Hop, 0, t.MaxTTL-t.MinTTL)
@@ -109,6 +118,7 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 		Target:     t.Target,
 		DstPort:    t.DestPort,
 		Hops:       hops,
+		Tags:       []string{"tcp_method:syn"},
 	}, nil
 }
 

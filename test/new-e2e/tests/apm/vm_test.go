@@ -305,6 +305,54 @@ func (s *VMFakeintakeSuite) TestBasicTrace() {
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
 }
 
+func (s *VMFakeintakeSuite) TestProcessTagsHeaderTrace() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
+	traceWithProcessTagsWithHeader(s.Env().RemoteHost, "binary:generator", "test-service")
+
+	s.T().Log("Waiting for traces.")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testProcessTraces(c, s.Env().FakeIntake, "binary:generator")
+		s.logJournal(false)
+	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testStatsHaveProcessTags(c, s.Env().FakeIntake, "binary:generator")
+		s.logJournal(false)
+	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
+}
+
+func (s *VMFakeintakeSuite) TestProcessTagsTrace() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
+	traceWithProcessTags(s.Env().RemoteHost, "binary:generator", "test-service")
+
+	s.T().Log("Waiting for traces.")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testProcessTraces(c, s.Env().FakeIntake, "binary:generator")
+		s.logJournal(false)
+	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testStatsHaveProcessTags(c, s.Env().FakeIntake, "binary:generator")
+		s.logJournal(false)
+	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
+}
+
 func (s *VMFakeintakeSuite) TestProbabilitySampler() {
 	s.UpdateEnv(awshost.Provisioner(vmProvisionerOpts(awshost.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(s.transport, `
 apm_config.probabilistic_sampler.enabled: true

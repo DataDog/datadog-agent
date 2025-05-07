@@ -32,6 +32,7 @@ import (
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
+
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -52,7 +53,6 @@ import (
 	demultiplexerendpointfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	commonendpoints "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx"
 	grpcAgentfx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-agent"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -69,6 +69,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	lsof "github.com/DataDog/datadog-agent/comp/core/lsof/fx"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
@@ -271,7 +272,7 @@ func run(log log.Component,
 	_ autoexit.Component,
 	settings settings.Component,
 	_ option.Option[gui.Component],
-	_ agenttelemetry.Component,
+	agenttelemetryComponent agenttelemetry.Component,
 	_ diagnose.Component,
 ) error {
 	defer func() {
@@ -337,6 +338,7 @@ func run(log log.Component,
 		cloudfoundrycontainer,
 		jmxlogger,
 		settings,
+		agenttelemetryComponent,
 	); err != nil {
 		return err
 	}
@@ -392,7 +394,6 @@ func getSharedFxOption() fx.Option {
 		dogstatsdStatusimpl.Module(),
 		statsd.Module(),
 		statusimpl.Module(),
-		authtokenimpl.Module(),
 		apiimpl.Module(),
 		grpcAgentfx.Module(),
 		commonendpoints.Module(),
@@ -496,6 +497,7 @@ func getSharedFxOption() fx.Option {
 		haagentfx.Module(),
 		metricscompressorfx.Module(),
 		diagnosefx.Module(),
+		ipcfx.ModuleReadWrite(),
 	)
 }
 
@@ -525,8 +527,14 @@ func startAgent(
 	_ cloudfoundrycontainer.Component,
 	jmxLogger jmxlogger.Component,
 	settings settings.Component,
+	agenttelemetryComponent agenttelemetry.Component,
 ) error {
 	var err error
+
+	span, _ := agenttelemetryComponent.StartStartupSpan("agent.startAgent")
+	defer func() {
+		span.Finish(err)
+	}()
 
 	if flavor.GetFlavor() == flavor.IotAgent {
 		log.Infof("Starting Datadog IoT Agent v%v", version.AgentVersion)
@@ -546,12 +554,12 @@ func startAgent(
 	// Setup Internal Profiling
 	common.SetupInternalProfiling(settings, pkgconfigsetup.Datadog(), "")
 
+	ctx, _ := pkgcommon.GetMainCtxCancel()
+
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()
 
 	http.Handle("/telemetry", telemetryHandler)
-
-	ctx, _ := pkgcommon.GetMainCtxCancel()
 
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
@@ -640,6 +648,8 @@ func startAgent(
 	})
 
 	// start dependent services
+	// must run in background go command because the agent might be in service start pending
+	// and not service running yet, and as such, the call will block or fail
 	go startDependentServices()
 
 	return nil
@@ -669,6 +679,9 @@ func stopAgent() {
 	// gracefully shut down any component
 	_, cancel := pkgcommon.GetMainCtxCancel()
 	cancel()
+
+	// shutdown dependent services
+	stopDependentServices()
 
 	pkglog.Info("See ya!")
 	pkglog.Flush()

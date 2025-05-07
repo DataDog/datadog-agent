@@ -45,7 +45,14 @@ import (
 )
 
 const (
-	maxRetry   = 10
+	// events delay is used for 2 actions: hash and kills:
+	// - for hash actions, the reports will be marked as resolved after MAX 5 sec (so
+	//   it doesn't matter if this retry period lasts for longer)
+	// - for kill actions:
+	//   . a kill can be queued up to the end of the first disarmer period (1min by default)
+	//   . so, we set the server retry period to 1min and 2sec (+2sec to have the
+	//     time to trigger the kill and wait to catch the process exit)
+	maxRetry   = 62
 	retryDelay = time.Second
 )
 
@@ -346,12 +353,9 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			Origin:        a.probe.Origin(),
 			KernelVersion: a.kernelVersion,
 			Distribution:  a.distribution,
+			PolicyName:    rule.Policy.Name,
+			PolicyVersion: rule.Policy.Version,
 		},
-	}
-
-	if policy := rule.Policy; policy != nil {
-		backendEvent.AgentContext.PolicyName = policy.Name
-		backendEvent.AgentContext.PolicyVersion = policy.Def.Version
 	}
 
 	seclog.Tracef("Prepare event message for rule `%s`", rule.ID)
@@ -388,7 +392,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		msg := &pendingMsg{
 			ruleID:          ruleID,
 			backendEvent:    backendEvent,
-			eventSerializer: serializers.NewEventSerializer(ev, rule.Opts),
+			eventSerializer: serializers.NewEventSerializer(ev, rule),
 			extTagsCb:       extTagsCb,
 			service:         service,
 			sendAfter:       time.Now().Add(retention),
@@ -454,7 +458,12 @@ func (a *APIServer) expireEvent(msg *api.SecurityEventMessage) {
 func (a *APIServer) expireDump(dump *api.ActivityDumpStreamMessage) {
 	// update metric
 	a.expiredDumps.Inc()
-	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", dump.GetDump().GetMetadata().GetName())
+
+	selectorStr := "<unknown>"
+	if sel := dump.GetSelector(); sel != nil {
+		selectorStr = fmt.Sprintf("%s:%s", sel.GetName(), sel.GetTag())
+	}
+	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", selectorStr)
 }
 
 // GetStats returns a map indexed by ruleIDs that describes the amount of events
