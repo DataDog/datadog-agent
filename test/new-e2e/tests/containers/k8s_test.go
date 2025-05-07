@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -573,7 +574,7 @@ func (suite *k8sSuite) TestRedis() {
 				`^display_container_name:redis`,
 				`^image_id:public.ecr.aws/docker/library/redis@sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
-				`^image_tag:latest$`,
+				fmt.Sprintf(`^image_tag:%s$`, redis.RedisVersion),
 				`^kube_container_name:redis$`,
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
@@ -629,7 +630,7 @@ func (suite *k8sSuite) TestRedis() {
 				`^filename:[[:digit:]]+.log$`,
 				`^image_id:public.ecr.aws/docker/library/redis@sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
-				`^image_tag:latest$`,
+				fmt.Sprintf(`^image_tag:%s$`, redis.RedisVersion),
 				`^kube_container_name:redis$`,
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
