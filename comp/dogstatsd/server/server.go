@@ -502,10 +502,10 @@ func (s *server) SetExtraTags(tags []string) {
 }
 
 // SetBlocklist updates the metric names blocklist on all running worker.
-func (s *server) SetBlocklist(metricsName []string, matchPrefix bool) {
+func (s *server) SetBlocklist(metricNames []string, matchPrefix bool) {
 	// each worker receives its own copy
 	for _, worker := range s.workers {
-		blocklist := newBlocklist(metricsName, matchPrefix)
+		blocklist := newBlocklist(metricNames, matchPrefix)
 		worker.BlocklistUpdate <- blocklist
 	}
 }
@@ -517,14 +517,12 @@ func (s *server) handleMessages() {
 	}
 
 	// start the listeners
-	// -------------------
 
 	for _, l := range s.listeners {
 		l.Listen()
 	}
 
 	// create and start all the workers
-	// ----------------------
 
 	workersCount, _ := aggregator.GetDogStatsDWorkerAndPipelineCount()
 
@@ -544,7 +542,6 @@ func (s *server) handleMessages() {
 	}
 
 	// create the metric names blocklist, one per worker
-	// -----------
 
 	s.SetBlocklist(s.config.GetStringSlice("statsd_metric_blocklist"), s.config.GetBool("statsd_metric_blocklist_match_prefix"))
 }

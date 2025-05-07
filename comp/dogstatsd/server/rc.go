@@ -8,6 +8,7 @@ package server
 
 import (
 	"encoding/json"
+	"maps"
 	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -41,7 +42,6 @@ func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, a
 
 	// unmarshal all the configurations received from
 	// the RC platform
-	// ------------------------
 
 	if len(updates) > 0 {
 		// unmarshal all configs that can be unmarshalled
@@ -57,7 +57,7 @@ func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, a
 				continue
 			}
 			if len(config.BlockedMetrics.ByName.Metrics) == 0 {
-				s.log.Warn("received a configuration with no metric")
+				s.log.Debug("received a configuration with no metric")
 				continue
 			}
 			blocklistUpdates = append(blocklistUpdates, config.BlockedMetrics)
@@ -65,7 +65,6 @@ func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, a
 	}
 
 	// sort by the configuration ID
-	// ------------------------
 
 	slices.SortFunc(blocklistUpdates, func(a, b blockedMetrics) int {
 		return a.ByName.ConfigurationID - b.ByName.ConfigurationID
@@ -73,7 +72,6 @@ func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, a
 
 	// build a map with all the received metrics
 	// and then use the values as a blocklist
-	// ------------------------
 
 	m := make(map[string]struct{})
 	for _, update := range blocklistUpdates {
@@ -82,15 +80,13 @@ func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, a
 		}
 	}
 
-	metricsName := slices.Collect(maps.Keys(m))
+	metricNames := slices.Collect(maps.Keys(m))
 
 	// apply this blocklist to all the running workers
-	// ------------------------
 
-	s.SetBlocklist(metricsName, false)
+	s.SetBlocklist(metricNames, false)
 
 	// ack the processing to RC
-	// ------------------------
 
 	for configPath := range updates {
 		applyStateCallback(configPath, state.ApplyStatus{
