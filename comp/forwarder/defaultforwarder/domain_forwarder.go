@@ -260,6 +260,14 @@ func newBearerAuthHTTPClient(numberOfWorkers int) *http.Client {
 
 // NewHTTPClient creates a new http.Client
 func NewHTTPClient(config config.Component, numberOfWorkers int, log log.Component) *http.Client {
+	transport := NewHTTPTransport(config, numberOfWorkers, log)
+	return &http.Client{
+		Timeout:   config.GetDuration("forwarder_timeout") * time.Second,
+		Transport: transport,
+	}
+}
+
+func NewHTTPTransport(config config.Component, numberOfWorkers int, log log.Component) *http.Transport {
 	var transport *http.Transport
 
 	transportConfig := config.Get("forwarder_http_protocol")
@@ -274,10 +282,7 @@ func NewHTTPClient(config config.Component, numberOfWorkers int, log log.Compone
 		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), httputils.MaxConnsPerHost(numberOfWorkers))
 	}
 
-	return &http.Client{
-		Timeout:   config.GetDuration("forwarder_timeout") * time.Second,
-		Transport: transport,
-	}
+	return transport
 }
 
 // Stop stops a domainForwarder, all transactions not yet flushed will be lost.
