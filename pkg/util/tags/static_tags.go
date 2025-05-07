@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
@@ -79,11 +80,14 @@ func GetStaticTagsSlice(ctx context.Context, datadogConfig config.Reader) []stri
 
 	// ECS Fargate specific tagSlice
 	if env.IsFeaturePresent(env.ECSFargate) {
+		ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
+		defer cancel()
+
 		ecsMeta, err := ecs.NewECSMeta(ctx)
 		if err != nil {
-			tagSlice = append(tagSlice, fmt.Sprintf("%s:%s", tags.EcsClusterName, ecsMeta.ECSCluster))
-		} else {
 			log.Infof("Couldn't build the 'ecs_cluster_name' tag: %v", err)
+		} else {
+			tagSlice = append(tagSlice, fmt.Sprintf("%s:%s", tags.EcsClusterName, ecsMeta.ECSCluster))
 		}
 	}
 
