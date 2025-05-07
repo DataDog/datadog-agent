@@ -17,7 +17,8 @@ export CONFIG_DIR="$WORKDIR/datadog-agent-build/config"
 export OMNIBUS_DIR="$WORKDIR/omnibus_build"
 export OMNIBUS_PACKAGE_DIR="$PWD"/omnibus/pkg
 
-sudo rm -rf "$WORKDIR" && mkdir -p "$INSTALL_DIR" "$CONFIG_DIR" "$OMNIBUS_DIR"
+rm -rf "$INSTALL_DIR" "$CONFIG_DIR" "$OMNIBUS_DIR"
+mkdir -p "$INSTALL_DIR" "$CONFIG_DIR" "$OMNIBUS_DIR"
 
 # Update the INTEGRATION_CORE_VERSION if requested
 if [ -n "$INTEGRATIONS_CORE_REF" ]; then
