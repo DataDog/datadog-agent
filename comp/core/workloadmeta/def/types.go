@@ -1203,6 +1203,7 @@ type Process struct {
 	ContainerID  string
 	CreationTime time.Time
 	Language     *languagemodels.Language
+	// TODO: add new fields
 }
 
 var _ Entity = &Process{}
