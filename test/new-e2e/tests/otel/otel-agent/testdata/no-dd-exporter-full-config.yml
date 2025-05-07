@@ -26,7 +26,7 @@ exporters:
         send_aggregation_metrics: false
         send_count_sum_metrics: false
       instrumentation_scope_metadata_as_tags: true
-      resource_attributes_as_tags: true
+      resource_attributes_as_tags: false
       summaries:
         mode: gauges
       sums:
