@@ -46,14 +46,14 @@ func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, a
 	if len(updates) > 0 {
 		// unmarshal all configs that can be unmarshalled
 		for configPath, v := range updates {
-			s.log.Info("received:", string(v.Config))
+			s.log.Debugf("received: %q", string(v.Config))
 			var config statsdBlocklistUpdate
 			if err := json.Unmarshal(v.Config, &config); err != nil {
 				applyStateCallback(configPath, state.ApplyStatus{
 					State: state.ApplyStateError,
 					Error: "error unmarshalling payload",
 				})
-				s.log.Error("can't unmarshal received config:", err)
+				s.log.Errorf("can't unmarshal received config: %v", err)
 				continue
 			}
 			if len(config.BlockedMetrics.ByName.Metrics) == 0 {
@@ -82,12 +82,7 @@ func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, a
 		}
 	}
 
-	metricsName := make([]string, len(m))
-	i := 0
-	for metricName := range m {
-		metricsName[i] = metricName
-		i++
-	}
+	metricsName := slices.Collect(maps.Keys(m))
 
 	// apply this blocklist to all the running workers
 	// ------------------------
