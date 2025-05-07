@@ -422,3 +422,25 @@ func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
 	_, found = cfg.AllSettings()["api_key"]
 	assert.False(t, found)
 }
+
+func TestSetWithEnvTransformer(t *testing.T) {
+	cfg := NewViperConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg.BindEnvAndSetDefault("setting", []string{"default"})
+	cfg.ParseEnvAsStringSlice("setting", func(in string) []string {
+		return strings.Split(in, ",")
+	})
+	t.Setenv("TEST_SETTING", "a,b,c,d")
+	cfg.BuildSchema()
+
+	assert.Equal(t, []string{"a", "b", "c", "d"}, cfg.GetStringSlice("setting"))
+
+	// setting a value at a lower level of importance should not impact the result of Get
+	cfg.Set("setting", []string{"z", "y", "x"}, model.SourceFile)
+
+	assert.Equal(t, []string{"a", "b", "c", "d"}, cfg.GetStringSlice("setting"))
+
+	// setting a value at a higher level of importance
+	cfg.Set("setting", []string{"runtime"}, model.SourceAgentRuntime)
+
+	assert.Equal(t, []string{"runtime"}, cfg.GetStringSlice("setting"))
+}
