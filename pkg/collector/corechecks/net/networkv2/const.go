@@ -6,7 +6,7 @@
 //go:build linux
 
 //nolint:revive // TODO(PLINT) Fix revive linter
-package network
+package networkv2
 
 var (
 	ethtoolMetricNames = map[string][]string{

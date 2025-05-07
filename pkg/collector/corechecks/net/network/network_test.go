@@ -8,40 +8,32 @@
 package network
 
 import (
-	"bufio"
-	"bytes"
-	"errors"
 	"testing"
 
 	"github.com/shirou/gopsutil/v4/net"
-	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/safchain/ethtool"
 )
 
 type fakeNetworkStats struct {
-	counterStats                 []net.IOCountersStat
-	counterStatsError            error
-	protoCountersStats           []net.ProtoCountersStat
-	protoCountersStatsError      error
-	connectionStatsUDP4          []net.ConnectionStat
-	connectionStatsUDP4Error     error
-	connectionStatsUDP6          []net.ConnectionStat
-	connectionStatsUDP6Error     error
-	connectionStatsTCP4          []net.ConnectionStat
-	connectionStatsTCP4Error     error
-	connectionStatsTCP6          []net.ConnectionStat
-	connectionStatsTCP6Error     error
-	netstatAndSnmpCountersValues map[string]net.ProtoCountersStat
-	netstatAndSnmpCountersError  error
-	getProcPath                  string
+	counterStats                []net.IOCountersStat
+	counterStatsError           error
+	protoCountersStats          []net.ProtoCountersStat
+	protoCountersStatsError     error
+	connectionStatsUDP4         []net.ConnectionStat
+	connectionStatsUDP4Error    error
+	connectionStatsUDP6         []net.ConnectionStat
+	connectionStatsUDP6Error    error
+	connectionStatsTCP4         []net.ConnectionStat
+	connectionStatsTCP4Error    error
+	connectionStatsTCP6         []net.ConnectionStat
+	connectionStatsTCP6Error    error
+	netstatTCPExtCountersValues map[string]int64
+	netstatTCPExtCountersError  error
 }
 
 // IOCounters returns the inner values of counterStats and counterStatsError
@@ -73,70 +65,8 @@ func (n *fakeNetworkStats) Connections(kind string) ([]net.ConnectionStat, error
 	return nil, nil
 }
 
-func (n *fakeNetworkStats) NetstatAndSnmpCounters(_ []string) (map[string]net.ProtoCountersStat, error) {
-	return n.netstatAndSnmpCountersValues, n.netstatAndSnmpCountersError
-}
-
-func (n *fakeNetworkStats) GetProcPath() string {
-	return n.getProcPath
-}
-
-type MockEthtool struct {
-	mock.Mock
-}
-
-func (f *MockEthtool) DriverInfo(intf string) (ethtool.DrvInfo, error) {
-	if intf == "eth0" {
-		return ethtool.DrvInfo{
-			Driver:  "ena",
-			Version: "mock_version",
-		}, nil
-	}
-
-	return ethtool.DrvInfo{}, unix.ENOTTY
-}
-
-func (f *MockEthtool) Stats(intf string) (map[string]uint64, error) {
-	if intf == "eth0" {
-		return map[string]uint64{
-			"queue_0_tx_packets": 12345,
-			"rx_packets[0]":      67890,
-			"cpu0_rx_xdp_tx":     123,
-			"tx_timeout":         456,
-		}, nil
-	}
-
-	return nil, unix.ENOTTY
-}
-
-type MockCommandRunner struct {
-	mock.Mock
-}
-
-func (m *MockCommandRunner) FakeRunCommand(cmd []string) (string, error) {
-	if contains(cmd, "netstat") {
-		return `Proto Recv-Q Send-Q Local Address           Foreign Address         State
-                tcp        0      0 46.105.75.4:80          79.220.227.193:2032     TIME_WAIT
-                tcp        0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED`, nil
-	} else if contains(cmd, "ss") {
-		return `Netid   State     Recv-Q    Send-Q    Local Address           Foreign Address
-				tcp     ESTAB     0         0         127.0.0.1:60342         127.0.0.1:46153                 
-				tcp     TIME-WAIT 0         0         127.0.0.1:46153         127.0.0.1:60342`, nil
-	}
-	return `cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=39936711
-	cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=36983181`, nil
-}
-
-type MockSS struct {
-	mock.Mock
-}
-
-func (m *MockSS) SSCommand() error {
-	return nil
-}
-
-func (m *MockSS) NetstatCommand() error {
-	return errors.New("forced to use netstat")
+func (n *fakeNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
+	return n.netstatTCPExtCountersValues, n.netstatTCPExtCountersError
 }
 
 func TestDefaultConfiguration(t *testing.T) {
@@ -191,24 +121,17 @@ func TestNetworkCheck(t *testing.T) {
 				Errout:      25,
 			},
 		},
-		netstatAndSnmpCountersValues: map[string]net.ProtoCountersStat{
-			"Tcp": {
-				Protocol: "Tcp",
+		protoCountersStats: []net.ProtoCountersStat{
+			{
+				Protocol: "tcp",
 				Stats: map[string]int64{
-					"RetransSegs":  22,
-					"InSegs":       23,
-					"OutSegs":      24,
-					"ActiveOpens":  39,
-					"PassiveOpens": 40,
-					"AttemptFails": 41,
-					"EstabResets":  42,
-					"InErrs":       36,
-					"OutRsts":      37,
-					"InCsumErrors": 38,
+					"RetransSegs": 22,
+					"InSegs":      23,
+					"OutSegs":     24,
 				},
 			},
-			"Udp": {
-				Protocol: "Udp",
+			{
+				Protocol: "udp",
 				Stats: map[string]int64{
 					"InDatagrams":  25,
 					"NoPorts":      26,
@@ -217,29 +140,6 @@ func TestNetworkCheck(t *testing.T) {
 					"RcvbufErrors": 29,
 					"SndbufErrors": 30,
 					"InCsumErrors": 31,
-				},
-			},
-			"TcpExt": {
-				Protocol: "TcpExt",
-				Stats: map[string]int64{
-					"ListenOverflows":      32,
-					"ListenDrops":          33,
-					"TCPBacklogDrop":       34,
-					"TCPRetransFail":       35,
-					"IPReversePathFilter":  43,
-					"PruneCalled":          44,
-					"RcvPruned":            45,
-					"OfoPruned":            46,
-					"PAWSActive":           47,
-					"PAWSEstab":            48,
-					"SyncookiesSent":       49,
-					"SyncookiesRecv":       50,
-					"SyncookiesFailed":     51,
-					"TCPAbortOnTimeout":    52,
-					"TCPSynRetrans":        53,
-					"TCPFromZeroWindowAdv": 54,
-					"TCPToZeroWindowAdv":   55,
-					"TWRecycled":           56,
 				},
 			},
 		},
@@ -360,17 +260,13 @@ func TestNetworkCheck(t *testing.T) {
 				Status: "CLOSING",
 			},
 		},
+		netstatTCPExtCountersValues: map[string]int64{
+			"ListenOverflows": 32,
+			"ListenDrops":     33,
+			"TCPBacklogDrop":  34,
+			"TCPRetransFail":  35,
+		},
 	}
-
-	mockEthtool := new(MockEthtool)
-	mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
-	mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
-
-	getDrvInfo = mockEthtool.DriverInfo
-	getStats = mockEthtool.Stats
-
-	mockSS := new(MockSS)
-	ssAvailableFunction = mockSS.NetstatCommand
 
 	networkCheck := NetworkCheck{
 		net: net,
@@ -378,7 +274,6 @@ func TestNetworkCheck(t *testing.T) {
 
 	rawInstanceConfig := []byte(`
 collect_connection_state: true
-collect_ethtool_stats: true
 `)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
@@ -390,23 +285,12 @@ collect_ethtool_stats: true
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
-	filesystem = afero.NewMemMapFs()
-	fs := filesystem
-	err = afero.WriteFile(fs, "/sys/class/net/eth0/speed", []byte(
-		`10000`),
-		0644)
-	assert.Nil(t, err)
-	err = afero.WriteFile(fs, "/sys/class/net/eth0/mtu", []byte(
-		`1500`),
-		0644)
-	assert.Nil(t, err)
-
 	err = networkCheck.Run()
 	assert.Nil(t, err)
 
 	var customTags []string
 
-	eth0Tags := []string{"device:eth0", "device_name:eth0", "speed:10000", "mtu:1500"}
+	eth0Tags := []string{"device:eth0", "device_name:eth0"}
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
@@ -429,24 +313,10 @@ collect_ethtool_stats: true
 	mockSender.AssertCalled(t, "Rate", "system.net.tcp.retrans_segs", float64(22), "", customTags)
 	mockSender.AssertCalled(t, "Rate", "system.net.tcp.in_segs", float64(23), "", customTags)
 	mockSender.AssertCalled(t, "Rate", "system.net.tcp.out_segs", float64(24), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.active_opens", float64(39), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.passive_opens", float64(40), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.attempt_fails", float64(41), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.established_resets", float64(42), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.in_errors", float64(36), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.out_resets", float64(37), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.in_csum_errors", float64(38), "", customTags)
 
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.retrans_segs.count", float64(22), "", customTags)
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.in_segs.count", float64(23), "", customTags)
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.out_segs.count", float64(24), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.active_opens.count", float64(39), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.passive_opens.count", float64(40), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.attempt_fails.count", float64(41), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.established_resets.count", float64(42), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.in_errors.count", float64(36), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.out_resets.count", float64(37), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.in_csum_errors.count", float64(38), "", customTags)
 
 	mockSender.AssertCalled(t, "Rate", "system.net.udp.in_datagrams", float64(25), "", customTags)
 	mockSender.AssertCalled(t, "Rate", "system.net.udp.no_ports", float64(26), "", customTags)
@@ -468,20 +338,6 @@ collect_ethtool_stats: true
 	mockSender.AssertCalled(t, "Rate", "system.net.tcp.listen_drops", float64(33), "", customTags)
 	mockSender.AssertCalled(t, "Rate", "system.net.tcp.backlog_drops", float64(34), "", customTags)
 	mockSender.AssertCalled(t, "Rate", "system.net.tcp.failed_retransmits", float64(35), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.ip.reverse_path_filter", float64(43), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.prune_called", float64(44), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.prune_rcv_drops", float64(45), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.prune_ofo_called", float64(46), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.paws_connection_drops", float64(47), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.paws_established_drops", float64(48), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.syn_cookies_sent", float64(49), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.syn_cookies_recv", float64(50), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.syn_cookies_failed", float64(51), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.abort_on_timeout", float64(52), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.syn_retrans", float64(53), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.from_zero_window", float64(54), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.to_zero_window", float64(55), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.tw_reused", float64(56), "", customTags)
 
 	mockSender.AssertCalled(t, "Gauge", "system.net.udp4.connections", float64(1), "", customTags)
 
@@ -547,21 +403,10 @@ excluded_interfaces:
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
-	filesystem = afero.NewMemMapFs()
-	fs := filesystem
-	err := afero.WriteFile(fs, "/sys/class/net/eth0/speed", []byte(
-		`10000`),
-		0644)
-	assert.Nil(t, err)
-	err = afero.WriteFile(fs, "/sys/class/net/eth0/mtu", []byte(
-		`1500`),
-		0644)
+	err := networkCheck.Run()
 	assert.Nil(t, err)
 
-	err = networkCheck.Run()
-	assert.Nil(t, err)
-
-	eth0Tags := []string{"device:eth0", "device_name:eth0", "speed:10000", "mtu:1500"}
+	eth0Tags := []string{"device:eth0", "device_name:eth0"}
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
@@ -638,21 +483,10 @@ excluded_interface_re: "eth[0-9]"
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
-	filesystem = afero.NewMemMapFs()
-	fs := filesystem
-	err = afero.WriteFile(fs, "/sys/class/net/eth0/speed", []byte(
-		`10000`),
-		0644)
-	assert.Nil(t, err)
-	err = afero.WriteFile(fs, "/sys/class/net/eth0/mtu", []byte(
-		`1500`),
-		0644)
-	assert.Nil(t, err)
-
 	err = networkCheck.Run()
 	assert.Nil(t, err)
 
-	eth0Tags := []string{"device:eth0", "device_name:eth0", "speed:10000", "mtu:1500"}
+	eth0Tags := []string{"device:eth0", "device_name:eth0"}
 	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
 	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
 	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
@@ -681,545 +515,4 @@ excluded_interface_re: "eth[0-9]"
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(31), "", lo0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.drop", float64(32), "", lo0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(33), "", lo0Tags)
-}
-
-func TestFetchEthtoolStats(t *testing.T) {
-	mockEthtool := new(MockEthtool)
-
-	mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
-	mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
-
-	getDrvInfo = mockEthtool.DriverInfo
-	getStats = mockEthtool.Stats
-
-	net := &fakeNetworkStats{
-		counterStats: []net.IOCountersStat{
-			{
-				Name:        "eth0",
-				BytesRecv:   100,
-				BytesSent:   200,
-				PacketsRecv: 300,
-				Dropin:      400,
-				Errin:       500,
-				PacketsSent: 600,
-				Dropout:     700,
-				Errout:      800,
-			},
-		},
-	}
-
-	networkCheck := NetworkCheck{
-		net: net,
-	}
-
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_stats: true`), []byte(``), "test")
-
-	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
-
-	err := networkCheck.Run()
-	assert.Nil(t, err)
-
-	expectedTags := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "queue:0"}
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.ena.queue.tx_packets", float64(12345), "", expectedTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.ena.queue.rx_packets", float64(67890), "", expectedTags)
-	expectedTagsCPU := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "cpu:0"}
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.ena.cpu.rx_xdp_tx", float64(123), "", expectedTagsCPU)
-	expectedTagsGlobal := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "global"}
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.ena.tx_timeout", float64(456), "", expectedTagsGlobal)
-}
-
-func TestFetchEthtoolStatsENOTTY(t *testing.T) {
-	mockEthtool := new(MockEthtool)
-
-	mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
-	mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
-
-	getDrvInfo = mockEthtool.DriverInfo
-	getStats = mockEthtool.Stats
-
-	net := &fakeNetworkStats{
-		counterStats: []net.IOCountersStat{
-			{
-				Name:        "virtual_iface",
-				BytesRecv:   100,
-				BytesSent:   200,
-				PacketsRecv: 300,
-				Dropin:      400,
-				Errin:       500,
-				PacketsSent: 600,
-				Dropout:     700,
-				Errout:      800,
-			},
-		},
-	}
-
-	networkCheck := NetworkCheck{
-		net: net,
-	}
-
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_stats: true`), []byte(``), "test")
-
-	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
-
-	err := networkCheck.Run()
-	assert.Nil(t, err)
-
-	expectedTagsIfNoError := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "queue:0"}
-	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.ena.queue.tx_packets", float64(12345), "", expectedTagsIfNoError)
-	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.ena.queue.rx_packets", float64(67890), "", expectedTagsIfNoError)
-	expectedTagsCPUIfNoError := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "cpu:0"}
-	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.ena.cpu.rx_xdp_tx", float64(123), "", expectedTagsCPUIfNoError)
-	expectedTagsGlobal := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "global"}
-	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.ena.tx_timeout", float64(456), "", expectedTagsGlobal)
-}
-
-func TestNetstatAndSnmpCountersUsingCorrectMockedProcfsPath(t *testing.T) {
-	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
-
-	rawInstanceConfig := []byte(`
-procfs_path: "/mocked/procfs"
-`)
-	var customTags []string
-
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
-	assert.Nil(t, err)
-
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
-
-	filesystem = afero.NewMemMapFs()
-	fs := filesystem
-	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
-		`TcpExt: ListenOverflows ListenDrops TCPBacklogDrop TCPRetransFail
-TcpExt: 32 33 34 35
-IpExt: 800 4343 4342 304
-IpExt: 801 439 120 439`),
-		0644)
-	assert.Nil(t, err)
-
-	err = networkCheck.Run()
-	assert.Nil(t, err)
-
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.listen_overflows", float64(32), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.listen_drops", float64(33), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.backlog_drops", float64(34), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.failed_retransmits", float64(35), "", customTags)
-}
-
-func TestNetstatAndSnmpCountersWrongConfiguredLocation(t *testing.T) {
-	net := &defaultNetworkStats{procPath: "/wrong_mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
-
-	rawInstanceConfig := []byte(`
-procfs_path: "/wrong_mocked/procfs"
-`)
-
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
-	assert.Nil(t, err)
-
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
-
-	filesystem = afero.NewMemMapFs()
-	fs := filesystem
-	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
-		`TcpExt: ListenOverflows ListenDrops TCPBacklogDrop TCPRetransFail
-TcpExt: 32 33 34 35
-IpExt: 800 4343 4342 304
-IpExt: 801 439 120 439`),
-		0644)
-	assert.Nil(t, err)
-
-	err = networkCheck.Run()
-	assert.Equal(t, err, nil)
-}
-
-func TestNetstatAndSnmpCountersNoColonFile(t *testing.T) {
-	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
-
-	rawInstanceConfig := []byte(`
-procfs_path: "/mocked/procfs"
-`)
-
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
-	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	err = networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
-	assert.Nil(t, err)
-
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
-
-	filesystem = afero.NewMemMapFs()
-	fs := filesystem
-	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
-		`bad file`),
-		0644)
-	assert.Nil(t, err)
-
-	_ = networkCheck.Run()
-
-	w.Flush()
-	assert.Contains(t, b.String(), "/mocked/procfs/net/netstat is not fomatted correctly, expected ':'")
-}
-
-func TestNetstatAndSnmpCountersBadDataLine(t *testing.T) {
-	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
-
-	rawInstanceConfig := []byte(`
-procfs_path: "/mocked/procfs"
-`)
-
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
-	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	err = networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
-	assert.Nil(t, err)
-
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
-
-	filesystem = afero.NewMemMapFs()
-	fs := filesystem
-	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
-		`TcpExt: `),
-		0644)
-	assert.Nil(t, err)
-	_ = networkCheck.Run()
-
-	w.Flush()
-	assert.Contains(t, b.String(), "/mocked/procfs/net/netstat is not fomatted correctly, not data line")
-}
-
-func TestNetstatAndSnmpCountersMismatchedColumns(t *testing.T) {
-	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
-
-	rawInstanceConfig := []byte(`
-procfs_path: "/mocked/procfs"
-`)
-
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
-	assert.Nil(t, err)
-	log.SetupLogger(logger, "debug")
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	err = networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
-	assert.Nil(t, err)
-
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
-
-	filesystem = afero.NewMemMapFs()
-	fs := filesystem
-	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
-		`TcpExt: 1 0 46 79
-TcpExt: 32 34 192
-IpExt: 800 4343 4342 304
-IpExt: 801 439 120 439`),
-		0644)
-	assert.Nil(t, err)
-	_ = networkCheck.Run()
-
-	w.Flush()
-	assert.Contains(t, b.String(), "/mocked/procfs/net/netstat is not fomatted correctly, expected same number of columns")
-}
-
-func TestNetstatAndSnmpCountersLettersForNumbers(t *testing.T) {
-	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
-
-	rawInstanceConfig := []byte(`
-procfs_path: "/mocked/procfs"
-`)
-	var customTags []string
-
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
-	assert.Nil(t, err)
-
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
-
-	filesystem = afero.NewMemMapFs()
-	fs := filesystem
-	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
-		`TcpExt: 1 0 46 79
-TcpExt: ab cd ef gh
-IpExt: 800 4343 4342 304
-IpExt: 801 439 120 439`),
-
-		0644)
-	assert.Nil(t, err)
-	err = networkCheck.Run()
-	assert.Nil(t, err)
-
-	mockSender.AssertNotCalled(t, "Rate", "system.net.tcp.listen_overflows", float64(32), "", customTags)
-	mockSender.AssertNotCalled(t, "Rate", "system.net.tcp.listen_drops", float64(33), "", customTags)
-	mockSender.AssertNotCalled(t, "Rate", "system.net.tcp.backlog_drops", float64(34), "", customTags)
-	mockSender.AssertNotCalled(t, "Rate", "system.net.tcp.failed_retransmits", float64(35), "", customTags)
-}
-
-func TestConntrackMonotonicCount(t *testing.T) {
-	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
-
-	rawInstanceConfig := []byte(`
-procfs_path: "/mocked/procfs"
-collect_conntrack_metrics: true
-conntrack_path: ""
-`)
-
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
-
-	mockCommandRunner := new(MockCommandRunner)
-	runCommandFunction = mockCommandRunner.FakeRunCommand
-
-	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
-
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
-
-	filesystem = afero.NewMemMapFs()
-	fs := filesystem
-	err := afero.WriteFile(fs, "/mocked/procfs/sys/net/netfilter/nf_conntrack_insert", []byte(
-		`13`),
-		0644)
-	assert.Nil(t, err)
-	err = networkCheck.Run()
-	assert.Nil(t, err)
-
-	expectedTags := []string{"cpu:0"}
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.conntrack.count", float64(42), "", expectedTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.conntrack.max", float64(42), "", expectedTags)
-	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.conntrack.ignore_this", mock.Anything, mock.Anything, mock.Anything)
-}
-
-func TestConntrackGaugeBlacklist(t *testing.T) {
-	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
-
-	rawInstanceConfig := []byte(`
-procfs_path: "/mocked/procfs"
-collect_conntrack_metrics: true
-conntrack_path: ""
-whitelist_conntrack_metrics: ["max", "count"]
-blacklist_conntrack_metrics: ["count", "entries", "max"]
-`)
-
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
-
-	mockCommandRunner := new(MockCommandRunner)
-	runCommandFunction = mockCommandRunner.FakeRunCommand
-
-	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
-
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
-
-	filesystem = afero.NewMemMapFs()
-	fs := filesystem
-	err := afero.WriteFile(fs, "/mocked/procfs/sys/net/netfilter/nf_conntrack_max", []byte(
-		`13`),
-		0644)
-	assert.Nil(t, err)
-	err = afero.WriteFile(fs, "/mocked/procfs/sys/net/netfilter/nf_conntrack_count", []byte(
-		`14`),
-		0644)
-	assert.Nil(t, err)
-	err = networkCheck.Run()
-	assert.Nil(t, err)
-
-	mockSender.AssertNotCalled(t, "Gauge", "system.net.conntrack.max", float64(13), "", []string{})
-	mockSender.AssertNotCalled(t, "Gauge", "system.net.conntrack.count", float64(13), "", []string{})
-}
-
-func TestConntrackGaugeWhitelist(t *testing.T) {
-	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
-
-	rawInstanceConfig := []byte(`
-procfs_path: "/mocked/procfs"
-collect_conntrack_metrics: true
-conntrack_path: ""
-whitelist_conntrack_metrics: ["max", "include"]
-`)
-
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
-
-	mockCommandRunner := new(MockCommandRunner)
-	runCommandFunction = mockCommandRunner.FakeRunCommand
-
-	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
-
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
-
-	filesystem = afero.NewMemMapFs()
-	fs := filesystem
-	err := afero.WriteFile(fs, "/mocked/procfs/sys/net/netfilter/nf_conntrack_insert", []byte(
-		`13`),
-		0644)
-	assert.Nil(t, err)
-	err = afero.WriteFile(fs, "/mocked/procfs/sys/net/netfilter/nf_conntrack_include", []byte(
-		`14`),
-		0644)
-	assert.Nil(t, err)
-	err = networkCheck.Run()
-	assert.Nil(t, err)
-
-	mockSender.AssertNotCalled(t, "Gauge", "system.net.conntrack.insert", float64(13), "", []string{})
-	mockSender.AssertCalled(t, "Gauge", "system.net.conntrack.include", float64(14), "", []string{})
-}
-
-func TestFetchQueueStatsSS(t *testing.T) {
-	net := &fakeNetworkStats{
-		counterStats: []net.IOCountersStat{
-			{
-				Name:        "eth0",
-				BytesRecv:   100,
-				BytesSent:   200,
-				PacketsRecv: 300,
-				Dropin:      400,
-				Errin:       500,
-				PacketsSent: 600,
-				Dropout:     700,
-				Errout:      800,
-			},
-		},
-	}
-
-	mockSS := new(MockSS)
-	ssAvailableFunction = mockSS.SSCommand
-	mockCommandRunner := new(MockCommandRunner)
-	runCommandFunction = mockCommandRunner.FakeRunCommand
-
-	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
-
-	networkCheck := NetworkCheck{
-		net: net,
-	}
-	fakeInstanceConfig := []byte(`conntrack_path: "None"
-collect_connection_state: true
-collect_connection_queues: true`)
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, fakeInstanceConfig, []byte(``), "test")
-
-	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Histogram", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
-
-	err := networkCheck.Run()
-	assert.Nil(t, err)
-
-	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(0), "", []string{"state:time_wait"})
-	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(0), "", []string{"state:established"})
-	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(0), "", []string{"state:time_wait"})
-	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(0), "", []string{"state:established"})
-}
-
-func TestFetchQueueStatsNetstat(t *testing.T) {
-	net := &fakeNetworkStats{
-		counterStats: []net.IOCountersStat{
-			{
-				Name:        "eth0",
-				BytesRecv:   100,
-				BytesSent:   200,
-				PacketsRecv: 300,
-				Dropin:      400,
-				Errin:       500,
-				PacketsSent: 600,
-				Dropout:     700,
-				Errout:      800,
-			},
-		},
-	}
-
-	mockSS := new(MockSS)
-	ssAvailableFunction = mockSS.NetstatCommand
-	mockCommandRunner := new(MockCommandRunner)
-	runCommandFunction = mockCommandRunner.FakeRunCommand
-
-	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
-
-	networkCheck := NetworkCheck{
-		net: net,
-	}
-	fakeInstanceConfig := []byte(`conntrack_path: "None"
-collect_connection_state: true
-collect_connection_queues: true`)
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, fakeInstanceConfig, []byte(``), "test")
-
-	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Histogram", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
-
-	err := networkCheck.Run()
-	assert.Nil(t, err)
-
-	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(0), "", []string{"state:time_wait"})
-	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(0), "", []string{"state:established"})
-	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(0), "", []string{"state:time_wait"})
-	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(0), "", []string{"state:established"})
 }

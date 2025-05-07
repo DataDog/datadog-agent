@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/networkv2"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/ntp"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/wlan"
 	ciscosdwan "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan"
@@ -89,7 +90,11 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(tcpqueuelength.CheckName, tcpqueuelength.Factory(tagger))
 	corecheckLoader.RegisterCheck(apm.CheckName, apm.Factory())
 	corecheckLoader.RegisterCheck(process.CheckName, process.Factory())
-	corecheckLoader.RegisterCheck(network.CheckName, network.Factory(cfg))
+	if cfg.GetBool("use_networkv2_check") {
+		corecheckLoader.RegisterCheck(network.CheckName, networkv2.Factory(cfg))
+	} else {
+		corecheckLoader.RegisterCheck(network.CheckName, network.Factory())
+	}
 	corecheckLoader.RegisterCheck(nvidia.CheckName, nvidia.Factory())
 	corecheckLoader.RegisterCheck(oracle.CheckName, oracle.Factory())
 	corecheckLoader.RegisterCheck(oracle.OracleDbmCheckName, oracle.Factory())
