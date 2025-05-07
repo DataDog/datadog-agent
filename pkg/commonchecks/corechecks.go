@@ -89,7 +89,7 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(tcpqueuelength.CheckName, tcpqueuelength.Factory(tagger))
 	corecheckLoader.RegisterCheck(apm.CheckName, apm.Factory())
 	corecheckLoader.RegisterCheck(process.CheckName, process.Factory())
-	corecheckLoader.RegisterCheck(network.CheckName, network.Factory())
+	corecheckLoader.RegisterCheck(network.CheckName, network.Factory(cfg))
 	corecheckLoader.RegisterCheck(nvidia.CheckName, nvidia.Factory())
 	corecheckLoader.RegisterCheck(oracle.CheckName, oracle.Factory())
 	corecheckLoader.RegisterCheck(oracle.OracleDbmCheckName, oracle.Factory())

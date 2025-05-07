@@ -157,42 +157,14 @@ func (c *NetworkCheck) Run() error {
 		}
 	}
 
-	netProcfsBasePath := c.net.GetNetProcBasePath()
 	if c.config.instance.CollectConnectionState {
-		ssAvailable := false
-		if ssAvailableFunction() == nil {
-			ssAvailable = true
-		}
-		connectionsStats, err := c.net.Connections("udp4")
-		if err != nil {
-			return err
-		}
-		submitConnectionsMetrics(sender, "udp4", udpStateMetricsSuffixMapping, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable, netProcfsBasePath)
-
-		connectionsStats, err = c.net.Connections("udp6")
-		if err != nil {
-			return err
-		}
-		submitConnectionsMetrics(sender, "udp6", udpStateMetricsSuffixMapping, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable, netProcfsBasePath)
-
-		connectionsStats, err = c.net.Connections("tcp4")
-		if err != nil {
-			return err
-		}
-		if ssAvailable {
-			submitConnectionsMetrics(sender, "tcp4", tcpStateMetricsSuffixMapping_ss, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable, netProcfsBasePath)
-		} else {
-			submitConnectionsMetrics(sender, "tcp4", tcpStateMetricsSuffixMapping_netstat, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable, netProcfsBasePath)
-		}
-
-		connectionsStats, err = c.net.Connections("tcp6")
-		if err != nil {
-			return err
-		}
-		if ssAvailable {
-			submitConnectionsMetrics(sender, "tcp6", tcpStateMetricsSuffixMapping_ss, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable, netProcfsBasePath)
-		} else {
-			submitConnectionsMetrics(sender, "tcp6", tcpStateMetricsSuffixMapping_netstat, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable, netProcfsBasePath)
+		netProcfsBasePath := c.net.GetNetProcBasePath()
+		for protocol := range []string{"udp4", "udp6", "tcp4", "tcp6"} {
+			connectionsStats, err := c.net.Connections(protocol)
+			if err != nil {
+				return err
+			}
+			submitConnectionsMetrics(sender, protocol, connectionsStats, c.config.instance.CollectConnectionQueues, netProcfsBasePath)
 		}
 	}
 
@@ -417,7 +389,7 @@ func getQueueMetrics(ipVersion string, procfsPath string) (map[string][]uint64, 
 	return parseQueueMetrics(output)
 }
 
-func getQueueMetricsNetstat(ipVersion string) (map[string][]uint64, error) {
+func getQueueMetricsNetstat(ipVersion string, _ string) (map[string][]uint64, error) {
 	output, err := runCommandFunction([]string{"netstat", "-n", "-u", "-t", "-a"}, []string{})
 	if err != nil {
 		return nil, fmt.Errorf("error executing netstat command: %v", err)
@@ -476,12 +448,30 @@ func parseQueue(queueStr string) uint64 {
 func submitConnectionsMetrics(
 	sender sender.Sender,
 	protocolName string,
-	stateMetricSuffixMapping map[string]string,
 	connectionsStats []net.ConnectionStat,
 	collectConnectionQueues bool,
-	ssAvailable bool,
 	procfsPath string,
 ) {
+	useSS := false
+	queueFunc := getQueueMetricsNetstat
+	if ssAvailableFunction() == nil {
+		log.Debug("Using `ss` for queue metrics")
+		useSS = true
+		queueFunc = getQueueMetrics
+	}
+
+	var stateMetricSuffixMapping map[string]string
+	switch protocolName {
+	case "udp4", "udp6":
+		stateMetricSuffixMapping = udpStateMetricsSuffixMapping
+	case "tcp4", "tcp6":
+		if useSS {
+			stateMetricSuffixMapping = tcpStateMetricsSuffixMapping["ss"]
+		} else {
+			stateMetricSuffixMapping = tcpStateMetricsSuffixMapping["netstat"]
+		}
+	}
+
 	metricCount := map[string]float64{}
 	for _, suffix := range stateMetricSuffixMapping {
 		metricCount[suffix] = 0
@@ -492,23 +482,16 @@ func submitConnectionsMetrics(
 	for suffix, count := range metricCount {
 		sender.Gauge(fmt.Sprintf("system.net.%s.%s", protocolName, suffix), count, "", nil)
 	}
+
 	queueMetrics := make(map[string][]uint64)
 	if collectConnectionQueues && protocolName[:3] == "tcp" {
 		var queues map[string][]uint64
 		var err error
 		// pass in version number
-		if ssAvailable {
-			queues, err = getQueueMetrics(protocolName[len(protocolName)-1:], procfsPath)
-			if err != nil {
-				log.Debug("Error getting queue metrics with ss:", err)
-				return
-			}
-		} else {
-			queues, err = getQueueMetricsNetstat(protocolName[len(protocolName)-1:])
-			if err != nil {
-				log.Debug("Error getting queue metrics with netstat:", err)
-				return
-			}
+		queues, err = queueFunc(protocolName[len(protocolName)-1:], procfsPath)
+		if err != nil {
+			log.Debug("Error getting queue metrics:", err)
+			return
 		}
 		for state, queues := range queues {
 			queueMetrics[state] = append(queueMetrics[state], queues...)
@@ -709,8 +692,10 @@ func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, r
 }
 
 // Factory creates a new check factory
-func Factory() option.Option[func(config.Component) check.Check] {
-	return option.New(newCheck)
+func Factory(cfg config.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
+		return newCheck(cfg)
+	})
 }
 
 func newCheck(cfg config.Component) check.Check {

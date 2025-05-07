@@ -9,6 +9,7 @@
 package network
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -19,6 +20,6 @@ const (
 )
 
 // Factory creates a new check factory
-func Factory() option.Option[func() check.Check] {
+func Factory(_ config.Component) option.Option[func() check.Check] {
 	return option.None[func() check.Check]()
 }

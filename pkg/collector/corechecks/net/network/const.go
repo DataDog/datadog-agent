@@ -341,32 +341,33 @@ var (
 )
 
 var (
-	tcpStateMetricsSuffixMapping_ss = map[string]string{
-		"ESTAB":      "established",
-		"SYN-SENT":   "opening",
-		"SYN-RECV":   "opening",
-		"FIN-WAIT-1": "closing",
-		"FIN-WAIT-2": "closing",
-		"TIME-WAIT":  "time_wait",
-		"UNCONN":     "closing",
-		"CLOSE-WAIT": "closing",
-		"LAST-ACK":   "closing",
-		"LISTEN":     "listening",
-		"CLOSING":    "closing",
-	}
-
-	tcpStateMetricsSuffixMapping_netstat = map[string]string{
-		"ESTABLISHED": "established",
-		"SYN_SENT":    "opening",
-		"SYN_RECV":    "opening",
-		"FIN_WAIT1":   "closing",
-		"FIN_WAIT2":   "closing",
-		"TIME_WAIT":   "time_wait",
-		"CLOSE":       "closing",
-		"CLOSE_WAIT":  "closing",
-		"LAST_ACK":    "closing",
-		"LISTEN":      "listening",
-		"CLOSING":     "closing",
+	tcpStateMetricsSuffixMapping = map[string]map[string]string{
+		"ss": {
+			"ESTAB":      "established",
+			"SYN-SENT":   "opening",
+			"SYN-RECV":   "opening",
+			"FIN-WAIT-1": "closing",
+			"FIN-WAIT-2": "closing",
+			"TIME-WAIT":  "time_wait",
+			"UNCONN":     "closing",
+			"CLOSE-WAIT": "closing",
+			"LAST-ACK":   "closing",
+			"LISTEN":     "listening",
+			"CLOSING":    "closing",
+		},
+		"netstat": {
+			"ESTABLISHED": "established",
+			"SYN_SENT":    "opening",
+			"SYN_RECV":    "opening",
+			"FIN_WAIT1":   "closing",
+			"FIN_WAIT2":   "closing",
+			"TIME_WAIT":   "time_wait",
+			"CLOSE":       "closing",
+			"CLOSE_WAIT":  "closing",
+			"LAST_ACK":    "closing",
+			"LISTEN":      "listening",
+			"CLOSING":     "closing",
+		},
 	}
 
 	udpStateMetricsSuffixMapping = map[string]string{
