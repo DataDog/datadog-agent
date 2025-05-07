@@ -40,6 +40,8 @@ type Launcher struct {
 	pipelineProvider    pipeline.Provider
 	addedSources        chan *sources.LogSource
 	removedSources      chan *sources.LogSource
+	pendingSources      []*sources.LogSource
+	pendingSourcesMutex sync.Mutex
 	activeSources       []*sources.LogSource
 	tailingLimit        int
 	fileProvider        *fileprovider.FileProvider
@@ -160,6 +162,18 @@ func (s *Launcher) cleanup() {
 // For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
 // The Scanner needs to stop that previous tailer, and start a new one for the new file.
 func (s *Launcher) scan() {
+	s.pendingSourcesMutex.Lock()
+
+	// Process pending sources from addedSources
+	for len(s.pendingSources) > 0 {
+		source := s.pendingSources[0]
+		s.pendingSources = s.pendingSources[1:]
+		s.activeSources = append(s.activeSources, source)
+		s.launchTailers(source)
+	}
+
+	s.pendingSourcesMutex.Unlock()
+
 	files := s.fileProvider.FilesToTail(s.validatePodContainerID, s.activeSources)
 	filesTailed := make(map[string]bool)
 	var allFiles []string
@@ -259,10 +273,12 @@ func (s *Launcher) cleanUpRotatedTailers() {
 	s.rotatedTailers = pendingTailers
 }
 
-// addSource keeps track of the new source and launch new tailers for this source.
+// addSource adds a source to the queue to be tailed. It will launch tailers in the scan function
 func (s *Launcher) addSource(source *sources.LogSource) {
-	s.activeSources = append(s.activeSources, source)
-	s.launchTailers(source)
+	s.pendingSourcesMutex.Lock()
+	defer s.pendingSourcesMutex.Unlock()
+
+	s.pendingSources = append(s.pendingSources, source)
 }
 
 // removeSource removes the source from cache.
