@@ -1,25 +1,17 @@
 ---
 # This is the scripts to be executed on the Gitlab macOS runners before every job.
 # We don't have virtualization now so we need to clean the environment and install the proper dependencies before every job.
-.list_go_versions_commands:
-  - |
-    echo "Don't forget to regularly delete Go unused versions. Here are the installed Go versions and their disk space on the runner:"
-    echo "Go:"
-    du -sh $HOME/.gimme/versions/*
-    echo "To remove a Go version please run:"
-    echo "gimme uninstall <version>"
-  # Report it to datadog
-  - dda inv -- -e macos.report-go-version || true
-
-.list_python_versions_commands:
-  - |
-    echo "Don't forget to regularly delete Python unused versions. Here are the installed Python versions and their disk space on the runner:"
-    echo "Python:"
-    du -sh $(pyenv root)/versions/*
-    echo "To remove a Python version please run:"
-    echo "pyenv uninstall -f <version>"
-  # Report it to datadog
-  - dda inv -- -e macos.report-python-version || true
+.clean_macos_env:
+  # Report current version to datadog
+  - dda inv -- -e macos.report-versions -l python || true
+  - dda inv -- -e macos.report-versions -l go || true
+  # Remove inactive versions
+  # - |
+  #   # TODO(celian): enable this
+  #   if [ "$((RANDOM%10))" -eq 0 ]; then
+  #     dda inv -- -e macos.remove-inactive-versions -l python -t "$PYTHON_VERSION" || true
+  #     dda inv -- -e macos.remove-inactive-versions -l go -t "$(cat .go-version)" || true
+  #   fi
 
 .select_python_env_commands:
   # Select the virtualenv using the current Python version. Create it if it doesn't exist.
@@ -106,9 +98,8 @@
     # Selecting the current Python version
     - !reference [.select_python_env_commands]
     - !reference [.install_python_dependencies]
-    # List Python and Go existing environments and their disk space
-    - !reference [.list_go_versions_commands]
-    - !reference [.list_python_versions_commands]
+    # See there is no virtualization, we need to clean the environment regularly
+    - !reference [.clean_macos_env]
     - dda inv -- -e rtloader.make
     - dda inv -- -e rtloader.install
     - dda inv -- -e install-tools

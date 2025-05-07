@@ -8,41 +8,27 @@ from tasks.libs.common.datadog_api import create_count, send_metrics
 
 
 @task
-def report_python_version(ctx):
+def report_versions(ctx, lang):
     """Reports the current Python version to Datadog."""
 
-    version = ctx.run("python3 --version", hide=True).stdout.strip().split()[1].strip()
+    assert lang in ("python", "go"), "Lang must be either 'python' or 'go'"
+
+    if lang == "python":
+        version = ctx.run("python3 --version", hide=True).stdout.strip().split()[1].strip()
+    elif lang == "go":
+        version = ctx.run("go version", hide=True).stdout.strip().split()[2].strip().removeprefix("go")
     global_version = ".".join(version.split(".")[:-1])
-    print(f'Reported Python version to Datadog: {version} (global: {global_version})')
 
     metrics = [
         create_count(
-            metric_name='datadog.ci.macos-runners.python-version',
+            metric_name=f'datadog.ci.macos-runners.{lang}-version',
             timestamp=int(time.time()),
             value=1,
             tags=['repository:datadog-agent', f'full-version:{version}', f'global-version:{global_version}'],
         )
     ]
     send_metrics(metrics)
-
-
-@task
-def report_go_version(ctx):
-    """Reports the current Go version to Datadog."""
-
-    version = ctx.run("go version", hide=True).stdout.strip().split()[2].strip().removeprefix("go")
-    global_version = ".".join(version.split(".")[:-1])
-    print(f'Reported Go version to Datadog: {version} (global: {global_version})')
-
-    metrics = [
-        create_count(
-            metric_name='datadog.ci.macos-runners.go-version',
-            timestamp=int(time.time()),
-            value=1,
-            tags=['repository:datadog-agent', f'full-version:{version}', f'global-version:{global_version}'],
-        )
-    ]
-    send_metrics(metrics)
+    print(f'Reported {lang} version to Datadog: {version} (global: {global_version})')
 
 
 @task
@@ -113,7 +99,7 @@ def list_runner_active_versions(ctx, lang):
 
 
 @task
-def remove_inactive_versions(ctx, lang, target_version, n_days=30, dry_run=True):
+def remove_inactive_versions(ctx, lang, target_version="", n_days=30, dry_run=True):
     """Removes the Python / Go versions that have not been reported to Datadog during the last month."""
 
     assert lang in ("python", "go"), "Lang must be either 'python' or 'go'"
@@ -123,7 +109,11 @@ def remove_inactive_versions(ctx, lang, target_version, n_days=30, dry_run=True)
     # These are X.YY.ZZ versions
     runner_active_versions = list_runner_active_versions(ctx, lang)
 
-    # Transform target version to X.YY
+    # Transform target version from go<version> to <version>
+    if lang == "go":
+        target_version = target_version.removeprefix("go")
+
+    # Transform target version from X.YY.ZZ to X.YY
     if target_version.count('.') == 2:
         target_version = '.'.join(target_version.split('.')[:-1])
 
@@ -133,7 +123,7 @@ def remove_inactive_versions(ctx, lang, target_version, n_days=30, dry_run=True)
             if version.startswith(ci_version):
                 break
         else:
-            if not version.startswith(target_version):
+            if not target_version or not version.startswith(target_version):
                 # This version is not in the CI and is not the target one
                 print(f'Removing {lang} version {version}')
                 if not dry_run:
