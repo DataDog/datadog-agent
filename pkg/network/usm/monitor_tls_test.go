@@ -1000,10 +1000,10 @@ func (s *tlsSuite) TestNodeJSTLS() {
 	}
 }
 
-// TestNativeTLSMapsCleanupAfterGoHttpClient verifies that the eBPF cleanup mechanism
+// TestNativeTLSMapsCleanup verifies that the eBPF cleanup mechanism
 // correctly removes entries from the ssl_sock_by_ctx and ssl_ctx_by_tuple maps
 // when the TCP connection associated with a TLS session is closed.
-func (s *tlsSuite) TestNativeTLSMapsCleanupAfterGoHttpClient() {
+func (s *tlsSuite) TestNativeTLSMapsCleanup() {
 	t := s.T()
 
 	cfg := utils.NewUSMEmptyConfig()
