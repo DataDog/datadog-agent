@@ -112,7 +112,6 @@ def list_runner_active_versions(ctx, lang):
     return versions
 
 
-# TODO: Test
 @task
 def remove_inactive_versions(ctx, lang, target_version, n_days=30, dry_run=True):
     """Removes the Python / Go versions that have not been reported to Datadog during the last month."""
@@ -124,13 +123,17 @@ def remove_inactive_versions(ctx, lang, target_version, n_days=30, dry_run=True)
     # These are X.YY.ZZ versions
     runner_active_versions = list_runner_active_versions(ctx, lang)
 
+    # Transform target version to X.YY
+    if target_version.count('.') == 2:
+        target_version = '.'.join(target_version.split('.')[:-1])
+
     # Remove all versions that are not in the CI (except the target version)
     for version in runner_active_versions:
         for ci_version in ci_active_versions:
             if version.startswith(ci_version):
                 break
         else:
-            if version != target_version:
+            if not version.startswith(target_version):
                 # This version is not in the CI and is not the target one
                 print(f'Removing {lang} version {version}')
                 if not dry_run:
