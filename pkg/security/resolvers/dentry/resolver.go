@@ -70,6 +70,8 @@ type Resolver struct {
 
 	hitsCounters map[counterEntry]*atomic.Int64
 	missCounters map[counterEntry]*atomic.Int64
+
+	debugLog string
 }
 
 // ErrEntryNotFound is thrown when a path key was not found in the cache
@@ -120,6 +122,10 @@ const (
 
 func allERPCRet() []eRPCRet {
 	return []eRPCRet{eRPCok, eRPCCacheMiss, eRPCBufferSize, eRPCWritePageFault, eRPCTailCallError, eRPCReadPageFault, eRPCUnknownError}
+}
+
+func (dr *Resolver) ResetDebugLog() {
+	dr.debugLog = ""
 }
 
 // SendStats sends the dentry resolver metrics
@@ -179,11 +185,15 @@ func (dr *Resolver) DelCacheEntries(mountID uint32) {
 	dr.cache.RemoveKey1(mountID)
 }
 
+// lookupInodeFromCache looks for an inode in the cache
 func (dr *Resolver) lookupInodeFromCache(pathKey model.PathKey) (PathEntry, error) {
+	dr.debugLog += fmt.Sprintf("lookupInodeFromCache() [In] = %+v\n", pathKey)
 	entry, exists := dr.cache.Get(pathKey.MountID, pathKey)
 	if !exists {
+		dr.debugLog += fmt.Sprintf("[Doesnt Exist] lookupInodeFromCache() [In] = %+v \n", pathKey)
 		return PathEntry{}, ErrEntryNotFound
 	}
+	dr.debugLog += fmt.Sprintf("[Success] lookupInodeFromCache() [In] = %+v | [Out] = %+v \n", pathKey, entry)
 	return entry, nil
 }
 
@@ -195,6 +205,7 @@ func (dr *Resolver) cacheInode(key model.PathKey, path PathEntry) {
 
 // ResolveNameFromCache returns the name
 func (dr *Resolver) ResolveNameFromCache(pathKey model.PathKey) (string, error) {
+	dr.debugLog += "ResolveNameFromCache()\n"
 	entry := counterEntry{
 		resolutionType: metrics.CacheTag,
 		resolution:     metrics.SegmentResolutionTag,
@@ -203,18 +214,23 @@ func (dr *Resolver) ResolveNameFromCache(pathKey model.PathKey) (string, error) 
 	path, err := dr.lookupInodeFromCache(pathKey)
 	if err != nil {
 		dr.missCounters[entry].Inc()
+		dr.debugLog += fmt.Sprintf("ResolveNameFromCache() - cache miss, error: %v\n", err)
 		return "", err
 	}
 
 	dr.hitsCounters[entry].Inc()
+	dr.debugLog += fmt.Sprintf("ResolveNameFromCache() - cache hit, name: %v\n", path.Name)
 	return path.Name, nil
 }
 
 func (dr *Resolver) lookupInodeFromMap(pathKey model.PathKey) (model.PathLeaf, error) {
+	dr.debugLog += fmt.Sprintf("lookupInodeFromMap() [In] = %+v\n", pathKey)
 	var pathLeaf model.PathLeaf
 	if err := dr.pathnames.Lookup(pathKey, &pathLeaf); err != nil {
+		dr.debugLog += fmt.Sprintf("[Error] lookupInodeFromMap() [In] = %+v, error: %v\n", pathKey, err)
 		return pathLeaf, fmt.Errorf("unable to get filename for mountID `%d` and inode `%d`: %w", pathKey.MountID, pathKey.Inode, err)
 	}
+	dr.debugLog += fmt.Sprintf("[Found] lookupInodeFromMap() [In] = %+v [Out] = %+v\n", pathKey, pathLeaf)
 	return pathLeaf, nil
 }
 
@@ -227,22 +243,26 @@ func newPathEntry(parent model.PathKey, name string) PathEntry {
 
 // ResolveNameFromMap resolves the name of the provided inode
 func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey) (string, error) {
+	dr.debugLog += fmt.Sprintf("ResolveNameFromMap()\n")
+
 	entry := counterEntry{
 		resolutionType: metrics.KernelMapsTag,
 		resolution:     metrics.SegmentResolutionTag,
 	}
-
 	pathLeaf, err := dr.lookupInodeFromMap(pathKey)
 	if err != nil {
 		dr.missCounters[entry].Inc()
+		dr.debugLog += fmt.Sprintf("ResolveNameFromMap() - map lookup failed with error: %v\n", err)
 		return "", fmt.Errorf("unable to get filename for mountID `%d` and inode `%d`: %w", pathKey.MountID, pathKey.Inode, err)
 	}
 
 	dr.hitsCounters[entry].Inc()
 
 	name := pathLeaf.GetName()
+	dr.debugLog += fmt.Sprintf("ResolveNameFromMap() pathLeafName = %v\n", name)
 
 	if !model.IsFakeInode(pathKey.Inode) {
+		dr.debugLog += fmt.Sprintf("ResolveNameFromMap() IsFakeInode\n")
 		cacheEntry := newPathEntry(pathLeaf.Parent, name)
 		dr.cacheInode(pathKey, cacheEntry)
 	}
@@ -252,19 +272,25 @@ func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey) (string, error) {
 
 // ResolveName resolves an inode/mount ID pair to a file basename
 func (dr *Resolver) ResolveName(pathKey model.PathKey) string {
+	dr.debugLog += fmt.Sprintf("ResolveName() [In] pathKey = %+v\n", pathKey)
+	dr.debugLog += fmt.Sprintf("ResolveName() - trying ResolveNameFromCache()\n")
 	name, err := dr.ResolveNameFromCache(pathKey)
 	if err != nil && dr.config.MapDentryResolutionEnabled {
+		dr.debugLog += fmt.Sprintf("ResolveName() - Resolving from cache didn't work, will try ResolveNameFromMap()\n")
 		name, err = dr.ResolveNameFromMap(pathKey)
 	}
 
 	if err != nil {
+		dr.debugLog += fmt.Sprintf("ResolveName() - There was an error: %v. Will return an empty name\n", err)
 		name = ""
 	}
+	dr.debugLog += fmt.Sprintf("ResolveName() [Out] name = %v\n", name)
 	return name
 }
 
 // ResolveFromCache resolves path from the cache
 func (dr *Resolver) ResolveFromCache(pathKey model.PathKey) (string, error) {
+	dr.debugLog += fmt.Sprintf("ResolveFromCache() [In] pathKey = %+v\n", pathKey)
 	var path PathEntry
 	var err error
 	depth := int64(0)
@@ -277,8 +303,10 @@ func (dr *Resolver) ResolveFromCache(pathKey model.PathKey) (string, error) {
 
 	// Fetch path recursively
 	for i := 0; i <= model.MaxPathDepth; i++ {
+		dr.debugLog += fmt.Sprintf("ResolveFromCache() - iteration %d with pathKey = %+v\n", i, pathKey)
 		path, err = dr.lookupInodeFromCache(pathKey)
 		if err != nil {
+			dr.debugLog += fmt.Sprintf("ResolveFromCache() - cache miss at depth %d, error: %v\n", i, err)
 			dr.missCounters[entry].Inc()
 			break
 		}
@@ -286,21 +314,27 @@ func (dr *Resolver) ResolveFromCache(pathKey model.PathKey) (string, error) {
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
 		if len(path.Name) != 0 && path.Name[0] != '\x00' && path.Name[0] != '/' {
+			dr.debugLog += fmt.Sprintf("ResolveFromCache() - adding name part: %v\n", path.Name)
 			filenameParts = append(filenameParts, path.Name)
 		}
 
 		if path.Parent.Inode == 0 {
+			dr.debugLog += fmt.Sprintf("ResolveFromCache() - reached root (Parent.Inode == 0)\n")
 			break
 		}
 
 		// Prepare next key
 		pathKey = path.Parent
+		dr.debugLog += fmt.Sprintf("ResolveFromCache() - next pathKey = %+v\n", pathKey)
 	}
 
 	if depth > 0 {
+		dr.debugLog += fmt.Sprintf("ResolveFromCache() - hit counter: depth = %d\n", depth)
 		dr.hitsCounters[entry].Add(depth)
 	}
 
+	joined := computeFilenameFromParts(filenameParts)
+	dr.debugLog += fmt.Sprintf("ResolveFromCache() [Out] - filename: %v, err: %v\n", joined, err)
 	return computeFilenameFromParts(filenameParts), err
 }
 
@@ -330,22 +364,27 @@ func computeFilenameFromParts(parts []string) string {
 
 // ResolveFromMap resolves the path of the provided inode / mount id / path id
 func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, error) {
+	dr.debugLog += fmt.Sprintf("ResolveFromMap() [In] pathKey = %+v, cache = %v\n", pathKey, cache)
 	var resolutionErr error
 
 	keyBuffer, err := pathKey.MarshalBinary()
 	if err != nil {
+		dr.debugLog += fmt.Sprintf("ResolveFromMap() - MarshalBinary error: %v\n", err)
 		return "", err
 	}
 
 	depth := int64(0)
 
 	dr.prepareBuffersWithCapacity(128)
+	dr.debugLog += "ResolveFromMap() - buffers prepared\n"
 
 	// Fetch path recursively
 	for i := 0; i <= model.MaxPathDepth; i++ {
+		dr.debugLog += fmt.Sprintf("ResolveFromMap() - iteration %d with pathKey = %+v\n", i, pathKey)
 		var pathLeaf model.PathLeaf
 		pathKey.Write(keyBuffer)
 		if err := dr.pathnames.Lookup(keyBuffer, &pathLeaf); err != nil {
+			dr.debugLog += fmt.Sprintf("ResolveFromMap() - map lookup failed at depth %d: %v\n", i, err)
 			dr.filenameParts = dr.filenameParts[:0]
 			resolutionErr = &ErrDentryPathKeyNotFound{PathKey: pathKey}
 			break
@@ -354,8 +393,10 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 
 		if pathLeaf.Name[0] == '\x00' {
 			if depth >= model.MaxPathDepth {
+				dr.debugLog += fmt.Sprintf("ResolveFromMap() - max depth reached with empty name\n")
 				resolutionErr = errTruncatedParents
 			} else {
+				dr.debugLog += fmt.Sprintf("ResolveFromMap() - empty name found\n")
 				resolutionErr = errKernelMapResolution
 			}
 			break
@@ -364,27 +405,33 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
 		var name string
 		if pathLeaf.Name[0] == '/' {
+			dr.debugLog += fmt.Sprintf("ResolveFromMap() - root path found\n")
 			name = "/"
 		} else {
 			name = model.NullTerminatedString(pathLeaf.Name[:])
+			dr.debugLog += fmt.Sprintf("ResolveFromMap() - adding name part: %v\n", name)
 			dr.filenameParts = append(dr.filenameParts, name)
 		}
 
 		// do not cache fake path keys in the case of rename events
 		if !model.IsFakeInode(pathKey.Inode) && cache {
+			dr.debugLog += fmt.Sprintf("ResolveFromMap() - caching pathKey = %+v with name = %v\n", pathKey, name)
 			dr.keys = append(dr.keys, pathKey)
 			dr.cacheNameEntries = append(dr.cacheNameEntries, name)
 		}
 
 		if pathLeaf.Parent.Inode == 0 {
+			dr.debugLog += fmt.Sprintf("ResolveFromMap() - reached root (Parent.Inode == 0)\n")
 			break
 		}
 
 		// Prepare next key
 		pathKey = pathLeaf.Parent
+		dr.debugLog += fmt.Sprintf("ResolveFromMap() - next pathKey = %+v\n", pathKey)
 	}
 
 	filename := computeFilenameFromParts(dr.filenameParts)
+	dr.debugLog += fmt.Sprintf("ResolveFromMap() - computed filename: %v\n", filename)
 
 	entry := counterEntry{
 		resolutionType: metrics.KernelMapsTag,
@@ -392,17 +439,21 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 	}
 
 	if resolutionErr == nil && len(dr.keys) > 0 {
+		dr.debugLog += fmt.Sprintf("ResolveFromMap() - caching %d entries\n", len(dr.keys))
 		resolutionErr = dr.cacheEntries(dr.keys, dr.cacheNameEntries)
 
 		if depth > 0 {
+			dr.debugLog += fmt.Sprintf("ResolveFromMap() - hit counter: depth = %d\n", depth)
 			dr.hitsCounters[entry].Add(depth)
 		}
 	}
 
 	if resolutionErr != nil {
+		dr.debugLog += fmt.Sprintf("ResolveFromMap() - error: %v\n", resolutionErr)
 		dr.missCounters[entry].Inc()
 	}
 
+	dr.debugLog += fmt.Sprintf("ResolveFromMap() [Out] filename = %v, err = %v\n", filename, resolutionErr)
 	return filename, resolutionErr
 }
 
@@ -419,6 +470,7 @@ func (dr *Resolver) preventSegmentMajorPageFault() {
 }
 
 func (dr *Resolver) requestResolve(op uint8, pathKey model.PathKey) (uint32, error) {
+	dr.debugLog += fmt.Sprintf("requestResolve() [In] op = %d, pathKey = %+v\n", op, pathKey)
 	challenge := dr.challenge
 	dr.challenge++
 
@@ -429,13 +481,17 @@ func (dr *Resolver) requestResolve(op uint8, pathKey model.PathKey) (uint32, err
 	binary.NativeEndian.PutUint32(dr.erpcRequest.Data[12:16], pathKey.PathID)
 	// 16-28 populated at start
 	binary.NativeEndian.PutUint32(dr.erpcRequest.Data[28:32], challenge)
+	dr.debugLog += fmt.Sprintf("requestResolve() - challenge = %d\n", challenge)
 
 	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
 	if dr.useBPFProgWriteUser {
+		dr.debugLog += "requestResolve() - calling preventSegmentMajorPageFault()\n"
 		dr.preventSegmentMajorPageFault()
 	}
 
-	return challenge, dr.erpc.Request(dr.erpcRequest)
+	err := dr.erpc.Request(dr.erpcRequest)
+	dr.debugLog += fmt.Sprintf("requestResolve() [Out] challenge = %d, err = %v\n", challenge, err)
+	return challenge, err
 }
 
 func (dr *Resolver) cacheEntries(keys []model.PathKey, names []string) error {
@@ -480,6 +536,7 @@ func (dr *Resolver) computeSegmentCount() int {
 
 // ResolveFromERPC resolves the path of the provided inode / mount id / path id
 func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, error) {
+	dr.debugLog += fmt.Sprintf("ResolveFromERPC() [In] pathKey = %+v, cache = %v\n", pathKey, cache)
 	var resolutionErr error
 	depth := int64(0)
 
@@ -491,28 +548,36 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 	// create eRPC request and send using the ioctl syscall
 	challenge, err := dr.requestResolve(erpc.ResolvePathOp, pathKey)
 	if err != nil {
+		dr.debugLog += fmt.Sprintf("ResolveFromERPC() - requestResolve failed: %v\n", err)
 		dr.missCounters[entry].Inc()
 		return "", fmt.Errorf("unable to resolve the path of mountID `%d` and inode `%d` with eRPC: %w", pathKey.MountID, pathKey.Inode, err)
 	}
 
 	segmentCount := dr.computeSegmentCount()
+	dr.debugLog += fmt.Sprintf("ResolveFromERPC() - computed segmentCount = %d\n", segmentCount)
 	dr.prepareBuffersWithCapacity(segmentCount)
 
 	i := 0
 	// make sure that we keep room for at least one pathKey + character + \0 => (sizeof(pathID) + 1 = 17)
 	for i < dr.erpcSegmentSize-17 {
+		dr.debugLog += fmt.Sprintf("ResolveFromERPC() - segment loop iteration at position %d\n", i)
 		depth++
 
 		// parse the path_key_t structure
 		pathKey.Inode = binary.NativeEndian.Uint64(dr.erpcSegment[i : i+8])
 		pathKey.MountID = binary.NativeEndian.Uint32(dr.erpcSegment[i+8 : i+12])
+		dr.debugLog += fmt.Sprintf("ResolveFromERPC() - parsed pathKey = %+v\n", pathKey)
 
 		// check challenge
-		if challenge != binary.NativeEndian.Uint32(dr.erpcSegment[i+12:i+16]) {
+		segmentChallenge := binary.NativeEndian.Uint32(dr.erpcSegment[i+12 : i+16])
+		dr.debugLog += fmt.Sprintf("ResolveFromERPC() - comparing challenges: original = %d, segment = %d\n", challenge, segmentChallenge)
+		if challenge != segmentChallenge {
 			if depth >= model.MaxPathDepth {
+				dr.debugLog += fmt.Sprintf("ResolveFromERPC() - max depth reached with challenge mismatch\n")
 				resolutionErr = errTruncatedParentsERPC
 				break
 			}
+			dr.debugLog += fmt.Sprintf("ResolveFromERPC() - challenge mismatch\n")
 			dr.missCounters[entry].Inc()
 			return "", errERPCRequestNotProcessed
 		}
@@ -522,61 +587,81 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 
 		if dr.erpcSegment[i] == 0 {
 			if depth >= model.MaxPathDepth {
+				dr.debugLog += fmt.Sprintf("ResolveFromERPC() - max depth reached with empty name\n")
 				resolutionErr = errTruncatedParentsERPC
 			} else {
+				dr.debugLog += fmt.Sprintf("ResolveFromERPC() - empty name found\n")
 				resolutionErr = errERPCResolution
 			}
 			break
 		}
 
 		if dr.erpcSegment[i] == '/' {
+			dr.debugLog += fmt.Sprintf("ResolveFromERPC() - root path found\n")
 			break
 		}
 
 		segment := model.NullTerminatedString(dr.erpcSegment[i:])
+		dr.debugLog += fmt.Sprintf("ResolveFromERPC() - adding name part: %v\n", segment)
 		dr.filenameParts = append(dr.filenameParts, segment)
 		i += len(segment) + 1
 
 		if !model.IsFakeInode(pathKey.Inode) && cache {
+			dr.debugLog += fmt.Sprintf("ResolveFromERPC() - caching pathKey = %+v with name = %v\n", pathKey, segment)
 			dr.keys = append(dr.keys, pathKey)
 			dr.cacheNameEntries = append(dr.cacheNameEntries, segment)
 		}
 	}
 
 	if resolutionErr == nil && len(dr.keys) > 0 {
+		dr.debugLog += fmt.Sprintf("ResolveFromERPC() - caching %d entries\n", len(dr.keys))
 		resolutionErr = dr.cacheEntries(dr.keys, dr.cacheNameEntries)
 
 		if depth > 0 {
+			dr.debugLog += fmt.Sprintf("ResolveFromERPC() - hit counter: depth = %d\n", depth)
 			dr.hitsCounters[entry].Add(depth)
 		}
 	}
 
 	if resolutionErr != nil {
+		dr.debugLog += fmt.Sprintf("ResolveFromERPC() - error: %v\n", resolutionErr)
 		dr.missCounters[entry].Inc()
 	}
 
-	return computeFilenameFromParts(dr.filenameParts), resolutionErr
+	filename := computeFilenameFromParts(dr.filenameParts)
+	dr.debugLog += fmt.Sprintf("ResolveFromERPC() [Out] filename = %v, err = %v\n", filename, resolutionErr)
+	return filename, resolutionErr
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
 func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
+	dr.debugLog += fmt.Sprintf("Resolve() [In] pathKey = %+v, cache = %v\n", pathKey, cache)
 	var path string
 	var err = ErrEntryNotFound
 
 	if cache {
+		dr.debugLog += "Resolve() - Cache: true, will ResolveFromCache()\n"
 		path, err = dr.ResolveFromCache(pathKey)
+		dr.debugLog += fmt.Sprintf("Resolve() - ResolveFromCache() returned path = %v, err = %v\n", path, err)
 	}
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
+		dr.debugLog += fmt.Sprintf("Resolve() - will ResolveFromERPC()\n")
 		path, err = dr.ResolveFromERPC(pathKey, cache)
+		dr.debugLog += fmt.Sprintf("Resolve() - ResolveFromERPC() returned path = %v, err = %v\n", path, err)
 	}
 	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
+		dr.debugLog += fmt.Sprintf("Resolve() - will ResolveFromMap()\n")
 		path, err = dr.ResolveFromMap(pathKey, cache)
+		dr.debugLog += fmt.Sprintf("Resolve() - ResolveFromMap() returned path = %v, err = %v\n", path, err)
 	}
+
+	dr.debugLog += fmt.Sprintf("Resolve() [Out] path = %v, err = %v\n", path, err)
 	return path, err
 }
 
 // ResolveParentFromCache resolves the parent
 func (dr *Resolver) ResolveParentFromCache(pathKey model.PathKey) (model.PathKey, error) {
+	dr.debugLog += fmt.Sprintf("ResolveParentFromCache() [In] pathKey = %+v\n", pathKey)
 	entry := counterEntry{
 		resolutionType: metrics.CacheTag,
 		resolution:     metrics.ParentResolutionTag,
@@ -584,16 +669,19 @@ func (dr *Resolver) ResolveParentFromCache(pathKey model.PathKey) (model.PathKey
 
 	path, err := dr.lookupInodeFromCache(pathKey)
 	if err != nil {
+		dr.debugLog += fmt.Sprintf("ResolveParentFromCache() - cache miss, error: %v\n", err)
 		dr.missCounters[entry].Inc()
 		return model.PathKey{}, ErrEntryNotFound
 	}
 
+	dr.debugLog += fmt.Sprintf("ResolveParentFromCache() [Out] parent = %+v\n", path.Parent)
 	dr.hitsCounters[entry].Inc()
 	return path.Parent, nil
 }
 
 // ResolveParentFromMap resolves the parent
 func (dr *Resolver) ResolveParentFromMap(pathKey model.PathKey) (model.PathKey, error) {
+	dr.debugLog += fmt.Sprintf("ResolveParentFromMap() [In] pathKey = %+v\n", pathKey)
 	entry := counterEntry{
 		resolutionType: metrics.KernelMapsTag,
 		resolution:     metrics.ParentResolutionTag,
@@ -601,25 +689,31 @@ func (dr *Resolver) ResolveParentFromMap(pathKey model.PathKey) (model.PathKey, 
 
 	path, err := dr.lookupInodeFromMap(pathKey)
 	if err != nil {
+		dr.debugLog += fmt.Sprintf("ResolveParentFromMap() - map lookup failed: %v\n", err)
 		dr.missCounters[entry].Inc()
 		return model.PathKey{}, err
 	}
 
+	dr.debugLog += fmt.Sprintf("ResolveParentFromMap() [Out] parent = %+v\n", path.Parent)
 	dr.hitsCounters[entry].Inc()
 	return path.Parent, nil
 }
 
 // GetParent returns the parent mount_id/inode
 func (dr *Resolver) GetParent(pathKey model.PathKey) (model.PathKey, error) {
+	dr.debugLog += fmt.Sprintf("GetParent() [In] pathKey = %+v\n", pathKey)
 	pathKey, err := dr.ResolveParentFromCache(pathKey)
 	if err != nil && dr.config.MapDentryResolutionEnabled {
+		dr.debugLog += "GetParent() - cache miss, trying map resolution\n"
 		pathKey, err = dr.ResolveParentFromMap(pathKey)
 	}
 
 	if pathKey.Inode == 0 {
+		dr.debugLog += "GetParent() - parent has inode 0, returning ErrEntryNotFound\n"
 		return model.PathKey{}, ErrEntryNotFound
 	}
 
+	dr.debugLog += fmt.Sprintf("GetParent() [Out] parent = %+v, err = %v\n", pathKey, err)
 	return pathKey, err
 }
 
@@ -705,6 +799,7 @@ func (dr *Resolver) Start(manager *manager.Manager) error {
 func (dr *Resolver) ToJSON() ([]byte, error) {
 	dump := struct {
 		Entries []json.RawMessage
+		Trace   string
 	}{}
 
 	dr.cache.Walk(func(_ uint32, pathKey model.PathKey, value PathEntry) {
@@ -722,6 +817,7 @@ func (dr *Resolver) ToJSON() ([]byte, error) {
 		}
 	})
 
+	dump.Trace = dr.debugLog
 	return json.Marshal(dump)
 }
 
