@@ -117,7 +117,7 @@ func TestActiveSessionHistory(t *testing.T) {
 	var err error
 	var count uint64
 	getWrapper(&c, &count, "SELECT count(*) FROM V$VERSION WHERE BANNER LIKE '%Enterprise%Edition%'")
-	if count != 0 {
+	if count == 0 {
 		t.Skip("Active Session History is only available in Oracle Enterprise Edition")
 	}
 	c.dbmEnabled = true
@@ -160,5 +160,5 @@ END;`
 }
 
 func isValidSessionType(sessionType string) bool {
-	return sessionType == "USER1" || sessionType == "BACKGROUND1"
+	return sessionType == "USER" || sessionType == "BACKGROUND"
 }

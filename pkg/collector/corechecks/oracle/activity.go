@@ -204,6 +204,9 @@ AND status = 'ACTIVE'`)
 
 		sessionType := ""
 		if sample.Type.Valid {
+			if sample.Type.String == "FOREGROUND" {
+				sample.Type.String = "USER"
+			}
 			sessionRow.Type = sample.Type.String
 			sessionType = sample.Type.String
 		}
