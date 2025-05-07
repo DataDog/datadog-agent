@@ -8,12 +8,12 @@
 package diconfig
 
 import (
-	"debug/elf"
 	"fmt"
 	"path/filepath"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 	"github.com/stretchr/testify/require"
 )
 
@@ -50,7 +50,7 @@ func TestLoadFunctionDefinitions(t *testing.T) {
 			}
 
 			// Open the ELF file
-			elfFile, err := elf.Open(tc.binaryPath)
+			elfFile, err := safeelf.Open(tc.binaryPath)
 			require.NoError(t, err, "Failed to open ELF file %s", tc.binaryPath)
 			defer elfFile.Close()
 
