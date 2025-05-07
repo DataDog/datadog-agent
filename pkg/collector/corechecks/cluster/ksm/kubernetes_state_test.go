@@ -979,7 +979,7 @@ func TestSendTelemetry(t *testing.T) {
 
 func TestKSMCheck_hostnameAndTags(t *testing.T) {
 	type args struct {
-		labels          map[string]string
+		labels, tags    map[string]string
 		lMapperOverride map[string]string
 		metricsToGet    []ksmstore.DDMetricsFam
 		clusterName     string
@@ -1262,6 +1262,17 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 			wantTags:     []string{"new_foo_label:foo_value"},
 			wantHostname: "",
 		},
+		{
+			name:   "tags provided",
+			config: &KSMConfig{},
+			args: args{
+				labels:       map[string]string{"foo_label": "foo_value"},
+				tags:         map[string]string{"service": "sname"},
+				metricsToGet: []ksmstore.DDMetricsFam{},
+			},
+			wantTags:     []string{"foo_label:foo_value", "service:sname"},
+			wantHostname: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1272,7 +1283,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 				labelJoiner.insertFamily(metricFam)
 			}
 
-			hostname, tags := kubeStateMetricsSCheck.hostnameAndTags(tt.args.labels, labelJoiner, tt.args.lMapperOverride)
+			hostname, tags := kubeStateMetricsSCheck.hostnameAndTags(tt.args.labels, tt.args.tags, labelJoiner, tt.args.lMapperOverride)
 			assert.ElementsMatch(t, tt.wantTags, tags)
 			assert.Equal(t, tt.wantHostname, hostname)
 		})
@@ -1756,7 +1767,11 @@ func TestOwnerTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.tc, func(t *testing.T) {
-			assert.EqualValues(t, tt.want, ownerTags(tt.kind, tt.name))
+			var tags []string
+			for _, owner := range ownerTags(tt.kind, tt.name) {
+				tags = append(tags, fmtTag(owner[0], owner[1]))
+			}
+			assert.EqualValues(t, tt.want, tags)
 		})
 	}
 }

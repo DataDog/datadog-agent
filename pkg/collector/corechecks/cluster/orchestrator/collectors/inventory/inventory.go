@@ -61,7 +61,7 @@ func NewCollectorInventory(cfg config.Component, store workloadmeta.Component, t
 			k8sCollectors.NewClusterRoleCollectorVersions(metadataAsTags),
 			k8sCollectors.NewCronJobCollectorVersions(metadataAsTags),
 			k8sCollectors.NewDaemonSetCollectorVersions(metadataAsTags),
-			k8sCollectors.NewDeploymentCollectorVersions(metadataAsTags),
+			k8sCollectors.NewDeploymentCollectorVersions(cfg, store, tagger, metadataAsTags),
 			k8sCollectors.NewHorizontalPodAutoscalerCollectorVersions(metadataAsTags),
 			k8sCollectors.NewIngressCollectorVersions(metadataAsTags),
 			k8sCollectors.NewJobCollectorVersions(metadataAsTags),

@@ -26,5 +26,16 @@ func newNodePodTagProvider(tagger tagger.Component) PodTagProvider {
 
 // GetTags implements PodTagProvider#GetTags
 func (p *nodePodTagProvider) GetTags(pod *corev1.Pod, cardinality taggertypes.TagCardinality) ([]string, error) {
-	return p.tagger.Tag(taggertypes.NewEntityID(taggertypes.KubernetesPodUID, string(pod.UID)), cardinality)
+	entity := taggertypes.NewEntityID(taggertypes.KubernetesPodUID, string(pod.UID))
+	tags, err := p.tagger.Tag(entity, cardinality)
+	if err != nil {
+		return nil, err
+	}
+
+	stags, err := p.tagger.Standard(entity)
+	if err != nil {
+		return tags, nil
+	}
+
+	return append(tags, stags...), nil
 }

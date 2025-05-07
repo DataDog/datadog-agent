@@ -75,8 +75,14 @@ func TestExtractPod(t *testing.T) {
 	restartPolicyAlways := v1.ContainerRestartPolicyAlways
 	parseRequests := resource.MustParse("250M")
 	parseLimits := resource.MustParse("550M")
+	hasTags := func(tags []string) func(_ *v1.Pod) []string {
+		return func(_ *v1.Pod) []string {
+			return tags
+		}
+	}
 	tests := map[string]struct {
 		input             v1.Pod
+		tagProvider       func(*v1.Pod) []string
 		labelsAsTags      map[string]string
 		annotationsAsTags map[string]string
 		expected          model.Pod
@@ -565,6 +571,35 @@ func TestExtractPod(t *testing.T) {
 				},
 			},
 		},
+		"with extra tag provider": {
+			tagProvider: hasTags([]string{"service:foo"}),
+			input: v1.Pod{
+				Spec: v1.PodSpec{
+					InitContainers: []v1.Container{
+						{
+							Name:          "sidecar-container",
+							RestartPolicy: &restartPolicyAlways,
+							Resources: v1.ResourceRequirements{
+								Limits:   map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: parseLimits},
+								Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: parseRequests},
+							},
+						},
+					},
+				},
+			},
+			expected: model.Pod{
+				Metadata: &model.Metadata{},
+				ResourceRequirements: []*model.ResourceRequirements{
+					{
+						Name:     "sidecar-container",
+						Type:     model.ResourceRequirementsType_nativeSidecar,
+						Limits:   map[string]int64{v1.ResourceMemory.String(): parseLimits.Value()},
+						Requests: map[string]int64{v1.ResourceMemory.String(): parseRequests.Value()},
+					},
+				},
+				Tags: []string{"service:foo"},
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -572,7 +607,7 @@ func TestExtractPod(t *testing.T) {
 				LabelsAsTags:      tc.labelsAsTags,
 				AnnotationsAsTags: tc.annotationsAsTags,
 			}
-			actual := ExtractPod(pctx, &tc.input)
+			actual := ExtractPod(pctx, &tc.input, tc.tagProvider)
 			sort.Strings(actual.Tags)
 			sort.Strings(tc.expected.Tags)
 			assert.Equal(t, &tc.expected, actual)
@@ -693,6 +728,7 @@ func TestConvertResourceRequirements(t *testing.T) {
 		})
 	}
 }
+
 func boolPointer(b bool) *bool {
 	return &b
 }
@@ -809,27 +845,27 @@ func TestExtractPodConditions(t *testing.T) {
 				{
 					Type:               v1.PodInitialized,
 					Status:             v1.ConditionTrue,
-					LastTransitionTime: metav1.NewTime(time.Date(2023, 01, 06, 11, 24, 46, 0, time.UTC)),
+					LastTransitionTime: metav1.NewTime(time.Date(2023, 0o1, 0o6, 11, 24, 46, 0, time.UTC)),
 				},
 				{
 					Type:               v1.PodScheduled,
 					Status:             v1.ConditionTrue,
-					LastTransitionTime: metav1.NewTime(time.Date(2023, 01, 06, 11, 24, 44, 0, time.UTC)),
+					LastTransitionTime: metav1.NewTime(time.Date(2023, 0o1, 0o6, 11, 24, 44, 0, time.UTC)),
 				},
 				{
 					Type:               v1.ContainersReady,
 					Status:             v1.ConditionFalse,
 					Message:            "containers with unready status: [trace-query]",
 					Reason:             "ContainersNotReady",
-					LastTransitionTime: metav1.NewTime(time.Date(2023, 02, 07, 13, 06, 38, 0, time.UTC)),
+					LastTransitionTime: metav1.NewTime(time.Date(2023, 0o2, 0o7, 13, 0o6, 38, 0, time.UTC)),
 				},
 				{
 					Type:               v1.PodReady,
 					Status:             v1.ConditionUnknown,
 					Message:            "Unknown",
 					Reason:             "Unknown",
-					LastProbeTime:      metav1.NewTime(time.Date(2023, 02, 07, 13, 06, 52, 0, time.UTC)),
-					LastTransitionTime: metav1.NewTime(time.Date(2023, 02, 07, 13, 06, 40, 0, time.UTC)),
+					LastProbeTime:      metav1.NewTime(time.Date(2023, 0o2, 0o7, 13, 0o6, 52, 0, time.UTC)),
+					LastTransitionTime: metav1.NewTime(time.Date(2023, 0o2, 0o7, 13, 0o6, 40, 0, time.UTC)),
 				},
 			},
 		},
@@ -839,27 +875,27 @@ func TestExtractPodConditions(t *testing.T) {
 		{
 			Type:               "Initialized",
 			Status:             "True",
-			LastTransitionTime: time.Date(2023, 01, 06, 11, 24, 46, 0, time.UTC).Unix(),
+			LastTransitionTime: time.Date(2023, 0o1, 0o6, 11, 24, 46, 0, time.UTC).Unix(),
 		},
 		{
 			Type:               "PodScheduled",
 			Status:             "True",
-			LastTransitionTime: time.Date(2023, 01, 06, 11, 24, 44, 0, time.UTC).Unix(),
+			LastTransitionTime: time.Date(2023, 0o1, 0o6, 11, 24, 44, 0, time.UTC).Unix(),
 		},
 		{
 			Type:               "ContainersReady",
 			Status:             "False",
 			Message:            "containers with unready status: [trace-query]",
 			Reason:             "ContainersNotReady",
-			LastTransitionTime: time.Date(2023, 02, 07, 13, 06, 38, 0, time.UTC).Unix(),
+			LastTransitionTime: time.Date(2023, 0o2, 0o7, 13, 0o6, 38, 0, time.UTC).Unix(),
 		},
 		{
 			Type:               "Ready",
 			Status:             "Unknown",
 			Reason:             "Unknown",
 			Message:            "Unknown",
-			LastProbeTime:      time.Date(2023, 02, 07, 13, 06, 52, 0, time.UTC).Unix(),
-			LastTransitionTime: time.Date(2023, 02, 07, 13, 06, 40, 0, time.UTC).Unix(),
+			LastProbeTime:      time.Date(2023, 0o2, 0o7, 13, 0o6, 52, 0, time.UTC).Unix(),
+			LastTransitionTime: time.Date(2023, 0o2, 0o7, 13, 0o6, 40, 0, time.UTC).Unix(),
 		},
 	}
 	expectedTags := []string{

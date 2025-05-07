@@ -58,6 +58,9 @@ func Test_labelJoiner(t *testing.T) {
 									"qux_key":  "qux_value2",
 									"quux_key": "quux_value2",
 								},
+								Tags: map[string]string{
+									"foo": "bar",
+								},
 							},
 						},
 					},
@@ -81,6 +84,7 @@ func Test_labelJoiner(t *testing.T) {
 					inputLabels: map[string]string{"foo_key": "foo_value2"},
 					labelsToAdd: []label{
 						{key: "qux_tag", value: "qux_value2"},
+						{key: "foo", value: "bar"},
 					},
 				},
 			},

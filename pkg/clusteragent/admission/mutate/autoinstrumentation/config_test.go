@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/apm/instrumentation"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -21,14 +22,14 @@ func TestNewInstrumentationConfig(t *testing.T) {
 	tests := []struct {
 		name       string
 		configPath string
-		expected   *InstrumentationConfig
+		expected   *instrumentation.Config
 		shouldErr  bool
 	}{
 		{
 			name:       "valid config enabled namespaces",
 			configPath: "testdata/enabled_namespaces.yaml",
 			shouldErr:  false,
-			expected: &InstrumentationConfig{
+			expected: &instrumentation.Config{
 				Enabled:            true,
 				EnabledNamespaces:  []string{"default"},
 				DisabledNamespaces: []string{},
@@ -49,7 +50,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			name:       "valid config disabled namespaces",
 			configPath: "testdata/disabled_namespaces.yaml",
 			shouldErr:  false,
-			expected: &InstrumentationConfig{
+			expected: &instrumentation.Config{
 				Enabled:            true,
 				EnabledNamespaces:  []string{},
 				DisabledNamespaces: []string{"default"},
@@ -64,7 +65,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			name:       "valid targets based config",
 			configPath: "testdata/targets.yaml",
 			shouldErr:  false,
-			expected: &InstrumentationConfig{
+			expected: &instrumentation.Config{
 				Enabled:           true,
 				EnabledNamespaces: []string{},
 				InjectorImageTag:  "0",
@@ -73,14 +74,14 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				DisabledNamespaces: []string{
 					"hacks",
 				},
-				Targets: []Target{
+				Targets: []instrumentation.Target{
 					{
 						Name: "Billing Service",
-						PodSelector: &PodSelector{
+						PodSelector: &instrumentation.PodSelector{
 							MatchLabels: map[string]string{
 								"app": "billing-service",
 							},
-							MatchExpressions: []SelectorMatchExpression{
+							MatchExpressions: []instrumentation.SelectorMatchExpression{
 								{
 									Key:      "env",
 									Operator: "In",
@@ -88,13 +89,13 @@ func TestNewInstrumentationConfig(t *testing.T) {
 								},
 							},
 						},
-						NamespaceSelector: &NamespaceSelector{
+						NamespaceSelector: &instrumentation.NamespaceSelector{
 							MatchNames: []string{"billing"},
 						},
 						TracerVersions: map[string]string{
 							"java": "default",
 						},
-						TracerConfigs: []TracerConfig{
+						TracerConfigs: []instrumentation.TracerConfig{
 							{
 								Name:  "DD_PROFILING_ENABLED",
 								Value: "true",
@@ -112,7 +113,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			name:       "valid targets based config with namespace label selector",
 			configPath: "testdata/targets_namespace_labels.yaml",
 			shouldErr:  false,
-			expected: &InstrumentationConfig{
+			expected: &instrumentation.Config{
 				Enabled:           true,
 				EnabledNamespaces: []string{},
 				InjectorImageTag:  "0",
@@ -121,14 +122,14 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				DisabledNamespaces: []string{
 					"hacks",
 				},
-				Targets: []Target{
+				Targets: []instrumentation.Target{
 					{
 						Name: "Billing Service",
-						PodSelector: &PodSelector{
+						PodSelector: &instrumentation.PodSelector{
 							MatchLabels: map[string]string{
 								"app": "billing-service",
 							},
-							MatchExpressions: []SelectorMatchExpression{
+							MatchExpressions: []instrumentation.SelectorMatchExpression{
 								{
 									Key:      "env",
 									Operator: "In",
@@ -136,11 +137,11 @@ func TestNewInstrumentationConfig(t *testing.T) {
 								},
 							},
 						},
-						NamespaceSelector: &NamespaceSelector{
+						NamespaceSelector: &instrumentation.NamespaceSelector{
 							MatchLabels: map[string]string{
 								"app": "billing",
 							},
-							MatchExpressions: []SelectorMatchExpression{
+							MatchExpressions: []instrumentation.SelectorMatchExpression{
 								{
 									Key:      "env",
 									Operator: "In",
@@ -151,7 +152,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 						TracerVersions: map[string]string{
 							"java": "default",
 						},
-						TracerConfigs: []TracerConfig{
+						TracerConfigs: []instrumentation.TracerConfig{
 							{
 								Name:  "DD_PROFILING_ENABLED",
 								Value: "true",
@@ -168,17 +169,17 @@ func TestNewInstrumentationConfig(t *testing.T) {
 		{
 			name:       "can provide DD_SERVICE from arbitrary label",
 			configPath: "testdata/filter_service_env_var_from.yaml",
-			expected: &InstrumentationConfig{
+			expected: &instrumentation.Config{
 				Enabled:            true,
 				EnabledNamespaces:  []string{},
 				DisabledNamespaces: []string{},
 				InjectorImageTag:   "0",
 				Version:            "v2",
 				LibVersions:        map[string]string{},
-				Targets: []Target{
+				Targets: []instrumentation.Target{
 					{
 						Name: "name-services",
-						TracerConfigs: []TracerConfig{
+						TracerConfigs: []instrumentation.TracerConfig{
 							{
 								Name: "DD_SERVICE",
 								ValueFrom: &corev1.EnvVarSource{
@@ -327,18 +328,18 @@ func TestDisabledNamespacesEnvVar(t *testing.T) {
 func TestTargetEnvVar(t *testing.T) {
 	tests := []struct {
 		name     string
-		expected []Target
+		expected []instrumentation.Target
 	}{
 		{
 			name: "valid target",
-			expected: []Target{
+			expected: []instrumentation.Target{
 				{
 					Name: "Billing Service",
-					PodSelector: &PodSelector{
+					PodSelector: &instrumentation.PodSelector{
 						MatchLabels: map[string]string{
 							"app": "billing-service",
 						},
-						MatchExpressions: []SelectorMatchExpression{
+						MatchExpressions: []instrumentation.SelectorMatchExpression{
 							{
 								Key:      "env",
 								Operator: "In",
@@ -346,7 +347,7 @@ func TestTargetEnvVar(t *testing.T) {
 							},
 						},
 					},
-					NamespaceSelector: &NamespaceSelector{
+					NamespaceSelector: &instrumentation.NamespaceSelector{
 						MatchNames: []string{"billing"},
 					},
 					TracerVersions: map[string]string{
@@ -357,10 +358,10 @@ func TestTargetEnvVar(t *testing.T) {
 		},
 		{
 			name: "target with many omitted fields",
-			expected: []Target{
+			expected: []instrumentation.Target{
 				{
 					Name: "Billing Service",
-					PodSelector: &PodSelector{
+					PodSelector: &instrumentation.PodSelector{
 						MatchLabels: map[string]string{
 							"app": "billing-service",
 						},
@@ -370,10 +371,10 @@ func TestTargetEnvVar(t *testing.T) {
 		},
 		{
 			name: "target with env valueFrom",
-			expected: []Target{
+			expected: []instrumentation.Target{
 				{
 					Name: "default-target",
-					TracerConfigs: []TracerConfig{
+					TracerConfigs: []instrumentation.TracerConfig{
 						{
 							Name: "DD_SERVICE",
 							ValueFrom: &corev1.EnvVarSource{

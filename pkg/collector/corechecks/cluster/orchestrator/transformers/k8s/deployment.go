@@ -8,10 +8,11 @@
 package k8s
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -19,7 +20,7 @@ import (
 
 // ExtractDeployment returns the protobuf model corresponding to a Kubernetes
 // Deployment resource.
-func ExtractDeployment(ctx processors.ProcessorContext, d *appsv1.Deployment) *model.Deployment {
+func ExtractDeployment(ctx processors.ProcessorContext, d *appsv1.Deployment, tagProvider func(p *appsv1.Deployment) []string) *model.Deployment {
 	deploy := model.Deployment{
 		Metadata: extractMetadata(&d.ObjectMeta),
 	}
@@ -59,6 +60,15 @@ func ExtractDeployment(ctx processors.ProcessorContext, d *appsv1.Deployment) *m
 	deploy.ResourceRequirements = ExtractPodTemplateResourceRequirements(d.Spec.Template)
 
 	pctx := ctx.(*processors.K8sProcessorContext)
+	var providedTags []string
+	if tagProvider != nil {
+		providedTags = tagProvider(d)
+	}
+	if len(providedTags) > 0 {
+		log.Debugf("with more tags added to deployment: %+v", providedTags)
+		deploy.Tags = append(deploy.Tags, providedTags...)
+	}
+
 	deploy.Tags = append(deploy.Tags, transformers.RetrieveUnifiedServiceTags(d.ObjectMeta.Labels)...)
 	deploy.Tags = append(deploy.Tags, transformers.RetrieveMetadataTags(d.ObjectMeta.Labels, d.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 

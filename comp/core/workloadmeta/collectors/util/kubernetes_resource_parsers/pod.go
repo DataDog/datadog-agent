@@ -13,8 +13,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/apm/instrumentation"
 	"github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type podParser struct {
@@ -82,6 +84,18 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		containersList = append(containersList, c)
 	}
 
+	var instrumentationTargetTags *workloadmeta.InstrumentationWorkloadTarget
+	tags, err := instrumentation.ExtractTagsFromPodMeta(pod.ObjectMeta)
+	if err != nil {
+		log.Warnf("error extracting tags: %v", err)
+	} else if tags != nil {
+		instrumentationTargetTags = &workloadmeta.InstrumentationWorkloadTarget{
+			Service: tags.Service,
+			Env:     tags.Env,
+			Version: tags.Version,
+		}
+	}
+
 	return &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
@@ -93,16 +107,17 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 			Annotations: filterMapStringKey(pod.Annotations, p.annotationsFilter),
 			Labels:      pod.Labels,
 		},
-		Phase:                      string(pod.Status.Phase),
-		Owners:                     owners,
-		PersistentVolumeClaimNames: pvcNames,
-		Ready:                      isPodReady(pod),
-		IP:                         pod.Status.PodIP,
-		PriorityClass:              pod.Spec.PriorityClassName,
-		QOSClass:                   string(pod.Status.QOSClass),
-		RuntimeClass:               rtcName,
-		GPUVendorList:              gpuVendorList,
-		Containers:                 containersList,
+		Phase:                                  string(pod.Status.Phase),
+		Owners:                                 owners,
+		PersistentVolumeClaimNames:             pvcNames,
+		Ready:                                  isPodReady(pod),
+		IP:                                     pod.Status.PodIP,
+		PriorityClass:                          pod.Spec.PriorityClassName,
+		QOSClass:                               string(pod.Status.QOSClass),
+		RuntimeClass:                           rtcName,
+		GPUVendorList:                          gpuVendorList,
+		Containers:                             containersList,
+		EvaluatedInstrumentationWorkloadTarget: instrumentationTargetTags,
 	}
 }
 

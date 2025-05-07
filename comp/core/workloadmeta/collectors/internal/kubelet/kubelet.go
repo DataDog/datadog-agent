@@ -17,8 +17,12 @@ import (
 
 	"go.uber.org/fx"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
+	"github.com/DataDog/datadog-agent/pkg/apm/instrumentation"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -161,6 +165,24 @@ func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 		PodSecurityContext := extractPodSecurityContext(&pod.Spec)
 		RuntimeClassName := extractPodRuntimeClassName(&pod.Spec)
 
+		var EvaluatedInstrumentationWorkloadTarget *workloadmeta.InstrumentationWorkloadTarget
+		tags, err := instrumentation.ExtractTagsFromPodMeta(metav1.ObjectMeta{
+			Namespace:   podMeta.Namespace,
+			Name:        podMeta.Name,
+			Annotations: podMeta.Annotations,
+			Labels:      podMeta.Labels,
+			UID:         k8stypes.UID(podID.ID),
+		})
+		if err != nil {
+			log.Warnf("error extracting tags: %v", err)
+		} else if tags != nil {
+			EvaluatedInstrumentationWorkloadTarget = &workloadmeta.InstrumentationWorkloadTarget{
+				Service: tags.Service,
+				Env:     tags.Env,
+				Version: tags.Version,
+			}
+		}
+
 		entity := &workloadmeta.KubernetesPod{
 			EntityID: podID,
 			EntityMeta: workloadmeta.EntityMeta{
@@ -169,18 +191,19 @@ func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 				Annotations: podMeta.Annotations,
 				Labels:      podMeta.Labels,
 			},
-			Owners:                     owners,
-			PersistentVolumeClaimNames: pod.GetPersistentVolumeClaimNames(),
-			InitContainers:             podInitContainers,
-			Containers:                 podContainers,
-			Ready:                      kubelet.IsPodReady(pod),
-			Phase:                      pod.Status.Phase,
-			IP:                         pod.Status.PodIP,
-			PriorityClass:              pod.Spec.PriorityClassName,
-			QOSClass:                   pod.Status.QOSClass,
-			GPUVendorList:              GPUVendors,
-			RuntimeClass:               RuntimeClassName,
-			SecurityContext:            PodSecurityContext,
+			Owners:                                 owners,
+			PersistentVolumeClaimNames:             pod.GetPersistentVolumeClaimNames(),
+			InitContainers:                         podInitContainers,
+			Containers:                             podContainers,
+			Ready:                                  kubelet.IsPodReady(pod),
+			Phase:                                  pod.Status.Phase,
+			IP:                                     pod.Status.PodIP,
+			PriorityClass:                          pod.Spec.PriorityClassName,
+			QOSClass:                               pod.Status.QOSClass,
+			GPUVendorList:                          GPUVendors,
+			RuntimeClass:                           RuntimeClassName,
+			SecurityContext:                        PodSecurityContext,
+			EvaluatedInstrumentationWorkloadTarget: EvaluatedInstrumentationWorkloadTarget,
 		}
 
 		events = append(events, initContainerEvents...)
