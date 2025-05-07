@@ -3,5 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package process implements the local process collector for Workloadmeta.
-package process
+// Package processlanguage implements the process language collector for Workloadmeta.
+package processlanguage

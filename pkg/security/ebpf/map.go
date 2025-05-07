@@ -5,6 +5,8 @@
 
 //go:build linux
 
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/model/bpf_maps_generator -runtime-path ../../security/ebpf/c/include/maps.h -output ../../security/secl/model/consts_map_names_linux.go -pkg-name model
+
 // Package ebpf holds ebpf related files
 package ebpf
 
