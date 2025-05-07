@@ -97,9 +97,7 @@ func (cm *RCConfigManager) GetProcInfos() ditypes.DIProcs {
 func (cm *RCConfigManager) Stop() {
 	log.Infof("Stopping remote config manager")
 	cm.Lock()
-	defer func() {
-		cm.Unlock()
-	}()
+	defer cm.Unlock()
 	cm.procTracker.Stop()
 	for _, procInfo := range cm.diProcs {
 		procInfo.CloseAllUprobeLinks()
