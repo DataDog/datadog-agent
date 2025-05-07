@@ -10,6 +10,7 @@ struct perf_map_stats_t {
     u64 bytes;
     u64 count;
     u64 lost;
+    u64 discarded;
 };
 
 struct ring_buffer_stats_t {
@@ -17,7 +18,6 @@ struct ring_buffer_stats_t {
 };
 
 #if USE_RING_BUFFER == 1
-
 void __attribute__((always_inline)) store_ring_buffer_stats() {
     // check needed for code elimination
     u64 use_ring_buffer;
@@ -25,13 +25,59 @@ void __attribute__((always_inline)) store_ring_buffer_stats() {
     if (use_ring_buffer) {
         int zero = 0;
         struct ring_buffer_stats_t *stats = bpf_map_lookup_elem(&events_ringbuf_stats, &zero);
-        if (stats)
+        if (stats) {
             stats->usage = bpf_ringbuf_query(&events, 0);
+        }
     }
 }
 #endif
 
+#define IS_CRITICAL_EVENT_TYPES(event_type) (\
+    event_type == EVENT_EXEC || \
+    event_type == EVENT_EXIT || \
+    event_type == EVENT_FORK || \
+    event_type == EVENT_ARGS_ENVS || \
+    event_type == EVENT_CGROUP_TRACING || \
+    event_type == EVENT_VETH_PAIR || \
+    event_type == EVENT_NET_DEVICE || \
+    event_type == EVENT_UNSHARE_MNTNS || \
+    event_type == EVENT_CGROUP_WRITE || \
+    event_type == EVENT_MOUNT_RELEASED || \
+    event_type == EVENT_MOUNT || \
+    event_type == EVENT_UMOUNT)
+
+#if USE_RING_BUFFER == 1
+int __attribute__((always_inline)) check_ring_buffer_size(u64 event_type) {
+    u64 use_ring_buffer;
+    LOAD_CONSTANT("use_ring_buffer", use_ring_buffer);
+
+    u64 ring_buffer_size;
+    LOAD_CONSTANT("ring_buffer_size", ring_buffer_size);
+
+    u64 ring_buffer_threshold;
+    LOAD_CONSTANT("ring_buffer_threshold", ring_buffer_threshold);
+    if (use_ring_buffer) {
+        u64 usage = bpf_ringbuf_query(&events, 0);
+        u64 percentage = (usage * 100) / ring_buffer_size;
+        return percentage < ring_buffer_threshold || IS_CRITICAL_EVENT_TYPES(event_type);
+    }
+    return 1;
+}
+#else
+int __attribute__((always_inline)) check_ring_buffer_size(u64 event_type) {
+    return ACCEPTED;
+}
+#endif
+
 void __attribute__((always_inline)) send_event_with_size_ptr(void *ctx, u64 event_type, void *kernel_event, u64 kernel_event_size) {
+    if (check_ring_buffer_size(event_type) == 0) {
+        struct perf_map_stats_t *stats = bpf_map_lookup_elem(&events_stats, &event_type);
+        if (stats != NULL) {
+            __sync_fetch_and_add(&stats->discarded, 1);
+        }
+        return;
+    }
+
     struct kevent_t *header = kernel_event;
     header->type = event_type;
     header->timestamp = bpf_ktime_get_ns();

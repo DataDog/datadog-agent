@@ -117,6 +117,10 @@ var (
 	// dedicated count in kernel space
 	// Tags: map, event_type
 	MetricPerfBufferLostWrite = newRuntimeMetric(".perf_buffer.lost_events.write")
+	// MetricPerfBufferDiscardedWrite is the name of the metric used to count the number of discarded events, as reported by a
+	// dedicated count in kernel space
+	// Tags: map, event_type
+	MetricPerfBufferDiscardedWrite = newRuntimeMetric(".perf_buffer.discarded_events.write")
 	// MetricPerfBufferLostRead is the name of the metric used to count the number of lost events, as reported in user
 	// space by a perf buffer
 	// Tags: map

@@ -2236,6 +2236,14 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Name:  "raw_packet_limiter_rate",
 			Value: uint64(p.config.Probe.NetworkRawPacketLimiterRate),
 		},
+		manager.ConstantEditor{
+			Name:  "ring_buffer_size",
+			Value: uint64(p.managerOptions.MapSpecEditors["events"].MaxEntries),
+		},
+		manager.ConstantEditor{
+			Name:  "ring_buffer_threshold",
+			Value: uint64(p.config.Probe.EventStreamBufferThreshold),
+		},
 	)
 
 	if p.kernelVersion.HavePIDLinkStruct() {
@@ -2364,9 +2372,9 @@ func (p *EBPFProbe) initManagerOptions() error {
 
 	p.managerOptions = ebpf.NewDefaultOptions(kretprobeMaxActive)
 	p.initManagerOptionsActivatedProbes()
+	p.initManagerOptionsMapSpecEditors()
 	p.initManagerOptionsConstants()
 	p.initManagerOptionsTailCalls()
-	p.initManagerOptionsMapSpecEditors()
 	return p.initManagerOptionsExcludedFunctions()
 }
 
