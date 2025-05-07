@@ -18,24 +18,20 @@
 agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64", "specific:true"]
-  # TODO
-  parallel: 6
-  needs: []
-  # needs: ["go_mod_tidy_check"]
-  # rules:
-  #    - !reference [.on_macos_gui_change]
-  #    - !reference [.on_packaging_change]
-  #    - !reference [.on_main_or_release_branch]
-  #    - !reference [.on_all_builds]
-  #    - !reference [.manual]
+  needs: ["go_mod_tidy_check"]
+  rules:
+     - !reference [.on_macos_gui_change]
+     - !reference [.on_packaging_change]
+     - !reference [.on_main_or_release_branch]
+     - !reference [.on_all_builds]
+     - !reference [.manual]
   artifacts:
     expire_in: 2 weeks
     paths:
       - omnibus/pkg/*.dmg
       - omnibus/pkg/version-manifest.json
   variables:
-    # TODO
-    # SIGN: true
+    SIGN: true
     KEYCHAIN_NAME: "build.keychain"
     INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
     INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD: true
@@ -43,7 +39,6 @@ agent_dmg-x64-a7:
     NOTARIZATION_TIMEOUT: 30m
     NOTARIZATION_ATTEMPTS: 3
     NOTARIZATION_WAIT_TIME: 15s
-    OMNIBUS_RUBY_VERSION: celian/fix-git-race-condition
   timeout: 2h
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
