@@ -923,7 +923,7 @@ func TestDocker(t *testing.T) {
 	require.NoError(t, err, "failed to create pattern scanner")
 
 	dockerCfg := dockerutils.NewComposeConfig(
-		dockerutils.NewBaseConfig(
+		dockerutils.WithBaseConfigForCompose(
 			dockerutils.WithName("foo-server"),
 			dockerutils.WithTimeout(dockerutils.DefaultTimeout),
 			dockerutils.WithRetries(dockerutils.DefaultRetries),

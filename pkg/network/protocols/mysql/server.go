@@ -52,7 +52,7 @@ func RunServer(t testing.TB, serverAddr, serverPort string, withTLS bool) error 
 	require.NoError(t, err, "failed to create pattern scanner")
 
 	dockerCfg := dockerutils.NewComposeConfig(
-		dockerutils.NewBaseConfig(
+		dockerutils.WithBaseConfigForCompose(
 			dockerutils.WithName("MYSQL"),
 			dockerutils.WithTimeout(dockerutils.DefaultTimeout),
 			dockerutils.WithRetries(dockerutils.DefaultRetries),

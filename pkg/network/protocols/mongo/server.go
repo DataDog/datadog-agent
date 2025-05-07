@@ -39,7 +39,7 @@ func RunServer(t testing.TB, serverAddress, serverPort string) error {
 	scanner, err := globalutils.NewScanner(regexp.MustCompile(fmt.Sprintf(".*Waiting for connections.*port.*:%s.*", serverPort)), globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
 
-	base := dockerutils.NewBaseConfig(
+	base := dockerutils.WithBaseConfigForCompose(
 		dockerutils.WithName("mongo"),
 		dockerutils.WithTimeout(dockerutils.DefaultTimeout),
 		dockerutils.WithRetries(dockerutils.DefaultRetries),

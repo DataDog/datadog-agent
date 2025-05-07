@@ -30,7 +30,7 @@ func RunServer(t testing.TB, serverPort string) error {
 	require.NoError(t, err, "failed to create pattern scanner")
 
 	dockerCfg := dockerutils.NewComposeConfig(
-		dockerutils.NewBaseConfig(
+		dockerutils.WithBaseConfigForCompose(
 			dockerutils.WithName("https-gotls"),
 			dockerutils.WithTimeout(dockerutils.DefaultTimeout),
 			dockerutils.WithRetries(dockerutils.DefaultRetries),

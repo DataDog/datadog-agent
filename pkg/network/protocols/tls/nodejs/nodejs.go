@@ -70,7 +70,7 @@ func RunServerNodeJS(t *testing.T, key, cert, serverPort string) error {
 	require.NoError(t, err, "failed to create pattern scanner")
 
 	dockerCfg := dockerutils.NewComposeConfig(
-		dockerutils.NewBaseConfig(
+		dockerutils.WithBaseConfigForCompose(
 			dockerutils.WithName("nodejs-server"),
 			dockerutils.WithTimeout(dockerutils.DefaultTimeout),
 			dockerutils.WithRetries(dockerutils.DefaultRetries),

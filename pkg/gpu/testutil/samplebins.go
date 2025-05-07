@@ -166,15 +166,14 @@ func RunSampleInDockerWithArgs(t *testing.T, name sampleName, image dockerImage,
 	scanner, err := procutil.NewScanner(startedPattern, finishedPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
 
-	base := dockerutils.NewBaseConfig(
-		dockerutils.WithName(containerName),
-		dockerutils.WithTimeout(dockerutils.DefaultTimeout),
-		dockerutils.WithRetries(dockerutils.DefaultRetries),
-		dockerutils.WithPatternScanner(scanner),
-		dockerutils.WithEnv(args.getEnv()),
-	)
-
-	dockerConfig := dockerutils.NewRunConfig(base,
+	dockerConfig := dockerutils.NewRunConfig(
+		dockerutils.WithBaseConfigForRun(
+			dockerutils.WithName(containerName),
+			dockerutils.WithTimeout(dockerutils.DefaultTimeout),
+			dockerutils.WithRetries(dockerutils.DefaultRetries),
+			dockerutils.WithPatternScanner(scanner),
+			dockerutils.WithEnv(args.getEnv()),
+		),
 		dockerutils.WithImageName(string(image)),
 		dockerutils.WithBinary(builtBin),
 		dockerutils.WithBinaryArgs(args.getCLIArgs()),

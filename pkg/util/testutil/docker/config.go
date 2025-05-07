@@ -207,10 +207,8 @@ func WithPIDMode(pidMode string) RunConfigOption {
 }
 
 // NewRunConfig creates a new runConfig instance for a single docker container.
-func NewRunConfig(base baseConfig, opts ...RunConfigOption) LifecycleConfig {
-	cfg := &runConfig{
-		baseConfig: base,
-	}
+func NewRunConfig(opts ...RunConfigOption) LifecycleConfig {
+	cfg := &runConfig{}
 	for _, opt := range opts {
 		opt(cfg)
 	}
@@ -225,10 +223,8 @@ func WithFile(file string) ComposeConfigOption {
 }
 
 // NewComposeConfig creates a new composeConfig instance for the docker-compose.
-func NewComposeConfig(base baseConfig, opts ...ComposeConfigOption) LifecycleConfig {
-	cfg := &composeConfig{
-		baseConfig: base,
-	}
+func NewComposeConfig(opts ...ComposeConfigOption) LifecycleConfig {
+	cfg := &composeConfig{}
 	for _, opt := range opts {
 		opt(cfg)
 	}
@@ -274,7 +270,19 @@ func WithEnv(env []string) BaseConfigOption {
 	}
 }
 
-func NewBaseConfig(opts ...BaseConfigOption) baseConfig {
+func WithBaseConfigForCompose(opts ...BaseConfigOption) ComposeConfigOption {
+	return func(c *composeConfig) {
+		c.baseConfig = newBaseConfig(opts...)
+	}
+}
+
+func WithBaseConfigForRun(opts ...BaseConfigOption) RunConfigOption {
+	return func(c *runConfig) {
+		c.baseConfig = newBaseConfig(opts...)
+	}
+}
+
+func newBaseConfig(opts ...BaseConfigOption) baseConfig {
 	cfg := baseConfig{
 		timeout: DefaultTimeout,
 		retries: DefaultRetries,
