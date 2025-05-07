@@ -29,36 +29,20 @@ import (
 
 type baseCheckSuite struct {
 	e2e.BaseSuite[environments.Host]
-	descriptor   e2eos.Descriptor
-	agentOptions []agentparams.Option
-}
-
-func getAgentOptions() []agentparams.Option {
-	agentOptions := []agentparams.Option{}
-	return agentOptions
+	descriptor            e2eos.Descriptor
+	metricCompareFraction float64
+	metricCompareDecimals int
 }
 
 func (v *baseCheckSuite) getSuiteOptions() []e2e.SuiteOption {
 	suiteOptions := []e2e.SuiteOption{}
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithAgentOptions(v.agentOptions...),
 			awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
 		),
 	))
 
 	return suiteOptions
-}
-
-// a relative diff considered acceptable when comparing metrics (5%)
-const metricCompareFraction = 0.05
-
-// number of decimals when comparing metrics
-const metricCompareDecimals = 1
-
-// metrics that remain constant
-var constantMetricsSet = map[string]struct{}{
-	"system.disk.total": {},
 }
 
 func (v *baseCheckSuite) TestCheckDisk() {
@@ -76,7 +60,7 @@ instances:
 			``,
 		},
 	}
-	p := math.Pow(10, float64(metricCompareDecimals))
+	p := math.Pow10(v.metricCompareDecimals)
 	for _, testCase := range testCases {
 		v.Run(testCase.name, func() {
 			v.T().Log("run the disk check using old version")
@@ -87,22 +71,16 @@ instances:
 			// assert the check output
 			diff := gocmp.Diff(pythonMetrics, goMetrics,
 				gocmp.Comparer(func(a, b check.Metric) bool {
-					if a.Host != b.Host ||
-						a.Interval != b.Interval ||
-						a.Metric != b.Metric ||
-						a.SourceTypeName != b.SourceTypeName ||
-						a.Type != b.Type {
-						return false
-					}
-					if !gocmp.Equal(a.Tags, b.Tags, gocmpopts.SortSlices(cmp.Less[string])) {
+					if !equalMetrics(a, b) {
 						return false
 					}
 					aValue := a.Points[0][1]
 					bValue := b.Points[0][1]
-					if _, ok := constantMetricsSet[a.Metric]; ok {
+					// system.disk.total metric is expected to be strictly equal between both checks
+					if a.Metric == "system.disk.total" {
 						return aValue == bValue
 					}
-					return compareValuesWithRelativeMargin(aValue, bValue, p, metricCompareFraction)
+					return compareValuesWithRelativeMargin(aValue, bValue, p, v.metricCompareFraction)
 				}),
 				gocmpopts.SortSlices(metricPayloadCompare), // sort metrics
 			)
@@ -111,10 +89,18 @@ instances:
 	}
 }
 
+func equalMetrics(a, b check.Metric) bool {
+	return a.Host == b.Host &&
+		a.Interval == b.Interval &&
+		a.Metric == b.Metric &&
+		a.SourceTypeName == b.SourceTypeName &&
+		a.Type == b.Type && gocmp.Equal(a.Tags, b.Tags, gocmpopts.SortSlices(cmp.Less[string]))
+}
+
 func compareValuesWithRelativeMargin(a, b, p, fraction float64) bool {
 	x := math.Round(a*p) / p
 	y := math.Round(b*p) / p
-	relMarg := fraction * math.Min(math.Abs(x), math.Abs(y))
+	relMarg := fraction * math.Abs(x)
 	return math.Abs(x-y) <= relMarg
 }
 
@@ -144,16 +130,10 @@ func (v *baseCheckSuite) runDiskCheck(agentConfig string, checkConfig string, us
 	diskCheckVersionTag := fmt.Sprintf("disk_check_version:%s", diskCheckVersion)
 	checkConfig += fmt.Sprintf("\n    tags:\n      - %s", diskCheckVersionTag)
 
-	agentOptions := v.agentOptions
-	agentOptions = append(agentOptions,
-		agentparams.WithAgentConfig(agentConfig),
-	)
-	agentOptions = append(agentOptions,
-		agentparams.WithIntegration("disk.d", checkConfig),
-	)
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
-		awshost.WithAgentOptions(agentOptions...)),
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig),
+			agentparams.WithIntegration("disk.d", checkConfig))),
 	)
 
 	// run the check
