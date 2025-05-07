@@ -108,11 +108,7 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 						tagString += ":" + *tag.Value
 					}
 					if tagString == dbmTag {
-						if *tag.Value == "true" {
-							instance.DbmEnabled = true
-						} else {
-							instance.DbmEnabled = false
-						}
+						instance.DbmEnabled = true
 						break
 					}
 				}

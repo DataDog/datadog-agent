@@ -40,16 +40,16 @@ func (m *MockRDSClient) EXPECT() *MockRDSClientMockRecorder {
 // GetAuroraClusterEndpoints mocks base method.
 func (m *MockRDSClient) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string, dbmTag string) (map[string]*AuroraCluster, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAuroraClusterEndpoints", ctx, dbClusterIdentifiers)
+	ret := m.ctrl.Call(m, "GetAuroraClusterEndpoints", ctx, dbClusterIdentifiers, dbmTag)
 	ret0, _ := ret[0].(map[string]*AuroraCluster)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAuroraClusterEndpoints indicates an expected call of GetAuroraClusterEndpoints.
-func (mr *MockRDSClientMockRecorder) GetAuroraClusterEndpoints(ctx, dbClusterIdentifiers interface{}) *gomock.Call {
+func (mr *MockRDSClientMockRecorder) GetAuroraClusterEndpoints(ctx, dbClusterIdentifiers, dbmTag interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuroraClusterEndpoints", reflect.TypeOf((*MockRDSClient)(nil).GetAuroraClusterEndpoints), ctx, dbClusterIdentifiers)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuroraClusterEndpoints", reflect.TypeOf((*MockRDSClient)(nil).GetAuroraClusterEndpoints), ctx, dbClusterIdentifiers, dbmTag)
 }
 
 // GetAuroraClustersFromTags mocks base method.
