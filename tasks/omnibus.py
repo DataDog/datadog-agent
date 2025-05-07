@@ -1,7 +1,11 @@
 import os
+import re
 import sys
 import tempfile
+from collections.abc import Iterator
+from typing import NamedTuple
 
+import requests
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
@@ -395,6 +399,8 @@ def manifest(
 def build_repackaged_agent(ctx, log_level="info"):
     """
     Create an Agent package by using an existing Agent package as a base and rebuilding the Agent binaries with the local checkout.
+
+    Currently only works for debian packages.
     """
     # Make sure we let the user know that we're going to overwrite the existing Agent installation if present
     agent_path = "/opt/datadog-agent"
@@ -410,14 +416,89 @@ def build_repackaged_agent(ctx, log_level="info"):
 
         shutil.rmtree("/opt/datadog-agent")
 
+    # Fetch the Packages file from the nightly repository and get the datadog-agent package with the highest pipeline ID
+    # The assumption here is that only nightlies from master are pushed to the nightly repository
+    # and that simply picking up the highest pipeline ID will give us what we want without having to query Gitlab.
+    packages_url = "https://apt.datad0g.com/dists/nightly/7/binary-amd64/Packages"
+    with requests.get(packages_url, stream=True) as response:
+        response.raise_for_status()
+        lines = response.iter_lines(decode_unicode=True)
+
+        latest_package = max(
+            (pkg for pkg in _packages_from_deb_metadata(lines) if pkg.package_name == "datadog-agent"),
+            key=_pipeline_id_of_package,
+        )
+
     env = get_omnibus_env(ctx, skip_sign=True, major_version='7', flavor=AgentFlavor.base)
 
-    # Setting this variable enables "repackaging mode"
-    env['OMNIBUS_REPACKAGE'] = 'true'
+    env['OMNIBUS_REPACKAGE_SOURCE_URL'] = f"https://apt.datad0g.com/{latest_package.filename}"
+    env['OMNIBUS_REPACKAGE_SOURCE_SHA256'] = latest_package.sha256
+
+    print("Using the following package as a base:", env['OMNIBUS_REPACKAGE_SOURCE_URL'])
+
+    # Instruct omnibus to use the toolchain targetting the right glibc
+    if sys.platform == "linux":
+        env["PATH"] = f"/opt/toolchains/x86_64/bin:{os.environ.get('PATH', '')}"
+        env.update(
+            {
+                "DD_CC": "x86_64-unknown-linux-gnu-gcc",
+                "DD_CXX": "x86_64-unknown-linux-gnu-g++",
+                "DD_CMAKE_TOOLCHAIN": "/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake",
+            }
+        )
 
     bundle_install_omnibus(ctx, None, env)
 
     omnibus_run_task(ctx, "build", "agent", base_dir=None, env=env, log_level=log_level)
+
+
+class DebPackageInfo(NamedTuple):
+    package_name: str | None
+    filename: str | None
+    sha256: str | None
+
+    @classmethod
+    def from_metadata(cls, package_info: dict) -> "DebPackageInfo":
+        """Creates a DebPackageInfo object from a dictionary of package metadata."""
+        return cls(
+            package_name=package_info.get("Package"),
+            filename=package_info.get("Filename"),
+            sha256=package_info.get("SHA256"),
+        )
+
+
+def _packages_from_deb_metadata(lines: Iterator[str]) -> Iterator[DebPackageInfo]:
+    """Generator function that yields package blocks from the lines of a deb Packages metadata file."""
+    package_info = {}
+    for line in lines:
+        # Empty line indicates end of package block
+        if not line.strip():
+            if package_info:
+                yield DebPackageInfo.from_metadata(package_info)
+                package_info = {}  # Reset for next package
+            continue
+
+        try:
+            key, value = line.split(":", 1)
+            package_info[key] = value.strip()
+        except ValueError:
+            continue
+
+    # Don't forget the last package if it exists
+    if package_info:
+        yield DebPackageInfo.from_metadata(package_info)
+
+
+def _pipeline_id_of_package(package: DebPackageInfo) -> int:
+    """
+    Returns the pipeline ID of the package, or -1 if the package doesn't have a pipeline ID.
+
+    The filenames are expected to be in the format of pool/d/da/datadog-agent_<version>.pipeline.<pipeline_id>-1_<arch>.deb
+    """
+    pipeline_id_match = re.search(r'pipeline\.(\d+)', package.filename)
+    if pipeline_id_match:
+        return int(pipeline_id_match[1])
+    return -1
 
 
 def _otool_install_path_replacements(otool_output, install_path):
