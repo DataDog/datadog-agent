@@ -31,8 +31,8 @@ type enrichConfig struct {
 	// TODO(remy): this metric prefix / prefix blocklist
 	// is independent from the metric name blocklist, that's
 	// confusing and should be merged in the same implemnetation instead.
-	metricPrefix          string
-	metricPrefixBlacklist []string
+	metricPrefix              string
+	metricPrefixBlacklist     []string
 	defaultHostname           string
 	entityIDPrecedenceEnabled bool
 	serverlessMode            bool

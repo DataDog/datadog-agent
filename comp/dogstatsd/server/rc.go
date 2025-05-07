@@ -34,7 +34,10 @@ type metricEntry struct {
 func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	s.log.Debug("onBlocklistUpdateCallback received updates:", len(updates))
 
+	// special case: we received a response from RC, but RC didn't have any
+	// configuration for this agent, let's restore the local config and return
 	if len(updates) == 0 {
+		s.restoreBlocklistFromLocalConfig()
 		return
 	}
 
@@ -42,7 +45,6 @@ func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, a
 
 	// unmarshal all the configurations received from
 	// the RC platform
-
 	if len(updates) > 0 {
 		// unmarshal all configs that can be unmarshalled
 		for configPath, v := range updates {
@@ -65,29 +67,29 @@ func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, a
 	}
 
 	// sort by the configuration ID
-
 	slices.SortFunc(blocklistUpdates, func(a, b blockedMetrics) int {
 		return a.ByName.ConfigurationID - b.ByName.ConfigurationID
 	})
 
 	// build a map with all the received metrics
 	// and then use the values as a blocklist
-
 	m := make(map[string]struct{})
 	for _, update := range blocklistUpdates {
 		for _, metric := range update.ByName.Metrics {
 			m[metric.Name] = struct{}{}
 		}
 	}
-
 	metricNames := slices.Collect(maps.Keys(m))
 
-	// apply this blocklist to all the running workers
+	if len(metricNames) > 0 {
+		// apply this new blocklist to all the running workers
+		s.SetBlocklist(metricNames, false)
+	} else {
+		// special case: if the metric names list is empty, fallback to local
+		s.restoreBlocklistFromLocalConfig()
+	}
 
-	s.SetBlocklist(metricNames, false)
-
-	// ack the processing to RC
-
+	// ack the processing of the updates to RC
 	for configPath := range updates {
 		applyStateCallback(configPath, state.ApplyStatus{
 			State: state.ApplyStateAcknowledged,

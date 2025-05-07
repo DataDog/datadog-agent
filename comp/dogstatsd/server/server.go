@@ -101,6 +101,11 @@ type cachedOriginCounter struct {
 	errCnt telemetry.SimpleCounter
 }
 
+type localBlocklistConfig struct {
+	metricNames []string
+	matchPrefix bool
+}
+
 // Server represent a Dogstatsd server
 type server struct {
 	log    log.Component
@@ -159,7 +164,8 @@ type server struct {
 	// originTelemetry is true if we want to report telemetry per origin.
 	originTelemetry bool
 
-	enrichConfig enrichConfig
+	enrichConfig
+	localBlocklistConfig
 
 	wmeta option.Option[workloadmeta.Component]
 
@@ -503,6 +509,7 @@ func (s *server) SetExtraTags(tags []string) {
 
 // SetBlocklist updates the metric names blocklist on all running worker.
 func (s *server) SetBlocklist(metricNames []string, matchPrefix bool) {
+	s.log.Debugf("SetBlocklist with %d metrics", len(metricNames))
 	// each worker receives its own copy
 	for _, worker := range s.workers {
 		blocklist := newBlocklist(metricNames, matchPrefix)
@@ -541,9 +548,20 @@ func (s *server) handleMessages() {
 		s.workers = append(s.workers, worker)
 	}
 
-	// create the metric names blocklist, one per worker
+	// init the metric names blocklist
 
-	s.SetBlocklist(s.config.GetStringSlice("statsd_metric_blocklist"), s.config.GetBool("statsd_metric_blocklist_match_prefix"))
+	s.localBlocklistConfig = localBlocklistConfig{
+		metricNames: s.config.GetStringSlice("statsd_metric_blocklist"),
+		matchPrefix: s.config.GetBool("statsd_metric_blocklist_match_prefix"),
+	}
+	s.restoreBlocklistFromLocalConfig()
+}
+
+func (s *server) restoreBlocklistFromLocalConfig() {
+	s.SetBlocklist(
+		s.localBlocklistConfig.metricNames,
+		s.localBlocklistConfig.matchPrefix,
+	)
 }
 
 func (s *server) UDPLocalAddr() string {
