@@ -95,6 +95,8 @@ type DeviceInfo struct {
 	// Memory size of the device in bytes
 	Memory uint64
 }
+
+// Device represents a GPU device, implementing SafeDevice and providing common device info
 type Device interface {
 	SafeDevice
 
@@ -155,6 +157,7 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 	return device, nil
 }
 
+// GetDeviceInfo returns the common device info for a GPU device
 func (d *PhysicalDevice) GetDeviceInfo() *DeviceInfo {
 	return &d.DeviceInfo
 }
