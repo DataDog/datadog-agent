@@ -48,7 +48,8 @@ type LostEventCounter interface {
 // MapStats contains the collected metrics for one event and one cpu in a perf buffer statistics map
 type MapStats struct {
 	GenericStats
-	Lost *atomic.Uint64
+	Lost      *atomic.Uint64
+	Discarded *atomic.Uint64
 }
 
 // InvalidEventCause is an enum that represents the cause of an invalid event
@@ -86,6 +87,7 @@ func makeMapStats() MapStats {
 	return MapStats{
 		GenericStats: makeGenericStats(),
 		Lost:         atomic.NewUint64(0),
+		Discarded:    atomic.NewUint64(0),
 	}
 }
 
@@ -97,6 +99,7 @@ func (s *MapStats) UnmarshalBinary(data []byte) error {
 	s.Bytes = atomic.NewUint64(binary.NativeEndian.Uint64(data[0:8]))
 	s.Count = atomic.NewUint64(binary.NativeEndian.Uint64(data[8:16]))
 	s.Lost = atomic.NewUint64(binary.NativeEndian.Uint64(data[16:24]))
+	s.Discarded = atomic.NewUint64(binary.NativeEndian.Uint64(data[24:32]))
 	return nil
 }
 
@@ -289,6 +292,11 @@ func (pbm *Monitor) getKernelLostCount(eventType model.EventType, perfMap string
 	return pbm.kernelStats[perfMap][cpu][eventType].Lost.Load()
 }
 
+// getKernelDiscardedCount is an internal function, it can segfault if its parameters are incorrect.
+func (pbm *Monitor) getKernelDiscardedCount(eventType model.EventType, perfMap string, cpu int) uint64 {
+	return pbm.kernelStats[perfMap][cpu][eventType].Discarded.Load()
+}
+
 // GetKernelLostCount returns the number of lost events for a given map and cpu. If a cpu of -1 is provided, the function will
 // return the sum of all the lost events of all the cpus.
 func (pbm *Monitor) GetKernelLostCount(perfMap string, cpu int, evtTypes ...model.EventType) uint64 {
@@ -361,18 +369,23 @@ func (pbm *Monitor) getKernelEventBytes(eventType model.EventType, perfMap strin
 	return pbm.kernelStats[perfMap][cpu][eventType].Bytes.Load()
 }
 
-// getKernelEventCount is an internal function, it can segfault if its parameters are incorrect.
+// swapKernelEventCount is an internal function, it can segfault if its parameters are incorrect.
 func (pbm *Monitor) swapKernelEventCount(eventType model.EventType, perfMap string, cpu int, value uint64) uint64 {
 	return pbm.kernelStats[perfMap][cpu][eventType].Count.Swap(value)
 }
 
-// getKernelEventBytes is an internal function, it can segfault if its parameters are incorrect.
+// swapKernelEventBytes is an internal function, it can segfault if its parameters are incorrect.
 func (pbm *Monitor) swapKernelEventBytes(eventType model.EventType, perfMap string, cpu int, value uint64) uint64 {
 	return pbm.kernelStats[perfMap][cpu][eventType].Bytes.Swap(value)
 }
 
-// getKernelLostCount is an internal function, it can segfault if its parameters are incorrect.
+// swapKernelLostCount is an internal function, it can segfault if its parameters are incorrect.
 func (pbm *Monitor) swapKernelLostCount(eventType model.EventType, perfMap string, cpu int, value uint64) uint64 {
+	return pbm.kernelStats[perfMap][cpu][eventType].Lost.Swap(value)
+}
+
+// swapKernelDiscardedCount is an internal function, it can segfault if its parameters are incorrect.
+func (pbm *Monitor) swapKernelDiscardedCount(eventType model.EventType, perfMap string, cpu int, value uint64) uint64 {
 	return pbm.kernelStats[perfMap][cpu][eventType].Lost.Swap(value)
 }
 
@@ -413,6 +426,7 @@ func (pbm *Monitor) GetEventStats(eventType model.EventType, perfMap string, cpu
 			kernelStats.Count.Add(pbm.getKernelEventCount(eventType, perfMap, cpu))
 			kernelStats.Bytes.Add(pbm.getKernelEventBytes(eventType, perfMap, cpu))
 			kernelStats.Lost.Add(pbm.getKernelLostCount(eventType, perfMap, cpu))
+			kernelStats.Discarded.Add(pbm.getKernelDiscardedCount(eventType, perfMap, cpu))
 		}
 
 	}
@@ -639,6 +653,9 @@ func (pbm *Monitor) collectAndSendKernelStats(client statsd.ClientInterface) err
 				if tmpCount = pbm.swapKernelLostCount(evtType, perfMapName, cpu, stats.Lost.Load()); tmpCount <= stats.Lost.Load() {
 					stats.Lost.Sub(tmpCount)
 				}
+				if tmpCount = pbm.swapKernelDiscardedCount(evtType, perfMapName, cpu, stats.Discarded.Load()); tmpCount <= stats.Discarded.Load() {
+					stats.Discarded.Sub(tmpCount)
+				}
 
 				if err := pbm.sendKernelStats(client, stats, tags); err != nil {
 					return err
@@ -690,6 +707,12 @@ func (pbm *Monitor) sendKernelStats(client statsd.ClientInterface, stats MapStat
 
 	if stats.Lost.Load() > 0 {
 		if err := client.Count(metrics.MetricPerfBufferLostWrite, int64(stats.Lost.Load()), tags, 1.0); err != nil {
+			return err
+		}
+	}
+
+	if stats.Discarded.Load() > 0 {
+		if err := client.Count(metrics.MetricPerfBufferDiscardedWrite, int64(stats.Discarded.Load()), tags, 1.0); err != nil {
 			return err
 		}
 	}

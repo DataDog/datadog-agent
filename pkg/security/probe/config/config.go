@@ -94,6 +94,9 @@ type Config struct {
 	// EventStreamBufferSize specifies the buffer size of the eBPF map used for events
 	EventStreamBufferSize int
 
+	// EventStreamBufferThreshold specifies the buffer threshold of the eBPF map used for events
+	EventStreamBufferThreshold int
+
 	// EventStreamUseFentry specifies whether to use eBPF fentry when available instead of kprobes
 	EventStreamUseFentry bool
 
@@ -204,6 +207,7 @@ func NewConfig() (*Config, error) {
 		NetworkFlowMonitorSKStorageEnabled: getBool("network.flow_monitor.sk_storage.enabled"),
 		EventStreamUseRingBuffer:           getBool("event_stream.use_ring_buffer"),
 		EventStreamBufferSize:              getInt("event_stream.buffer_size"),
+		EventStreamBufferThreshold:         getInt("event_stream.buffer_threshold"),
 		EventStreamUseFentry:               getBool("event_stream.use_fentry"),
 		EventStreamUseKprobeFallback:       getBool("event_stream.use_kprobe_fallback"),
 		EventStreamKretprobeMaxActive:      getInt("event_stream.kretprobe_max_active"),

@@ -875,9 +875,10 @@ func GetEBPFStatusMetrics(probe *sprobe.Probe) string {
 			continue
 		}
 		status["per-events"].(map[string]interface{})[i.String()] = map[string]uint64{
-			"user":        stats.Count.Load(),
-			"kernel":      kernelStats.Count.Load(),
-			"kernel-lost": kernelStats.Lost.Load(),
+			"user":             stats.Count.Load(),
+			"kernel":           kernelStats.Count.Load(),
+			"kernel-lost":      kernelStats.Lost.Load(),
+			"kernel-discarded": kernelStats.Discarded.Load(),
 		}
 	}
 	data, _ := json.Marshal(status)
