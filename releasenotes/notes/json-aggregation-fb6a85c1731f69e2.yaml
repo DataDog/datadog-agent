@@ -10,4 +10,4 @@ features:
   - |
     Pretty printed/multi-line JSON messages are now aggregated into a single line when auto multiline
     detection is enabled. This ensures the log is treated a structured log when processed by Datadog.
-    This can be disabled by setting ``logs_config.auto_multi_line.enable_json_aggregation`` to ``false``.
+    Aggregation can be disabled by setting ``logs_config.auto_multi_line.enable_json_aggregation`` to ``false``.
