@@ -267,6 +267,7 @@ func NewHTTPClient(config config.Component, numberOfWorkers int, log log.Compone
 	}
 }
 
+// NewHTTPTransport creates a new http.Transport
 func NewHTTPTransport(config config.Component, numberOfWorkers int, log log.Component) *http.Transport {
 	var transport *http.Transport
 
