@@ -9,7 +9,7 @@
     echo "To remove a Go version please run:"
     echo "gimme uninstall <version>"
   # Report it to datadog
-  - dda inv -- -e macos.report-go-version
+  - dda inv -- -e macos.report-go-version || true
 
 .list_python_versions_commands:
   - |
@@ -19,7 +19,7 @@
     echo "To remove a Python version please run:"
     echo "pyenv uninstall -f <version>"
   # Report it to datadog
-  - dda inv -- -e macos.report-python-version
+  - dda inv -- -e macos.report-python-version || true
 
 .select_python_env_commands:
   # Select the virtualenv using the current Python version. Create it if it doesn't exist.
