@@ -4,8 +4,6 @@ module github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl
 
 go 1.23.7
 
-toolchain go1.23.9
-
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.64.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.123.0
