@@ -19,6 +19,7 @@ agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64", "specific:true"]
   # TODO
+  parallel: 6
   needs: []
   # needs: ["go_mod_tidy_check"]
   # rules:
