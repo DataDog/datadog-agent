@@ -9,26 +9,10 @@
 package flare
 
 import (
-	"net/http"
-	"net/http/httptest"
-	"path"
-	"testing"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
-
-func sysprobeSocketPath(t *testing.T) string {
-	return path.Join(t.TempDir(), "sysprobe.sock")
-}
-
-// NewSystemProbeTestServer starts a new mock server to handle System Probe requests.
-func NewSystemProbeTestServer(_ http.Handler) (*httptest.Server, error) {
-	// Linux still uses a port-based system-probe, it does not need a dedicated system probe server
-	// for the tests.
-	return nil, nil
-}
 
 // InjectConnectionFailures injects a failure in TestReadProfileDataErrors.
 func InjectConnectionFailures(mockSysProbeConfig model.Config, _ model.Config) {

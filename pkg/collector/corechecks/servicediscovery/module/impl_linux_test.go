@@ -22,7 +22,6 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
-	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -985,7 +984,7 @@ func TestDocker(t *testing.T) {
 	require.Equal(t, startEvent.LastHeartbeat, mockedTime.Unix())
 }
 
-func newDiscovery(t testing.TB, tp timeProvider) *discovery {
+func newDiscoveryNetwork(t testing.TB, tp timeProvider, getNetworkCollector networkCollectorFactory) *discovery {
 	mockWmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(context.Background()),
@@ -993,7 +992,11 @@ func newDiscovery(t testing.TB, tp timeProvider) *discovery {
 	))
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 
-	return newDiscoveryWithNetwork(mockWmeta, mockTagger, tp, func(_ *discoveryConfig) (networkCollector, error) {
+	return newDiscoveryWithNetwork(mockWmeta, mockTagger, tp, getNetworkCollector)
+}
+
+func newDiscovery(t testing.TB, tp timeProvider) *discovery {
+	return newDiscoveryNetwork(t, tp, func(_ *discoveryConfig) (networkCollector, error) {
 		return nil, nil
 	})
 }
@@ -1002,7 +1005,9 @@ func newDiscovery(t testing.TB, tp timeProvider) *discovery {
 func TestCache(t *testing.T) {
 	var err error
 
-	discovery := newDiscovery(t, realTime{})
+	discovery := newDiscoveryNetwork(t, realTime{}, newNetworkCollector)
+	// Reduce update time to make sure we exercise network stats code paths.
+	discovery.config.networkStatsPeriod = 1 * time.Millisecond
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
@@ -1063,6 +1068,14 @@ func TestCache(t *testing.T) {
 	discovery.Close()
 	require.Empty(t, discovery.cache)
 	require.Empty(t, discovery.noPortTries)
+	require.Empty(t, discovery.runningServices)
+
+	// Calling getServices after Close is weird but it can happen in practice
+	// due to the way system-probe shuts down, so make sure it doesn't panic.
+	_, err = discovery.getServices(defaultParams())
+	require.NoError(t, err)
+	_, err = discovery.getServices(defaultParams())
+	require.NoError(t, err)
 }
 
 func TestMaxPortCheck(t *testing.T) {
@@ -1252,91 +1265,6 @@ func TestTagsPriority(t *testing.T) {
 			require.Equalf(t, c.expectedServiceName, name, "got wrong service name from container tags")
 			require.Equalf(t, c.expectedTagName, tagName, "got wrong tag name for service naming")
 		})
-	}
-}
-
-func getSocketsOld(p *process.Process) ([]uint64, error) {
-	FDs, err := p.OpenFiles()
-	if err != nil {
-		return nil, err
-	}
-
-	// sockets have the following pattern "socket:[inode]"
-	var sockets []uint64
-	for _, fd := range FDs {
-		if strings.HasPrefix(fd.Path, prefix) {
-			inodeStr := strings.TrimPrefix(fd.Path[:len(fd.Path)-1], prefix)
-			sock, err := strconv.ParseUint(inodeStr, 10, 64)
-			if err != nil {
-				continue
-			}
-			sockets = append(sockets, sock)
-		}
-	}
-
-	return sockets, nil
-}
-
-const (
-	numberFDs = 100
-)
-
-func createFilesAndSockets(tb testing.TB) {
-	listeningSockets := make([]net.Listener, 0, numberFDs)
-	tb.Cleanup(func() {
-		for _, l := range listeningSockets {
-			l.Close()
-		}
-	})
-	for i := 0; i < numberFDs; i++ {
-		l, err := net.Listen("tcp", "localhost:0")
-		require.NoError(tb, err)
-		listeningSockets = append(listeningSockets, l)
-	}
-	regularFDs := make([]*os.File, 0, numberFDs)
-	tb.Cleanup(func() {
-		for _, f := range regularFDs {
-			f.Close()
-		}
-	})
-	for i := 0; i < numberFDs; i++ {
-		f, err := os.CreateTemp("", "")
-		require.NoError(tb, err)
-		regularFDs = append(regularFDs, f)
-	}
-}
-
-func TestGetSockets(t *testing.T) {
-	createFilesAndSockets(t)
-	p, err := process.NewProcess(int32(os.Getpid()))
-	require.NoError(t, err)
-
-	sockets, err := getSockets(p.Pid)
-	require.NoError(t, err)
-
-	sockets2, err := getSocketsOld(p)
-	require.NoError(t, err)
-
-	require.Equal(t, sockets, sockets2)
-}
-
-func BenchmarkGetSockets(b *testing.B) {
-	createFilesAndSockets(b)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		getSockets(int32(os.Getpid()))
-	}
-}
-
-func BenchmarkOldGetSockets(b *testing.B) {
-	createFilesAndSockets(b)
-	p, err := process.NewProcess(int32(os.Getpid()))
-	require.NoError(b, err)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		getSocketsOld(p)
 	}
 }
 

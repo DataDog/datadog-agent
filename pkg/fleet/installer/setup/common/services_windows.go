@@ -7,7 +7,20 @@
 
 package common
 
-func (s *Setup) restartServices(_ []packageWithVersion) error {
-	// Not implemented yet on Windows
+import (
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+)
+
+// restartServices restarts the services that need to be restarted after a package upgrade or
+// an install script re-run; because the configuration may have changed.
+func (s *Setup) restartServices(pkgs []packageWithVersion) error {
+	for _, pkg := range pkgs {
+		switch pkg.name {
+		case DatadogAgentPackage:
+			if err := winutil.RestartService("datadogagent"); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }

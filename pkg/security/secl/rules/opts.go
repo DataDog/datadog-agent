@@ -16,6 +16,7 @@ import (
 // (Should be named VariableValueProvider)
 type VariableProvider interface {
 	NewSECLVariable(name string, value interface{}, opts eval.VariableOpts) (eval.SECLVariable, error)
+	CleanupExpiredVariables()
 }
 
 // VariableProviderFactory describes a function called to instantiate a variable provider

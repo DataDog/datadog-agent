@@ -29,7 +29,7 @@ import (
 const agentNamespace = "datadog"
 const podSelectorField = "app"
 const jobQueryInterval = 500 * time.Millisecond
-const jobQueryTimeout = 120 * time.Second // Might take some time to pull the image
+const jobQueryTimeout = 120 * time.Second // Might take some time to create the container
 
 type agentComponent string
 

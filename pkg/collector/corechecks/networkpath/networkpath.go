@@ -56,6 +56,7 @@ func (c *Check) Run() error {
 		MaxTTL:       c.config.MaxTTL,
 		Timeout:      c.config.Timeout,
 		Protocol:     c.config.Protocol,
+		TCPMethod:    c.config.TCPMethod,
 	}
 
 	tr, err := traceroute.New(cfg, c.telemetryComp)
@@ -72,7 +73,7 @@ func (c *Check) Run() error {
 	// Add tags to path
 	path.Source.Service = c.config.SourceService
 	path.Destination.Service = c.config.DestinationService
-	path.Tags = c.config.Tags
+	path.Tags = append(path.Tags, c.config.Tags...)
 
 	// Perform reverse DNS lookup
 	path.Destination.ReverseDNSHostname = traceroute.GetHostname(path.Destination.IPAddress)

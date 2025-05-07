@@ -13,7 +13,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"os/user"
 	"strings"
 	"time"
 
@@ -21,9 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -74,7 +73,7 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 	}
 	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("setup.%s", flavor))
 	s := &Setup{
-		configDir: configDir,
+		configDir: paths.DatadogDataDir,
 		installer: installer,
 		start:     start,
 		flavor:    flavor,
@@ -116,23 +115,14 @@ func (s *Setup) Run() (err error) {
 	for _, p := range packages {
 		s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", p.name, p.version))
 	}
-	err = installinfo.WriteInstallInfo(fmt.Sprintf("install-%s.sh", s.flavor))
+	// TODO(WINA-1431): This is being overwritten by the MSI on Windows
+	err = installinfo.WriteInstallInfo(fmt.Sprintf("install-script-%s", s.flavor))
 	if err != nil {
 		return fmt.Errorf("failed to write install info: %w", err)
 	}
-	for _, group := range s.DdAgentAdditionalGroups {
-		// Add dd-agent user to additional group for permission reason, in particular to enable reading log files not world readable
-		if _, err := user.LookupGroup(group); err != nil {
-			log.Infof("Skipping group %s as it does not exist", group)
-			continue
-		}
-		_, err = ExecuteCommandWithTimeout(s, "usermod", "-aG", group, "dd-agent")
-		if err != nil {
-			s.Out.WriteString("Failed to add dd-agent to group" + group + ": " + err.Error())
-			log.Warnf("failed to add dd-agent to group %s:  %v", group, err)
-		}
+	if err = s.preInstallPackages(); err != nil {
+		return fmt.Errorf("failed during pre-package installation: %w", err)
 	}
-
 	for _, p := range packages {
 		url := oci.PackageURL(s.Env, p.name, p.version)
 		err = s.installPackage(p.name, url)

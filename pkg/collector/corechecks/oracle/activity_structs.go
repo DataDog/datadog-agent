@@ -30,11 +30,12 @@ type RowMetadata struct {
 
 // Metadata contains the metadata fields common to all events processed
 type Metadata struct {
-	Timestamp      float64 `json:"timestamp,omitempty"`
-	Host           string  `json:"host,omitempty"`
-	Source         string  `json:"ddsource,omitempty"`
-	DBMType        string  `json:"dbm_type,omitempty"`
-	DDAgentVersion string  `json:"ddagentversion,omitempty"`
+	Timestamp        float64 `json:"timestamp,omitempty"`
+	Host             string  `json:"host,omitempty"`
+	DatabaseInstance string  `json:"database_instance,omitempty"`
+	Source           string  `json:"ddsource,omitempty"`
+	DBMType          string  `json:"dbm_type,omitempty"`
+	DDAgentVersion   string  `json:"ddagentversion,omitempty"`
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter

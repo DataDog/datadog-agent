@@ -28,14 +28,12 @@ int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
     }
 
     pid_fd_t *pid_fd = bpf_map_lookup_elem(&pid_fd_by_tuple, &t);
-    if (pid_fd == NULL) {
-        return 0;
+    if (pid_fd != NULL) {
+        // Copy map value to stack so we can use it as a map key (needed for older kernels)
+        pid_fd_t pid_fd_copy = *pid_fd;
+        bpf_map_delete_elem(&tuple_by_pid_fd, &pid_fd_copy);
+        bpf_map_delete_elem(&pid_fd_by_tuple, &t);
     }
-
-    // Copy map value to stack so we can use it as a map key (needed for older kernels)
-    pid_fd_t pid_fd_copy = *pid_fd;
-    bpf_map_delete_elem(&tuple_by_pid_fd, &pid_fd_copy);
-    bpf_map_delete_elem(&pid_fd_by_tuple, &t);
 
     // The cleanup of the map happens either during TCP termination or during the TLS shutdown event.
     // TCP termination is managed by the socket filter, thus it cannot clean TLS entries,

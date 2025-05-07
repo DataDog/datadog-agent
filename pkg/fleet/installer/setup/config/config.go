@@ -7,10 +7,13 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 
 	"gopkg.in/yaml.v3"
 )
@@ -25,7 +28,13 @@ const (
 
 // WriteConfigs writes the configuration files to the given directory.
 func WriteConfigs(config Config, configDir string) error {
-	err := writeConfig(filepath.Join(configDir, datadogConfFile), config.DatadogYAML, 0640, true)
+	// ensure config root is created with correct permissions
+	err := paths.EnsureInstallerDataDir()
+	if err != nil {
+		return fmt.Errorf("could not create config directory: %w", err)
+	}
+
+	err = writeConfig(filepath.Join(configDir, datadogConfFile), config.DatadogYAML, 0640, true)
 	if err != nil {
 		return fmt.Errorf("could not write datadog.yaml: %w", err)
 	}
@@ -94,7 +103,7 @@ func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 	if err != nil {
 		return fmt.Errorf("could not serialize merged config: %w", err)
 	}
-	if len(existingConfig) == 0 {
+	if !bytes.HasPrefix(serializedMerged, []byte(disclaimerGenerated+"\n\n")) {
 		serializedMerged = []byte(disclaimerGenerated + "\n\n" + string(serializedMerged))
 	}
 	err = os.WriteFile(path, serializedMerged, perms)
@@ -134,6 +143,7 @@ type DatadogConfig struct {
 	RemoteUpdates        bool                       `yaml:"remote_updates,omitempty"`
 	Installer            DatadogConfigInstaller     `yaml:"installer,omitempty"`
 	DDURL                string                     `yaml:"dd_url,omitempty"`
+	LogsConfig           LogsConfig                 `yaml:"logs_config,omitempty"`
 }
 
 // DatadogConfigProxy represents the configuration for the proxy
@@ -230,11 +240,16 @@ type SecurityAgentComplianceConfig struct {
 	Enabled bool `yaml:"enabled,omitempty"`
 }
 
+// LogsConfig represents the configuration for global log processing rules
+type LogsConfig struct {
+	ProcessingRules []LogProcessingRule `yaml:"processing_rules"`
+}
+
 // LogProcessingRule represents the configuration for a log processing rule
 type LogProcessingRule struct {
-	Type    string `yaml:"type"`
-	Name    string `yaml:"name"`
-	Pattern string `yaml:"pattern"`
+	Type    string `yaml:"type" json:"type"`
+	Name    string `yaml:"name" json:"name"`
+	Pattern string `yaml:"pattern" json:"pattern"`
 }
 
 // ApplicationMonitoringConfig represents the configuration for the application monitoring

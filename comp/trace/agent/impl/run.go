@@ -13,7 +13,7 @@ import (
 	"time"
 
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
-	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -34,7 +33,7 @@ import (
 // runAgentSidekicks is the entrypoint for running non-components that run along the agent.
 func runAgentSidekicks(ag component) error {
 	// Configure the Trace Agent Debug server to use the IPC certificate
-	ag.Agent.DebugServer.SetTLSConfig(ag.at.GetTLSServerConfig())
+	ag.Agent.DebugServer.SetTLSConfig(ag.ipc.GetTLSServerConfig())
 
 	tracecfg := ag.config.Object()
 	err := info.InitInfo(tracecfg) // for expvar & -info option
@@ -51,7 +50,7 @@ func runAgentSidekicks(ag component) error {
 	rand.Seed(time.Now().UTC().UnixNano())
 
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
-		cf, err := newConfigFetcher(ag.at)
+		cf, err := newConfigFetcher(ag.ipc)
 		if err != nil {
 			ag.telemetryCollector.SendStartupError(telemetry.CantCreateRCCLient, err)
 			return fmt.Errorf("could not instantiate the tracer remote config client: %v", err)
@@ -138,7 +137,7 @@ func profilingConfig(tracecfg *tracecfg.AgentConfig, disableInternalProfiling bo
 		endpoint = fmt.Sprintf(profiling.ProfilingURLTemplate, tracecfg.Site)
 	}
 	tags := pkgconfigsetup.Datadog().GetStringSlice("internal_profiling.extra_tags")
-	tags = append(tags, fmt.Sprintf("version:%s", version.AgentVersion))
+	tags = profiling.GetBaseProfilingTags(tags)
 	return &profiling.Settings{
 		ProfilingURL: endpoint,
 
@@ -157,12 +156,12 @@ func profilingConfig(tracecfg *tracecfg.AgentConfig, disableInternalProfiling bo
 	}
 }
 
-func newConfigFetcher(at authtoken.Component) (rc.ConfigFetcher, error) {
+func newConfigFetcher(ipc ipc.Component) (rc.ConfigFetcher, error) {
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
 
 	// Auth tokens are handled by the rcClient
-	return rc.NewAgentGRPCConfigFetcher(ipcAddress, pkgconfigsetup.GetIPCPort(), at.Get, at.GetTLSClientConfig)
+	return rc.NewAgentGRPCConfigFetcher(ipcAddress, pkgconfigsetup.GetIPCPort(), func() (string, error) { return ipc.GetAuthToken(), nil }, ipc.GetTLSClientConfig) // TODO IPC: GRPC client will be provided by the IPC component
 }

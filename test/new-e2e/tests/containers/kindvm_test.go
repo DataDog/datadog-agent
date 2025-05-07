@@ -21,16 +21,6 @@ type kindSuite struct {
 }
 
 func TestKindSuite(t *testing.T) {
-	// Added to investigate flaky E2E test
-	// TODO: remove when investigation is done
-	helmValues := `
-clusterAgent:
-    envDict:
-        DD_LOG_LEVEL: TRACE
-datadog:
-    logLevel: DEBUG
-`
-
 	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(
 		awskubernetes.WithEC2VMOptions(
 			ec2.WithInstanceType("t3.xlarge"),
@@ -40,7 +30,6 @@ datadog:
 		awskubernetes.WithDeployTestWorkload(),
 		awskubernetes.WithAgentOptions(
 			kubernetesagentparams.WithDualShipping(),
-			kubernetesagentparams.WithHelmValues(helmValues),
 		),
 	)))
 }

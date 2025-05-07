@@ -303,6 +303,11 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	}
 	metrics.BytesSent.Add(int64(payload.UnencodedSize))
 	var sourceTag string
+	compressionKind := "none"
+
+	if d.endpoint.UseCompression {
+		compressionKind = d.endpoint.CompressionKind
+	}
 
 	if strings.Contains(d.Metadata().TelemetryName(), "logs") {
 		sourceTag = "logs"
@@ -312,7 +317,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 
 	metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), sourceTag)
 	metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
-	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), sourceTag)
+	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), sourceTag, compressionKind)
 
 	req, err := http.NewRequest("POST", d.url, bytes.NewReader(payload.Encoded))
 	if err != nil {

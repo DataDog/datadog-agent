@@ -131,7 +131,7 @@ func getOpenTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "open_ret_progs",
 			Key:           uint32(0),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tail_call_target_sys_open_ret_cb",
+				EBPFFuncName: tailCallFnc("sys_open_ret_cb"),
 			},
 		},
 	}

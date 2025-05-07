@@ -100,6 +100,9 @@ type Config struct {
 	// EventStreamUseKprobeFallback specifies whether to use fentry fallback can be used
 	EventStreamUseKprobeFallback bool
 
+	// EventStreamKretprobeMaxActive specifies the maximum number of active kretprobe at a given time
+	EventStreamKretprobeMaxActive int
+
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
 
@@ -167,6 +170,9 @@ type Config struct {
 
 	// SpanTrackingCacheSize is the size of the span tracking cache
 	SpanTrackingCacheSize int
+
+	// The DNS Port
+	DNSPort uint16
 }
 
 // NewConfig returns a new Config object
@@ -200,6 +206,7 @@ func NewConfig() (*Config, error) {
 		EventStreamBufferSize:              getInt("event_stream.buffer_size"),
 		EventStreamUseFentry:               getBool("event_stream.use_fentry"),
 		EventStreamUseKprobeFallback:       getBool("event_stream.use_kprobe_fallback"),
+		EventStreamKretprobeMaxActive:      getInt("event_stream.kretprobe_max_active"),
 
 		EnvsWithValue:               getStringSlice("envs_with_value"),
 		NetworkEnabled:              getBool("network.enabled"),
@@ -223,6 +230,9 @@ func NewConfig() (*Config, error) {
 		// span tracking
 		SpanTrackingEnabled:   getBool("span_tracking.enabled"),
 		SpanTrackingCacheSize: getInt("span_tracking.cache_size"),
+
+		// dns
+		DNSPort: 53,
 	}
 
 	if err := c.sanitize(); err != nil {

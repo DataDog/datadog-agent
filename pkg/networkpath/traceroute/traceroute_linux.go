@@ -42,7 +42,7 @@ func New(cfg config.Config, _ telemetry.Component) (*LinuxTraceroute, error) {
 
 // Run executes a traceroute
 func (l *LinuxTraceroute) Run(_ context.Context) (payload.NetworkPath, error) {
-	resp, err := getTraceroute(l.sysprobeClient, clientID, l.cfg.DestHostname, l.cfg.DestPort, l.cfg.Protocol, l.cfg.MaxTTL, l.cfg.Timeout)
+	resp, err := getTraceroute(l.sysprobeClient, clientID, l.cfg.DestHostname, l.cfg.DestPort, l.cfg.Protocol, l.cfg.TCPMethod, l.cfg.MaxTTL, l.cfg.Timeout)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}

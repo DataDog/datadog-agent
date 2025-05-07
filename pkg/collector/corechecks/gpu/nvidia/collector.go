@@ -16,11 +16,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -62,7 +60,7 @@ type Collector interface {
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
 // the tags associated with the device, the collector should use them when generating metrics.
-type subsystemBuilder func(device nvml.Device) (Collector, error)
+type subsystemBuilder func(device ddnvml.SafeDevice) (Collector, error)
 
 // factory is a map of all the subsystems that can be used to collect metrics from NVML.
 var factory = map[CollectorName]subsystemBuilder{
@@ -91,7 +89,7 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 
 	for _, dev := range deps.DeviceCache.All() {
 		for name, builder := range builders {
-			c, err := builder(dev.NVMLDevice)
+			c, err := builder(dev)
 			if errors.Is(err, errUnsupportedDevice) {
 				log.Warnf("device %s does not support collector %s", dev.UUID, name)
 				continue

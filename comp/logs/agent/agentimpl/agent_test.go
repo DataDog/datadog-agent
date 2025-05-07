@@ -10,6 +10,7 @@ package agentimpl
 import (
 	"bytes"
 	"context"
+	"expvar"
 	"fmt"
 	"os"
 	"strings"
@@ -38,7 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
@@ -158,7 +159,9 @@ func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
 	assert.Equal(suite.T(), zero, metrics.LogsProcessed.Value())
 	assert.Equal(suite.T(), zero, metrics.LogsSent.Value())
 	assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value())
-	assert.Equal(suite.T(), "{}", metrics.DestinationLogsDropped.String())
+	metrics.DestinationLogsDropped.Do(func(k expvar.KeyValue) {
+		assert.Equal(suite.T(), k.Value.String(), "0")
+	})
 
 	agent.startPipeline()
 	sources.AddSource(suite.source)
@@ -185,7 +188,8 @@ func (suite *AgentTestSuite) TestAgentTcp() {
 }
 
 func (suite *AgentTestSuite) TestAgentHttp() {
-	server := http.NewTestServer(200, pkgconfigsetup.Datadog())
+	cfg := configmock.New(suite.T())
+	server := http.NewTestServer(200, cfg)
 	defer server.Stop()
 	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
 
@@ -326,8 +330,8 @@ func (suite *AgentTestSuite) TestStatusOut() {
     OSFileLimit: 1048576
 `
 			// We replace windows line break by linux so the tests pass on every OS
-			expectedResult := strings.Replace(result, "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			expectedResult := strings.ReplaceAll(result, "\r\n", "\n")
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 
 			assert.Equal(t, expectedResult, output)
 		}},
@@ -347,8 +351,8 @@ func (suite *AgentTestSuite) TestStatusOut() {
 </div>
 `
 			// We replace windows line break by linux so the tests pass on every OS
-			expectedResult := strings.Replace(result, "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			expectedResult := strings.ReplaceAll(result, "\r\n", "\n")
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 
 			assert.Equal(t, expectedResult, output)
 		}},

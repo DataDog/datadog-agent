@@ -34,6 +34,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -173,6 +174,7 @@ type AutoConfigTestSuite struct {
 
 // SetupSuite saves the original listener registry
 func (suite *AutoConfigTestSuite) SetupSuite() {
+	cfg := mock.New(suite.T())
 	pkglogsetup.SetupLogger(
 		pkglogsetup.LoggerName("test"),
 		"debug",
@@ -181,7 +183,7 @@ func (suite *AutoConfigTestSuite) SetupSuite() {
 		false,
 		true,
 		false,
-		pkgconfigsetup.Datadog(),
+		cfg,
 	)
 }
 
@@ -397,11 +399,10 @@ func TestResolveTemplate(t *testing.T) {
 }
 
 func countLoadedConfigs(ac *AutoConfig) int {
-	count := -1 // -1 would indicate f was not called
-	ac.MapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
-		count = len(loadedConfigs)
-	})
-	return count
+	if ac == nil || ac.store == nil {
+		return 0
+	}
+	return len(ac.GetAllConfigs())
 }
 
 func TestRemoveTemplate(t *testing.T) {
