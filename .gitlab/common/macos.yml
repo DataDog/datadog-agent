@@ -5,13 +5,6 @@
   # Report current version to datadog
   - dda inv -- -e macos.report-versions -l python || true
   - dda inv -- -e macos.report-versions -l go || true
-  # Remove inactive versions
-  # - |
-  #   # TODO(celian): enable this
-  #   if [ "$((RANDOM%10))" -eq 0 ]; then
-  #     dda inv -- -e macos.remove-inactive-versions -l python -t "$PYTHON_VERSION" || true
-  #     dda inv -- -e macos.remove-inactive-versions -l go -t "$(cat .go-version)" || true
-  #   fi
 
 .select_python_env_commands:
   # Select the virtualenv using the current Python version. Create it if it doesn't exist.
