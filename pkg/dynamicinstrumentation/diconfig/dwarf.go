@@ -27,11 +27,6 @@ func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditype
 	return loadFunctionDefinitions(dwarfData, targetFunctions)
 }
 
-type seenTypeCounter struct {
-	parameter *ditypes.Parameter
-	count     uint8
-}
-
 func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
 	entryReader := dwarfData.Reader()
 	typeReader := dwarfData.Reader()
@@ -614,10 +609,7 @@ func kindIsSupported(k reflect.Kind) bool {
 }
 
 func typeIsSupported(t string) bool {
-	if t == "unsafe.Pointer" {
-		return false
-	}
-	return true
+	return t != "unsafe.Pointer"
 }
 
 func entryTypeIsSupported(e *dwarf.Entry) bool {
