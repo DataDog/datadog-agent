@@ -485,7 +485,7 @@ func getPIDs() ([]int32, error) {
 }
 
 func fillProcessDetails(pid int32, proc *Process) error {
-	procHandle, err := OpenProcessHandle(pid)
+	procHandle, isProtected, err := OpenProcessHandle(pid)
 	if err != nil {
 		return err
 	}
@@ -497,7 +497,24 @@ func fillProcessDetails(pid int32, proc *Process) error {
 	}
 	proc.Username = userName
 
-	cmdParams := getProcessCommandParams(procHandle)
+	var cmdParams winutil.ProcessCommandParams
+	// we cannot read the command line if the process is protected
+	if !isProtected {
+		processCmdParams, err := winutil.GetCommandParamsForProcess(procHandle, false)
+		if err != nil {
+			log.Debugf("Error retrieving full command line %v", err)
+		}
+
+		if processCmdParams != nil {
+			cmdParams = *processCmdParams
+		}
+	} else {
+		imagePath, err := winutil.GetImagePathForProcess(procHandle)
+		if err != nil {
+			log.Debugf("Error retrieving exe path %v", err)
+		}
+		cmdParams.ImagePath = imagePath
+	}
 
 	proc.Cmdline = ParseCmdLineArgs(cmdParams.CmdLine)
 	if len(cmdParams.CmdLine) > 0 && len(proc.Cmdline) == 0 {
@@ -517,39 +534,31 @@ func fillProcessDetails(pid int32, proc *Process) error {
 	return nil
 }
 
-func getProcessCommandParams(procHandle windows.Handle) *winutil.ProcessCommandParams {
-	var err error
-	if cmdParams, err := winutil.GetCommandParamsForProcess(procHandle, true); err == nil {
-		return cmdParams
-	}
-
-	log.Debugf("Error retrieving command params %v", err)
-	if imagePath, err := winutil.GetImagePathForProcess(procHandle); err == nil {
-		return &winutil.ProcessCommandParams{
-			CmdLine:   imagePath,
-			ImagePath: imagePath,
-		}
-	}
-
-	log.Debugf("Error retrieving exe path %v", err)
-	return &winutil.ProcessCommandParams{}
-}
-
 // OpenProcessHandle attempts to open process handle for reading process memory with fallback to query basic info
-func OpenProcessHandle(pid int32) (windows.Handle, error) {
+func OpenProcessHandle(pid int32) (windows.Handle, bool, error) {
+	procHandle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
+	if err != nil {
+		log.Debugf("Couldn't open process %v %v", pid, err)
+		return windows.Handle(0), false, err
+	}
+
+	// check protection level to determine memory readability for PROCESS_VM_READ
+	// more info: https://learn.microsoft.com/en-us/windows/win32/procthread/process-security-and-access-rights#protected-processes
+	isProtected, err := winutil.IsProcessProtected(procHandle)
+	if isProtected {
+		return procHandle, isProtected, err
+	}
+
 	// 0x1000 is PROCESS_QUERY_LIMITED_INFORMATION, but that constant isn't
 	//        defined in x/sys/windows
 	// 0x10   is PROCESS_VM_READ
-	procHandle, err := windows.OpenProcess(0x1010, false, uint32(pid))
+	// if the process is not protected, we should be able to access with PROCESS_VM_READ
+	procHandleMemoryAccess, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_VM_READ, false, uint32(pid))
 	if err != nil {
-		log.Debugf("Couldn't open process with PROCESS_VM_READ %v %v", pid, err)
-		procHandle, err = windows.OpenProcess(0x1000, false, uint32(pid))
-		if err != nil {
-			log.Debugf("Couldn't open process %v %v", pid, err)
-			return windows.Handle(0), err
-		}
+		log.Debugf("Couldn't open unprotected process with PROCESS_VM_READ access. Returning limited process info %v %v", pid, err)
+		return procHandle, isProtected, err
 	}
-	return procHandle, nil
+	return procHandleMemoryAccess, isProtected, err
 }
 
 // GetUsernameForProcess returns username for a process
