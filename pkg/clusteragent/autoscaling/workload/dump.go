@@ -20,7 +20,7 @@ import (
 
 // AutoscalersInfo is used to dump the autoscaling store content
 type AutoscalersInfo struct {
-	PodAutoscalers []*model.PodAutoscalerInternal `json:"pod_autoscalers"`
+	PodAutoscalers []model.PodAutoscalerInternal `json:"pod_autoscalers"`
 }
 
 // Dump returns the autoscaling store content
@@ -32,15 +32,10 @@ func Dump() *AutoscalersInfo {
 
 	datadogPodAutoscalers := GetAutoscalingStore().GetAll()
 
-	datadogPodAutoscalerAddr := []*model.PodAutoscalerInternal{}
-
 	log.Debugf("Found %d pod autoscalers", len(datadogPodAutoscalers))
-	for _, podAutoscaler := range datadogPodAutoscalers {
-		datadogPodAutoscalerAddr = append(datadogPodAutoscalerAddr, &podAutoscaler)
-	}
 
 	response := AutoscalersInfo{
-		PodAutoscalers: datadogPodAutoscalerAddr,
+		PodAutoscalers: datadogPodAutoscalers,
 	}
 
 	return &response
