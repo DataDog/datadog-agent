@@ -221,12 +221,12 @@ func getIntegrationName(packageName string) string {
 	case "datadog-go-metro":
 		return "go-metro"
 	default:
-		return strings.TrimSpace(strings.Replace(strings.TrimPrefix(packageName, "datadog-"), "-", "_", -1))
+		return strings.TrimSpace(strings.ReplaceAll(strings.TrimPrefix(packageName, "datadog-"), "-", "_"))
 	}
 }
 
 func normalizePackageName(packageName string) string {
-	return strings.Replace(packageName, "_", "-", -1)
+	return strings.ReplaceAll(packageName, "_", "-")
 }
 
 func semverToPEP440(version *semver.Version) string {

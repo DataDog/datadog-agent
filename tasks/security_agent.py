@@ -557,7 +557,7 @@ def cws_go_generate(ctx, verbose=False):
             "./pkg/security/serializers/serializers_linux_easyjson.go",
         )
 
-    ctx.run("go generate ./pkg/security/...")
+    ctx.run("go generate -tags=linux_bpf,cws_go_generate ./pkg/security/...")
 
 
 @task

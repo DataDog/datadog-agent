@@ -29,19 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-func unsetEnvForTest(t *testing.T, env string) {
-	oldValue, ok := os.LookupEnv(env)
-	os.Unsetenv(env)
-
-	t.Cleanup(func() {
-		if !ok {
-			os.Unsetenv(env)
-		} else {
-			os.Setenv(env, oldValue)
-		}
-	})
-}
-
 func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.Config {
 	conf := newTestConf(t)
 	conf.SetConfigType("yaml")
@@ -450,8 +437,6 @@ func TestProxy(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			// CircleCI sets NO_PROXY, so unset it for this test
-			unsetEnvForTest(t, "NO_PROXY")
 
 			config := newTestConf(t)
 			config.SetWithoutSource("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)
@@ -500,6 +485,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.discovery_interval"), 300)
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 10)
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
+				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "datadoghq.com/dbm:true")
 				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.region"), "")
 			},
 		},
@@ -517,6 +503,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 1)
 				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.region"), "us-west-2")
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
+				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "datadoghq.com/dbm:true")
 			},
 		},
 		{
@@ -524,12 +511,14 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_ENABLED", "true")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_TAGS", "foo:bar other:tag")
+				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_DBM_TAG", "usedbm")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.discovery_interval"), 300)
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 10)
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"foo:bar", "other:tag"})
+				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "usedbm")
 			},
 		},
 		{
@@ -551,12 +540,14 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.discovery_interval", 10)
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.query_timeout", 4)
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.tags", []string{"foo:bar"})
+				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.dbm_tag", "usedbm")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.discovery_interval"), 10)
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 4)
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"foo:bar"})
+				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "usedbm")
 			},
 		},
 	}
@@ -653,6 +644,8 @@ external_config:
 
 	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
 	assert.Equal(config.GetString("dd_url"), "https://app.datadoghq.eu", "this shouldn't be overrided")
+	assert.Equal(config.GetSource("api_key"), pkgconfigmodel.SourceAgentRuntime)
+	assert.Equal(config.GetSource("dd_url"), pkgconfigmodel.SourceFile)
 
 	pkgconfigmodel.AddOverrides(map[string]interface{}{
 		"dd_url": "http://localhost",
@@ -661,6 +654,8 @@ external_config:
 
 	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
 	assert.Equal(config.GetString("dd_url"), "http://localhost", "this dd_url should have been overrided")
+	assert.Equal(config.GetSource("api_key"), pkgconfigmodel.SourceAgentRuntime)
+	assert.Equal(config.GetSource("dd_url"), pkgconfigmodel.SourceAgentRuntime)
 }
 
 func TestGetValidHostAliasesWithConfig(t *testing.T) {
@@ -1199,8 +1194,6 @@ process_config:
 `)
 
 func TestConfigAssignAtPath(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
-	unsetEnvForTest(t, "NO_PROXY")
 
 	config := newTestConf(t)
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
@@ -1257,8 +1250,6 @@ use_proxy_for_cloud_metadata: true
 }
 
 func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
-	unsetEnvForTest(t, "NO_PROXY")
 
 	config := newTestConf(t)
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
@@ -1301,8 +1292,6 @@ secret_backend_arguments:
 `)
 
 func TestConfigAssignAtPathSimple(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
-	unsetEnvForTest(t, "NO_PROXY")
 
 	config := newTestConf(t)
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
@@ -1332,8 +1321,6 @@ use_proxy_for_cloud_metadata: true
 }
 
 func TestConfigMustMatchOrigin(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
-	unsetEnvForTest(t, "NO_PROXY")
 
 	testMinimalConf := []byte(`apm_config:
   apm_dd_url: ENC[some_url]
@@ -1409,8 +1396,6 @@ use_proxy_for_cloud_metadata: true
 }
 
 func TestConfigAssignAtPathForIntMapKeys(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
-	unsetEnvForTest(t, "NO_PROXY")
 
 	// Even if a map is using keys that looks like stringified ints, calling
 	// configAssignAtPath will still work correctly

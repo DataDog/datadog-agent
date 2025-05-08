@@ -82,18 +82,19 @@ func (c *collector) getDeviceInfoMig(migDevice ddnvml.SafeDevice) (*workloadmeta
 	}, nil
 }
 
-func (c *collector) getGPUDeviceInfo(device *ddnvml.Device) (*workloadmeta.GPU, error) {
+func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
+	devInfo := device.GetDeviceInfo()
 	gpuDeviceInfo := workloadmeta.GPU{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindGPU,
-			ID:   device.UUID,
+			ID:   devInfo.UUID,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name: device.Name,
+			Name: devInfo.Name,
 		},
 		Vendor:     nvidiaVendor,
-		Device:     device.Name,
-		Index:      device.Index,
+		Device:     devInfo.Name,
+		Index:      devInfo.Index,
 		MigEnabled: false,
 		MigDevices: nil,
 	}
@@ -105,7 +106,7 @@ func (c *collector) getGPUDeviceInfo(device *ddnvml.Device) (*workloadmeta.GPU, 
 	return &gpuDeviceInfo, nil
 }
 
-func (c *collector) fillMIGData(gpuDeviceInfo *workloadmeta.GPU, device *ddnvml.Device) {
+func (c *collector) fillMIGData(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
 	migEnabled, _, err := device.GetMigMode()
 	if err != nil || migEnabled != nvml.DEVICE_MIG_ENABLE {
 		return
@@ -142,7 +143,7 @@ func (c *collector) fillMIGData(gpuDeviceInfo *workloadmeta.GPU, device *ddnvml.
 	gpuDeviceInfo.MigDevices = migDevs
 }
 
-func (c *collector) fillAttributes(gpuDeviceInfo *workloadmeta.GPU, device *ddnvml.Device) {
+func (c *collector) fillAttributes(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
 	arch, err := device.GetArchitecture()
 	if err != nil {
 		if logLimiter.ShouldLog() {
@@ -162,8 +163,8 @@ func (c *collector) fillAttributes(gpuDeviceInfo *workloadmeta.GPU, device *ddnv
 		gpuDeviceInfo.ComputeCapability.Minor = minor
 	}
 
-	gpuDeviceInfo.TotalCores = device.CoreCount
-	gpuDeviceInfo.TotalMemory = device.Memory
+	gpuDeviceInfo.TotalCores = device.GetDeviceInfo().CoreCount
+	gpuDeviceInfo.TotalMemory = device.GetDeviceInfo().Memory
 
 	memBusWidth, err := device.GetMemoryBusWidth()
 	if err != nil {
@@ -193,7 +194,7 @@ func (c *collector) fillAttributes(gpuDeviceInfo *workloadmeta.GPU, device *ddnv
 	}
 }
 
-func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device *ddnvml.Device) {
+func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
 	procs, err := device.GetComputeRunningProcesses()
 	if err != nil {
 		if logLimiter.ShouldLog() {

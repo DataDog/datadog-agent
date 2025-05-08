@@ -85,6 +85,7 @@ manual_gate_threshold_update:
     - !reference [.on_main_manual]
     - !reference [.on_dev_branches]
     - when: manual
+      allow_failure: true
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
