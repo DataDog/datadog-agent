@@ -169,9 +169,7 @@ Settings: map[key:value]
 
 ===
 `, testTime.String())
-	compareTestOutput(t, output, expectedOutput)
-
-	resetAutoscalingStore()
+	compareTestOutput(t, expectedOutput, output)
 }
 
 func TestMarshalUnmarshal(t *testing.T) {

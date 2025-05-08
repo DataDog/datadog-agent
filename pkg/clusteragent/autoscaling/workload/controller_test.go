@@ -10,7 +10,6 @@ package workload
 import (
 	"errors"
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
@@ -44,13 +43,10 @@ type fixture struct {
 
 const testMaxAutoscalerObjects int = 2
 
-func resetAutoscalingStore() {
-	AutoscalingStore = nil
-	AutoscalingStoreOnce = sync.Once{}
-}
-
 func newFixture(t *testing.T, testTime time.Time) *fixture {
-	store := GetAutoscalingStore()
+	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	InitDumper(store)
+
 	clock := clock.NewFakeClock(testTime)
 	recorder := record.NewFakeRecorder(100)
 	hashHeap := autoscaling.NewHashHeap(testMaxAutoscalerObjects, store)
@@ -153,8 +149,6 @@ func TestLeaderCreateDeleteLocal(t *testing.T) {
 
 	assert.True(t, found)
 	model.AssertPodAutoscalersEqual(t, expectedDPAInternal, dpaInternal)
-
-	resetAutoscalingStore()
 }
 
 func TestLeaderCreateDeleteRemote(t *testing.T) {
@@ -251,8 +245,6 @@ func TestLeaderCreateDeleteRemote(t *testing.T) {
 	f.Actions = nil
 	f.RunControllerSync(true, "default/dpa-0")
 	assert.Len(t, f.store.GetAll(), 0)
-
-	resetAutoscalingStore()
 }
 
 func TestDatadogPodAutoscalerTargetingClusterAgentErrors(t *testing.T) {
@@ -373,8 +365,6 @@ func TestDatadogPodAutoscalerTargetingClusterAgentErrors(t *testing.T) {
 			pai, found := f.store.Get(id)
 			assert.Truef(t, found, "Expected to find DatadogPodAutoscaler in store")
 			assert.Equal(t, errors.New("Autoscaling target cannot be set to the cluster agent"), pai.Error())
-
-			resetAutoscalingStore()
 		})
 	}
 }
@@ -512,8 +502,6 @@ func TestPodAutoscalerLocalOwnerObjectsLimit(t *testing.T) {
 	assert.Truef(t, f.autoscalingHeap.Keys[dpaID], "Expected dpa-0 to be in heap")
 	assert.Falsef(t, f.autoscalingHeap.Keys[dpa1ID], "Expected dpa-1 to not be in heap")
 	assert.Truef(t, f.autoscalingHeap.Keys[dpa2ID], "Expected dpa-2 to be in heap")
-
-	resetAutoscalingStore()
 }
 
 func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
@@ -768,6 +756,4 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-0"], "Expected dpa-0 to be in heap")
 	assert.Falsef(t, f.autoscalingHeap.Keys["default/dpa-1"], "Expected dpa-1 to not be in heap")
 	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-2"], "Expected dpa-2 to be in heap")
-
-	resetAutoscalingStore()
 }
