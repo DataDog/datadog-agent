@@ -35,6 +35,8 @@ type eventPayload struct {
 	ContainerServiceName       string   `json:"container_service_name,omitempty"`
 	ContainerServiceNameSource string   `json:"container_service_name_source,omitempty"`
 	ContainerTags              []string `json:"container_tags,omitempty"`
+	TracerServiceNames         []string `json:"tracer_service_names,omitempty"`
+	TracerRuntimeIDs           []string `json:"tracer_runtime_ids,omitempty"`
 	DDService                  string   `json:"dd_service,omitempty"`
 	HostName                   string   `json:"host_name"`
 	Env                        string   `json:"env"`
@@ -92,6 +94,8 @@ func (ts *telemetrySender) newEvent(t eventType, service model.Service) *event {
 			ContainerServiceName:       service.ContainerServiceName,
 			ContainerServiceNameSource: service.ContainerServiceNameSource,
 			ContainerTags:              service.ContainerTags,
+			TracerServiceNames:         service.TracerServiceNames,
+			TracerRuntimeIDs:           service.TracerRuntimeIDs,
 			DDService:                  service.DDService,
 			HostName:                   host,
 			Env:                        env,

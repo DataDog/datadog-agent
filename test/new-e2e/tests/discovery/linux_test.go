@@ -119,13 +119,14 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 			serviceNameSource:    "provided",
 		})
 		s.assertService(t, c, foundMap, serviceExpectedPayload{
-			name:                 "python.instrumented",
+			name:                 "python-instrumented",
 			systemdServiceName:   "python-instrumented",
 			instrumentation:      "provided",
-			serviceName:          "python.instrumented",
+			serviceName:          "python-instrumented-dd",
 			generatedServiceName: "python.instrumented",
-			ddService:            "",
-			serviceNameSource:    "",
+			tracerServiceNames:   []string{"python-instrumented-dd"},
+			ddService:            "python-instrumented-dd",
+			serviceNameSource:    "provided",
 		})
 		s.assertService(t, c, foundMap, serviceExpectedPayload{
 			name:                 "rails_hello",
@@ -209,6 +210,7 @@ type serviceExpectedPayload struct {
 	generatedServiceName string
 	ddService            string
 	serviceNameSource    string
+	tracerServiceNames   []string
 }
 
 func (s *linuxTestSuite) assertService(t *testing.T, c *assert.CollectT, foundMap map[string]*aggregator.ServiceDiscoveryPayload, expected serviceExpectedPayload) {
@@ -221,6 +223,10 @@ func (s *linuxTestSuite) assertService(t *testing.T, c *assert.CollectT, foundMa
 		assert.Equal(c, expected.generatedServiceName, found.Payload.GeneratedServiceName, "service %q: generated service name", expected.name)
 		assert.Equal(c, expected.ddService, found.Payload.DDService, "service %q: DD service", expected.name)
 		assert.Equal(c, expected.serviceNameSource, found.Payload.ServiceNameSource, "service %q: service name source", expected.name)
+		if len(expected.tracerServiceNames) > 0 {
+			assert.Equal(c, expected.tracerServiceNames, found.Payload.TracerServiceNames, "service %q: tracer service names", expected.name)
+			assert.Len(c, found.Payload.TracerRuntimeIDs, len(expected.tracerServiceNames), "service %q: tracer runtime ids", expected.name)
+		}
 		assert.NotZero(c, found.Payload.RSSMemory, "service %q: expected non-zero memory usage", expected.name)
 	} else {
 		status := s.Env().RemoteHost.MustExecute("sudo systemctl status " + expected.systemdServiceName)

@@ -16,6 +16,8 @@ type Service struct {
 	ContainerServiceName       string   `json:"container_service_name"`
 	ContainerServiceNameSource string   `json:"container_service_name_source"`
 	ContainerTags              []string `json:"container_tags,omitempty"`
+	TracerServiceNames         []string `json:"tracer_service_names,omitempty"`
+	TracerRuntimeIDs           []string `json:"tracer_runtime_ids,omitempty"`
 	DDService                  string   `json:"dd_service"`
 	DDServiceInjected          bool     `json:"dd_service_injected"`
 	CheckedContainerData       bool     `json:"checked_container_data"`
