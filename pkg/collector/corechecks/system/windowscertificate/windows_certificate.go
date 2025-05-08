@@ -11,10 +11,15 @@ package windowscertificate
 
 import (
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 	"unsafe"
 
+	yy "github.com/ghodss/yaml"
+	"github.com/swaggest/jsonschema-go"
+	"github.com/xeipuuv/gojsonschema"
 	"golang.org/x/sys/windows"
 	yaml "gopkg.in/yaml.v2"
 
@@ -35,10 +40,10 @@ const (
 // Config is the configuration options for this check
 // it is exported so that the yaml parser can read it.
 type Config struct {
-	CertificateStores []string `yaml:"certificate_stores"`
-	CertSubject       []string `yaml:"certificate_subject"`
-	DaysCritical      int      `yaml:"days_critical"`
-	DaysWarning       int      `yaml:"days_warning"`
+	CertificateStores []string `yaml:"certificate_stores" json:"certificate_stores" required:"true" minItems:"1" minLength:"1" nullable:"false"`
+	CertSubjects      []string `yaml:"certificate_subjects" json:"certificate_subjects"`
+	DaysCritical      int      `yaml:"days_critical" json:"days_critical" minimum:"0"`
+	DaysWarning       int      `yaml:"days_warning" json:"days_warning" minimum:"0"`
 }
 
 // WinCertChk is the object representing the check
@@ -58,25 +63,68 @@ func newCheck() check.Check {
 	}
 }
 
+func createConfigSchema() ([]byte, error) {
+	reflector := jsonschema.Reflector{}
+	schema, err := reflector.Reflect(Config{})
+	if err != nil {
+		return nil, err
+	}
+
+	schemaString, err := json.MarshalIndent(schema, "", " ")
+	if err != nil {
+		return nil, err
+	}
+
+	return schemaString, nil
+}
+
 // Configure accepts configuration
-func (w *WinCertChk) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (w *WinCertChk) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	w.BuildID(integrationConfigDigest, data, initConfig)
 	err := w.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
 		return err
 	}
 
-	if err := yaml.Unmarshal(data, &w.config); err != nil {
+	schemaString, err := createConfigSchema()
+	if err != nil {
+		return fmt.Errorf("failed to create config validationschema: %s", err)
+	}
+
+	schemaLoader := gojsonschema.NewBytesLoader(schemaString)
+	rawDocument, err := yy.YAMLToJSON(data)
+	if err != nil {
+		log.Errorf("failed to load the config to JSON: %s", err)
 		return err
 	}
-
-	if w.config.DaysCritical == 0 {
-		w.config.DaysCritical = 7
+	documentLoader := gojsonschema.NewBytesLoader(rawDocument)
+	result, _ := gojsonschema.Validate(schemaLoader, documentLoader)
+	if !result.Valid() {
+		for _, err := range result.Errors() {
+			if err.Value() != nil {
+				log.Errorf("configuration error: %s", err)
+			} else {
+				log.Errorf("configuration error: %s (%v)", err, err.Value())
+			}
+		}
+		return fmt.Errorf("configuration validation failed")
 	}
-	if w.config.DaysWarning == 0 {
-		w.config.DaysWarning = 14
+
+	config := Config{
+		DaysCritical: 7,
+		DaysWarning:  14,
 	}
 
-	log.Infof("Windows Certificate Check configured with Certificate Stores: %v and Certificate Subjects: %v", w.config.CertificateStores, w.config.CertSubject)
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return fmt.Errorf("cannot unmarshal configuration: %s", err)
+	}
+	w.config = config
+
+	if w.config.DaysWarning < w.config.DaysCritical {
+		log.Warnf("Days warning (%d) is less than days critical (%d). Warning service checks will not be emitted.", w.config.DaysWarning, w.config.DaysCritical)
+	}
+
+	log.Infof("Windows Certificate Check configured with Certificate Stores: '%v' and Certificate Subjects: '%v'", strings.Join(w.config.CertificateStores, ", "), strings.Join(w.config.CertSubjects, ", "))
 	return nil
 }
 
@@ -88,23 +136,20 @@ func (w *WinCertChk) Run() error {
 	}
 	defer sender.Commit()
 
-	if len(w.config.CertificateStores) == 0 {
-		return fmt.Errorf("no certificate stores specified")
-	}
-
 	for _, store := range w.config.CertificateStores {
-		certificates, err := getCertificates(store, w.config.CertSubject)
+		certificates, err := getCertificates(store, w.config.CertSubjects)
 		if err != nil {
 			return err
 		}
 		if len(certificates) == 0 {
-			log.Warnf("No certificates found in store: %s for subject filters: %v", store, w.config.CertSubject)
+			log.Warnf("No certificates found in store: %s for subject filters: '%s'", store, strings.Join(w.config.CertSubjects, ", "))
 			continue
 		}
 
 		for _, cert := range certificates {
 			log.Debugf("Found certificate: %s", cert.Subject.String())
 			daysRemaining := getCertExpiration(cert)
+			expirationDate := cert.NotAfter.Format(time.RFC3339)
 
 			// Adding Subject and Certificate Store as tags
 			tags := getSubjectTags(cert)
@@ -117,19 +162,19 @@ func (w *WinCertChk) Run() error {
 					servicecheck.ServiceCheckCritical,
 					"",
 					tags,
-					"Certificate has expired")
+					fmt.Sprintf("Certificate has expired. Certificate expiration date is %s", expirationDate))
 			} else if daysRemaining < float64(w.config.DaysCritical) {
 				sender.ServiceCheck("windows_certificate.cert_expiration",
 					servicecheck.ServiceCheckCritical,
 					"",
 					tags,
-					fmt.Sprintf("Certificate will expire in only %d days", int(daysRemaining)))
+					fmt.Sprintf("Certificate will expire in only %.2f days. Certificate expiration date is %s", daysRemaining, expirationDate))
 			} else if daysRemaining < float64(w.config.DaysWarning) {
 				sender.ServiceCheck("windows_certificate.cert_expiration",
 					servicecheck.ServiceCheckWarning,
 					"",
 					tags,
-					fmt.Sprintf("Certificate wil expire in %d days", int(daysRemaining)))
+					fmt.Sprintf("Certificate will expire in %.2f days. Certificate expiration date is %s", daysRemaining, expirationDate))
 			} else {
 				sender.ServiceCheck(
 					"windows_certificate.cert_expiration",
@@ -146,7 +191,7 @@ func (w *WinCertChk) Run() error {
 }
 
 func getCertificates(store string, certFilters []string) ([]*x509.Certificate, error) {
-	certificates := []*x509.Certificate{}
+	var certificates []*x509.Certificate
 	storeName := windows.StringToUTF16Ptr(store)
 
 	log.Debugf("Opening certificate store: %s", store)
@@ -154,26 +199,26 @@ func getCertificates(store string, certFilters []string) ([]*x509.Certificate, e
 		windows.CERT_STORE_PROV_SYSTEM,
 		0,
 		0,
-		windows.CERT_SYSTEM_STORE_LOCAL_MACHINE|windows.CERT_STORE_READONLY_FLAG,
+		windows.CERT_SYSTEM_STORE_LOCAL_MACHINE|windows.CERT_STORE_READONLY_FLAG|windows.CERT_STORE_OPEN_EXISTING_FLAG,
 		uintptr(unsafe.Pointer(storeName)))
 	if err != nil {
-		log.Errorf("Error opening certificate store: %v", err)
+		log.Errorf("Error opening certificate store %s: %v", store, err)
 		return nil, err
 	}
-
-	log.Debugf("Store handle: %v", storeHandle)
-
-	// Close the store when we're done
-	defer windows.CertCloseStore(storeHandle, 0)
-
-	var certContext *windows.CertContext
+	// Close the store when the function returns
+	defer func() {
+		err = windows.CertCloseStore(storeHandle, 0)
+		if err != nil {
+			log.Errorf("Error closing certificate store %s: %v", store, err)
+		}
+	}()
 
 	log.Debugf("Enumerating certificates in store")
 
 	if len(certFilters) == 0 {
-		certificates, err = getEnumCertificatesInStore(certContext, storeHandle)
+		certificates, err = getEnumCertificatesInStore(storeHandle)
 	} else {
-		certificates, err = findCertificatesInStore(certContext, storeHandle, certFilters)
+		certificates, err = findCertificatesInStore(storeHandle, certFilters)
 	}
 	if err != nil {
 		log.Errorf("Error getting certificates: %v", err)
@@ -185,9 +230,21 @@ func getCertificates(store string, certFilters []string) ([]*x509.Certificate, e
 }
 
 // getEnumCertificatesInStore retrieves all certificates in a certificate store
-func getEnumCertificatesInStore(certContext *windows.CertContext, storeHandle windows.Handle) ([]*x509.Certificate, error) {
+func getEnumCertificatesInStore(storeHandle windows.Handle) ([]*x509.Certificate, error) {
 	var err error
 	certificates := []*x509.Certificate{}
+
+	var certContext *windows.CertContext
+	defer func() {
+		if certContext != nil {
+			log.Debugf("Freeing certificate context")
+			err = windows.CertFreeCertificateContext(certContext)
+			if err != nil {
+				log.Errorf("Error freeing certificate context: %v", err)
+			}
+		}
+	}()
+
 	for {
 		certContext, err = windows.CertEnumCertificatesInStore(storeHandle, certContext)
 		if err != nil {
@@ -214,9 +271,20 @@ func getEnumCertificatesInStore(certContext *windows.CertContext, storeHandle wi
 }
 
 // findCertificatesInStore finds certificates in a store with a given subject string
-func findCertificatesInStore(certContext *windows.CertContext, storeHandle windows.Handle, subjectFilters []string) ([]*x509.Certificate, error) {
+func findCertificatesInStore(storeHandle windows.Handle, subjectFilters []string) ([]*x509.Certificate, error) {
 	var err error
 	certificates := []*x509.Certificate{}
+
+	var certContext *windows.CertContext
+	defer func() {
+		if certContext != nil {
+			log.Debugf("Freeing certificate context")
+			err = windows.CertFreeCertificateContext(certContext)
+			if err != nil {
+				log.Errorf("Error freeing certificate context: %v", err)
+			}
+		}
+	}()
 
 	for _, subject := range subjectFilters {
 		subjectName := windows.StringToUTF16Ptr(subject)
@@ -301,6 +369,18 @@ func getAttributeTypeName(oid string) string {
 		return "STREET"
 	case "2.5.4.17":
 		return "POSTALCODE"
+	case "2.5.4.12":
+		return "T"
+	case "2.5.4.42":
+		return "GN"
+	case "2.5.4.4":
+		return "SN"
+	case "2.5.4.46":
+		return "DNQ"
+	case "0.9.2342.19200300.100.1.1":
+		return "UID"
+	case "1.2.840.113549.1.9.1":
+		return "E"
 	case "0.9.2342.19200300.100.1.25":
 		return "DC"
 	default:

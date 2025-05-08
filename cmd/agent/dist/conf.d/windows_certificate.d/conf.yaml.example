@@ -14,22 +14,26 @@ init_config:
 instances:
 
     ## @param certificate_stores - list of strings - required
-    ## The list of certificate stores to query from when verifying the Windows server certificates.
+    ## The list of certificate stores to query from when verifying the Windows certificates.
+    ## This check can only query from local machine certificates.
+    ## Enter the store names as found in `HKEY_LOCAL_MACHINE\Software\Microsoft\SystemCertificates`
     #
-  - certificate_stores:
-      - ROOT
-      - CA
+    # - certificate_stores:
+    #   - MY
+    #   - ROOT
+    #   - CA
 
     ## @param certificate_subject - list of strings - optional
-    ## A list of regex patterns to filter by the subject of the certificates. 
-    ## For example if you have `Microsoft Root Authority` in `cert_subject`
-    ## and you have a certificate with subject, 
+    ## A list of strings to filter by the subjects of the certificates.
+    ## For example if you have `Microsoft Root Authority` in `certificate_subjects`
+    ## and you have a certificate with subject,
     ## "CN=Microsoft Root Authority, OU=Microsoft Corporation, OU=Copyright (c) 1997 Microsoft Corp."
     ## then the certificate will be matched and metrics will be collected for that certificate.
+    ## If `certificate_subjects` is empty then all certificates in `certificate_stores` are collected.
     #
-    # certificate_subject:
-    #   - <REGEX_1>
-    #   - <REGEX_2>
+    # certificate_subjects:
+    #   - <SUBJECT_1>
+    #   - <SUBJECT_2>
 
     ## @param days_warning - number - optional - default: 14.0
     ## Number of days before certificate expiration from which the service check
