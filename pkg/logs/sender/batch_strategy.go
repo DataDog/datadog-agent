@@ -201,6 +201,7 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 	}
 
 	p := message.NewPayload(messages, s.payloadWriter.Bytes(), s.compression.ContentEncoding(), unencodedSize)
+	s.payloadWriter.Reset()
 
 	s.utilization.Stop()
 	outputChan <- p
