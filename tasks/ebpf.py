@@ -682,7 +682,7 @@ def _tag_complexity_job(ctx: Context, tags: dict[str, str]):
     ctx.run(f"datadog-ci tag --level job {tags_str}")
 
 
-def _add_measures_to_complexity_job(ctx: Context, measures: dict[str, str]):
+def _add_measures_to_complexity_job(ctx: Context, measures: dict[str, int | float]):
     """Add the given measures to the complexity job"""
     tag_prefix = "ebpf."
     measures_str = " ".join(f"--measures '{tag_prefix}{k}:{v}'" for k, v in measures.items())
