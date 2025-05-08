@@ -360,6 +360,10 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("vfs_setxattr"),
 				kprobeOrFentry("mnt_want_write"),
+				kprobeOrFentry("io_fsetxattr"),
+				kretprobeOrFexit("io_fsetxattr"),
+				kprobeOrFentry("io_setxattr"),
+				kretprobeOrFexit("io_setxattr"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("mnt_want_write_file"),
