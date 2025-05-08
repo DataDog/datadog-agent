@@ -111,8 +111,8 @@ func (ft *fileMutator) mutate(ctx context.Context) (rollback func() error, err e
 	// validate final file if validation function provided
 	if ft.validateFinal != nil {
 		if err = ft.validateFinal(); err != nil {
-			if err = rollback(); err != nil {
-				log.Errorf("could not rollback file %s: %s", ft.path, err)
+			if rollbackErr := rollback(); rollbackErr != nil {
+				log.Errorf("could not rollback file %s: %s", ft.path, rollbackErr)
 			}
 			return nil, err
 		}
