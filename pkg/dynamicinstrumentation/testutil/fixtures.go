@@ -1175,6 +1175,15 @@ var linkedListCaptures = fixtures{
 	},
 }
 
+var otherCaptures = fixtures{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.accept_large_type": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{},
+			Options:          TestInstrumentationOptions{CaptureDepth: 4},
+		},
+	},
+}
+
 // mergeMaps combines multiple fixture maps into a single map
 func mergeMaps(maps ...fixtures) fixtures {
 	result := make(fixtures)
@@ -1196,4 +1205,5 @@ var expectedCaptures = mergeMaps(
 	captureDepthCaptures,
 	interfaceCaptures,
 	linkedListCaptures,
+	//otherCaptures,
 )

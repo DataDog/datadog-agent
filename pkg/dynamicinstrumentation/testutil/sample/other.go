@@ -7,11 +7,43 @@ package sample
 
 import (
 	"bytes"
+	"io"
 	"runtime"
 	"strconv"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 type triggerVerifierErrorForTesting byte
+
+type largeType struct {
+	mu             sync.RWMutex
+	output         []byte
+	w              io.Writer
+	ran            bool
+	failed         bool
+	skipped        bool
+	done           bool
+	helperPCs      map[uintptr]struct{}
+	helperNames    map[string]struct{}
+	cleanups       []func()
+	cleanupName    string
+	cleanupPc      []uintptr
+	finished       bool
+	inFuzzFn       bool
+	chatty         interface{}
+	bench          bool
+	hasSub         atomic.Bool
+	cleanupStarted atomic.Bool
+	runner         string
+	isParallel     bool
+	parent         *largeType
+	level          int
+	creator        []uintptr
+	name           string
+	start          time.Time
+}
 
 //nolint:all
 //go:noinline
@@ -36,9 +68,19 @@ func Return_goroutine_id() uint64 {
 
 //nolint:all
 //go:noinline
+func accept_large_type(t *largeType) {}
+
+//nolint:all
+//go:noinline
 func ExecuteOther() {
 	x := make(chan bool)
 	test_channel(x)
 
 	test_trigger_verifier_error(1)
+
+	accept_large_type(&largeType{
+		helperPCs:   make(map[uintptr]struct{}),
+		helperNames: make(map[string]struct{}),
+		start:       time.Now(),
+	})
 }
