@@ -120,7 +120,7 @@ func newTCPEndpoint(logsConfig *LogsConfigKeys) Endpoint {
 
 // newHTTPEndpoint returns a new HTTP Endpoint based on LogsConfigKeys The endpoint is by default reliable and will use
 // the settings related to HTTP from the configuration (compression, Backoff, recovery, ...).
-func newHTTPEndpoint(logsConfig *LogsConfigKeys, compressionOptions EndpointCompressionOptions) Endpoint {
+func newHTTPEndpoint(logsConfig *LogsConfigKeys) Endpoint {
 
 	apiKey, configPath := logsConfig.getMainAPIKey()
 	e := Endpoint{
@@ -138,14 +138,6 @@ func newHTTPEndpoint(logsConfig *LogsConfigKeys, compressionOptions EndpointComp
 		useSSL:                  logsConfig.logsNoSSL(),
 		isReliable:              true, // by default endpoints are reliable
 	}
-
-	if compressionOptions.CompressionKind != "" {
-		e.CompressionKind = compressionOptions.CompressionKind
-	}
-	if compressionOptions.CompressionLevel != 0 {
-		e.CompressionLevel = compressionOptions.CompressionLevel
-	}
-
 	e.onConfigUpdate(logsConfig)
 	return e
 }
@@ -192,6 +184,9 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys) []Endpoint {
 func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) []Endpoint {
 	additionals, configKeyUsed := l.getAdditionalEndpoints()
 
+	// Check if we need gzip compatibility for additional endpoints
+	needsGzipCompatibility := len(additionals) > 0 && !l.config.IsConfigured(l.getConfigKey("compression_kind"))
+
 	newEndpoints := make([]Endpoint, 0, len(additionals))
 	for idx, e := range additionals {
 		newE := NewEndpoint(e.APIKey, configKeyUsed, e.Host, e.Port, false)
@@ -199,8 +194,17 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
 
-		newE.UseCompression = main.UseCompression
-		newE.CompressionLevel = main.CompressionLevel
+		if needsGzipCompatibility {
+			log.Debugf("Additional endpoints detected, pipeline: %s falling back to gzip compression for compatibility", l.prefix)
+			newE.UseCompression = true
+			newE.CompressionKind = GzipCompressionKind
+			newE.CompressionLevel = GzipCompressionLevel
+		} else {
+			newE.UseCompression = main.UseCompression
+			newE.CompressionKind = main.CompressionKind
+			newE.CompressionLevel = main.CompressionLevel
+		}
+
 		newE.ProxyAddress = e.ProxyAddress
 		newE.isReliable = e.IsReliable == nil || *e.IsReliable
 		newE.ConnectionResetInterval = e.ConnectionResetInterval

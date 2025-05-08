@@ -20,8 +20,6 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/DataDog/zstd"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -29,6 +27,7 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/zstd"
 )
 
 const (

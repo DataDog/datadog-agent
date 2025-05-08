@@ -190,7 +190,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 	// Provide default values for legacy settings when the configuration key does not exist
 	defaultNoSSL := logsConfig.logsNoSSL()
 
-	main := newHTTPEndpoint(logsConfig, compressionOptions)
+	main := newHTTPEndpoint(logsConfig)
 
 	if logsConfig.useV2API() && intakeTrackType != "" {
 		main.Version = EPIntakeVersion2
@@ -199,6 +199,11 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 		main.Origin = intakeOrigin
 	} else {
 		main.Version = EPIntakeVersion1
+	}
+
+	if compressionOptions.CompressionKind != "" {
+		main.CompressionKind = compressionOptions.CompressionKind
+		main.CompressionLevel = compressionOptions.CompressionLevel
 	}
 
 	if vectorURL, vectorURLDefined := logsConfig.getObsPipelineURL(); logsConfig.obsPipelineWorkerEnabled() && vectorURLDefined {
