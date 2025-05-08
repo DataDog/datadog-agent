@@ -5,7 +5,6 @@
 
 //go:build linux
 
-// Package utils contains common code shared across the USM codebase
 package utils
 
 import (
