@@ -82,10 +82,14 @@ func (pt *ProcessTracker) Stop() {
 	}
 }
 
-func (pt *ProcessTracker) handleProcessStart(pid uint32) {
+func (pt *ProcessTracker) HandleProcessStartSync(pid uint32) {
 	exePath := filepath.Join(pt.procRoot, strconv.FormatUint(uint64(pid), 10), "exe")
 
-	go pt.inspectBinary(exePath, pid)
+	pt.inspectBinary(exePath, pid)
+}
+
+func (pt *ProcessTracker) handleProcessStart(pid uint32) {
+	go pt.HandleProcessStartSync(pid)
 }
 
 func (pt *ProcessTracker) handleProcessStop(pid uint32) {

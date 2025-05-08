@@ -12,17 +12,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/kr/pretty"
 	"math/rand"
 	"os"
 	"os/exec"
 	"reflect"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"text/template"
 	"time"
-
-	"github.com/kr/pretty"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diconfig"
@@ -40,6 +40,7 @@ type testResult struct {
 	matches           []bool
 	expectation       ditypes.CapturedValueMap
 	unexpectedResults []ditypes.CapturedValueMap
+	snapshotArrived   atomic.Bool
 }
 
 var results = make(map[string]*testResult)
@@ -136,6 +137,8 @@ func runTestCase(t *testing.T, function string, expectedCaptureValue CapturedVal
 		matches:           []bool{},
 		unexpectedResults: []ditypes.CapturedValueMap{},
 	}
+	result.snapshotArrived.Store(false)
+
 	results[function] = result
 	err = cfgTemplate.Execute(buf, configDataType{
 		ServiceName:  serviceName,
@@ -145,15 +148,18 @@ func runTestCase(t *testing.T, function string, expectedCaptureValue CapturedVal
 	require.NoError(t, err)
 	eventOutputWriter.expectedResult = expectedCaptureValue.CapturedValueMap
 
+	cm.ProcTracker.HandleProcessStartSync(uint32(cmd.Process.Pid))
+
 	// Read the configuration via the config manager
-	_, err = cm.ConfigWriter.Write(buf.Bytes())
-	time.Sleep(time.Second * 2)
 	doCapture = true
-	if err != nil {
-		t.Errorf("could not read new configuration: %s", err)
-	}
-	time.Sleep(time.Second * 2)
+	_ = cm.ConfigWriter.WriteSync(buf.Bytes())
+	snapshotArrived := waitForSnapshot(result, 5*time.Second)
 	doCapture = false
+
+	if !snapshotArrived {
+		t.Errorf("Snapshot was not arrived for %s", function)
+		return
+	}
 
 	// Check results
 	for _, ok := range result.matches {
@@ -163,6 +169,25 @@ func runTestCase(t *testing.T, function string, expectedCaptureValue CapturedVal
 				pretty.Sprint(result.unexpectedResults),
 				pretty.Sprint(result.expectation))
 			break
+		}
+	}
+}
+
+func waitForSnapshot(result *testResult, timeout time.Duration) bool {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	tick := time.NewTicker(100 * time.Millisecond)
+	defer tick.Stop()
+
+	for {
+		select {
+		case <-timer.C:
+			return false
+		case <-tick.C:
+			if result.snapshotArrived.Load() {
+				return true
+			}
 		}
 	}
 }
@@ -245,6 +270,7 @@ func (e *eventOutputTestWriter) Write(p []byte) (n int, err error) {
 	actual := snapshot.Debugger.Captures.Entry.Arguments
 	scrubPointerValues(actual)
 	b, ok := results[funcName]
+	b.snapshotArrived.Store(true)
 	if !ok {
 		e.t.Errorf("received event from unexpected probe: %s", funcName)
 		return
