@@ -127,7 +127,11 @@ func (s *Launcher) run() {
 				s.wg.Add(1)
 				go func() {
 					defer s.scanMutex.Unlock()
-					s.cleanupRotatedTailersAndScan()
+					defer s.wg.Done()
+
+					s.cleanUpRotatedTailers()
+					// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
+					s.scan()
 				}()
 			} else {
 				log.Debugf("Skipping scan as another scan is already in progress")
@@ -139,15 +143,6 @@ func (s *Launcher) run() {
 			return
 		}
 	}
-}
-
-// cleanupRotatedTailersAndScan combines the cleanupRotatedTailers and scan functions
-func (s *Launcher) cleanupRotatedTailersAndScan() {
-	defer s.wg.Done()
-
-	s.cleanUpRotatedTailers()
-	// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
-	s.scan()
 }
 
 // cleanup all tailers
