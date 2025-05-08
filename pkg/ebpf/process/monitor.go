@@ -190,12 +190,14 @@ func (m *Monitor) processExit(pid uint32) {
 
 // SubscribeExec wraps SubscribeExec from [consumers.ProcessConsumer]
 func (m *Monitor) SubscribeExec(callback consumers.ProcessCallback) func() {
-	m.execCallbacks.add(callback)
-	return m.consumer.SubscribeExec(m.processStart)
+	removeFunc := m.execCallbacks.add(callback)
+	m.consumer.SubscribeExec(m.processStart)
+	return removeFunc
 }
 
 // SubscribeExit wraps SubscribeExit from [consumers.ProcessConsumer]
 func (m *Monitor) SubscribeExit(callback consumers.ProcessCallback) func() {
-	m.exitCallbacks.add(callback)
-	return m.consumer.SubscribeExit(m.processExit)
+	removeFunc := m.exitCallbacks.add(callback)
+	m.consumer.SubscribeExit(m.processExit)
+	return removeFunc
 }
