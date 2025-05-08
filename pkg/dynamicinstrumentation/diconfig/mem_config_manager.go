@@ -97,7 +97,7 @@ func (cm *ReaderConfigManager) update() error {
 	}
 
 	if !reflect.DeepEqual(cm.state, updatedState) {
-		err := inspectGoBinaries(updatedState)
+		statuses, err := inspectGoBinaries(updatedState)
 		if err != nil {
 			return err
 		}
@@ -111,6 +111,11 @@ func (cm *ReaderConfigManager) update() error {
 		}
 
 		for pid, procInfo := range updatedState {
+			if !statuses[pid] {
+				log.Info("Skipped the installation/deletion of probes for pid %d - failed to analyze its binary", pid)
+				continue
+			}
+
 			if _, tracked := cm.state[pid]; !tracked {
 				for _, probe := range procInfo.GetProbes() {
 					// install all probes from new process
