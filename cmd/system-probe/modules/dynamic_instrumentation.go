@@ -56,6 +56,6 @@ var DynamicInstrumentation = &module.Factory{
 // createGoDIProcessEventConsumer creates the process event consumer for the GoDI module. Should be called from the event monitor module
 func createGoDIProcessEventConsumer(evm *eventmonitor.EventMonitor) (err error) {
 	eventTypes := []consumers.ProcessConsumerEventTypes{consumers.ExecEventType, consumers.ExitEventType}
-	godiProcessEventConsumer, err = consumers.NewProcessConsumer("godi", 100, eventTypes, evm)
+	godiProcessEventConsumer, err = consumers.NewProcessConsumer("dynamicinstrumentation", 100, eventTypes, evm)
 	return err
 }

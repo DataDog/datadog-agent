@@ -103,7 +103,7 @@ func createEventMonitorModule(sysconfig *sysconfigtypes.Config, deps module.Fact
 	if sysconfig.ModuleIsEnabled(config.DynamicInstrumentationModule) {
 		err := createGoDIProcessEventConsumer(evm)
 		if err != nil {
-			return nil, fmt.Errorf("cannot create event consumer for GoDI: %w", err)
+			return nil, fmt.Errorf("cannot create event consumer for dynamic instrumentation: %w", err)
 		}
 	}
 
