@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    APM: Improve the performance of the trace-agent's QuantizePeerIPAddresses function, this should result in a marginal reduction in CPU usage for most workloads.
+    APM: Improve the performance of the Trace Agent's QuantizePeerIPAddresses function, providing a marginal reduction in CPU usage for most workloads.
