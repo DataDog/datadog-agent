@@ -249,6 +249,9 @@ func (ac *AttacherConfig) SetDefaults() {
 	}
 
 	if ac.MaxPeriodicScansPerProcess == 0 {
+		// 2 seems a reasonable default, as we will give time (1 minute with the default interval)
+		// to the process to start and for any environmental errors to stop affecting the process
+		// and allow it to load the shared libraries we might be interested in.
 		ac.MaxPeriodicScansPerProcess = 2
 	}
 }
