@@ -70,7 +70,6 @@ func (pt *ProcessTracker) Stop() {
 	for _, unsubscribe := range pt.unsubscribe {
 		unsubscribe()
 	}
-	pt.pm.Stop()
 }
 
 func (pt *ProcessTracker) handleProcessStart(pid uint32) {
