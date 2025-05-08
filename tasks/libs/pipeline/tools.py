@@ -6,6 +6,7 @@ import platform
 import sys
 from time import sleep, time
 from typing import cast
+from enum import Enum
 
 from gitlab import GitlabError
 from gitlab.exceptions import GitlabJobPlayError
@@ -17,6 +18,42 @@ from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.user_interactions import yes_no_question
 
 PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
+
+
+# Reference: https://docs.gitlab.com/api/graphql/reference/#cijobstatus
+class GitlabJobStatus(Enum):
+    CANCELED = "canceled"  # A job that is canceled.
+    CANCELING = "canceling"  # A job that is canceling.
+    CREATED = "created"  # A job that is created.
+    FAILED = "failed"  # A job that is failed.
+    MANUAL = "manual"  # A job that is manual.
+    PENDING = "pending"  # A job that is pending.
+    PREPARING = "preparing"  # A job that is preparing.
+    RUNNING = "running"  # A job that is running.
+    SCHEDULED = "scheduled"  # A job that is scheduled.
+    SKIPPED = "skipped"  # A job that is skipped.
+    SUCCESS = "success"  # A job that is success.
+    WAITING_FOR_CALLBACK = "waiting_for_callback"  # A job that is waiting for callback.
+    WAITING_FOR_RESOURCE = "waiting_for_resource"  # A job that is waiting for resource.
+
+    def has_finished(self) -> bool:
+        """Returns whether Gitlab has executed this job to the end, or skipped it"""
+        return self in {self.CANCELED, self.CANCELING, self.FAILED, self.SUCCESS, self.SKIPPED}
+
+    def is_pending(self) -> bool:
+        """Returns whether Gitlab has not yet executed this job, but will do so at some point"""
+        return self in {
+            self.CREATED,
+            self.PENDING,
+            self.SCHEDULED,
+            self.WAITING_FOR_CALLBACK,
+            self.WAITING_FOR_RESOURCE,
+            self.MANUAL,
+        }
+
+    def is_running(self) -> bool:
+        """Returns whether Gitlab is currently executing this job"""
+        return self in {self.RUNNING, self.PREPARING}
 
 
 class FilteredOutException(Exception):

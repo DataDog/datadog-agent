@@ -10,6 +10,7 @@ import shutil
 import sys
 import tarfile
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from collections.abc import Callable, Iterable
@@ -23,7 +24,7 @@ from invoke.tasks import task
 
 from tasks.kernel_matrix_testing import selftest as selftests
 from tasks.kernel_matrix_testing import stacks, vmconfig
-from tasks.kernel_matrix_testing.ci import KMTTestRunJob, get_all_jobs_for_pipeline, get_test_results_from_tarfile
+from tasks.kernel_matrix_testing.ci import KMTJob, KMTPipeline, KMTTestRunJob, get_test_results_from_tarfile
 from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, get_compiler
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.download import update_rootfs
@@ -41,7 +42,7 @@ from tasks.kernel_matrix_testing.infra import (
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
 from tasks.kernel_matrix_testing.kmt_os import flare as flare_kmt_os
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
+from tasks.kernel_matrix_testing.platforms import KMTTestJob, get_platforms, platforms_file
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
@@ -49,7 +50,7 @@ from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.utils import get_build_flags
-from tasks.libs.pipeline.tools import loop_status
+from tasks.libs.pipeline.tools import GitlabJobStatus, loop_status
 from tasks.libs.releasing.version import VERSION_RE, check_version
 from tasks.libs.types.arch import Arch, KMTArchName
 from tasks.security_agent import build_functional_tests
@@ -204,9 +205,10 @@ def gen_config_from_ci_pipeline(
         raise Exit("Pipeline ID must be provided")
 
     info(f"[+] retrieving all CI jobs for pipeline {pipeline}")
-    setup_jobs, test_jobs = get_all_jobs_for_pipeline(pipeline)
+    kmt_pipeline = KMTPipeline(pipeline)
+    kmt_pipeline.retrieve_jobs()
 
-    for job in setup_jobs:
+    for job in kmt_pipeline.setup_jobs:
         if (vcpu is None or memory is None) and job.status == "success":
             info(f"[+] retrieving vmconfig from job {job.name}")
             for vmset in job.vmconfig["vmsets"]:
@@ -223,7 +225,7 @@ def gen_config_from_ci_pipeline(
     failed_packages: set[str] = set()
     failed_tests: set[str] = set()
     successful_tests: set[str] = set()
-    for test_job in test_jobs:
+    for test_job in kmt_pipeline.test_jobs:
         if test_job.status == "failed" and job.component == vmconfig_template:
             vm_arch = test_job.arch
             if use_local_if_possible and vm_arch == local_arch:
@@ -1288,9 +1290,9 @@ def get_kmt_or_alien_stack(ctx, stack, vms, alien_vms):
         return stack
 
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    assert stacks.stack_exists(stack), (
+        f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    )
     return stack
 
 
@@ -1374,9 +1376,9 @@ def build(
 @task
 def clean(ctx: Context, stack: str | None = None, container=False, image=False):
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    assert stacks.stack_exists(stack), (
+        f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    )
 
     ctx.run("rm -rf ./test/new-e2e/tests/sysprobe-functional/artifacts/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
@@ -1727,10 +1729,11 @@ def explain_ci_failure(ctx: Context, pipeline: str | None = None):
     info(
         f"[+] retrieving all CI jobs for pipeline {pipeline} ({pipeline_data.web_url}), {pipeline_data.status}, created {pipeline_data.created_at} last updated {pipeline_data.updated_at}"
     )
-    setup_jobs, test_jobs = get_all_jobs_for_pipeline(pipeline)
+    kmt_pipeline = KMTPipeline(pipeline)
+    kmt_pipeline.retrieve_jobs()
 
-    failed_setup_jobs = [j for j in setup_jobs if j.status == "failed"]
-    failed_jobs = [j for j in test_jobs if j.status == "failed"]
+    failed_setup_jobs = [j for j in kmt_pipeline.setup_jobs if j.status == "failed"]
+    failed_jobs = [j for j in kmt_pipeline.test_jobs if j.status == "failed"]
     failreasons: dict[str, str] = {}
     ok = "✅"
     testfail = "❌"
@@ -1786,7 +1789,7 @@ def explain_ci_failure(ctx: Context, pipeline: str | None = None):
 
         # Build the distro table with all jobs for this component and vmset, to correctly
         # differentiate between skipped and ok jobs
-        for test_job in test_jobs:
+        for test_job in kmt_pipeline.test_jobs:
             if test_job.component != component or test_job.vmset != vmset:
                 continue
 
@@ -1969,9 +1972,9 @@ def selftest(ctx: Context, allow_infra_changes=False, filter: str | None = None)
 @task
 def show_last_test_results(ctx: Context, stack: str | None = None):
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    assert stacks.stack_exists(stack), (
+        f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    )
     assert tabulate is not None, "tabulate module is not installed, please install it to continue"
 
     paths = KMTPaths(stack, Arch.local())
@@ -2170,18 +2173,18 @@ def tag_ci_job(ctx: Context):
 def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, component: Component, timeout_sec: int = 3600):
     """Wait for the setup job to finish corresponding to the given pipeline, arch and component"""
     arch = Arch.from_str(arch)
-    setup_jobs, _ = get_all_jobs_for_pipeline(pipeline_id)
-    matching_jobs = [j for j in setup_jobs if j.arch == arch.kmt_arch and j.component == component]
+    kmt_pipeline = KMTPipeline(pipeline_id)
+    kmt_pipeline.retrieve_jobs()
+    matching_jobs = [j for j in kmt_pipeline.setup_jobs if j.arch == arch.kmt_arch and j.component == component]
     if len(matching_jobs) != 1:
         raise Exit(f"Search for setup_job for {arch} {component} failed: result = {matching_jobs}")
 
     setup_job = matching_jobs[0]
-    finished_status = {"failed", "success", "canceled", "skipped"}
 
     def _check_status(_):
         setup_job.refresh()
         info(f"[+] Status for job {setup_job.name}: {setup_job.status}")
-        return setup_job.status.lower() in finished_status, None
+        return setup_job.has_finished, None
 
     loop_status(_check_status, timeout_sec=timeout_sec)
     info(f"[+] Setup job {setup_job.name} finished with status {setup_job.status}")
@@ -2293,8 +2296,9 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, k
             print(f"Ignoring pipeline {pipeline_id} with source {pipeline.source}, only using push/api pipelines")
             continue
 
-        _, test_jobs = get_all_jobs_for_pipeline(pipeline_id)
-        for job in test_jobs:
+        kmt_pipeline = KMTPipeline(pipeline_id)
+        kmt_pipeline.retrieve_jobs()
+        for job in kmt_pipeline.test_jobs:
             complexity_name = f"verifier-complexity-{job.arch}-{job.distro}-{job.component}"
             complexity_data_fname = f"test/new-e2e/tests/{complexity_name}.tar.gz"
             data = job.artifact_file_binary(complexity_data_fname, ignore_not_found=True)
@@ -2321,3 +2325,67 @@ def flare(ctx: Context, dest_folder: Path | str | None = None, keep_uncompressed
 
     with tempfile.TemporaryDirectory() as tmpdir:
         flare_kmt_os(ctx, Path(tmpdir), dest_folder, keep_uncompressed_files)
+
+
+@task
+def retry_test_job_dependencies(ctx: Context, pipeline_id: int, job_id: int, only_if_current_job_retried: bool = False):
+    """Retries the setup_env job and the dependency upload jobs for the given test job."""
+    gitlab = get_gitlab_repo()
+    kmt_pipeline = KMTPipeline(pipeline_id)
+    info(f"[+] Retrieving jobs for pipeline {pipeline_id}")
+    kmt_pipeline.retrieve_jobs()
+    job = kmt_pipeline.get_job(job_id)
+    if job is None:
+        raise Exit(f"Job {job_id} not found in pipeline {pipeline_id}")
+
+    if not isinstance(job, KMTTestRunJob):
+        raise Exit(f"Job {job_id} is not a KMTTestRunJob")
+
+    if only_if_current_job_retried and not job.job.retried:
+        info(f"[+] Job {job_id} has not been retried, skipping")
+        return
+
+    retry_only_failed = False
+    if job.cleanup_job is not None:
+        if job.cleanup_job.status == GitlabJobStatus.CREATED:
+            info("[+] Cleanup job has not run, which means instances are still running. We will only retry failed jobs")
+            retry_only_failed = True
+        elif job.cleanup_job.status.has_finished():
+            info("[+] Cleanup job has finished, we will retry all jobs")
+
+    # First, retry the setup_env job
+    setup_job = job.setup_job
+    if setup_job is None:
+        raise Exit(f"Job {job_id} has no setup_env job")
+
+    jobs_to_retry: list[KMTJob] = [
+        setup_job,
+        *setup_job.dependency_upload_jobs,
+    ]
+
+    jobs_to_wait_for: list[int] = []
+    for job in jobs_to_retry:
+        if retry_only_failed and job.status != GitlabJobStatus.FAILED:
+            info(f"[+] Skipping job {job.name} as it has not failed")
+            continue
+
+        if job.status.is_running() or job.status == GitlabJobStatus.PENDING:
+            info(f"[+] Job {job.name} is already running, will wait for it to finish")
+            jobs_to_wait_for.append(job.id)
+        else:
+            info(f"[+] Retrying job {job.name}")
+            jobs_to_wait_for.append(job.retry())
+
+    # Wait until all the jobs have finished
+    while len(jobs_to_wait_for) > 0:
+        unfinished_jobs = []
+        for job_id in jobs_to_wait_for:
+            job = gitlab.jobs.get(job_id)
+            if job.status != GitlabJobStatus.SUCCESS:
+                unfinished_jobs.append(job_id)
+
+        jobs_to_wait_for = unfinished_jobs
+        info(f"[...] Waiting for {len(jobs_to_wait_for)} jobs to finish: {', '.join(jobs_to_wait_for)}")
+        time.sleep(10)
+
+    info("[+] All jobs have finished")

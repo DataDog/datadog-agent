@@ -262,6 +262,7 @@
     - echo "CI_JOB_STAGE=${CI_JOB_STAGE}" >> $DD_AGENT_TESTING_DIR/job_env.txt
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - !reference [.define_if_collect_complexity]
+    - dda inv -- -e kmt.retry-test-job-dependencies --pipeline-id $CI_PIPELINE_ID --job-id $CI_JOB_ID --only-if-current-job-retried
   script:
     - INSTANCE_IP=$(jq --exit-status --arg ARCH $ARCH -r '.[$ARCH].ip' $CI_PROJECT_DIR/stack.output)
     - !reference [.shared_filters_and_queries]
