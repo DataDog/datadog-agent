@@ -16,8 +16,10 @@ import (
 	stdmaps "maps"
 	"math/rand"
 	"net/http"
+	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -35,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -88,6 +91,8 @@ type secretResolver struct {
 	// list of handles and where they were found
 	origin handleToContext
 
+	backendType             string
+	backendConfig           map[string]interface{}
 	backendCommand          string
 	backendArguments        []string
 	backendTimeout          int
@@ -217,6 +222,8 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	if !r.enabled {
 		return
 	}
+	r.backendType = params.Type
+	r.backendConfig = params.Config
 	r.backendCommand = params.Command
 	r.backendArguments = params.Arguments
 	r.backendTimeout = params.Timeout
@@ -298,6 +305,20 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 	if !r.enabled {
 		log.Infof("Agent secrets is disabled by caller")
 		return nil, nil
+	}
+	// only use the backend type option if the backend command is not set
+	if r.backendType != "" && r.backendCommand == "" {
+		if runtime.GOOS == "windows" {
+			r.backendCommand = path.Join(setup.InstallPath, "embedded", "bin", "secret-generic-connector.exe")
+		} else {
+			r.backendCommand = path.Join(setup.InstallPath, "embedded", "bin", "secret-generic-connector")
+		}
+		r.backendConfig["backend_type"] = r.backendType
+		jsonifiedBackendConfig, err := json.Marshal(r.backendConfig)
+		if err != nil {
+			return nil, fmt.Errorf("could not Marshal backend config: %s", err)
+		}
+		r.backendArguments = append(r.backendArguments, "--config", string(jsonifiedBackendConfig))
 	}
 	if data == nil || r.backendCommand == "" {
 		return data, nil
