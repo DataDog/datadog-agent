@@ -9,7 +9,9 @@ package file
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -784,4 +786,43 @@ func TestLauncherFileDetectionSingleScan(t *testing.T) {
 
 func getScanKey(path string, source *sources.LogSource) string {
 	return filetailer.NewFile(path, source, false).GetScanKey()
+}
+
+// BenchmarkScan profiles the scan() method.
+func BenchmarkScan(b *testing.B) {
+	testDir := b.TempDir()
+
+	// Create a dummy files to give scan something to find
+	numFiles := 100
+	for i := range numFiles {
+		f, err := os.Create(filepath.Join(testDir, fmt.Sprintf("file%d.log", i)))
+		if err != nil {
+			b.Fatalf("Failed to create test file: %v", err)
+		}
+		for range rand.Intn(100) {
+			f.WriteString("some log data\n")
+		}
+
+		f.Close()
+	}
+
+	pipelineProvider := mock.NewMockProvider()
+	registry := auditorMock.NewMockRegistry()
+	fakeTagger := taggerfxmock.SetupFakeTagger(b)
+	fc := flareController.NewFlareController()
+	launcher := NewLauncher(numFiles, 20*time.Millisecond, false, 1*time.Second, "by_name", fc, fakeTagger)
+	launcher.pipelineProvider = pipelineProvider
+	launcher.registry = registry
+	// Add a source that matches the dummy files
+	source := sources.NewLogSource("benchmarkSource", &config.LogsConfig{Type: config.FileType, Path: filepath.Join(testDir, "*.log")})
+	launcher.addSource(source)
+
+	// --- Benchmark ---
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		launcher.scan()
+	}
+	b.StopTimer()
+
+	launcher.cleanup()
 }
