@@ -49,7 +49,7 @@ func (server *apiServer) startServers() error {
 		return fmt.Errorf("unable to get IPC address and port: %v", err)
 	}
 
-	authTagGetter, err := authTagGetter(server.authToken.GetTLSServerConfig())
+	authTagGetter, err := authTagGetter(server.ipc.GetTLSServerConfig())
 	if err != nil {
 		return fmt.Errorf("unable to load the IPC certificate: %v", err)
 	}

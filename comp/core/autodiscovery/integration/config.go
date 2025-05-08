@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package integration contains the type that represents a configuration.
+// Package integration defines types representing an integration configuration,
+// which can be used by several components of the agent to configure checks or
+// log collectors, for example.
 package integration
 
 import (

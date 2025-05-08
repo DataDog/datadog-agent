@@ -68,7 +68,6 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
-							DBName:                           aws.String("postgres"),
 						},
 					},
 				}, nil).Times(1)
@@ -103,7 +102,6 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
-							DBName:                           aws.String("postgres"),
 						},
 						{
 							Endpoint: &types.Endpoint{
@@ -115,7 +113,6 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
-							DBName:                           aws.String("postgres"),
 						},
 						{
 							Endpoint: &types.Endpoint{
@@ -127,7 +124,6 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
-							DBName:                           aws.String("postgres"),
 						},
 					},
 				}, nil).Times(1)
@@ -176,7 +172,6 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
-							DBName:                           aws.String("postgres"),
 						},
 						{
 							Endpoint: &types.Endpoint{
@@ -188,7 +183,6 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("terminating"),
 							Engine:                           aws.String("aurora-postgresql"),
-							DBName:                           aws.String("postgres"),
 						},
 						{
 							Endpoint: &types.Endpoint{
@@ -200,7 +194,6 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("terminating"),
 							Engine:                           aws.String("aurora-postgresql"),
-							DBName:                           aws.String("postgres"),
 						},
 					},
 				}, nil).Times(1)
@@ -235,7 +228,6 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
-							DBName:                           aws.String("postgres"),
 						},
 					},
 				}, nil).Times(1)
@@ -273,7 +265,6 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
-							DBName:                           aws.String("postgres"),
 						},
 						{
 							Endpoint: &types.Endpoint{
@@ -285,7 +276,6 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
-							DBName:                           aws.String("postgres"),
 						},
 					},
 				}, nil).Times(1)
@@ -302,7 +292,6 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1c"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
-							DBName:                           aws.String("postgres"),
 						},
 					},
 				}, nil).Times(1)
@@ -339,6 +328,179 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 					},
 				},
 			},
+		},
+	}
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			mockClient := NewMockrdsService(ctrl)
+			tt.configureClient(mockClient)
+			client := &Client{client: mockClient}
+			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs)
+			if tt.expectedErr != nil {
+				assert.EqualError(t, err, tt.expectedErr.Error())
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedAuroraClusterEndpoints, clusters)
+		})
+	}
+}
+
+func TestGetAuroraClusterEndpointsDbName(t *testing.T) {
+	testCases := []struct {
+		name                           string
+		configureClient                mockrdsServiceConfigurer
+		clusterIDs                     []string
+		expectedAuroraClusterEndpoints map[string]*AuroraCluster
+		expectedErr                    error
+	}{
+		{
+			name: "aurora-postgresql engine returns default postgres db name",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
+						{
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("aurora-postgresql"),
+						},
+					},
+				}, nil).Times(1)
+			},
+			clusterIDs: []string{"test-cluster"},
+			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
+				"test-cluster": {
+					Instances: []*Instance{
+						{
+							Endpoint:   "test-endpoint",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "aurora-mysql engine returns default db name for engine",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
+						{
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("aurora-mysql"),
+						},
+					},
+				}, nil).Times(1)
+			},
+			clusterIDs: []string{"test-cluster"},
+			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
+				"test-cluster": {
+					Instances: []*Instance{
+						{
+							Endpoint:   "test-endpoint",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "aurora-mysql",
+							DbName:     "mysql",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "aurora-postgresql engine returns default db name for engine",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
+						{
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("aurora-postgresql"),
+							DBName:                           aws.String("test-db-name"),
+						},
+					},
+				}, nil).Times(1)
+			},
+			clusterIDs: []string{"test-cluster"},
+			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
+				"test-cluster": {
+					Instances: []*Instance{
+						{
+							Endpoint:   "test-endpoint",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "aurora-postgresql",
+							DbName:     "test-db-name",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "missing engine returns error",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
+						{
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+						},
+					},
+				}, nil).Times(1)
+			},
+			clusterIDs:  []string{"test-cluster"},
+			expectedErr: errors.New("engine is nil for instance test-cluster"),
+		},
+		{
+			name: "unsupported engine returns error",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
+						{
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("does-not-exist"),
+						},
+					},
+				}, nil).Times(1)
+			},
+			clusterIDs:  []string{"test-cluster"},
+			expectedErr: errors.New("error getting default db name from engine: unsupported engine type: does-not-exist"),
 		},
 	}
 	for _, tt := range testCases {

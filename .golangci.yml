@@ -464,7 +464,7 @@ issues:
     - path: comp/core/workloadmeta/collectors/internal/podman/podman.go
       linters:
         - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/process/process_collector.go
+    - path: comp/core/workloadmeta/collectors/internal/processlanguage/process_collector.go
       linters:
         - pkgconfigusage
     - path: comp/core/workloadmeta/collectors/util/process_util_linux.go
@@ -612,6 +612,8 @@ linters-settings:
             desc: "prefer pkg/util/safeelf to prevent panics during parsing"
           - pkg: "golang.org/x/exp/slices"
             desc: "use the std slices package instead"
+          - pkg: "github.com/aws/aws-sdk-go/"
+            desc: "use the v2 sdk instead"
       logger:
         files:
           - "!**/pkg/util/log/**"
@@ -634,10 +636,6 @@ linters-settings:
           - "!**/pkg/network/go/lutgen/**"
           - "!$test"
           - "!**/tests/**"
-          # TODO: remove those once migrated
-          - "!**/pkg/dynamicinstrumentation/codegen/**"
-          - "!**/pkg/dynamicinstrumentation/ebpf/**"
-          - "!**/pkg/ebpf/bytecode/runtime/**"
 
   errcheck:
     exclude-functions:

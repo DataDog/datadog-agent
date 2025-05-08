@@ -1959,6 +1959,11 @@
           "property_doc_link": "dns-question-type-doc"
         },
         {
+          "name": "dns.response.code",
+          "definition": "Response code of the DNS response according to RFC 1035",
+          "property_doc_link": "dns-response-code-doc"
+        },
+        {
           "name": "network.destination.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
@@ -10187,7 +10192,7 @@
       "type": "int",
       "definition": "the class looked up by the DNS question",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "DNS qclasses",
       "constants_link": "dns-qclasses",
@@ -10199,7 +10204,7 @@
       "type": "int",
       "definition": "the total count of questions in the DNS request",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "",
       "constants_link": "",
@@ -10211,7 +10216,7 @@
       "type": "int",
       "definition": "the total DNS request size in bytes",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "",
       "constants_link": "",
@@ -10223,7 +10228,7 @@
       "type": "string",
       "definition": "the queried domain name",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "",
       "constants_link": "",
@@ -10235,10 +10240,22 @@
       "type": "int",
       "definition": "a two octet code which specifies the DNS question type",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "DNS qtypes",
       "constants_link": "dns-qtypes",
+      "examples": []
+    },
+    {
+      "name": "dns.response.code",
+      "link": "dns-response-code-doc",
+      "type": "int",
+      "definition": "Response code of the DNS response according to RFC 1035",
+      "prefixes": [
+        "dns.response"
+      ],
+      "constants": "DNS Responses",
+      "constants_link": "dns-responses",
       "examples": []
     },
     {
@@ -12533,6 +12550,85 @@
         },
         {
           "name": "false",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "DNS Responses",
+      "link": "dns-responses",
+      "description": "DNS Responses are the supported response codes",
+      "all": [
+        {
+          "name": "NOERROR",
+          "architecture": "all"
+        },
+        {
+          "name": "FORMERR",
+          "architecture": "all"
+        },
+        {
+          "name": "SERVFAIL",
+          "architecture": "all"
+        },
+        {
+          "name": "NXDOMAIN",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTIMP",
+          "architecture": "all"
+        },
+        {
+          "name": "REFUSED",
+          "architecture": "all"
+        },
+        {
+          "name": "YXDOMAIN",
+          "architecture": "all"
+        },
+        {
+          "name": "YXRRSET",
+          "architecture": "all"
+        },
+        {
+          "name": "NXRRSET",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTAUTH",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTZONE",
+          "architecture": "all"
+        },
+        {
+          "name": "BADVERS",
+          "architecture": "all"
+        },
+        {
+          "name": "BADSIG",
+          "architecture": "all"
+        },
+        {
+          "name": "BADKEY",
+          "architecture": "all"
+        },
+        {
+          "name": "BADTIME",
+          "architecture": "all"
+        },
+        {
+          "name": "BADMODE",
+          "architecture": "all"
+        },
+        {
+          "name": "BADNAME",
+          "architecture": "all"
+        },
+        {
+          "name": "BADALG",
           "architecture": "all"
         }
       ]

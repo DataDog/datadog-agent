@@ -190,11 +190,17 @@ func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) (
 		policyDef.Rules[i] = selfTest.GetRuleDefinition()
 	}
 
-	policy, err := rules.LoadPolicyFromDefinition(policyName, policySource, rules.SelftestPolicy, policyDef, nil, nil)
+	pInfo := &rules.PolicyInfo{
+		Name:       policyName,
+		Source:     policySource,
+		Type:       rules.SelftestPolicy,
+		IsInternal: true,
+	}
+
+	policy, err := rules.LoadPolicyFromDefinition(pInfo, policyDef, nil, nil)
 	if err != nil {
 		return nil, multierror.Append(nil, err)
 	}
-	policy.IsInternal = true
 
 	return []*rules.Policy{policy}, nil
 }

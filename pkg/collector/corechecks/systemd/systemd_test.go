@@ -10,6 +10,7 @@ package systemd
 import (
 	"fmt"
 	"math"
+	"slices"
 	"testing"
 	"time"
 
@@ -108,11 +109,25 @@ unit_names:
 	assert.ElementsMatch(t, []string{"ssh.service", "syslog.socket"}, check.config.instance.UnitNames)
 }
 
-func TestMissingUnitNamesShouldRaiseError(t *testing.T) {
+// Either 'unit_names' or 'unit_regexes' config fields must be present!
+func TestMissingUnitNamesOrRegexShouldRaiseError(t *testing.T) {
 	check := SystemdCheck{}
 	err := check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test")
 
-	expectedErrorMsg := "instance config `unit_names` must not be empty"
+	expectedErrorMsg := "please set either `unit_names` or `unit_regexes` in the instance config"
+	assert.EqualError(t, err, expectedErrorMsg)
+}
+
+// Don't load the check when the config contains an invalid regular expression.
+// Make sure to wrap the `regexp` package's error when we generate ours.
+func TestCannotCompileUnitRegex(t *testing.T) {
+	check := SystemdCheck{}
+	rawInstanceConfig := []byte(`
+unit_regexes:
+  - "+"
+`)
+	err := check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	expectedErrorMsg := "cannot compile regular expression \"+\" to monitor systemd units: error parsing regexp: missing argument to repetition operator: `+`"
 	assert.EqualError(t, err, expectedErrorMsg)
 }
 
@@ -659,6 +674,117 @@ unit_names:
 	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_time_consumed", mock.Anything, "", tags)
 	mockSender.AssertNotCalled(t, "Gauge", "systemd.service.memory_usage", mock.Anything, "", tags)
 	mockSender.AssertNotCalled(t, "Gauge", "systemd.service.task_count", mock.Anything, "", tags)
+}
+
+// Monitor units that match regular expressions coming from the instance config.
+func TestSubmitMetricsRegexes(t *testing.T) {
+
+	// Given
+	unitsToMetrics := map[string][]string{
+		"unit1.service": {
+			"systemd.service.cpu_time_consumed",
+			"systemd.service.memory_usage",
+			"systemd.service.task_count",
+			"systemd.service.restart_count",
+		},
+		"unit2.service": {
+			"systemd.service.cpu_time_consumed",
+		},
+		"unit3.service": {
+			"systemd.service.cpu_time_consumed",
+		},
+		"unit4.socket": {
+			"systemd.socket.connection_accepted_count",
+			"systemd.socket.connection_count",
+			"systemd.socket.connection_refused_count",
+		},
+	}
+	stats := createDefaultMockSystemdStats()
+	stats.On("ListUnits", mock.Anything).Return([]dbus.UnitStatus{
+		{Name: "unit1.service", ActiveState: "active"},
+		{Name: "unit2.service", ActiveState: "active"},
+		{Name: "unit3.service", ActiveState: "inactive"},
+		{Name: "unit4.socket", ActiveState: "active"},
+	}, nil)
+	stats.On("UnixNow").Return(int64(1000 * 1000))
+	stats.On("GetUnitTypeProperties", mock.Anything, mock.Anything, dbusTypeMap[typeUnit]).Return(map[string]interface{}{}, nil)
+
+	stats.On("GetUnitTypeProperties", mock.Anything, "unit1.service", dbusTypeMap[typeService]).Return(map[string]interface{}{
+		"CPUUsageNSec":     uint64(1),
+		"CPUAccounting":    true,
+		"MemoryCurrent":    uint64(1),
+		"MemoryAccounting": true,
+		"TasksCurrent":     uint64(1),
+		"TasksAccounting":  true,
+		"NRestarts":        uint32(1),
+	}, nil)
+	stats.On("GetUnitTypeProperties", mock.Anything, "unit2.service", dbusTypeMap[typeService]).Return(map[string]interface{}{
+		"CPUUsageNSec":     uint64(1),
+		"CPUAccounting":    true,
+		"MemoryCurrent":    uint64(1),
+		"MemoryAccounting": false,
+		"TasksCurrent":     uint64(1),
+	}, nil)
+	stats.On("GetUnitTypeProperties", mock.Anything, "unit3.service", dbusTypeMap[typeService]).Return(map[string]interface{}{
+		"CPUUsageNSec":     uint64(1),
+		"CPUAccounting":    true,
+		"MemoryCurrent":    uint64(1),
+		"MemoryAccounting": false,
+		"TasksCurrent":     uint64(1),
+	}, nil)
+	stats.On("GetUnitTypeProperties", mock.Anything, "unit4.socket", dbusTypeMap[typeSocket]).Return(getCreatePropertieWithDefaults(map[string]interface{}{
+		"NAccepted":    uint64(1),
+		"NConnections": uint64(1),
+		"NRefused":     uint64(1),
+	}), nil)
+	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
+
+	tests := map[string]struct {
+		unitNames      string
+		unitRegexes    string
+		monitoredUnits []string
+	}{
+		"monitor_units_1_and_2": {"", `'unit1', 'unit2'`, []string{"unit1.service", "unit2.service"}},
+		"monitor_all_services":  {"", `'.+\.service$'`, []string{"unit1.service", "unit2.service", "unit3.service"}},
+		"monitor_all_units":     {"", `'.+'`, []string{"unit1.service", "unit2.service", "unit3.service", "unit4.socket"}},
+		// unit_regexes selects all services and unit_names selects the socket unit.
+		"unit_names_complement_unit_regex": {"unit4.socket", `'.+\.service$'`, []string{"unit1.service", "unit2.service", "unit3.service", "unit4.socket"}},
+		// unit_regexes excludes service unit1 and unit2, but unit_names selects them.
+		"unit_names_override_unit_regex": {"'unit1.service', 'unit2.service'", `[^12]`, []string{"unit1.service", "unit2.service"}},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Given
+			rawInstanceConfig := []byte(fmt.Sprintf(`
+unit_names: [%s]
+unit_regexes: [%s]
+`, test.unitNames, test.unitRegexes))
+			check := SystemdCheck{stats: stats}
+			senderManager := mocksender.CreateDefaultDemultiplexer()
+			check.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, nil, "test")
+
+			mockSender := mocksender.NewMockSenderWithSenderManager(check.ID(), senderManager)
+			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+			mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+			mockSender.On("Commit").Return()
+
+			// When
+			check.Run()
+
+			// Then
+			mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, servicecheck.ServiceCheckOK, "", []string(nil), mock.Anything)
+			for unitName, metrics := range unitsToMetrics {
+				tags := []string{fmt.Sprintf("unit:%s", unitName)}
+				assertSenderCall := mockSender.AssertNotCalled
+				if slices.Contains(test.monitoredUnits, unitName) {
+					assertSenderCall = mockSender.AssertCalled
+				}
+				for _, metric := range metrics {
+					assertSenderCall(t, "Gauge", metric, mock.Anything, "", tags)
+				}
+			}
+		})
+	}
 }
 
 func TestServiceCheckSystemStateAndCanConnect(t *testing.T) {

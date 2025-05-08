@@ -1,0 +1,38 @@
+{
+    "resourceMetrics":[
+      {
+        "resource":{
+          
+        },
+        "scopeMetrics":[
+          {
+            "scope":{
+              
+            },
+            "metrics":[
+              {
+                "name": "empty.exponential.cumulative.histogram",
+                "exponentialHistogram":{
+                  "dataPoints":[
+                    {
+                      "startTimeUnixNano":"1693305960229586125",
+                      "timeUnixNano":"1693305970229586125",
+                      "sum":0,
+                      "scale":4,
+                      "positive":{
+                        
+                      },
+                      "negative":{
+                        
+                      }
+                    }
+                  ],
+                  "aggregationTemporality":2
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }

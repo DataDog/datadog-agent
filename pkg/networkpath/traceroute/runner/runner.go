@@ -232,7 +232,7 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 		return payload.NetworkPath{}, err
 	}
 
-	pathResult, err := r.processResults(results, payload.ProtocolTCP, hname, cfg.DestHostname)
+	pathResult, err := r.processResults(results, payload.ProtocolTCP, hname, cfg.DestHostname, cfg.DestPort)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}
@@ -241,7 +241,7 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 	return pathResult, nil
 }
 
-func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, hname string, destinationHost string) (payload.NetworkPath, error) {
+func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, hname string, destinationHost string, destinationPort uint16) (payload.NetworkPath, error) {
 	if res == nil {
 		return payload.NetworkPath{}, nil
 	}
@@ -257,7 +257,7 @@ func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, 
 		},
 		Destination: payload.NetworkPathDestination{
 			Hostname:  destinationHost,
-			Port:      res.DstPort,
+			Port:      destinationPort,
 			IPAddress: res.Target.String(),
 		},
 		Tags: slices.Clone(res.Tags),

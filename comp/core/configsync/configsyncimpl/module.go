@@ -16,9 +16,9 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -30,7 +30,7 @@ type dependencies struct {
 
 	Config     config.Component
 	Log        log.Component
-	Authtoken  authtoken.Component
+	IPC        ipc.Component
 	SyncParams Params
 }
 
@@ -52,9 +52,9 @@ func Module(params Params) fxutil.Module {
 }
 
 type configSync struct {
-	Config    config.Component
-	Log       log.Component
-	Authtoken authtoken.Component
+	Config config.Component
+	Log    log.Component
+	IPC    ipc.Component
 
 	url       *url.URL
 	client    *http.Client
@@ -93,13 +93,13 @@ func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec
 	configRefreshInterval := time.Duration(configRefreshIntervalSec) * time.Second
 
 	configSync := configSync{
-		Config:    deps.Config,
-		Log:       deps.Log,
-		Authtoken: deps.Authtoken,
-		url:       url,
-		client:    client,
-		ctx:       ctx,
-		enabled:   true,
+		Config:  deps.Config,
+		Log:     deps.Log,
+		IPC:     deps.IPC,
+		url:     url,
+		client:  client,
+		ctx:     ctx,
+		enabled: true,
 	}
 
 	if deps.SyncParams.OnInitSync {

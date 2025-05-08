@@ -53,7 +53,8 @@ deploy_staging_windows_tags-7:
 # Datadog Installer
 deploy_installer_packages_windows-x64:
   rules:
-    !reference [.on_deploy_installer]
+    - !reference [.on_deploy_installer]
+    - !reference [.on_deploy]
   stage: deploy_packages
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]

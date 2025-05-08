@@ -120,7 +120,7 @@ func getLog(w http.ResponseWriter, r *http.Request, config configmodel.Reader) {
 	}
 	escapedLogFileContents := html.EscapeString(string(logFileContents))
 
-	html := strings.Replace(escapedLogFileContents, "\n", "<br>", -1)
+	html := strings.ReplaceAll(escapedLogFileContents, "\n", "<br>")
 
 	if flip {
 		// Reverse the order so that the bottom of the file is read first

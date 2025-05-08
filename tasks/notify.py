@@ -18,7 +18,7 @@ from tasks.libs.ciproviders.gitlab_api import (
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.datadog_api import send_metrics
 from tasks.libs.common.utils import gitlab_section, is_conductor_scheduled_pipeline
-from tasks.libs.notify import alerts, failure_summary, pipeline_status
+from tasks.libs.notify import alerts, failure_summary
 from tasks.libs.notify.jira_failing_tests import close_issue, get_failing_tests_names, get_jira
 from tasks.libs.notify.utils import PROJECT_NAME, should_notify
 from tasks.libs.pipeline.notifications import (
@@ -38,19 +38,6 @@ def check_teams(_):
         raise Exit(code=1)
     else:
         print("All CODEOWNERS teams have their slack notification channel and jira project specified !!")
-
-
-@task
-def send_message(_: Context, pipeline_id: str, dry_run: bool = False):
-    """
-    Send notifications for the current pipeline. CI-only task.
-    Use the --dry-run option to test this locally, without sending
-    real slack messages.
-    """
-    if should_notify(pipeline_id):
-        pipeline_status.send_message(pipeline_id, dry_run)
-    else:
-        print("This pipeline is a non-conductor downstream pipeline, skipping notifications")
 
 
 @task

@@ -9,6 +9,7 @@
 package resolver
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -143,7 +144,14 @@ func updateAdditionalEndpoints(resolver DomainResolver, setting string, config c
 }
 
 // NewSingleDomainResolver creates a SingleDomainResolver with its destination domain & API keys
-func NewSingleDomainResolver(domain string, apiKeys []utils.APIKeys) *SingleDomainResolver {
+func NewSingleDomainResolver(domain string, apiKeys []utils.APIKeys) (*SingleDomainResolver, error) {
+	// Ensure all API keys have a config setting path so we can keep track to ensure they are updated
+	// when the config changes.
+	for key := range apiKeys {
+		if apiKeys[key].ConfigSettingPath == "" {
+			return nil, fmt.Errorf("Api key for %v does not specify a config setting path", domain)
+		}
+	}
 
 	deduped := utils.DedupAPIKeys(apiKeys)
 
@@ -152,16 +160,20 @@ func NewSingleDomainResolver(domain string, apiKeys []utils.APIKeys) *SingleDoma
 		apiKeys,
 		deduped,
 		sync.Mutex{},
-	}
+	}, nil
 }
 
 // NewSingleDomainResolvers converts a map of domain/api keys into a map of SingleDomainResolver
-func NewSingleDomainResolvers(keysPerDomain map[string][]utils.APIKeys) map[string]DomainResolver {
+func NewSingleDomainResolvers(keysPerDomain map[string][]utils.APIKeys) (map[string]DomainResolver, error) {
 	resolvers := make(map[string]DomainResolver)
 	for domain, keys := range keysPerDomain {
-		resolvers[domain] = NewSingleDomainResolver(domain, keys)
+		var err error
+		resolvers[domain], err = NewSingleDomainResolver(domain, keys)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return resolvers
+	return resolvers, nil
 }
 
 // Resolve always returns the only destination available for a SingleDomainResolver
@@ -273,7 +285,15 @@ type MultiDomainResolver struct {
 }
 
 // NewMultiDomainResolver initializes a MultiDomainResolver with its API keys and base destination
-func NewMultiDomainResolver(baseDomain string, apiKeys []utils.APIKeys) *MultiDomainResolver {
+func NewMultiDomainResolver(baseDomain string, apiKeys []utils.APIKeys) (*MultiDomainResolver, error) {
+	// Ensure all API keys have a config setting path so we can keep track to ensure they are updated
+	// when the config changes.
+	for key := range apiKeys {
+		if apiKeys[key].ConfigSettingPath == "" {
+			return nil, fmt.Errorf("Api key for %v does not specify a config setting path", baseDomain)
+		}
+	}
+
 	deduped := utils.DedupAPIKeys(apiKeys)
 
 	return &MultiDomainResolver{
@@ -283,7 +303,7 @@ func NewMultiDomainResolver(baseDomain string, apiKeys []utils.APIKeys) *MultiDo
 		make(map[string]destination),
 		[]string{},
 		sync.Mutex{},
-	}
+	}, nil
 }
 
 // GetAPIKeys returns the slice of API keys associated with this SingleDomainResolver
@@ -382,12 +402,15 @@ func (r *MultiDomainResolver) GetBearerAuthToken() string {
 }
 
 // NewDomainResolverWithMetricToVector initialize a resolver with metrics diverted to a vector endpoint
-func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []utils.APIKeys, vectorEndpoint string) *MultiDomainResolver {
-	r := NewMultiDomainResolver(mainEndpoint, apiKeys)
+func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []utils.APIKeys, vectorEndpoint string) (*MultiDomainResolver, error) {
+	r, err := NewMultiDomainResolver(mainEndpoint, apiKeys)
+	if err != nil {
+		return nil, err
+	}
 	r.RegisterAlternateDestination(vectorEndpoint, endpoints.V1SeriesEndpoint.Name, Vector)
 	r.RegisterAlternateDestination(vectorEndpoint, endpoints.SeriesEndpoint.Name, Vector)
 	r.RegisterAlternateDestination(vectorEndpoint, endpoints.SketchSeriesEndpoint.Name, Vector)
-	return r
+	return r, nil
 }
 
 // LocalDomainResolver contains domain address in local cluster and authToken for internal communication

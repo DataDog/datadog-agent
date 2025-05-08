@@ -18,6 +18,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/prometheus/common/model"
 
@@ -163,7 +164,9 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		log.Debugf("Skipping collecting metrics as provider is disabled")
 		return nil
 	}
-	data, status, err := kc.QueryKubelet(context.TODO(), p.ScraperConfig.Path)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.Config.Timeout)*time.Second)
+	data, status, err := kc.QueryKubelet(ctx, p.ScraperConfig.Path)
+	cancel()
 	if err != nil {
 		log.Debugf("Unable to collect query probes endpoint: %s", err)
 		return err

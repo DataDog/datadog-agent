@@ -14,6 +14,9 @@ core,cloud.google.com/go/auth/internal/jwt,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/internal/transport,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/internal/transport/cert,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/oauth2adapt,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/compute/apiv1,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/compute/apiv1/computepb,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/compute/internal,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/compute/metadata,Apache-2.0,Copyright 2019 Google LLC
 core,code.cloudfoundry.org/bbs,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/bbs/encryption,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
@@ -1184,6 +1187,7 @@ core,github.com/googleapis/gax-go/v2/callctx,BSD-3-Clause,Copyright 2017 Google 
 core,github.com/googleapis/gax-go/v2/internal,BSD-3-Clause,Copyright 2017 Google Inc.
 core,github.com/googleapis/gax-go/v2/internallog,BSD-3-Clause,Copyright 2017 Google Inc.
 core,github.com/googleapis/gax-go/v2/internallog/internal,BSD-3-Clause,Copyright 2017 Google Inc.
+core,github.com/googleapis/gax-go/v2/iterator,BSD-3-Clause,Copyright 2017 Google Inc.
 core,github.com/gophercloud/gophercloud,Apache-2.0,"Copyright 2012-2013 Rackspace, Inc | Copyright Gophercloud authors"
 core,github.com/gophercloud/gophercloud/openstack,Apache-2.0,"Copyright 2012-2013 Rackspace, Inc | Copyright Gophercloud authors"
 core,github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/floatingips,Apache-2.0,"Copyright 2012-2013 Rackspace, Inc | Copyright Gophercloud authors"
@@ -1238,6 +1242,7 @@ core,github.com/hashicorp/go-version,MPL-2.0,"Copyright © 2014-2018 HashiCorp, 
 core,github.com/hashicorp/golang-lru,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/golang-lru/simplelru,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/golang-lru/v2,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
+core,github.com/hashicorp/golang-lru/v2/expirable,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/golang-lru/v2/internal,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/golang-lru/v2/simplelru,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/hcl,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
@@ -2669,6 +2674,7 @@ core,google.golang.org/api/internal/cert,BSD-3-Clause,Copyright (c) 2011 Google 
 core,google.golang.org/api/internal/gensupport,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/internal/impersonate,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/internal/third_party/uritemplates,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
+core,google.golang.org/api/iterator,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/option,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/option/internaloption,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/transport/http,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
@@ -2676,6 +2682,7 @@ core,google.golang.org/genproto/googleapis/api,Apache-2.0,Copyright 2020 Google 
 core,google.golang.org/genproto/googleapis/api/annotations,Apache-2.0,Copyright 2020 Google LLC
 core,google.golang.org/genproto/googleapis/api/expr/v1alpha1,Apache-2.0,Copyright 2020 Google LLC
 core,google.golang.org/genproto/googleapis/api/httpbody,Apache-2.0,Copyright 2020 Google LLC
+core,google.golang.org/genproto/googleapis/cloud/extendedops,Apache-2.0,Copyright 2020 Google LLC
 core,google.golang.org/genproto/googleapis/rpc/code,Apache-2.0,Copyright 2020 Google LLC
 core,google.golang.org/genproto/googleapis/rpc/errdetails,Apache-2.0,Copyright 2020 Google LLC
 core,google.golang.org/genproto/googleapis/rpc/status,Apache-2.0,Copyright 2020 Google LLC

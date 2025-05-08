@@ -10,14 +10,13 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
-
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func processDiscoveryCheckWithMockProbe(t *testing.T) (*ProcessDiscoveryCheck, *mocks.Probe) {
@@ -182,6 +181,48 @@ func TestPidMapToProcDiscoveriesScrubbed(t *testing.T) {
 			rsul := pidMapToProcDiscoveries(pidMap, nil, scrubber)
 			require.Len(t, rsul, 1)
 			assert.Equal(t, testCase.expected, rsul[0].Command.Args)
+		})
+	}
+}
+
+func TestProcessDiscoveryIsEnabled(t *testing.T) {
+	tests := []struct {
+		name    string
+		configs map[string]bool
+		enabled bool
+	}{
+		{
+			name: "enabled",
+			configs: map[string]bool{
+				"process_config.process_discovery.enabled": true,
+			},
+			enabled: true,
+		},
+		{
+			name: "disabled",
+			configs: map[string]bool{
+				"process_config.process_discovery.enabled": false,
+			},
+			enabled: false,
+		},
+		{
+			name: "process collection disables the process discovery check",
+			configs: map[string]bool{
+				"process_config.process_discovery.enabled":  true,
+				"process_config.process_collection.enabled": true,
+			},
+			enabled: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			for k, v := range tc.configs {
+				cfg.SetWithoutSource(k, v)
+			}
+			check := NewProcessDiscoveryCheck(cfg)
+			assert.Equal(t, tc.enabled, check.IsEnabled())
 		})
 	}
 }

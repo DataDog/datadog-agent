@@ -11,7 +11,6 @@ import (
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -32,7 +31,6 @@ var (
 // the auditor or block the pipeline if they fail. There will always be at
 // least 1 reliable destination (the main destination).
 type worker struct {
-	auditor        auditor.Auditor
 	config         pkgconfigmodel.Reader
 	inputChan      chan *message.Payload
 	outputChan     chan *message.Payload
@@ -42,6 +40,7 @@ type worker struct {
 	bufferSize     int
 	senderDoneChan chan *sync.WaitGroup
 	flushWg        *sync.WaitGroup
+	sink           Sink
 
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
@@ -50,7 +49,7 @@ type worker struct {
 func newWorker(
 	config pkgconfigmodel.Reader,
 	inputChan chan *message.Payload,
-	auditor auditor.Auditor,
+	sink Sink,
 	destinations *client.Destinations,
 	bufferSize int,
 	serverlessMeta ServerlessMeta,
@@ -64,9 +63,9 @@ func newWorker(
 		flushWg = serverlessMeta.WaitGroup()
 	}
 	return &worker{
-		auditor:        auditor,
 		config:         config,
 		inputChan:      inputChan,
+		sink:           sink,
 		destinations:   destinations,
 		bufferSize:     bufferSize,
 		senderDoneChan: senderDoneChan,
@@ -82,7 +81,7 @@ func newWorker(
 
 // Start starts the worker.
 func (s *worker) start() {
-	s.outputChan = s.auditor.Channel()
+	s.outputChan = s.sink.Channel()
 
 	go s.run()
 }
@@ -95,10 +94,14 @@ func (s *worker) stop() {
 }
 
 func (s *worker) run() {
-	reliableDestinations := buildDestinationSenders(s.config, s.destinations.Reliable, s.outputChan, s.bufferSize)
+	noopSink := noopDestinationsSink(s.bufferSize)
+	reliableOutputChan := s.outputChan
+	if reliableOutputChan == nil {
+		reliableOutputChan = noopSink
+	}
 
-	sink := additionalDestinationsSink(s.bufferSize)
-	unreliableDestinations := buildDestinationSenders(s.config, s.destinations.Unreliable, sink, s.bufferSize)
+	reliableDestinations := buildDestinationSenders(s.config, s.destinations.Reliable, reliableOutputChan, s.bufferSize)
+	unreliableDestinations := buildDestinationSenders(s.config, s.destinations.Unreliable, noopSink, s.bufferSize)
 	continueLoop := true
 	for continueLoop {
 		select {
@@ -176,12 +179,12 @@ func (s *worker) run() {
 	for _, destSender := range unreliableDestinations {
 		destSender.Stop()
 	}
-	close(sink)
+	close(noopSink)
 	s.finished <- struct{}{}
 }
 
 // Drains the output channel from destinations that don't update the auditor.
-func additionalDestinationsSink(bufferSize int) chan *message.Payload {
+func noopDestinationsSink(bufferSize int) chan *message.Payload {
 	sink := make(chan *message.Payload, bufferSize)
 	go func() {
 		// drain channel, stop when channel is closed

@@ -329,8 +329,17 @@ func (c *CWSConsumer) APIServer() *APIServer {
 }
 
 // HandleActivityDump sends an activity dump to the backend
-func (c *CWSConsumer) HandleActivityDump(dump *api.ActivityDumpStreamMessage) {
-	c.apiServer.SendActivityDump(dump)
+func (c *CWSConsumer) HandleActivityDump(imageName string, imageTag string, header []byte, data []byte) error {
+	msg := &api.ActivityDumpStreamMessage{
+		Selector: &api.WorkloadSelectorMessage{
+			Name: imageName,
+			Tag:  imageTag,
+		},
+		Header: header,
+		Data:   data,
+	}
+	c.apiServer.SendActivityDump(msg)
+	return nil
 }
 
 // SendStats send stats

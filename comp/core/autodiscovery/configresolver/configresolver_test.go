@@ -12,12 +12,13 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/stretchr/testify/assert"
-
 	// we need some valid check in the catalog to run tests
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
 )
@@ -122,11 +123,12 @@ func TestResolve(t *testing.T) {
 	os.Unsetenv("test_envvar_not_set")
 
 	testCases := []struct {
-		testName    string
-		tpl         integration.Config
-		svc         listeners.Service
-		out         integration.Config
-		errorString string
+		testName       string
+		tpl            integration.Config
+		svc            listeners.Service
+		out            integration.Config
+		errorString    string
+		configSettings map[string]interface{}
 	}{
 		//// %%host%% tag testing
 		{
@@ -423,6 +425,145 @@ func TestResolve(t *testing.T) {
 				Instances:     []integration.Data{integration.Data("test: %%env%%")},
 			},
 			errorString: "envvar name is missing, skipping service a5901276aed1",
+		},
+		{
+			testName: "env var in allow list",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_test_envvar_key%%")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("tags:\n- foo:bar\ntest: test_value\n")},
+				ServiceID:     "a5901276aed1",
+			},
+			configSettings: map[string]interface{}{
+				"ad_allowed_env_vars": []string{"test_envvar_key", "other_env"},
+			},
+		},
+		{
+			testName: "env var not in allow list",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_test_envvar_key%%")},
+			},
+			errorString: "envvar test_envvar_key is not allowed in check configs, skipping service a5901276aed1",
+			configSettings: map[string]interface{}{
+				"ad_allowed_env_vars": []string{"other_env"}, // env var using in config is not here
+			},
+		},
+		{
+			testName: "allow list for env vars is defined and it's empty", // Means that all env vars are allowed
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_test_envvar_key%%")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("tags:\n- foo:bar\ntest: test_value\n")},
+				ServiceID:     "a5901276aed1",
+			},
+			configSettings: map[string]interface{}{
+				"ad_allowed_env_vars": []string{},
+			},
+		},
+		{
+			testName: "the allow list for env vars is not defined", // Means that all env vars are allowed
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_test_envvar_key%%")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("tags:\n- foo:bar\ntest: test_value\n")},
+				ServiceID:     "a5901276aed1",
+			},
+			configSettings: map[string]interface{}{}, // env allowlist is not defined
+		},
+		{
+			testName: "env var resolution is disabled",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_test_env%%")},
+			},
+			errorString: "envvar test_env is not allowed in check configs, skipping service a5901276aed1",
+			configSettings: map[string]interface{}{
+				"ad_disable_env_var_resolution": true,
+			},
+		},
+		{
+			testName: "env var resolution is enabled (it's the default)",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_test_envvar_key%%")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("tags:\n- foo:bar\ntest: test_value\n")},
+				ServiceID:     "a5901276aed1",
+			},
+			configSettings: map[string]interface{}{
+				"ad_disable_env_var_resolution": false,
+			},
+		},
+		{
+			// When the env var resolution is disabled, the allowlist is not taken into account
+			testName: "env var resolution is disabled and there's an allow-list defined",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_some_env%%")},
+			},
+			errorString: "envvar some_env is not allowed in check configs, skipping service a5901276aed1",
+			configSettings: map[string]interface{}{
+				"ad_disable_env_var_resolution": true,
+				"ad_allowed_env_vars":           []string{"some_env"}, // Same env as in the template
+			},
 		},
 		//// envvars (logs check)
 		{
@@ -783,6 +924,11 @@ func TestResolve(t *testing.T) {
 
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("case %d: %s", i, tc.testName), func(t *testing.T) {
+			config := mockconfig.New(t)
+			for configOption, configValue := range tc.configSettings {
+				config.SetWithoutSource(configOption, configValue)
+			}
+
 			// Make sure we don't modify the template object
 			checksum := tc.tpl.Digest()
 

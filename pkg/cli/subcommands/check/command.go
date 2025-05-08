@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -39,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -159,7 +159,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams:         secrets.NewEnabledParams(),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true)}),
+					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true),
+				}),
 				core.Bundle(),
 
 				// workloadmeta setup
@@ -167,7 +168,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				workloadmetafx.Module(defaults.DefaultParams()),
 				apiimpl.Module(),
 				grpcNonefx.Module(),
-				authtokenimpl.Module(),
 				fx.Supply(context.Background()),
 				dualTaggerfx.Module(common.DualTaggerParams()),
 				autodiscoveryimpl.Module(),
@@ -200,6 +200,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				getPlatformModules(),
 				jmxloggerimpl.Module(jmxloggerimpl.NewDisabledParams()),
 				haagentfx.Module(),
+				ipcfx.ModuleReadWrite(),
 			)
 		},
 	}
@@ -501,7 +502,7 @@ func run(
 			// Every instance will create its own directory
 			instanceID := strings.SplitN(string(c.ID()), ":", 2)[1]
 			// Colons can't be part of Windows file paths
-			instanceID = strings.Replace(instanceID, ":", "_", -1)
+			instanceID = strings.ReplaceAll(instanceID, ":", "_")
 			profileDataDir := filepath.Join(cliParams.profileMemoryDir, cliParams.checkName, instanceID)
 
 			snapshotDir := filepath.Join(profileDataDir, "snapshots")

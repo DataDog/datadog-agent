@@ -26,6 +26,7 @@ import (
 )
 
 var (
+	globalMu                sync.Mutex
 	bufferExpVars           = expvar.NewMap("orchestrator-manifest-buffer")
 	manifestFlushed         = &expvar.Int{}
 	bufferFlushedTotal      = &expvar.Int{}
@@ -164,6 +165,9 @@ func BufferManifestProcessResult(messages []model.MessageBody, buffer *ManifestB
 }
 
 func setManifestStats(manifests []interface{}) {
+	globalMu.Lock()
+	defer globalMu.Unlock()
+
 	// Number of manifests flushed
 	manifestFlushed.Set(int64(len(manifests)))
 	tlmManifestFlushed.Add(float64(len(manifests)))

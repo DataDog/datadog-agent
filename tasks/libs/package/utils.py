@@ -179,3 +179,11 @@ def display_message(ctx, ancestor, rows, reduction_rows, decision):
 {"Currently this PR is blocked, you can reach out to #agent-delivery-help to get support/ask for an exception." if "❌" in decision else ""}
 """
     pr_commenter(ctx, title="Uncompressed package size comparison", body=message)
+
+
+def get_package_name(binary: str, flavor: str):
+    package_name = "datadog-"
+    if flavor:
+        package_name += f"{flavor}-"
+    package_name += binary
+    return package_name

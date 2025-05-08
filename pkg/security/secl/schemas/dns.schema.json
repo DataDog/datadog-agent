@@ -25,7 +25,9 @@
                 "dns": {
                     "type": "object",
                     "required": [
-                        "id"
+                        "id",
+                        "question",
+                        "is_query"
                     ],
                     "properties": {
                         "id": {
@@ -56,6 +58,17 @@
                                 "name": {
                                     "type": "string"
                                 }
+                            }
+                        }
+                    },
+                    "response": {
+                        "type": "object",
+                        "required": [
+                            "code"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "number"
                             }
                         }
                     }

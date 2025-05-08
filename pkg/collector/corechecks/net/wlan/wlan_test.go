@@ -48,10 +48,10 @@ func TestWLANOK(t *testing.T) {
 
 	wlanCheck.Run()
 
-	mockSender.AssertMetric(t, "Gauge", "wlan.rssi", 10.0, "", expectedTags)
-	mockSender.AssertMetric(t, "Gauge", "wlan.noise", 20.0, "", expectedTags)
-	mockSender.AssertMetric(t, "Gauge", "wlan.transmit_rate", 4.0, "", expectedTags)
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "system.wlan.rssi", 10.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "system.wlan.noise", 20.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "system.wlan.txrate", 4.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 }
 
 func TestWLANGetInfoError(t *testing.T) {
@@ -132,10 +132,10 @@ func TestWLANEmptySSIDisUnknown(t *testing.T) {
 
 	wlanCheck.Run()
 
-	mockSender.AssertMetricTaggedWith(t, "Gauge", "wlan.rssi", expectedTags)
-	mockSender.AssertMetricTaggedWith(t, "Gauge", "wlan.noise", expectedTags)
-	mockSender.AssertMetricTaggedWith(t, "Gauge", "wlan.transmit_rate", expectedTags)
-	mockSender.AssertMetricTaggedWith(t, "Count", "wlan.channel_swap_events", expectedTags)
+	mockSender.AssertMetricTaggedWith(t, "Gauge", "system.wlan.rssi", expectedTags)
+	mockSender.AssertMetricTaggedWith(t, "Gauge", "system.wlan.noise", expectedTags)
+	mockSender.AssertMetricTaggedWith(t, "Gauge", "system.wlan.txrate", expectedTags)
+	mockSender.AssertMetricTaggedWith(t, "Count", "system.wlan.channel_swap_events", expectedTags)
 }
 
 func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
@@ -169,10 +169,10 @@ func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
 
 	wlanCheck.Run()
 
-	mockSender.AssertMetricTaggedWith(t, "Gauge", "wlan.rssi", expectedTags)
-	mockSender.AssertMetricTaggedWith(t, "Gauge", "wlan.noise", expectedTags)
-	mockSender.AssertMetricTaggedWith(t, "Gauge", "wlan.transmit_rate", expectedTags)
-	mockSender.AssertMetricTaggedWith(t, "Count", "wlan.channel_swap_events", expectedTags)
+	mockSender.AssertMetricTaggedWith(t, "Gauge", "system.wlan.rssi", expectedTags)
+	mockSender.AssertMetricTaggedWith(t, "Gauge", "system.wlan.noise", expectedTags)
+	mockSender.AssertMetricTaggedWith(t, "Gauge", "system.wlan.txrate", expectedTags)
+	mockSender.AssertMetricTaggedWith(t, "Count", "system.wlan.channel_swap_events", expectedTags)
 }
 
 func TestWLANEmptyHardwareAddress(t *testing.T) {
@@ -206,10 +206,10 @@ func TestWLANEmptyHardwareAddress(t *testing.T) {
 
 	wlanCheck.Run()
 
-	mockSender.AssertMetric(t, "Gauge", "wlan.rssi", 10.0, "", expectedTags)
-	mockSender.AssertMetric(t, "Gauge", "wlan.noise", 20.0, "", expectedTags)
-	mockSender.AssertMetric(t, "Gauge", "wlan.transmit_rate", 4.0, "", expectedTags)
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "system.wlan.rssi", 10.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "system.wlan.noise", 20.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "system.wlan.txrate", 4.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 }
 
 func TestWLANChannelSwapEventsBasic(t *testing.T) {
@@ -244,7 +244,7 @@ func TestWLANChannelSwapEventsBasic(t *testing.T) {
 
 	// 1st run: initial channel number set to 1
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	// change channel number from 1 to 2
 	getWiFiInfo = func() (wifiInfo, error) {
@@ -263,7 +263,7 @@ func TestWLANChannelSwapEventsBasic(t *testing.T) {
 
 	// 2nd run: changing the channel number to 2
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 1.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 1.0, "", expectedTags)
 
 	getWiFiInfo = func() (wifiInfo, error) {
 		return wifiInfo{
@@ -281,11 +281,11 @@ func TestWLANChannelSwapEventsBasic(t *testing.T) {
 
 	// 3rd run: changing the channel number back to 1
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 1.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 1.0, "", expectedTags)
 
 	// 4th run: keeping the same channel number
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 }
 
 func TestWLANChannelSwapEventsFromZeroToZeroAndOne(t *testing.T) {
@@ -320,7 +320,7 @@ func TestWLANChannelSwapEventsFromZeroToZeroAndOne(t *testing.T) {
 
 	// 1st run: no channel change
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	getWiFiInfo = func() (wifiInfo, error) {
 		return wifiInfo{
@@ -338,7 +338,7 @@ func TestWLANChannelSwapEventsFromZeroToZeroAndOne(t *testing.T) {
 
 	// 2nd run: no channel change
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	getWiFiInfo = func() (wifiInfo, error) {
 		return wifiInfo{
@@ -356,7 +356,7 @@ func TestWLANChannelSwapEventsFromZeroToZeroAndOne(t *testing.T) {
 
 	// 3nd run: change channel to 1
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 1.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 1.0, "", expectedTags)
 }
 
 func TestWLANChannelSwapEventsWhenSSIDEmptyAndBSSIDIsTheSame(t *testing.T) {
@@ -391,7 +391,7 @@ func TestWLANChannelSwapEventsWhenSSIDEmptyAndBSSIDIsTheSame(t *testing.T) {
 
 	// 1st run: no channel change
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	getWiFiInfo = func() (wifiInfo, error) {
 		return wifiInfo{
@@ -409,7 +409,7 @@ func TestWLANChannelSwapEventsWhenSSIDEmptyAndBSSIDIsTheSame(t *testing.T) {
 
 	// 2nd run: no channel change
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	getWiFiInfo = func() (wifiInfo, error) {
 		return wifiInfo{
@@ -427,7 +427,7 @@ func TestWLANChannelSwapEventsWhenSSIDEmptyAndBSSIDIsTheSame(t *testing.T) {
 
 	// 3nd run: change channel to 1
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 1.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 1.0, "", expectedTags)
 }
 
 func TestWLANChannelSwapEventsUnlessThereIsRoaming(t *testing.T) {
@@ -462,7 +462,7 @@ func TestWLANChannelSwapEventsUnlessThereIsRoaming(t *testing.T) {
 
 	// 1st run: no channel change
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	getWiFiInfo = func() (wifiInfo, error) {
 		return wifiInfo{
@@ -480,7 +480,7 @@ func TestWLANChannelSwapEventsUnlessThereIsRoaming(t *testing.T) {
 
 	// 2nd run: channel change (BSSID is the same)
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 1.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 1.0, "", expectedTags)
 
 	getWiFiInfo = func() (wifiInfo, error) {
 		return wifiInfo{
@@ -499,8 +499,8 @@ func TestWLANChannelSwapEventsUnlessThereIsRoaming(t *testing.T) {
 	// 3nd run: channel event is not triggered because it is roaming
 	wlanCheck.Run()
 	expectedTags = []string{"ssid:test-ssid", "bssid:test-bssid-2", "mac_address:hardware-address"}
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
-	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 1.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.roaming_events", 1.0, "", expectedTags)
 }
 
 func TestWLANRoamingEvents(t *testing.T) {
@@ -535,7 +535,7 @@ func TestWLANRoamingEvents(t *testing.T) {
 
 	// 1st run: initial bssid set to test-bssid-1
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.roaming_events", 0.0, "", expectedTags)
 
 	getWiFiInfo = func() (wifiInfo, error) {
 		return wifiInfo{
@@ -555,9 +555,9 @@ func TestWLANRoamingEvents(t *testing.T) {
 
 	// 2nd run: changing the test-bssid-1 to test-bssid-2
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 1.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.roaming_events", 1.0, "", expectedTags)
 	// despite channel change, and due to roaming event the channel swap event is not changed
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	getWiFiInfo = func() (wifiInfo, error) {
 		return wifiInfo{
@@ -577,14 +577,14 @@ func TestWLANRoamingEvents(t *testing.T) {
 
 	// 3rd run: changing the test-bssid-2 back to test-bssid-1
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 1.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.roaming_events", 1.0, "", expectedTags)
 	// despite channel change, and due to roaming event the channel swap event is not changed
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	// 4th run: keeping the same ssid
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 }
 
 func TestWLANNoRoamingOrChannelSwapEventsWhenDifferentNetwork(t *testing.T) {
@@ -619,8 +619,8 @@ func TestWLANNoRoamingOrChannelSwapEventsWhenDifferentNetwork(t *testing.T) {
 
 	// 1st run: initial no detection is performed
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	// change channel, bssid and ssid
 	getWiFiInfo = func() (wifiInfo, error) {
@@ -641,8 +641,8 @@ func TestWLANNoRoamingOrChannelSwapEventsWhenDifferentNetwork(t *testing.T) {
 
 	// 2nd run: since ssid changed roaming or channel swap will not be detected
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	// ssid is empty
 	getWiFiInfo = func() (wifiInfo, error) {
@@ -664,8 +664,8 @@ func TestWLANNoRoamingOrChannelSwapEventsWhenDifferentNetwork(t *testing.T) {
 	// 3rd run: ssid is empty and different from premise scan, meaning it is a different network and no
 	// 1.0 metrics for roaming or channel swap would be emitted
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	// now both ssid asre empty but bssid is also different
 	getWiFiInfo = func() (wifiInfo, error) {
@@ -686,8 +686,8 @@ func TestWLANNoRoamingOrChannelSwapEventsWhenDifferentNetwork(t *testing.T) {
 
 	// 4rd run: both ssids are empty and different and bssid is different
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	// now both ssid asre empty but bssid is also different
 	getWiFiInfo = func() (wifiInfo, error) {
@@ -708,8 +708,8 @@ func TestWLANNoRoamingOrChannelSwapEventsWhenDifferentNetwork(t *testing.T) {
 
 	// 5rd run: now one ssids is not empty and other is so dsifferent network
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	// one bssid is empty
 	getWiFiInfo = func() (wifiInfo, error) {
@@ -730,8 +730,8 @@ func TestWLANNoRoamingOrChannelSwapEventsWhenDifferentNetwork(t *testing.T) {
 
 	// 6rd run: if a bssid empty we cannot determine roaming or channel swap
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 
 	// now both bssid are empty
 	getWiFiInfo = func() (wifiInfo, error) {
@@ -752,8 +752,8 @@ func TestWLANNoRoamingOrChannelSwapEventsWhenDifferentNetwork(t *testing.T) {
 
 	// 7rd run: if a bssid empty we cannot determine roaming or channel swap
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Count", "wlan.roaming_events", 0.0, "", expectedTags)
-	mockSender.AssertMetric(t, "Count", "wlan.channel_swap_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
 }
 
 func TestWLANNoMetricsWhenWiFiInterfaceInactive(t *testing.T) {
@@ -817,7 +817,7 @@ func TestWLANNoiseValidDisabled(t *testing.T) {
 	mockSender.SetupAcceptAll()
 
 	wlanCheck.Run()
-	mockSender.AssertMetricMissing(t, "Gauge", "wlan.noise")
+	mockSender.AssertMetricMissing(t, "Gauge", "system.wlan.noise")
 }
 
 func TestWLANNoiseValidEnabled(t *testing.T) {
@@ -852,7 +852,7 @@ func TestWLANNoiseValidEnabled(t *testing.T) {
 	mockSender.SetupAcceptAll()
 
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Gauge", "wlan.noise", 20.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "system.wlan.noise", 20.0, "", expectedTags)
 }
 
 func TestWLANReceiveRateValidDisabled(t *testing.T) {
@@ -885,7 +885,7 @@ func TestWLANReceiveRateValidDisabled(t *testing.T) {
 	mockSender.SetupAcceptAll()
 
 	wlanCheck.Run()
-	mockSender.AssertMetricMissing(t, "Gauge", "wlan.receive_rate")
+	mockSender.AssertMetricMissing(t, "Gauge", "system.wlan.rxrate")
 }
 
 func TestWLANReceiveRateValid(t *testing.T) {
@@ -920,5 +920,5 @@ func TestWLANReceiveRateValid(t *testing.T) {
 	mockSender.SetupAcceptAll()
 
 	wlanCheck.Run()
-	mockSender.AssertMetric(t, "Gauge", "wlan.receive_rate", 5.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "system.wlan.rxrate", 5.0, "", expectedTags)
 }

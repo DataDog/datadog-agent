@@ -41,7 +41,7 @@ type metadataFinderFilter struct {
 func (f *metadataFinderFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {
 	if f.collectComments && token == Comment {
 		// A comment with line-breaks will be brought to a single line.
-		comment := strings.TrimSpace(strings.Replace(string(buffer), "\n", " ", -1))
+		comment := strings.TrimSpace(strings.ReplaceAll(string(buffer), "\n", " "))
 		f.size += int64(len(comment))
 		f.comments = append(f.comments, comment)
 	}

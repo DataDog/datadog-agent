@@ -5,8 +5,7 @@
 #include "helpers/network/parser.h"
 #include "perf_ring.h"
 
-SEC("classifier/imds_request")
-int classifier_imds_request(struct __sk_buff *skb) {
+TAIL_CALL_CLASSIFIER_FNC(imds_request, struct __sk_buff *skb) {
     struct packet_t *pkt = get_packet();
     if (pkt == NULL) {
         // should never happen

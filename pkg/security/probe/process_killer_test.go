@@ -13,13 +13,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/stretchr/testify/assert"
 )
 
 type FakeProcessKillerOS struct{}
@@ -129,7 +130,7 @@ func craftKillRule(id, scope string) *rules.Rule {
 					},
 				},
 			},
-			Policy: &rules.Policy{
+			Policy: rules.PolicyInfo{
 				Source: "test",
 			},
 			Actions: []*rules.Action{

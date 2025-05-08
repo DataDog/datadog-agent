@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -35,16 +36,18 @@ func TestCheckValidAPIKey(t *testing.T) {
 
 	keysPerDomains := map[string][]utils.APIKeys{
 		ts1.URL: {
-			utils.NewAPIKeys("", "api_key1"),
-			utils.NewAPIKeys("", "api_key2"),
+			utils.NewAPIKeys("path", "api_key1"),
+			utils.NewAPIKeys("path", "api_key2"),
 		},
 		ts2.URL: {
-			utils.NewAPIKeys("", "key3"),
+			utils.NewAPIKeys("path", "key3"),
 		},
 	}
 	log := logmock.New(t)
 	cfg := config.NewMock(t)
-	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
+	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
+	require.NoError(t, err)
+	fh := forwarderHealth{log: log, config: cfg, domainResolvers: r}
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey())
 
@@ -55,18 +58,18 @@ func TestCheckValidAPIKey(t *testing.T) {
 
 func TestComputeDomainsURL(t *testing.T) {
 	keysPerDomains := map[string][]utils.APIKeys{
-		"https://app.datadoghq.com":              {utils.NewAPIKeys("", "api_key1")},
-		"https://custom.datadoghq.com":           {utils.NewAPIKeys("", "api_key2")},
-		"https://custom.agent.datadoghq.com":     {utils.NewAPIKeys("", "api_key3")},
-		"https://app.datadoghq.eu":               {utils.NewAPIKeys("", "api_key4")},
-		"https://app.us2.datadoghq.com":          {utils.NewAPIKeys("", "api_key5")},
-		"https://app.xx9.datadoghq.com":          {utils.NewAPIKeys("", "api_key5")},
-		"https://custom.agent.us2.datadoghq.com": {utils.NewAPIKeys("", "api_key6")},
+		"https://app.datadoghq.com":              {utils.NewAPIKeys("path", "api_key1")},
+		"https://custom.datadoghq.com":           {utils.NewAPIKeys("path", "api_key2")},
+		"https://custom.agent.datadoghq.com":     {utils.NewAPIKeys("path", "api_key3")},
+		"https://app.datadoghq.eu":               {utils.NewAPIKeys("path", "api_key4")},
+		"https://app.us2.datadoghq.com":          {utils.NewAPIKeys("path", "api_key5")},
+		"https://app.xx9.datadoghq.com":          {utils.NewAPIKeys("path", "api_key5")},
+		"https://custom.agent.us2.datadoghq.com": {utils.NewAPIKeys("path", "api_key6")},
 		// debatable whether the next one should be changed to `api.`, preserve pre-existing behavior for now
-		"https://app.datadoghq.internal": {utils.NewAPIKeys("", "api_key7")},
-		"https://app.myproxy.com":        {utils.NewAPIKeys("", "api_key8")},
-		"https://app.ddog-gov.com":       {utils.NewAPIKeys("", "api_key9")},
-		"https://custom.ddog-gov.com":    {utils.NewAPIKeys("", "api_key10")},
+		"https://app.datadoghq.internal": {utils.NewAPIKeys("path", "api_key7")},
+		"https://app.myproxy.com":        {utils.NewAPIKeys("path", "api_key8")},
+		"https://app.ddog-gov.com":       {utils.NewAPIKeys("path", "api_key9")},
+		"https://custom.ddog-gov.com":    {utils.NewAPIKeys("path", "api_key10")},
 	}
 
 	expectedMap := map[string][]string{
@@ -84,7 +87,9 @@ func TestComputeDomainsURL(t *testing.T) {
 		sort.Strings(keys)
 	}
 	log := logmock.New(t)
-	fh := forwarderHealth{log: log, domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
+	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
+	require.NoError(t, err)
+	fh := forwarderHealth{log: log, domainResolvers: r}
 	fh.init()
 
 	// lexicographical sort for assert
@@ -166,14 +171,16 @@ func TestUpdateAPIKey(t *testing.T) {
 
 	// starting API Keys, before the update
 	keysPerDomains := map[string][]utils.APIKeys{
-		ts1.URL: {utils.NewAPIKeys("", "api_key1"), utils.NewAPIKeys("", "api_key2")},
-		ts2.URL: {utils.NewAPIKeys("", "api_key3")},
+		ts1.URL: {utils.NewAPIKeys("path", "api_key1"), utils.NewAPIKeys("path", "api_key2")},
+		ts2.URL: {utils.NewAPIKeys("path", "api_key3")},
 	}
 
 	log := logmock.New(t)
 	cfg := config.NewMock(t)
 
-	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
+	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
+	require.NoError(t, err)
+	fh := forwarderHealth{log: log, config: cfg, domainResolvers: r}
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey())
 

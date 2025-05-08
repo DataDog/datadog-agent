@@ -85,26 +85,3 @@ func TestProcessCheckLinux(t *testing.T) {
 		assertContainsCheck(t, enabledChecks, ProcessCheckName)
 	})
 }
-
-func TestProcessDiscoveryLinux(t *testing.T) {
-	deps := createDeps(t)
-	originalFlavor := flavor.GetFlavor()
-	defer flavor.SetFlavor(originalFlavor)
-
-	// Make sure process discovery checks run on the core agent only
-	// when run in core agent mode is enabled
-	t.Run("run in core agent", func(t *testing.T) {
-		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
-		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
-		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
-		cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", true)
-
-		flavor.SetFlavor("process_agent")
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
-		assertNotContainsCheck(t, enabledChecks, DiscoveryCheckName)
-
-		flavor.SetFlavor("agent")
-		enabledChecks = getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
-		assertContainsCheck(t, enabledChecks, DiscoveryCheckName)
-	})
-}

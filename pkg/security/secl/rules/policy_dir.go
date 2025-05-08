@@ -47,7 +47,13 @@ func (p *PoliciesDirProvider) loadPolicy(filename string, macroFilters []MacroFi
 		policyType = CustomPolicyType
 	}
 
-	return LoadPolicy(name, PolicyProviderTypeDir, policyType, f, macroFilters, ruleFilters)
+	pInfo := &PolicyInfo{
+		Name:   name,
+		Source: PolicyProviderTypeDir,
+		Type:   policyType,
+	}
+
+	return LoadPolicy(pInfo, f, macroFilters, ruleFilters)
 }
 
 func (p *PoliciesDirProvider) getPolicyFiles() ([]string, error) {

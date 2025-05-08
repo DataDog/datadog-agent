@@ -44,7 +44,7 @@ func (r *Runner) runUDP(cfg config.Config, hname string, dest net.IP, maxTTL uin
 		return payload.NetworkPath{}, fmt.Errorf("traceroute run failed: %s", err.Error())
 	}
 
-	pathResult, err := r.processDublinResults(results, hname, cfg.DestHostname, destPort, dest)
+	pathResult, err := r.processDublinResults(results, hname, cfg.DestHostname, cfg.DestPort, dest)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}

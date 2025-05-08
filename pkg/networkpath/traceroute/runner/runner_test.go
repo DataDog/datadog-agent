@@ -287,7 +287,11 @@ func TestProcessResults(t *testing.T) {
 					},
 				)
 			}
-			actual, err := runner.processResults(test.inputResults, test.protocol, test.hname, test.destinationHost)
+			dstPort := uint16(0)
+			if test.inputResults != nil {
+				dstPort = test.inputResults.DstPort
+			}
+			actual, err := runner.processResults(test.inputResults, test.protocol, test.hname, test.destinationHost, dstPort)
 			if test.errMsg != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.errMsg)

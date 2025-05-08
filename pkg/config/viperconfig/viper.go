@@ -222,34 +222,39 @@ func (c *safeConfig) BuildSchema() {
 	// pass
 }
 
-// ParseEnvAsStringSlice registers a transformer function to parse an an environment variables as a []string.
-func (c *safeConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
+func (c *safeConfig) setEnvTransformer(key string, fn func(string) interface{}) {
 	c.Lock()
 	defer c.Unlock()
-	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+
+	// We need to set it on both the final config and the env layer. If not, when setting something at runtime the
+	// mergeViperInstances will pull the value from SourceEnvVar and overwrites it in c.Viper changing the type.
+	//
+	// This is yet another edge case of working with Viper, this edge cases is already handled by the nodetremodel
+	// replacement.
+	c.configSources[model.SourceEnvVar].SetEnvKeyTransformer(key, fn)
+	c.Viper.SetEnvKeyTransformer(key, fn)
+}
+
+// ParseEnvAsStringSlice registers a transformer function to parse an an environment variables as a []string.
+func (c *safeConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
+	c.setEnvTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
 // ParseEnvAsMapStringInterface registers a transformer function to parse an an environment variables as a
 // map[string]interface{}.
 func (c *safeConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map[string]interface{}) {
-	c.Lock()
-	defer c.Unlock()
-	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+	c.setEnvTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
 // ParseEnvAsSliceMapString registers a transformer function to parse an an environment variables as a []map[string]string.
 func (c *safeConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
-	c.Lock()
-	defer c.Unlock()
-	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+	c.setEnvTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
 // ParseEnvAsSlice registers a transformer function to parse an an environment variables as a
 // []interface{}.
 func (c *safeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
-	c.Lock()
-	defer c.Unlock()
-	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+	c.setEnvTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
 // IsSet wraps Viper for concurrent access
@@ -811,7 +816,7 @@ func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Repla
 }
 
 // Stringify stringifies the config, but only for nodetremodel with the test build tag
-func (c *safeConfig) Stringify(_ model.Source) string {
+func (c *safeConfig) Stringify(_ model.Source, _ ...model.StringifyOption) string {
 	return "safeConfig{...}"
 }
 

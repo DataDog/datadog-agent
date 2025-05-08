@@ -26,7 +26,7 @@ const (
 	oldAgentVersion     = "7.63.2"
 )
 
-// TestAgentInstalls tests the usage of the Datadog installer to install the Datadog Agent package.
+// TestInstallScript tests the usage of the Datadog installer script to install the Datadog Agent package.
 func TestInstallScript(t *testing.T) {
 	e2e.Run(t, &testInstallScriptSuite{},
 		e2e.WithProvisioner(
@@ -66,7 +66,7 @@ func (s *testInstallScriptSuite) TestFailedUnsupportedVersion() {
 	})
 }
 
-func (s *testInstallScriptSuite) mustInstallScriptVersion(versionPredicate string, opts ...installerwindows.PackageOption) {
+func (s *testInstallScriptSuite) mustInstallVersion(versionPredicate string, opts ...installerwindows.PackageOption) {
 	// Arrange
 	packageConfig, err := installerwindows.NewPackageConfig(opts...)
 	s.Require().NoError(err)
@@ -88,18 +88,17 @@ func (s *testInstallScriptSuite) mustInstallScriptVersion(versionPredicate strin
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, versionPredicate)
 		})
-
 }
 
 func (s *testInstallScriptSuite) installPrevious() {
-	s.mustInstallScriptVersion(
+	s.mustInstallVersion(
 		s.StableAgentVersion().Version(),
 		installerwindows.WithPackage(s.StableAgentVersion().OCIPackage()),
 	)
 }
 
 func (s *testInstallScriptSuite) installCurrent() {
-	s.mustInstallScriptVersion(
+	s.mustInstallVersion(
 		s.CurrentAgentVersion().Version(),
 		installerwindows.WithPackage(s.CurrentAgentVersion().OCIPackage()),
 	)
@@ -117,7 +116,7 @@ func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
 	// Arrange
 	agentVersion := fmt.Sprintf("%s-1", oldAgentVersion)
 	// Act
-	output, err := s.InstallScript().Run(
+	opts := []installerwindows.Option{
 		installerwindows.WithExtraEnvVars(map[string]string{
 			// all of these make sure we install old versions from install.datadoghq.com
 			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER": oldInstallerVersion,
@@ -129,7 +128,9 @@ func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
 		}),
 		installerwindows.WithInstallerURL(oldInstallerURL),
 		installerwindows.WithInstallerScript(oldInstallerScript),
-	)
+	}
+
+	output, err := s.InstallScript().Run(opts...)
 	if s.NoError(err) {
 		fmt.Printf("%s\n", output)
 	}

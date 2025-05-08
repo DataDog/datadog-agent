@@ -7,6 +7,7 @@ package containers
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -24,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
 	tifecs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 
 	envecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
@@ -251,14 +253,14 @@ func (suite *ecsSuite) TestRedisECS() {
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-redis-ec2-`,
-				`^docker_image:public.ecr.aws/docker/library/redis:latest$`,
+				fmt.Sprintf(`^docker_image:public.ecr.aws/docker/library/redis:%s$`, redis.RedisVersion),
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:redis$`,
 				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-redis-ec2$`,
 				`^ecs_launch_type:ec2$`,
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
-				`^image_tag:latest$`,
+				fmt.Sprintf(`^image_tag:%s$`, redis.RedisVersion),
 				`^region:us-east-1$`,
 				`^short_image:redis$`,
 				`^task_arn:`,
@@ -281,14 +283,14 @@ func (suite *ecsSuite) TestRedisECS() {
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-redis-ec2-`,
-				`^docker_image:public.ecr.aws/docker/library/redis:latest$`,
+				fmt.Sprintf(`^docker_image:public.ecr.aws/docker/library/redis:%s$`, redis.RedisVersion),
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:redis$`,
 				`^ecs_launch_type:ec2$`,
 				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-redis-ec2$`,
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
-				`^image_tag:latest$`,
+				fmt.Sprintf(`^image_tag:%s$`, redis.RedisVersion),
 				`^region:us-east-1$`,
 				`^short_image:redis$`,
 				`^task_arn:arn:`,
@@ -357,7 +359,7 @@ func (suite *ecsSuite) TestRedisFargate() {
 				`^ecs_launch_type:fargate`,
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
-				`^image_tag:latest$`,
+				fmt.Sprintf(`^image_tag:%s$`, redis.RedisVersion),
 				`^region:us-east-1$`,
 				`^short_image:redis$`,
 				`^task_arn:`,

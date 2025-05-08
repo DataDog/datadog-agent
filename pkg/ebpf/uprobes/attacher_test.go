@@ -49,6 +49,14 @@ func TestCanCreateAttacher(t *testing.T) {
 	require.NotNil(t, ua)
 }
 
+func TestInternalProcessesRegex(t *testing.T) {
+	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/system-probe"))
+	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/trace-agent"))
+	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/process-agent"))
+	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/security-agent"))
+	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/otel-agent"))
+}
+
 func TestAttachPidExcludesInternal(t *testing.T) {
 	exe := "datadog-agent/bin/system-probe"
 	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})

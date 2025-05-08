@@ -102,9 +102,7 @@ func (j jbossExtractor) findDeployedApps(domainHome string) ([]jeeDeployment, bo
 	// real life, but the tests do do it. JBoss/WildFly docs imply that this is
 	// normally an absolute path (since it's set to JBOSS_HOME by default and a
 	// lot of other paths are resolved relative to this one).
-	if cwd, ok := workingDirFromEnvs(j.cxt.Envs); ok {
-		baseDir = abs(baseDir, cwd)
-	}
+	baseDir = j.cxt.resolveWorkingDirRelativePath(baseDir)
 	serverName, domainMode := jbossExtractServerName(j.cxt.Args)
 	if domainMode && len(serverName) == 0 {
 		log.Debug("jboss: domain mode with missing server name")

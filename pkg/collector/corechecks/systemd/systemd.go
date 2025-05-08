@@ -11,10 +11,12 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/coreos/go-systemd/v22/dbus"
+	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -140,14 +142,16 @@ var systemdStatusMapping = map[string]servicecheck.ServiceCheckStatus{
 // SystemdCheck aggregates metrics from one SystemdCheck instance
 type SystemdCheck struct {
 	core.CheckBase
-	stats  systemdStats
-	config systemdConfig
+	stats        systemdStats
+	config       systemdConfig
+	unitPatterns []*regexp.Regexp
 }
 type unitSubstateMapping = map[string]string
 
 type systemdInstanceConfig struct {
 	PrivateSocket         string                         `yaml:"private_socket"`
 	UnitNames             []string                       `yaml:"unit_names"`
+	UnitRegexes           []string                       `yaml:"unit_regexes"`
 	SubstateStatusMapping map[string]unitSubstateMapping `yaml:"substate_status_mapping"`
 }
 
@@ -515,6 +519,11 @@ func (c *SystemdCheck) isMonitored(unitName string) bool {
 			return true
 		}
 	}
+	for _, pattern := range c.unitPatterns {
+		if pattern.MatchString(unitName) {
+			return true
+		}
+	}
 	return false
 }
 
@@ -546,8 +555,17 @@ func (c *SystemdCheck) Configure(senderManager sender.SenderManager, integration
 		return err
 	}
 
-	if len(c.config.instance.UnitNames) == 0 {
-		return fmt.Errorf("instance config `unit_names` must not be empty")
+	if len(c.config.instance.UnitNames) == 0 && len(c.config.instance.UnitRegexes) == 0 {
+		return fmt.Errorf("please set either `unit_names` or `unit_regexes` in the instance config")
+	}
+
+	for _, regex := range c.config.instance.UnitRegexes {
+		pattern, err := regexp.Compile(regex)
+		if err != nil {
+			return errors.Wrapf(err, "cannot compile regular expression %q to monitor systemd units", regex)
+		}
+		log.Debugf("Compiled regex %q to Regexp %q", regex, pattern)
+		c.unitPatterns = append(c.unitPatterns, pattern)
 	}
 
 	for unitNameInMapping := range c.config.instance.SubstateStatusMapping {

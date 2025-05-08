@@ -461,6 +461,7 @@ def hacky_dev_image_build(
     process_agent=False,
     trace_agent=False,
     push=False,
+    race=False,
     signed_pull=False,
 ):
     if base_image is None:
@@ -492,6 +493,7 @@ def hacky_dev_image_build(
         )
         build(
             ctx,
+            race=race,
             cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
         )
         ctx.run(

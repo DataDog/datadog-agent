@@ -45,7 +45,7 @@ func (s *StatsdClient) GetByPrefix(prefix string) map[string]int64 {
 
 	for key, value := range s.counts {
 		if strings.HasPrefix(key, prefix) {
-			k := strings.Replace(key, prefix, "", -1)
+			k := strings.ReplaceAll(key, prefix, "")
 			result[k] = value
 		}
 	}

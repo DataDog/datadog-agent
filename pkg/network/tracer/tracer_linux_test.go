@@ -1966,7 +1966,7 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 	tr := setupTracer(t, cfg)
 
 	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
-		t.Skip("skipped on Fargate")
+		t.Skip("skipped on fentry")
 	}
 
 	cmd := []string{"curl", "-k", "-o/dev/null", "example.com"}

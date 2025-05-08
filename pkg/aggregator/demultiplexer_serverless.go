@@ -44,10 +44,13 @@ type ServerlessDemultiplexer struct {
 }
 
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
-func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]utils.APIKeys, forwarderTimeout time.Duration, tagger tagger.Component) *ServerlessDemultiplexer {
+func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]utils.APIKeys, forwarderTimeout time.Duration, tagger tagger.Component) (*ServerlessDemultiplexer, error) {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 	logger := logimpl.NewTemporaryLoggerWithoutInit()
-	forwarder := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, keysPerDomain, forwarderTimeout)
+	forwarder, err := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, keysPerDomain, forwarderTimeout)
+	if err != nil {
+		return nil, err
+	}
 	h, _ := hostname.Get(context.Background())
 	config := pkgconfigsetup.Datadog()
 	config.SetWithoutSource("serializer_compressor_kind", "none")
@@ -75,7 +78,7 @@ func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]utils.APIKey
 	go demux.Run()
 
 	// we're done with the initialization
-	return demux
+	return demux, nil
 }
 
 // Run runs all demultiplexer parts

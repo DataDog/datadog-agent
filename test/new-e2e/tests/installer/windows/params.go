@@ -166,3 +166,30 @@ func WithMSIDevEnvOverrides(prefix string) MsiOption {
 		return nil
 	}
 }
+
+// WithInstallScriptDevEnvOverrides applies overrides to use local files for development.
+//
+// Example: local installer exe
+//
+//	export CURRENT_AGENT_INSTALLER_URL="file:///path/to/installer.exe"
+//
+// Example: local install script
+//
+//	export CURRENT_AGENT_INSTALLER_SCRIPT="file:///path/to/install.ps1"
+func WithInstallScriptDevEnvOverrides(prefix string) Option {
+	return func(params *Params) error {
+		if url, ok := os.LookupEnv(fmt.Sprintf("%s_INSTALLER_URL", prefix)); ok {
+			err := WithInstallerURL(url)(params)
+			if err != nil {
+				return err
+			}
+		}
+		if script, ok := os.LookupEnv(fmt.Sprintf("%s_INSTALLER_SCRIPT", prefix)); ok {
+			err := WithInstallerScript(script)(params)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}

@@ -17,8 +17,8 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -74,7 +74,7 @@ type dependencies struct {
 	SettingsComponent settings.Component
 	Config            configcomp.Component
 	SysprobeConfig    option.Option[sysprobeconfig.Component]
-	At                authtoken.Component
+	IPC               ipc.Component
 }
 
 // newRemoteConfigClient must not populate any Fx groups or return any types that would be consumed as dependencies by
@@ -102,7 +102,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		ipcAddress,
 		pkgconfigsetup.GetIPCPort(),
 		func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
-		deps.At.GetTLSClientConfig,
+		deps.IPC.GetTLSClientConfig,
 		optsWithDefault...,
 	)
 	if err != nil {
@@ -115,7 +115,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 			ipcAddress,
 			pkgconfigsetup.GetIPCPort(),
 			func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
-			deps.At.GetTLSClientConfig,
+			deps.IPC.GetTLSClientConfig,
 			optsWithDefault...,
 		)
 		if err != nil {
@@ -261,7 +261,7 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 		err := rc.applyMRFRuntimeSetting("multi_region_failover.failover_logs", *enableLogs, enableLogsCfgPth, applyStateCallback)
 		if err != nil {
 			pkglog.Errorf("Multi-Region Failover failed to apply new logs settings : %s", err)
-			applyStateCallback(enableMetricsCfgPth, state.ApplyStatus{
+			applyStateCallback(enableLogsCfgPth, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
 			})

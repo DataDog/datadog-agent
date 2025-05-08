@@ -202,6 +202,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()
 	s.assertDockerdInstrumented(injectOCIPath)
+	s.host.AssertPackageNotInstalledByPackageManager("datadog-apm-inject", "datadog-apm-library-python")
 
 }
 

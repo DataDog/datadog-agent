@@ -18,11 +18,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 
@@ -43,7 +43,7 @@ type testdeps struct {
 
 	API       api.Component
 	Telemetry telemetry.Mock
-	AuthToken authtoken.Component
+	IPC       ipc.Component
 }
 
 func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option) testdeps {
@@ -51,7 +51,7 @@ func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option
 		t,
 		Module(),
 		fx.Replace(params),
-		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
 		fx.Provide(func() api.AgentEndpointProvider {
 			return api.AgentEndpointProvider{
@@ -65,11 +65,11 @@ func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option
 	)
 }
 
-func testAPIServer(params config.MockParams, fxOptions ...fx.Option) (*fx.App, testdeps, error) {
+func testAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option) (*fx.App, testdeps, error) {
 	return fxutil.TestApp[testdeps](
 		Module(),
 		fx.Replace(params),
-		fx.Provide(func(t *testing.T) authtoken.Component { return authtokenmock.New(t) }),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Supply(context.Background()),
 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
 		fx.Provide(func() api.AgentEndpointProvider {
@@ -244,7 +244,7 @@ func TestStartServerWithGrpcServer(t *testing.T) {
 	req.Header.Set("Content-Type", "application/grpc")
 
 	transport := &http.Transport{
-		TLSClientConfig: deps.AuthToken.GetTLSClientConfig(),
+		TLSClientConfig: deps.IPC.GetTLSClientConfig(),
 	}
 
 	http2.ConfigureTransport(transport)
@@ -272,7 +272,7 @@ func TestStartServerWithGrpcServerFailGateway(t *testing.T) {
 		"agent_ipc.port": 0,
 	}}
 
-	_, _, errApp := testAPIServer(cfgOverride, fx.Options(
+	_, _, errApp := testAPIServer(t, cfgOverride, fx.Options(
 		fx.Replace(
 			fx.Annotate(&grpcServer{
 				grpcServer: true,
@@ -308,7 +308,7 @@ func TestStartServerWithoutGrpcServer(t *testing.T) {
 	req.Header.Set("Content-Type", "application/grpc")
 
 	transport := &http.Transport{
-		TLSClientConfig: deps.AuthToken.GetTLSClientConfig(),
+		TLSClientConfig: deps.IPC.GetTLSClientConfig(),
 	}
 
 	http2.ConfigureTransport(transport)

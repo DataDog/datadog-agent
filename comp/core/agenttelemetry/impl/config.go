@@ -213,6 +213,8 @@ var defaultProfiles = `
         - name: logs.decoded
         - name: logs.dropped
         - name: logs.encoded_bytes_sent
+          aggregate_tags:
+            - compression_kind
         - name: logs.sender_latency
         - name: logs.auto_multi_line_aggregator_flush
           aggregate_tags:

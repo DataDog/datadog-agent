@@ -52,9 +52,13 @@
         <span class="stat_subtitle">Writer (previous minute)</span>
         <span class="stat_subdata">
           Traces: {{.trace_writer.Payloads}} payloads, {{.trace_writer.Traces}} traces, {{.trace_writer.Events}} events, {{humanize .trace_writer.Bytes}} bytes<br>
-          {{- if gt .trace_writer.Errors 0.0}}WARNING: Traces API errors (1 min): {{.trace_writer.Errors}}{{end}}
+          {{- if gt .trace_writer.Errors 0.0}}
+          WARNING: Traces API errors (1 min): {{.trace_writer.Errors}}
+          {{- end}}
           Stats: {{.stats_writer.Payloads}} payloads, {{.stats_writer.StatsBuckets}} stats buckets, {{humanize .stats_writer.Bytes}} bytes<br>
-          {{- if gt .stats_writer.Errors 0.0}}WARNING: Stats API errors (1 min): {{.stats_writer.Errors}}{{end}}
+          {{- if gt .stats_writer.Errors 0.0}}
+          WARNING: Stats API errors (1 min): {{.stats_writer.Errors}}
+          {{- end}}
         </span>
       {{- end }}
     {{ end }}

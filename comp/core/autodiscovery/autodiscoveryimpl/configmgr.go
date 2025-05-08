@@ -368,6 +368,7 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
+		log.Debug(msg)
 		errorStats.setResolveWarning(tpl.Name, msg)
 		return tpl, false
 	}

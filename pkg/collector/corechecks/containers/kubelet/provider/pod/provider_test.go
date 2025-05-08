@@ -140,7 +140,8 @@ func (suite *ProviderTestSuite) SetupTest() {
 
 	config := &common.KubeletConfig{
 		OpenmetricsInstance: types.OpenmetricsInstance{
-			Tags: []string{"instance_tag:something"},
+			Tags:    []string{"instance_tag:something"},
+			Timeout: 10,
 		},
 	}
 

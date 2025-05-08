@@ -29,9 +29,6 @@ type Component interface {
 	AddListeners(listenerConfigs []pkgconfigsetup.Listeners)
 	AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool)
 	RemoveScheduler(name string)
-	MapOverLoadedConfigs(f func(map[string]integration.Config))
-	LoadedConfigs() []integration.Config
-	GetUnresolvedTemplates() map[string][]integration.Config
 	GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) checkid.ID
 	GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet
 	GetProviderCatalog() map[string]providers.ConfigProviderFactory
@@ -41,5 +38,4 @@ type Component interface {
 	Stop()
 	// TODO (component): once cluster agent uses the API component remove this function
 	GetConfigCheck() integration.ConfigCheckResponse
-	IsStarted() bool
 }

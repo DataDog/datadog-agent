@@ -233,8 +233,6 @@ func init() {
 	expvarPyInit = expvar.NewMap("pythonInit")
 	expvarPyInit.Set("Errors", expvar.Func(expvarPythonInitErrors))
 
-	resolvePythonHome()
-
 	// Setting environment variables must happen as early as possible in the process lifetime to avoid data race with
 	// `getenv`. Ideally before we start any goroutines that call native code or open network connections.
 	initFIPS()
@@ -330,6 +328,7 @@ func resolvePythonHome() {
 }
 
 func resolvePythonExecPath(ignoreErrors bool) (string, error) {
+	resolvePythonHome()
 	// For Windows, the binary should be in our path already and have a
 	// consistent name
 	if runtime.GOOS == "windows" {
@@ -462,7 +461,7 @@ func Initialize(paths ...string) error {
 
 	// store the Python version after killing \n chars within the string
 	if pyInfo != nil {
-		PythonVersion = strings.Replace(C.GoString(pyInfo.version), "\n", "", -1)
+		PythonVersion = strings.ReplaceAll(C.GoString(pyInfo.version), "\n", "")
 		// Set python version in the cache
 		cache.Cache.Set(pythonInfoCacheKey, PythonVersion, cache.NoExpiration)
 
@@ -510,6 +509,7 @@ func initFIPS() {
 		log.Warnf("could not check FIPS mode: %v", err)
 		return
 	}
+	resolvePythonHome()
 	if PythonHome == "" {
 		log.Warnf("Python home is empty. FIPS mode could not be enabled.")
 		return

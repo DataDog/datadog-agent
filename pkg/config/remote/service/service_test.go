@@ -12,9 +12,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	httpapi "github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	"testing"
 	"time"
+
+	httpapi "github.com/DataDog/datadog-agent/pkg/config/remote/api"
 
 	"github.com/DataDog/go-tuf/data"
 	"github.com/benbjohnson/clock"
@@ -1419,7 +1420,7 @@ func TestHTTPClientRecentUpdate(t *testing.T) {
 	defer client.Close()
 	client.lastUpdate = time.Now()
 
-	u, err := client.GetCDNConfigUpdate(context.TODO(), []string{"TESTING1"}, 0, 0, []*pbgo.TargetFileMeta{})
+	u, err := client.GetCDNConfigUpdate(context.TODO(), []string{"TESTING1"}, 0, 0)
 	require.NoError(t, err)
 	uptaneClient.AssertExpectations(t)
 	require.NotNil(t, u)
@@ -1471,7 +1472,7 @@ func TestHTTPClientUpdateSuccess(t *testing.T) {
 			defer client.Close()
 			client.lastUpdate = time.Now().Add(time.Second * -60)
 
-			u, err := client.GetCDNConfigUpdate(context.TODO(), []string{"TESTING1"}, 0, 0, []*pbgo.TargetFileMeta{})
+			u, err := client.GetCDNConfigUpdate(context.TODO(), []string{"TESTING1"}, 0, 0)
 			require.NoError(t, err)
 			uptaneClient.AssertExpectations(t)
 			require.NotNil(t, u)

@@ -13,6 +13,85 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func Test_IsLegacyMetrics(t *testing.T) {
+	tests := []struct {
+		name           string
+		metrics        []MetricsConfig
+		expectedResult bool
+	}{
+		{
+			name: "metrics are not legacy",
+			metrics: []MetricsConfig{
+				{
+					Name: "foo",
+				},
+				{
+					MIB:  "FOO-MIB",
+					OID:  "1.2.3.4",
+					Name: "foo",
+				},
+				{
+					MIB: "FOO-MIB",
+					Symbol: SymbolConfig{
+						OID:  "1.2.3.4",
+						Name: "foo",
+					},
+				},
+				{
+					MIB: "FOO-MIB",
+					Symbols: []SymbolConfig{
+						{
+							OID:  "1.2.3.4.1",
+							Name: "foo1",
+						},
+						{
+							OID:  "1.2.3.4.2",
+							Name: "foo2",
+						},
+					},
+				},
+				{
+					MIB: "FOO-MIB",
+					Symbols: []SymbolConfig{
+						{
+							Name:             "foo",
+							ConstantValueOne: true,
+						},
+						{
+							OID:  "1.2.3.4",
+							Name: "foo2",
+						},
+					},
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "one metrics is legacy",
+			metrics: []MetricsConfig{
+				{
+					MIB:  "FOO-MIB",
+					OID:  "1.2.3.4",
+					Name: "foo",
+				},
+				{
+					MIB: "FOO-MIB",
+					Symbol: SymbolConfig{
+						Name: "foo",
+					},
+				},
+			},
+			expectedResult: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			isLegacyMetrics := IsLegacyMetrics(tt.metrics)
+			assert.Equal(t, tt.expectedResult, isLegacyMetrics)
+		})
+	}
+}
+
 func Test_ValidateEnrichMetrics(t *testing.T) {
 	tests := []struct {
 		name            string

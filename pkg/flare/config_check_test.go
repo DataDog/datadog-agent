@@ -151,8 +151,8 @@ Log Config:
 				assert.Contains(t, b.String(), "\x1b[31m")
 			} else {
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(test.expected, "\r\n", "\n", -1)
-				output := strings.Replace(b.String(), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(test.expected, "\r\n", "\n")
+				output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			}

@@ -13,9 +13,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
 )
 
 //go:embed fixtures
@@ -125,8 +126,8 @@ func TestStatusError(t *testing.T) {
 			assert.NoError(t, err)
 
 			// We replace windows line break by linux so the tests pass on every OS
-			expected := strings.Replace(string(errorResponse), "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			expected := strings.ReplaceAll(string(errorResponse), "\r\n", "\n")
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 
 			assert.Equal(t, expected, output)
 		}},

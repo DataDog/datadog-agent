@@ -4829,6 +4829,8 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers29(
 			out.ID = string(in.String())
 		case "manager":
 			out.Manager = string(in.String())
+		case "variables":
+			(out.Variables).UnmarshalEasyJSON(in)
 		default:
 			in.SkipRecursive()
 		}
@@ -4858,6 +4860,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers29(
 			out.RawString(prefix)
 		}
 		out.String(string(in.Manager))
+	}
+	if len(in.Variables) != 0 {
+		const prefix string = ",\"variables\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(in.Variables).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }
