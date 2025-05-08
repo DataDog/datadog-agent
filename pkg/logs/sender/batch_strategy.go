@@ -224,7 +224,11 @@ func (s *batchStrategy) sendMessages(outputChan chan *message.Payload) {
 
 	defer func() {
 		payloadWriter := &bytes.Buffer{}
-		s.compressor = s.compression.NewStreamCompressor(payloadWriter)
+		compressor := s.compression.NewStreamCompressor(payloadWriter)
+		if compressor == nil {
+			compressor = &compression.NoopStreamCompressor{Writer: payloadWriter}
+		}
+		s.compressor = compressor
 		s.payloadWriter = payloadWriter
 	}()
 
