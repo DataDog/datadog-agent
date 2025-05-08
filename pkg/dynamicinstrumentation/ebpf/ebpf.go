@@ -199,6 +199,7 @@ func getCFlags(config *ddebpf.Config) []string {
 	cflags := []string{
 		"-g",
 		"-Wno-unused-variable",
+		"-Wno-unused-function",
 	}
 	if config.BPFDebug {
 		cflags = append(cflags, "-DDEBUG=1")
