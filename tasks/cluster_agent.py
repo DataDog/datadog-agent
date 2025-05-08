@@ -35,6 +35,7 @@ def build(
     development=True,
     skip_assets=False,
     policies_version=None,
+    major_version='7',
 ):
     """
     Build Cluster Agent
@@ -53,6 +54,7 @@ def build(
         race,
         development,
         skip_assets,
+        major_version=major_version,
     )
 
     if policies_version is None:
@@ -164,11 +166,12 @@ def hacky_dev_image_build(
     base_image=None,
     target_image="cluster-agent",
     push=False,
+    race=False,
     signed_pull=False,
     arch=None,
 ):
     os.environ["DELVE"] = "1"
-    build(ctx)
+    build(ctx, race=race)
 
     if arch is None:
         arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())

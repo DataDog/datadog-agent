@@ -25,6 +25,8 @@ const (
 	ExperimentInstallerPath = "/opt/datadog-packages/datadog-installer/experiment/bin/installer/installer"
 	// RunPath is the default run path
 	RunPath = "/opt/datadog-packages/run"
+	// DatadogDataDir is the path to the Datadog data directory.
+	DatadogDataDir = "/etc/datadog-agent"
 )
 
 // EnsureInstallerDataDir ensures that permissions are set correctly on the installer data directory.
