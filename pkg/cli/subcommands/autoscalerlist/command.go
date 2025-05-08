@@ -36,11 +36,7 @@ type cliParams struct {
 // A pointer to this type is passed to SubcommandFactory's, but its contents
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
-	ConfFilePath         string
-	ExtraConfFilePaths   []string
-	ConfigName           string
-	LoggerName           string
-	FleetPoliciesDirPath string
+	ConfFilePath string
 }
 
 // MakeCommand returns an`autoscaler-list` command to be used by cluster- binaries.
@@ -59,13 +55,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(autoscalerList,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(
-						globalParams.ConfFilePath,
-						config.WithConfigName(globalParams.ConfigName),
-						config.WithExtraConfFiles(globalParams.ExtraConfFilePaths),
-						config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
-					),
-					LogParams: log.ForOneShot(globalParams.LoggerName, "off", true)}),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+					LogParams:    log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
 			)
 		},
