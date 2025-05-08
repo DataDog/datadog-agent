@@ -447,7 +447,7 @@ var structCaptures = fixtures{
 								*capturedValue("uint8", "4"),
 							},
 						},
-						"z": capturedValue("int", "5"),
+						"z": capturedValue("uint64", "5"),
 					},
 				},
 			},
