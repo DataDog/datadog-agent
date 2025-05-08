@@ -504,7 +504,6 @@ func fillProcessDetails(pid int32, proc *Process) error {
 	proc.Exe = imagePath
 
 	// we cannot read the command line if the process is protected
-	var cmdLine string
 	if !isProtected {
 		processCmdParams, err := winutil.GetCommandParamsForProcess(procHandle, false)
 		if err != nil {
@@ -512,13 +511,11 @@ func fillProcessDetails(pid int32, proc *Process) error {
 		}
 
 		if processCmdParams != nil {
-			cmdLine = processCmdParams.CmdLine
+			proc.Cmdline = ParseCmdLineArgs(processCmdParams.CmdLine)
+			if len(processCmdParams.CmdLine) > 0 && len(proc.Cmdline) == 0 {
+				log.Warnf("Failed to parse the cmdline:%s for pid:%d", processCmdParams.CmdLine, pid)
+			}
 		}
-	}
-
-	proc.Cmdline = ParseCmdLineArgs(cmdLine)
-	if len(cmdLine) > 0 && len(proc.Cmdline) == 0 {
-		log.Warnf("Failed to parse the cmdline:%s for pid:%d", cmdLine, pid)
 	}
 
 	var CPU windows.Rusage
@@ -550,10 +547,6 @@ func OpenProcessHandle(pid int32) (windows.Handle, bool, error) {
 		return procHandle, isProtected, err
 	}
 
-	// 0x1000 is PROCESS_QUERY_LIMITED_INFORMATION, but that constant isn't
-	//        defined in x/sys/windows
-	// 0x10   is PROCESS_VM_READ
-	// if the process is not protected, we should be able to access with PROCESS_VM_READ
 	procHandleMemoryAccess, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_VM_READ, false, uint32(pid))
 	if err != nil {
 		log.Debugf("Couldn't open unprotected process with PROCESS_VM_READ access. Returning limited process info %v %v", pid, err)

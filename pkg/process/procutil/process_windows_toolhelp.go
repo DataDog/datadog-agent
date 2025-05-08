@@ -242,12 +242,10 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 		log.Debugf("Couldn't get process username %v %v", pe32.Th32ProcessID, err)
 	}
 	cp.executablePath = winutil.ConvertWindowsString16(pe32.SzExeFile[:])
-	// set default commandLine value incase we can't read the actual commandLine due to the proteced process
 	cp.commandLine = cp.executablePath
 
 	// we cannot read the command line if the process is protected
 	if !isProtected {
-		var cmderr error
 		commandParams, cmderr := winutil.GetCommandParamsForProcess(cp.procHandle, false)
 		if cmderr != nil {
 			log.Debugf("Error retrieving full command line %v", cmderr)

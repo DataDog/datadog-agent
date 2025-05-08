@@ -21,7 +21,6 @@ var (
 	modntdll                       = windows.NewLazyDLL("ntdll.dll")
 	modkernel                      = windows.NewLazyDLL("kernel32.dll")
 	procNtQueryInformationProcess  = modntdll.NewProc("NtQueryInformationProcess")
-	procZwQueryInformationProcess  = modntdll.NewProc("ZwQueryInformationProcess")
 	procReadProcessMemory          = modkernel.NewProc("ReadProcessMemory")
 	procIsWow64Process             = modkernel.NewProc("IsWow64Process")
 	procQueryFullProcessImageNameW = modkernel.NewProc("QueryFullProcessImageNameW")
@@ -89,26 +88,14 @@ func NtQueryInformationProcess(h windows.Handle, class PROCESSINFOCLASS, target,
 	return nil
 }
 
-// ZwQueryInformationProcess wraps the Windows NT kernel call of the same name.
-func ZwQueryInformationProcess(h windows.Handle, class PROCESSINFOCLASS, target uintptr, size uintptr) (err error) {
-	r, _, _ := procZwQueryInformationProcess.Call(uintptr(h),
-		uintptr(class),
-		target,
-		size,
-		uintptr(0))
-	if r != 0 {
-		err = windows.GetLastError()
-		return err
-	}
-	return nil
-}
-
 // IsProcessProtected checks if the process has any level of protection and returns true if any protection is present
 // more info https://learn.microsoft.com/en-us/windows/win32/procthread/zwqueryinformationprocess
+// NOTE: in user mode, NtQueryInformationProcess and ZwQueryInformationProcess behave the same
+// more info https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-nt-and-zw-versions-of-the-native-system-services-routines
 func IsProcessProtected(h windows.Handle) (bool, error) {
-	// ZwQueryInformationProcess returns 1 byte of protection information when passed in with param 61
 	var processProtection uint8
-	err := ZwQueryInformationProcess(h, ProcessProtectionInformation, uintptr(unsafe.Pointer(&processProtection)), unsafe.Sizeof(processProtection))
+	// returns 1 byte of protection information when passed in with param 61
+	err := NtQueryInformationProcess(h, ProcessProtectionInformation, uintptr(unsafe.Pointer(&processProtection)), unsafe.Sizeof(processProtection))
 	if err != nil {
 		return false, err
 	}
@@ -124,8 +111,7 @@ func IsProcessProtected(h windows.Handle) (bool, error) {
 		if the protection type is anything other than 0, then we cannot open the process with PROCESS_VM_READ
 	*/
 
-	// hex 0x07 == binary 111, so we do a binary AND to determine the protection level
-	if processProtection&0x07 != 0 {
+	if processProtection&0b111 != 0 {
 		return true, nil
 	}
 
