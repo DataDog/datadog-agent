@@ -8,7 +8,6 @@
 package marshal
 
 import (
-	"runtime"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -37,9 +36,6 @@ type HTTP2Suite struct {
 }
 
 func TestHTTP2Stats(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("the feature is only supported on linux.")
-	}
 	suite.Run(t, &HTTP2Suite{})
 }
 
@@ -301,25 +297,6 @@ func (s *HTTP2Suite) TestHTTP2LocalhostScenario() {
 		HTTP2: map[http.Key]*http.RequestStats{
 			httpKey: http2Stats,
 		},
-	}
-	if runtime.GOOS == "windows" {
-		/*
-		 * on Windows, there are separate http transactions for
-		 * each side of the connection.  And they're kept separate,
-		 * and keyed separately.  Address this condition until the
-		 * platforms are resynced
-		 */
-		httpKeyWin := http.NewKey(
-			util.AddressFromString("127.0.0.1"),
-			util.AddressFromString("127.0.0.1"),
-			serverport,
-			cliport,
-			[]byte("/"),
-			true,
-			http.MethodGet,
-		)
-
-		in.HTTP2[httpKeyWin] = http2Stats
 	}
 	http2Encoder := newHTTP2Encoder(in.HTTP2)
 

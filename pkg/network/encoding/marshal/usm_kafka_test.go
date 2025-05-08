@@ -9,7 +9,6 @@ package marshal
 
 import (
 	"fmt"
-	"runtime"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -23,12 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
-
-func skipIfNotLinux(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("the feature is only supported on linux.")
-	}
-}
 
 const (
 	clientPort  = uint16(1234)
@@ -53,7 +46,6 @@ type KafkaSuite struct {
 }
 
 func TestKafkaStats(t *testing.T) {
-	skipIfNotLinux(t)
 	suite.Run(t, &KafkaSuite{})
 }
 
