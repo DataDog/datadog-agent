@@ -114,14 +114,19 @@ func newTCPEndpoint(logsConfig *LogsConfigKeys) Endpoint {
 
 // newHTTPEndpoint returns a new HTTP Endpoint based on LogsConfigKeys The endpoint is by default reliable and will use
 // the settings related to HTTP from the configuration (compression, Backoff, recovery, ...).
-func newHTTPEndpoint(logsConfig *LogsConfigKeys) Endpoint {
+func newHTTPEndpoint(logsConfig *LogsConfigKeys, opts ...EndpointCompressionOptions) Endpoint {
+	var opt EndpointCompressionOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+
 	apiKey, configPath := logsConfig.getMainAPIKey()
 	e := Endpoint{
 		apiKey:                  atomic.NewString(apiKey),
 		configSettingPath:       configPath,
 		UseCompression:          logsConfig.useCompression(),
-		CompressionKind:         logsConfig.compressionKind(),
-		CompressionLevel:        logsConfig.compressionLevel(),
+		CompressionKind:         logsConfig.compressionKind(opt.CompressionKind),
+		CompressionLevel:        logsConfig.compressionLevel(opt.CompressionLevel),
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
 		BackoffBase:             logsConfig.senderBackoffBase(),
 		BackoffMax:              logsConfig.senderBackoffMax(),

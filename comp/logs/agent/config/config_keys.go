@@ -118,7 +118,10 @@ func (l *LogsConfigKeys) devModeUseProto() bool {
 	return l.getConfig().GetBool(l.getConfigKey("dev_mode_use_proto"))
 }
 
-func (l *LogsConfigKeys) compressionKind() string {
+func (l *LogsConfigKeys) compressionKind(forceCompressionKind string) string {
+	if forceCompressionKind != "" {
+		return forceCompressionKind
+	}
 	configKey := l.getConfigKey("compression_kind")
 	compressionKind := l.getConfig().GetString(configKey)
 
@@ -138,8 +141,11 @@ func (l *LogsConfigKeys) compressionKind() string {
 	return pkgconfigsetup.DefaultLogCompressionKind
 }
 
-func (l *LogsConfigKeys) compressionLevel() int {
-	if l.compressionKind() == ZstdCompressionKind {
+func (l *LogsConfigKeys) compressionLevel(forceCompressionLevel int) int {
+	if forceCompressionLevel != 0 {
+		return forceCompressionLevel
+	}
+	if l.compressionKind("") == ZstdCompressionKind {
 		level := l.getConfig().GetInt(l.getConfigKey("zstd_compression_level"))
 		if strings.HasPrefix(l.prefix, "logs_config.") {
 			log.Debugf("Logs pipeline is using compression zstd at level: %d", level)

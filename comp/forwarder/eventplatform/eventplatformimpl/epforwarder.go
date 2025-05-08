@@ -398,6 +398,11 @@ func newHTTPPassthroughPipeline(
 ) (p *passthroughPipeline, err error) {
 
 	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig)
+
+	var opts []config.EndpointCompressionOptionFunc
+	if desc.forceCompressionKind != "" {
+		opts = append(opts, config.WithCompression(desc.forceCompressionKind, desc.forceCompressionLevel))
+	}
 	endpoints, err := config.BuildHTTPEndpointsWithConfig(
 		coreConfig,
 		configKeys,
@@ -405,6 +410,7 @@ func newHTTPPassthroughPipeline(
 		desc.intakeTrackType,
 		config.DefaultIntakeProtocol,
 		config.DefaultIntakeOrigin,
+		opts...,
 	)
 	if err != nil {
 		return nil, err
@@ -424,15 +430,6 @@ func newHTTPPassthroughPipeline(
 	}
 	if endpoints.InputChanSize <= pkgconfigsetup.DefaultInputChanSize {
 		endpoints.InputChanSize = desc.defaultInputChanSize
-	}
-	if desc.forceCompressionKind != "" {
-		// if pipeline description has override then assign endpoint compression kind and level to the override
-		endpoints.CompressionKind = desc.forceCompressionKind
-		endpoints.CompressionLevel = desc.forceCompressionLevel
-	} else {
-		// if pipeline description has no override then assign endpoint compression kind and level via configs
-		endpoints.CompressionKind = endpoints.Main.CompressionKind
-		endpoints.CompressionLevel = endpoints.Main.CompressionLevel
 	}
 
 	pipelineMonitor := metrics.NewNoopPipelineMonitor(strconv.Itoa(pipelineID))
@@ -488,8 +485,8 @@ func newHTTPPassthroughPipeline(
 		endpoints.BatchMaxContentSize,
 		endpoints.BatchMaxSize,
 		endpoints.InputChanSize,
-		endpoints.CompressionKind,
-		endpoints.CompressionLevel)
+		endpoints.Main.CompressionKind,
+		endpoints.Main.CompressionLevel)
 	return &passthroughPipeline{
 		sender:                senderImpl,
 		strategy:              strategy,

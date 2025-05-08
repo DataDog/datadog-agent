@@ -53,6 +53,15 @@ var logsEndpoints = map[string]int{
 // HTTPConnectivity is the status of the HTTP connectivity
 type HTTPConnectivity bool
 
+// EndpointCompressionOptionFunc is a function that modifies the endpoint options
+type EndpointCompressionOptionFunc func(*EndpointCompressionOptions)
+
+// EndpointCompressionOptions is the compression options for the endpoint
+type EndpointCompressionOptions struct {
+	CompressionKind  string
+	CompressionLevel int
+}
+
 var (
 	// HTTPConnectivitySuccess is the status for successful HTTP connectivity
 	HTTPConnectivitySuccess HTTPConnectivity = true
@@ -186,11 +195,16 @@ func BuildHTTPEndpointsWithVectorOverride(coreConfig pkgconfigmodel.Reader, inta
 }
 
 // BuildHTTPEndpointsWithConfig uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() w ldHTTPEndpointsWithConfigdefault variables logsConfigDefaultKeys and httpEndpointPrefix
-func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
+func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, opts ...EndpointCompressionOptionFunc) (*Endpoints, error) {
 	// Provide default values for legacy settings when the configuration key does not exist
 	defaultNoSSL := logsConfig.logsNoSSL()
 
-	main := newHTTPEndpoint(logsConfig)
+	var opt EndpointCompressionOptions
+	if len(opts) > 0 {
+		opts[0](&opt)
+	}
+
+	main := newHTTPEndpoint(logsConfig, opt)
 
 	if logsConfig.useV2API() && intakeTrackType != "" {
 		main.Version = EPIntakeVersion2
@@ -343,4 +357,12 @@ func AggregationTimeout(coreConfig pkgconfigmodel.Reader) time.Duration {
 // MaxMessageSizeBytes is used to cap the maximum log message size in bytes
 func MaxMessageSizeBytes(coreConfig pkgconfigmodel.Reader) int {
 	return defaultLogsConfigKeys(coreConfig).maxMessageSizeBytes()
+}
+
+// WithCompression is a function that sets the compression kind and level for the endpoint.
+func WithCompression(kind string, level int) EndpointCompressionOptionFunc {
+	return func(o *EndpointCompressionOptions) {
+		o.CompressionKind = kind
+		o.CompressionLevel = level
+	}
 }
