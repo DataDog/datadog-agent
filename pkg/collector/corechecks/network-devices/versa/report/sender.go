@@ -7,7 +7,9 @@
 package report
 
 import (
+	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -19,7 +21,7 @@ import (
 const (
 	defaultIPTag         = "device_ip"
 	versaMetricPrefix    = "versa."
-	versaTimestampFormat = "2006-01-02 15:04:05.0"
+	versaTimestampFormat = "2006-01-02 15:04:05"
 	timestampExpiration  = 6 * time.Hour
 )
 
@@ -61,35 +63,44 @@ func (s *Sender) SendDeviceMetrics(appliances []client.Appliance) {
 		cpuLoad := appliance.Hardware.CPULoad
 
 		// Parse memory metrics
-		memFree, err := strconv.ParseFloat(appliance.Hardware.FreeMemory, 64)
+		sendMemUsage := true
+		memFree, err := parseSize(appliance.Hardware.FreeMemory)
 		if err != nil {
 			log.Warnf("Error parsing FreeMemory %s: %s", appliance.Hardware.FreeMemory, err)
+			sendMemUsage = false
 			memFree = 0
 		}
-		memTotal, err := strconv.ParseFloat(appliance.Hardware.Memory, 64)
+		memTotal, err := parseSize(appliance.Hardware.Memory)
 		if err != nil {
 			log.Warnf("Error parsing Memory %s: %s", appliance.Hardware.Memory, err)
+			sendMemUsage = false
 			memTotal = 1
 		}
 		memUsage := 100 - (memFree / memTotal * float64(100))
 
 		// Parse disk metrics
-		diskFree, err := strconv.ParseFloat(appliance.Hardware.FreeDisk, 64)
+		sendDiskUsage := true
+		diskFree, err := parseSize(appliance.Hardware.FreeDisk)
 		if err != nil {
 			log.Warnf("Error parsing FreeDisk %s: %s", appliance.Hardware.FreeDisk, err)
+			sendDiskUsage = false
 			diskFree = 0
 		}
-		diskSize, err := strconv.ParseFloat(appliance.Hardware.DiskSize, 64)
+		diskSize, err := parseSize(appliance.Hardware.DiskSize)
 		if err != nil {
 			log.Warnf("Error parsing DiskSize %s: %s", appliance.Hardware.DiskSize, err)
+			sendDiskUsage = false
 			diskSize = 1
 		}
-
 		diskUsage := 100 - (diskFree / diskSize * float64(100))
 
 		s.GaugeWithTimestampWrapper(versaMetricPrefix+"cpu.usage", float64(cpuLoad), tags, ts) // Using CPUUserNew and CPUSystem (not new...) to match vManage UI
-		s.GaugeWithTimestampWrapper(versaMetricPrefix+"memory.usage", memUsage, tags, ts)
-		s.GaugeWithTimestampWrapper(versaMetricPrefix+"disk.usage", diskUsage, tags, ts)
+		if sendMemUsage {
+			s.GaugeWithTimestampWrapper(versaMetricPrefix+"memory.usage", memUsage, tags, ts)
+		}
+		if sendDiskUsage {
+			s.GaugeWithTimestampWrapper(versaMetricPrefix+"disk.usage", diskUsage, tags, ts)
+		}
 	}
 
 	s.UpdateTimestamps(newTimestamps)
@@ -119,4 +130,45 @@ func parseTimestamp(timestamp string) (float64, error) {
 		return float64(time.Now().UnixMilli()), err
 	}
 	return float64(t.UnixMilli()), nil
+}
+
+// parseSize parses a size string and returns the size in bytes
+// Supported formats are: "1KiB", "1MiB", "1GiB", "1Tib", "1Pib", "1Eib" and "1B"
+func parseSize(sizeString string) (float64, error) {
+	// bytes will be checked for separately
+	units := map[string]float64{
+		"kib": 1 << 10,
+		"mib": 1 << 20,
+		"gib": 1 << 30,
+		"tib": 1 << 40,
+		"pib": 1 << 50,
+		"eib": 1 << 60,
+	}
+
+	normalizedSize := strings.TrimSpace(strings.ToLower(sizeString))
+	var suffix string
+	if len(normalizedSize) >= 3 {
+		suffix = normalizedSize[len(normalizedSize)-3:]
+
+		// check if suffix is in units map
+		if factor, ok := units[suffix]; ok {
+			size, err := strconv.ParseFloat(normalizedSize[:len(normalizedSize)-len(suffix)], 64)
+			if err != nil {
+				// If parsing fails, see if it's a number longer than 3 digits but has bytes
+				return 0, fmt.Errorf("error parsing size %s: %w", sizeString, err)
+			}
+			return size * factor, nil
+		}
+	}
+
+	// check if suffix is bytes
+	if strings.HasSuffix(normalizedSize, "b") {
+		size, err := strconv.ParseFloat(normalizedSize[:len(normalizedSize)-1], 64)
+		if err != nil {
+			return 0, fmt.Errorf("error parsing size %s: %w", sizeString, err)
+		}
+		return size, nil
+	}
+
+	return 0, fmt.Errorf("no matching units found for: %s", sizeString)
 }
