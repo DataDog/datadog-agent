@@ -85,7 +85,7 @@ func GetStaticTagsSlice(ctx context.Context, datadogConfig config.Reader) []stri
 
 		ecsMeta, err := ecs.NewECSMeta(ctx)
 		if err != nil {
-			log.Infof("Couldn't build the 'ecs_cluster_name' tag: %v", err)
+			log.Infof("Couldn't build the %s' tag: %v", tags.EcsClusterName, err)
 		} else {
 			tagSlice = append(tagSlice, fmt.Sprintf("%s:%s", tags.EcsClusterName, ecsMeta.ECSCluster))
 		}
