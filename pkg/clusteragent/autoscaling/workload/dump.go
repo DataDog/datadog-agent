@@ -18,13 +18,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// AutoscalingDumpResponse is used to dump the autoscaling store content
-type AutoscalingDumpResponse struct {
+// AutoscalersInfo is used to dump the autoscaling store content
+type AutoscalersInfo struct {
 	PodAutoscalers []*model.PodAutoscalerInternal `json:"pod_autoscalers"`
 }
 
 // Dump returns the autoscaling store content
-func Dump() *AutoscalingDumpResponse {
+func Dump() *AutoscalersInfo {
 	if !pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") {
 		log.Debug("Autoscaling is disabled")
 		return nil
@@ -39,7 +39,7 @@ func Dump() *AutoscalingDumpResponse {
 		datadogPodAutoscalerAddr = append(datadogPodAutoscalerAddr, &podAutoscaler)
 	}
 
-	response := AutoscalingDumpResponse{
+	response := AutoscalersInfo{
 		PodAutoscalers: datadogPodAutoscalerAddr,
 	}
 
@@ -47,7 +47,7 @@ func Dump() *AutoscalingDumpResponse {
 }
 
 // Write writes the autoscaling store content to a given writer in a human-readable format
-func (adr *AutoscalingDumpResponse) Write(writer io.Writer) {
+func (adr *AutoscalersInfo) Write(writer io.Writer) {
 	if adr == nil {
 		return
 	}
