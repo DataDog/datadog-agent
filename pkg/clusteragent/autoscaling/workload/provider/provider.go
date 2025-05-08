@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/external"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/local"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
@@ -48,7 +49,9 @@ func StartWorkloadAutoscaling(
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "datadog-workload-autoscaler"})
 
-	store := workload.GetAutoscalingStore()
+	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	workload.InitDumper(store)
+
 	podPatcher := workload.NewPodPatcher(store, isLeaderFunc, apiCl.DynamicCl, eventRecorder)
 	podWatcher := workload.NewPodWatcher(wlm, podPatcher)
 

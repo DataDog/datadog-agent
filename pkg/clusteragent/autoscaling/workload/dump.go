@@ -18,6 +18,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type storeDumper struct {
+	store *store
+}
+
+var defaultDumper storeDumper
+
+// Init initializes the default dumper with a given store
+func InitDumper(store *store) {
+	defaultDumper.store = store
+}
+
 // AutoscalersInfo is used to dump the autoscaling store content
 type AutoscalersInfo struct {
 	PodAutoscalers []model.PodAutoscalerInternal `json:"pod_autoscalers"`
@@ -30,7 +41,12 @@ func Dump() *AutoscalersInfo {
 		return nil
 	}
 
-	datadogPodAutoscalers := GetAutoscalingStore().GetAll()
+	if defaultDumper.store == nil {
+		log.Debug("Autoscaling store dumper is not initialized")
+		return nil
+	}
+
+	datadogPodAutoscalers := defaultDumper.store.GetAll()
 
 	log.Debugf("Found %d pod autoscalers", len(datadogPodAutoscalers))
 
