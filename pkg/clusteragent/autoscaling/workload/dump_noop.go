@@ -11,13 +11,13 @@ import (
 	"io"
 )
 
-// AutoscalingDumpResponse is an empty placeholder struct
-type AutoscalingDumpResponse struct{}
+// AutoscalersInfo is an empty placeholder struct
+type AutoscalersInfo struct{}
 
-// Dump is a noop function that returns an empty AutoscalingDumpResponse
-func Dump() *AutoscalingDumpResponse {
+// Dump is a noop function that returns an empty AutoscalersInfo
+func Dump() *AutoscalersInfo {
 	return nil
 }
 
 // Write is a noop function that does nothing
-func (*AutoscalingDumpResponse) Write(io.Writer) {}
+func (*AutoscalersInfo) Write(io.Writer) {}
