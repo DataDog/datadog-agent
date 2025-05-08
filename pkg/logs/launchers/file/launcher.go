@@ -60,6 +60,7 @@ type Launcher struct {
 	flarecontroller        *flareController.FlareController
 	tagger                 tagger.Component
 	wg                     sync.WaitGroup
+	scanMutex              sync.Mutex
 }
 
 // NewLauncher returns a new launcher.
@@ -122,8 +123,15 @@ func (s *Launcher) run() {
 		case source := <-s.removedSources:
 			s.removeSource(source)
 		case <-scanTicker.C:
-			s.wg.Add(1)
-			go s.cleanupRotatedTailersAndScan()
+			if s.scanMutex.TryLock() {
+				s.wg.Add(1)
+				go func() {
+					defer s.scanMutex.Unlock()
+					s.cleanupRotatedTailersAndScan()
+				}()
+			} else {
+				log.Debugf("Skipping scan as another scan is already in progress")
+			}
 		case <-s.stop:
 			s.wg.Wait()
 			// no more file should be tailed
