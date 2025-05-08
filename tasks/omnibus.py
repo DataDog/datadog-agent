@@ -183,7 +183,6 @@ def build(
     skip_deps=False,
     skip_sign=False,
     major_version='7',
-    release_version="nightly",
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -197,9 +196,6 @@ def build(
     """
     Build the Agent packages with Omnibus Installer.
     """
-
-    if release_version:
-        print("The release_version argument is deprecated and will be removed soon.")
 
     flavor = AgentFlavor[flavor]
     fips_mode = flavor.is_fips()

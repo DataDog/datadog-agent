@@ -10,7 +10,7 @@ import (
 )
 
 func TestPublishTraceWriterInfo(t *testing.T) {
-	traceWriterInfo = TraceWriterInfo{
+	ift.traceWriterInfo = &TraceWriterInfo{
 		// do not use field names here, to ensure we cover all fields
 		atom(1),
 		atom(2),
@@ -39,7 +39,7 @@ func TestPublishTraceWriterInfo(t *testing.T) {
 }
 
 func TestPublishStatsWriterInfo(t *testing.T) {
-	statsWriterInfo = StatsWriterInfo{
+	ift.statsWriterInfo = &StatsWriterInfo{
 		// do not use field names here, to ensure we cover all fields
 		atom(1),
 		atom(2),
@@ -66,7 +66,7 @@ func TestPublishStatsWriterInfo(t *testing.T) {
 }
 
 func TestPublishRateByService(t *testing.T) {
-	rateByService = map[string]float64{"foo": 123.0}
+	ift.rateByService = map[string]float64{"foo": 123.0}
 
 	testExpvarPublish(t, publishRateByService,
 		map[string]interface{}{
