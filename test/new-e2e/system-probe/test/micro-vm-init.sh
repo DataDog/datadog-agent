@@ -7,7 +7,7 @@ docker_dir=/kmt-dockers
 ## Start docker if available, some images (e.g. SUSE arm64 for CWS) do not have it installed
 if command -v docker ; then
     systemctl start docker
-    
+
     ## Load docker images
     if [[ -d "${docker_dir}" ]]; then
         find "${docker_dir}" -maxdepth 1 -type f -exec docker load -i {} \;
@@ -38,10 +38,13 @@ if [ "${COLLECT_COMPLEXITY:-}" = "yes" ]; then
     if [[ "${arch}" == "aarch64" ]]; then
         arch="arm64"
     fi
-    
+
     test_root=$(echo "$@" | sed 's/.*-test-root \([^ ]*\).*/\1/')
     export DD_SYSTEM_PROBE_BPF_DIR="${test_root}/pkg/ebpf/bytecode/build/${arch}"
-    
+
+    # Limit maximum memory usage of the calculator to 5GB to avoid OOM errors affecting the entire connector
+    ulimit -v $((5 * 1024 * 1024))
+
     if /opt/testing-tools/verifier-calculator -line-complexity -complexity-data-dir /verifier-complexity/complexity-data  -summary-output /verifier-complexity/verifier_stats.json &> /verifier-complexity/calculator.log ; then
         echo "Data collected, creating tarball at /verifier-complexity.tar.gz"
         tar -C /verifier-complexity -czf /verifier-complexity.tar.gz . || echo "Failed to created verifier-complexity.tar.gz"
