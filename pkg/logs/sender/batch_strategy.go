@@ -8,7 +8,6 @@ package sender
 
 import (
 	"bytes"
-	"io"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -223,11 +222,17 @@ func (s *batchStrategy) sendMessages(outputChan chan *message.Payload) {
 	// 	return
 	// }
 
+	defer func() {
+		payloadWriter := &bytes.Buffer{}
+		s.compressor = s.compression.NewStreamCompressor(payloadWriter)
+		s.payloadWriter = payloadWriter
+	}()
+
 	if _, err := s.compressor.Write([]byte{']'}); err != nil {
 		log.Warn("Encoding failed", err)
 	}
 
-	if err := s.compressor.Flush(); err != nil {
+	if err := s.compressor.Close(); err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
 		s.utilization.Stop()
 		return
@@ -245,32 +250,9 @@ func (s *batchStrategy) sendMessages(outputChan chan *message.Payload) {
 	}
 
 	p := message.NewPayload([]*message.Message{}, s.payloadWriter.Bytes(), s.compression.ContentEncoding(), 0)
-	s.payloadWriter.Reset()
 
 	s.utilization.Stop()
 	outputChan <- p
 	s.pipelineMonitor.ReportComponentEgress(p, "strategy")
 	s.pipelineMonitor.ReportComponentIngress(p, "sender")
-}
-
-// writerCounter is a simple io.Writer that counts the number of bytes written to it
-type writerCounter struct {
-	io.Writer
-	counter int
-}
-
-func newWriterWithCounter(w io.Writer) *writerCounter {
-	return &writerCounter{Writer: w}
-}
-
-// Write writes the given bytes and increments the counter
-func (wc *writerCounter) Write(b []byte) (int, error) {
-	n, err := wc.Writer.Write(b)
-	wc.counter += n
-	return n, err
-}
-
-// getWrittenBytes returns the number of bytes written to the writer
-func (wc *writerCounter) getWrittenBytes() int {
-	return wc.counter
 }
