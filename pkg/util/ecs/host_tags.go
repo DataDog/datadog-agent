@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"time"
 )
 
@@ -25,5 +26,13 @@ func GetTags(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
-	return []string{fmt.Sprintf("%s:%s", tags.EcsClusterName, cluster)}, nil
+	var hostTags []string
+
+	if !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
+		hostTags = append(hostTags, fmt.Sprintf("%s:%s", tags.ClusterName, cluster))
+	}
+	// always tag with ecs_cluster_name
+	hostTags = append(hostTags, fmt.Sprintf("%s:%s", tags.EcsClusterName, cluster))
+
+	return hostTags, nil
 }

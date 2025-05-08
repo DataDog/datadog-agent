@@ -460,12 +460,11 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	taskTags.AddLow(tags.Region, task.Region)
 	taskTags.AddOrchestrator(tags.TaskARN, task.ID)
 
-	//if task.ClusterName != "" {
-	//	if !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
-	//		taskTags.AddLow(tags.ClusterName, task.ClusterName)
-	//	}
-	//	taskTags.AddLow(tags.EcsClusterName, task.ClusterName)
-	//}
+	if task.ClusterName != "" {
+		if !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
+			taskTags.AddLow(tags.ClusterName, task.ClusterName)
+		}
+	}
 
 	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
 		taskTags.AddLow(tags.AvailabilityZoneDeprecated, task.AvailabilityZone) // Deprecated

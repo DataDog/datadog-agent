@@ -9,6 +9,7 @@ package tags
 import (
 	"context"
 	"fmt"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"strings"
 	"time"
@@ -78,7 +79,7 @@ func GetStaticTagsSlice(ctx context.Context, datadogConfig config.Reader) []stri
 		}
 	}
 
-	// ECS Fargate specific tagSlice
+	// ECS Fargate specific tags
 	if env.IsFeaturePresent(env.ECSFargate) {
 		ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 		defer cancel()
@@ -87,6 +88,10 @@ func GetStaticTagsSlice(ctx context.Context, datadogConfig config.Reader) []stri
 		if err != nil {
 			log.Infof("Couldn't build the %s' tag: %v", tags.EcsClusterName, err)
 		} else {
+			if !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
+				tagSlice = append(tagSlice, fmt.Sprintf("%s:%s", tags.ClusterName, ecsMeta.ECSCluster))
+			}
+			// always tag with ecs_cluster_name
 			tagSlice = append(tagSlice, fmt.Sprintf("%s:%s", tags.EcsClusterName, ecsMeta.ECSCluster))
 		}
 	}
