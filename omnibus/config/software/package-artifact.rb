@@ -1,4 +1,4 @@
-name 'package-artifacts'
+name 'package-artifact'
 
 description "Helper to package an XZ build artifact to deb/rpm/..."
 
