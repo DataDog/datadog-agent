@@ -18,7 +18,7 @@ import (
 // GetTags returns host tags or static tags that are automatically added to
 // ECS metrics
 func GetTags(ctx context.Context) ([]string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 
 	cluster, _, err := getECSMetadata(ctx)
