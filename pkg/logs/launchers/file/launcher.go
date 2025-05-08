@@ -286,8 +286,17 @@ func (s *Launcher) addSource(source *sources.LogSource) {
 
 // removeSource removes the source from cache.
 func (s *Launcher) removeSource(source *sources.LogSource) {
+	s.pendingSourcesMutex.Lock()
+	defer s.pendingSourcesMutex.Unlock()
 	s.activeSourcesMutex.Lock()
 	defer s.activeSourcesMutex.Unlock()
+
+	for i, src := range s.pendingSources {
+		if src == source {
+			s.pendingSources = slices.Delete(s.pendingSources, i, i+1)
+			break
+		}
+	}
 
 	for i, src := range s.activeSources {
 		if src == source {
