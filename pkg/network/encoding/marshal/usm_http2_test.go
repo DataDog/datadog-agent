@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux && linux_bpf
+
 package marshal
 
 import (
@@ -250,7 +252,7 @@ func (s *HTTP2Suite) TestHTTP2IDCollisionRegression() {
 	// addresses but different PIDs *won't* be associated with the HTTP2 stats
 	// object
 	streamer := NewProtoTestStreamer[*model.Connection]()
-	http2Encoder.WriteHTTP2AggregationsAndTags(connections[1], model.NewConnectionBuilder(streamer))
+	http2Encoder.EncodeConnection(connections[1], model.NewConnectionBuilder(streamer))
 
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)
@@ -334,7 +336,7 @@ func (s *HTTP2Suite) TestHTTP2LocalhostScenario() {
 
 func getHTTP2Aggregations(t *testing.T, encoder *http2Encoder, c network.ConnectionStats) (*model.HTTP2Aggregations, uint64, map[string]struct{}) {
 	streamer := NewProtoTestStreamer[*model.Connection]()
-	staticTags, dynamicTags := encoder.WriteHTTP2AggregationsAndTags(c, model.NewConnectionBuilder(streamer))
+	staticTags, dynamicTags := encoder.EncodeConnection(c, model.NewConnectionBuilder(streamer))
 
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)

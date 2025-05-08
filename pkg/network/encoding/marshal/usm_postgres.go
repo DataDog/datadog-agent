@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux && linux_bpf
+
 package marshal
 
 import (
@@ -33,21 +35,21 @@ func newPostgresEncoder(postgresPayloads map[postgres.Key]*postgres.RequestStat)
 	}
 }
 
-func (e *postgresEncoder) WritePostgresAggregations(c network.ConnectionStats, builder *model.ConnectionBuilder) uint64 {
+func (e *postgresEncoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (uint64, map[string]struct{}) {
 	if e == nil {
-		return 0
+		return 0, nil
 	}
 
 	connectionData := e.byConnection.Find(c)
 	if connectionData == nil || len(connectionData.Data) == 0 || connectionData.IsPIDCollision(c) {
-		return 0
+		return 0, nil
 	}
 
 	staticTags := uint64(0)
 	builder.SetDatabaseAggregations(func(b *bytes.Buffer) {
 		staticTags |= e.encodeData(connectionData, b)
 	})
-	return staticTags
+	return staticTags, nil
 }
 
 func (e *postgresEncoder) encodeData(connectionData *USMConnectionData[postgres.Key, *postgres.RequestStat], w io.Writer) uint64 {

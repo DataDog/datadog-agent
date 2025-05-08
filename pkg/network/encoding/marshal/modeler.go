@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build (linux && linux_bpf) || (windows && npm)
+
 package marshal
 
 import (
@@ -21,15 +23,11 @@ var (
 
 // ConnectionsModeler contains all the necessary structs for modeling a connection.
 type ConnectionsModeler struct {
-	httpEncoder     *httpEncoder
-	http2Encoder    *http2Encoder
-	kafkaEncoder    *kafkaEncoder
-	postgresEncoder *postgresEncoder
-	redisEncoder    *redisEncoder
-	dnsFormatter    *dnsFormatter
-	ipc             ipCache
-	routeIndex      map[string]RouteIdx
-	tagsSet         *network.TagsSet
+	usmEncoders  []usmEncoder
+	dnsFormatter *dnsFormatter
+	ipc          ipCache
+	routeIndex   map[string]RouteIdx
+	tagsSet      *network.TagsSet
 }
 
 // NewConnectionsModeler initializes the connection modeler with encoders, dns formatter for
@@ -40,25 +38,19 @@ type ConnectionsModeler struct {
 func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
 	ipc := make(ipCache, len(conns.Conns)/2)
 	return &ConnectionsModeler{
-		httpEncoder:     newHTTPEncoder(conns.HTTP),
-		http2Encoder:    newHTTP2Encoder(conns.HTTP2),
-		kafkaEncoder:    newKafkaEncoder(conns.Kafka),
-		postgresEncoder: newPostgresEncoder(conns.Postgres),
-		redisEncoder:    newRedisEncoder(conns.Redis),
-		ipc:             ipc,
-		dnsFormatter:    newDNSFormatter(conns, ipc),
-		routeIndex:      make(map[string]RouteIdx),
-		tagsSet:         network.NewTagsSet(),
+		usmEncoders:  initializeUSMEncoders(conns),
+		ipc:          ipc,
+		dnsFormatter: newDNSFormatter(conns, ipc),
+		routeIndex:   make(map[string]RouteIdx),
+		tagsSet:      network.NewTagsSet(),
 	}
 }
 
 // Close cleans all encoders resources.
 func (c *ConnectionsModeler) Close() {
-	c.httpEncoder.Close()
-	c.http2Encoder.Close()
-	c.kafkaEncoder.Close()
-	c.postgresEncoder.Close()
-	c.redisEncoder.Close()
+	for _, encoder := range c.usmEncoders {
+		encoder.Close()
+	}
 }
 
 func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder, conns *network.Connections) {
@@ -73,7 +65,7 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 
 	for _, conn := range conns.Conns {
 		builder.AddConns(func(builder *model.ConnectionBuilder) {
-			FormatConnection(builder, conn, c.routeIndex, c.httpEncoder, c.http2Encoder, c.kafkaEncoder, c.postgresEncoder, c.redisEncoder, c.dnsFormatter, c.ipc, c.tagsSet)
+			FormatConnection(builder, conn, c.routeIndex, c.usmEncoders, c.dnsFormatter, c.ipc, c.tagsSet)
 		})
 	}
 
