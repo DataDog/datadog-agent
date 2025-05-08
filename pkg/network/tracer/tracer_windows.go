@@ -84,7 +84,6 @@ func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.Cl
 	}
 
 	state := network.NewState(
-		telemetry,
 		config.ClientStateExpiry,
 		config.MaxClosedConnectionsBuffered,
 		config.MaxConnectionsStateBuffered,

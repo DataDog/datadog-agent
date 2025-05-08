@@ -592,7 +592,7 @@ func TestNoPriorRegistrationActiveConnections(t *testing.T) {
 func TestCleanupClient(t *testing.T) {
 	clientID := "1"
 
-	state := NewState(nil, 100*time.Millisecond, 50000, 75000, 75000, 7500, 75000, 75000, 75000, false, false)
+	state := NewState(100*time.Millisecond, 50000, 75000, 75000, 7500, 75000, 75000, 75000, false, false)
 	clients := state.(*networkState).getClients()
 	assert.Equal(t, 0, len(clients))
 
@@ -2907,7 +2907,7 @@ func latestEpochTime() uint64 {
 
 func newDefaultState() *networkState {
 	// Using values from ebpf.NewConfig()
-	return NewState(nil, 2*time.Minute, 50000, 75000, 75000, 7500, 7500, 7500, 7500, false, false).(*networkState)
+	return NewState(2*time.Minute, 50000, 75000, 75000, 7500, 7500, 7500, 7500, false, false).(*networkState)
 }
 
 func getIPProtocol(nt ConnectionType) uint8 {

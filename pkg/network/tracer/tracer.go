@@ -220,7 +220,6 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	tr.sourceExcludes = filter.ParseConnectionFilters(cfg.ExcludedSourceConnections)
 	tr.destExcludes = filter.ParseConnectionFilters(cfg.ExcludedDestinationConnections)
 	tr.state = network.NewState(
-		telemetryComponent,
 		cfg.ClientStateExpiry,
 		cfg.MaxClosedConnectionsBuffered,
 		cfg.MaxConnectionsStateBuffered,
