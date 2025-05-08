@@ -66,7 +66,7 @@ func (e *EventWrapper) KeyName() string {
 // CommandType returns the command type of the query
 func (e *EventWrapper) CommandType() CommandType {
 	if !e.commandSet {
-		e.command = CommandType(e.Tx.Command)
+		e.command = fromEbpfCommandType(e.Tx.Command)
 		e.commandSet = true
 	}
 	return e.command
@@ -98,14 +98,13 @@ func (e *EventWrapper) String() string {
 	return output.String()
 }
 
-// String returns a string representation of Command
-func (c CommandType) String() string {
+func fromEbpfCommandType(c commandType) CommandType {
 	switch c {
-	case GetCommand:
-		return "GET"
-	case SetCommand:
-		return "SET"
+	case getCommand:
+		return GetCommand
+	case setCommand:
+		return SetCommand
 	default:
-		return "UNKNOWN"
+		return UnknownCommand
 	}
 }
