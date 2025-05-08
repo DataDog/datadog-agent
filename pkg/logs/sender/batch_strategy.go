@@ -32,12 +32,14 @@ type batchStrategy struct {
 	serverlessMeta ServerlessMeta
 	buffer         *MessageBuffer
 	// pipelineName provides a name for the strategy to differentiate it from other instances in other internal pipelines
-	pipelineName string
-	serializer   Serializer
-	batchWait    time.Duration
-	compression  compression.Compressor
-	stopChan     chan struct{} // closed when the goroutine has finished
-	clock        clock.Clock
+	pipelineName  string
+	serializer    Serializer
+	batchWait     time.Duration
+	compression   compression.Compressor
+	compressor    compression.StreamCompressor
+	payloadWriter *bytes.Buffer
+	stopChan      chan struct{} // closed when the goroutine has finished
+	clock         clock.Clock
 
 	// Telemtry
 	pipelineMonitor metrics.PipelineMonitor
@@ -69,8 +71,15 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 	maxContentSize int,
 	pipelineName string,
 	clock clock.Clock,
-	compression compression.Compressor,
+	cmp compression.Compressor,
 	pipelineMonitor metrics.PipelineMonitor) Strategy {
+
+	payloadWriter := &bytes.Buffer{}
+
+	compressor := cmp.NewStreamCompressor(payloadWriter)
+	if compressor == nil {
+		compressor = &compression.NoopStreamCompressor{Writer: payloadWriter}
+	}
 
 	return &batchStrategy{
 		inputChan:       inputChan,
@@ -80,12 +89,14 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 		buffer:          NewMessageBuffer(maxBatchSize, maxContentSize),
 		serializer:      serializer,
 		batchWait:       batchWait,
-		compression:     compression,
+		compression:     cmp,
 		stopChan:        make(chan struct{}),
 		pipelineName:    pipelineName,
 		clock:           clock,
 		pipelineMonitor: pipelineMonitor,
 		utilization:     pipelineMonitor.MakeUtilizationMonitor("strategy"),
+		payloadWriter:   payloadWriter,
+		compressor:      compressor,
 	}
 }
 
@@ -163,13 +174,8 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 }
 
 func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan chan *message.Payload) {
-	var encodedPayload bytes.Buffer
-	compressor := s.compression.NewStreamCompressor(&encodedPayload)
-	if compressor == nil {
-		compressor = &compression.NoopStreamCompressor{Writer: &encodedPayload}
-	}
 
-	wc := newWriterWithCounter(compressor)
+	wc := newWriterWithCounter(s.compressor)
 
 	if err := s.serializer.Serialize(messages, wc); err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
@@ -177,7 +183,7 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 		return
 	}
 
-	if err := compressor.Close(); err != nil {
+	if err := s.compressor.Flush(); err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
 		s.utilization.Stop()
 		return
@@ -194,7 +200,7 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 		s.serverlessMeta.Unlock()
 	}
 
-	p := message.NewPayload(messages, encodedPayload.Bytes(), s.compression.ContentEncoding(), unencodedSize)
+	p := message.NewPayload(messages, s.payloadWriter.Bytes(), s.compression.ContentEncoding(), unencodedSize)
 
 	s.utilization.Stop()
 	outputChan <- p
