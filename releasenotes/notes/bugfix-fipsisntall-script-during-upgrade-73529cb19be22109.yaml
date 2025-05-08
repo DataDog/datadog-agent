@@ -8,5 +8,4 @@
 ---
 fixes:
   - |
-    (datadog-fips-agent) Bugfix for the post install script to always rebuild the
-    fipsmodule.cnf in case the embedded OpenSSL has been updated.
+    (datadog-fips-agent)  Ensure the post-install script always rebuilds fipsmodule.cnf in case the embedded OpenSSL is updated.
