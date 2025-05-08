@@ -263,7 +263,7 @@ func Diagnose() []diagnose.Diagnosis {
 
 	for _, desc := range passthroughPipelineDescs {
 		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfigsetup.Datadog())
-		endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
+		endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin, config.EndpointCompressionOptions{})
 		if err != nil {
 			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Status:      diagnose.DiagnosisFail,
@@ -396,12 +396,10 @@ func newHTTPPassthroughPipeline(
 	destinationsContext *client.DestinationsContext,
 	pipelineID int,
 ) (p *passthroughPipeline, err error) {
-
 	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig)
-
-	var opts []config.EndpointCompressionOptionFunc
-	if desc.forceCompressionKind != "" {
-		opts = append(opts, config.WithCompression(desc.forceCompressionKind, desc.forceCompressionLevel))
+	compressionOptions := config.EndpointCompressionOptions{
+		CompressionKind:  desc.forceCompressionKind,
+		CompressionLevel: desc.forceCompressionLevel,
 	}
 	endpoints, err := config.BuildHTTPEndpointsWithConfig(
 		coreConfig,
@@ -410,7 +408,7 @@ func newHTTPPassthroughPipeline(
 		desc.intakeTrackType,
 		config.DefaultIntakeProtocol,
 		config.DefaultIntakeOrigin,
-		opts...,
+		compressionOptions,
 	)
 	if err != nil {
 		return nil, err

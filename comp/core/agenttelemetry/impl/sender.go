@@ -20,6 +20,8 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
+	"github.com/DataDog/zstd"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -27,7 +29,6 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/zstd"
 )
 
 const (
@@ -191,7 +192,7 @@ func getEndpoints(cfgComp config.Component) (*logconfig.Endpoints, error) {
 	// Will be eliminated in the future after switching to EP Forwarder.
 	configKeys := logconfig.NewLogsConfigKeys(telemetryConfigPrefix, cfgComp)
 	return logconfig.BuildHTTPEndpointsWithConfig(cfgComp, configKeys,
-		telemetryHostnameEndpointPrefix, telemetryIntakeTrackType, logconfig.DefaultIntakeProtocol, logconfig.DefaultIntakeOrigin)
+		telemetryHostnameEndpointPrefix, telemetryIntakeTrackType, logconfig.DefaultIntakeProtocol, logconfig.DefaultIntakeOrigin, logconfig.EndpointCompressionOptions{})
 }
 
 func newSenderImpl(

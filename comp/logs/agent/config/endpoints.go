@@ -83,6 +83,12 @@ type unmarshalEndpoint struct {
 	Endpoint `mapstructure:",squash"`
 }
 
+// EndpointCompressionOptions is the compression options for the endpoint
+type EndpointCompressionOptions struct {
+	CompressionKind  string
+	CompressionLevel int
+}
+
 // NewEndpoint returns a new Endpoint with the minimal field initialized.
 func NewEndpoint(apiKey string, apiKeyConfigPath string, host string, port int, useSSL bool) Endpoint {
 	apiKey = pkgconfigutils.SanitizeAPIKey(apiKey)
@@ -114,19 +120,15 @@ func newTCPEndpoint(logsConfig *LogsConfigKeys) Endpoint {
 
 // newHTTPEndpoint returns a new HTTP Endpoint based on LogsConfigKeys The endpoint is by default reliable and will use
 // the settings related to HTTP from the configuration (compression, Backoff, recovery, ...).
-func newHTTPEndpoint(logsConfig *LogsConfigKeys, opts ...EndpointCompressionOptions) Endpoint {
-	var opt EndpointCompressionOptions
-	if len(opts) > 0 {
-		opt = opts[0]
-	}
+func newHTTPEndpoint(logsConfig *LogsConfigKeys, compressionOptions EndpointCompressionOptions) Endpoint {
 
 	apiKey, configPath := logsConfig.getMainAPIKey()
 	e := Endpoint{
 		apiKey:                  atomic.NewString(apiKey),
 		configSettingPath:       configPath,
 		UseCompression:          logsConfig.useCompression(),
-		CompressionKind:         logsConfig.compressionKind(opt.CompressionKind),
-		CompressionLevel:        logsConfig.compressionLevel(opt.CompressionLevel),
+		CompressionKind:         logsConfig.compressionKind(),
+		CompressionLevel:        logsConfig.compressionLevel(),
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
 		BackoffBase:             logsConfig.senderBackoffBase(),
 		BackoffMax:              logsConfig.senderBackoffMax(),
@@ -136,6 +138,14 @@ func newHTTPEndpoint(logsConfig *LogsConfigKeys, opts ...EndpointCompressionOpti
 		useSSL:                  logsConfig.logsNoSSL(),
 		isReliable:              true, // by default endpoints are reliable
 	}
+
+	if compressionOptions.CompressionKind != "" {
+		e.CompressionKind = compressionOptions.CompressionKind
+	}
+	if compressionOptions.CompressionLevel != 0 {
+		e.CompressionLevel = compressionOptions.CompressionLevel
+	}
+
 	e.onConfigUpdate(logsConfig)
 	return e
 }

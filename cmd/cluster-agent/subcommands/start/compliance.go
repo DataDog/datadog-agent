@@ -44,7 +44,7 @@ func runCompliance(ctx context.Context, senderManager sender.SenderManager, wmet
 }
 
 func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), logsConfig, endpointPrefix, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), logsConfig, endpointPrefix, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin, config.EndpointCompressionOptions{})
 	if err != nil {
 		endpoints, err = config.BuildHTTPEndpoints(pkgconfigsetup.Datadog(), intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 		if err == nil {
