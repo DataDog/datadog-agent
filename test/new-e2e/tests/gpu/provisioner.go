@@ -49,6 +49,10 @@ type systemData struct {
 	// hasAllNVMLCriticalAPIs is true if the system has all the critical APIs in NVML
 	// that we need to run the GPU check.
 	hasAllNVMLCriticalAPIs bool
+
+	// supportsSystemProbeComponent is true if the system supports the system-probe component
+	// that is used to collect GPU metrics. Some systems have older kernels that we don't support.
+	supportsSystemProbeComponent bool
 }
 
 type systemName string

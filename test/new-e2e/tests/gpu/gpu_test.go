@@ -58,25 +58,28 @@ const (
 // gpuSystems is a map of AMIs for different Ubuntu versions
 var gpuSystems = map[systemName]systemData{
 	gpuSystemUbuntu2204: {
-		ami:                     "ami-03ee78da2beb5b622",
-		os:                      os.Ubuntu2204,
-		cudaSanityCheckImage:    cuda12DockerImage,
-		hasEcrCredentialsHelper: false, // needs to be installed from the repos
-		hasAllNVMLCriticalAPIs:  true,  // 22.04 has all the critical APIs
+		ami:                          "ami-03ee78da2beb5b622",
+		os:                           os.Ubuntu2204,
+		cudaSanityCheckImage:         cuda12DockerImage,
+		hasEcrCredentialsHelper:      false, // needs to be installed from the repos
+		hasAllNVMLCriticalAPIs:       true,  // 22.04 has all the critical APIs
+		supportsSystemProbeComponent: true,
 	},
 	gpuSystemUbuntu1804Driver430: {
-		ami:                     "ami-0cd4aa4912d788419",
-		cudaSanityCheckImage:    pytorch19DockerImage, // We don't have base CUDA 10 images from NVIDIA, so we use the PyTorch image
-		os:                      os.Ubuntu2004,        // We don't have explicit support for Ubuntu 18.04, but this descriptor is not super-strict
-		hasEcrCredentialsHelper: true,                 // already installed in the AMI, as it's not present in the 18.04 repos
-		hasAllNVMLCriticalAPIs:  false,                // DeviceGetNumGpuCores is missing for this version of the driver,                                                                                                    // 430 driver has all the critical APIs
+		ami:                          "ami-0cd4aa4912d788419",
+		cudaSanityCheckImage:         pytorch19DockerImage, // We don't have base CUDA 10 images from NVIDIA, so we use the PyTorch image
+		os:                           os.Ubuntu2004,        // We don't have explicit support for Ubuntu 18.04, but this descriptor is not super-strict
+		hasEcrCredentialsHelper:      true,                 // already installed in the AMI, as it's not present in the 18.04 repos
+		hasAllNVMLCriticalAPIs:       false,                // DeviceGetNumGpuCores is missing for this version of the driver,                                                                                                    // 430 driver has all the critical APIs
+		supportsSystemProbeComponent: false,
 	},
 	gpuSystemUbuntu1804Driver510: {
-		ami:                     "ami-0cbf114f88ec230fe",
-		cudaSanityCheckImage:    pytorch19DockerImage, // We don't have base CUDA 10 images from NVIDIA, so we use the PyTorch image
-		os:                      os.Ubuntu2004,        // We don't have explicit support for Ubuntu 18.04, but this descriptor is not super-strict
-		hasEcrCredentialsHelper: true,                 // already installed in the AMI, as it's not present in the 18.04 repos
-		hasAllNVMLCriticalAPIs:  true,                 // 510 driver has all the critical APIs
+		ami:                          "ami-0cbf114f88ec230fe",
+		cudaSanityCheckImage:         pytorch19DockerImage, // We don't have base CUDA 10 images from NVIDIA, so we use the PyTorch image
+		os:                           os.Ubuntu2004,        // We don't have explicit support for Ubuntu 18.04, but this descriptor is not super-strict
+		hasEcrCredentialsHelper:      true,                 // already installed in the AMI, as it's not present in the 18.04 repos
+		hasAllNVMLCriticalAPIs:       true,                 // 510 driver has all the critical APIs
+		supportsSystemProbeComponent: false,
 	},
 }
 
@@ -316,6 +319,10 @@ func (v *gpuBaseSuite[Env]) TestGPUSysprobeEndpointIsResponding() {
 		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
 	}
 
+	if !v.systemData.supportsSystemProbeComponent {
+		v.T().Skip("skipping test as system does not support the system-probe component")
+	}
+
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		out, err := v.caps.QuerySysprobe("gpu/check")
 		assert.NoError(c, err)
@@ -326,6 +333,10 @@ func (v *gpuBaseSuite[Env]) TestGPUSysprobeEndpointIsResponding() {
 func (v *gpuBaseSuite[Env]) TestLimitMetricsAreReported() {
 	if !v.systemData.hasAllNVMLCriticalAPIs {
 		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
+	}
+
+	if !v.systemData.supportsSystemProbeComponent {
+		v.T().Skip("skipping test as system does not support the system-probe component")
 	}
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
@@ -341,6 +352,10 @@ func (v *gpuBaseSuite[Env]) TestLimitMetricsAreReported() {
 func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 	if !v.systemData.hasAllNVMLCriticalAPIs {
 		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
+	}
+
+	if !v.systemData.supportsSystemProbeComponent {
+		v.T().Skip("skipping test as system does not support the system-probe component")
 	}
 
 	flake.Mark(v.T())
