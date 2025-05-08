@@ -42,7 +42,6 @@ type PostgresSuite struct {
 }
 
 func TestPostgresStats(t *testing.T) {
-	skipIfNotLinux(t)
 	suite.Run(t, &PostgresSuite{})
 }
 

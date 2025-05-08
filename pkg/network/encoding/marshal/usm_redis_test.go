@@ -41,7 +41,6 @@ type RedisSuite struct {
 }
 
 func TestRedisStats(t *testing.T) {
-	skipIfNotLinux(t)
 	suite.Run(t, &RedisSuite{})
 }
 
