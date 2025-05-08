@@ -12,9 +12,9 @@ var (
 	// UnknownCommand represents an unknown Redis command.
 	UnknownCommand = CommandType(0x0)
 	// GetCommand represents the GET Redis command.
-	GetCommand     = CommandType(0x1)
+	GetCommand = CommandType(0x1)
 	// SetCommand represents the SET Redis command.
-	SetCommand     = CommandType(0x2)
+	SetCommand = CommandType(0x2)
 )
 
 // String returns a string representation of Command
