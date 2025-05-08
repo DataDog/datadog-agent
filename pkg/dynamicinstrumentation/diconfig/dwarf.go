@@ -28,7 +28,7 @@ func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditype
 }
 
 func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
-	fmt.Println("Loading function definitions: ", targetFunctions)
+	log.Infof("Loading function definitions: %v", targetFunctions)
 	entryReader := dwarfData.Reader()
 	typeReader := dwarfData.Reader()
 	readingAFunction := false
@@ -50,6 +50,11 @@ entryLoop:
 	for {
 		entry, err = entryReader.Next()
 		if err == io.EOF || entry == nil {
+			log.Infof("Reached end of function definitions")
+			break
+		}
+		if err != nil {
+			log.Errorf("Error reading function definitions: %s", err)
 			break
 		}
 
@@ -131,6 +136,7 @@ entryLoop:
 					if _, ok := targetFunctions[funcName]; !ok {
 						continue entryLoop
 					}
+					log.Infof("Found target function: %s", funcName)
 					params := make([]*ditypes.Parameter, 0)
 					result.Functions[funcName] = params
 					readingAFunction = true
