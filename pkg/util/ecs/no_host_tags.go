@@ -9,4 +9,6 @@ package ecs
 
 import "context"
 
+// GetTags returns host tags or static tags that are automatically added to
+// ECS metrics
 func GetTags(ctx context.Context) ([]string, error) { return nil, nil }
