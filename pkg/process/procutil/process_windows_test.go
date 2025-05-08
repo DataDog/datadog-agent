@@ -106,9 +106,10 @@ func TestWindowsProbe(t *testing.T) {
 			defer cmd.Process.Kill()
 
 			procs, err := probe.ProcessesByPID(time.Now(), true)
-			assert.NoError(t, err)
 
+			assert.NoError(t, err)
 			p, found := procs[int32(cmd.Process.Pid)]
+
 			assert.True(t, found)
 			assert.True(t, strings.HasSuffix(p.Exe, "powershell.exe"))
 			assert.Equal(t, []string{"powershell.exe", "-c", `"sleep 10; foo bar baz"`}, p.Cmdline)
