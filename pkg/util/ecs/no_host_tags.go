@@ -5,14 +5,8 @@
 
 //go:build !docker
 
-// Package ecs provides information about the ECS Agent Version when running in ECS
 package ecs
 
-import (
-	"context"
-)
+import "context"
 
-// NewECSMeta returns a MetaECS object
-func NewECSMeta(_ context.Context) (*MetaECS, error) {
-	return nil, nil
-}
+func GetTags(ctx context.Context) ([]string, error) { return nil, nil }

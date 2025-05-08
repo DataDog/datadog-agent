@@ -15,13 +15,13 @@ import (
 	"time"
 )
 
-// GetTags returns tags that are automatically added to metrics and events on a
-// host that is running in ECS
+// GetTags returns host tags or static tags that are automatically added to
+// ECS metrics
 func GetTags(ctx context.Context) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 
-	cluster, _, err := getECSInstanceMetadata(ctx)
+	cluster, _, err := getECSMetadata(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -31,6 +31,7 @@ func GetTags(ctx context.Context) ([]string, error) {
 	if !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
 		hostTags = append(hostTags, fmt.Sprintf("%s:%s", tags.ClusterName, cluster))
 	}
+
 	// always tag with ecs_cluster_name
 	hostTags = append(hostTags, fmt.Sprintf("%s:%s", tags.EcsClusterName, cluster))
 

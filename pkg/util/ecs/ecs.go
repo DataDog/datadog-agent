@@ -49,6 +49,14 @@ func NewECSMeta(ctx context.Context) (*MetaECS, error) {
 	return &ecsMeta, nil
 }
 
+func getECSMetadata(ctx context.Context) (string, string, error) {
+	if env.IsFeaturePresent(env.ECSFargate) {
+		// There is no instance metadata endpoint on ECS Fargate
+		return getECSTaskMetadata(ctx)
+	}
+	return getECSInstanceMetadata(ctx)
+}
+
 func getECSInstanceMetadata(ctx context.Context) (string, string, error) {
 	metaV1, err = metadata.V1()
 	if err != nil {
