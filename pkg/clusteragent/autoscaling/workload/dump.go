@@ -41,9 +41,9 @@ func Dump() *AutoscalersInfo {
 	return &response
 }
 
-// Write writes the autoscaling store content to a given writer in a human-readable format
-func (adr *AutoscalersInfo) Write(writer io.Writer) {
-	if adr == nil {
+// Print writes the autoscaling store content to a given writer in a human-readable format
+func (info *AutoscalersInfo) Print(writer io.Writer) {
+	if info == nil {
 		return
 	}
 
@@ -51,7 +51,7 @@ func (adr *AutoscalersInfo) Write(writer io.Writer) {
 		color.NoColor = true
 	}
 
-	for _, autoscaler := range adr.PodAutoscalers {
+	for _, autoscaler := range info.PodAutoscalers {
 		fmt.Fprintf(writer, "\n=== PodAutoscaler %s ===\n", color.GreenString(autoscaler.ID()))
 
 		// Use the String() method of PodAutoscalerInternal

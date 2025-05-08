@@ -19,5 +19,5 @@ func Dump() *AutoscalersInfo {
 	return nil
 }
 
-// Write is a noop function that does nothing
-func (*AutoscalersInfo) Write(io.Writer) {}
+// Print is a noop function that does nothing
+func (*AutoscalersInfo) Print(io.Writer) {}
