@@ -821,6 +821,7 @@ def generate_complexity_summary_for_pr(
                     stats["limit"],
                 )
             )
+            successful_programs += 1
 
     _add_measures_to_complexity_job(
         ctx,
