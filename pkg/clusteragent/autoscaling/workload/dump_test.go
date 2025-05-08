@@ -45,7 +45,7 @@ func TestDump(t *testing.T) {
 
 	dump := Dump()
 	var buf bytes.Buffer
-	dump.Write(&buf)
+	dump.Print(&buf)
 	output := buf.String()
 
 	expectedOutput := fmt.Sprintf(`

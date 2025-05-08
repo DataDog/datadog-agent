@@ -118,11 +118,11 @@ func getAutoscalerList(w io.Writer, url string) error {
 		return fmt.Errorf("no autoscalers found")
 	}
 
-	adr := autoscalingWorkload.AutoscalersInfo{}
-	if err = json.Unmarshal(r, &adr); err != nil {
+	autoscalerDump := autoscalingWorkload.AutoscalersInfo{}
+	if err = json.Unmarshal(r, &autoscalerDump); err != nil {
 		return fmt.Errorf("error unmarshalling json: %s", err)
 	}
 
-	adr.Write(w)
+	autoscalerDump.Print(w)
 	return nil
 }
