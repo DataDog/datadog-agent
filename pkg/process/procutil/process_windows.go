@@ -529,7 +529,15 @@ func fillProcessDetails(pid int32, proc *Process) error {
 	return nil
 }
 
-// OpenProcessHandle attempts to open process handle for reading process memory with fallback to query basic info
+// OpenProcessHandle attempts to open a process handle with the highest available privilege of memory access
+// Currently, there are performance implications of opening the process handle twice for an unprotected process
+// 1. open with lower privilege
+// 2. check protection level
+// 3. open with higher privilege if not protected
+// Most processes will likely be unprotected and this operation takes ~5-10 microseconds which could be lowered to
+// ~3 microseconds if we open the process with the right access initially.
+// However, the current method was chosen due to security implications from a customer issue where their anti-virus
+// flagged the agent for attempting to open a process with the incorrect permissions
 func OpenProcessHandle(pid int32) (windows.Handle, bool, error) {
 	procHandle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
 	if err != nil {
