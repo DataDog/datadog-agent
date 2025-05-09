@@ -2,17 +2,9 @@
 .macos_setup_python:
   # Selecting the current Python version
   - !reference [.select_python_env_commands]
+  # List Python and Go existing environments and their disk space
+  - !reference [.list_python_versions_commands]
   - !reference [.install_python_dependencies]
-
-.macos_setup_go:
-  - echo Setting up Go
-  - mkdir -p ~/go
-  - export GO_VERSION="$(cat .go-version)"
-  - eval "$(gimme $GO_VERSION)"
-  - export PATH="$PATH:$GOROOT/bin"
-  - echo Go version should be $GO_VERSION
-  - go version
-  - dda inv check-go-version
 
 .macos_setup_cache:
   # Clean up previous builds
@@ -64,9 +56,6 @@ agent_dmg-x64-a7:
     - set -eo pipefail
     - !reference [.vault_login]
     - !reference [.macos_setup_python]
-    - !reference [.macos_setup_go]
-    # List Python and Go existing environments and their disk space
-    - !reference [.macos_clean_env]
     - !reference [.macos_setup_cache]
     - bash .gitlab/package_build/build_agent_dmg.sh
     - !reference [.upload_sbom_artifacts]
