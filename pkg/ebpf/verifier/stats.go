@@ -17,7 +17,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"runtime"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -262,22 +261,17 @@ func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult,
 					// Set to empty string to avoid the GC from keeping the verifier log in memory
 					p.VerifierLog = ""
 
-					// Force the GC to run. The calculator is not using the verifier log anymore and it's a big
-					// string (potentially 1GB). While Go should free it, we have seen issues running this program
-					// in KMT VMs.
-					runtime.GC()
+					// After each program, force Go to release as much memory as possible
+					// With line-complexity enabled, each program allocates a 1GB buffer for the
+					// verifier log, which means that the memory footprint of the program can get
+					// quite large before the garbage collector kicks in and releases memory to the OS.
+					// This causes out-of-memory errors in CI specially, which an environment with higher memory
+					// restrictions and multiple programs running in different VMs.
+					debug.FreeOSMemory()
 				default:
 					return fmt.Errorf("Unexpected type %T", field)
 				}
 			}
-
-			// After each program, force Go to release as much memory as possible
-			// With line-complexity enabled, each program allocates a 1GB buffer for the
-			// verifier log, which means that the memory footprint of the program can get
-			// quite large before the garbage collector kicks in and releases memory to the OS.
-			// This causes out-of-memory errors in CI specially, which an environment with higher memory
-			// restrictions and multiple programs running in different VMs.
-			debug.FreeOSMemory()
 		}
 
 		return nil
