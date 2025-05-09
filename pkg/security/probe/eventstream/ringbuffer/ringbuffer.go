@@ -88,7 +88,9 @@ func (rb *RingBuffer) Start(_ *sync.WaitGroup) error {
 func (rb *RingBuffer) SetMonitor(_ eventstream.LostEventCounter) {}
 
 func (rb *RingBuffer) handleEvent(record *ringbuf.Record, _ *manager.RingBuffer, _ *manager.Manager) {
-	rb.EventQueue <- record.RawSample
+	dataCopy := make([]byte, len(record.RawSample))
+	copy(dataCopy, record.RawSample)
+	rb.EventQueue <- dataCopy
 	rb.recordPool.Put(record)
 }
 
