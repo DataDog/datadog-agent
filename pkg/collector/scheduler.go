@@ -18,6 +18,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -64,15 +65,15 @@ type CheckScheduler struct {
 }
 
 // InitCheckScheduler creates and returns a check scheduler
-func InitCheckScheduler(collector option.Option[collector.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) *CheckScheduler {
+func InitCheckScheduler(collector option.Option[collector.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, agentTelemetry option.Option[agenttelemetry.Component]) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
 		senderManager:  senderManager,
 		configToChecks: make(map[string][]checkid.ID),
-		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger))),
+		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, agentTelemetry))),
 	}
 	// add the check loaders
-	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger) {
+	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger, agentTelemetry) {
 		checkScheduler.addLoader(loader)
 		log.Debugf("Added %s to Check Scheduler", loader)
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
@@ -60,15 +61,15 @@ func (lt *LoaderThree) Load(_ sender.SenderManager, _ integration.Config, _ inte
 
 func TestLoaderCatalog(t *testing.T) {
 	l1 := LoaderOne{}
-	factory1 := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, error) {
+	factory1 := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component, option.Option[agenttelemetry.Component]) (check.Loader, error) {
 		return l1, nil
 	}
 	l2 := LoaderTwo{}
-	factory2 := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, error) {
+	factory2 := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component, option.Option[agenttelemetry.Component]) (check.Loader, error) {
 		return l2, nil
 	}
 	var l3 *LoaderThree
-	factory3 := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, error) {
+	factory3 := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component, option.Option[agenttelemetry.Component]) (check.Loader, error) {
 		return l3, errors.New("error")
 	}
 
@@ -77,8 +78,9 @@ func TestLoaderCatalog(t *testing.T) {
 	RegisterLoader(30, factory3)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
+	agentTelemetry := option.None[agenttelemetry.Component]()
 	tagger := nooptagger.NewComponent()
-	require.Len(t, LoaderCatalog(senderManager, logReceiver, tagger), 2)
-	assert.Equal(t, l1, LoaderCatalog(senderManager, logReceiver, tagger)[1])
-	assert.Equal(t, l2, LoaderCatalog(senderManager, logReceiver, tagger)[0])
+	require.Len(t, LoaderCatalog(senderManager, logReceiver, tagger, agentTelemetry), 2)
+	assert.Equal(t, l1, LoaderCatalog(senderManager, logReceiver, tagger, agentTelemetry)[1])
+	assert.Equal(t, l2, LoaderCatalog(senderManager, logReceiver, tagger, agentTelemetry)[0])
 }
