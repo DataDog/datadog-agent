@@ -230,6 +230,7 @@ func (s *batchStrategy) sendMessages(outputChan chan *message.Payload) {
 		}
 		s.compressor = compressor
 		s.payloadWriter = payloadWriter
+		s.isFirstMessage = true
 	}()
 
 	if _, err := s.compressor.Write([]byte{']'}); err != nil {
