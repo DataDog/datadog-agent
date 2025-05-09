@@ -54,7 +54,7 @@ func (h *PodDisruptionBudgetHandlers) BuildMessageBody(ctx processors.ProcessorC
 		GroupId:              pctx.MsgGroupID,
 		GroupSize:            int32(groupSize),
 		PodDisruptionBudgets: models,
-		Tags:                 append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:                 pctx.ExtraTags,
 	}
 }
 
@@ -71,7 +71,7 @@ func (h *PodDisruptionBudgetHandlers) ResourceList(_ processors.ProcessorContext
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources
