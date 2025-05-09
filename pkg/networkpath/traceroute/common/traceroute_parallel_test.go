@@ -35,7 +35,7 @@ func initMockDriver(t *testing.T, params TracerouteParallelParams) *MockDriver {
 	return &MockDriver{
 		t:              t,
 		params:         params,
-		info:           TracerouteDriverInfo{UsesReceiveICMPProbe: true},
+		info:           TracerouteDriverInfo{UsesReceiveSecondaryProbe: true},
 		sentTTLs:       make(map[uint8]struct{}),
 		sendHandler:    nil,
 		receiveHandler: nil,
@@ -70,7 +70,7 @@ func (m *MockDriver) ReceiveProbe(timeout time.Duration) (*ProbeResponse, error)
 	return res, err
 }
 
-func (m *MockDriver) ReceiveICMPProbe(timeout time.Duration) (*ProbeResponse, error) {
+func (m *MockDriver) ReceiveSecondaryProbe(timeout time.Duration) (*ProbeResponse, error) {
 	require.Equal(m.t, m.params.PollFrequency, timeout)
 
 	if m.icmpReceiveHandler == nil {
@@ -602,14 +602,15 @@ func TestParallelTracerouteDestOverwrite(t *testing.T) {
 }
 
 func TestParallelTracerouteDisableICMP(t *testing.T) {
-	// this test checks that TracerouteParallel doesn't call ReceiveICMPProbe when it's disabled
+	// this test checks that TracerouteParallel doesn't call ReceiveSecondaryProbe when it's disabled
 	m := initMockDriver(t, testParams)
-	m.info.UsesReceiveICMPProbe = false
+
+	m.info.UsesReceiveSecondaryProbe = false
 	t.Parallel()
 
 	m.icmpReceiveHandler = func() (*ProbeResponse, error) {
-		t.Fatal("should not have called ReceiveICMPProbe")
-		return nil, fmt.Errorf("should not have called ReceiveICMPProbe")
+		t.Fatal("should not have called ReceiveSecondaryProbe")
+		return nil, fmt.Errorf("should not have called ReceiveSecondaryProbe")
 	}
 
 	_, err := TracerouteParallel(context.Background(), m, testParams)

@@ -80,7 +80,7 @@ func (s *sackDriver) Close() {
 
 func (s *sackDriver) GetDriverInfo() common.TracerouteDriverInfo {
 	return common.TracerouteDriverInfo{
-		UsesReceiveICMPProbe: true,
+		UsesReceiveSecondaryProbe: true,
 	}
 }
 
@@ -122,7 +122,7 @@ func (s *sackDriver) SendProbe(ttl uint8) error {
 func (s *sackDriver) ReceiveProbe(timeout time.Duration) (*common.ProbeResponse, error) {
 	return s.receiveProbe(s.tcpHandle, timeout)
 }
-func (s *sackDriver) ReceiveICMPProbe(timeout time.Duration) (*common.ProbeResponse, error) {
+func (s *sackDriver) ReceiveSecondaryProbe(timeout time.Duration) (*common.ProbeResponse, error) {
 	return s.receiveProbe(s.icmpHandle, timeout)
 }
 func (s *sackDriver) receiveProbe(handle *handle, timeout time.Duration) (*common.ProbeResponse, error) {
