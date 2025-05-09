@@ -12,11 +12,12 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 func TestProcessEndpoints(t *testing.T) {
@@ -61,7 +62,7 @@ func TestProcessEndpoints(t *testing.T) {
 
 	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.1", eps[0].GetServiceID())
 
-	adID, err := eps[0].GetADIdentifiers(ctx)
+	adID, err := eps[0].GetADIdentifiers()
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_endpoint_uid://default/myservice/10.0.0.1"}, adID)
 
@@ -79,7 +80,7 @@ func TestProcessEndpoints(t *testing.T) {
 
 	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.2", eps[1].GetServiceID())
 
-	adID, err = eps[1].GetADIdentifiers(ctx)
+	adID, err = eps[1].GetADIdentifiers()
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_endpoint_uid://default/myservice/10.0.0.2"}, adID)
 

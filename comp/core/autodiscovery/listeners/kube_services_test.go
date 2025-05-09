@@ -12,11 +12,12 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 func TestProcessService(t *testing.T) {
@@ -50,7 +51,7 @@ func TestProcessService(t *testing.T) {
 	svc := processService(ksvc)
 	assert.Equal(t, "kube_service://default/myservice", svc.GetServiceID())
 
-	adID, err := svc.GetADIdentifiers(ctx)
+	adID, err := svc.GetADIdentifiers()
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_service://default/myservice"}, adID)
 

@@ -89,7 +89,7 @@ func (s *EnvironmentService) GetServiceID() string {
 }
 
 // GetADIdentifiers return the single AD identifier for an environment service
-func (s *EnvironmentService) GetADIdentifiers(context.Context) ([]string, error) {
+func (s *EnvironmentService) GetADIdentifiers() ([]string, error) {
 	return []string{s.adIdentifier}, nil
 }
 

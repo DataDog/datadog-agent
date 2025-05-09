@@ -218,7 +218,7 @@ func (d *DBMAuroraService) GetTaggerEntity() string {
 }
 
 // GetADIdentifiers return the single AD identifier for a static config service
-func (d *DBMAuroraService) GetADIdentifiers(context.Context) ([]string, error) {
+func (d *DBMAuroraService) GetADIdentifiers() ([]string, error) {
 	return []string{d.adIdentifier}, nil
 }
 

@@ -451,7 +451,7 @@ func (s *KubeEndpointService) GetServiceID() string {
 }
 
 // GetADIdentifiers returns the service AD identifiers
-func (s *KubeEndpointService) GetADIdentifiers(context.Context) ([]string, error) {
+func (s *KubeEndpointService) GetADIdentifiers() ([]string, error) {
 	return []string{s.entity}, nil
 }
 

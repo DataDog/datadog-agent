@@ -35,7 +35,7 @@ func (s *dummyService) GetServiceID() string {
 }
 
 // GetADIdentifiers returns dummy identifiers
-func (s *dummyService) GetADIdentifiers(context.Context) ([]string, error) {
+func (s *dummyService) GetADIdentifiers() ([]string, error) {
 	return s.ADIdentifiers, nil
 }
 

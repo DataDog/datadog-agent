@@ -340,7 +340,7 @@ func (s *KubeServiceService) GetServiceID() string {
 }
 
 // GetADIdentifiers returns the service AD identifiers
-func (s *KubeServiceService) GetADIdentifiers(context.Context) ([]string, error) {
+func (s *KubeServiceService) GetADIdentifiers() ([]string, error) {
 	// Only the entity for now, to match on annotation
 	return []string{s.entity}, nil
 }

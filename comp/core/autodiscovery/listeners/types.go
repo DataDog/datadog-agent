@@ -30,7 +30,7 @@ type ContainerPort struct {
 type Service interface {
 	Equal(Service) bool                                          // compare two services
 	GetServiceID() string                                        // unique service name
-	GetADIdentifiers(context.Context) ([]string, error)          // identifiers on which templates will be matched
+	GetADIdentifiers() ([]string, error)                         // identifiers on which templates will be matched
 	GetHosts(context.Context) (map[string]string, error)         // network --> IP address
 	GetPorts(context.Context) ([]ContainerPort, error)           // network ports
 	GetTags() ([]string, error)                                  // tags

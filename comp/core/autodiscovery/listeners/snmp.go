@@ -440,7 +440,7 @@ func (s *SNMPService) GetServiceID() string {
 }
 
 // GetADIdentifiers returns a set of AD identifiers
-func (s *SNMPService) GetADIdentifiers(context.Context) ([]string, error) {
+func (s *SNMPService) GetADIdentifiers() ([]string, error) {
 	return []string{s.adIdentifier}, nil
 }
 

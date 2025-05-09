@@ -75,7 +75,7 @@ func (s *service) GetServiceID() string {
 }
 
 // GetADIdentifiers returns the service's AD identifiers.
-func (s *service) GetADIdentifiers(_ context.Context) ([]string, error) {
+func (s *service) GetADIdentifiers() ([]string, error) {
 	return s.adIdentifiers, nil
 }
 
