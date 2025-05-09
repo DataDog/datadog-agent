@@ -115,6 +115,10 @@ class KMTJob:
         response = self.job_api_object.retry()
         return response["id"]
 
+    def cancel(self) -> None:
+        """Cancel the job"""
+        self.job_api_object.cancel()
+
 
 class KMTSetupEnvJob(KMTJob):
     """Represent a kmt_setup_env_* job, with properties that allow extracting data from

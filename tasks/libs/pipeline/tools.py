@@ -4,9 +4,9 @@ import datetime
 import functools
 import platform
 import sys
+from enum import Enum
 from time import sleep, time
 from typing import cast
-from enum import Enum
 
 from gitlab import GitlabError
 from gitlab.exceptions import GitlabJobPlayError

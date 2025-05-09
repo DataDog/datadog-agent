@@ -42,7 +42,7 @@ from tasks.kernel_matrix_testing.infra import (
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
 from tasks.kernel_matrix_testing.kmt_os import flare as flare_kmt_os
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.platforms import KMTTestJob, get_platforms, platforms_file
+from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
@@ -2345,15 +2345,7 @@ def retry_test_job_dependencies(ctx: Context, pipeline_id: int, job_id: int, onl
         info(f"[+] Job {job_id} has not been retried, skipping")
         return
 
-    retry_only_failed = False
-    if job.cleanup_job is not None:
-        if job.cleanup_job.status == GitlabJobStatus.CREATED:
-            info("[+] Cleanup job has not run, which means instances are still running. We will only retry failed jobs")
-            retry_only_failed = True
-        elif job.cleanup_job.status.has_finished():
-            info("[+] Cleanup job has finished, we will retry all jobs")
-
-    # First, retry the setup_env job
+    # First, retry the setup_env job and all the dependency upload jobs
     setup_job = job.setup_job
     if setup_job is None:
         raise Exit(f"Job {job_id} has no setup_env job")
@@ -2362,6 +2354,22 @@ def retry_test_job_dependencies(ctx: Context, pipeline_id: int, job_id: int, onl
         setup_job,
         *setup_job.dependency_upload_jobs,
     ]
+
+    # Now check the status of the cleanup job
+    retry_only_failed = False
+    should_retry_cleanup = False
+    if job.cleanup_job is not None:
+        if job.cleanup_job.status == GitlabJobStatus.CREATED:
+            info("[+] Cleanup job has not run, which means instances are still running. We will only retry failed jobs")
+            retry_only_failed = True
+        else:
+            # Retry the cleanup job to ensure instances are cleaned up
+            should_retry_cleanup = True
+            if job.cleanup_job.status.has_finished():
+                info("[+] Cleanup job has finished, we will retry all jobs")
+            else:
+                info(f"[+] Cleanup job {job.cleanup_job.name} is running, we will cancel it")
+                job.cleanup_job.cancel()
 
     jobs_to_wait_for: list[int] = []
     for job in jobs_to_retry:
@@ -2376,6 +2384,10 @@ def retry_test_job_dependencies(ctx: Context, pipeline_id: int, job_id: int, onl
             info(f"[+] Retrying job {job.name}")
             jobs_to_wait_for.append(job.retry())
 
+    if should_retry_cleanup:
+        info("[+] Retrying cleanup job")
+        job.cleanup_job.retry()
+
     # Wait until all the jobs have finished
     while len(jobs_to_wait_for) > 0:
         unfinished_jobs = []
@@ -2385,7 +2397,7 @@ def retry_test_job_dependencies(ctx: Context, pipeline_id: int, job_id: int, onl
                 unfinished_jobs.append(job_id)
 
         jobs_to_wait_for = unfinished_jobs
-        info(f"[...] Waiting for {len(jobs_to_wait_for)} jobs to finish: {', '.join(jobs_to_wait_for)}")
+        info(f"[...] Waiting for {len(jobs_to_wait_for)} jobs to finish: {', '.join(map(str, jobs_to_wait_for))}")
         time.sleep(10)
 
     info("[+] All jobs have finished")
