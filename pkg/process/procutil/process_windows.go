@@ -552,6 +552,7 @@ func OpenProcessHandle(pid int32) (windows.Handle, bool, error) {
 		log.Debugf("Couldn't open unprotected process with PROCESS_VM_READ access. Returning limited process info %v %v", pid, err)
 		return procHandle, isProtected, err
 	}
+	defer windows.Close(procHandle)
 	return procHandleMemoryAccess, isProtected, err
 }
 
