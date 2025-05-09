@@ -14,10 +14,14 @@ import (
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
-// AutoMultilineHandler aggreagates multiline logs.
+// AutoMultilineHandler aggregates multiline logs.
 type AutoMultilineHandler struct {
-	labeler    *automultilinedetection.Labeler
-	aggregator *automultilinedetection.Aggregator
+	labeler               *automultilinedetection.Labeler
+	aggregator            *automultilinedetection.Aggregator
+	jsonAggregator        *automultilinedetection.JSONAggregator
+	flushTimeout          time.Duration
+	flushTimer            *time.Timer
+	enableJSONAggregation bool
 }
 
 // NewAutoMultilineHandler creates a new auto multiline handler.
@@ -28,6 +32,8 @@ func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize i
 
 	heuristics = append(heuristics, automultilinedetection.NewTokenizer(pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")))
 	heuristics = append(heuristics, automultilinedetection.NewUserSamples(pkgconfigsetup.Datadog()))
+
+	enableJSONAggregation := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_aggregation")
 
 	if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_detection") {
 		heuristics = append(heuristics, automultilinedetection.NewJSONDetector())
@@ -49,22 +55,72 @@ func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize i
 		aggregator: automultilinedetection.NewAggregator(
 			outputFn,
 			maxContentSize,
-			flushTimeout,
 			pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"),
 			pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs"),
 			tailerInfo),
+		jsonAggregator:        automultilinedetection.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize),
+		flushTimeout:          flushTimeout,
+		enableJSONAggregation: enableJSONAggregation,
 	}
 }
 
 func (a *AutoMultilineHandler) process(msg *message.Message) {
-	label := a.labeler.Label(msg.GetContent())
-	a.aggregator.Aggregate(msg, label)
+	a.stopFlushTimerIfNeeded()
+	defer a.startFlushTimerIfNeeded()
+
+	if a.enableJSONAggregation {
+		msgs := a.jsonAggregator.Process(msg)
+		for _, m := range msgs {
+			label := a.labeler.Label(m.GetContent())
+			a.aggregator.Aggregate(m, label)
+		}
+	} else {
+		label := a.labeler.Label(msg.GetContent())
+		a.aggregator.Aggregate(msg, label)
+	}
 }
 
 func (a *AutoMultilineHandler) flushChan() <-chan time.Time {
-	return a.aggregator.FlushChan()
+	if a.flushTimer != nil {
+		return a.flushTimer.C
+	}
+	return nil
+}
+
+func (a *AutoMultilineHandler) isEmpty() bool {
+	return a.aggregator.IsEmpty() && a.jsonAggregator.IsEmpty()
 }
 
 func (a *AutoMultilineHandler) flush() {
+	if a.enableJSONAggregation {
+		msgs := a.jsonAggregator.Flush()
+		for _, m := range msgs {
+			label := a.labeler.Label(m.GetContent())
+			a.aggregator.Aggregate(m, label)
+		}
+	}
 	a.aggregator.Flush()
+	a.stopFlushTimerIfNeeded()
+}
+
+func (a *AutoMultilineHandler) stopFlushTimerIfNeeded() {
+	if a.flushTimer == nil || a.isEmpty() {
+		return
+	}
+	// stop the flush timer, as we now have data
+	if !a.flushTimer.Stop() {
+		<-a.flushTimer.C
+	}
+}
+
+func (a *AutoMultilineHandler) startFlushTimerIfNeeded() {
+	if a.isEmpty() {
+		return
+	}
+	// since there's buffered data, start the flush timer to flush it
+	if a.flushTimer == nil {
+		a.flushTimer = time.NewTimer(a.flushTimeout)
+	} else {
+		a.flushTimer.Reset(a.flushTimeout)
+	}
 }

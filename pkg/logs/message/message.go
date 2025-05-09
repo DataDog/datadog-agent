@@ -19,11 +19,8 @@ import (
 // or/and at the end of every trucated lines.
 var TruncatedFlag = []byte("...TRUNCATED...")
 
-// TruncatedTag is added to truncated log messages (if enabled).
-const TruncatedTag = "truncated"
-
-// AutoMultiLineTag is added to multiline log messages (if enabled).
-const AutoMultiLineTag = "auto_multiline"
+// AggregatedJSONTag is added to recombined JSON log messages (if enabled).
+const AggregatedJSONTag = "aggregated_json:true"
 
 // EscapedLineFeed is used to escape new line character
 // for multiline message.
