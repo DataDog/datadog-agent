@@ -40,10 +40,7 @@ type Launcher struct {
 	pipelineProvider    pipeline.Provider
 	addedSources        chan *sources.LogSource
 	removedSources      chan *sources.LogSource
-	pendingSources      []*sources.LogSource
-	pendingSourcesMutex sync.Mutex
 	activeSources       []*sources.LogSource
-	activeSourcesMutex  sync.Mutex
 	tailingLimit        int
 	fileProvider        *fileprovider.FileProvider
 	tailers             *tailers.TailerContainer[*tailer.Tailer]
@@ -55,12 +52,14 @@ type Launcher struct {
 	// set to true if we want to use `ContainersLogsDir` to validate that a new
 	// pod log file is being attached to the correct containerID.
 	// Feature flag defaulting to false, use `logs_config.validate_pod_container_id`.
-	validatePodContainerID bool
-	scanPeriod             time.Duration
-	flarecontroller        *flareController.FlareController
-	tagger                 tagger.Component
-	wg                     sync.WaitGroup
-	scanMutex              sync.Mutex
+	validatePodContainerID  bool
+	scanPeriod              time.Duration
+	flarecontroller         *flareController.FlareController
+	tagger                  tagger.Component
+	wg                      sync.WaitGroup
+	filesChan               chan []*tailer.File
+	addedSourceTailers      []*tailer.File
+	addedSourceTailersMutex sync.Mutex
 }
 
 // NewLauncher returns a new launcher.
@@ -115,7 +114,6 @@ func (s *Launcher) run() {
 		scanTicker.Stop()
 		close(s.done)
 	}()
-
 	for {
 		select {
 		case source := <-s.addedSources:
@@ -123,19 +121,14 @@ func (s *Launcher) run() {
 		case source := <-s.removedSources:
 			s.removeSource(source)
 		case <-scanTicker.C:
-			if s.scanMutex.TryLock() {
-				s.wg.Add(1)
-				go func() {
-					defer s.scanMutex.Unlock()
-					defer s.wg.Done()
+			s.wg.Add(1)
+			scanTicker.Stop()
+			go s.getFiles()
+		case files := <-s.filesChan:
+			s.cleanUpRotatedTailers()
 
-					s.cleanUpRotatedTailers()
-					// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
-					s.scan()
-				}()
-			} else {
-				log.Debugf("Skipping scan as another scan is already in progress")
-			}
+			s.scan(files)
+			scanTicker.Reset(s.scanPeriod)
 		case <-s.stop:
 			s.wg.Wait()
 			// no more file should be tailed
@@ -161,35 +154,38 @@ func (s *Launcher) cleanup() {
 	stopper.Stop()
 }
 
+// getFiles sends all the files the launcher is expected to tail to the scan
+// function via a channel
+func (s *Launcher) getFiles() {
+	defer s.wg.Done()
+
+	s.filesChan <- s.fileProvider.FilesToTail(s.validatePodContainerID, s.activeSources)
+}
+
 // scan checks all the files we're expected to tail, compares them to the currently tailed files,
 // and triggers the required updates.
 // For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
 // The Scanner needs to stop that previous tailer, and start a new one for the new file.
-func (s *Launcher) scan() {
-	s.pendingSourcesMutex.Lock()
-	s.activeSourcesMutex.Lock()
+func (s *Launcher) scan(files []*tailer.File) {
+	filesCopy := make([]*tailer.File, len(files))
+	copy(filesCopy, files)
 
-	// Process pending sources from addedSources
-	for len(s.pendingSources) > 0 {
-		source := s.pendingSources[0]
-		s.pendingSources = s.pendingSources[1:]
-		s.activeSources = append(s.activeSources, source)
-		s.launchTailers(source)
-	}
+	s.addedSourceTailersMutex.Lock()
+	defer s.addedSourceTailersMutex.Unlock()
 
-	s.pendingSourcesMutex.Unlock()
+	// Union so scan doesn't remove files added by addSource but not yet found by FilesToTail
+	filesCopy = append(filesCopy, s.addedSourceTailers...)
+	s.addedSourceTailers = s.addedSourceTailers[:0]
 
-	files := s.fileProvider.FilesToTail(s.validatePodContainerID, s.activeSources)
-	s.activeSourcesMutex.Unlock()
 	filesTailed := make(map[string]bool)
 	var allFiles []string
 
-	log.Debugf("Scan - got %d files from FilesToTail and currently tailing %d files\n", len(files), s.tailers.Count())
+	log.Debugf("Scan - got %d files from FilesToTail and currently tailing %d files\n", len(filesCopy), s.tailers.Count())
 
 	// Pass 1 - Compare 'files' to our current set of tailed files. If any no longer need to be tailed,
 	// stop the tailers.
 	// Defer creation of new tailers until second pass.
-	for _, file := range files {
+	for _, file := range filesCopy {
 		allFiles = append(allFiles, file.Path)
 		// We're using generated key here: in case this file has been found while
 		// scanning files for container, the key will use the format:
@@ -244,7 +240,7 @@ func (s *Launcher) scan() {
 	tailersLen := s.tailers.Count()
 	log.Debugf("After stopping tailers, there are %d tailers running.\n", tailersLen)
 
-	for _, file := range files {
+	for _, file := range filesCopy {
 		scanKey := file.GetScanKey()
 		isTailed := s.tailers.Contains(scanKey)
 		if !isTailed && tailersLen < s.tailingLimit {
@@ -279,28 +275,14 @@ func (s *Launcher) cleanUpRotatedTailers() {
 	s.rotatedTailers = pendingTailers
 }
 
-// addSource adds a source to the queue to be tailed. It will launch tailers in the scan function
+// addSource keeps track of the new source and launch new tailers for this source.
 func (s *Launcher) addSource(source *sources.LogSource) {
-	s.pendingSourcesMutex.Lock()
-	defer s.pendingSourcesMutex.Unlock()
-
-	s.pendingSources = append(s.pendingSources, source)
+	s.activeSources = append(s.activeSources, source)
+	s.launchTailers(source)
 }
 
 // removeSource removes the source from cache.
 func (s *Launcher) removeSource(source *sources.LogSource) {
-	s.pendingSourcesMutex.Lock()
-	defer s.pendingSourcesMutex.Unlock()
-	s.activeSourcesMutex.Lock()
-	defer s.activeSourcesMutex.Unlock()
-
-	for i, src := range s.pendingSources {
-		if src == source {
-			s.pendingSources = slices.Delete(s.pendingSources, i, i+1)
-			break
-		}
-	}
-
 	for i, src := range s.activeSources {
 		if src == source {
 			// no need to stop the tailer here, it will be stopped in the next iteration of scan.
@@ -322,6 +304,10 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		log.Warnf("Could not collect files: %v", err)
 		return
 	}
+
+	s.addedSourceTailersMutex.Lock()
+	defer s.addedSourceTailersMutex.Unlock()
+
 	for _, file := range files {
 		if s.tailers.Count() >= s.tailingLimit {
 			return
@@ -338,6 +324,8 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			tailer.ReplaceSource(source)
 			continue
 		}
+
+		s.addedSourceTailers = append(s.addedSourceTailers, file)
 
 		mode, isSet := config.TailingModeFromString(source.Config.TailingMode)
 		if !isSet && source.Config.Identifier != "" {
