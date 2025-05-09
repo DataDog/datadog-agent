@@ -149,7 +149,6 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 				"", // intakeTrackType not needed
 				"", // protocol not needed
 				"", // origin not needed
-				laconfig.EndpointCompressionOptions{},
 			)
 			suite.Require().NoError(err)
 

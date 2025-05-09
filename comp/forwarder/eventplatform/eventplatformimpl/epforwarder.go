@@ -263,7 +263,7 @@ func Diagnose() []diagnose.Diagnosis {
 
 	for _, desc := range passthroughPipelineDescs {
 		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfigsetup.Datadog())
-		endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin, config.EndpointCompressionOptions{})
+		endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 		if err != nil {
 			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Status:      diagnose.DiagnosisFail,
@@ -401,7 +401,7 @@ func newHTTPPassthroughPipeline(
 		CompressionKind:  desc.forceCompressionKind,
 		CompressionLevel: desc.forceCompressionLevel,
 	}
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(
+	endpoints, err := config.BuildHTTPEndpointsWithCompressionOverride(
 		coreConfig,
 		configKeys,
 		desc.hostnameEndpointPrefix,

@@ -53,8 +53,7 @@ func getLogsEndpoints(useTCP bool) (*logsConfig.Endpoints, error) {
 			"agent-http-intake.logs.",
 			"logs",
 			logsConfig.AgentJSONIntakeProtocol,
-			logsConfig.DefaultIntakeOrigin,
-			logsConfig.EndpointCompressionOptions{})
+			logsConfig.DefaultIntakeOrigin)
 	}
 
 	return endpoints, err

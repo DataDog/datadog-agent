@@ -526,7 +526,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 	suite.config.SetWithoutSource("compliance_config.endpoints.logs_dd_url", "my-proxy:443")
 
 	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
-	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", "test-track", "test-proto", "test-source", EndpointCompressionOptions{})
+	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", "test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
 
@@ -574,7 +574,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 	suite.config.SetWithoutSource("compliance_config.endpoints.batch_wait", "10")
 
 	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
-	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.logs.", "test-track", "test-proto", "test-source", EndpointCompressionOptions{})
+	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.logs.", "test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
 
@@ -760,7 +760,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 	suite.config.SetWithoutSource("network_devices.netflow.forwarder.use_v2_api", true)
 
 	logsConfig := NewLogsConfigKeys("network_devices.netflow.forwarder.", suite.config)
-	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "ndmflow-intake.", "ndmflow", "test-proto", "test-origin", EndpointCompressionOptions{})
+	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "ndmflow-intake.", "ndmflow", "test-proto", "test-origin")
 
 	suite.Nil(err)
 
@@ -807,7 +807,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrlWithPrefix() {
 	suite.config.SetWithoutSource("compliance_config.endpoints.logs_dd_url", "https://my-proxy.com:443")
 
 	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
-	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", "test-track", "test-proto", "test-source", EndpointCompressionOptions{})
+	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", "test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
 
@@ -852,7 +852,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDUrlWithPrefix() {
 	suite.config.SetWithoutSource("compliance_config.endpoints.dd_url", "https://my-proxy.com:443")
 
 	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
-	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", "test-track", "test-proto", "test-source", EndpointCompressionOptions{})
+	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", "test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
 

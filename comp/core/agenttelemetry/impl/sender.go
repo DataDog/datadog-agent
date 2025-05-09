@@ -191,7 +191,7 @@ func getEndpoints(cfgComp config.Component) (*logconfig.Endpoints, error) {
 	// Will be eliminated in the future after switching to EP Forwarder.
 	configKeys := logconfig.NewLogsConfigKeys(telemetryConfigPrefix, cfgComp)
 	return logconfig.BuildHTTPEndpointsWithConfig(cfgComp, configKeys,
-		telemetryHostnameEndpointPrefix, telemetryIntakeTrackType, logconfig.DefaultIntakeProtocol, logconfig.DefaultIntakeOrigin, logconfig.EndpointCompressionOptions{})
+		telemetryHostnameEndpointPrefix, telemetryIntakeTrackType, logconfig.DefaultIntakeProtocol, logconfig.DefaultIntakeOrigin)
 }
 
 func newSenderImpl(

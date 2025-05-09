@@ -45,7 +45,7 @@ func NewLogContextRuntime(useSecRuntimeTrack bool) (*logsconfig.Endpoints, *clie
 
 // NewLogContext returns the context fields to send events to the intake
 func NewLogContext(logsConfig *logsconfig.LogsConfigKeys, endpointPrefix string, intakeTrackType logsconfig.IntakeTrackType, intakeOrigin logsconfig.IntakeOrigin, intakeProtocol logsconfig.IntakeProtocol) (*logsconfig.Endpoints, *client.DestinationsContext, error) {
-	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, logsconfig.EndpointCompressionOptions{})
+	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 	if err != nil {
 		endpoints, err = logsconfig.BuildHTTPEndpoints(pkgconfigsetup.Datadog(), intakeTrackType, intakeProtocol, intakeOrigin)
 		if err == nil {
