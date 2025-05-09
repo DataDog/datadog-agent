@@ -44,7 +44,6 @@ func (v *baseMultiProcessingLibSuite) getSuiteOptions(osInstance osVM.Descriptor
 			awshost.WithEC2InstanceOptions(ec2.WithOS(osInstance)),
 		),
 	))
-	suiteOptions = append(suiteOptions, e2e.WithDevMode())
 
 	return suiteOptions
 }
