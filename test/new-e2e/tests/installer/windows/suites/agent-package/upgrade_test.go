@@ -347,6 +347,61 @@ func (s *testAgentUpgradeSuite) TestExperimentMSIRollbackMaintainsCustomUserAndA
 		WithIdentity(identity)
 }
 
+// TestExperimentMSIRollbackMaintainsCustomUserAndAltDir tests that the
+// stable version is reinstalled with the custom user and alt dir when an experiment MSI rolls back.
+// This is a regression test for WINA-1504, where remove-experiment subcommand used the wrong
+// paths and failed to restore the stable version.
+func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDiesMaintainsCustomUserAndAltDir() {
+	// Arrange
+	altConfigRoot := `C:\ddconfig`
+	altInstallPath := `C:\ddinstall`
+	agentUser := "customuser"
+	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
+	s.setAgentConfigWithAltDir(altConfigRoot)
+	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
+	s.installPreviousAgentVersion(
+		installerwindows.WithOption(installerwindows.WithAgentUser(agentUser)),
+		installerwindows.WithMSIArg("PROJECTLOCATION="+altInstallPath),
+		installerwindows.WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
+	)
+
+	// Act
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	windowscommon.StopService(s.Env().RemoteHost, consts.ServiceName)
+
+	// Assert
+	err := s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
+	// original version should now be running
+	s.Require().Host(s.Env().RemoteHost).
+		HasDatadogInstaller().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.StableAgentVersion().Version())
+		})
+
+	// backend will send stop experiment to the daemon
+	s.assertDaemonStaysRunning(func() {
+		s.Installer().StopExperiment(consts.AgentPackage)
+		s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
+	})
+
+	identity, err := windowscommon.GetIdentityForUser(s.Env().RemoteHost, agentUser)
+	s.Require().NoError(err)
+	s.Require().Host(s.Env().RemoteHost).
+		NoDirExists(windowsagent.DefaultConfigRoot).
+		NoDirExists(windowsagent.DefaultInstallPath).
+		DirExists(altConfigRoot).
+		DirExists(altInstallPath).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedUser", agentUser).
+		WithValueEqual("ConfigRoot", altConfigRoot+`\`).
+		WithValueEqual("InstallPath", altInstallPath+`\`).
+		HasAService("datadogagent").
+		WithIdentity(identity)
+}
+
 // TestUpgradeWithAgentUser tests that the agent user is preserved across remote upgrades.
 func (s *testAgentUpgradeSuite) TestUpgradeWithAgentUser() {
 	// Arrange

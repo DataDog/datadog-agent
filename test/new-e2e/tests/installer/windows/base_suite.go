@@ -292,8 +292,7 @@ func (s *BaseSuite) MustStartExperimentPreviousVersion() {
 		HasDatadogInstaller().
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, agentVersion)
-		}).
-		DirExists(consts.GetExperimentDirFor(consts.AgentPackage))
+		})
 }
 
 // StartExperimentCurrentVersion starts an experiment of current agent version
@@ -326,8 +325,7 @@ func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 		HasDatadogInstaller().
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, agentVersion)
-		}).
-		DirExists(consts.GetExperimentDirFor(consts.AgentPackage))
+		})
 }
 
 // AssertSuccessfulAgentStartExperiment that experiment started successfully

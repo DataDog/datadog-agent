@@ -50,6 +50,7 @@ func NewDatadogInstaller(env *environments.WindowsHost, msiURL, outputDir string
 	}
 }
 
+// SetBinaryPath sets the path to the Datadog Installer binary.
 func (d *DatadogInstaller) SetBinaryPath(path string) {
 	d.binaryPath = path
 }
