@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
-
 package ebpf
 
 // HasTasksRCUExitLockSymbol returns true if the tasks_rcu_exit_srcu symbol is found in the kernel symbols.
