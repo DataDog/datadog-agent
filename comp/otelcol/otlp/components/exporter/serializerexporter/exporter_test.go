@@ -185,6 +185,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				return "", nil
 			}, nil, otel.NewDisabledGatewayUsage())
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
+			cfg.Metrics.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags = false
 			cfg.Metrics.Tags = strings.Join(tt.extraTags, ",")
 			exp, err := f.CreateMetrics(
 				ctx,

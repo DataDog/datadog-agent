@@ -66,8 +66,8 @@ func OTLP(config pkgconfigmodel.Setup) {
 	// Metrics settings
 	config.BindEnv("otlp_config.metrics.tags") // TODO OTLP team: add default value
 	config.BindEnvAndSetDefault("otlp_config.metrics.enabled", true)
-	config.BindEnv("otlp_config.metrics.resource_attributes_as_tags")             // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.metrics.instrumentation_scope_metadata_as_tags")  // TODO OTLP team: add default value
+	config.BindEnv("otlp_config.metrics.resource_attributes_as_tags") // TODO OTLP team: add default value
+	config.BindEnvAndSetDefault("otlp_config.metrics.instrumentation_scope_metadata_as_tags", true)
 	config.BindEnv("otlp_config.metrics.tag_cardinality")                         // TODO OTLP team: add default value
 	config.BindEnv("otlp_config.metrics.delta_ttl")                               // TODO OTLP team: add default value
 	config.BindEnv("otlp_config.metrics.histograms.mode")                         // TODO OTLP team: add default value
