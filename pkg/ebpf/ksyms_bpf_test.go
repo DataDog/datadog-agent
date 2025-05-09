@@ -22,8 +22,11 @@ func TestGetKernelSymbolWtihKallsymsIterator(t *testing.T) {
 		t.Skip("BPF kallsyms iterator is not supported")
 	}
 
-	kaddrs, err := GetKernelSymbolsAddressesWithKallsymsIterator([]string{"_text"}...)
-	require.NoError(t, err)
+	kaddrs, err := GetKernelSymbolsAddressesWithKallsymsIterator([]string{"_text", "_stext"}...)
+	// only log errors because we are okay with missing some symbols
+	if err != nil {
+		t.Logf("GetKernelSymbolsAddressesWithKallsymsIterator error: %v", err)
+	}
 
 	require.True(t, len(kaddrs) > 0)
 }

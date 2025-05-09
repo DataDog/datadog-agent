@@ -67,10 +67,5 @@ func GetKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses ...string) (m
 	}
 	defer ksymsReader.Close()
 
-	addrs, err := GetKernelSymbolsAddressesNoCache(ksymsReader, kernelAddresses...)
-	if err != nil {
-		return nil, err
-	}
-
-	return addrs, nil
+	return GetKernelSymbolsAddressesNoCache(ksymsReader, kernelAddresses...)
 }
