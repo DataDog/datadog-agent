@@ -832,6 +832,20 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 		}
 	}
 
+	if eventType == model.ExecEventType {
+		if event.ProcessContext != nil {
+			execPath := utils.ProcExePath(event.ProcessContext.Pid)
+			var fileStats unix.Statx_t
+			if err := unix.Statx(unix.AT_FDCWD, execPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStats); err == nil {
+				event.Debug = fmt.Sprintf("Mount id: %d", fileStats.Mnt_id)
+			} else {
+				event.Debug = fmt.Sprintf("Mount id: err %v. ExecPath is %v", err, execPath)
+			}
+		} else {
+			event.Debug = "nil processcontext"
+		}
+	}
+
 	// flush exited process
 	p.Resolvers.ProcessResolver.DequeueExited()
 

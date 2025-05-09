@@ -358,6 +358,17 @@
       ],
       "description": "DNSResponseEventSerializer serializes a DNS response event to JSON"
     },
+    "Debug": {
+      "properties": {
+        "debug": {
+          "type": "string",
+          "description": "debug is the string used for debug"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "DebugSerializer just to debug wrong mountpoints"
+    },
     "EventContext": {
       "properties": {
         "name": {
@@ -2010,6 +2021,9 @@
     },
     "sysctl": {
       "$ref": "#/$defs/SysCtlEvent"
+    },
+    "debug": {
+      "$ref": "#/$defs/Debug"
     }
   },
   "additionalProperties": false,
