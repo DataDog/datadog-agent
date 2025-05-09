@@ -96,9 +96,10 @@ type ECSCollectorRunConfig struct {
 type CollectorRunConfig struct {
 	K8sCollectorRunConfig
 	ECSCollectorRunConfig
-	ClusterID   string
-	Config      *config.OrchestratorConfig
-	MsgGroupRef *atomic.Int32
+	ClusterID           string
+	Config              *config.OrchestratorConfig
+	MsgGroupRef         *atomic.Int32
+	TerminatedResources bool
 }
 
 // CollectorRunResult contains information about what the collector has done.
