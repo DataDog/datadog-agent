@@ -486,6 +486,10 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("security_socket_connect"),
 			}},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("io_connect"),
+				kretprobeOrFexit("io_connect"),
+			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "connect", fentry, EntryAndExit)},
 		},
 
