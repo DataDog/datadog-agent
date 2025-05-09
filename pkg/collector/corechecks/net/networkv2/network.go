@@ -159,7 +159,7 @@ func (c *NetworkCheck) Run() error {
 
 	if c.config.instance.CollectConnectionState {
 		netProcfsBasePath := c.net.GetNetProcBasePath()
-		for protocol := range []string{"udp4", "udp6", "tcp4", "tcp6"} {
+		for _, protocol := range []string{"udp4", "udp6", "tcp4", "tcp6"} {
 			connectionsStats, err := c.net.Connections(protocol)
 			if err != nil {
 				return err
@@ -399,11 +399,12 @@ func getQueueMetricsNetstat(ipVersion string, _ string) (map[string][]uint64, er
 
 func parseQueueMetrics(output string) (map[string][]uint64, error) {
 	queueMetrics := make(map[string][]uint64)
+	suffixMapping, _ := tcpStateMetricsSuffixMapping["ss"]
 	lines := strings.Split(output, "\n")
 	for _, line := range lines {
 		fields := strings.Fields(line)
 		if len(fields) > 2 {
-			val, ok := tcpStateMetricsSuffixMapping_ss[fields[1]]
+			val, ok := suffixMapping[fields[1]]
 			if ok {
 				state := val
 				recvQ := parseQueue(fields[2])
@@ -417,12 +418,13 @@ func parseQueueMetrics(output string) (map[string][]uint64, error) {
 
 func parseQueueMetricsNetstat(output string) (map[string][]uint64, error) {
 	queueMetrics := make(map[string][]uint64)
+	suffixMapping, _ := tcpStateMetricsSuffixMapping["netstat"]
 	lines := strings.Split(output, "\n")
 	for _, line := range lines {
 		if strings.Contains(line, "tcp") {
 			fields := strings.Fields(line)
 			if len(fields) > 5 {
-				val, ok := tcpStateMetricsSuffixMapping_netstat[fields[5]]
+				val, ok := suffixMapping[fields[5]]
 				if ok {
 					state := val
 					recvQ := parseQueue(fields[1])
