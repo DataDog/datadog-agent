@@ -31,5 +31,5 @@ while [[ $retry_count -lt $max_retries ]]; do
     sleep $((2**retry_count))
 done
 
-echo "Failed to retrieve parameter after $max_retries retries"
+echo "Failed to retrieve parameter after $max_retries retries" >&2
 exit 1
