@@ -440,12 +440,12 @@ func (s *SNMPService) GetServiceID() string {
 }
 
 // GetADIdentifiers returns a set of AD identifiers
-func (s *SNMPService) GetADIdentifiers(context.Context) ([]string, error) {
+func (s *SNMPService) GetADIdentifiers() ([]string, error) {
 	return []string{s.adIdentifier}, nil
 }
 
 // GetHosts returns the device IP
-func (s *SNMPService) GetHosts(context.Context) (map[string]string, error) {
+func (s *SNMPService) GetHosts() (map[string]string, error) {
 	ips := map[string]string{
 		"": s.deviceIP,
 	}
@@ -453,7 +453,7 @@ func (s *SNMPService) GetHosts(context.Context) (map[string]string, error) {
 }
 
 // GetPorts returns the device port
-func (s *SNMPService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (s *SNMPService) GetPorts() ([]ContainerPort, error) {
 	port := int(s.config.Port)
 	return []ContainerPort{{port, fmt.Sprintf("p%d", port)}}, nil
 }
@@ -469,12 +469,12 @@ func (s *SNMPService) GetTagsWithCardinality(_ string) ([]string, error) {
 }
 
 // GetPid returns nil and an error because pids are currently not supported
-func (s *SNMPService) GetPid(context.Context) (int, error) {
+func (s *SNMPService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetHostname returns nothing - not supported
-func (s *SNMPService) GetHostname(context.Context) (string, error) {
+func (s *SNMPService) GetHostname() (string, error) {
 	return "", ErrNotSupported
 }
 

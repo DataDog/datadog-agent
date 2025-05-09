@@ -76,17 +76,17 @@ func (s *StaticConfigService) GetServiceID() string {
 }
 
 // GetADIdentifiers return the single AD identifier for a static config service
-func (s *StaticConfigService) GetADIdentifiers(context.Context) ([]string, error) {
+func (s *StaticConfigService) GetADIdentifiers() ([]string, error) {
 	return []string{s.adIdentifier}, nil
 }
 
 // GetHosts is not supported
-func (s *StaticConfigService) GetHosts(context.Context) (map[string]string, error) {
+func (s *StaticConfigService) GetHosts() (map[string]string, error) {
 	return nil, ErrNotSupported
 }
 
 // GetPorts returns nil and an error because port is not supported in this listener
-func (s *StaticConfigService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (s *StaticConfigService) GetPorts() ([]ContainerPort, error) {
 	return nil, ErrNotSupported
 }
 
@@ -102,12 +102,12 @@ func (s *StaticConfigService) GetTagsWithCardinality(_ string) ([]string, error)
 
 // GetPid inspect the container and return its pid
 // Not relevant in this listener
-func (s *StaticConfigService) GetPid(context.Context) (int, error) {
+func (s *StaticConfigService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetHostname returns nil and an error because port is not supported in this listener
-func (s *StaticConfigService) GetHostname(context.Context) (string, error) {
+func (s *StaticConfigService) GetHostname() (string, error) {
 	return "", ErrNotSupported
 }
 

@@ -214,17 +214,17 @@ func (s *CloudFoundryService) GetServiceID() string {
 }
 
 // GetADIdentifiers returns a set of AD identifiers for a container.
-func (s *CloudFoundryService) GetADIdentifiers(context.Context) ([]string, error) {
+func (s *CloudFoundryService) GetADIdentifiers() ([]string, error) {
 	return []string{s.adIdentifier.String()}, nil
 }
 
 // GetHosts returns the container's hosts
-func (s *CloudFoundryService) GetHosts(context.Context) (map[string]string, error) {
+func (s *CloudFoundryService) GetHosts() (map[string]string, error) {
 	return s.containerIPs, nil
 }
 
 // GetPorts returns the container's ports
-func (s *CloudFoundryService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (s *CloudFoundryService) GetPorts() ([]ContainerPort, error) {
 	return s.containerPorts, nil
 }
 
@@ -239,12 +239,12 @@ func (s *CloudFoundryService) GetTagsWithCardinality(cardinality string) ([]stri
 }
 
 // GetPid returns nil and an error because pids are currently not supported in CF
-func (s *CloudFoundryService) GetPid(context.Context) (int, error) {
+func (s *CloudFoundryService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetHostname returns nil and an error because hostnames are not supported in CF
-func (s *CloudFoundryService) GetHostname(context.Context) (string, error) {
+func (s *CloudFoundryService) GetHostname() (string, error) {
 	return "", ErrNotSupported
 }
 

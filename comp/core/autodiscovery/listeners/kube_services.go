@@ -340,23 +340,23 @@ func (s *KubeServiceService) GetServiceID() string {
 }
 
 // GetADIdentifiers returns the service AD identifiers
-func (s *KubeServiceService) GetADIdentifiers(context.Context) ([]string, error) {
+func (s *KubeServiceService) GetADIdentifiers() ([]string, error) {
 	// Only the entity for now, to match on annotation
 	return []string{s.entity}, nil
 }
 
 // GetHosts returns the pod hosts
-func (s *KubeServiceService) GetHosts(context.Context) (map[string]string, error) {
+func (s *KubeServiceService) GetHosts() (map[string]string, error) {
 	return s.hosts, nil
 }
 
 // GetPid is not supported for PodContainerService
-func (s *KubeServiceService) GetPid(context.Context) (int, error) {
+func (s *KubeServiceService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetPorts returns the container's ports
-func (s *KubeServiceService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (s *KubeServiceService) GetPorts() ([]ContainerPort, error) {
 	return s.ports, nil
 }
 
@@ -371,7 +371,7 @@ func (s *KubeServiceService) GetTagsWithCardinality(_ string) ([]string, error) 
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
-func (s *KubeServiceService) GetHostname(context.Context) (string, error) {
+func (s *KubeServiceService) GetHostname() (string, error) {
 	return "", ErrNotSupported
 }
 
