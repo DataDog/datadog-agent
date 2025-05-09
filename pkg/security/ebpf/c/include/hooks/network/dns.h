@@ -61,8 +61,7 @@ __attribute__((always_inline)) int is_dns_request_parsing_done(struct __sk_buff 
     return 1;
 }
 
-SEC("classifier/dns_request")
-int classifier_dns_request(struct __sk_buff *skb) {
+TAIL_CALL_CLASSIFIER_FNC(dns_request, struct __sk_buff *skb) {
     struct packet_t *pkt = get_packet();
     if (pkt == NULL) {
         // should never happen
@@ -89,8 +88,7 @@ int classifier_dns_request(struct __sk_buff *skb) {
     return ACT_OK;
 }
 
-SEC("classifier/dns_request_parser")
-int classifier_dns_request_parser(struct __sk_buff *skb) {
+TAIL_CALL_CLASSIFIER_FNC(dns_request_parser, struct __sk_buff *skb) {
     struct packet_t *pkt = get_packet();
     if (pkt == NULL) {
         // should never happen
@@ -125,8 +123,7 @@ int classifier_dns_request_parser(struct __sk_buff *skb) {
     return ACT_OK;
 }
 
-SEC("classifier/dns_response")
-int classifier_dns_response(struct __sk_buff *skb) {
+TAIL_CALL_CLASSIFIER_FNC(dns_response, struct __sk_buff *skb) {
     struct packet_t *pkt = get_packet();
     if (pkt == NULL) {
         // should never happen

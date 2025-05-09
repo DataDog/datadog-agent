@@ -44,6 +44,7 @@ type BaseProcessorContext struct {
 	ManifestProducer bool
 	Kind             string
 	APIVersion       string
+	ExtraTags        []string
 }
 
 // GetOrchestratorConfig returns the orchestrator config
@@ -84,14 +85,12 @@ func (c *BaseProcessorContext) GetAPIVersion() string {
 // K8sProcessorContext holds k8s resource processing attributes
 type K8sProcessorContext struct {
 	BaseProcessorContext
-	APIClient *apiserver.APIClient
-	HostName  string
-	//nolint:revive // TODO(CAPP) Fix revive linter
-	ApiGroupVersionTag string
-	SystemInfo         *model.SystemInfo
-	ResourceType       string
-	LabelsAsTags       map[string]string
-	AnnotationsAsTags  map[string]string
+	APIClient         *apiserver.APIClient
+	HostName          string
+	SystemInfo        *model.SystemInfo
+	ResourceType      string
+	LabelsAsTags      map[string]string
+	AnnotationsAsTags map[string]string
 }
 
 // ECSProcessorContext holds ECS resource processing attributes
@@ -187,7 +186,7 @@ func (p *Processor) Handlers() Handlers {
 }
 
 // Process is used to process a list of resources of a certain type.
-func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResult ProcessResult, processed int) {
+func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResult ProcessResult, listed, processed int) {
 	// This default allows detection of panic recoveries.
 	processed = -1
 
@@ -262,7 +261,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 		processResult.ManifestMessages = ChunkManifest(ctx, p.h.BuildManifestMessageBody, resourceManifestModels)
 	}
 
-	return processResult, len(resourceMetadataModels)
+	return processResult, len(resourceList), len(resourceMetadataModels)
 }
 
 // ChunkManifest is to chunk Manifest payloads
