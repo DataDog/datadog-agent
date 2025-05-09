@@ -23,6 +23,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
+	localautoscalingworkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -56,6 +57,7 @@ func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery
 		getWorkloadList(w, r, wmeta)
 	}).Methods("GET")
 	r.HandleFunc("/metadata/cluster-agent", dcametadataComp.WritePayloadAsJSON).Methods("GET")
+	r.HandleFunc("/autoscaling-check", func(w http.ResponseWriter, r *http.Request) { getAutoscalingCheck(w, r) }).Methods("GET")
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component) {
@@ -209,4 +211,20 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 	}
 
 	w.Write(jsonDump)
+}
+
+// TODO: This needs to be converted to component style by passing a autoscaling component here
+func getAutoscalingCheck(w http.ResponseWriter, r *http.Request) {
+	response := localautoscalingworkload.GetAutoscalingWorkloadCheck(r.Context())
+	if response == nil {
+		log.Debugf("No local autoscaling entities found")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		httputils.SetJSONError(w, log.Errorf("Unable to marshal autoscaling check response: %v", err), 500)
+		return
+	}
+	w.Write(jsonResponse)
 }
