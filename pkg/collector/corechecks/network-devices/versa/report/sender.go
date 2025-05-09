@@ -131,7 +131,7 @@ func parseTimestamp(timestamp string) (float64, error) {
 		// If parsing fails, try the alternate format
 		t, err = time.Parse(alternateVersaTimestampFormat, timestamp)
 		if err != nil {
-			return float64(time.Now().UnixMilli()), err
+			return float64(time.Now().UnixMilli()), fmt.Errorf("error parsing timestamp: %w", err)
 		}
 	}
 	return float64(t.UnixMilli()), nil
@@ -160,7 +160,7 @@ func parseSize(sizeString string) (float64, error) {
 			size, err := strconv.ParseFloat(normalizedSize[:len(normalizedSize)-len(suffix)], 64)
 			if err != nil {
 				// If parsing fails, see if it's a number longer than 3 digits but has bytes
-				return 0, fmt.Errorf("error parsing size %s: %w", sizeString, err)
+				return 0, fmt.Errorf("error parsing size %q: %w", sizeString, err)
 			}
 			return size * factor, nil
 		}
@@ -170,10 +170,10 @@ func parseSize(sizeString string) (float64, error) {
 	if strings.HasSuffix(normalizedSize, "b") {
 		size, err := strconv.ParseFloat(normalizedSize[:len(normalizedSize)-1], 64)
 		if err != nil {
-			return 0, fmt.Errorf("error parsing size %s: %w", sizeString, err)
+			return 0, fmt.Errorf("error parsing size %q: %w", sizeString, err)
 		}
 		return size, nil
 	}
 
-	return 0, fmt.Errorf("no matching units found for: %s", sizeString)
+	return 0, fmt.Errorf("no matching units found for: %q", sizeString)
 }
