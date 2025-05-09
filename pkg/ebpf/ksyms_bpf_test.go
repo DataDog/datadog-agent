@@ -10,10 +10,18 @@ package ebpf
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGetKernelSymbolWtihKallsymsIterator(t *testing.T) {
+	kv, err := kernel.HostVersion()
+	require.NoError(t, err)
+
+	if kv < kernel.VersionCode(6, 1, 0) {
+		t.Skip("BPF kallsyms iterator is not supported")
+	}
+
 	kaddrs, err := GetKernelSymbolsAddressesWithKallsymsIterator([]string{"_text"}...)
 	require.NoError(t, err)
 
