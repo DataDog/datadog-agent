@@ -239,7 +239,7 @@ func (s *CloudFoundryService) GetTagsWithCardinality(cardinality string) ([]stri
 }
 
 // GetPid returns nil and an error because pids are currently not supported in CF
-func (s *CloudFoundryService) GetPid(context.Context) (int, error) {
+func (s *CloudFoundryService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 

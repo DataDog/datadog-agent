@@ -244,7 +244,7 @@ func (d *DBMAuroraService) GetTagsWithCardinality(_ string) ([]string, error) {
 }
 
 // GetPid returns nil and an error because pids are currently not supported
-func (d *DBMAuroraService) GetPid(context.Context) (int, error) {
+func (d *DBMAuroraService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 

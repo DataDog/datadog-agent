@@ -69,7 +69,7 @@ func (s *dummyService) GetTagsWithCardinality(_ string) ([]string, error) {
 }
 
 // GetPid return a dummy pid
-func (s *dummyService) GetPid(context.Context) (int, error) {
+func (s *dummyService) GetPid() (int, error) {
 	return s.Pid, nil
 }
 

@@ -102,7 +102,7 @@ func (s *StaticConfigService) GetTagsWithCardinality(_ string) ([]string, error)
 
 // GetPid inspect the container and return its pid
 // Not relevant in this listener
-func (s *StaticConfigService) GetPid(context.Context) (int, error) {
+func (s *StaticConfigService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 

@@ -351,7 +351,7 @@ func (s *KubeServiceService) GetHosts() (map[string]string, error) {
 }
 
 // GetPid is not supported for PodContainerService
-func (s *KubeServiceService) GetPid(context.Context) (int, error) {
+func (s *KubeServiceService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 

@@ -105,7 +105,7 @@ func (s *service) GetTagsWithCardinality(cardinality string) ([]string, error) {
 }
 
 // GetPid returns the process ID of the service.
-func (s *service) GetPid(_ context.Context) (int, error) {
+func (s *service) GetPid() (int, error) {
 	return s.pid, nil
 }
 

@@ -115,7 +115,7 @@ func (s *EnvironmentService) GetTagsWithCardinality(_ string) ([]string, error) 
 
 // GetPid inspect the container and return its pid
 // Not relevant in this listener
-func (s *EnvironmentService) GetPid(context.Context) (int, error) {
+func (s *EnvironmentService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 

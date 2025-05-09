@@ -574,12 +574,12 @@ func getPort(_ context.Context, tplVar string, svc listeners.Service) (string, e
 }
 
 // getPid returns the process identifier of the service
-func getPid(ctx context.Context, _ string, svc listeners.Service) (string, error) {
+func getPid(_ context.Context, _ string, svc listeners.Service) (string, error) {
 	if svc == nil {
 		return "", newNoServiceError("No service. %%%%pid%%%% is not allowed")
 	}
 
-	pid, err := svc.GetPid(ctx)
+	pid, err := svc.GetPid()
 	if err != nil {
 		return "", fmt.Errorf("failed to get pid for service %s, skipping config - %s", svc.GetServiceID(), err)
 	}

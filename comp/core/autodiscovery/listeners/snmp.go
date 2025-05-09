@@ -469,7 +469,7 @@ func (s *SNMPService) GetTagsWithCardinality(_ string) ([]string, error) {
 }
 
 // GetPid returns nil and an error because pids are currently not supported
-func (s *SNMPService) GetPid(context.Context) (int, error) {
+func (s *SNMPService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 

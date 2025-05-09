@@ -464,7 +464,7 @@ func (s *KubeEndpointService) GetHosts() (map[string]string, error) {
 }
 
 // GetPid is not supported
-func (s *KubeEndpointService) GetPid(context.Context) (int, error) {
+func (s *KubeEndpointService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 
