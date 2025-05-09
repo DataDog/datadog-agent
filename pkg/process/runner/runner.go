@@ -368,7 +368,23 @@ func (l *CheckRunner) basicRunner(c checks.Check) func() {
 			l.runCheck(c)
 		}
 
-		ticker := time.NewTicker(checks.GetInterval(l.config, c.Name()))
+		tickerInterval := checks.GetInterval(l.config, c.Name())
+		if c.Name() == checks.ConnectionsCheckName {
+			// For connections check, the ticker interval is controlled by the specific capacity check interval config
+			capacityInterval := l.config.GetDuration("process_config.connections_capacity_check_interval")
+			if capacityInterval > 0 {
+				tickerInterval = capacityInterval
+			} else {
+				log.Warnf(
+					"Invalid process_config.connections_capacity_check_interval (%v), falling back to default %s interval %v",
+					capacityInterval,
+					c.Name(),
+					tickerInterval,
+				)
+			}
+		}
+
+		ticker := time.NewTicker(tickerInterval)
 		defer ticker.Stop()
 		for {
 			select {

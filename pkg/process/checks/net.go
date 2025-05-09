@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
+	"github.com/DataDog/datadog-agent/pkg/process/status"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -65,6 +66,8 @@ type ConnectionsCheck struct {
 	maxConnsPerMessage     int
 	networkID              string
 	notInitializedLogLimit *log.Limit
+	lastFullRunTime        time.Time
+	guaranteedRunInterval  time.Duration // Use the standard check interval for guaranteed runs
 
 	dockerFilter     *parser.DockerProxy
 	serviceExtractor *parser.ServiceExtractor
@@ -114,6 +117,16 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.localresolver = resolver.NewLocalResolver(sharedContainerProvider, clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
 	c.localresolver.Run()
 
+	// Initialize state for the capacity-based run logic
+	c.lastFullRunTime = time.Time{} // Ensure the first run is a full run
+	// Guaranteed run interval is driven by the standard connections check interval
+	c.guaranteedRunInterval = GetInterval(c.config, ConnectionsCheckName)
+	log.Infof(
+		"Connections check running: Capacity check interval=%v, Guaranteed full run interval=%v",
+		c.config.GetDuration("process_config.connections_capacity_check_interval"), // Log the capacity check interval for clarity
+		c.guaranteedRunInterval,
+	)
+
 	return nil
 }
 
@@ -155,9 +168,39 @@ func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	start := time.Now()
 
+	// Determine if we need to run the check using capacity-aware logic
+	isTimeForGuaranteedRun := start.Sub(c.lastFullRunTime) >= c.guaranteedRunInterval
+	isNearCapacity := false
+	if c.sysprobeClient != nil {
+		var capacityErr error
+		isNearCapacity, capacityErr = c.checkCapacity()
+		if capacityErr != nil {
+			log.Warnf("Failed to check system-probe connection capacity: %v. Proceeding based on time interval.", capacityErr)
+			isNearCapacity = false
+		}
+	} else {
+		log.Trace("System probe client not available, skipping capacity check.")
+	}
+
+	// Decide whether to run the full check
+	shouldRunFullCheck := isTimeForGuaranteedRun || isNearCapacity
+
+	if !shouldRunFullCheck {
+		log.Tracef("Skipping connections check run (Capacity OK, not time for guaranteed run). Last full run: %v ago", start.Sub(c.lastFullRunTime))
+		return StandardRunResult(nil), nil
+	}
+
+	status.UpdateLastCollectTime(start)
+	log.Debugf("Running connections check. Reason: TimeForGuaranteedRun=%v, NearCapacity=%v", isTimeForGuaranteedRun, isNearCapacity)
+	// Update last run time *before* the potentially long-running operations
+	c.lastFullRunTime = start
+
 	conns, err := c.getConnections()
 	if err != nil {
-		return nil, err
+		// Don't return the error here, as we don't want to kill the check
+		// Let the runner handle logging the error
+		log.Errorf("Failed to get connections: %v", err)
+		return nil, err // Return error to runner for logging
 	}
 
 	// Filter out (in-place) connection data associated with docker-proxy
@@ -532,4 +575,37 @@ func getNetworkID(sysProbeClient *http.Client) (string, error) {
 		}
 	}
 	return networkID, err
+}
+
+func (c *ConnectionsCheck) checkCapacity() (bool, error) {
+	if c.sysprobeClient == nil {
+		return false, fmt.Errorf("system probe client is nil")
+	}
+
+	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/connections/check_capacity?client_id="+ProcessAgentClientID)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return false, fmt.Errorf("error creating capacity check request %s: %w", url, err)
+	}
+
+	log.Tracef("Checking connections capacity endpoint: %s", url)
+	resp, err := c.sysprobeClient.Do(req)
+	if err != nil {
+		if resp != nil {
+			resp.Body.Close()
+		}
+		return false, fmt.Errorf("error calling capacity check endpoint %s: %w", url, err)
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK: // 200 OK => Near capacity
+		log.Debugf("Capacity check returned 200 OK (Near Capacity) for client %s", ProcessAgentClientID)
+		return true, nil
+	case http.StatusNoContent: // 204 No Content => Not near capacity
+		log.Tracef("Capacity check returned 204 No Content (OK) for client %s", ProcessAgentClientID)
+		return false, nil
+	default:
+		return false, fmt.Errorf("unexpected status code %d from capacity check endpoint %s", resp.StatusCode, url)
+	}
 }
