@@ -27,6 +27,8 @@ type DeviceCache interface {
 	All() []Device
 	// AllPhysicalDevices returns all root devices in the cache
 	AllPhysicalDevices() []Device
+	// AllMigDevices returns all MIG children in the cache
+	AllMigDevices() []Device
 	// Cores returns the number of cores for a device with a given UUID. Returns an error if the device is not found.
 	Cores(uuid string) (uint64, error)
 }
@@ -35,6 +37,7 @@ type DeviceCache interface {
 type deviceCache struct {
 	allDevices         []Device
 	allPhysicalDevices []Device
+	allMigDevices      []Device
 	uuidToDevice       map[string]Device
 	smVersionSet       map[uint32]struct{}
 }
@@ -84,6 +87,7 @@ func NewDeviceCacheWithOptions(lib SafeNVML) (DeviceCache, error) {
 		for _, migChild := range dev.MIGChildren {
 			cache.uuidToDevice[migChild.UUID] = migChild
 			cache.allDevices = append(cache.allDevices, migChild)
+			cache.allMigDevices = append(cache.allMigDevices, migChild)
 		}
 	}
 
@@ -123,6 +127,11 @@ func (c *deviceCache) All() []Device {
 // AllPhysicalDevices returns all physical devices in the cache
 func (c *deviceCache) AllPhysicalDevices() []Device {
 	return c.allPhysicalDevices
+}
+
+// AllMigDevices returns all MIG children in the cache
+func (c *deviceCache) AllMigDevices() []Device {
+	return c.allMigDevices
 }
 
 // Cores returns the number of cores for a device with a given UUID. Returns an error if the device is not found.

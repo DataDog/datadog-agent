@@ -66,7 +66,7 @@ func getVisibleDevices(systemDevices []ddnvml.Device, cudaVisibleDevices string)
 		var err error
 		switch {
 		case strings.HasPrefix(visibleDevice, "GPU-"):
-			matchingDevice, err = getDeviceWithMatchingUUIDPrefix(systemDevices, visibleDevice, false)
+			matchingDevice, err = getDeviceByUUIDPrefix(systemDevices, visibleDevice, false)
 			if err != nil {
 				return filteredDevices, err
 			}
@@ -78,7 +78,7 @@ func getVisibleDevices(systemDevices []ddnvml.Device, cudaVisibleDevices string)
 			}
 
 		case strings.HasPrefix(visibleDevice, "MIG-"):
-			matchingDevice, err = getDeviceWithMatchingUUIDPrefix(systemDevices, visibleDevice, true)
+			matchingDevice, err = getDeviceByUUIDPrefix(systemDevices, visibleDevice, true)
 			if err != nil {
 				return filteredDevices, err
 			}
@@ -101,16 +101,17 @@ func adjustVisibleDevicesForMig(visibleDevices []ddnvml.Device) []ddnvml.Device 
 	// CUDA removes all devices with MIG feature enabled and then appends at the
 	// end of the list the first MIG child of those devices. So we split the
 	// list into two: one with devices without MIG feature enabled (which
-	// includes physical devices and MIG children) and one with MIG children of
-	// MIG-enabled physical devices.
-	var nonMigEnabledDevices []ddnvml.Device
+	// includes physical device with MIG disabled and MIG children of devices
+	// with MIG enabled) and one with MIG children of MIG-enabled physical
+	// devices.
+	var migDisabledDevices []ddnvml.Device
 	var migChildDevices []ddnvml.Device
 
 	for _, device := range visibleDevices {
 		physicalDevice, ok := device.(*ddnvml.PhysicalDevice)
 		if !ok || !physicalDevice.HasMIGFeatureEnabled {
 			// either a MIG device or a physical device without MIG feature enabled
-			nonMigEnabledDevices = append(nonMigEnabledDevices, device)
+			migDisabledDevices = append(migDisabledDevices, device)
 		} else if len(physicalDevice.MIGChildren) > 0 {
 			// a MIG-enabled physical device, add the first MIG child
 			migChildDevices = append(migChildDevices, physicalDevice.MIGChildren[0])
@@ -118,7 +119,7 @@ func adjustVisibleDevicesForMig(visibleDevices []ddnvml.Device) []ddnvml.Device 
 	}
 
 	// Now merge the two lists
-	return append(nonMigEnabledDevices, migChildDevices...)
+	return append(migDisabledDevices, migChildDevices...)
 }
 
 // keepEitherFirstMIGOrAllDevices returns the list of devices with only the first MIG child if it is present,
@@ -135,10 +136,10 @@ func keepEitherFirstMIGOrAllDevices(devices []ddnvml.Device) []ddnvml.Device {
 	return devices
 }
 
-// getDeviceWithMatchingUUIDPrefix returns the first device with a UUID that
+// getDeviceByUUIDPrefix returns the first device with a UUID that
 // matches the given prefix. If there are multiple devices with the same prefix
 // or the device is not found, an error is returned.
-func getDeviceWithMatchingUUIDPrefix(systemDevices []ddnvml.Device, uuidPrefix string, searchMigChildren bool) (ddnvml.Device, error) {
+func getDeviceByUUIDPrefix(systemDevices []ddnvml.Device, uuidPrefix string, searchMigChildren bool) (ddnvml.Device, error) {
 	var matchingDevice ddnvml.Device
 	var matchingDeviceUUID string
 

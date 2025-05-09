@@ -163,6 +163,9 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 		device.HasMIGFeatureEnabled = true
 
 		if err := device.fillMigChildren(); err != nil {
+			// Return an error if we can't get the MIG children. We need them in order to
+			// get values for the physical device, such as memory and core count, so if
+			// something failed then the device data is not usable.
 			return nil, err
 		}
 

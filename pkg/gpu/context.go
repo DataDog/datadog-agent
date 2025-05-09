@@ -183,6 +183,7 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 
 		numContainerGPUs++
 
+	outer:
 		for _, device := range devices {
 			if resource.ID == device.GetDeviceInfo().UUID {
 				filteredDevices = append(filteredDevices, device)
@@ -195,7 +196,7 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 				for _, migChild := range physicalDevice.MIGChildren {
 					if resource.ID == migChild.UUID {
 						filteredDevices = append(filteredDevices, migChild)
-						break
+						break outer
 					}
 				}
 			}
