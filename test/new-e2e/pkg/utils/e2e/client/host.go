@@ -416,7 +416,11 @@ func (h *Host) DialPort(port uint16) (net.Conn, error) {
 func (h *Host) GetTmpFolder() (string, error) {
 	switch osFamily := h.osFamily; osFamily {
 	case oscomp.WindowsFamily:
-		return h.Execute("echo %TEMP%")
+		out, err := h.Execute("echo $env:TEMP")
+		if err != nil {
+			return out, err
+		}
+		return strings.TrimSpace(out), nil
 	case oscomp.LinuxFamily:
 		return "/tmp", nil
 	default:
@@ -424,9 +428,27 @@ func (h *Host) GetTmpFolder() (string, error) {
 	}
 }
 
+// GetAgentConfigFolder returns the agent config folder path for the host
+func (h *Host) GetAgentConfigFolder() (string, error) {
+	switch h.osFamily {
+	case oscomp.WindowsFamily:
+		out, err := h.Execute("echo $env:PROGRAMDATA")
+		if err != nil {
+			return out, err
+		}
+		return fmt.Sprintf("%s\\Datadog", strings.TrimSpace(out)), nil
+	case oscomp.LinuxFamily:
+		return "/etc/datadog-agent", nil
+	case oscomp.MacOSFamily:
+		return "/opt/datadog-agent/etc", nil
+	default:
+		return "", errors.ErrUnsupported
+	}
+}
+
 // GetLogsFolder returns the logs folder path for the host
 func (h *Host) GetLogsFolder() (string, error) {
-	switch osFamily := h.osFamily; osFamily {
+	switch h.osFamily {
 	case oscomp.WindowsFamily:
 		return `C:\ProgramData\Datadog\logs`, nil
 	case oscomp.LinuxFamily:
@@ -435,6 +457,16 @@ func (h *Host) GetLogsFolder() (string, error) {
 		return "/opt/datadog-agent/logs", nil
 	default:
 		return "", errors.ErrUnsupported
+	}
+}
+
+// JoinPath joins the path elements with the correct separator for the host
+func (h *Host) JoinPath(path ...string) string {
+	switch h.osFamily {
+	case oscomp.WindowsFamily:
+		return strings.Join(path, "\\")
+	default:
+		return strings.Join(path, "/")
 	}
 }
 
