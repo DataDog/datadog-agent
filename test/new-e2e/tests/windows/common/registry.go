@@ -55,3 +55,11 @@ func SetTypedRegistryValue(host *components.RemoteHost, path string, name string
 	}
 	return nil
 }
+
+// SetRegistryMultiString sets a multi-string value at the specified path
+func SetRegistryMultiString(host *components.RemoteHost, path string, name string, values []string) error {
+	pslist := fmt.Sprintf("@('%s')", strings.Join(values, "','"))
+	cmd := fmt.Sprintf("Set-ItemProperty -Path '%s' -Name '%s' -Value %s -Type MultiString", path, name, pslist)
+	_, err := host.Execute(cmd)
+	return err
+}
