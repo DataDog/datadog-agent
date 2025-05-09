@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"path"
-	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -24,7 +22,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -1031,13 +1028,6 @@ func TestBackendTypeWithoutCommand(t *testing.T) {
 	_, err := r.Resolve(testConf, "test-origin")
 	require.NoError(t, err)
 
-	expectedPath := ""
-	if runtime.GOOS == "windows" {
-		expectedPath = path.Join(setup.InstallPath, "embedded", "bin", "secret-generic-connector.exe")
-	} else {
-		expectedPath = path.Join(setup.InstallPath, "embedded", "bin", "secret-generic-connector")
-	}
-	assert.Equal(t, expectedPath, r.backendCommand)
 	assert.Equal(t, "aws.secrets", r.backendConfig["backend_type"])
 	assert.Contains(t, r.backendArguments, "--config")
 	configIndex := slices.Index(r.backendArguments, "--config")

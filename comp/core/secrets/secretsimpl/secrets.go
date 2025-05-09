@@ -37,8 +37,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -308,10 +308,11 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 	}
 	// only use the backend type option if the backend command is not set
 	if r.backendType != "" && r.backendCommand == "" {
+		here, _ := executable.Folder()
 		if runtime.GOOS == "windows" {
-			r.backendCommand = path.Join(setup.InstallPath, "embedded", "bin", "secret-generic-connector.exe")
+			r.backendCommand = path.Join(here, "..", "..", "embedded", "bin", "secret-generic-connector.exe")
 		} else {
-			r.backendCommand = path.Join(setup.InstallPath, "embedded", "bin", "secret-generic-connector")
+			r.backendCommand = path.Join(here, "..", "..", "embedded", "bin", "secret-generic-connector")
 		}
 		r.backendConfig["backend_type"] = r.backendType
 		jsonifiedBackendConfig, err := json.Marshal(r.backendConfig)
