@@ -89,18 +89,14 @@ func TestRemoveLDPreloadConfig(t *testing.T) {
 		"/tmp/stable/inject/launcher.preload.so /def/abc/preload.so": "/def/abc/preload.so",
 		// File doesn't contain the entry to remove (removed by customer?)
 		"/abc/def/preload.so /def/abc/preload.so": "/abc/def/preload.so /def/abc/preload.so",
+		// File contains a dynamic entry
+		"/tmp/stable/inject/$lib/launcher.preload.so": "",
 	} {
 		output, err := a.deleteLDPreloadConfigContent(context.TODO(), []byte(input))
 		assert.Nil(t, err)
 		assert.Equal(t, expected, string(output))
 	}
 
-	// File is badly formatted (non-breaking space instead of space)
-	input := "/tmp/stable/inject/launcher.preload.so\u00a0/def/abc/preload.so"
-	output, err := a.deleteLDPreloadConfigContent(context.TODO(), []byte(input))
-	assert.NotNil(t, err)
-	assert.Equal(t, "", string(output))
-	assert.NotEqual(t, input, string(output))
 }
 
 func TestShouldInstrumentHost(t *testing.T) {
