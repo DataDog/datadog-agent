@@ -191,7 +191,7 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 func testHTTPSLibrary(t *testing.T, cfg *config.Config, fetchCmd, prefetchLibs []string) {
 	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 	// not ideal but, short process are hard to catch
-	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", prefetchLib(t, prefetchLibs...).Process.Pid, utils.ManualTracingFallbackDisabled)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, prefetchLib(t, prefetchLibs...).Process.Pid, utils.ManualTracingFallbackDisabled)
 
 	// Issue request using fetchCmd (wget, curl, ...)
 	// This is necessary (as opposed to using net/http) because we want to
@@ -206,7 +206,7 @@ func testHTTPSLibrary(t *testing.T, cfg *config.Config, fetchCmd, prefetchLibs [
 	requestCmd.Stderr = requestCmd.Stdout
 	require.NoError(t, requestCmd.Start())
 
-	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", requestCmd.Process.Pid, utils.ManualTracingFallbackDisabled)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, requestCmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 
 	if err := requestCmd.Wait(); err != nil {
 		output, err := io.ReadAll(stdout)
@@ -293,7 +293,7 @@ func (s *tlsSuite) TestOpenSSLVersions() {
 		EnableTLS: true,
 	})
 
-	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
 
 	client, requestFn := simpleGetRequestsGenerator(t, addressOfHTTPPythonServer)
 	var requests []*nethttp.Request
@@ -360,7 +360,7 @@ func (s *tlsSuite) TestOpenSSLVersionsSlowStart() {
 
 	usmMonitor := setupUSMTLSMonitor(t, cfg, reInitEventConsumer)
 	// Giving the tracer time to install the hooks
-	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
 
 	// Send a warmup batch of requests to trigger the fallback behavior
 	for i := 0; i < numberOfRequests; i++ {
@@ -949,7 +949,7 @@ func (s *tlsSuite) TestNodeJSTLS() {
 	cfg.EnableNodeJSMonitoring = true
 
 	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
-	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "nodejs", int(nodeJSPID), utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, nodeJsAttacherName, int(nodeJSPID), utils.ManualTracingFallbackEnabled)
 
 	// This maps will keep track of whether the tracer saw this request already or not
 	client, requestFn := simpleGetRequestsGenerator(t, fmt.Sprintf("localhost:%s", serverPort))

@@ -72,6 +72,40 @@ func TestAttachPidExcludesInternal(t *testing.T) {
 	require.ErrorIs(t, err, ErrInternalDDogProcessRejected)
 }
 
+func TestAttachPidExcludesContainerdTmp(t *testing.T) {
+	tmpdir := t.TempDir()
+
+	// Create a tmpdir/tmpmounts/containerd-mount/bar directory with a file in
+	// it to simulate a containerd tmp mount. It needs to exist so that the code
+	// will be able to read that file
+	exe := filepath.Join(tmpdir, "tmpmounts/containerd-mount/bar")
+	require.NoError(t, os.MkdirAll(filepath.Dir(exe), 0755))
+	require.NoError(t, os.WriteFile(exe, []byte{}, 0644))
+
+	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})
+	config := AttacherConfig{
+		ExcludeTargets:        ExcludeContainerdTmp,
+		ProcRoot:              procRoot,
+		EnableDetailedLogging: true,
+		Rules: []*AttachRule{
+			{Targets: AttachToExecutable},
+		},
+	}
+
+	// Cleanup should be called anyways, even if the attach fails
+	inspector := &MockBinaryInspector{}
+	inspector.On("Cleanup", mock.Anything).Return(nil)
+
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, inspector, newMockProcessMonitor())
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	err = ua.AttachPIDWithOptions(1, false)
+	require.ErrorIs(t, err, utils.ErrEnvironment)
+
+	inspector.AssertExpectations(t)
+}
+
 func TestAttachPidReadsSharedLibraries(t *testing.T) {
 	exe := "foobar"
 	pid := uint32(1)
@@ -121,6 +155,18 @@ func TestAttachPidExcludesSelf(t *testing.T) {
 
 	err = ua.AttachPIDWithOptions(uint32(os.Getpid()), false)
 	require.ErrorIs(t, err, ErrSelfExcluded)
+}
+
+func TestAttachToBinaryContainerdTmpReturnsErrEnvironment(t *testing.T) {
+	config := AttacherConfig{
+		ExcludeTargets: ExcludeContainerdTmp,
+	}
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, nil, newMockProcessMonitor())
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	err = ua.attachToBinary(utils.FilePath{PID: uint32(os.Getpid()), HostPath: "/foo/tmpmounts/containerd-mount/bar"}, nil, nil)
+	require.ErrorIs(t, err, utils.ErrEnvironment)
 }
 
 func TestGetExecutablePath(t *testing.T) {
