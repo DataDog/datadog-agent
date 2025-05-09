@@ -19,10 +19,11 @@ import (
 )
 
 const (
-	defaultIPTag         = "device_ip"
-	versaMetricPrefix    = "versa."
-	versaTimestampFormat = "2006-01-02 15:04:05"
-	timestampExpiration  = 6 * time.Hour
+	defaultIPTag                  = "device_ip"
+	versaMetricPrefix             = "versa."
+	versaTimestampFormat          = "2006-01-02 15:04:05.0"
+	alternateVersaTimestampFormat = "2006/01/02 15:04:05"
+	timestampExpiration           = 6 * time.Hour
 )
 
 // Sender implements methods for sending Versa metrics and metadata
@@ -122,12 +123,16 @@ func (s *Sender) SendUptimeMetrics(uptimes map[string]float64) {
 	}
 }
 
-// parseTimestamp parses a timestamp string in the format "2006-01-02 15:04:05.0" and returns the unix timestamp in milliseconds
+// parseTimestamp parses a timestamp string in the Versa formats and returns the unix timestamp in milliseconds
 // If the timestamp is invalid, it returns the current time in milliseconds
 func parseTimestamp(timestamp string) (float64, error) {
 	t, err := time.Parse(versaTimestampFormat, timestamp)
 	if err != nil {
-		return float64(time.Now().UnixMilli()), err
+		// If parsing fails, try the alternate format
+		t, err = time.Parse(alternateVersaTimestampFormat, timestamp)
+		if err != nil {
+			return float64(time.Now().UnixMilli()), err
+		}
 	}
 	return float64(t.UnixMilli()), nil
 }
