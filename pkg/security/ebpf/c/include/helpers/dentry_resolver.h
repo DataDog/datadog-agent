@@ -6,24 +6,24 @@
 
 #include "buffer_selector.h"
 
-int __attribute__((always_inline)) tail_call_dr_progs(void *ctx, int dr_type, int key) {
-    switch (dr_type) {
-    case DR_KPROBE_OR_FENTRY:
+int __attribute__((always_inline)) tail_call_dr_progs(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type, int key) {
+    switch (prog_type) {
+    case KPROBE_OR_FENTRY_TYPE:
         bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_or_fentry_progs, key);
         break;
-    case DR_TRACEPOINT:
+    case TRACEPOINT_TYPE:
         bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_progs, key);
         break;
     }
     return 0;
 }
 
-int __attribute__((always_inline)) resolve_dentry(void *ctx, int dr_type) {
-    return tail_call_dr_progs(ctx, dr_type, DR_AD_FILTER_KEY);
+int __attribute__((always_inline)) resolve_dentry(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+    return tail_call_dr_progs(ctx, prog_type, DR_AD_FILTER_KEY);
 }
 
-int __attribute__((always_inline)) resolve_dentry_no_syscall(void *ctx, int dr_type) {
-    return tail_call_dr_progs(ctx, dr_type, DR_DENTRY_RESOLVER_KERN_INPUTS);
+int __attribute__((always_inline)) resolve_dentry_no_syscall(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+    return tail_call_dr_progs(ctx, prog_type, DR_DENTRY_RESOLVER_KERN_INPUTS);
 }
 
 int __attribute__((always_inline)) monitor_resolution_err(u32 resolution_err) {
@@ -85,18 +85,18 @@ int __attribute__((always_inline)) handle_dr_request(ctx_t *ctx, void *data, u32
         goto exit;
     }
 
-    tail_call_dr_progs(ctx, DR_KPROBE_OR_FENTRY, dr_erpc_key);
+    tail_call_dr_progs(ctx, KPROBE_OR_FENTRY_TYPE, dr_erpc_key);
 
 exit:
     monitor_resolution_err(resolution_err);
     return 0;
 }
 
-int __attribute__((always_inline)) select_dr_key(int dr_type, int kprobe_key, int tracepoint_key) {
-    switch (dr_type) {
-    case DR_KPROBE_OR_FENTRY:
+int __attribute__((always_inline)) select_dr_key(enum TAIL_CALL_PROG_TYPE prog_type, int kprobe_key, int tracepoint_key) {
+    switch (prog_type) {
+    case KPROBE_OR_FENTRY_TYPE:
         return kprobe_key;
-    default: // DR_TRACEPOINT
+    default: // TRACEPOINT_TYPE
         return tracepoint_key;
     }
 }

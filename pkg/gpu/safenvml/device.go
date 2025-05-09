@@ -7,7 +7,11 @@
 
 package safenvml
 
-import "github.com/NVIDIA/go-nvml/pkg/nvml"
+import (
+	"fmt"
+
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+)
 
 // SafeDevice represents a safe wrapper around NVML device operations.
 // It ensures that operations are only performed when the corresponding
@@ -78,22 +82,38 @@ type SafeDevice interface {
 	GetUtilizationRates() (nvml.Utilization, error)
 }
 
-// Device represents a GPU device with some properties already computed.
-// It embeds SafeDevice for safe API access and contains cached properties.
-type Device struct {
-	SafeDevice
-
-	// Cached fields for quick access
+// DeviceInfo holds common cached properties for a GPU device
+type DeviceInfo struct {
 	SMVersion uint32
 	UUID      string
 	Name      string
 	CoreCount int
-	Index     int
-	Memory    uint64
+
+	// Index of the device in the host. For MIG devices, this is the index of the MIG device in the parent device.
+	Index int
+
+	// Memory size of the device in bytes
+	Memory uint64
 }
 
-// NewDevice creates a new Device from the nvml.Device and caches some properties
-func NewDevice(dev nvml.Device) (*Device, error) {
+// Device represents a GPU device, implementing SafeDevice and providing common device info
+type Device interface {
+	SafeDevice
+
+	// GetDeviceInfo returns the common device info for a GPU device
+	GetDeviceInfo() *DeviceInfo
+}
+
+// PhysicalDevice represents a physical GPU device
+type PhysicalDevice struct {
+	SafeDevice
+	DeviceInfo
+}
+
+var _ Device = &PhysicalDevice{}
+
+// NewPhysicalDevice creates a new Device from the nvml.Device and caches some properties.
+func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 	lib, err := GetSafeNvmlLib()
 	if err != nil {
 		return nil, err
@@ -106,46 +126,59 @@ func NewDevice(dev nvml.Device) (*Device, error) {
 	}
 
 	// Create the device with embedded safe device
-	device := &Device{
+	device := &PhysicalDevice{
 		SafeDevice: safeDev,
 	}
 
-	// Now use safe methods to populate the cached fields
-	major, minor, err := safeDev.GetCudaComputeCapability()
+	if err := device.fillBasicDataFromNVML(safeDev); err != nil {
+		return nil, fmt.Errorf("error filling basic data from NVML: %w", err)
+	}
+
+	major, minor, err := device.SafeDevice.GetCudaComputeCapability()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting CUDA compute capability: %w", err)
 	}
 	device.SMVersion = uint32(major*10 + minor)
 
-	uuid, err := safeDev.GetUUID()
+	// Get the number of cores and memory size. This is not part of the fillBasicDataFromNVML
+	// because it might not work for MIG devices.
+	cores, err := device.SafeDevice.GetNumGpuCores()
 	if err != nil {
 		return nil, err
 	}
-	device.UUID = uuid
+	device.CoreCount = int(cores)
 
-	cores, err := safeDev.GetNumGpuCores()
-	if err != nil {
-		return nil, err
-	}
-	device.CoreCount = cores
-
-	name, err := safeDev.GetName()
-	if err != nil {
-		return nil, err
-	}
-	device.Name = name
-
-	index, err := safeDev.GetIndex()
-	if err != nil {
-		return nil, err
-	}
-	device.Index = index
-
-	memInfo, err := safeDev.GetMemoryInfo()
+	memInfo, err := device.SafeDevice.GetMemoryInfo()
 	if err != nil {
 		return nil, err
 	}
 	device.Memory = memInfo.Total
 
 	return device, nil
+}
+
+// GetDeviceInfo returns the common device info for a GPU device
+func (d *PhysicalDevice) GetDeviceInfo() *DeviceInfo {
+	return &d.DeviceInfo
+}
+
+// fillBasicDataFromNVML fills the basic data (common for MIG and non-MIG) for a device from the nvml.Device object
+func (d *DeviceInfo) fillBasicDataFromNVML(dev SafeDevice) error {
+	var err error
+	d.UUID, err = dev.GetUUID()
+	if err != nil {
+		return err
+	}
+
+	d.Name, err = dev.GetName()
+	if err != nil {
+		return err
+	}
+
+	d.Index, err = dev.GetIndex()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

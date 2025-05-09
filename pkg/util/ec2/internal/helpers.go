@@ -135,3 +135,19 @@ func GetInstanceIdentity(ctx context.Context) (*EC2Identity, error) {
 
 	return instanceIdentity, nil
 }
+
+// GetInstanceDocument returns information about the local EC2 instance using the local AWS API
+func GetInstanceDocument(ctx context.Context) (map[string]string, error) {
+	res, err := DoHTTPRequest(ctx, InstanceIdentityURL, UseIMDSv2(), false)
+	if err != nil {
+		return nil, fmt.Errorf("unable to fetch EC2 API to get instance information: %s", err)
+	}
+
+	info := map[string]string{}
+	err = json.Unmarshal([]byte(res), &info)
+	if err != nil {
+		return nil, fmt.Errorf("unable to unmarshall json, %s", err)
+	}
+
+	return info, nil
+}

@@ -58,7 +58,7 @@ func (h *VerticalPodAutoscalerHandlers) BuildMessageBody(ctx processors.Processo
 		GroupId:                pctx.MsgGroupID,
 		GroupSize:              int32(groupSize),
 		VerticalPodAutoscalers: models,
-		Tags:                   append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:                   pctx.ExtraTags,
 	}
 }
 
@@ -79,7 +79,7 @@ func (h *VerticalPodAutoscalerHandlers) ResourceList(ctx processors.ProcessorCon
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources

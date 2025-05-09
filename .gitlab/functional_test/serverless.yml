@@ -32,5 +32,5 @@ serverless_cold_start_performance-deb_x64_dind:
     - cp test/integration/serverless_perf/* /tmp/serverless-ci
     - cd /tmp/serverless-ci # Docker does not like syslinks, that's why it's easier to build the image in /tmp
     - docker build -t datadogci/lambda-extension .
-    - ./compute.sh
+    - OVERRIDE_STARTUP_TIME_THRESHOLD=55 ./compute.sh
   allow_failure: true

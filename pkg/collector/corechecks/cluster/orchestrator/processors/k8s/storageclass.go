@@ -58,7 +58,7 @@ func (h *StorageClassHandlers) BuildMessageBody(ctx processors.ProcessorContext,
 		GroupId:        pctx.MsgGroupID,
 		GroupSize:      int32(groupSize),
 		StorageClasses: models,
-		Tags:           append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:           pctx.ExtraTags,
 	}
 }
 
@@ -79,7 +79,7 @@ func (h *StorageClassHandlers) ResourceList(ctx processors.ProcessorContext, lis
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources

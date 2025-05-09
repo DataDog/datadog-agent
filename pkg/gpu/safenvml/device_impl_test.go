@@ -30,7 +30,7 @@ func TestNewDevice(t *testing.T) {
 
 	// Test device creation
 	mockDevice := testutil.GetDeviceMock(0)
-	device, err := NewDevice(mockDevice)
+	device, err := NewPhysicalDevice(mockDevice)
 
 	// Verify results
 	require.NoError(t, err)
@@ -71,7 +71,7 @@ func TestNewDeviceUUIDFailure(t *testing.T) {
 	}
 
 	// Test device creation with failing UUID
-	device, err := NewDevice(failingMockDevice)
+	device, err := NewPhysicalDevice(failingMockDevice)
 
 	// Verify failure
 	require.Error(t, err)
@@ -98,7 +98,7 @@ func TestDeviceWithMissingSymbol(t *testing.T) {
 
 	// Create device
 	mockDevice := testutil.GetDeviceMock(0)
-	device, err := NewDevice(mockDevice)
+	device, err := NewPhysicalDevice(mockDevice)
 	require.NoError(t, err)
 	require.NotNil(t, device)
 
@@ -127,7 +127,7 @@ func TestDeviceSafeMethodSuccess(t *testing.T) {
 
 	// Create device
 	mockDevice := testutil.GetDeviceMock(0)
-	device, err := NewDevice(mockDevice)
+	device, err := NewPhysicalDevice(mockDevice)
 	require.NoError(t, err)
 	require.NotNil(t, device)
 

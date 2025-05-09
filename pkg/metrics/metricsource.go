@@ -63,6 +63,7 @@ const (
 	MetricSourceCloudFoundry
 	MetricSourceJenkins
 	MetricSourceGPU
+	MetricSourceWlan
 
 	// Python Checks
 	MetricSourceZenohRouter
@@ -1069,6 +1070,8 @@ func (ms MetricSource) String() string {
 		return "google_cloud_run_enhanced"
 	case MetricSourceGoogleCloudRunRuntime:
 		return "google_cloud_run_runtime"
+	case MetricSourceWlan:
+		return "wlan"
 	default:
 		return "<unknown>"
 	}
@@ -1709,6 +1712,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceOpenTelemetryCollectorChronyReceiver
 	case "opentelemetry_collector_couchdbreceiver":
 		return MetricSourceOpenTelemetryCollectorCouchdbReceiver
+	case "wlan":
+		return MetricSourceWlan
 	default:
 		return MetricSourceUnknown
 	}

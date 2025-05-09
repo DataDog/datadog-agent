@@ -32,14 +32,19 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	auditorfx "github.com/DataDog/datadog-agent/comp/logs/auditor/fx"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
+	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
+	healthmock "github.com/DataDog/datadog-agent/comp/logs/health/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
@@ -61,14 +66,17 @@ type AgentTestSuite struct {
 	source          *sources.LogSource
 	configOverrides map[string]interface{}
 	tagger          tagger.Component
+	healthRegistrar healthdef.Component
 }
 
 type testDeps struct {
 	fx.In
 
-	Config         configComponent.Component
-	Log            log.Component
-	InventoryAgent inventoryagent.Component
+	Config          configComponent.Component
+	Log             log.Component
+	InventoryAgent  inventoryagent.Component
+	Auditor         auditor.Component
+	HealthRegistrar healthdef.Component
 }
 
 func (suite *AgentTestSuite) SetupTest() {
@@ -125,9 +133,12 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		hostnameimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
+		auditorfx.Module(),
+		fx.Provide(healthmock.NewProvides),
 	))
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
+	suite.healthRegistrar = deps.HealthRegistrar
 
 	agent := &logAgent{
 		log:              deps.Log,
@@ -136,12 +147,14 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		started:          atomic.NewUint32(0),
 		integrationsLogs: integrationsimpl.NewLogsIntegration(),
 
-		sources:     sources,
-		services:    services,
-		tracker:     tailers.NewTailerTracker(),
-		endpoints:   endpoints,
-		tagger:      fakeTagger,
-		compression: compressionfx.NewMockCompressor(),
+		auditor:         deps.Auditor,
+		sources:         sources,
+		services:        services,
+		tracker:         tailers.NewTailerTracker(),
+		endpoints:       endpoints,
+		tagger:          fakeTagger,
+		flarecontroller: flareController.NewFlareController(),
+		compression:     compressionfx.NewMockCompressor(),
 	}
 
 	agent.setupAgent()
@@ -234,8 +247,27 @@ func (suite *AgentTestSuite) TestGetPipelineProvider() {
 
 	agent, _, _ := createAgent(suite, endpoints)
 	agent.Start()
+	defer agent.Stop()
 
 	assert.NotNil(suite.T(), agent.GetPipelineProvider())
+}
+
+func (suite *AgentTestSuite) TestAgentLiveness() {
+	server := http.NewTestServer(200, pkgconfigsetup.Datadog())
+	defer server.Stop()
+	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
+
+	agent, _, _ := createAgent(suite, endpoints)
+	agent.Start()
+	defer agent.Stop()
+
+	var count int
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 1*time.Second, func() bool {
+		count = suite.healthRegistrar.(*healthmock.Registrar).CountRegistered("logs-agent")
+		return count > 0
+	})
+
+	assert.Equal(suite.T(), 1, count, "logs-agent should be registered as healthy exactly once")
 }
 
 func (suite *AgentTestSuite) TestStatusProvider() {
@@ -415,6 +447,8 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		fx.Provide(func() tagger.Component {
 			return suite.tagger
 		}),
+		auditorfx.Module(),
+		fx.Provide(healthmock.NewProvides),
 	))
 }
 

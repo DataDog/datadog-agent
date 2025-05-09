@@ -20,6 +20,8 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	delve "github.com/go-delve/delve/pkg/goversion"
+
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -28,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
-	delve "github.com/go-delve/delve/pkg/goversion"
 )
 
 type processTrackerCallback func(ditypes.DIProcs)
@@ -80,6 +81,7 @@ func (pt *ProcessTracker) Stop() {
 	for _, unsubscribe := range pt.unsubscribe {
 		unsubscribe()
 	}
+	pt.pm.Stop()
 }
 
 func (pt *ProcessTracker) handleProcessStart(pid uint32) {

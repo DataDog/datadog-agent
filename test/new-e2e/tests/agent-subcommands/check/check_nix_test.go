@@ -24,7 +24,7 @@ type linuxCheckSuite struct {
 func TestLinuxCheckSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &linuxCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(
-		agentparams.WithFile("/etc/datadog-agent/conf.d/hello.yaml", string(customCheckYaml), true),
+		agentparams.WithIntegration("hello.d", string(customCheckYaml)),
 		agentparams.WithFile("/etc/datadog-agent/checks.d/hello.py", string(customCheckPython), true),
 	))))
 }

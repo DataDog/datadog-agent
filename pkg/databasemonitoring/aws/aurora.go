@@ -33,6 +33,7 @@ type Instance struct {
 	IamEnabled bool
 	Engine     string
 	DbName     string
+	DbmEnabled bool
 }
 
 const (
@@ -42,7 +43,7 @@ const (
 
 // GetAuroraClusterEndpoints queries an AWS account for the endpoints of an Aurora cluster
 // requires the dbClusterIdentifier for the cluster
-func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string) (map[string]*AuroraCluster, error) {
+func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string, dbmTag string) (map[string]*AuroraCluster, error) {
 	if len(dbClusterIdentifiers) == 0 {
 		return nil, fmt.Errorf("at least one database cluster identifier is required")
 	}
@@ -96,6 +97,19 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 						// This should never happen, as engine is a required field in the API
 						// but we should handle it.
 						return nil, fmt.Errorf("engine is nil for instance %s", clusterID)
+					}
+				}
+				for _, tag := range db.TagList {
+					tagString := ""
+					if tag.Key != nil {
+						tagString += *tag.Key
+					}
+					if tag.Value != nil {
+						tagString += ":" + *tag.Value
+					}
+					if tagString == dbmTag {
+						instance.DbmEnabled = true
+						break
 					}
 				}
 				if _, ok := clusters[*db.DBClusterIdentifier]; !ok {

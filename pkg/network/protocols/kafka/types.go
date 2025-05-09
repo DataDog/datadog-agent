@@ -16,6 +16,7 @@ import "C"
 const (
 	TopicNameBuckets                     = C.KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS
 	TopicNameMaxSize                     = C.TOPIC_NAME_MAX_STRING_SIZE
+	TelemetryMaxAPIVersion               = C.KAFKA_TELEMETRY_MAX_API_VERSION
 	MaxSupportedProduceRequestApiVersion = C.KAFKA_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION
 	MinSupportedProduceRequestApiVersion = C.KAFKA_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION
 	MaxSupportedFetchRequestApiVersion   = C.KAFKA_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION

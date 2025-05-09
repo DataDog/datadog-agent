@@ -66,11 +66,11 @@ func TestDeviceCachePartialFailure(t *testing.T) {
 	// Verify we can get the working devices
 	device0, ok := cache.GetByUUID(testutil.GPUUUIDs[0])
 	require.True(t, ok)
-	require.Equal(t, 0, device0.Index)
+	require.Equal(t, 0, device0.GetDeviceInfo().Index)
 
 	device1, ok := cache.GetByUUID(testutil.GPUUUIDs[1])
 	require.True(t, ok)
-	require.Equal(t, 1, device1.Index)
+	require.Equal(t, 1, device1.GetDeviceInfo().Index)
 
 	// Verify we can't get the failed device
 	_, ok = cache.GetByUUID("non-existent-uuid")
@@ -94,7 +94,7 @@ func TestDeviceCacheGetByIndex(t *testing.T) {
 	// Test get by index
 	device, err := cache.GetByIndex(0)
 	require.NoError(t, err)
-	require.Equal(t, 0, device.Index)
+	require.Equal(t, 0, device.GetDeviceInfo().Index)
 
 	// Test with invalid index
 	_, err = cache.GetByIndex(-1)
@@ -147,9 +147,9 @@ func TestDeviceCacheAll(t *testing.T) {
 	require.Len(t, devices, len(testutil.GPUUUIDs))
 
 	for i, device := range devices {
-		require.Equal(t, testutil.GPUUUIDs[i], device.UUID)
-		require.Equal(t, testutil.GPUCores[i], device.CoreCount)
-		require.Equal(t, i, device.Index)
+		require.Equal(t, testutil.GPUUUIDs[i], device.GetDeviceInfo().UUID)
+		require.Equal(t, testutil.GPUCores[i], device.GetDeviceInfo().CoreCount)
+		require.Equal(t, i, device.GetDeviceInfo().Index)
 	}
 }
 

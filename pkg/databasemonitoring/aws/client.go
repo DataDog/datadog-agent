@@ -20,7 +20,7 @@ import (
 
 // RDSClient is the interface for describing aurora cluster endpoints
 type RDSClient interface {
-	GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string) (map[string]*AuroraCluster, error)
+	GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string, dbmTag string) (map[string]*AuroraCluster, error)
 	GetAuroraClustersFromTags(ctx context.Context, tags []string) ([]string, error)
 }
 

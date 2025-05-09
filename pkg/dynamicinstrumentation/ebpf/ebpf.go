@@ -13,17 +13,18 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"text/template"
+
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/link"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpfruntime "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/link"
 )
 
 // SetupEventsMap creates the ringbuffer which all programs will use for sending output
@@ -137,7 +138,7 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 	}
 
 	// Attach BPF probe to function in executable
-	bpfProgram, ok := bpfObject.Programs[probe.GetBPFFuncName()]
+	bpfProgram, ok := bpfObject.Programs[ditypes.GetBPFFuncName(probe)]
 	if !ok {
 		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "ATTACH_ERROR", fmt.Sprintf("couldn't find bpf program for symbol %s", probe.FuncName))
 		return fmt.Errorf("could not find bpf program for symbol %s", probe.FuncName)
@@ -166,7 +167,9 @@ func CompileBPFProgram(probe *ditypes.Probe) error {
 		if err != nil {
 			return err
 		}
-		programTemplate, err := template.New("program_template").Parse(string(fileContents))
+		programTemplate, err := template.New("program_template").Funcs(template.FuncMap{
+			"GetBPFFuncName": ditypes.GetBPFFuncName,
+		}).Parse(string(fileContents))
 		if err != nil {
 			return err
 		}

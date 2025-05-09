@@ -50,4 +50,7 @@
 // The size of each kafka telemetry topic name bucket
 #define KAFKA_TELEMETRY_TOPIC_NAME_BUCKET_SIZE 10
 
+// The maximum supported api version for api keys in the telemetry
+#define KAFKA_TELEMETRY_MAX_API_VERSION 30
+
 #endif

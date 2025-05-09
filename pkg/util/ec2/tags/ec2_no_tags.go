@@ -17,3 +17,9 @@ func GetTags(_ context.Context) ([]string, error) {
 func fetchTagsFromCache(_ context.Context) ([]string, error) {
 	return []string{}, nil
 }
+
+// GetInstanceInfo collects information about the EC2 instance as host tags. This mimic the tags set by the AWS
+// integration in Datadog backend allowing customer to collect those information without having to enable the crawler.
+func GetInstanceInfo(_ context.Context) ([]string, error) {
+	return []string{}, nil
+}

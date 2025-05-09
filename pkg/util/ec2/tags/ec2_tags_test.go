@@ -186,3 +186,68 @@ func TestGetTagsFullWorkflow(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"tag1", "tag2"}, tags)
 }
+
+func TestCollectEC2InstanceInfo(t *testing.T) {
+	conf := configmock.New(t)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.RequestURI {
+		case "/latest/api/token":
+			io.WriteString(w, "some-secret-token") // no trailing newline
+		case "/latest/dynamic/instance-identity/document":
+			if conf.GetBool("ec2_prefer_imdsv2") {
+				assert.Equal(t, r.Header["X-Aws-Ec2-Metadata-Token"], []string{"some-secret-token"})
+			}
+			io.WriteString(w, `{
+  "accountId" : "123456abcdef",
+  "architecture" : "x86_64",
+  "availabilityZone" : "eu-west-3a",
+  "billingProducts" : null,
+  "devpayProductCodes" : null,
+  "marketplaceProductCodes" : null,
+  "imageId" : "ami-aaaaaaaaaaaaaaaaa",
+  "instanceId" : "i-aaaaaaaaaaaaaaaaa",
+  "instanceType" : "t2.medium",
+  "kernelId" : null,
+  "pendingTime" : "2025-05-06T10:04:40Z",
+  "privateIp" : "123.12.1.123",
+  "ramdiskId" : null,
+  "region" : "eu-west-3",
+  "version" : "2017-09-30"
+}`) // no trailing newline
+		default:
+			fmt.Printf("%s\n", r.RequestURI)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+	defer func(url string) { ec2internal.InstanceIdentityURL = url }(ec2internal.InstanceIdentityURL)
+	defer func(url string) { ec2internal.TokenURL = url }(ec2internal.TokenURL)
+
+	ec2internal.InstanceIdentityURL = ts.URL + "/latest/dynamic/instance-identity/document"
+	ec2internal.TokenURL = ts.URL + "/latest/api/token"
+
+	conf.SetWithoutSource("collect_ec2_instance_info", true)
+
+	tags, err := GetInstanceInfo(context.Background())
+	require.NoError(t, err)
+
+	expected := []string{
+		"region:eu-west-3",
+		"instance-type:t2.medium",
+		"aws_account:123456abcdef",
+		"image:ami-aaaaaaaaaaaaaaaaa",
+		"availability-zone:eu-west-3a",
+	}
+	assert.Equal(t, expected, tags)
+
+	ec2Info, found := cache.Cache.Get(infoCacheKey)
+	assert.True(t, found)
+	assert.Equal(t, expected, ec2Info.([]string))
+
+	conf.SetWithoutSource("collect_ec2_instance_info", false)
+	tags, err = GetInstanceInfo(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, []string(nil), tags)
+}
