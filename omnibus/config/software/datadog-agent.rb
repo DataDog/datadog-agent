@@ -252,8 +252,10 @@ build do
         dest: "#{conf_dir}/com.datadoghq.sysprobe.plist.example",
         mode: 0644,
         vars: {
-          install_dir: install_dir,
-          conf_dir: conf_dir,
+          # Due to how install_dir actually matches where the Agent is built rather than
+          # its actual final destination, we hardcode here the currently sole supported install location
+          install_dir: "/opt/datadog-agent",
+          conf_dir: "/opt/datadog-agent/etc",
         }
 
     erb source: "gui.launchd.plist.erb",
