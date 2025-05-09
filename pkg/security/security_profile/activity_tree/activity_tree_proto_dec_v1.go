@@ -62,7 +62,7 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 	for _, dns := range pan.DnsNames {
 		protoDecodedDNS := protoDecodeDNSNode(dns)
 		if len(protoDecodedDNS.Requests) != 0 {
-			name := protoDecodedDNS.Requests[0].Name
+			name := protoDecodedDNS.Requests[0].Question.Name
 			ppan.DNSNames[name] = protoDecodedDNS
 		}
 	}
@@ -349,11 +349,13 @@ func protoDecodeDNSInfo(ev *adproto.DNSInfo) model.DNSEvent {
 	}
 
 	return model.DNSEvent{
-		Name:  ev.Name,
-		Type:  uint16(ev.Type),
-		Class: uint16(ev.Class),
-		Size:  uint16(ev.Size),
-		Count: uint16(ev.Count),
+		Question: model.DNSQuestion{
+			Name:  ev.Name,
+			Type:  uint16(ev.Type),
+			Class: uint16(ev.Class),
+			Size:  uint16(ev.Size),
+			Count: uint16(ev.Count),
+		},
 	}
 }
 

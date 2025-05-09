@@ -497,7 +497,7 @@ func (c *ntmConfig) buildEnvVars() {
 
 	for configKey, listEnvVars := range c.configEnvVars {
 		for _, envVar := range listEnvVars {
-			if value, ok := os.LookupEnv(envVar); ok {
+			if value, ok := os.LookupEnv(envVar); ok && value != "" {
 				if err := c.insertNodeFromString(root, configKey, value); err != nil {
 					envWarnings = append(envWarnings, err)
 				} else {

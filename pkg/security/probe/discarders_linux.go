@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"math"
 	"path"
 	"strings"
@@ -82,6 +83,8 @@ var InvalidDiscarders = map[eval.Field][]string{
 	"removexattr.file.path":        dentryInvalidDiscarder,
 	"chdir.file.path":              dentryInvalidDiscarder,
 }
+
+var dnsMask uint16
 
 // bumpDiscardersRevision sends an eRPC request to bump the discarders revisionr
 func bumpDiscardersRevision(e *erpc.ERPC) error {
@@ -688,4 +691,35 @@ func init() {
 			return "chdir.file.path", &event.Open.File, false
 		}))
 	SupportedDiscarders["chdir.file.path"] = true
+
+	allDiscarderHandlers["dns"] = append(allDiscarderHandlers["dns"], func(_ *rules.RuleSet, event *model.Event, probe *EBPFProbe, discarder Discarder) (bool, error) {
+		field := "dns.response.code"
+		dnsResponse := &event.DNS
+
+		if !dnsResponse.HasResponse() {
+			return false, nil
+		}
+
+		if discarder.Field == field {
+			mask := uint16(1)
+			mask <<= dnsResponse.Response.ResponseCode
+			dnsMask |= mask
+
+			bufferSelector, err := managerhelper.Map(probe.Manager, "filtered_dns_rcodes")
+			if err != nil {
+				return false, err
+			}
+
+			err = bufferSelector.Put(uint32(0), dnsMask)
+			if err != nil {
+				return false, err
+			}
+
+			seclog.Tracef("DNS discarder for response code: %d", dnsResponse.Response.ResponseCode)
+			return true, nil
+		}
+
+		return false, nil
+	})
+	SupportedDiscarders["dns.response.code"] = true
 }

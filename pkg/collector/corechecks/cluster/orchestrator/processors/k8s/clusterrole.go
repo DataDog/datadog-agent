@@ -59,7 +59,8 @@ func (h *ClusterRoleHandlers) BuildMessageBody(ctx processors.ProcessorContext, 
 		GroupId:      pctx.MsgGroupID,
 		GroupSize:    int32(groupSize),
 		ClusterRoles: models,
-		Tags:         append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag)}
+		Tags:         pctx.ExtraTags,
+	}
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
@@ -79,7 +80,7 @@ func (h *ClusterRoleHandlers) ResourceList(ctx processors.ProcessorContext, list
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources
