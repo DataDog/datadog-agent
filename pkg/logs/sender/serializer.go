@@ -23,8 +23,7 @@ var (
 // raw []byte data from unstructured messages or turning structured
 // messages into []byte data).
 type Serializer interface {
-	Serialize(messages []*message.Message, writer io.Writer) error
-	SerializeMessage(message *message.Message, writer io.Writer) error
+	Serialize(message *message.Message, writer io.Writer) error
 	Finish(writer io.Writer) error
 }
 
@@ -38,23 +37,7 @@ type lineSerializer struct {
 // a new line characater as a separator,
 // for example:
 // "{"message":"content1"}", "{"message":"content2"}"
-// returns, "{"message":"content1"}\n{"message":"content2"}"
-func (s *lineSerializer) Serialize(messages []*message.Message, writer io.Writer) error {
-	for i, message := range messages {
-		if i > 0 {
-			if _, err := writer.Write([]byte{'\n'}); err != nil {
-				return err
-			}
-		}
-		if _, err := writer.Write(message.GetContent()); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// SerializeMessage writes a single message to the writer
-func (s *lineSerializer) SerializeMessage(message *message.Message, writer io.Writer) error {
+func (s *lineSerializer) Serialize(message *message.Message, writer io.Writer) error {
 	if !s.isFirstMessage {
 		if _, err := writer.Write([]byte{'\n'}); err != nil {
 			return err
@@ -80,28 +63,7 @@ type arraySerializer struct {
 // for example:
 // "{"message":"content1"}", "{"message":"content2"}"
 // returns, "[{"message":"content1"},{"message":"content2"}]"
-func (s *arraySerializer) Serialize(messages []*message.Message, writer io.Writer) error {
-	if _, err := writer.Write([]byte{'['}); err != nil {
-		return err
-	}
-
-	for i, message := range messages {
-		if i > 0 {
-			if _, err := writer.Write([]byte{','}); err != nil {
-				return err
-			}
-		}
-		if _, err := writer.Write(message.GetContent()); err != nil {
-			return err
-		}
-	}
-
-	_, err := writer.Write([]byte{']'})
-	return err
-}
-
-// SerializeMessage writes a single message as a JSON array element
-func (s *arraySerializer) SerializeMessage(message *message.Message, writer io.Writer) error {
+func (s *arraySerializer) Serialize(message *message.Message, writer io.Writer) error {
 	if s.isFirstMessage {
 		if _, err := writer.Write([]byte{'['}); err != nil {
 			return err

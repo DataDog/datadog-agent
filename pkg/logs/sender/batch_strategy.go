@@ -145,25 +145,33 @@ func (s *batchStrategy) Start() {
 	}()
 }
 
+func (s *batchStrategy) addMessage(m *message.Message) bool {
+	s.utilization.Start()
+	defer s.utilization.Stop()
+
+	if s.buffer.AddMessage(m) {
+		err := s.serializer.Serialize(m, s.writeCounter)
+		if err != nil {
+			log.Warnf("Failed to serialize message in pipeline=%s reason=serialize-error err=%s", s.pipelineName, err)
+			return false
+		}
+		return true
+	}
+	return false
+}
+
 func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *message.Payload) {
 	if m.Origin != nil {
 		m.Origin.LogSource.LatencyStats.Add(m.GetLatency())
 	}
-	added := s.buffer.AddMessage(m)
-	if added {
-		// TODO (brian): Handel errors
-		_ = s.serializer.SerializeMessage(m, s.writeCounter)
-	}
+	added := s.addMessage(m)
 	if !added || s.buffer.IsFull() {
 		s.flushBuffer(outputChan)
 	}
 	if !added {
 		// it's possible that the m could not be added because the buffer was full
 		// so we need to retry once again
-		if s.buffer.AddMessage(m) {
-			// TODO (brian): Handel errors
-			_ = s.serializer.SerializeMessage(m, s.writeCounter)
-		} else {
+		if !s.addMessage(m) {
 			log.Warnf("Dropped message in pipeline=%s reason=too-large ContentLength=%d ContentSizeLimit=%d", s.pipelineName, len(m.GetContent()), s.buffer.ContentSizeLimit())
 			tlmDroppedTooLarge.Inc(s.pipelineName)
 		}
@@ -176,9 +184,14 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	if s.buffer.IsEmpty() {
 		return
 	}
-	// TODO (brian): Handel errors
-	_ = s.serializer.Finish(s.writeCounter)
+
 	s.utilization.Start()
+	if err := s.serializer.Finish(s.writeCounter); err != nil {
+		log.Warn("Encoding failed - dropping payload", err)
+		s.utilization.Stop()
+		return
+	}
+
 	messagesMetadata := s.buffer.GetMessages()
 	s.buffer.Clear()
 	// Logging specifically for DBM pipelines, which seem to fail to send more often than other pipelines.

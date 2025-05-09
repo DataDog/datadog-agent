@@ -38,9 +38,6 @@ func TestArraySerializer(t *testing.T) {
 
 	serializer := ArraySerializer
 
-	payload = serializeToBytes(t, serializer, messages)
-	assert.Equal(t, []byte("[]"), payload)
-
 	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0)}
 	payload = serializeToBytes(t, serializer, messages)
 	assert.Equal(t, []byte("[a]"), payload)
@@ -54,7 +51,11 @@ func serializeToBytes(t *testing.T, s Serializer, messages []*message.Message) [
 	t.Helper()
 
 	var payload bytes.Buffer
-	err := s.Serialize(messages, &payload)
+	for _, m := range messages {
+		err := s.Serialize(m, &payload)
+		assert.NoError(t, err)
+	}
+	err := s.Finish(&payload)
 	assert.NoError(t, err)
 	return payload.Bytes()
 }
