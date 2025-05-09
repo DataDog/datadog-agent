@@ -277,6 +277,7 @@ new-e2e-windows-service-test:
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledSystemProbe
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledProcessAgent
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledTraceAgent
+      - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledInstaller
 
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64

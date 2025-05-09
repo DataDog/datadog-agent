@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    On Windows, restarting the ``datadogagent`` service now also restarts the ``Datadog Installer``
+    service to ensure configuration changes take effect.
