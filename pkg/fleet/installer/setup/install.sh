@@ -19,14 +19,14 @@ if ! command -v sha256sum >/dev/null || ! (command -v curl >/dev/null || command
 fi
 
 flavor="INSTALLER_FLAVOR"
-version="INSTALLER_VERSION"
-export DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER="$version"
+version="AGENT_VERSION"
+export DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT="$version"
 case "$arch" in
 x86_64)
-  installer_sha256="INSTALLER_AMD64_SHA256"
+  installer_sha256="830f2f768be95e421aff0bed2125152d2bd63fd6579dce72a247151ca547a528"
   ;;
 aarch64)
-  installer_sha256="INSTALLER_ARM64_SHA256"
+  installer_sha256="d785671d32558125da98cfaaac8850c65f9e71b31b20703bf37d4b25ba07d337"
   ;;
 esac
 installer_domain=${DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE:-$([[ "$DD_SITE" == "datad0g.com" ]] && echo "install.datad0g.com" || echo "install.datadoghq.com")}
