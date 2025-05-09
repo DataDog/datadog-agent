@@ -53,7 +53,7 @@ func (tb *TerminatedResourceBundle) Add(k8sCollector collectors.K8sCollector, ob
 		tb.terminatedResources[k8sCollector] = []interface{}{}
 	}
 
-	resource, err := getResourceIfDeletedFinalStateUnknown(obj)
+	resource, err := getResource(obj)
 	if err != nil {
 		log.Warn(err)
 		return
@@ -136,9 +136,9 @@ func toTypedSlice(k8sCollector collectors.K8sCollector, list []interface{}) inte
 	return typedList.Interface()
 }
 
-// getResourceIfDeletedFinalStateUnknown checks if the resource is of type DeletedFinalStateUnknown
+// getResource checks if the resource is of type DeletedFinalStateUnknown
 // and returns the underlying object if it is, or an error if the object is nil.
-func getResourceIfDeletedFinalStateUnknown(obj interface{}) (interface{}, error) {
+func getResource(obj interface{}) (interface{}, error) {
 	resource := obj
 	if deletedState, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 		resource = deletedState.Obj
