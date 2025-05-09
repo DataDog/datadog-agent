@@ -9,11 +9,12 @@ import (
 	"fmt"
 	"time"
 
+	"go.uber.org/atomic"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"go.uber.org/atomic"
 )
 
 // EPIntakeVersion is the events platform intake API version
@@ -191,6 +192,7 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
 		newE.UseCompression = main.UseCompression
+		newE.CompressionKind = main.CompressionKind
 		newE.CompressionLevel = main.CompressionLevel
 		newE.ProxyAddress = e.ProxyAddress
 		newE.isReliable = e.IsReliable == nil || *e.IsReliable
