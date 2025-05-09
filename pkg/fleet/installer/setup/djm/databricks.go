@@ -87,37 +87,39 @@ var (
 
 // SetupDatabricks sets up the Databricks environment
 func SetupDatabricks(s *common.Setup) error {
-	s.Packages.InstallInstaller()
-	s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
-	s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
-	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, databricksJavaTracerVersion)
+	if os.Getenv("DB_IS_DRIVER") == "TRUE" {
+		s.Packages.InstallInstaller()
+		s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
+		s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
+		s.Packages.Install(common.DatadogAPMLibraryJavaPackage, databricksJavaTracerVersion)
 
-	s.Out.WriteString("Applying specific Data Jobs Monitoring config\n")
-	hostname, err := os.Hostname()
-	if err != nil {
-		return fmt.Errorf("failed to get hostname: %w", err)
-	}
-	s.Config.DatadogYAML.Hostname = hostname
-	s.Config.DatadogYAML.DJM.Enabled = true
-	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
-	s.Config.DatadogYAML.ProcessConfig.ExpvarPort = 6063 // avoid port conflict on 6062
-
-	if os.Getenv("DD_TRACE_DEBUG") == "true" {
-		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
-		debugLogs := common.InjectTracerConfigEnvVar{
-			Key:   "DD_TRACE_DEBUG",
-			Value: "true",
+		s.Out.WriteString("Applying specific Data Jobs Monitoring config\n")
+		hostname, err := os.Hostname()
+		if err != nil {
+			return fmt.Errorf("failed to get hostname: %w", err)
 		}
-		tracerEnvConfigDatabricks = append(tracerEnvConfigDatabricks, debugLogs)
-	}
-	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigDatabricks
+		s.Config.DatadogYAML.Hostname = hostname
+		s.Config.DatadogYAML.DJM.Enabled = true
+		s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
+		s.Config.DatadogYAML.ProcessConfig.ExpvarPort = 6063 // avoid port conflict on 6062
 
-	setupCommonHostTags(s)
-	installMethod := "manual"
-	if os.Getenv("DD_DJM_INIT_IS_MANAGED_INSTALL") == "true" {
-		installMethod = "managed"
+		if os.Getenv("DD_TRACE_DEBUG") == "true" {
+			s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
+			debugLogs := common.InjectTracerConfigEnvVar{
+				Key:   "DD_TRACE_DEBUG",
+				Value: "true",
+			}
+			tracerEnvConfigDatabricks = append(tracerEnvConfigDatabricks, debugLogs)
+		}
+		s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigDatabricks
+
+		setupCommonHostTags(s)
+		installMethod := "manual"
+		if os.Getenv("DD_DJM_INIT_IS_MANAGED_INSTALL") == "true" {
+			installMethod = "managed"
+		}
+		s.Span.SetTag("install_method", installMethod)
 	}
-	s.Span.SetTag("install_method", installMethod)
 
 	switch os.Getenv("DB_IS_DRIVER") {
 	case "TRUE":
