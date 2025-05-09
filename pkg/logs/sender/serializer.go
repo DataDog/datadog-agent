@@ -66,7 +66,7 @@ func (s *lineSerializer) SerializeMessage(message *message.Message, writer io.Wr
 }
 
 // Finish is a no-op for line serializer
-func (s *lineSerializer) Finish(writer io.Writer) error {
+func (s *lineSerializer) Finish(_ io.Writer) error {
 	s.isFirstMessage = true
 	return nil
 }

@@ -176,7 +176,8 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	if s.buffer.IsEmpty() {
 		return
 	}
-	s.serializer.Finish(s.writeCounter)
+	// TODO (brian): Handel errors
+	_ = s.serializer.Finish(s.writeCounter)
 	s.utilization.Start()
 	messagesMetadata := s.buffer.GetMessages()
 	s.buffer.Clear()
