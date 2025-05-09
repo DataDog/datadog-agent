@@ -12,8 +12,8 @@
   - |
     if [ "$((RANDOM%20))" -eq 0 ]; then
       echo Trying to remove inactive versions
-      dda inv -- -e macos.remove-inactive-versions -l python -t "$PYTHON_VERSION" --no-dry-run
-      dda inv -- -e macos.remove-inactive-versions -l go -t "$(cat .go-version)" --no-dry-run
+      dda inv -- -e macos.remove-inactive-versions -l python -t "$PYTHON_VERSION"
+      dda inv -- -e macos.remove-inactive-versions -l go -t "$(cat .go-version)"
     fi
 
 .select_python_env_commands:

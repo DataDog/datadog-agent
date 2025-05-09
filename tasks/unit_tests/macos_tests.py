@@ -1,6 +1,8 @@
 import unittest
 import unittest.mock
 
+from invoke import MockContext
+
 from tasks.macos import remove_inactive_versions
 
 
@@ -13,7 +15,7 @@ class TestRemoveInactiveVersions(unittest.TestCase):
         runner_mock.return_value = {'3.12.1', '3.13.42', '3.11.3', '3.11.6', '3.9.7', '2.7.18'}
 
         # 3.13 should not be removed
-        remove_inactive_versions(self.ctx, 'python', '3.13.42')
+        remove_inactive_versions(MockContext(), 'python', '3.13.42', dry_run=True)
 
         # The order is non deterministic
         print_mock.assert_any_call('Removing python version 3.9.7')
@@ -28,7 +30,7 @@ class TestRemoveInactiveVersions(unittest.TestCase):
         runner_mock.return_value = {'3.12.1', '3.13.42', '3.11.3', '3.11.6', '3.9.7', '2.7.18'}
 
         # 3.13 should not be removed
-        remove_inactive_versions(self.ctx, 'python', '3.13')
+        remove_inactive_versions(MockContext(), 'python', '3.13', dry_run=True)
 
         # The order is non deterministic
         print_mock.assert_any_call('Removing python version 3.9.7')
@@ -43,7 +45,7 @@ class TestRemoveInactiveVersions(unittest.TestCase):
         runner_mock.return_value = {'3.12.1', '3.13.42', '3.11.3', '3.11.6', '3.9.7', '2.7.18'}
 
         # 3.13 should be removed
-        remove_inactive_versions(self.ctx, 'python')
+        remove_inactive_versions(MockContext(), 'python', dry_run=True)
 
         # The order is non deterministic
         print_mock.assert_any_call('Removing python version 3.9.7')

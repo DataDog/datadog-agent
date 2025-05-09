@@ -105,7 +105,7 @@ def list_runner_active_versions(ctx, lang):
 
 
 @task
-def remove_inactive_versions(ctx, lang, target_version="", n_days=30, dry_run=True):
+def remove_inactive_versions(ctx, lang, target_version="", n_days=30, dry_run=False):
     """Removes the Python / Go versions that have not been reported to Datadog during the last month."""
 
     assert lang in ("python", "go"), "Lang must be either 'python' or 'go'"
