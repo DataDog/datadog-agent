@@ -223,7 +223,7 @@ func (d *DBMAuroraService) GetADIdentifiers() ([]string, error) {
 }
 
 // GetHosts returns the host for the aurora endpoint
-func (d *DBMAuroraService) GetHosts(context.Context) (map[string]string, error) {
+func (d *DBMAuroraService) GetHosts() (map[string]string, error) {
 	return map[string]string{"": d.instance.Endpoint}, nil
 }
 

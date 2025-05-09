@@ -445,7 +445,7 @@ func (s *SNMPService) GetADIdentifiers() ([]string, error) {
 }
 
 // GetHosts returns the device IP
-func (s *SNMPService) GetHosts(context.Context) (map[string]string, error) {
+func (s *SNMPService) GetHosts() (map[string]string, error) {
 	ips := map[string]string{
 		"": s.deviceIP,
 	}

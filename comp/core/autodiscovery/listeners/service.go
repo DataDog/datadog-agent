@@ -80,7 +80,7 @@ func (s *service) GetADIdentifiers() ([]string, error) {
 }
 
 // GetHosts returns the service's IPs for each host.
-func (s *service) GetHosts(_ context.Context) (map[string]string, error) {
+func (s *service) GetHosts() (map[string]string, error) {
 	return s.hosts, nil
 }
 

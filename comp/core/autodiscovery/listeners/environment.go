@@ -94,7 +94,7 @@ func (s *EnvironmentService) GetADIdentifiers() ([]string, error) {
 }
 
 // GetHosts is not supported
-func (s *EnvironmentService) GetHosts(context.Context) (map[string]string, error) {
+func (s *EnvironmentService) GetHosts() (map[string]string, error) {
 	return nil, ErrNotSupported
 }
 

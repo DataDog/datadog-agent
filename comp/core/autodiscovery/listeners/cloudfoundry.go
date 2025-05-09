@@ -219,7 +219,7 @@ func (s *CloudFoundryService) GetADIdentifiers() ([]string, error) {
 }
 
 // GetHosts returns the container's hosts
-func (s *CloudFoundryService) GetHosts(context.Context) (map[string]string, error) {
+func (s *CloudFoundryService) GetHosts() (map[string]string, error) {
 	return s.containerIPs, nil
 }
 

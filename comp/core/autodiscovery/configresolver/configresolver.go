@@ -320,8 +320,8 @@ func resolveStringWithTemplateVars(ctx context.Context, in string, svc listeners
 	adHocTemplateVars := make(map[string]variableGetter)
 	for k, v := range templateVariables {
 		if k == "host" {
-			adHocTemplateVars[k] = func(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
-				host, err := getHost(ctx, tplVar, svc)
+			adHocTemplateVars[k] = func(_ context.Context, tplVar string, svc listeners.Service) (string, error) {
+				host, err := getHost(nil, tplVar, svc)
 				if apiutil.IsIPv6(host) {
 					isThereAnIPv6Host = true
 					if tplVar != "" {
@@ -364,8 +364,8 @@ func resolveStringWithTemplateVars(ctx context.Context, in string, svc listeners
 	}
 
 	adHocTemplateVars = map[string]variableGetter{
-		"host": func(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
-			host, err := getHost(ctx, tplVar, svc)
+		"host": func(_ context.Context, tplVar string, svc listeners.Service) (string, error) {
+			host, err := getHost(nil, tplVar, svc)
 			var sb strings.Builder
 			sb.WriteByte('[')
 			sb.WriteString(host)
@@ -492,12 +492,12 @@ func tagsAdder(tags []string) func(interface{}) error {
 	}
 }
 
-func getHost(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
+func getHost(_ context.Context, tplVar string, svc listeners.Service) (string, error) {
 	if svc == nil {
 		return "", newNoServiceError("No service. %%%%host%%%% is not allowed")
 	}
 
-	hosts, err := svc.GetHosts(ctx)
+	hosts, err := svc.GetHosts()
 	if err != nil {
 		return "", fmt.Errorf("failed to extract IP address for container %s, ignoring it. Source error: %s", svc.GetServiceID(), err)
 	}

@@ -55,7 +55,7 @@ func TestProcessService(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_service://default/myservice"}, adID)
 
-	hosts, err := svc.GetHosts(ctx)
+	hosts, err := svc.GetHosts()
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]string{"cluster": "10.0.0.1"}, hosts)
 

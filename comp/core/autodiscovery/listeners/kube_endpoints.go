@@ -456,7 +456,7 @@ func (s *KubeEndpointService) GetADIdentifiers() ([]string, error) {
 }
 
 // GetHosts returns the pod hosts
-func (s *KubeEndpointService) GetHosts(context.Context) (map[string]string, error) {
+func (s *KubeEndpointService) GetHosts() (map[string]string, error) {
 	if s.hosts == nil {
 		return map[string]string{}, nil
 	}

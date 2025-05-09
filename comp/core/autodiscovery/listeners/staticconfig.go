@@ -81,7 +81,7 @@ func (s *StaticConfigService) GetADIdentifiers() ([]string, error) {
 }
 
 // GetHosts is not supported
-func (s *StaticConfigService) GetHosts(context.Context) (map[string]string, error) {
+func (s *StaticConfigService) GetHosts() (map[string]string, error) {
 	return nil, ErrNotSupported
 }
 

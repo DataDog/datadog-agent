@@ -40,7 +40,7 @@ func (s *dummyService) GetADIdentifiers() ([]string, error) {
 }
 
 // GetHosts returns dummy hosts
-func (s *dummyService) GetHosts(context.Context) (map[string]string, error) {
+func (s *dummyService) GetHosts() (map[string]string, error) {
 	return s.Hosts, nil
 }
 
