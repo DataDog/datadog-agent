@@ -13,14 +13,15 @@ import (
 	"errors"
 	"testing"
 
+	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/diskv2"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 func setupPlatformMocks() {
@@ -54,7 +55,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllUsageMetricsAreRe
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
@@ -105,7 +106,7 @@ func TestGivenADiskCheckWithLowercaseDeviceTagConfigured_WhenCheckRuns_ThenLower
 			},
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("lowercase_device_tag: true"))
@@ -148,7 +149,7 @@ func TestGivenADiskCheckWithIncludeAllDevicesTrueConfigured_WhenCheckRuns_ThenAl
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("include_all_devices: true"))
@@ -187,7 +188,7 @@ func TestGivenADiskCheckWithIncludeAllDevicesFalseConfigured_WhenCheckRuns_ThenO
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("include_all_devices: false"))
@@ -232,7 +233,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturn
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
@@ -273,7 +274,7 @@ func TestGivenADiskCheckWithDeviceIncludeConfigured_WhenCheckRuns_ThenOnlyUsageM
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -315,7 +316,7 @@ func TestGivenADiskCheckWithDeviceWhiteListConfigured_WhenCheckRuns_ThenOnlyUsag
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -363,7 +364,7 @@ func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_T
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
@@ -410,7 +411,7 @@ func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_T
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
@@ -428,7 +429,7 @@ func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_T
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllIOCountersMetricsAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
@@ -453,7 +454,7 @@ func TestGivenADiskCheckWithCreateMountsConfigured_WhenCheckIsConfigured_ThenMou
 		netAddConnectionCalls = append(netAddConnectionCalls, []string{localName, remoteName, password, username})
 		return nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -495,7 +496,7 @@ func TestGivenADiskCheckWithCreateMountsConfiguredWithoutHost_WhenCheckIsConfigu
 		netAddConnectionCalls = append(netAddConnectionCalls, []string{localName, remoteName, password, username})
 		return nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -523,7 +524,7 @@ func TestGivenADiskCheckWithCreateMountsConfigured_WhenCheckRunsAndIOCountersSys
 	diskv2.NetAddConnection = func(_localName, _remoteName, _password, _username string) error {
 		return errors.New("error calling NetAddConnection")
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -571,7 +572,7 @@ func TestGivenADiskCheckWithDeviceTagReConfigured_WhenCheckRuns_ThenUsageMetrics
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -613,7 +614,7 @@ func TestGivenADiskCheckWithFileSystemGlobalExcludeConfigured_WhenCheckRuns_Then
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	initConfig := integration.Data([]byte(`
@@ -655,7 +656,7 @@ func TestGivenADiskCheckWithFileSystemGlobalBlackListConfigured_WhenCheckRuns_Th
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	initConfig := integration.Data([]byte(`
@@ -697,7 +698,7 @@ func TestGivenADiskCheckWithExcludedFileSystemsConfigured_WhenCheckRuns_ThenUsag
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -739,7 +740,7 @@ func TestGivenADiskCheckWithFileSystemExcludeConfigured_WhenCheckRuns_ThenUsageM
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -781,7 +782,7 @@ func TestGivenADiskCheckWithFileSystemBlackListConfigured_WhenCheckRuns_ThenUsag
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -823,7 +824,7 @@ func TestGivenADiskCheckWithFileSystemIncludeConfigured_WhenCheckRuns_ThenOnlyUs
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -865,7 +866,7 @@ func TestGivenADiskCheckWithFileSystemWhiteListConfigured_WhenCheckRuns_ThenOnly
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -907,7 +908,7 @@ func TestGivenADiskCheckWithMountPointGlobalExcludeConfigured_WhenCheckRuns_Then
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	initConfig := integration.Data([]byte(`
@@ -949,7 +950,7 @@ func TestGivenADiskCheckWithMountPointGlobalBlackListConfigured_WhenCheckRuns_Th
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	initConfig := integration.Data([]byte(`
@@ -991,7 +992,7 @@ func TestGivenADiskCheckWithMountPointExcludeConfigured_WhenCheckRuns_ThenUsageM
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1033,7 +1034,7 @@ func TestGivenADiskCheckWithMountPointBlackListConfigured_WhenCheckRuns_ThenUsag
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1075,7 +1076,7 @@ func TestGivenADiskCheckWithExcludedMountPointReConfigured_WhenCheckRuns_ThenUsa
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`excluded_mountpoint_re: D:\\`))
@@ -1114,7 +1115,7 @@ func TestGivenADiskCheckWithUseMountConfigured_WhenCheckRuns_ThenUsageMetricsAre
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("use_mount: true"))
@@ -1153,7 +1154,7 @@ func TestGivenADiskCheckWithServiceCheckRwTrueConfigured_WhenCheckRuns_ThenReadW
 			InodesUsedPercent: 50.0,
 		}, nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
