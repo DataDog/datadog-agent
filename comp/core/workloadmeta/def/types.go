@@ -559,9 +559,9 @@ type Container struct {
 	SecurityContext *ContainerSecurityContext
 	Resources       ContainerResources
 
-	// AllocatedResources is the list of resources allocated to this pod. Requires the
+	// ResolvedAllocatedResources is the list of resources allocated to this pod. Requires the
 	// PodResources API to query that data.
-	AllocatedResources []ContainerAllocatedResource
+	ResolvedAllocatedResources []ContainerAllocatedResource
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
@@ -616,7 +616,7 @@ func (c Container) String(verbose bool) string {
 	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
 
 	_, _ = fmt.Fprintln(&sb, "----------- Allocated Resources -----------")
-	for _, r := range c.AllocatedResources {
+	for _, r := range c.ResolvedAllocatedResources {
 		_, _ = fmt.Fprintln(&sb, r.String())
 	}
 

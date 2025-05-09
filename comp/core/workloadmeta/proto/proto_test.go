@@ -84,7 +84,7 @@ func TestConversions(t *testing.T) {
 					CollectorTags: []string{
 						"tag1",
 					},
-					AllocatedResources: []workloadmeta.ContainerAllocatedResource{
+					ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 						{Name: "nvidia.com/gpu", ID: "gpu1"},
 					},
 				},
@@ -141,7 +141,7 @@ func TestConversions(t *testing.T) {
 					CollectorTags: []string{
 						"tag1",
 					},
-					AllocatedResources: []*pb.ContainerAllocatedResource{
+					ResolvedAllocatedResources: []*pb.ContainerAllocatedResource{
 						{Name: "nvidia.com/gpu", ID: "gpu1"},
 					},
 				},

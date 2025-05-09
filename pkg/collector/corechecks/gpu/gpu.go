@@ -324,13 +324,13 @@ func (c *Check) getContainerTags(containerID string) []string {
 
 func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 	containers := c.wmeta.ListContainersWithFilter(func(cont *workloadmeta.Container) bool {
-		return len(cont.AllocatedResources) > 0
+		return len(cont.ResolvedAllocatedResources) > 0
 	})
 
 	gpuToContainers := make(map[string][]*workloadmeta.Container)
 
 	for _, container := range containers {
-		for _, resource := range container.AllocatedResources {
+		for _, resource := range container.ResolvedAllocatedResources {
 			if resource.Name == "nvidia.com/gpu" {
 				gpuToContainers[resource.ID] = append(gpuToContainers[resource.ID], container)
 			}
