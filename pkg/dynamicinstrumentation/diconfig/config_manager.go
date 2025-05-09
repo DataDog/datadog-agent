@@ -12,6 +12,7 @@ package diconfig
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sync"
 
 	"github.com/cilium/ebpf/ringbuf"
@@ -55,6 +56,7 @@ type configUpdateCallback func(*ditypes.ProcessInfo, *ditypes.Probe)
 // instrumenting tracked processes
 type ConfigManager interface {
 	GetProcInfos() ditypes.DIProcs
+	GetProcInfo(ditypes.PID) *ditypes.ProcessInfo
 	Stop()
 }
 
@@ -87,7 +89,14 @@ func NewRCConfigManager(pm process.Subscriber) (*RCConfigManager, error) {
 func (cm *RCConfigManager) GetProcInfos() ditypes.DIProcs {
 	cm.RLock()
 	defer cm.RUnlock()
-	return cm.diProcs
+	return maps.Clone(cm.diProcs)
+}
+
+// GetProcInfo returns a copy of the state of the RCConfigManager
+func (cm *RCConfigManager) GetProcInfo(pid ditypes.PID) *ditypes.ProcessInfo {
+	cm.RLock()
+	defer cm.RUnlock()
+	return cm.diProcs[pid]
 }
 
 // Stop closes the config and proc trackers used by the RCConfigManager
