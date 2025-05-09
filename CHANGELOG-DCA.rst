@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.65.1:
+
+7.65.1
+======
+
+.. _Release Notes_7.65.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-05-08
+Pinned to datadog-agent v7.65.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7651>`_.
+
+.. _Release Notes_7.65.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Customers relying on the deprecated v1 implementation of the auto instrumentation webhook will no longer be forced
+  to use the v2 implementation. This will provide additional time for customers to migrate to the v1 implementation
+  and ensure the v2 implementation adequately supports all existing use cases.
+
+
 .. _Release Notes_7.65.0:
 
 7.65.0
