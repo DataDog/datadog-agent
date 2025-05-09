@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-// Package systemd offers an interface over systemd
+// Package systemd provides a set of functions to manage systemd units
 package systemd
 
 import (

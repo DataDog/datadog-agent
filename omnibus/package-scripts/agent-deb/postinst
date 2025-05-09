@@ -19,7 +19,7 @@ if [ -x ${INSTALL_DIR}/embedded/bin/fipsinstall.sh ]; then
     ${INSTALL_DIR}/embedded/bin/fipsinstall.sh
 fi
 
-# Run post install script. Instructions can be found in pkg/fleet/installer/packages/datadog_agent.go
+# Run post install script. Instructions can be found in pkg/fleet/installer/packages/datadog_agent_linux.go
 ${INSTALL_DIR}/embedded/bin/installer postinst datadog-agent deb
 
 # Enable and restart the agent service here on Debian platforms
@@ -40,7 +40,6 @@ elif command -v update-rc.d >/dev/null 2>&1; then
 else
     echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd, upstart and sysvinit."
 fi
-
 
 # TODO: Use a configcheck command on the agent to determine if it's safe to restart,
 # and avoid restarting when a check conf is invalid
