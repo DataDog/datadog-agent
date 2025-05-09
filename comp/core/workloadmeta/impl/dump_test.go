@@ -80,7 +80,7 @@ func TestDump(t *testing.T) {
 Kind: container ID: ctr-id
 ----------- Entity Meta -----------
 Name: ctr-name
-Namespace:
+Namespace: 
 ----------- Image -----------
 Name: ctr-image
 Tag: latest
@@ -109,22 +109,22 @@ Name: nvidia.com/gpu, ID: GPU-1234
 Kind: container ID: ctr-id
 ----------- Entity Meta -----------
 Name: ctr-name
-Namespace:
-Annotations:
-Labels:
+Namespace: 
+Annotations: 
+Labels: 
 ----------- Image -----------
 Name: ctr-image
-Tag:
-ID:
-Raw Name:
-Short Name:
-Repo Digest:
+Tag: 
+ID: 
+Raw Name: 
+Short Name: 
+Repo Digest: 
 ----------- Container Info -----------
 Runtime: docker
 RuntimeFlavor: kata
 Running: false
-Status:
-Health:
+Status: 
+Health: 
 Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
@@ -132,38 +132,38 @@ Finished At: 0001-01-01 00:00:00 +0000 UTC
 GPUVendor: [nvidia]
 ----------- Allocated Resources -----------
 Name: nvidia.com/gpu, ID: GPU-1234
-Hostname:
-Network IPs:
+Hostname: 
+Network IPs: 
 PID: 0
-Cgroup path:
+Cgroup path: 
 `,
 					"source:source2 id: ctr-id": `----------- Entity ID -----------
 Kind: container ID: ctr-id
 ----------- Entity Meta -----------
-Name:
-Namespace:
-Annotations:
-Labels: foo:bar
+Name: 
+Namespace: 
+Annotations: 
+Labels: foo:bar 
 ----------- Image -----------
-Name:
+Name: 
 Tag: latest
-ID:
-Raw Name:
-Short Name:
-Repo Digest:
+ID: 
+Raw Name: 
+Short Name: 
+Repo Digest: 
 ----------- Container Info -----------
-Runtime:
-RuntimeFlavor:
+Runtime: 
+RuntimeFlavor: 
 Running: false
-Status:
-Health:
+Status: 
+Health: 
 Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
 ----------- Allocated Resources -----------
-Hostname:
-Network IPs:
+Hostname: 
+Network IPs: 
 PID: 1
 Cgroup path: /default/ctr-id
 `,
@@ -171,22 +171,22 @@ Cgroup path: /default/ctr-id
 Kind: container ID: ctr-id
 ----------- Entity Meta -----------
 Name: ctr-name
-Namespace:
-Annotations:
-Labels: foo:bar
+Namespace: 
+Annotations: 
+Labels: foo:bar 
 ----------- Image -----------
 Name: ctr-image
 Tag: latest
-ID:
-Raw Name:
-Short Name:
-Repo Digest:
+ID: 
+Raw Name: 
+Short Name: 
+Repo Digest: 
 ----------- Container Info -----------
 Runtime: docker
 RuntimeFlavor: kata
 Running: false
-Status:
-Health:
+Status: 
+Health: 
 Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
@@ -194,8 +194,8 @@ Finished At: 0001-01-01 00:00:00 +0000 UTC
 GPUVendor: [nvidia]
 ----------- Allocated Resources -----------
 Name: nvidia.com/gpu, ID: GPU-1234
-Hostname:
-Network IPs:
+Hostname: 
+Network IPs: 
 PID: 1
 Cgroup path: /default/ctr-id
 `,
