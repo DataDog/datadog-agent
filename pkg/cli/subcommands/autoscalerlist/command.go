@@ -37,6 +37,7 @@ type cliParams struct {
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
 	ConfFilePath string
+	ConfigName   string
 	LoggerName   string
 }
 
@@ -56,8 +57,11 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(autoscalerList,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
-					LogParams:    log.ForOneShot(globalParams.LoggerName, "off", true)}),
+					ConfigParams: config.NewAgentParams(
+						globalParams.ConfFilePath,
+						config.WithConfigName(globalParams.ConfigName),
+					),
+					LogParams: log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
 			)
 		},
