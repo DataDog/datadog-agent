@@ -32,6 +32,8 @@ func TestGetTracerMetadata(t *testing.T) {
 		createTracerMemfd(t, data)
 		trm, err := GetTracerMetadata(pid, procfs)
 		require.NoError(t, err)
+		require.Equal(t, "my-service", trm.ServiceName)
+		require.Equal(t, "6376fab2-73d0-4958-84af-602cdbcf7509", trm.RuntimeID)
 		require.Equal(t, "cpp", trm.TracerLanguage)
 		require.Equal(t, uint8(1), trm.SchemaVersion)
 	})

@@ -92,7 +92,7 @@ install_systemd_unit "node-instrumented" "$NVM_DIR/nvm-exec node /home/ubuntu/e2
 
 ## Python
 install_systemd_unit "python-svc" "/usr/bin/python3 /home/ubuntu/e2e-test/python/server.py" "8082" "DD_SERVICE=python-svc-dd"
-install_systemd_unit "python-instrumented" "/usr/bin/python3 /home/ubuntu/e2e-test/python/instrumented.py" "8083" ""
+install_systemd_unit "python-instrumented" "/usr/bin/python3 /home/ubuntu/e2e-test/python/instrumented.py" "8083" "DD_SERVICE=python-instrumented-dd"
 
 ## Ruby
 install_systemd_unit --workdir "/home/ubuntu/rails-hello" "rails-svc" "rails server" "7777" ""
