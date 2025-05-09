@@ -59,8 +59,10 @@ func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
 			return r.Flush()
 		}
 		r.messageBuf = r.messageBuf[:0]
-		r.currentSize = 0
+
 		msg.SetContent(outBuf.Bytes())
+		msg.RawDataLen = r.currentSize
+		r.currentSize = 0
 
 		if r.tagCompleteJSON {
 			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.AggregatedJSONTag)

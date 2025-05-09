@@ -54,6 +54,26 @@ func TestJSONAggregatorProcess_MultiPart(t *testing.T) {
 	assert.Equal(t, []byte(`{"key":"value"}`), result[0].GetContent(), "Content should be compact JSON")
 }
 
+func TestJSONAggregatorProcess_MultiPart_RawDataLen(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 1000)
+	part1 := `{"key":        `
+	part2 := `      "value"}       `
+	expectedRawDataLen := len([]byte(part1)) + len([]byte(part2))
+
+	// First part of a JSON message
+	msg1 := newTestMessage(part1)
+	result := aggregator.Process(msg1)
+	assert.Equal(t, 0, len(result), "Expected no messages for first incomplete part")
+
+	// Second part completes the JSON
+	msg2 := newTestMessage(part2)
+	result = aggregator.Process(msg2)
+
+	assert.Equal(t, 1, len(result), "Expected one message after completion")
+	assert.Equal(t, []byte(`{"key":"value"}`), result[0].GetContent(), "Content should be compact JSON")
+	assert.Equal(t, expectedRawDataLen, result[0].RawDataLen, "Expected raw data length to be the sum of the two parts")
+}
+
 func TestJSONAggregatorProcess_Invalid(t *testing.T) {
 	aggregator := NewJSONAggregator(true, 1000)
 
