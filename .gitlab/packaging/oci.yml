@@ -24,7 +24,7 @@
     - set +x
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - go env -w GOPRIVATE="github.com/DataDog/*"
-    - ${CI_PROJECT_DIR}/tools/ci/retry.sh go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
+    - ${CI_PROJECT_DIR}/tools/ci/retry.sh go install github.com/DataDog/datadog-packages/cmd/datadog-package@revert-43-revert-42-revert-41-revert-40-baptiste.foy/FA/aws-sdk-v2
     - OUTPUT_DIR="/tmp/oci_output"
     - mkdir -p ${OUTPUT_DIR}
     - ls $OMNIBUS_PACKAGE_DIR
