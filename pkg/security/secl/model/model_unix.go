@@ -145,6 +145,7 @@ type Event struct {
 	NetDevice        NetDeviceEvent        `field:"-"`
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
+	Debug            string                `field:"-"`
 }
 
 var eventZero = Event{CGroupContext: &CGroupContext{}, BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
