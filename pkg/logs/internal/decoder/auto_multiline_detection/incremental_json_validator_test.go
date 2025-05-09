@@ -158,6 +158,11 @@ func TestEdgeCases(t *testing.T) {
 			inputs:   []string{`[`},
 			expected: []JSONState{Invalid},
 		},
+		{
+			name:     "Simple object followed by non-json",
+			inputs:   []string{`{"foo":`, `"bar"`, `}`, `not json`},
+			expected: []JSONState{Incomplete, Incomplete, Complete, Invalid},
+		},
 	}
 
 	for _, tt := range tests {
