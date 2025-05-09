@@ -999,7 +999,7 @@ replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0
 replace k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f => github.com/L3n41c/kube-state-metrics/v2 v2.13.1-0.20241119155242-07761b9fe9a0
 
 // Remove once https://github.com/Iceber/iouring-go/pull/31 or equivalent is merged
-replace github.com/iceber/iouring-go => github.com/paulcacheux/iouring-go v0.0.0-20241115154236-2c7785c40a0f
+replace github.com/iceber/iouring-go => github.com/lebauce/iouring-go v0.0.0-20250508214508-1407955fc3cf
 
 // github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
 replace github.com/golang/mock => github.com/golang/mock v1.6.0
