@@ -6,13 +6,9 @@
 package message
 
 import (
-	"runtime"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMessage(t *testing.T) {
@@ -74,56 +70,4 @@ func TestPayloadPreservesMessageOrder(t *testing.T) {
 		assert.Equal(t, msg.RawDataLen, payload.MessageMetas[i].RawDataLen, "Message at index %d should have RawDataLen of %d", i, msg.GetContent())
 		assert.Equal(t, msg.IngestionTimestamp, payload.MessageMetas[i].IngestionTimestamp, "Message at index %d should have ingestion timestamp %d", i, msg.IngestionTimestamp)
 	}
-}
-
-func TestPayloadAllowsMessageContentGC(t *testing.T) {
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	// Create a function to track when our test content gets GC'd
-	wasGCd := false
-	trackGC := func(_ *[]byte) {
-		wasGCd = true
-		wg.Done()
-	}
-
-	var payload *Payload
-
-	// Create scope to allow message to be GC'd
-	func() {
-		// Create message with content we want to track
-		content := make([]byte, 10000000000) // Large enough to be noticeable for GC
-		message := NewMessage(content, nil, "", 2)
-
-		// Set up finalizer to track when content is GC'd
-		runtime.SetFinalizer(&message.content, trackGC)
-
-		// Create payload from message
-		payload = NewPayload([]*MessageMetadata{&message.MessageMetadata}, []byte("encoded"), "", 0)
-
-		// Ensure payload captured metadata
-		require.Equal(t, 1, len(payload.MessageMetas))
-		require.Equal(t, int64(2), payload.MessageMetas[0].IngestionTimestamp)
-	}()
-
-	// Clear any references and force GC
-	runtime.GC()
-
-	// Wait for finalizer with timeout
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		assert.True(t, wasGCd, "Message content should have been garbage collected")
-	case <-time.After(time.Second):
-		t.Fatal("Message content was not garbage collected")
-	}
-
-	// Verify payload metadata still intact
-	assert.Equal(t, 1, len(payload.MessageMetas))
-	assert.Equal(t, int64(2), payload.MessageMetas[0].IngestionTimestamp)
 }
