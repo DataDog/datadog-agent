@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,31 +27,39 @@ const transactionsSerializerVersion = 1
 // Use an non US ASCII char as a separator (Should neither appear in an HTTP header value nor in a URL).
 const squareChar = "\xfe"
 const placeHolderPrefix = squareChar + "API_KEY" + squareChar
-const placeHolderFormat = placeHolderPrefix + "%v" + squareChar
+const placeHolderVersion = squareChar + "%d" + squareChar
+const placeHolderFormat = placeHolderVersion + placeHolderPrefix + "%v" + squareChar
+
+type replacers struct {
+	apiKeyToPlaceholder *strings.Replacer
+	placeholderToAPIKey *strings.Replacer
+}
 
 // HTTPTransactionsSerializer serializes Transaction instances.
 // To support a new Transaction implementation, add a new
 // method `func (s *HTTPTransactionsSerializer) Add(transaction NEW_TYPE) error {`
 type HTTPTransactionsSerializer struct {
-	log                 log.Component
-	collection          HttpTransactionProtoCollection
-	apiKeyToPlaceholder *strings.Replacer
-	placeholderToAPIKey *strings.Replacer
-	resolver            resolver.DomainResolver
+	log        log.Component
+	collection HttpTransactionProtoCollection
+	replacers  map[int]*replacers
+	resolver   resolver.DomainResolver
 }
 
 // NewHTTPTransactionsSerializer creates a new instance of HTTPTransactionsSerializer
 func NewHTTPTransactionsSerializer(log log.Component, resolver resolver.DomainResolver) *HTTPTransactionsSerializer {
-	apiKeyToPlaceholder, placeholderToAPIKey := createReplacers(resolver.GetAPIKeys())
+	keys, version := resolver.GetAPIKeys()
+	apiKeyToPlaceholder, placeholderToAPIKey := createReplacers(version, keys)
+	replacers := map[int]*replacers{
+		version: &replacers{apiKeyToPlaceholder, placeholderToAPIKey},
+	}
 
 	return &HTTPTransactionsSerializer{
 		log: log,
 		collection: HttpTransactionProtoCollection{
 			Version: transactionsSerializerVersion,
 		},
-		apiKeyToPlaceholder: apiKeyToPlaceholder,
-		placeholderToAPIKey: placeholderToAPIKey,
-		resolver:            resolver,
+		replacers: replacers,
+		resolver:  resolver,
 	}
 }
 
@@ -80,6 +89,15 @@ func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransactio
 		pointCount = int32(transaction.Payload.GetPointCount())
 	}
 
+	replacer, ok := s.replacers[s.resolver.GetAPIKeyVersion()]
+	if !ok {
+		// API keys have been updated so we need to rebuild.
+		keys, version := s.resolver.GetAPIKeys()
+		apiKeyToPlaceholder, placeholderToAPIKey := createReplacers(version, keys)
+		replacer = &replacers{apiKeyToPlaceholder, placeholderToAPIKey}
+		s.replacers[version] = replacer
+	}
+
 	endpoint := transaction.Endpoint
 	transactionProto := HttpTransactionProto{
 		// The domain is not stored on the disk for security reasons.
@@ -87,8 +105,8 @@ func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransactio
 		// by a local address like http://127.0.0.1:1234. The Agent would send the HTTP transactions to the url
 		// http://127.0.0.1:1234/intake/?api_key=API_KEY which contains the API_KEY.
 		Domain:      "",
-		Endpoint:    &EndpointProto{Route: s.replaceAPIKeys(endpoint.Route), Name: endpoint.Name},
-		Headers:     s.toHeaderProto(transaction.Headers),
+		Endpoint:    &EndpointProto{Route: replacer.replaceAPIKeys(endpoint.Route), Name: endpoint.Name},
+		Headers:     s.toHeaderProto(transaction.Headers, replacer),
 		Payload:     payload,
 		ErrorCount:  int64(transaction.ErrorCount),
 		CreatedAt:   transaction.CreatedAt.Unix(),
@@ -162,12 +180,37 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 	return httpTransactions, errorCount, nil
 }
 
-func (s *HTTPTransactionsSerializer) replaceAPIKeys(str string) string {
-	return s.apiKeyToPlaceholder.Replace(str)
+func (r *HTTPTransactionsSerializer) restoreAPIKeys(str string) (string, error) {
+	first := strings.Index(squareChar, str)
+	if first < -1 {
+		return "", errors.New("cannot restore the transaction as an API Key is missing")
+	}
+
+	second := strings.Index(squareChar, str[first:]) + first
+	if second < -1 {
+		return "", errors.New("cannot restore the transaction as an API Key is missing")
+	}
+
+	pos, err := strconv.Atoi(str[first+1 : second])
+
+	if err != nil {
+		return "", fmt.Errorf("cannot restore the transaction, invalid resolver version : %v", err)
+	}
+
+	replacer, ok := r.replacers[pos]
+	if !ok {
+		return "", errors.New("cannot restore the transaction, missing resolver version")
+	}
+
+	return replacer.restoreAPIKeys(str)
 }
 
-func (s *HTTPTransactionsSerializer) restoreAPIKeys(str string) (string, error) {
-	newStr := s.placeholderToAPIKey.Replace(str)
+func (r *replacers) replaceAPIKeys(str string) string {
+	return r.apiKeyToPlaceholder.Replace(str)
+}
+
+func (r *replacers) restoreAPIKeys(str string) (string, error) {
+	newStr := r.placeholderToAPIKey.Replace(str)
 
 	if strings.Contains(newStr, placeHolderPrefix) {
 		return "", errors.New("cannot restore the transaction as an API Key is missing")
@@ -215,10 +258,10 @@ func fromTransactionDestinationProto(destination TransactionDestinationProto) (t
 	}
 }
 
-func (s *HTTPTransactionsSerializer) toHeaderProto(headers http.Header) map[string]*HeaderValuesProto {
+func (s *HTTPTransactionsSerializer) toHeaderProto(headers http.Header, replacer *replacers) map[string]*HeaderValuesProto {
 	headersProto := make(map[string]*HeaderValuesProto)
 	for key, headerValues := range headers {
-		headerValuesProto := HeaderValuesProto{Values: common.StringSliceTransform(headerValues, s.replaceAPIKeys)}
+		headerValuesProto := HeaderValuesProto{Values: common.StringSliceTransform(headerValues, replacer.replaceAPIKeys)}
 		headersProto[key] = &headerValuesProto
 	}
 	return headersProto
@@ -248,7 +291,7 @@ func toTransactionDestinationProto(destination transaction.Destination) (Transac
 	}
 }
 
-func createReplacers(apiKeys []string) (*strings.Replacer, *strings.Replacer) {
+func createReplacers(version int, apiKeys []string) (*strings.Replacer, *strings.Replacer) {
 	// Copy to not modify apiKeys order
 	keys := make([]string, len(apiKeys))
 	copy(keys, apiKeys)
@@ -258,7 +301,7 @@ func createReplacers(apiKeys []string) (*strings.Replacer, *strings.Replacer) {
 	var apiKeyPlaceholder []string
 	var placeholderToAPIKey []string
 	for i, k := range keys {
-		placeholder := fmt.Sprintf(placeHolderFormat, i)
+		placeholder := fmt.Sprintf(placeHolderFormat, version, i)
 		apiKeyPlaceholder = append(apiKeyPlaceholder, k, placeholder)
 		placeholderToAPIKey = append(placeholderToAPIKey, placeholder, k)
 	}

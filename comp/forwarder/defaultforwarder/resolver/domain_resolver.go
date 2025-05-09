@@ -42,9 +42,12 @@ type DomainResolver interface {
 	// GetAPIKeysInfo returns the list of API Keys and config paths associated with this `DomainResolver`
 	GetAPIKeysInfo() []utils.APIKeys
 	// GetAPIKeys returns the list of API Keys associated with this `DomainResolver`
-	GetAPIKeys() []string
+	GetAPIKeys() ([]string, int)
 	// UpdateAPIKeys updates the api keys at the given config path and sets the deduped keys to the new list.
 	UpdateAPIKeys(configPath string, newKeys []utils.APIKeys)
+	// GetAPIKeyVersion gets the current version for the API keys (version should be incremented each time the
+	// keys are updated).
+	GetAPIKeyVersion() int
 	// GetBaseDomain returns the base domain for this `DomainResolver`
 	GetBaseDomain() string
 	// GetAlternateDomains returns all the domains that can be returned by `Resolve()` minus the base domain
@@ -61,6 +64,7 @@ type DomainResolver interface {
 type SingleDomainResolver struct {
 	domain         string
 	apiKeys        []utils.APIKeys
+	keyVersion     int
 	dedupedAPIKeys []string
 	mu             sync.Mutex
 }
@@ -124,9 +128,9 @@ func updateAdditionalEndpoints(resolver DomainResolver, setting string, config c
 		return
 	}
 
-	oldKeys := resolver.GetAPIKeys()
+	oldKeys, _ := resolver.GetAPIKeys()
 	resolver.UpdateAPIKeys(setting, endpoints)
-	newKeys := resolver.GetAPIKeys()
+	newKeys, _ := resolver.GetAPIKeys()
 
 	removed := missing(oldKeys, newKeys)
 	added := missing(newKeys, oldKeys)
@@ -156,10 +160,11 @@ func NewSingleDomainResolver(domain string, apiKeys []utils.APIKeys) (*SingleDom
 	deduped := utils.DedupAPIKeys(apiKeys)
 
 	return &SingleDomainResolver{
-		domain,
-		apiKeys,
-		deduped,
-		sync.Mutex{},
+		domain:         domain,
+		apiKeys:        apiKeys,
+		keyVersion:     0,
+		dedupedAPIKeys: deduped,
+		mu:             sync.Mutex{},
 	}, nil
 }
 
@@ -187,10 +192,18 @@ func (r *SingleDomainResolver) GetBaseDomain() string {
 }
 
 // GetAPIKeys returns the slice of API keys associated with this SingleDomainResolver
-func (r *SingleDomainResolver) GetAPIKeys() []string {
+func (r *SingleDomainResolver) GetAPIKeys() ([]string, int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.dedupedAPIKeys
+	return r.dedupedAPIKeys, r.keyVersion
+}
+
+// GetAPIKeyVersion get the version of the keys.
+func (r *SingleDomainResolver) GetAPIKeyVersion() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.keyVersion
 }
 
 // missing returns a list of elements that are in list a, but not in list b.
@@ -239,6 +252,8 @@ func (r *SingleDomainResolver) UpdateAPIKeys(configPath string, newKeys []utils.
 
 	r.apiKeys = append(newAPIKeys, newKeys...)
 	r.dedupedAPIKeys = utils.DedupAPIKeys(r.apiKeys)
+
+	r.keyVersion += 1
 }
 
 // UpdateAPIKey replaces instances of the oldKey with the newKey
@@ -278,6 +293,7 @@ type destination struct {
 type MultiDomainResolver struct {
 	baseDomain          string
 	apiKeys             []utils.APIKeys
+	keyVersion          int
 	dedupedAPIKeys      []string
 	overrides           map[string]destination
 	alternateDomainList []string
@@ -297,20 +313,29 @@ func NewMultiDomainResolver(baseDomain string, apiKeys []utils.APIKeys) (*MultiD
 	deduped := utils.DedupAPIKeys(apiKeys)
 
 	return &MultiDomainResolver{
-		baseDomain,
-		apiKeys,
-		deduped,
-		make(map[string]destination),
-		[]string{},
-		sync.Mutex{},
+		baseDomain:          baseDomain,
+		apiKeys:             apiKeys,
+		keyVersion:          0,
+		dedupedAPIKeys:      deduped,
+		overrides:           make(map[string]destination),
+		alternateDomainList: []string{},
+		mu:                  sync.Mutex{},
 	}, nil
 }
 
 // GetAPIKeys returns the slice of API keys associated with this SingleDomainResolver
-func (r *MultiDomainResolver) GetAPIKeys() []string {
+func (r *MultiDomainResolver) GetAPIKeys() ([]string, int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.dedupedAPIKeys
+	return r.dedupedAPIKeys, r.keyVersion
+}
+
+// GetAPIKeyVersion get the version of the keys
+func (r *MultiDomainResolver) GetAPIKeyVersion() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.keyVersion
 }
 
 // UpdateAPIKeys updates the api keys at the given config path and sets the deduped keys to the new list.
@@ -326,6 +351,8 @@ func (r *MultiDomainResolver) UpdateAPIKeys(configPath string, newKeys []utils.A
 
 	r.apiKeys = append(newAPIKeys, newKeys...)
 	r.dedupedAPIKeys = utils.DedupAPIKeys(r.apiKeys)
+
+	r.keyVersion += 1
 }
 
 // GetAPIKeysInfo returns the list of endpoints associated with this `DomainResolver`
@@ -439,8 +466,13 @@ func (r *LocalDomainResolver) GetBaseDomain() string {
 }
 
 // GetAPIKeys is not implemented for LocalDomainResolver
-func (r *LocalDomainResolver) GetAPIKeys() []string {
-	return []string{}
+func (r *LocalDomainResolver) GetAPIKeys() ([]string, int) {
+	return []string{}, 0
+}
+
+// GetAPIKeyVersion get the version of the keys
+func (r *LocalDomainResolver) GetAPIKeyVersion() int {
+	return 0
 }
 
 // GetAPIKeysInfo returns the list of endpoints associated with this `DomainResolver`
