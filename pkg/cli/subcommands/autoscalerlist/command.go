@@ -37,6 +37,7 @@ type cliParams struct {
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
 	ConfFilePath string
+	LoggerName   string
 }
 
 // MakeCommand returns an`autoscaler-list` command to be used by cluster- binaries.
