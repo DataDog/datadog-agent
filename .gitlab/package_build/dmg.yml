@@ -66,7 +66,7 @@ agent_dmg-x64-a7:
     - !reference [.macos_setup_python]
     - !reference [.macos_setup_go]
     # List Python and Go existing environments and their disk space
-    - !reference [.macos_clean_env]
+    - !reference [.macos_runner_maintenance]
     - !reference [.macos_setup_cache]
     - bash .gitlab/package_build/build_agent_dmg.sh
     - !reference [.upload_sbom_artifacts]

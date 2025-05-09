@@ -1,7 +1,7 @@
 ---
 # This is the scripts to be executed on the Gitlab macOS runners before every job.
 # We don't have virtualization now so we need to clean the environment and install the proper dependencies before every job.
-.macos_clean_env:
+.macos_runner_maintenance:
   # Report current version to datadog
   - DD_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DD_API_KEY
   - dda inv -- -e macos.report-versions -l python || true
@@ -93,7 +93,7 @@
     - !reference [.select_python_env_commands]
     - !reference [.install_python_dependencies]
     # See there is no virtualization, we need to clean the environment regularly
-    - !reference [.macos_clean_env]
+    - !reference [.macos_runner_maintenance]
     - dda inv -- -e rtloader.make
     - dda inv -- -e rtloader.install
     - dda inv -- -e install-tools
