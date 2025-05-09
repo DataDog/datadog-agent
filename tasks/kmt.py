@@ -2328,7 +2328,7 @@ def flare(ctx: Context, dest_folder: Path | str | None = None, keep_uncompressed
 
 
 @task
-def retry_test_job_dependencies(ctx: Context, pipeline_id: int, job_id: int, only_if_current_job_retried: bool = False):
+def retry_test_job_dependencies(ctx: Context, pipeline_id: int, job_id: int, only_if_job_is_retry: bool = False):
     """Retries the setup_env job and the dependency upload jobs for the given test job."""
     gitlab = get_gitlab_repo()
     kmt_pipeline = KMTPipeline(pipeline_id)
@@ -2341,7 +2341,7 @@ def retry_test_job_dependencies(ctx: Context, pipeline_id: int, job_id: int, onl
     if not isinstance(job, KMTTestRunJob):
         raise Exit(f"Job {job_id} is not a KMTTestRunJob")
 
-    if only_if_current_job_retried and not job.job.retried:
+    if only_if_job_is_retry and not job.is_retry_job:
         info(f"[+] Job {job_id} has not been retried, skipping")
         return
 
