@@ -89,8 +89,8 @@ var (
 func SetupDatabricks(s *common.Setup) error {
 	s.Packages.InstallInstaller()
 	s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
-	s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
-	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, databricksJavaTracerVersion)
+	//s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
+	//s.Packages.Install(common.DatadogAPMLibraryJavaPackage, databricksJavaTracerVersion)
 
 	s.Out.WriteString("Applying specific Data Jobs Monitoring config\n")
 	hostname, err := os.Hostname()
@@ -108,9 +108,9 @@ func SetupDatabricks(s *common.Setup) error {
 			Key:   "DD_TRACE_DEBUG",
 			Value: "true",
 		}
-		tracerEnvConfigDatabricks = append(tracerEnvConfigDatabricks, debugLogs)
+		tracerEnvConfigEmr = append(tracerEnvConfigDatabricks, debugLogs)
 	}
-	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigDatabricks
+	//s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigDatabricks
 
 	setupCommonHostTags(s)
 	installMethod := "manual"
@@ -246,6 +246,8 @@ func setupDatabricksDriver(s *common.Setup) {
 }
 
 func setupDatabricksWorker(s *common.Setup) {
+	//s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
+	//s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigDatabricks
 	setClearHostTag(s, "spark_node", "worker")
 
 	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
