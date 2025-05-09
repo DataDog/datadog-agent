@@ -124,19 +124,25 @@ if [ "$SIGN" = true ]; then
 
     # Apply timeout / retry
     for attempt in $(seq 1 $NOTARIZATION_ATTEMPTS); do
-    RESULT=$(timeout "$NOTARIZATION_TIMEOUT" xcrun notarytool submit --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait) || EXIT_CODE=$?
-    echo "Results: $RESULT"
-    SUBMISSION_ID=$(echo "$RESULT" | awk '$1 == "id:"{print $2; exit}')
-    echo "Submission ID: $SUBMISSION_ID"
-    echo "Submission logs:"
-    xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID"
-    if [ -n "$EXIT_CODE" ]; then
-        echo "Notarization attempt #$attempt/$NOTARIZATION_ATTEMPTS failed, retrying in $NOTARIZATION_WAIT_TIME"
-        sleep "$NOTARIZATION_WAIT_TIME"
-    else
-        echo "Successfully notarized the package"
-        break
-    fi
+        EXIT_CODE=
+        RESULT=$(timeout "$NOTARIZATION_TIMEOUT" xcrun notarytool submit --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait) || EXIT_CODE=$?
+        echo "Results: $RESULT"
+        SUBMISSION_ID=$(echo "$RESULT" | awk '$1 == "id:"{print $2; exit}')
+        echo "Submission ID: $SUBMISSION_ID"
+        echo "Submission logs:"
+        xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID" || EXIT_CODE=$?
+        if [ -n "$EXIT_CODE" ]; then
+            if [ "$attempt" -lt "$NOTARIZATION_ATTEMPTS" ]; then
+                echo "Notarization attempt #$attempt/$NOTARIZATION_ATTEMPTS failed, retrying in $NOTARIZATION_WAIT_TIME"
+                sleep "$NOTARIZATION_WAIT_TIME"
+            else
+                echo "Notarization failed after $NOTARIZATION_ATTEMPTS attempts"
+                exit "$EXIT_CODE"
+            fi
+        else
+            echo "Successfully notarized the package"
+            break
+        fi
     done
     echo -e "\e[0Ksection_end:`date +%s`:notarization\r\e[0K"
 fi
