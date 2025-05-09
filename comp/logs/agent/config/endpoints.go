@@ -184,27 +184,14 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys) []Endpoint {
 func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) []Endpoint {
 	additionals, configKeyUsed := l.getAdditionalEndpoints()
 
-	// Check if we need gzip compatibility for additional endpoints
-	needsGzipCompatibility := len(additionals) > 0 && !l.config.IsConfigured(l.getConfigKey("compression_kind"))
-
 	newEndpoints := make([]Endpoint, 0, len(additionals))
 	for idx, e := range additionals {
 		newE := NewEndpoint(e.APIKey, configKeyUsed, e.Host, e.Port, false)
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
-
-		if needsGzipCompatibility {
-			log.Debugf("Additional endpoints detected, pipeline: %s falling back to gzip compression for compatibility", l.prefix)
-			newE.UseCompression = true
-			newE.CompressionKind = GzipCompressionKind
-			newE.CompressionLevel = GzipCompressionLevel
-		} else {
-			newE.UseCompression = main.UseCompression
-			newE.CompressionKind = main.CompressionKind
-			newE.CompressionLevel = main.CompressionLevel
-		}
-
+		newE.UseCompression = main.UseCompression
+		newE.CompressionLevel = main.CompressionLevel
 		newE.ProxyAddress = e.ProxyAddress
 		newE.isReliable = e.IsReliable == nil || *e.IsReliable
 		newE.ConnectionResetInterval = e.ConnectionResetInterval
