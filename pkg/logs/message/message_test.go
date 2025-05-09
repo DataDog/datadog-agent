@@ -31,11 +31,15 @@ func TestNewPayload(t *testing.T) {
 		NewMessage([]byte("world"), nil, "", 0),
 		NewMessage([]byte("test"), nil, "", 0),
 	}
+	messageMetas := make([]*MessageMetadata, len(messages))
+	for i, msg := range messages {
+		messageMetas[i] = &msg.MessageMetadata
+	}
 	encoded := []byte("encoded content")
 	encoding := "gzip"
 	unencodedSize := 100
 
-	payload := NewPayload(messages, encoded, encoding, unencodedSize)
+	payload := NewPayload(messageMetas, encoded, encoding, unencodedSize)
 
 	// Test basic payload properties
 	assert.Equal(t, 3, len(payload.MessageMetas))
@@ -56,7 +60,12 @@ func TestPayloadPreservesMessageOrder(t *testing.T) {
 		NewMessage([]byte("333"), nil, "", 3),  // datalen = 3
 		NewMessage([]byte("4444"), nil, "", 4), // datalen = 4
 	}
-	payload := NewPayload(messages, []byte(""), "", 0)
+	messageMetas := make([]*MessageMetadata, len(messages))
+	for i, msg := range messages {
+		messageMetas[i] = &msg.MessageMetadata
+	}
+
+	payload := NewPayload(messageMetas, []byte(""), "", 0)
 
 	expectedLengths := []int{1, 2, 3, 4}
 	assert.Equal(t, len(expectedLengths), len(payload.MessageMetas), "Should have same number of message metas")
@@ -83,14 +92,14 @@ func TestPayloadAllowsMessageContentGC(t *testing.T) {
 	// Create scope to allow message to be GC'd
 	func() {
 		// Create message with content we want to track
-		content := make([]byte, 1000000) // Large enough to be noticeable for GC
+		content := make([]byte, 10000000000) // Large enough to be noticeable for GC
 		message := NewMessage(content, nil, "", 2)
 
 		// Set up finalizer to track when content is GC'd
 		runtime.SetFinalizer(&message.content, trackGC)
 
 		// Create payload from message
-		payload = NewPayload([]*Message{message}, []byte("encoded"), "", 0)
+		payload = NewPayload([]*MessageMetadata{&message.MessageMetadata}, []byte("encoded"), "", 0)
 
 		// Ensure payload captured metadata
 		require.Equal(t, 1, len(payload.MessageMetas))
