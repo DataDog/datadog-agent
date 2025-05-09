@@ -45,7 +45,7 @@ func NewTerminatedResourceBundle(check *OrchestratorCheck, runCfg *collectors.Co
 }
 
 // Add adds a terminated object into TerminatedResourceBundle
-func (tb *TerminatedResourceBundle) Add(k8sCollector collectors.K8sCollector, resource interface{}) {
+func (tb *TerminatedResourceBundle) Add(k8sCollector collectors.K8sCollector, obj interface{}) {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
 
@@ -53,7 +53,7 @@ func (tb *TerminatedResourceBundle) Add(k8sCollector collectors.K8sCollector, re
 		tb.terminatedResources[k8sCollector] = []interface{}{}
 	}
 
-	resource, err := getResourceIfDeletedFinalStateUnknown(resource)
+	resource, err := getResourceIfDeletedFinalStateUnknown(obj)
 	if err != nil {
 		log.Warn(err)
 		return
@@ -138,17 +138,17 @@ func toTypedSlice(k8sCollector collectors.K8sCollector, list []interface{}) inte
 
 // getResourceIfDeletedFinalStateUnknown checks if the resource is of type DeletedFinalStateUnknown
 // and returns the underlying object if it is, or an error if the object is nil.
-func getResourceIfDeletedFinalStateUnknown(resource interface{}) (interface{}, error) {
-	obj := resource
+func getResourceIfDeletedFinalStateUnknown(obj interface{}) (interface{}, error) {
+	resource := obj
 	if deletedState, ok := obj.(cache.DeletedFinalStateUnknown); ok {
-		obj = deletedState.Obj
+		resource = deletedState.Obj
 	}
 
-	if obj == nil || (reflect.ValueOf(obj).Kind() == reflect.Ptr && reflect.ValueOf(obj).IsNil()) {
-		return nil, fmt.Errorf("object is nil, skipping, got type: %T", resource)
+	if resource == nil || (reflect.ValueOf(resource).Kind() == reflect.Ptr && reflect.ValueOf(resource).IsNil()) {
+		return nil, fmt.Errorf("object is nil, skipping, got type: %T", obj)
 	}
 
-	return obj, nil
+	return resource, nil
 }
 
 func insertDeletionTimestampIfPossible(obj interface{}) interface{} {
