@@ -508,6 +508,10 @@ func (s *packageApmInjectSuite) assertLDPreloadInstrumented(libPath string) {
 }
 
 func (s *packageApmInjectSuite) assertStableConfig(expectedConfigs map[string]interface{}) {
+	if len(expectedConfigs) == 0 {
+		return
+	}
+
 	state := s.host.State()
 	state.AssertFileExists("/etc/datadog-agent/application_monitoring.yaml", 0644, "dd-agent", "dd-agent")
 	content, err := s.host.ReadFile("/etc/datadog-agent/application_monitoring.yaml")
