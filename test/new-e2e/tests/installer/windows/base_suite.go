@@ -289,7 +289,7 @@ func (s *BaseSuite) MustStartExperimentPreviousVersion() {
 	s.Require().NoError(err)
 
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(consts.BinaryPath).
+		HasDatadogInstaller().
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, agentVersion)
 		}).
@@ -323,7 +323,7 @@ func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 
 	// sanity check: make sure we did indeed install the current version
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(consts.BinaryPath).
+		HasDatadogInstaller().
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, agentVersion)
 		}).
