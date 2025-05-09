@@ -42,10 +42,21 @@ if [ "${COLLECT_COMPLEXITY:-}" = "yes" ]; then
     test_root=$(echo "$@" | sed 's/.*-test-root \([^ ]*\).*/\1/')
     export DD_SYSTEM_PROBE_BPF_DIR="${test_root}/pkg/ebpf/bytecode/build/${arch}"
 
-    # Limit maximum memory usage of the calculator to avoid OOM errors affecting the entire connector
-    ulimit -v $((6 * 1024 * 1024))
+    # Set the value of COMPLEXITY_CALC_MAX_MEM_MB to 6000 if not set by the environment
+    if [[ -z "${COMPLEXITY_CALC_MAX_MEM_MB:-}" ]]; then
+        export COMPLEXITY_CALC_MAX_MEM_MB=6000
+    fi
 
-    if /opt/testing-tools/verifier-calculator -line-complexity -complexity-data-dir /verifier-complexity/complexity-data  -summary-output /verifier-complexity/verifier_stats.json &> /verifier-complexity/calculator.log ; then
+    # Limit maximum memory usage of the calculator to avoid OOM errors affecting the entire connector
+    ulimit -v $((COMPLEXITY_CALC_MAX_MEM_MB * 1024))
+
+    # The debug.SetMemoryLimit function we use in the calculator for memory
+    # limits only takes into account memory managed by the Go runtime, so we
+    # tell it to try to keep a smaller memory limit than the one enforced by
+    # ulimit, to reduce the chances of going above that hard limit.
+    COMPLEXITY_GO_MAX_MEM_LIMIT=$((COMPLEXITY_CALC_MAX_MEM_MB * 95 / 100))
+
+    if /opt/testing-tools/verifier-calculator -line-complexity -complexity-data-dir /verifier-complexity/complexity-data  -summary-output /verifier-complexity/verifier_stats.json -memory-limit-mb "${COMPLEXITY_GO_MAX_MEM_LIMIT}" &> /verifier-complexity/calculator.log ; then
         echo "Data collected, creating tarball at /verifier-complexity.tar.gz"
         tar -C /verifier-complexity -czf /verifier-complexity.tar.gz . || echo "Failed to created verifier-complexity.tar.gz"
     else
