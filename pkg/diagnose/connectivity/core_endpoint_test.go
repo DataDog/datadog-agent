@@ -65,6 +65,9 @@ func TestSendHTTPRequestToEndpoint(t *testing.T) {
 }
 
 func TestAcceptRedirection(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockLog := logmock.New(t)
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		//  * the original flare request URL, which redirects on HEAD to /post-target
 		if r.Method == "HEAD" && r.RequestURI == "/support/flare" {
@@ -79,7 +82,7 @@ func TestAcceptRedirection(t *testing.T) {
 
 	ddURL := ts.URL
 
-	client := clientWithOneRedirects()
+	client := clientWithOneRedirects(mockConfig, 1, mockLog)
 
 	url := ddURL + "/support/flare"
 	statusCode, err := sendHTTPHEADRequestToEndpoint(url, client)
