@@ -368,6 +368,9 @@ func ReadStringToOutputLocationExpression(limit uint16) LocationExpression {
 // adds `offset` to the 8-byte address on the top of the bpf parameter stack.
 // Arg1 = uint value (offset) we're adding to the 8-byte address on top of the stack
 func ApplyOffsetLocationExpression(offset uint) LocationExpression {
+	if offset == 0 {
+		return LocationExpression{Opcode: OpComment, Label: "apply_offset(0) == no-op"}
+	}
 	return LocationExpression{Opcode: OpApplyOffset, Arg1: offset}
 }
 
