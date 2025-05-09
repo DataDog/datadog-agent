@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"strings"
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
