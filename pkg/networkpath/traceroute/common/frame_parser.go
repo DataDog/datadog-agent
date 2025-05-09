@@ -17,6 +17,7 @@ import (
 
 // FrameParser parses traceroute responses using gopacket.
 type FrameParser struct {
+	Ethernet layers.Ethernet
 	IP4      layers.IPv4
 	TCP      layers.TCP
 	ICMP4    layers.ICMPv4
@@ -28,16 +29,16 @@ type FrameParser struct {
 // NewFrameParser constructs a new FrameParser
 func NewFrameParser() *FrameParser {
 	p := &FrameParser{}
-	p.v4Parser = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &p.IP4, &p.TCP, &p.ICMP4, &p.Payload)
-	p.v4Parser.IgnoreUnsupported = true
+	p.v4Parser = gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &p.Ethernet, &p.IP4, &p.TCP, &p.ICMP4, &p.Payload)
+	// p.v4Parser.IgnoreUnsupported = true
 	return p
 }
 
-// ParseIPv4 parses an IPv4 packet
-func (p *FrameParser) ParseIPv4(buffer []byte) error {
+// Parse parses an ethernet packet
+func (p *FrameParser) Parse(buffer []byte) error {
 	err := p.v4Parser.DecodeLayers(buffer, &p.Layers)
 	if err != nil {
-		return fmt.Errorf("ParseIPv4: %w", err)
+		return fmt.Errorf("Parse: %w", err)
 	}
 	if err := p.checkLayers(); err != nil {
 		return err
@@ -47,18 +48,18 @@ func (p *FrameParser) ParseIPv4(buffer []byte) error {
 
 // GetIPLayer gets the layer type of the IP layer (right now, only IPv4)
 func (p *FrameParser) GetIPLayer() gopacket.LayerType {
-	if len(p.Layers) < 1 {
-		return gopacket.LayerTypeZero
-	}
-	return p.Layers[0]
-}
-
-// GetTransportLayer gets the layer type of the transport layer (e.g. TCP, ICMP)
-func (p *FrameParser) GetTransportLayer() gopacket.LayerType {
 	if len(p.Layers) < 2 {
 		return gopacket.LayerTypeZero
 	}
 	return p.Layers[1]
+}
+
+// GetTransportLayer gets the layer type of the transport layer (e.g. TCP, ICMP)
+func (p *FrameParser) GetTransportLayer() gopacket.LayerType {
+	if len(p.Layers) < 3 {
+		return gopacket.LayerTypeZero
+	}
+	return p.Layers[2]
 }
 
 // TODO IPv6
@@ -67,8 +68,8 @@ var transportLayers = []gopacket.LayerType{layers.LayerTypeTCP, layers.LayerType
 
 // checkLayers sanity checks the layers of the parse.
 func (p *FrameParser) checkLayers() error {
-	if len(p.Layers) < 2 {
-		return fmt.Errorf("CheckLayers: not enough layers (got %d, expected >= 2)", len(p.Layers))
+	if len(p.Layers) < 3 {
+		return fmt.Errorf("CheckLayers: not enough layers (got %d, expected >= 3)", len(p.Layers))
 	}
 	if !slices.Contains(ipLayers, p.GetIPLayer()) {
 		return fmt.Errorf("CheckLayers: first layer %s is not IP", p.GetIPLayer())

@@ -21,12 +21,18 @@ func clearLayer(layer *layers.BaseLayer) {
 
 // SerializeLayers doesn't populate these fields, so we exclude them from equality comparison
 func clearBuffers(parser *FrameParser) {
+	clearLayer(&parser.Ethernet.BaseLayer)
 	clearLayer(&parser.IP4.BaseLayer)
 	clearLayer(&parser.TCP.BaseLayer)
 	clearLayer(&parser.ICMP4.BaseLayer)
 }
 
 func TestFrameParserTCP(t *testing.T) {
+	eth := &layers.Ethernet{
+		SrcMAC:       net.HardwareAddr{0x01, 0x02, 0x03, 0x04, 0x05, 0x06},
+		DstMAC:       net.HardwareAddr{0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c},
+		EthernetType: layers.EthernetTypeIPv4,
+	}
 	ip4 := &layers.IPv4{
 		Version:  4,
 		TTL:      123,
@@ -54,16 +60,17 @@ func TestFrameParserTCP(t *testing.T) {
 		FixLengths:       true,
 		ComputeChecksums: true,
 	}
-	err = gopacket.SerializeLayers(buf, opts, ip4, tcp, payload)
+	err = gopacket.SerializeLayers(buf, opts, eth, ip4, tcp, payload)
 	require.NoError(t, err)
 
 	parser := NewFrameParser()
 
-	err = parser.ParseIPv4(buf.Bytes())
+	err = parser.Parse(buf.Bytes())
 	require.NoError(t, err)
 
 	clearBuffers(parser)
 
+	require.EqualExportedValues(t, eth, &parser.Ethernet)
 	require.EqualExportedValues(t, ip4, &parser.IP4)
 	require.EqualExportedValues(t, tcp, &parser.TCP)
 	require.Equal(t, payload, parser.Payload)
@@ -84,6 +91,11 @@ func TestFrameParserICMP4(t *testing.T) {
 	require.NoError(t, err)
 	tcpBytes := buf.Bytes()[:8]
 
+	eth := &layers.Ethernet{
+		SrcMAC:       net.HardwareAddr{0x01, 0x02, 0x03, 0x04, 0x05, 0x06},
+		DstMAC:       net.HardwareAddr{0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c},
+		EthernetType: layers.EthernetTypeIPv4,
+	}
 	ip4 := &layers.IPv4{
 		Version:  4,
 		TTL:      123,
@@ -102,16 +114,17 @@ func TestFrameParserICMP4(t *testing.T) {
 		FixLengths:       true,
 		ComputeChecksums: true,
 	}
-	err = gopacket.SerializeLayers(buf, opts, ip4, icmp4, payload)
+	err = gopacket.SerializeLayers(buf, opts, eth, ip4, icmp4, payload)
 	require.NoError(t, err)
 
 	parser := NewFrameParser()
 
-	err = parser.ParseIPv4(buf.Bytes())
+	err = parser.Parse(buf.Bytes())
 	require.NoError(t, err)
 
 	clearBuffers(parser)
 
+	require.EqualExportedValues(t, eth, &parser.Ethernet)
 	require.EqualExportedValues(t, ip4, &parser.IP4)
 	require.EqualExportedValues(t, icmp4, &parser.ICMP4)
 
