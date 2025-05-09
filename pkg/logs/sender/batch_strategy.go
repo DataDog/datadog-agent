@@ -42,6 +42,9 @@ type batchStrategy struct {
 	// Telemtry
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
+	compressor      compression.StreamCompressor
+	writeCounter    *writerCounter
+	encodedPayload  *bytes.Buffer
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
@@ -72,7 +75,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 	compression compression.Compressor,
 	pipelineMonitor metrics.PipelineMonitor) Strategy {
 
-	return &batchStrategy{
+	bs := &batchStrategy{
 		inputChan:       inputChan,
 		outputChan:      outputChan,
 		flushChan:       flushChan,
@@ -87,6 +90,21 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 		pipelineMonitor: pipelineMonitor,
 		utilization:     pipelineMonitor.MakeUtilizationMonitor("strategy"),
 	}
+	bs.MakeCompressor()
+	return bs
+}
+
+func (s *batchStrategy) MakeCompressor() {
+	var encodedPayload bytes.Buffer
+	compressor := s.compression.NewStreamCompressor(&encodedPayload)
+	if compressor == nil {
+		compressor = &compression.NoopStreamCompressor{Writer: &encodedPayload}
+	}
+
+	wc := newWriterWithCounter(compressor)
+	s.writeCounter = wc
+	s.compressor = compressor
+	s.encodedPayload = &encodedPayload
 }
 
 // Stop flushes the buffer and stops the strategy
@@ -132,13 +150,20 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *mess
 		m.Origin.LogSource.LatencyStats.Add(m.GetLatency())
 	}
 	added := s.buffer.AddMessage(m)
+	if added {
+		// TODO (brian): Handel errors
+		_ = s.serializer.SerializeMessage(m, s.writeCounter)
+	}
 	if !added || s.buffer.IsFull() {
 		s.flushBuffer(outputChan)
 	}
 	if !added {
 		// it's possible that the m could not be added because the buffer was full
 		// so we need to retry once again
-		if !s.buffer.AddMessage(m) {
+		if s.buffer.AddMessage(m) {
+			// TODO (brian): Handel errors
+			_ = s.serializer.SerializeMessage(m, s.writeCounter)
+		} else {
 			log.Warnf("Dropped message in pipeline=%s reason=too-large ContentLength=%d ContentSizeLimit=%d", s.pipelineName, len(m.GetContent()), s.buffer.ContentSizeLimit())
 			tlmDroppedTooLarge.Inc(s.pipelineName)
 		}
@@ -151,40 +176,29 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	if s.buffer.IsEmpty() {
 		return
 	}
+	s.serializer.Finish(s.writeCounter)
 	s.utilization.Start()
-	messages := s.buffer.GetMessages()
+	messagesMetadata := s.buffer.GetMessages()
 	s.buffer.Clear()
 	// Logging specifically for DBM pipelines, which seem to fail to send more often than other pipelines.
 	// pipelineName comes from epforwarder.passthroughPipelineDescs.eventType, and these names are constants in the epforwarder package.
 	if s.pipelineName == "dbm-samples" || s.pipelineName == "dbm-metrics" || s.pipelineName == "dbm-activity" {
-		log.Debugf("Flushing buffer and sending %d messages for pipeline %s", len(messages), s.pipelineName)
+		log.Debugf("Flushing buffer and sending %d messages for pipeline %s", len(messagesMetadata), s.pipelineName)
 	}
-	s.sendMessages(messages, outputChan)
+	s.sendMessages(messagesMetadata, outputChan)
 }
 
-func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan chan *message.Payload) {
-	var encodedPayload bytes.Buffer
-	compressor := s.compression.NewStreamCompressor(&encodedPayload)
-	if compressor == nil {
-		compressor = &compression.NoopStreamCompressor{Writer: &encodedPayload}
-	}
+func (s *batchStrategy) sendMessages(messagesMetadata []*message.MessageMetadata, outputChan chan *message.Payload) {
+	defer s.MakeCompressor()
 
-	wc := newWriterWithCounter(compressor)
-
-	if err := s.serializer.Serialize(messages, wc); err != nil {
+	if err := s.compressor.Close(); err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
 		s.utilization.Stop()
 		return
 	}
 
-	if err := compressor.Close(); err != nil {
-		log.Warn("Encoding failed - dropping payload", err)
-		s.utilization.Stop()
-		return
-	}
-
-	unencodedSize := wc.getWrittenBytes()
-	log.Debugf("Send messages for pipeline %s (msg_count:%d, content_size=%d, avg_msg_size=%.2f)", s.pipelineName, len(messages), unencodedSize, float64(unencodedSize)/float64(len(messages)))
+	unencodedSize := s.writeCounter.getWrittenBytes()
+	log.Debugf("Send messages for pipeline %s (msg_count:%d, content_size=%d, avg_msg_size=%.2f)", s.pipelineName, len(messagesMetadata), unencodedSize, float64(unencodedSize)/float64(len(messagesMetadata)))
 
 	if s.serverlessMeta.IsEnabled() {
 		// Increment the wait group so the flush doesn't finish until all payloads are sent to all destinations
@@ -194,7 +208,7 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 		s.serverlessMeta.Unlock()
 	}
 
-	p := message.NewPayload(messages, encodedPayload.Bytes(), s.compression.ContentEncoding(), unencodedSize)
+	p := message.NewPayload(messagesMetadata, s.encodedPayload.Bytes(), s.compression.ContentEncoding(), unencodedSize)
 
 	s.utilization.Stop()
 	outputChan <- p
