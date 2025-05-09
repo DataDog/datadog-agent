@@ -453,7 +453,7 @@ func (s *SNMPService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns the device port
-func (s *SNMPService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (s *SNMPService) GetPorts() ([]ContainerPort, error) {
 	port := int(s.config.Port)
 	return []ContainerPort{{port, fmt.Sprintf("p%d", port)}}, nil
 }

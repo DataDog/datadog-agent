@@ -86,7 +86,7 @@ func (s *StaticConfigService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns nil and an error because port is not supported in this listener
-func (s *StaticConfigService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (s *StaticConfigService) GetPorts() ([]ContainerPort, error) {
 	return nil, ErrNotSupported
 }
 

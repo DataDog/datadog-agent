@@ -45,7 +45,7 @@ func (s *dummyService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns dummy ports
-func (s *dummyService) GetPorts(context.Context) ([]listeners.ContainerPort, error) {
+func (s *dummyService) GetPorts() ([]listeners.ContainerPort, error) {
 	return s.Ports, nil
 }
 

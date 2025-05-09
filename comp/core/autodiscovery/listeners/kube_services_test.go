@@ -8,7 +8,6 @@
 package listeners
 
 import (
-	"context"
 	"sort"
 	"testing"
 
@@ -21,7 +20,6 @@ import (
 )
 
 func TestProcessService(t *testing.T) {
-	ctx := context.Background()
 	ksvc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			ResourceVersion: "123",
@@ -59,7 +57,7 @@ func TestProcessService(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]string{"cluster": "10.0.0.1"}, hosts)
 
-	ports, err := svc.GetPorts(ctx)
+	ports, err := svc.GetPorts()
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "test1"}, {126, "test2"}}, ports)
 

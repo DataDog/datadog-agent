@@ -356,7 +356,7 @@ func (s *KubeServiceService) GetPid(context.Context) (int, error) {
 }
 
 // GetPorts returns the container's ports
-func (s *KubeServiceService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (s *KubeServiceService) GetPorts() ([]ContainerPort, error) {
 	return s.ports, nil
 }
 

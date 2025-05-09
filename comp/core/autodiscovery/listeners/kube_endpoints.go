@@ -469,7 +469,7 @@ func (s *KubeEndpointService) GetPid(context.Context) (int, error) {
 }
 
 // GetPorts returns the endpoint's ports
-func (s *KubeEndpointService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (s *KubeEndpointService) GetPorts() ([]ContainerPort, error) {
 	if s.ports == nil {
 		return []ContainerPort{}, nil
 	}

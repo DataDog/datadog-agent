@@ -32,7 +32,7 @@ type Service interface {
 	GetServiceID() string                                        // unique service name
 	GetADIdentifiers() ([]string, error)                         // identifiers on which templates will be matched
 	GetHosts() (map[string]string, error)                        // network --> IP address
-	GetPorts(context.Context) ([]ContainerPort, error)           // network ports
+	GetPorts() ([]ContainerPort, error)                          // network ports
 	GetTags() ([]string, error)                                  // tags
 	GetTagsWithCardinality(cardinality string) ([]string, error) // tags with given cardinality
 	GetPid(context.Context) (int, error)                         // process identifier

@@ -224,7 +224,7 @@ func (s *CloudFoundryService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns the container's ports
-func (s *CloudFoundryService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (s *CloudFoundryService) GetPorts() ([]ContainerPort, error) {
 	return s.containerPorts, nil
 }
 

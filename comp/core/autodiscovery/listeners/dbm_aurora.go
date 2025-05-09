@@ -228,7 +228,7 @@ func (d *DBMAuroraService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns the port for the aurora endpoint
-func (d *DBMAuroraService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (d *DBMAuroraService) GetPorts() ([]ContainerPort, error) {
 	port := int(d.instance.Port)
 	return []ContainerPort{{port, fmt.Sprintf("p%d", port)}}, nil
 }

@@ -85,7 +85,7 @@ func (s *service) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns the ports exposed by the service's containers.
-func (s *service) GetPorts(_ context.Context) ([]ContainerPort, error) {
+func (s *service) GetPorts() ([]ContainerPort, error) {
 	return s.ports, nil
 }
 

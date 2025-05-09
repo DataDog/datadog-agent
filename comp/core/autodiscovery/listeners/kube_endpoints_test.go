@@ -8,7 +8,6 @@
 package listeners
 
 import (
-	"context"
 	"sort"
 	"testing"
 
@@ -21,8 +20,6 @@ import (
 )
 
 func TestProcessEndpoints(t *testing.T) {
-	ctx := context.Background()
-
 	kep := &v1.Endpoints{
 		ObjectMeta: metav1.ObjectMeta{
 			ResourceVersion: "123",
@@ -70,7 +67,7 @@ func TestProcessEndpoints(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]string{"endpoint": "10.0.0.1"}, hosts)
 
-	ports, err := eps[0].GetPorts(ctx)
+	ports, err := eps[0].GetPorts()
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "port123"}, {126, "port126"}}, ports)
 
@@ -88,7 +85,7 @@ func TestProcessEndpoints(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]string{"endpoint": "10.0.0.2"}, hosts)
 
-	ports, err = eps[1].GetPorts(ctx)
+	ports, err = eps[1].GetPorts()
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "port123"}, {126, "port126"}}, ports)
 

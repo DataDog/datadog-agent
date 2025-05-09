@@ -541,12 +541,12 @@ func getFallbackHost(hosts map[string]string) (string, error) {
 }
 
 // getPort returns ports of the service
-func getPort(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
+func getPort(_ context.Context, tplVar string, svc listeners.Service) (string, error) {
 	if svc == nil {
 		return "", newNoServiceError("No service. %%%%port%%%% is not allowed")
 	}
 
-	ports, err := svc.GetPorts(ctx)
+	ports, err := svc.GetPorts()
 	if err != nil {
 		return "", fmt.Errorf("failed to extract port list for container %s, ignoring it. Source error: %s", svc.GetServiceID(), err)
 	} else if len(ports) == 0 {
