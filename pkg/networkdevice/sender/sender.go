@@ -12,12 +12,21 @@ package sender
 
 import (
 	"maps"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const timestampExpiration = 6 * time.Hour
+
+// TimeNow useful for mocking
+var TimeNow = time.Now
+
+// Sender interface defines the methods for sending metrics and metadata
+// for network devices. It extends the sender.Sender interface
+// to include additional functionality specific to NDM.
 type Sender interface {
 	sender.Sender
 	// GaugeWithTimestampWrapper wraps sender GaugeWithTimestamp with error handling
@@ -34,6 +43,7 @@ type Sender interface {
 	ShouldSendEntry(key string, ts float64) bool
 }
 
+// IntegrationSender implements the Sender interface for network device integrations
 type IntegrationSender struct {
 	sender.Sender
 	integration  string
@@ -42,7 +52,8 @@ type IntegrationSender struct {
 	deviceTags   map[string][]string
 }
 
-func NewSender(sender sender.Sender, integration string, namespace string) Sender {
+// NewSender returns a new IntegrationSender
+func NewSender(sender sender.Sender, integration string, namespace string) *IntegrationSender {
 	return &IntegrationSender{
 		Sender:       sender,
 		integration:  integration,
@@ -97,4 +108,23 @@ func (s *IntegrationSender) ShouldSendEntry(key string, ts float64) bool {
 		return false
 	}
 	return true
+}
+
+// Commit commits the current sender state and expires old timestamps
+func (s *IntegrationSender) Commit() {
+	s.Sender.Commit()
+	s.expireTimeSent()
+}
+
+func (s *IntegrationSender) updateTimestamps(newTimestamps map[string]float64) {
+	maps.Copy(s.lastTimeSent, newTimestamps)
+}
+
+func (s *IntegrationSender) expireTimeSent() {
+	expireTs := TimeNow().Add(-timestampExpiration).UTC().Unix()
+	for key, ts := range s.lastTimeSent {
+		if ts < float64(expireTs) {
+			delete(s.lastTimeSent, key)
+		}
+	}
 }
