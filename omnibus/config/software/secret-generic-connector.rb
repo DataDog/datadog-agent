@@ -16,7 +16,7 @@
 require './lib/ostools.rb'
 
 name "secret-generic-connector"
-default_version "0.2.1"
+default_version "0.2.0"
 
 # Define URLs for each platform
 secret_generic_urls = {
