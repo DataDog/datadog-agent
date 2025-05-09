@@ -29,7 +29,8 @@ func NewMessageBuffer(batchSizeLimit int, contentSizeLimit int) *MessageBuffer {
 func (p *MessageBuffer) AddMessage(message *message.Message) bool {
 	contentSize := len(message.GetContent())
 	if len(p.messageBuffer) < cap(p.messageBuffer) && p.contentSize+contentSize <= p.contentSizeLimit {
-		p.messageBuffer = append(p.messageBuffer, &message.MessageMetadata)
+		meta := message.MessageMetadata // Copy metadata instead of taking reference
+		p.messageBuffer = append(p.messageBuffer, &meta)
 		p.contentSize += contentSize
 		return true
 	}
