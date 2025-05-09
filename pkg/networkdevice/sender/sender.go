@@ -80,11 +80,11 @@ func (s *IntegrationSender) SetDeviceTags(deviceTags map[string][]string) {
 }
 
 // GetDeviceTags returns the device tags for a given IP address
-// If no tags are found, it returns a default tag with the IP address
+// If no tags are found, it returns a default tag with the IP address and the configured namespace.
 func (s *IntegrationSender) GetDeviceTags(defaultIPTag string, deviceIP string) []string {
 	tags, ok := s.deviceTags[deviceIP]
 	if !ok {
-		return []string{defaultIPTag + deviceIP}
+		return []string{defaultIPTag + ":" + deviceIP, "device_namespace:" + s.namespace}
 	}
 	return utils.CopyStrings(tags)
 }
