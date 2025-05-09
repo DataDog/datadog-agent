@@ -10,10 +10,16 @@ package sysvinit
 
 import (
 	"context"
-	"os/exec"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
 // Install installs a sys-v init script using update-rc.d
-func Install(ctx context.Context) error {
-	
+func Install(ctx context.Context, name string) error {
+	return telemetry.CommandContext(ctx, "update-rc.d", name, "defaults").Run()
+}
+
+// Restart restarts a sys-v init script using service
+func Restart(ctx context.Context, name string) error {
+	return telemetry.CommandContext(ctx, "service", name, "restart").Run()
 }
