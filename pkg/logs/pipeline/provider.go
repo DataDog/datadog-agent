@@ -8,7 +8,6 @@ package pipeline
 import (
 	"context"
 
-	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -21,12 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	httpsender "github.com/DataDog/datadog-agent/pkg/logs/sender/http"
 	tcpsender "github.com/DataDog/datadog-agent/pkg/logs/sender/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -48,9 +45,6 @@ var tcpSenderFactory = tcpsender.NewTCPSender
 type Provider interface {
 	Start()
 	Stop()
-	ReconfigureSDSStandardRules(standardRules []byte) (bool, error)
-	ReconfigureSDSAgentConfig(config []byte) (bool, error)
-	StopSDSProcessing() error
 	NextPipelineChan() chan *message.Message
 	GetOutputChan() chan *message.Message
 	NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor)
@@ -264,64 +258,6 @@ func (p *provider) Stop() {
 	stopper.Stop()
 	p.sender.Stop()
 	p.pipelines = p.pipelines[:0]
-}
-
-// return true if all SDS scanners are active.
-func (p *provider) reconfigureSDS(config []byte, orderType sds.ReconfigureOrderType) (bool, error) {
-	var responses []chan sds.ReconfigureResponse
-
-	// send a reconfiguration order to every running pipeline
-
-	for _, pipeline := range p.pipelines {
-		order := sds.ReconfigureOrder{
-			Type:         orderType,
-			Config:       config,
-			ResponseChan: make(chan sds.ReconfigureResponse),
-		}
-		responses = append(responses, order.ResponseChan)
-
-		log.Debug("Sending SDS reconfiguration order:", string(order.Type))
-		pipeline.processor.ReconfigChan <- order
-	}
-
-	// reports if at least one error occurred
-
-	var rerr error
-	allScannersActive := true
-	for _, response := range responses {
-		resp := <-response
-
-		if !resp.IsActive {
-			allScannersActive = false
-		}
-
-		if resp.Err != nil {
-			rerr = multierror.Append(rerr, resp.Err)
-		}
-
-		close(response)
-	}
-
-	return allScannersActive, rerr
-}
-
-// ReconfigureSDSStandardRules stores the SDS standard rules for the given provider.
-func (p *provider) ReconfigureSDSStandardRules(standardRules []byte) (bool, error) {
-	return p.reconfigureSDS(standardRules, sds.StandardRules)
-}
-
-// ReconfigureSDSAgentConfig reconfigures the pipeline with the given
-// configuration received through Remote Configuration.
-// Return true if all SDS scanners are active after applying this configuration.
-func (p *provider) ReconfigureSDSAgentConfig(config []byte) (bool, error) {
-	return p.reconfigureSDS(config, sds.AgentConfig)
-}
-
-// StopSDSProcessing reconfigures the pipeline removing the SDS scanning
-// from the processing steps.
-func (p *provider) StopSDSProcessing() error {
-	_, err := p.reconfigureSDS(nil, sds.StopProcessing)
-	return err
 }
 
 // NextPipelineChan returns the next pipeline input channel
