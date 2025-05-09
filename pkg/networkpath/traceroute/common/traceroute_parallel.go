@@ -46,8 +46,8 @@ type ProbeResponse struct {
 
 // TracerouteDriverInfo is metadata about a TracerouteDriver
 type TracerouteDriverInfo struct {
-	// whether this driver uses a separate socket to read ICMP, and implements ReceiveICMPProbe
-	UsesReceiveICMPProbe bool
+	// whether this driver uses a separate socket to read ICMP, and implements ReceiveSecondaryProbe
+	UsesReceiveSecondaryProbe bool
 }
 
 // TracerouteDriver is an implementation of traceroute send+receive of packets
@@ -58,8 +58,9 @@ type TracerouteDriver interface {
 	SendProbe(ttl uint8) error
 	// ReceiveProbe polls to get a traceroute response with a timeout
 	ReceiveProbe(timeout time.Duration) (*ProbeResponse, error)
-	// ReceiveICMPProbe is identical to ReceiveProbe, just running in another goroutine
-	ReceiveICMPProbe(timeout time.Duration) (*ProbeResponse, error)
+	// ReceiveSecondaryProbe is identical to ReceiveProbe, just running in another goroutine.
+	// This is used on Linux because there is a separate raw socket for TCP and ICMP respectively.
+	ReceiveSecondaryProbe(timeout time.Duration) (*ProbeResponse, error)
 }
 
 // TracerouteParallelParams are the parameters for TracerouteParallel
@@ -181,8 +182,8 @@ func TracerouteParallel(ctx context.Context, t TracerouteDriver, p TraceroutePar
 		})
 	}
 	handleProbeFunc("ReceiveProbe", t.ReceiveProbe)
-	if info.UsesReceiveICMPProbe {
-		handleProbeFunc("ReceiveICMPProbe", t.ReceiveICMPProbe)
+	if info.UsesReceiveSecondaryProbe {
+		handleProbeFunc("ReceiveSecondaryProbe", t.ReceiveSecondaryProbe)
 	}
 
 	// check for an error from the goroutines
