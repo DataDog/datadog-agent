@@ -119,7 +119,7 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 			serviceNameSource:    "provided",
 		})
 		s.assertService(t, c, foundMap, serviceExpectedPayload{
-			name:                 "python-instrumented",
+			name:                 "python-instrumented-dd",
 			systemdServiceName:   "python-instrumented",
 			instrumentation:      "provided",
 			serviceName:          "python-instrumented-dd",
