@@ -24,7 +24,7 @@ type storeDumper struct {
 
 var defaultDumper storeDumper
 
-// Init initializes the default dumper with a given store
+// InitDumper initializes the default dumper with a given store
 func InitDumper(store *store) {
 	defaultDumper.store = store
 }
