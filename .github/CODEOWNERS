@@ -231,6 +231,7 @@
 /cmd/serverless-init/                   @DataDog/serverless
 /cmd/sbomgen/                           @DataDog/agent-security
 /cmd/system-probe/                      @DataDog/ebpf-platform
+/cmd/system-probe/modules/usm*          @DataDog/universal-service-monitoring
 /cmd/system-probe/modules/network_tracer*   @DataDog/Networks
 /cmd/system-probe/modules/oom_kill_probe*   @DataDog/container-integrations
 /cmd/system-probe/modules/process*      @DataDog/container-intake
@@ -457,6 +458,7 @@
 /pkg/containerlifecycle/                @Datadog/container-integrations
 /pkg/diagnose/                          @Datadog/container-platform
 /pkg/diagnose/connectivity/             @DataDog/agent-configuration
+/pkg/diagnose/firewallscanner/          @DataDog/ndm-core
 /pkg/diagnose/ports/                    @DataDog/agent-configuration
 /pkg/diagnose/ports/*windows*.go        @DataDog/windows-agent
 /pkg/eventmonitor/                      @DataDog/ebpf-platform @DataDog/agent-security

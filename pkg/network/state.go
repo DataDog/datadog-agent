@@ -126,7 +126,7 @@ type Delta struct {
 	HTTP2    map[http.Key]*http.RequestStats
 	Kafka    map[kafka.Key]*kafka.RequestStats
 	Postgres map[postgres.Key]*postgres.RequestStat
-	Redis    map[redis.Key]*redis.RequestStat
+	Redis    map[redis.Key]*redis.RequestStats
 }
 
 type lastStateTelemetry struct {
@@ -242,7 +242,7 @@ type client struct {
 	http2StatsDelta    map[http.Key]*http.RequestStats
 	kafkaStatsDelta    map[kafka.Key]*kafka.RequestStats
 	postgresStatsDelta map[postgres.Key]*postgres.RequestStat
-	redisStatsDelta    map[redis.Key]*redis.RequestStat
+	redisStatsDelta    map[redis.Key]*redis.RequestStats
 	lastTelemetries    map[ConnTelemetryType]int64
 }
 
@@ -259,7 +259,7 @@ func (c *client) Reset() {
 	c.http2StatsDelta = make(map[http.Key]*http.RequestStats)
 	c.kafkaStatsDelta = make(map[kafka.Key]*kafka.RequestStats)
 	c.postgresStatsDelta = make(map[postgres.Key]*postgres.RequestStat)
-	c.redisStatsDelta = make(map[redis.Key]*redis.RequestStat)
+	c.redisStatsDelta = make(map[redis.Key]*redis.RequestStats)
 }
 
 type networkState struct {
@@ -414,7 +414,7 @@ func (ns *networkState) GetDelta(
 			stats := protocolStats.(map[postgres.Key]*postgres.RequestStat)
 			ns.storePostgresStats(stats)
 		case protocols.Redis:
-			stats := protocolStats.(map[redis.Key]*redis.RequestStat)
+			stats := protocolStats.(map[redis.Key]*redis.RequestStats)
 			ns.storeRedisStats(stats)
 		}
 	}
@@ -805,7 +805,7 @@ func (ns *networkState) storePostgresStats(allStats map[postgres.Key]*postgres.R
 }
 
 // storeRedisStats stores the latest Redis stats for all clients
-func (ns *networkState) storeRedisStats(allStats map[redis.Key]*redis.RequestStat) {
+func (ns *networkState) storeRedisStats(allStats map[redis.Key]*redis.RequestStats) {
 	if len(ns.clients) == 1 {
 		for _, client := range ns.clients {
 			if len(client.redisStatsDelta) == 0 && len(allStats) <= ns.maxRedisStats {
@@ -849,7 +849,7 @@ func (ns *networkState) getClient(clientID string) *client {
 		http2StatsDelta:    map[http.Key]*http.RequestStats{},
 		kafkaStatsDelta:    map[kafka.Key]*kafka.RequestStats{},
 		postgresStatsDelta: map[postgres.Key]*postgres.RequestStat{},
-		redisStatsDelta:    map[redis.Key]*redis.RequestStat{},
+		redisStatsDelta:    map[redis.Key]*redis.RequestStats{},
 		lastTelemetries:    make(map[ConnTelemetryType]int64),
 	}
 	ns.clients[clientID] = c

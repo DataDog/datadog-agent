@@ -308,6 +308,10 @@ Package auditor records the log files the agent is tracking. It tracks
 filename, time last updated, offset (how far into the file the agent has
 read), and tailing mode for each log file.
 
+### [comp/logs/health](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/health)
+
+Package health provides a dependency-injectible health object for kubernetes liveness checks
+
 ### [comp/logs/integrations](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/integrations)
 
 Package integrations adds a go interface for integrations to register and

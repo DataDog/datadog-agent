@@ -1328,7 +1328,18 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 				return
 			}
 			p.addToDNSResolver(dnsLayer)
-			event.DNS.UnmarshalDNSResponse(dnsLayer, uint16(len(data[offset:])))
+			event.DNS = model.DNSEvent{
+				ID: dnsLayer.ID,
+				Question: model.DNSQuestion{
+					Name:  string(dnsLayer.Questions[0].Name),
+					Class: uint16(dnsLayer.Questions[0].Class),
+					Type:  uint16(dnsLayer.Questions[0].Type),
+					Size:  uint16(len(data[offset:])),
+				},
+				Response: &model.DNSResponse{
+					ResponseCode: uint8(dnsLayer.ResponseCode),
+				},
+			}
 		}
 
 	case model.IMDSEventType:
