@@ -244,7 +244,7 @@ func (s *CloudFoundryService) GetPid() (int, error) {
 }
 
 // GetHostname returns nil and an error because hostnames are not supported in CF
-func (s *CloudFoundryService) GetHostname(context.Context) (string, error) {
+func (s *CloudFoundryService) GetHostname() (string, error) {
 	return "", ErrNotSupported
 }
 

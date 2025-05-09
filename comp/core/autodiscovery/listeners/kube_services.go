@@ -371,7 +371,7 @@ func (s *KubeServiceService) GetTagsWithCardinality(_ string) ([]string, error) 
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
-func (s *KubeServiceService) GetHostname(context.Context) (string, error) {
+func (s *KubeServiceService) GetHostname() (string, error) {
 	return "", ErrNotSupported
 }
 

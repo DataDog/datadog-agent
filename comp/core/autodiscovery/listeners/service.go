@@ -110,7 +110,7 @@ func (s *service) GetPid() (int, error) {
 }
 
 // GetHostname returns the service's hostname.
-func (s *service) GetHostname(_ context.Context) (string, error) {
+func (s *service) GetHostname() (string, error) {
 	return s.hostname, nil
 }
 

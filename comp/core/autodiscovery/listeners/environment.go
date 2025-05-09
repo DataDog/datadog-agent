@@ -120,7 +120,7 @@ func (s *EnvironmentService) GetPid() (int, error) {
 }
 
 // GetHostname returns nil and an error because port is not supported in this listener
-func (s *EnvironmentService) GetHostname(context.Context) (string, error) {
+func (s *EnvironmentService) GetHostname() (string, error) {
 	return "", ErrNotSupported
 }
 

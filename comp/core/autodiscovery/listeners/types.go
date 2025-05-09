@@ -36,7 +36,7 @@ type Service interface {
 	GetTags() ([]string, error)                                  // tags
 	GetTagsWithCardinality(cardinality string) ([]string, error) // tags with given cardinality
 	GetPid() (int, error)                                        // process identifier
-	GetHostname(context.Context) (string, error)                 // hostname.domainname for the entity
+	GetHostname() (string, error)                                // hostname.domainname for the entity
 	IsReady(context.Context) bool                                // is the service ready
 	HasFilter(containers.FilterType) bool                        // whether the service is excluded by metrics or logs exclusion config
 	GetExtraConfig(string) (string, error)                       // Extra configuration values

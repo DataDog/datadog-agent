@@ -74,7 +74,7 @@ func (s *dummyService) GetPid() (int, error) {
 }
 
 // GetHostname return a dummy hostname
-func (s *dummyService) GetHostname(context.Context) (string, error) {
+func (s *dummyService) GetHostname() (string, error) {
 	return s.Hostname, nil
 }
 

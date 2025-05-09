@@ -474,7 +474,7 @@ func (s *SNMPService) GetPid() (int, error) {
 }
 
 // GetHostname returns nothing - not supported
-func (s *SNMPService) GetHostname(context.Context) (string, error) {
+func (s *SNMPService) GetHostname() (string, error) {
 	return "", ErrNotSupported
 }
 

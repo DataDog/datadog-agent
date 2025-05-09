@@ -249,7 +249,7 @@ func (d *DBMAuroraService) GetPid() (int, error) {
 }
 
 // GetHostname returns nothing - not supported
-func (d *DBMAuroraService) GetHostname(context.Context) (string, error) {
+func (d *DBMAuroraService) GetHostname() (string, error) {
 	return "", ErrNotSupported
 }
 

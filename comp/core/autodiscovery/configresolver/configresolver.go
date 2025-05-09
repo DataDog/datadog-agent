@@ -588,12 +588,12 @@ func getPid(_ context.Context, _ string, svc listeners.Service) (string, error) 
 
 // getHostname returns the hostname of the service, to be used
 // when the IP is unavailable or erroneous
-func getHostname(ctx context.Context, _ string, svc listeners.Service) (string, error) {
+func getHostname(_ context.Context, _ string, svc listeners.Service) (string, error) {
 	if svc == nil {
 		return "", newNoServiceError("No service. %%%%hostname%%%% is not allowed")
 	}
 
-	name, err := svc.GetHostname(ctx)
+	name, err := svc.GetHostname()
 	if err != nil {
 		return "", fmt.Errorf("failed to get hostname for service %s, skipping config - %s", svc.GetServiceID(), err)
 	}

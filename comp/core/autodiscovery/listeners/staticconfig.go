@@ -107,7 +107,7 @@ func (s *StaticConfigService) GetPid() (int, error) {
 }
 
 // GetHostname returns nil and an error because port is not supported in this listener
-func (s *StaticConfigService) GetHostname(context.Context) (string, error) {
+func (s *StaticConfigService) GetHostname() (string, error) {
 	return "", ErrNotSupported
 }
 
