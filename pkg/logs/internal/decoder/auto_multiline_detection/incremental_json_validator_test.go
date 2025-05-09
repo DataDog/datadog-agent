@@ -143,6 +143,21 @@ func TestEdgeCases(t *testing.T) {
 			inputs:   []string{`{ "arr":`, `[`, `[`, `]`, `]`, `}`},
 			expected: []JSONState{Incomplete, Incomplete, Incomplete, Incomplete, Incomplete, Complete},
 		},
+		{
+			name:     "Standalone string",
+			inputs:   []string{"hi"},
+			expected: []JSONState{Invalid},
+		},
+		{
+			name:     "Standalone string in array",
+			inputs:   []string{`["hi"]`},
+			expected: []JSONState{Invalid},
+		},
+		{
+			name:     "Standalone array opening",
+			inputs:   []string{`[`},
+			expected: []JSONState{Invalid},
+		},
 	}
 
 	for _, tt := range tests {

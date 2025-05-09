@@ -64,11 +64,18 @@ func (d *IncrementalJSONValidator) Write(s []byte) JSONState {
 		case json.Delim:
 			if delim.String() == "{" {
 				d.objCount++
+				break
 			}
 			if delim.String() == "}" {
 				d.objCount--
+				break
+			}
+			// If we're not in an object, we can't have a valid JSON message
+			if d.objCount == 0 {
+				isValid = false
 			}
 		}
+
 	}
 	if !isValid {
 		return Invalid
