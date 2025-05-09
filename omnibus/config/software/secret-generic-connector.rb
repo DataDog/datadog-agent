@@ -16,7 +16,7 @@
 require './lib/ostools.rb'
 
 name "secret-generic-connector"
-default_version "0.2.0"
+default_version "0.2.1"
 
 # Define URLs for each platform
 secret_generic_urls = {
@@ -75,7 +75,7 @@ build do
 
   if windows?
     # Extract the zip file
-    copy "#{project_dir}/datadog-secret-backend.exe", "#{install_dir}/embedded/bin/secret-generic-connector.exe"
+    copy "#{project_dir}/datadog-secret-backend.exe", "#{install_dir}/bin/secret-generic-connector.exe"
   else
     # Extract the tar.gz file
     copy "#{project_dir}/datadog-secret-backend", "#{install_dir}/embedded/bin/secret-generic-connector"
