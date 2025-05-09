@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -44,6 +45,7 @@ type checkSender struct {
 	checkTags               []string
 	service                 string
 	noIndex                 bool
+	hostTagDisallowMap      map[string]bool
 }
 
 // senderItem knows how the aggregator should handle it
@@ -103,6 +105,18 @@ func newCheckSender(
 	orchestratorManifestOut chan<- senderOrchestratorManifest,
 	eventPlatformOut chan<- senderEventPlatformEvent,
 ) *checkSender {
+
+	// List of metrics where the host tag is not needed
+	hostTagDisallowList := pkgconfigsetup.Datadog().GetStringSlice("host_tag_disallow_list")
+	if hostTagDisallowList == nil {
+		hostTagDisallowList = []string{} // Default to an empty slice
+	}
+
+	hostTagDisallowMap := make(map[string]bool)
+	for _, metric := range hostTagDisallowList {
+		hostTagDisallowMap[metric] = true
+	}
+
 	return &checkSender{
 		id:                      id,
 		defaultHostname:         defaultHostname,
@@ -114,6 +128,7 @@ func newCheckSender(
 		orchestratorMetadataOut: orchestratorMetadataOut,
 		orchestratorManifestOut: orchestratorManifestOut,
 		eventPlatformOut:        eventPlatformOut,
+		hostTagDisallowMap:      hostTagDisallowMap,
 	}
 }
 
@@ -183,6 +198,12 @@ func (s *checkSender) sendMetricSample(
 	noIndex bool,
 	timestamp float64,
 ) {
+	if mType == metrics.DistributionType {
+		if _, disallowed := s.hostTagDisallowMap[metric]; disallowed {
+			hostname = "default-host"
+		}
+	}
+
 	tags = append(tags, s.checkTags...)
 
 	if log.ShouldLog(log.TraceLvl) {
