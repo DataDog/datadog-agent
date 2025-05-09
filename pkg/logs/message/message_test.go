@@ -92,7 +92,7 @@ func TestPayloadAllowsMessageContentGC(t *testing.T) {
 	// Create scope to allow message to be GC'd
 	func() {
 		// Create message with content we want to track
-		content := make([]byte, 10000000000) // Large enough to be noticeable for GC
+		content := make([]byte, 1000000) // Large enough to be noticeable for GC
 		message := NewMessage(content, nil, "", 2)
 
 		// Set up finalizer to track when content is GC'd
