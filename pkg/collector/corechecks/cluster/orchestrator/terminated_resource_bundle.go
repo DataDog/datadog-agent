@@ -9,6 +9,7 @@
 package orchestrator
 
 import (
+	"fmt"
 	"reflect"
 	"sync"
 	"time"
@@ -16,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -43,12 +45,18 @@ func NewTerminatedResourceBundle(check *OrchestratorCheck, runCfg *collectors.Co
 }
 
 // Add adds a terminated object into TerminatedResourceBundle
-func (tb *TerminatedResourceBundle) Add(k8sCollector collectors.K8sCollector, resource interface{}) {
+func (tb *TerminatedResourceBundle) Add(k8sCollector collectors.K8sCollector, obj interface{}) {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
 
 	if _, ok := tb.terminatedResources[k8sCollector]; !ok {
 		tb.terminatedResources[k8sCollector] = []interface{}{}
+	}
+
+	resource, err := getResource(obj)
+	if err != nil {
+		log.Warn(err)
+		return
 	}
 
 	tb.terminatedResources[k8sCollector] = append(tb.terminatedResources[k8sCollector], insertDeletionTimestampIfPossible(resource))
@@ -110,7 +118,7 @@ func toTypedSlice(k8sCollector collectors.K8sCollector, list []interface{}) inte
 		typedList := make([]runtime.Object, 0, len(list))
 		for i := range list {
 			if _, ok := list[i].(runtime.Object); !ok {
-				log.Warn("Failed to convert object to runtime.Object")
+				log.Warnf("failed to cast object to runtime.Object, got type: %T", list[i])
 				continue
 			}
 			typedList = append(typedList, list[i].(runtime.Object))
@@ -126,6 +134,21 @@ func toTypedSlice(k8sCollector collectors.K8sCollector, list []interface{}) inte
 		typedList = reflect.Append(typedList, reflect.ValueOf(list[i]))
 	}
 	return typedList.Interface()
+}
+
+// getResource checks if the resource is of type DeletedFinalStateUnknown
+// and returns the underlying object if it is, or an error if the object is nil.
+func getResource(obj interface{}) (interface{}, error) {
+	resource := obj
+	if deletedState, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+		resource = deletedState.Obj
+	}
+
+	if resource == nil || (reflect.ValueOf(resource).Kind() == reflect.Ptr && reflect.ValueOf(resource).IsNil()) {
+		return nil, fmt.Errorf("object is nil, skipping, got type: %T", obj)
+	}
+
+	return resource, nil
 }
 
 func insertDeletionTimestampIfPossible(obj interface{}) interface{} {
