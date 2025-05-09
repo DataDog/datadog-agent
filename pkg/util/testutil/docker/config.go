@@ -20,6 +20,9 @@ const (
 
 	// DefaultRetries is the default number of retries for starting a container/s.
 	DefaultRetries = 3
+
+	// MinimalDockerImage is the minimal docker image, just used for running a binary
+	MinimalDockerImage = "alpine:3.20.3"
 )
 
 // EmptyEnv is a sugar syntax for empty environment variables
@@ -93,11 +96,14 @@ type baseConfig struct {
 
 // runConfig contains specific configurations for Docker containers, embedding BaseConfig.
 type runConfig struct {
-	baseConfig                   // Embed general configuration.
-	ImageName  string            // Docker image to use.
-	Binary     string            // Binary to run inside the container.
-	BinaryArgs []string          // Arguments for the binary.
-	Mounts     map[string]string // Mounts (host path -> container path).
+	baseConfig                    // Embed general configuration.
+	ImageName   string            // Docker image to use.
+	Binary      string            // Binary to run inside the container.
+	BinaryArgs  []string          // Arguments for the binary.
+	Mounts      map[string]string // Mounts (host path -> container path).
+	NetworkMode string            // Network mode to use for the container. If empty, the docker default will apply
+	PIDMode     string            // PID mode to use for the container. If empty, the docker default will apply
+	Privileged bool               // Whether to run the container in privileged mode.
 }
 
 func (r runConfig) command() string {
@@ -121,8 +127,23 @@ func (r runConfig) commandArgs(t subCommandType) []string {
 			args = append(args, "-e", env)
 		}
 
+		if r.Privileged {
+			args = append(args, "--privileged")
+		}
+
+		args = append(args, "--network", "host")
+		args = append(args, "--pid", "host")
+
 		//append container name and container image name
 		args = append(args, "--name", r.Name(), r.ImageName)
+
+		if r.NetworkMode != "" {
+			args = append(args, "--network", r.NetworkMode)
+		}
+
+		if r.PIDMode != "" {
+			args = append(args, "--pid", r.PIDMode)
+		}
 
 		//provide main binary and binary arguments to run inside the docker container
 		args = append(args, r.Binary)
@@ -154,31 +175,145 @@ func (c composeConfig) commandArgs(t subCommandType) []string {
 	}
 }
 
-func createBaseConfig(name string, timeout time.Duration, retries int, patternScanner *testutil.PatternScanner, env []string) baseConfig {
-	return baseConfig{
-		name:           name,
-		timeout:        timeout,
-		retries:        retries,
-		patternScanner: patternScanner,
-		env:            env,
+// WithImageName sets the Docker image name for the container configuration.
+func WithImageName(imageName string) RunConfigOption {
+	return func(c *runConfig) {
+		c.ImageName = imageName
+	}
+}
+
+// WithBinary sets the binary to run inside the container.
+func WithBinary(binary string) RunConfigOption {
+	return func(c *runConfig) {
+		c.Binary = binary
+	}
+}
+
+// WithBinaryArgs sets the arguments for the binary to run inside the container.
+func WithBinaryArgs(binaryArgs []string) RunConfigOption {
+	return func(c *runConfig) {
+		c.BinaryArgs = binaryArgs
+	}
+}
+
+// WithMounts sets the volume mounts for the container (host path -> container path).
+func WithMounts(mounts map[string]string) RunConfigOption {
+	return func(c *runConfig) {
+		c.Mounts = mounts
+	}
+}
+
+// WithNetworkMode sets the network mode for the container.
+func WithNetworkMode(networkMode string) RunConfigOption {
+	return func(c *runConfig) {
+		c.NetworkMode = networkMode
+	}
+}
+
+// WithPIDMode sets the PID mode for the container.
+func WithPIDMode(pidMode string) RunConfigOption {
+	return func(c *runConfig) {
+		c.PIDMode = pidMode
+	}
+}
+
+// WithPrivileged sets the privileged flag for the container.
+func WithPrivileged(privileged bool) RunConfigOption {
+	return func(c *runConfig) {
+		c.Privileged = privileged
 	}
 }
 
 // NewRunConfig creates a new runConfig instance for a single docker container.
-func NewRunConfig(name string, timeout time.Duration, retries int, patternScanner *testutil.PatternScanner, env []string, imageName, binary string, binaryArgs []string, mounts map[string]string) LifecycleConfig {
-	return runConfig{
-		baseConfig: createBaseConfig(name, timeout, retries, patternScanner, env),
-		ImageName:  imageName,
-		Binary:     binary,
-		BinaryArgs: binaryArgs,
-		Mounts:     mounts,
+func NewRunConfig(opts ...RunConfigOption) LifecycleConfig {
+	cfg := &runConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	return *cfg
+}
+
+// WithFile sets the path to the docker-compose file.
+func WithFile(file string) ComposeConfigOption {
+	return func(c *composeConfig) {
+		c.File = file
 	}
 }
 
 // NewComposeConfig creates a new composeConfig instance for the docker-compose.
-func NewComposeConfig(name string, timeout time.Duration, retries int, patternScanner *testutil.PatternScanner, env []string, file string) LifecycleConfig {
-	return composeConfig{
-		baseConfig: createBaseConfig(name, timeout, retries, patternScanner, env),
-		File:       file,
+func NewComposeConfig(opts ...ComposeConfigOption) LifecycleConfig {
+	cfg := &composeConfig{}
+	for _, opt := range opts {
+		opt(cfg)
 	}
+	return *cfg
+}
+
+// BaseConfigOption represents options for the base configuration for all docker lifecycle configs
+type BaseConfigOption func(*baseConfig)
+
+// RunConfigOption represents options for the run configuration for a docker container
+type RunConfigOption func(*runConfig)
+
+// ComposeConfigOption represents options for the compose configuration for a docker-compose setup
+type ComposeConfigOption func(*composeConfig)
+
+// WithName sets the name of the container or docker-compose setup.
+func WithName(name string) BaseConfigOption {
+	return func(c *baseConfig) {
+		c.name = name
+	}
+}
+
+// WithTimeout sets the timeout for the container operation.
+func WithTimeout(timeout time.Duration) BaseConfigOption {
+	return func(c *baseConfig) {
+		c.timeout = timeout
+	}
+}
+
+// WithRetries sets the number of retries for starting the container.
+func WithRetries(retries int) BaseConfigOption {
+	return func(c *baseConfig) {
+		c.retries = retries
+	}
+}
+
+// WithPatternScanner sets the pattern scanner for monitoring container logs.
+func WithPatternScanner(patternScanner *testutil.PatternScanner) BaseConfigOption {
+	return func(c *baseConfig) {
+		c.patternScanner = patternScanner
+	}
+}
+
+// WithEnv sets the environment variables for the container.
+func WithEnv(env []string) BaseConfigOption {
+	return func(c *baseConfig) {
+		c.env = env
+	}
+}
+
+// WithBaseConfigForCompose allows setting the base configuration for a docker-compose setup
+func WithBaseConfigForCompose(opts ...BaseConfigOption) ComposeConfigOption {
+	return func(c *composeConfig) {
+		c.baseConfig = newBaseConfig(opts...)
+	}
+}
+
+// WithBaseConfigForRun allows setting the base configuration for a docker container
+func WithBaseConfigForRun(opts ...BaseConfigOption) RunConfigOption {
+	return func(c *runConfig) {
+		c.baseConfig = newBaseConfig(opts...)
+	}
+}
+
+func newBaseConfig(opts ...BaseConfigOption) baseConfig {
+	cfg := baseConfig{
+		timeout: DefaultTimeout,
+		retries: DefaultRetries,
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return cfg
 }

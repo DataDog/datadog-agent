@@ -43,7 +43,7 @@ var finishedPattern = regexp.MustCompile("CUDA calls made")
 
 const (
 	// MinimalDockerImage is the minimal docker image, just used for running a binary
-	MinimalDockerImage dockerImage = "alpine:3.20.3"
+	MinimalDockerImage dockerImage = dockerutils.MinimalDockerImage
 )
 
 // SampleArgs holds arguments for the sample binary
@@ -166,15 +166,18 @@ func RunSampleInDockerWithArgs(t *testing.T, name sampleName, image dockerImage,
 	scanner, err := procutil.NewScanner(startedPattern, finishedPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
 
-	dockerConfig := dockerutils.NewRunConfig(containerName,
-		dockerutils.DefaultTimeout,
-		dockerutils.DefaultRetries,
-		scanner,
-		args.getEnv(),
-		string(image),
-		builtBin,
-		args.getCLIArgs(),
-		map[string]string{builtBin: builtBin})
+	dockerConfig := dockerutils.NewRunConfig(
+		dockerutils.WithBaseConfigForRun(
+			dockerutils.WithName(containerName),
+			dockerutils.WithTimeout(dockerutils.DefaultTimeout),
+			dockerutils.WithRetries(dockerutils.DefaultRetries),
+			dockerutils.WithPatternScanner(scanner),
+			dockerutils.WithEnv(args.getEnv()),
+		),
+		dockerutils.WithImageName(string(image)),
+		dockerutils.WithBinary(builtBin),
+		dockerutils.WithBinaryArgs(args.getCLIArgs()),
+		dockerutils.WithMounts(map[string]string{builtBin: builtBin}))
 
 	require.NoError(t, dockerutils.Run(t, dockerConfig))
 

@@ -22,9 +22,11 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	consumertestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 )
 
 // === Mocks
@@ -304,4 +306,15 @@ func (o *processMonitorProxy) Reset() {
 
 	o.execCallbacks = make(map[*func(uint32)]struct{})
 	o.exitCallbacks = make(map[*func(uint32)]struct{})
+}
+
+func launchProcessMonitor(t *testing.T, useEventStream bool) *monitor.ProcessMonitor {
+	pm := monitor.GetProcessMonitor()
+	t.Cleanup(pm.Stop)
+	require.NoError(t, pm.Initialize(useEventStream))
+	if useEventStream {
+		monitor.InitializeEventConsumer(consumertestutil.NewTestProcessConsumer(t))
+	}
+
+	return pm
 }
