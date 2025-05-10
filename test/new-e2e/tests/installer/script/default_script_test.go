@@ -123,12 +123,12 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 	if s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version {
 		s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
 	}
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(map[string]string{
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(map[string]string{
 		"DD_API_KEY":               s.getAPIKey(),
 		"TESTING_KEYS_URL":         "keys.datadoghq.com",
-		"TESTING_APT_URL":          "apttesting.datad0g.com",
+		"TESTING_APT_URL":          "s3.amazonaws.com/apttesting.datad0g.com",
 		"TESTING_APT_REPO_VERSION": fmt.Sprintf("pipeline-%s-a7-%s 7", os.Getenv("E2E_PIPELINE_ID"), s.arch),
-		"TESTING_YUM_URL":          "yumtesting.datad0g.com",
+		"TESTING_YUM_URL":          "s3.amazonaws.com/yumtesting.datad0g.com",
 		"TESTING_YUM_VERSION_PATH": fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("E2E_PIPELINE_ID")),
 	}))
 	require.NoErrorf(s.T(), err, "installer not properly installed through install script")
@@ -170,7 +170,7 @@ func (s *installScriptDefaultSuite) TestUpgradeInstallerAgent() {
 	}
 
 	// 1. Install installer / agent as separate packages using older agent 7 install script & an older agent version (7.60)
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh?versionId=c0vg6qmhxYnt3he9iRph2BsRN0p026pf)"`, strings.Join(params, " ")))
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh?versionId=c0vg6qmhxYnt3he9iRph2BsRN0p026pf)"`, strings.Join(params, " ")))
 	require.NoErrorf(s.T(), err, "installer / agent not properly installed through agent 7 install script")
 
 	// 2. Run the installer install script with the same older agent version (7.60)
