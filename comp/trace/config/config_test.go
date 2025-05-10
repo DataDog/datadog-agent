@@ -163,7 +163,7 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 
 		assert.True(t, cfg.TelemetryConfig.Enabled)
 		assert.Len(t, cfg.TelemetryConfig.Endpoints, 1)
-		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com.", cfg.TelemetryConfig.Endpoints[0].Host)
 	})
 
 	t.Run("dd_url", func(t *testing.T) {
@@ -206,7 +206,7 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 
 		assert.True(t, cfg.TelemetryConfig.Enabled)
 		assert.Len(t, cfg.TelemetryConfig.Endpoints, 1)
-		assert.Equal(t, "https://instrumentation-telemetry-intake.new_site.example.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.new_site.example.com.", cfg.TelemetryConfig.Endpoints[0].Host)
 	})
 
 	t.Run("additional-hosts", func(t *testing.T) {
@@ -223,7 +223,7 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		require.NotNil(t, cfg)
 
 		assert.True(t, cfg.TelemetryConfig.Enabled)
-		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com.", cfg.TelemetryConfig.Endpoints[0].Host)
 
 		assert.Len(t, cfg.TelemetryConfig.Endpoints, 3)
 		for _, endpoint := range cfg.TelemetryConfig.Endpoints[1:] {
@@ -246,7 +246,7 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		require.NotNil(t, cfg)
 
 		assert.True(t, cfg.TelemetryConfig.Enabled)
-		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com.", cfg.TelemetryConfig.Endpoints[0].Host)
 
 		assert.Len(t, cfg.TelemetryConfig.Endpoints, 3)
 		for _, endpoint := range cfg.TelemetryConfig.Endpoints[1:] {
@@ -486,8 +486,8 @@ func TestSite(t *testing.T) {
 		file string
 		url  string
 	}{
-		"default":  {"./testdata/site_default.yaml", "https://trace.agent.datadoghq.com"},
-		"eu":       {"./testdata/site_eu.yaml", "https://trace.agent.datadoghq.eu"},
+		"default":  {"./testdata/site_default.yaml", "https://trace.agent.datadoghq.com."},
+		"eu":       {"./testdata/site_eu.yaml", "https://trace.agent.datadoghq.eu."},
 		"url":      {"./testdata/site_url.yaml", "some.other.datadoghq.eu"},
 		"override": {"./testdata/site_override.yaml", "some.other.datadoghq.eu"},
 		"vector":   {"./testdata/observability_pipelines_worker_override.yaml", "https://observability_pipelines_worker.domain.tld:8443"},
@@ -835,7 +835,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg := config.Object()
 
 		assert.NotNil(t, cfg)
-		assert.Equal(t, apiEndpointPrefix+"my-site.com", cfg.Endpoints[0].Host)
+		assert.Equal(t, apiEndpointPrefix+"my-site.com.", cfg.Endpoints[0].Host)
 	})
 
 	env = "DD_APM_ENABLED"

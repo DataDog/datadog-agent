@@ -57,10 +57,10 @@ const (
 	DefaultProcessEntityStreamPort = 6262
 
 	// DefaultProcessEndpoint is the default endpoint for the process agent to send payloads to
-	DefaultProcessEndpoint = "https://process.datadoghq.com"
+	DefaultProcessEndpoint = "https://process.datadoghq.com."
 
 	// DefaultProcessEventsEndpoint is the default endpoint for the process agent to send event payloads to
-	DefaultProcessEventsEndpoint = "https://process-events.datadoghq.com"
+	DefaultProcessEventsEndpoint = "https://process-events.datadoghq.com."
 
 	// DefaultProcessEventStoreMaxItems is the default maximum amount of events that can be stored in the Event Store
 	DefaultProcessEventStoreMaxItems = 200

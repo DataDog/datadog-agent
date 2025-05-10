@@ -170,7 +170,11 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]APIKeys, error)
 
 // BuildURLWithPrefix will return an HTTP(s) URL for a site given a certain prefix
 func BuildURLWithPrefix(prefix, site string) string {
-	return prefix + strings.TrimSpace(site)
+	site = strings.TrimSpace(site)
+	if !strings.HasSuffix(site, ".") {
+		site += "."
+	}
+	return prefix + site
 }
 
 // GetMainEndpoint returns the main DD URL defined in the config, based on `site` and the prefix, or ddURLKey

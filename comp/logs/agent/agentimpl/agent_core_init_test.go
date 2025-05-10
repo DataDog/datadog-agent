@@ -19,5 +19,5 @@ func TestBuildEndpoints(t *testing.T) {
 
 	endpoints, err := buildEndpoints(config)
 	assert.Nil(t, err)
-	assert.Equal(t, "agent-intake.logs.datadoghq.com", endpoints.Main.Host)
+	assert.Equal(t, "agent-intake.logs.datadoghq.com.", endpoints.Main.Host)
 }

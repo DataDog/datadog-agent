@@ -33,7 +33,7 @@ func TestStatusProvider(t *testing.T) {
 			metricsRedundantEndpointConfig: []endpoint{
 				{
 					"api.datadoghq.eu",
-					"https://api.datadoghq.eu",
+					"https://api.datadoghq.eu.",
 					"12345",
 					"67890",
 				},
@@ -68,10 +68,10 @@ func TestStatusProvider(t *testing.T) {
 
 			assert.NoError(t, err)
 			expectedTextOutput := `
-  - URL: https://api.datadoghq.com  [Unknown]
+  - URL: https://api.datadoghq.com.  [Unknown]
     Last failure: Never
     Last Success: Never
-  - URL: https://api.datadoghq.eu  [Unknown]
+  - URL: https://api.datadoghq.eu.  [Unknown]
     Last failure: Never
     Last Success: Never
 `

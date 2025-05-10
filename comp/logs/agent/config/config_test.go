@@ -583,7 +583,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
-		Host:                   "default-intake.logs.mydomain.com",
+		Host:                   "default-intake.logs.mydomain.com.",
 		Port:                   0,
 		useSSL:                 true,
 		UseCompression:         true,
@@ -623,7 +623,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
-		Host:                   "http-intake.logs.datadoghq.com",
+		Host:                   "http-intake.logs.datadoghq.com.",
 		Port:                   0,
 		useSSL:                 true,
 		UseCompression:         true,
@@ -735,7 +735,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithoutVector() {
 	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
 	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com", 0, true))
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com.", 0, true))
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
 }
@@ -769,7 +769,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 		configSettingPath:       "api_key",
 		isAdditionalEndpoint:    false,
 		additionalEndpointsIdx:  0,
-		Host:                    "ndmflow-intake.datadoghq.com",
+		Host:                    "ndmflow-intake.datadoghq.com.",
 		Port:                    0,
 		useSSL:                  true,
 		UseCompression:          false,
