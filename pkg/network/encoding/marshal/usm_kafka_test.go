@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux && linux_bpf
+
 package marshal
 
 import (
 	"fmt"
-	"runtime"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -21,12 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
-
-func skipIfNotLinux(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("the feature is only supported on linux.")
-	}
-}
 
 const (
 	clientPort  = uint16(1234)
@@ -51,7 +46,6 @@ type KafkaSuite struct {
 }
 
 func TestKafkaStats(t *testing.T) {
-	skipIfNotLinux(t)
 	suite.Run(t, &KafkaSuite{})
 }
 
@@ -183,7 +177,7 @@ func (s *KafkaSuite) TestKafkaIDCollisionRegression() {
 	// addresses but different PIDs *won't* be associated with the Kafka stats
 	// object
 	streamer := NewProtoTestStreamer[*model.Connection]()
-	encoder.WriteKafkaAggregations(in.Conns[1], model.NewConnectionBuilder(streamer))
+	encoder.EncodeConnection(in.Conns[1], model.NewConnectionBuilder(streamer))
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)
 	assert.Empty(conn.DataStreamsAggregations)
@@ -246,7 +240,7 @@ func (s *KafkaSuite) TestKafkaLocalhostScenario() {
 
 func getKafkaAggregations(t *testing.T, encoder *kafkaEncoder, c network.ConnectionStats) *model.DataStreamsAggregations {
 	streamer := NewProtoTestStreamer[*model.Connection]()
-	encoder.WriteKafkaAggregations(c, model.NewConnectionBuilder(streamer))
+	encoder.EncodeConnection(c, model.NewConnectionBuilder(streamer))
 
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)
@@ -300,7 +294,7 @@ func commonBenchmarkKafkaEncoder(b *testing.B, entries uint16) {
 	for i := 0; i < b.N; i++ {
 		h = newKafkaEncoder(payload.Kafka)
 		streamer.Reset()
-		h.WriteKafkaAggregations(payload.Conns[0], a)
+		h.EncodeConnection(payload.Conns[0], a)
 		h.Close()
 	}
 }

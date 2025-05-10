@@ -3,10 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build (linux && linux_bpf) || (windows && npm)
+
 package marshal
 
 import (
 	"fmt"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"sync"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -15,6 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// usmEncoder represents the interface for a generic connections' encoder.
+type usmEncoder interface {
+	// Close closes the encoder.
+	Close()
+	// EncodeConnection encodes USM data for a given connection into the given builder. Returns static tags and dynamic tags.
+	EncodeConnection(network.ConnectionStats, *model.ConnectionBuilder) (uint64, map[string]struct{})
+}
 
 // USMConnectionIndex provides a generic container for USM data pre-aggregated by connection
 type USMConnectionIndex[K comparable, V any] struct {

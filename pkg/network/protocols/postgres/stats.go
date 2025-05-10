@@ -3,18 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux && linux_bpf
+
 package postgres
 
 import (
+	"errors"
+
 	"github.com/DataDog/sketches-go/ddsketch"
 
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// This file contains the structs used to store and combine the stats for the Postgres protocol.
-// The file does not have any build tag, so it can be used in any build as it is used by the tracer package.
 
 // Key is an identifier for a group of Postgres transactions
 type Key struct {
@@ -62,5 +64,22 @@ func (r *RequestStat) CombineWith(newStats *RequestStat) {
 		if err := r.Latencies.MergeWith(newStats.Latencies); err != nil {
 			log.Debugf("could not add request latency to ddsketch: %v", err)
 		}
+	}
+}
+
+func (r *RequestStat) initSketch() error {
+	latencies := protocols.SketchesPool.Get()
+	if latencies == nil {
+		return errors.New("error recording postgres transaction latency: could not create new ddsketch")
+	}
+	r.Latencies = latencies
+	return nil
+}
+
+// Close cleans up the RequestStat
+func (r *RequestStat) Close() {
+	if r.Latencies != nil {
+		r.Latencies.Clear()
+		protocols.SketchesPool.Put(r.Latencies)
 	}
 }
