@@ -16,7 +16,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
@@ -38,37 +37,28 @@ func StopUnits(ctx context.Context, units ...string) (err error) {
 }
 
 // StopUnit starts a systemd unit
-func StopUnit(ctx context.Context, unit string, args ...string) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "stop_unit")
-	defer func() { span.Finish(err) }()
-	span.SetTag("unit", unit)
+func StopUnit(ctx context.Context, unit string, args ...string) error {
 	args = append([]string{"stop", unit}, args...)
-	err = exec.CommandContext(ctx, "systemctl", args...).Run()
+	err := telemetry.CommandContext(ctx, "systemctl", args...).Run()
 	exitErr := &exec.ExitError{}
 	if !errors.As(err, &exitErr) {
 		return err
 	}
-	span.SetTag("exit_code", exitErr.ExitCode())
+	// exit code 5 means the unit is not loaded, we can continue
 	if exitErr.ExitCode() == 5 {
-		// exit code 5 means the unit is not loaded, we can continue
 		return nil
 	}
-	return errors.New(string(exitErr.Stderr))
+	return err
 }
 
 // StartUnit starts a systemd unit
-func StartUnit(ctx context.Context, unit string, args ...string) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "start_unit")
-	defer func() { span.Finish(err) }()
-	span.SetTag("unit", unit)
+func StartUnit(ctx context.Context, unit string, args ...string) error {
 	args = append([]string{"start", unit}, args...)
-	err = exec.CommandContext(ctx, "systemctl", args...).Run()
+	err := telemetry.CommandContext(ctx, "systemctl", args...).Run()
 	exitErr := &exec.ExitError{}
 	if !errors.As(err, &exitErr) {
 		return err
 	}
-	span.SetTag("exit_code", exitErr.ExitCode())
-
 	waitStatus, hasWaitStatus := exitErr.Sys().(syscall.WaitStatus)
 	// Handle the cases where we self stop:
 	// - Exit code 143 (128 + 15) means the process was killed by SIGTERM. This is unlikely to happen because of Go's exec.
@@ -76,61 +66,38 @@ func StartUnit(ctx context.Context, unit string, args ...string) (err error) {
 	if (exitErr.ExitCode() == -1 && hasWaitStatus && waitStatus.Signal() == syscall.SIGTERM) || exitErr.ExitCode() == 143 {
 		return nil
 	}
-	return errors.New(string(exitErr.Stderr))
+	return err
 }
 
 // RestartUnit restarts a systemd unit
-func RestartUnit(ctx context.Context, unit string, args ...string) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "restart_unit")
-	defer func() { span.Finish(err) }()
-	span.SetTag("unit", unit)
+func RestartUnit(ctx context.Context, unit string, args ...string) error {
 	args = append([]string{"restart", unit}, args...)
-	err = exec.CommandContext(ctx, "systemctl", args...).Run()
-	exitErr := &exec.ExitError{}
-	if !errors.As(err, &exitErr) {
-		return err
-	}
-	span.SetTag("exit_code", exitErr.ExitCode())
-	return errors.New(string(exitErr.Stderr))
+	return telemetry.CommandContext(ctx, "systemctl", args...).Run()
 }
 
 // EnableUnit enables a systemd unit
-func EnableUnit(ctx context.Context, unit string) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "enable_unit")
-	defer func() { span.Finish(err) }()
-	span.SetTag("unit", unit)
-	err = exec.CommandContext(ctx, "systemctl", "enable", unit).Run()
-	exitErr := &exec.ExitError{}
-	if !errors.As(err, &exitErr) {
-		return err
-	}
-	span.SetTag("exit_code", exitErr.ExitCode())
-	return errors.New(string(exitErr.Stderr))
+func EnableUnit(ctx context.Context, unit string) error {
+	return telemetry.CommandContext(ctx, "systemctl", "enable", unit).Run()
 }
 
 // DisableUnit disables a systemd unit
-func DisableUnit(ctx context.Context, unit string) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "disable_unit")
-	defer func() { span.Finish(err) }()
-	span.SetTag("unit", unit)
-
-	enabledErr := exec.CommandContext(ctx, "systemctl", "is-enabled", "--quiet", unit).Run()
+func DisableUnit(ctx context.Context, unit string) error {
+	enabledErr := telemetry.CommandContext(ctx, "systemctl", "is-enabled", "--quiet", unit).Run()
 	if enabledErr != nil {
 		// unit is already disabled or doesn't exist, we can return fast
 		return nil
 	}
 
-	err = exec.CommandContext(ctx, "systemctl", "disable", unit).Run()
+	err := telemetry.CommandContext(ctx, "systemctl", "disable", unit).Run()
 	exitErr := &exec.ExitError{}
 	if !errors.As(err, &exitErr) {
 		return err
 	}
-	span.SetTag("exit_code", exitErr.ExitCode())
 	if exitErr.ExitCode() == 5 {
 		// exit code 5 means the unit is not loaded, we can continue
 		return nil
 	}
-	return errors.New(string(exitErr.Stderr))
+	return err
 }
 
 // WriteEmbeddedUnitsAndReload writes a systemd unit from embedded resources and reloads the systemd daemon
@@ -197,15 +164,7 @@ func WriteUnitOverride(ctx context.Context, unit string, name string, content st
 
 // Reload reloads the systemd daemon
 func Reload(ctx context.Context) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "systemd_reload")
-	defer func() { span.Finish(err) }()
-	err = exec.CommandContext(ctx, "systemctl", "daemon-reload").Run()
-	exitErr := &exec.ExitError{}
-	if !errors.As(err, &exitErr) {
-		return err
-	}
-	span.SetTag("exit_code", exitErr.ExitCode())
-	return errors.New(string(exitErr.Stderr))
+	return telemetry.CommandContext(ctx, "systemctl", "daemon-reload").Run()
 }
 
 // IsRunning checks if systemd is running using the documented way
@@ -219,28 +178,4 @@ func IsRunning() (running bool, err error) {
 		return false, err
 	}
 	return true, nil
-}
-
-// ListOnDiskAgentUnits lists the systemd units on disk
-func ListOnDiskAgentUnits(experiment bool) ([]string, error) {
-	files, err := os.ReadDir(UnitsPath)
-	if err != nil {
-		return nil, fmt.Errorf("error reading systemd units directory: %w", err)
-	}
-
-	var units []string
-	for _, file := range files {
-		unit := file.Name()
-		if file.IsDir() || !strings.HasSuffix(unit, ".service") || !strings.HasPrefix(unit, "datadog-agent") {
-			continue
-		}
-		if experiment && strings.HasSuffix(unit, "-exp.service") {
-			units = append(units, unit)
-		}
-		if !experiment && !strings.HasSuffix(unit, "-exp.service") {
-			units = append(units, unit)
-		}
-	}
-
-	return units, nil
 }
