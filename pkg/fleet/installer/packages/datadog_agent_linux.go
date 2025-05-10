@@ -258,23 +258,23 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 func preRemoveDatadogAgent(ctx HookContext) error {
 	err := agentServiceOCI.StopExperiment(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to stop experiment unit: %s", err)
+		log.Warnf("failed to stop experiment unit: %s", err)
 	}
 	err = agentServiceOCI.RemoveExperiment(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to remove experiment unit: %s", err)
+		log.Warnf("failed to remove experiment unit: %s", err)
 	}
 	err = agentServiceOCI.StopStable(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to stop stable unit: %s", err)
+		log.Warnf("failed to stop stable unit: %s", err)
 	}
 	err = agentServiceOCI.DisableStable(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to disable stable unit: %s", err)
+		log.Warnf("failed to disable stable unit: %s", err)
 	}
 	err = agentServiceOCI.RemoveStable(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to remove stable unit: %s", err)
+		log.Warnf("failed to remove stable unit: %s", err)
 	}
 
 	if ctx.Upgrade {
