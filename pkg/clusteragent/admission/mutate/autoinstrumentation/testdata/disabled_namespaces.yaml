@@ -8,4 +8,3 @@ apm_config:
       python: "default"
     version: "v2"
     injector_image_tag: "foo"
-
