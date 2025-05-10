@@ -53,7 +53,7 @@ func init() {
 	}
 }
 
-func getInstallPath() string {
+func GetInstallPath() string {
 	// fetch the installation path from the registry
 	installpath := filepath.Join(_here, "..")
 	var s string

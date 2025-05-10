@@ -865,10 +865,33 @@ api_key:
 #
 # windows_use_pythonpath: false
 {{ end }}
+## @param secret_backend_type - string - optional
+## @env DD_SECRET_BACKEND_TYPE - string - optional
+## SET this option if you are using the default secret backend.
+## `secret_backend_type` is the type of backend you use to store your secrets.
+## Currently, the possible values are: "aws.secrets", "aws.ssm", "azure.keyvault", "hashicorp.vault",
+## "file.json", "file.yaml"
+## For more information see: https://github.com/DataDog/datadog-secret-backend/blob/main/README.md
+#
+# secret_backend_type: <BACKEND_TYPE>
+
+## @param secret_backend_config - map - optional
+## @env DD_SECRET_BACKEND_CONFIG - map - optional
+## SET this option if you are using the default secret backend.
+## If secret_backend_config is set, specify the config that is needed to pull secrets from the backend.
+#
+# secret_backend_config:
+#   <KEY_1>: <VALUE_1>
+#   <KEY_2>: <VALUE_2>
+#   <KEY_3>:
+#     - <KEY_3_1>: <VALUE_3_1>
+#     - <KEY_3_2>: <VALUE_3_2>
+
 ## @param secret_backend_command - string - optional
 ## @env DD_SECRET_BACKEND_COMMAND - string - optional
-## `secret_backend_command` is the path to the script to execute to fetch secrets.
+## `secret_backend_command` is the path to your custom script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
+## DO NOT SET this option if you are using the default secret backend.
 ##
 ## For more information see: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
 #
@@ -877,6 +900,7 @@ api_key:
 ## @param secret_backend_arguments - list of strings - optional
 ## @env DD_SECRET_BACKEND_ARGUMENTS - space separated list of strings - optional
 ## If secret_backend_command is set, specify here a list of arguments to give to the command at each run.
+## DO NOT SET this option if you are using the default secret backend.
 #
 # secret_backend_arguments:
 #   - <ARGUMENT_1>
