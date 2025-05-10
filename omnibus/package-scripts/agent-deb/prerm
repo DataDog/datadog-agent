@@ -129,7 +129,8 @@ case "$1" in #this can't be merged with the later case block because running 're
     upgrade)
         # We're upgrading.
         if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
-            ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/pre.py" "${INSTALL_DIR}" || true
+            # -B prevents writing a cache of the bytecode since this is only run once
+            ${INSTALL_DIR}/embedded/bin/python -B "${INSTALL_DIR}/python-scripts/pre.py" "${INSTALL_DIR}" || true
         fi
     ;;
     *)
