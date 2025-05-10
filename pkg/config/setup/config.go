@@ -1125,7 +1125,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("integration_profiling", false)
 	config.BindEnvAndSetDefault("integration_check_status_enabled", false)
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
-	config.BindEnvAndSetDefault("enable_cluster_agent_metadata_collection", false)
+	config.BindEnvAndSetDefault("enable_cluster_agent_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_gohai", true)
 	config.BindEnvAndSetDefault("enable_signing_metadata_collection", true)
 	config.BindEnvAndSetDefault("metadata_provider_stop_timeout", 30*time.Second)
