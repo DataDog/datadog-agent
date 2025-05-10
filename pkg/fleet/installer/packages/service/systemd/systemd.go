@@ -29,6 +29,14 @@ const (
 	UnitsPath = "/etc/systemd/system"
 )
 
+// StopUnits stops multiple systemd units
+func StopUnits(ctx context.Context, units ...string) (err error) {
+	for _, unit := range units {
+		err = StopUnit(ctx, unit)
+	}
+	return err
+}
+
 // StopUnit starts a systemd unit
 func StopUnit(ctx context.Context, unit string, args ...string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "stop_unit")
@@ -71,6 +79,21 @@ func StartUnit(ctx context.Context, unit string, args ...string) (err error) {
 	return errors.New(string(exitErr.Stderr))
 }
 
+// RestartUnit restarts a systemd unit
+func RestartUnit(ctx context.Context, unit string, args ...string) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "restart_unit")
+	defer func() { span.Finish(err) }()
+	span.SetTag("unit", unit)
+	args = append([]string{"restart", unit}, args...)
+	err = exec.CommandContext(ctx, "systemctl", args...).Run()
+	exitErr := &exec.ExitError{}
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+	span.SetTag("exit_code", exitErr.ExitCode())
+	return errors.New(string(exitErr.Stderr))
+}
+
 // EnableUnit enables a systemd unit
 func EnableUnit(ctx context.Context, unit string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "enable_unit")
@@ -110,6 +133,17 @@ func DisableUnit(ctx context.Context, unit string) (err error) {
 	return errors.New(string(exitErr.Stderr))
 }
 
+// WriteEmbeddedUnitsAndReload writes a systemd unit from embedded resources and reloads the systemd daemon
+func WriteEmbeddedUnitsAndReload(ctx context.Context, units ...string) (err error) {
+	for _, unit := range units {
+		err = WriteEmbeddedUnit(ctx, unit)
+		if err != nil {
+			return err
+		}
+	}
+	return Reload(ctx)
+}
+
 // WriteEmbeddedUnit writes a systemd unit from embedded resources
 func WriteEmbeddedUnit(ctx context.Context, unit string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "write_embedded_unit")
@@ -125,6 +159,14 @@ func WriteEmbeddedUnit(ctx context.Context, unit string) (err error) {
 	}
 	unitPath := filepath.Join(UnitsPath, unit)
 	return os.WriteFile(unitPath, content, 0644)
+}
+
+// RemoveUnits removes multiple systemd units
+func RemoveUnits(ctx context.Context, units ...string) (err error) {
+	for _, unit := range units {
+		err = RemoveUnit(ctx, unit)
+	}
+	return err
 }
 
 // RemoveUnit removes a systemd unit

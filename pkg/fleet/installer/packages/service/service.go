@@ -10,17 +10,17 @@ package service
 import "os/exec"
 
 // Type is the service manager type
-type Type int
+type Type string
 
 const (
 	// UnknownType is returned when the service manager type is not identified
-	UnknownType Type = iota
+	UnknownType Type = "unknown"
 	// SysvinitType is returned when the service manager is sysvinit
-	SysvinitType
+	SysvinitType Type = "sysvinit"
 	// UpstartType is returned when the service manager is upstart
-	UpstartType
+	UpstartType Type = "upstart"
 	// SystemdType is returned when the service manager is systemd
-	SystemdType
+	SystemdType Type = "systemd"
 )
 
 // GetServiceManagerType returns the service manager of the current system

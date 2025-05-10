@@ -12,7 +12,7 @@ import (
 	"os/exec"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/systemd"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
