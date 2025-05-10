@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Introducing a new setting `collect_ec2_instance_info` to collect basic EC2 instance information as host tags. This
+    reproduces some of the behaviors of the AWS integration for users that can't enable it. The
+    [AWS integration](https://docs.datadoghq.com/integrations/amazon_web_services/) should still be use whenever possible as
+    it offers a better and more in depth integration.

@@ -57,6 +57,16 @@ type CollectorMetadata struct {
 	SupportsTerminatedResourceCollection bool
 }
 
+// CollectorTags returns static tags to be added to all resources collected by the collector.
+func (cm CollectorMetadata) CollectorTags() []string {
+	// This is only set for Kubernetes collectors that rely on a dedicated resource API.
+	// This is not applicable to certain collectors like ECS Task collector or Kubernetes cluster collector.
+	if cm.Version == "" {
+		return nil
+	}
+	return []string{fmt.Sprintf("kube_api_version:%s", cm.Version)}
+}
+
 // FullName returns a string that contains the collector name and version.
 func (cm CollectorMetadata) FullName() string {
 	if cm.Version != "" {

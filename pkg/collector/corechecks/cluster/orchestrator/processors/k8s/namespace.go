@@ -60,7 +60,7 @@ func (h *NamespaceHandlers) BuildMessageBody(ctx processors.ProcessorContext, re
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Namespaces:  models,
-		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:        pctx.ExtraTags,
 	}
 }
 
@@ -81,7 +81,7 @@ func (h *NamespaceHandlers) ResourceList(ctx processors.ProcessorContext, list i
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources

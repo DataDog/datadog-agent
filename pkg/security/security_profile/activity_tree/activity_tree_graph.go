@@ -249,9 +249,9 @@ func (at *ActivityTree) prepareDNSNode(n *DNSNode, data *utils.Graph, processID 
 		// save guard, this should never happen
 		return utils.GraphID{}, false
 	}
-	name := n.Requests[0].Name + " (" + (model.QType(n.Requests[0].Type).String())
+	name := n.Requests[0].Question.Name + " (" + (model.QType(n.Requests[0].Question.Type).String())
 	for _, req := range n.Requests[1:] {
-		name += ", " + model.QType(req.Type).String()
+		name += ", " + model.QType(req.Question.Type).String()
 	}
 	name += ")"
 

@@ -171,6 +171,12 @@ func run(log log.Component, _ config.Component, telemetry telemetry.Component, s
 	// prepare go runtime
 	ddruntime.SetMaxProcs()
 
+	if sysprobeconfig.GetBool("system_probe_config.disable_thp") {
+		if err := ddruntime.DisableTransparentHugePages(); err != nil {
+			log.Warnf("cannot disable transparent huge pages, performance may be degraded: %s", err)
+		}
+	}
+
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)

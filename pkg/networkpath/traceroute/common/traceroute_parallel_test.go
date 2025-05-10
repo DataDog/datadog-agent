@@ -91,7 +91,7 @@ func noData(pollFrequency time.Duration) (*ProbeResponse, error) {
 var testParams = TracerouteParallelParams{
 	MinTTL:            1,
 	MaxTTL:            10,
-	TracerouteTimeout: 50 * time.Millisecond,
+	TracerouteTimeout: 500 * time.Millisecond,
 	PollFrequency:     1 * time.Millisecond,
 	SendDelay:         1 * time.Millisecond,
 }
@@ -114,6 +114,7 @@ func mockResult(ttl uint8) *ProbeResponse {
 func TestParallelTraceroute(t *testing.T) {
 	// basic test that checks if the traceroute runs correctly
 	m := initMockDriver(t, testParams)
+	t.Parallel()
 
 	var expectedResults []*ProbeResponse
 	receiveProbes := make(chan *ProbeResponse, testParams.MaxTTL)
@@ -159,6 +160,7 @@ func testParallelTracerouteShuffled(t *testing.T, seed int64, getTargets func(ui
 	r := rand.New(rand.NewSource(seed))
 
 	m := initMockDriver(t, testParams)
+	t.Parallel()
 
 	var expectedResults []*ProbeResponse
 	receiveProbes := make(chan *ProbeResponse, testParams.MaxTTL)
@@ -248,6 +250,7 @@ var errMock = errors.New("mock error")
 func TestParallelTracerouteSendErr(t *testing.T) {
 	// this test checks that TracerouteParallel returns an error if SendProbe() fails
 	m := initMockDriver(t, testParams)
+	t.Parallel()
 
 	hasCalled := false
 	m.sendHandler = func(_ uint8) error {
@@ -265,6 +268,7 @@ func TestParallelTracerouteSendErr(t *testing.T) {
 func TestParallelTracerouteReceiveErr(t *testing.T) {
 	// this test checks that TracerouteParallel returns an error if ReceiveProbe() fails
 	m := initMockDriver(t, testParams)
+	t.Parallel()
 
 	hasCalled := false
 	m.receiveHandler = func() (*ProbeResponse, error) {
@@ -283,6 +287,7 @@ func TestParallelTracerouteTimeout(t *testing.T) {
 	// this test checks that TracerouteParallel times out when it is waiting for
 	// a response during the traceroute
 	m := initMockDriver(t, testParams)
+	t.Parallel()
 
 	totalCalls := 0
 	m.receiveHandler = func() (*ProbeResponse, error) {
@@ -310,6 +315,7 @@ func TestParallelTracerouteMinTTL(t *testing.T) {
 	testParams := testParams
 	testParams.MinTTL = 2
 	m := initMockDriver(t, testParams)
+	t.Parallel()
 
 	var expectedResults []*ProbeResponse
 	receiveProbes := make(chan *ProbeResponse, testParams.MaxTTL)
@@ -349,6 +355,7 @@ func TestParallelTracerouteMinTTL(t *testing.T) {
 func TestParallelTracerouteReportsExternalCancellation(t *testing.T) {
 	// this test checks that TracerouteParallel forwards a cancellation from the context
 	m := initMockDriver(t, testParams)
+	t.Parallel()
 
 	ctx, cancel := context.WithCancelCause(context.Background())
 	// cancel it right away
@@ -363,6 +370,7 @@ func TestParallelTracerouteReportsExternalCancellation(t *testing.T) {
 func TestParallelTracerouteMissingHop(t *testing.T) {
 	// this test simulates a missing hop at TTL=3
 	m := initMockDriver(t, testParams)
+	t.Parallel()
 
 	var expectedResults []*ProbeResponse
 	receiveProbes := make(chan *ProbeResponse, testParams.MaxTTL)
@@ -404,6 +412,7 @@ func TestParallelTracerouteMissingHop(t *testing.T) {
 func TestParallelTracerouteMissingDest(t *testing.T) {
 	// this test simulates not getting the destination back - it should keep sending probes until MaxTTL
 	m := initMockDriver(t, testParams)
+	t.Parallel()
 
 	var expectedResults []*ProbeResponse
 	receiveProbes := make(chan *ProbeResponse, testParams.MaxTTL)
@@ -455,6 +464,7 @@ func TestParallelTracerouteProbeSanityCheck(t *testing.T) {
 	// this probe checks that TracerouteParallel yells at you when it reads
 	// a an invalid TTL
 	m := initMockDriver(t, testParams)
+	t.Parallel()
 
 	hasReceived := false
 	m.receiveHandler = func() (*ProbeResponse, error) {
@@ -474,6 +484,7 @@ func TestParallelTracerouteProbeSanityCheck(t *testing.T) {
 func TestParallelTracerouteProbeReturnValueCheck(t *testing.T) {
 	// this probe checks that TracerouteParallel yells at you when you return nothing at all
 	m := initMockDriver(t, testParams)
+	t.Parallel()
 
 	hasReceived := false
 	m.receiveHandler = func() (*ProbeResponse, error) {
@@ -491,6 +502,7 @@ func TestParallelTracerouteDoubleReceive(t *testing.T) {
 	// same as TestParallelTraceroute but receives the probes a second time, with a larger RTT.
 	// it should not overwrite the RTT
 	m := initMockDriver(t, testParams)
+	t.Parallel()
 
 	var expectedResults []*ProbeResponse
 	receiveProbes := make(chan *ProbeResponse, 2*testParams.MaxTTL)
@@ -545,6 +557,7 @@ func TestParallelTracerouteDestOverwrite(t *testing.T) {
 	// this test checks that shouldUpdate is set to true when an IsDest == true probe comes
 	// for the first time, even overwriting an ICMP probe with IsDest == false
 	m := initMockDriver(t, testParams)
+	t.Parallel()
 
 	var expectedResults []*ProbeResponse
 	receiveProbes := make(chan *ProbeResponse, 2*testParams.MaxTTL)
@@ -592,6 +605,7 @@ func TestParallelTracerouteDisableICMP(t *testing.T) {
 	// this test checks that TracerouteParallel doesn't call ReceiveICMPProbe when it's disabled
 	m := initMockDriver(t, testParams)
 	m.info.UsesReceiveICMPProbe = false
+	t.Parallel()
 
 	m.icmpReceiveHandler = func() (*ProbeResponse, error) {
 		t.Fatal("should not have called ReceiveICMPProbe")

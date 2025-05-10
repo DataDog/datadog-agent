@@ -12,6 +12,7 @@ package diconfig
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sync"
 
 	"github.com/cilium/ebpf/ringbuf"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/eventparser"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/proctracker"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -54,6 +56,7 @@ type configUpdateCallback func(*ditypes.ProcessInfo, *ditypes.Probe)
 // instrumenting tracked processes
 type ConfigManager interface {
 	GetProcInfos() ditypes.DIProcs
+	GetProcInfo(ditypes.PID) *ditypes.ProcessInfo
 	Stop()
 }
 
@@ -67,13 +70,13 @@ type RCConfigManager struct {
 }
 
 // NewRCConfigManager creates a new configuration manager which utilizes remote-config
-func NewRCConfigManager() (*RCConfigManager, error) {
+func NewRCConfigManager(pm process.Subscriber) (*RCConfigManager, error) {
 	log.Info("Creating new RC config manager")
 	cm := &RCConfigManager{
 		callback: applyConfigUpdate,
 	}
 
-	cm.procTracker = proctracker.NewProcessTracker(cm.updateProcesses)
+	cm.procTracker = proctracker.NewProcessTracker(pm, cm.updateProcesses)
 	err := cm.procTracker.Start()
 	if err != nil {
 		return nil, fmt.Errorf("could not start process tracker: %w", err)
@@ -86,7 +89,14 @@ func NewRCConfigManager() (*RCConfigManager, error) {
 func (cm *RCConfigManager) GetProcInfos() ditypes.DIProcs {
 	cm.RLock()
 	defer cm.RUnlock()
-	return cm.diProcs
+	return maps.Clone(cm.diProcs)
+}
+
+// GetProcInfo returns a copy of the state of the RCConfigManager
+func (cm *RCConfigManager) GetProcInfo(pid ditypes.PID) *ditypes.ProcessInfo {
+	cm.RLock()
+	defer cm.RUnlock()
+	return cm.diProcs[pid]
 }
 
 // Stop closes the config and proc trackers used by the RCConfigManager

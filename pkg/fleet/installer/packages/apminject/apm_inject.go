@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
@@ -221,32 +222,12 @@ func (a *InjectorInstaller) setLDPreloadConfigContent(_ context.Context, ldSoPre
 
 // deleteLDPreloadConfigContent deletes the content of the LD preload configuration
 func (a *InjectorInstaller) deleteLDPreloadConfigContent(_ context.Context, ldSoPreload []byte) ([]byte, error) {
-	launcherPreloadPath := path.Join(a.installPath, "inject", "launcher.preload.so")
-
-	if !strings.Contains(string(ldSoPreload), launcherPreloadPath) {
-		// If the line of interest isn't there, return fast
-		return ldSoPreload, nil
-	}
-
-	// Possible configurations of the preload path, order matters
-	replacementsToTest := [][]byte{
-		[]byte(launcherPreloadPath + "\n"),
-		[]byte("\n" + launcherPreloadPath),
-		[]byte(launcherPreloadPath + " "),
-		[]byte(" " + launcherPreloadPath),
-	}
-	for _, replacement := range replacementsToTest {
-		ldSoPreloadNew := bytes.Replace(ldSoPreload, replacement, []byte{}, 1)
-		if !bytes.Equal(ldSoPreloadNew, ldSoPreload) {
-			return ldSoPreloadNew, nil
-		}
-	}
-	if bytes.Equal(ldSoPreload, []byte(launcherPreloadPath)) {
-		// If the line is the only one in the file without newlines, return an empty file
-		return []byte{}, nil
-	}
-
-	return nil, fmt.Errorf("failed to remove %s from %s", launcherPreloadPath, ldSoPreloadPath)
+	// we want to make sure that we also remove the line if it was updated to be a dynamic path (supporting no-op 32bit libraries)
+	regexPath := a.installPath + "/inject/(.*?/)?launcher\\.preload\\.so"
+	// match beginning of the line and the [dynamic] path and trailing whitespaces (spaces\tabs\new lines) OR
+	// match ANY leading whitespaces (spaces\tabs\new lines) with the dynamic path
+	matcher := regexp.MustCompile("^" + regexPath + "(\\s*)|(\\s*)" + regexPath)
+	return []byte(matcher.ReplaceAllString(string(ldSoPreload), "")), nil
 }
 
 func (a *InjectorInstaller) verifySharedLib(ctx context.Context, libPath string) (err error) {

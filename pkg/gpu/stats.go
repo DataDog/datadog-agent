@@ -185,19 +185,19 @@ func (g *statsGenerator) getNormalizationFactors(stats []model.StatsTuple) (map[
 		var deviceFactors normalizationFactors
 
 		// This factor guarantees that usage[uuid] / normFactor <= maxThreads
-		if usage.cores > float64(device.CoreCount) {
-			deviceFactors.cores = usage.cores / float64(device.CoreCount)
+		if usage.cores > float64(device.GetDeviceInfo().CoreCount) {
+			deviceFactors.cores = usage.cores / float64(device.GetDeviceInfo().CoreCount)
 		} else {
 			deviceFactors.cores = 1
 		}
 
-		if usage.memory > float64(device.Memory) {
-			deviceFactors.memory = usage.memory / float64(device.Memory)
+		if usage.memory > float64(device.GetDeviceInfo().Memory) {
+			deviceFactors.memory = usage.memory / float64(device.GetDeviceInfo().Memory)
 		} else {
 			deviceFactors.memory = 1
 		}
 
-		normFactors[device.UUID] = deviceFactors
+		normFactors[device.GetDeviceInfo().UUID] = deviceFactors
 	}
 
 	return normFactors, nil

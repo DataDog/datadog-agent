@@ -59,7 +59,7 @@ func (h *IngressHandlers) BuildMessageBody(ctx processors.ProcessorContext, reso
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Ingresses:   models,
-		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:        pctx.ExtraTags,
 	}
 }
 
@@ -80,7 +80,7 @@ func (h *IngressHandlers) ResourceList(ctx processors.ProcessorContext, list int
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources

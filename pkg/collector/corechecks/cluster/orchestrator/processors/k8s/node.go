@@ -59,7 +59,7 @@ func (h *NodeHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourc
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Nodes:       models,
-		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:        pctx.ExtraTags,
 	}
 }
 
@@ -80,7 +80,7 @@ func (h *NodeHandlers) ResourceList(ctx processors.ProcessorContext, list interf
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources

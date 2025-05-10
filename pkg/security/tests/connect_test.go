@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"golang.org/x/net/nettest"
 	"net"
+	"net/http"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -34,6 +35,10 @@ func TestConnectEvent(t *testing.T) {
 		{
 			ID:         "test_connect_af_inet6",
 			Expression: `connect.addr.family == AF_INET6 && process.file.name == "syscall_tester"`,
+		},
+		{
+			ID:         "test_connect_nonblocking_socket",
+			Expression: `connect.addr.port == 80 && process.file.name == "testsuite"`,
 		},
 	}
 
@@ -153,6 +158,23 @@ func TestConnectEvent(t *testing.T) {
 			assert.Equal(t, string("::/128"), event.Connect.Addr.IPNet.String(), "wrong address")
 			assert.Equal(t, uint16(unix.IPPROTO_UDP), event.Connect.Protocol, "wrong protocol")
 			assert.Equal(t, int64(0), event.Connect.Retval, "wrong retval")
+			test.validateConnectSchema(t, event)
+		})
+	})
+
+	t.Run("connect-non-blocking-socket", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			resp, err := http.Get("http://www.google.com")
+			if err != nil {
+				return err
+			}
+			resp.Body.Close()
+
+			return nil
+		}, func(event *model.Event, _ *rules.Rule) {
+			fmt.Println("Process", event.ProcessContext.Argv0)
+			assert.Equal(t, "connect", event.GetType(), "wrong event type")
+			assert.Equal(t, uint16(80), event.Connect.Addr.Port, "wrong address port")
 			test.validateConnectSchema(t, event)
 		})
 	})

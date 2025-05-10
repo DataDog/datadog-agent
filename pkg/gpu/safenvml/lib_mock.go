@@ -16,45 +16,18 @@ import (
 // allSymbols is a pre-initialized map containing all NVML API functions
 // Critical symbols are required for the wrapper to work,
 // while non-critical symbols are nice to have but not essential
-var allSymbols = map[string]struct{}{
-	// Critical symbols
-	toNativeName("GetCount"):                 {},
-	toNativeName("GetCudaComputeCapability"): {},
-	toNativeName("GetHandleByIndex"):         {},
-	toNativeName("GetIndex"):                 {},
-	toNativeName("GetMemoryInfo"):            {},
-	toNativeName("GetName"):                  {},
-	toNativeName("GetNumGpuCores"):           {},
-	toNativeName("GetUUID"):                  {},
+var allSymbols = map[string]struct{}{}
 
-	// Non-critical symbols
-	"nvmlShutdown":                                  {},
-	"nvmlSystemGetDriverVersion":                    {},
-	toNativeName("GetArchitecture"):                 {},
-	toNativeName("GetAttributes"):                   {},
-	toNativeName("GetClockInfo"):                    {},
-	toNativeName("GetComputeRunningProcesses"):      {},
-	toNativeName("GetCurrentClocksThrottleReasons"): {},
-	toNativeName("GetDecoderUtilization"):           {},
-	toNativeName("GetEncoderUtilization"):           {},
-	toNativeName("GetFanSpeed"):                     {},
-	toNativeName("GetFieldValues"):                  {},
-	toNativeName("GetGpuInstanceId"):                {},
-	toNativeName("GetMaxClockInfo"):                 {},
-	toNativeName("GetMaxMigDeviceCount"):            {},
-	toNativeName("GetMemoryBusWidth"):               {},
-	toNativeName("GetMigDeviceHandleByIndex"):       {},
-	toNativeName("GetMigMode"):                      {},
-	toNativeName("GetNvLinkState"):                  {},
-	toNativeName("GetPcieThroughput"):               {},
-	toNativeName("GetPerformanceState"):             {},
-	toNativeName("GetPowerManagementLimit"):         {},
-	toNativeName("GetPowerUsage"):                   {},
-	toNativeName("GetRemappedRows"):                 {},
-	toNativeName("GetSamples"):                      {},
-	toNativeName("GetTemperature"):                  {},
-	toNativeName("GetTotalEnergyConsumption"):       {},
-	toNativeName("GetUtilizationRates"):             {},
+func init() {
+	// Add critical symbols first
+	for _, symbol := range getCriticalAPIs() {
+		allSymbols[symbol] = struct{}{}
+	}
+
+	// Add non-critical symbols
+	for _, symbol := range getNonCriticalAPIs() {
+		allSymbols[symbol] = struct{}{}
+	}
 }
 
 // WithMockNVML calls the WithPartialMockNVML with all symbols available

@@ -23,6 +23,7 @@ type AuroraConfig struct {
 	DiscoveryInterval int
 	QueryTimeout      int
 	Tags              []string
+	DbmTag            string
 	Region            string // auto-discovered from instance metadata
 }
 
@@ -34,6 +35,7 @@ func NewAuroraAutodiscoveryConfig() (AuroraConfig, error) {
 	discoveryConfigs.QueryTimeout = pkgconfigsetup.Datadog().GetInt(autoDiscoveryAuroraConfigKey + ".query_timeout")
 	discoveryConfigs.DiscoveryInterval = pkgconfigsetup.Datadog().GetInt(autoDiscoveryAuroraConfigKey + ".discovery_interval")
 	discoveryConfigs.Tags = pkgconfigsetup.Datadog().GetStringSlice(autoDiscoveryAuroraConfigKey + ".tags")
+	discoveryConfigs.DbmTag = pkgconfigsetup.Datadog().GetString(autoDiscoveryAuroraConfigKey + ".dbm_tag")
 	discoveryConfigs.Region = pkgconfigsetup.Datadog().GetString(autoDiscoveryAuroraConfigKey + ".region")
 	return discoveryConfigs, nil
 }

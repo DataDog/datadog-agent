@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/slice"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -2292,6 +2293,104 @@ func TestClosedMergingWithAddressCollision(t *testing.T) {
 		assert.Equal(t, uint64(50), delta.Conns[0].Last.SentBytes)
 	})
 
+}
+
+func TestRedisStats(t *testing.T) {
+	c := ConnectionStats{ConnectionTuple: ConnectionTuple{
+		Source: util.AddressFromString("1.1.1.1"),
+		Dest:   util.AddressFromString("0.0.0.0"),
+		SPort:  1000,
+		DPort:  80,
+	}}
+
+	key := redis.NewKey(c.Source, c.Dest, c.SPort, c.DPort, redis.GetCommand, "test-key", false)
+
+	redisStats := make(map[redis.Key]*redis.RequestStats)
+	redisStats[key] = &redis.RequestStats{
+		ErrorToStats: map[bool]*redis.RequestStat{
+			false: {Count: 2},
+		},
+	}
+	usmStats := make(map[protocols.ProtocolType]interface{})
+	usmStats[protocols.Redis] = redisStats
+
+	// Register client & pass in Redis stats
+	state := newDefaultState()
+	delta := state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, usmStats)
+
+	// Verify connection has Redis data embedded in it
+	assert.Len(t, delta.Redis, 1)
+
+	// Verify Redis data has been flushed
+	delta = state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, nil)
+	assert.Len(t, delta.Redis, 0)
+}
+
+func TestRedisStatsWithMultipleClients(t *testing.T) {
+	c := ConnectionStats{ConnectionTuple: ConnectionTuple{
+		Source: util.AddressFromString("1.1.1.1"),
+		Dest:   util.AddressFromString("0.0.0.0"),
+		SPort:  1000,
+		DPort:  80,
+	}}
+
+	getStats := func(keyName string) map[protocols.ProtocolType]interface{} {
+		redisStats := make(map[redis.Key]*redis.RequestStats)
+		key := redis.NewKey(c.Source, c.Dest, c.SPort, c.DPort, redis.GetCommand, keyName, false)
+		redisStats[key] = &redis.RequestStats{
+			ErrorToStats: map[bool]*redis.RequestStat{
+				false: {Count: 2},
+			},
+		}
+
+		usmStats := make(map[protocols.ProtocolType]interface{})
+		usmStats[protocols.Redis] = redisStats
+
+		return usmStats
+	}
+
+	client1 := "client1"
+	client2 := "client2"
+	client3 := "client3"
+	state := newDefaultState()
+
+	// Register the first two clients
+	state.RegisterClient(client1)
+	state.RegisterClient(client2)
+
+	// We should have nothing on first call
+	assert.Len(t, state.GetDelta(client1, latestEpochTime(), nil, nil, nil).Redis, 0)
+	assert.Len(t, state.GetDelta(client2, latestEpochTime(), nil, nil, nil).Redis, 0)
+
+	// Store the connection to both clients & pass Redis stats to the first client
+	c.LastUpdateEpoch = latestEpochTime()
+	state.StoreClosedConnection(&c)
+
+	delta := state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("key-name"))
+	assert.Len(t, delta.Redis, 1)
+
+	// Verify that the Redis stats were also stored in the second client
+	delta = state.GetDelta(client2, latestEpochTime(), nil, nil, nil)
+	assert.Len(t, delta.Redis, 1)
+
+	// Register a third client & verify that it does not have the Redis stats
+	delta = state.GetDelta(client3, latestEpochTime(), []ConnectionStats{c}, nil, nil)
+	assert.Len(t, delta.Redis, 0)
+
+	c.LastUpdateEpoch = latestEpochTime()
+	state.StoreClosedConnection(&c)
+
+	// Pass in new Redis stats to the first client
+	delta = state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("key-name"))
+	assert.Len(t, delta.Redis, 1)
+
+	// And the second client
+	delta = state.GetDelta(client2, latestEpochTime(), nil, nil, getStats("key-name-2"))
+	assert.Len(t, delta.Redis, 2)
+
+	// Verify that the third client also accumulated both Redis stats
+	delta = state.GetDelta(client3, latestEpochTime(), nil, nil, getStats("key-name-2"))
+	assert.Len(t, delta.Redis, 2)
 }
 
 func TestKafkaStats(t *testing.T) {

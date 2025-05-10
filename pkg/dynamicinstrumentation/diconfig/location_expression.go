@@ -9,10 +9,9 @@ package diconfig
 
 import (
 	"fmt"
+	"math/rand"
 	"reflect"
 	"strings"
-
-	"math/rand"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -264,6 +263,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					if elementParam.ParameterPieces[0] == nil {
 						continue
 					}
+					targetExpressions = append(targetExpressions, ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)))
 					GenerateLocationExpression(limitsInfo, elementParam.ParameterPieces[0])
 					expressionsToUseForEachArrayElement := collectAllLocationExpressions(elementParam.ParameterPieces[0], true)
 					for i := range elementParam.ParameterPieces {

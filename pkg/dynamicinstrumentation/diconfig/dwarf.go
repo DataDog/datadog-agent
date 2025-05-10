@@ -398,6 +398,7 @@ func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[s
 
 				if !entryTypeIsSupported(typeEntry) {
 					unsupportedType := resolveUnsupportedEntry(typeEntry)
+					unsupportedType.Name = newStructField.Name
 					structFields = append(structFields, unsupportedType)
 					continue
 				}

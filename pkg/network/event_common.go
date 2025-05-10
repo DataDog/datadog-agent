@@ -130,7 +130,7 @@ type Connections struct {
 	HTTP2                       map[http.Key]*http.RequestStats
 	Kafka                       map[kafka.Key]*kafka.RequestStats
 	Postgres                    map[postgres.Key]*postgres.RequestStat
-	Redis                       map[redis.Key]*redis.RequestStat
+	Redis                       map[redis.Key]*redis.RequestStats
 }
 
 // NewConnections create a new Connections object

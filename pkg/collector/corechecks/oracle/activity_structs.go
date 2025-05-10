@@ -49,6 +49,7 @@ type OracleSQLRow struct {
 //nolint:revive // TODO(DBM) Fix revive linter
 type OracleActivityRow struct {
 	Now           string `json:"now"`
+	UtcMs         float64
 	SessionID     uint64 `json:"sid,omitempty"`
 	SessionSerial uint64 `json:"serial,omitempty"`
 	User          string `json:"user,omitempty"`

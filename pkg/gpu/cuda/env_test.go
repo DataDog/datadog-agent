@@ -20,19 +20,23 @@ func TestGetVisibleDevices(t *testing.T) {
 	uuid1 := commonPrefix + "32f937-d72c-4106-c12f-20bd9faed9f6"
 	uuid2 := commonPrefix + "02f078-a8da-4036-a78f-4032bbddeaf2"
 
-	dev1 := &ddnvml.Device{
-		UUID: uuid1,
+	dev1 := &ddnvml.PhysicalDevice{
+		DeviceInfo: ddnvml.DeviceInfo{
+			UUID: uuid1,
+		},
 	}
 
-	dev2 := &ddnvml.Device{
-		UUID: uuid2,
+	dev2 := &ddnvml.PhysicalDevice{
+		DeviceInfo: ddnvml.DeviceInfo{
+			UUID: uuid2,
+		},
 	}
 
-	devList := []*ddnvml.Device{dev1, dev2}
+	devList := []ddnvml.Device{dev1, dev2}
 	cases := []struct {
 		name            string
 		visibleDevices  string
-		expectedDevices []*ddnvml.Device
+		expectedDevices []ddnvml.Device
 		expectsError    bool
 	}{
 		{
@@ -44,13 +48,13 @@ func TestGetVisibleDevices(t *testing.T) {
 		{
 			name:            "UUIDs",
 			visibleDevices:  uuid1,
-			expectedDevices: []*ddnvml.Device{devList[0]},
+			expectedDevices: []ddnvml.Device{devList[0]},
 			expectsError:    false,
 		},
 		{
 			name:            "Index",
 			visibleDevices:  "1",
-			expectedDevices: []*ddnvml.Device{devList[1]},
+			expectedDevices: []ddnvml.Device{devList[1]},
 			expectsError:    false,
 		},
 		{
@@ -74,19 +78,19 @@ func TestGetVisibleDevices(t *testing.T) {
 		{
 			name:            "UnorderedIndexes",
 			visibleDevices:  "1,0",
-			expectedDevices: []*ddnvml.Device{devList[1], devList[0]},
+			expectedDevices: []ddnvml.Device{devList[1], devList[0]},
 			expectsError:    false,
 		},
 		{
 			name:            "MixedIndexesAndUUIDs",
 			visibleDevices:  "0," + uuid2,
-			expectedDevices: []*ddnvml.Device{devList[0], devList[1]},
+			expectedDevices: []ddnvml.Device{devList[0], devList[1]},
 			expectsError:    false,
 		},
 		{
 			name:            "InvalidIndexInMiddle",
 			visibleDevices:  "0,235,1",
-			expectedDevices: []*ddnvml.Device{devList[0]},
+			expectedDevices: []ddnvml.Device{devList[0]},
 			expectsError:    true,
 		},
 		{

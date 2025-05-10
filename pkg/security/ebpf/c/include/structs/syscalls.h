@@ -37,6 +37,7 @@ struct syscall_cache_t {
     u32 ctx_id;
     struct dentry_resolver_input_t resolver;
     s64 retval;
+    enum TAIL_CALL_PROG_TYPE prog_type;
 
     union {
         struct {

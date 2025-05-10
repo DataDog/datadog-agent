@@ -31,7 +31,7 @@ func (crd *CRDHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext
 	cm := common.ExtractModelManifests(ctx, resourceManifests, groupSize)
 	return &model.CollectorManifestCRD{
 		Manifest: cm,
-		Tags:     append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:     pctx.ExtraTags,
 	}
 }
 
@@ -76,7 +76,7 @@ func (crd *CRDHandlers) ResourceList(ctx processors.ProcessorContext, list inter
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopyObject())
 	}
 
 	return resources

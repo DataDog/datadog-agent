@@ -135,7 +135,7 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 		log.Debugf("no aurora clusters found with provided tags %v", l.config.Tags)
 		return
 	}
-	auroraCluster, err := l.awsRdsClient.GetAuroraClusterEndpoints(ctx, ids)
+	auroraCluster, err := l.awsRdsClient.GetAuroraClusterEndpoints(ctx, ids, l.config.DbmTag)
 	if err != nil {
 		_ = log.Error(err)
 		return
@@ -271,6 +271,8 @@ func (d *DBMAuroraService) HasFilter(containers.FilterType) bool {
 // GetExtraConfig parses the template variables with the extra_ prefix and returns the value
 func (d *DBMAuroraService) GetExtraConfig(key string) (string, error) {
 	switch key {
+	case "dbm":
+		return strconv.FormatBool(d.instance.DbmEnabled), nil
 	case "region":
 		return d.region, nil
 	case "managed_authentication_enabled":

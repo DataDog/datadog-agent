@@ -224,8 +224,7 @@ HOOK_SYSCALL_EXIT(capset) {
     return credentials_update_ret(ctx, retval);
 }
 
-SEC("tracepoint/handle_sys_commit_creds_exit")
-int tracepoint_handle_sys_commit_creds_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_commit_creds_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return credentials_update_ret(args, args->ret);
 }
 
