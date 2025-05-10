@@ -9,7 +9,9 @@ package file
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -201,6 +203,25 @@ func (suite *LauncherTestSuite) TestLauncherScanWithFileRemovedAndCreated() {
 	suite.Equal(tailerLen, s.tailers.Count())
 }
 
+func (suite *LauncherTestSuite) TestLauncherRemoveSource() {
+	s := suite.s
+
+	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: suite.configID, Path: suite.testPath})
+
+	suite.Equal(0, len(s.pendingSources))
+	s.addSource(source)
+	suite.Equal(1, len(s.pendingSources))
+	s.removeSource(source)
+	suite.Equal(0, len(s.pendingSources))
+
+	numCurrentActiveSources := len(s.activeSources)
+	s.addSource(source)
+	s.scan()
+	suite.Equal(numCurrentActiveSources+1, len(s.activeSources))
+	s.removeSource(source)
+	suite.Equal(numCurrentActiveSources, len(s.activeSources))
+}
+
 func (suite *LauncherTestSuite) TestLifeCycle() {
 	s := suite.s
 	suite.Equal(1, s.tailers.Count())
@@ -296,7 +317,10 @@ func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 
 	// test scan from the beginning, it shall read previously written strings
 	launcher.addSource(firstSource)
+	assert.Equal(t, 1, len(launcher.pendingSources))
+	launcher.scan()
 	assert.Equal(t, 1, launcher.tailers.Count())
+	assert.Equal(t, 0, len(launcher.pendingSources))
 
 	// add content after starting the tailer
 	_, err = file.WriteString("A\n")
@@ -315,6 +339,7 @@ func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 
 	// Add a second source, same file, different container ID, tailing twice the same file is supported in that case
 	launcher.addSource(secondSource)
+	launcher.scan()
 	assert.Equal(t, 2, launcher.tailers.Count())
 }
 
@@ -348,8 +373,8 @@ func TestLauncherTailFromTheBeginning(t *testing.T) {
 		_, err = file.WriteString("Upon\n")
 		assert.Nil(t, err)
 
-		// test scan from the beginning, it shall read previously written strings
-		launcher.addSource(source)
+		// test launchtailers from the beginning, it shall read previously written strings
+		launcher.launchTailers(source)
 		assert.Equal(t, i+1, launcher.tailers.Count())
 
 		// add content after starting the tailer
@@ -389,7 +414,9 @@ func TestLauncherSetTail(t *testing.T) {
 	source2 := sources.NewLogSource("source2", &config.LogsConfig{Type: config.FileType, Path: path2, TailingMode: "beginning"})
 
 	launcher.addSource(source)
+	launcher.scan()
 	launcher.addSource(source2)
+	launcher.scan()
 	tailer, _ := launcher.tailers.Get(getScanKey(path1, source))
 	tailer2, _ := launcher.tailers.Get(getScanKey(path2, source2))
 	assert.Equal(t, "end", tailer.Source().Config.TailingMode)
@@ -413,6 +440,7 @@ func TestLauncherConfigIdentifier(t *testing.T) {
 	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, Identifier: "NonEmptyString"})
 
 	launcher.addSource(source)
+	launcher.scan()
 	tailer, _ := launcher.tailers.Get(getScanKey(path, source))
 	assert.Equal(t, "beginning", tailer.Source().Config.TailingMode)
 
@@ -482,6 +510,7 @@ func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
 	source := sources.NewLogSource("Source 1", &config.LogsConfig{Type: config.FileType, Identifier: "TEST_ID", Path: path})
 
 	launcher.addSource(source)
+	launcher.scan()
 	tailer, _ := launcher.tailers.Get(getScanKey(path, source))
 
 	// test scan from beginning
@@ -492,7 +521,7 @@ func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
 	source2 := sources.NewLogSource("Source 2", &config.LogsConfig{Type: config.FileType, Identifier: "TEST_ID", Path: path})
 
 	launcher.addSource(source2)
-
+	launcher.scan()
 	// Source is replaced with the new source on the same tailer
 	assert.Equal(t, tailer.Source(), source2)
 }
@@ -757,4 +786,43 @@ func TestLauncherFileDetectionSingleScan(t *testing.T) {
 
 func getScanKey(path string, source *sources.LogSource) string {
 	return filetailer.NewFile(path, source, false).GetScanKey()
+}
+
+// BenchmarkScan profiles the scan() method.
+func BenchmarkScan(b *testing.B) {
+	testDir := b.TempDir()
+
+	// Create a dummy files to give scan something to find
+	numFiles := 100
+	for i := range numFiles {
+		f, err := os.Create(filepath.Join(testDir, fmt.Sprintf("file%d.log", i)))
+		if err != nil {
+			b.Fatalf("Failed to create test file: %v", err)
+		}
+		for range rand.Intn(100) {
+			f.WriteString("some log data\n")
+		}
+
+		f.Close()
+	}
+
+	pipelineProvider := mock.NewMockProvider()
+	registry := auditorMock.NewMockRegistry()
+	fakeTagger := taggerfxmock.SetupFakeTagger(b)
+	fc := flareController.NewFlareController()
+	launcher := NewLauncher(numFiles, 20*time.Millisecond, false, 1*time.Second, "by_name", fc, fakeTagger)
+	launcher.pipelineProvider = pipelineProvider
+	launcher.registry = registry
+	// Add a source that matches the dummy files
+	source := sources.NewLogSource("benchmarkSource", &config.LogsConfig{Type: config.FileType, Path: filepath.Join(testDir, "*.log")})
+	launcher.addSource(source)
+
+	// --- Benchmark ---
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		launcher.scan()
+	}
+	b.StopTimer()
+
+	launcher.cleanup()
 }

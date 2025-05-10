@@ -9,6 +9,7 @@ package file
 import (
 	"regexp"
 	"slices"
+	"sync"
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -39,7 +40,10 @@ type Launcher struct {
 	pipelineProvider    pipeline.Provider
 	addedSources        chan *sources.LogSource
 	removedSources      chan *sources.LogSource
+	pendingSources      []*sources.LogSource
+	pendingSourcesMutex sync.Mutex
 	activeSources       []*sources.LogSource
+	activeSourcesMutex  sync.Mutex
 	tailingLimit        int
 	fileProvider        *fileprovider.FileProvider
 	tailers             *tailers.TailerContainer[*tailer.Tailer]
@@ -55,6 +59,8 @@ type Launcher struct {
 	scanPeriod             time.Duration
 	flarecontroller        *flareController.FlareController
 	tagger                 tagger.Component
+	wg                     sync.WaitGroup
+	scanMutex              sync.Mutex
 }
 
 // NewLauncher returns a new launcher.
@@ -117,10 +123,21 @@ func (s *Launcher) run() {
 		case source := <-s.removedSources:
 			s.removeSource(source)
 		case <-scanTicker.C:
-			s.cleanUpRotatedTailers()
-			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
-			s.scan()
+			if s.scanMutex.TryLock() {
+				s.wg.Add(1)
+				go func() {
+					defer s.scanMutex.Unlock()
+					defer s.wg.Done()
+
+					s.cleanUpRotatedTailers()
+					// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
+					s.scan()
+				}()
+			} else {
+				log.Debugf("Skipping scan as another scan is already in progress")
+			}
 		case <-s.stop:
+			s.wg.Wait()
 			// no more file should be tailed
 			s.cleanup()
 			return
@@ -149,7 +166,21 @@ func (s *Launcher) cleanup() {
 // For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
 // The Scanner needs to stop that previous tailer, and start a new one for the new file.
 func (s *Launcher) scan() {
+	s.pendingSourcesMutex.Lock()
+	s.activeSourcesMutex.Lock()
+
+	// Process pending sources from addedSources
+	for len(s.pendingSources) > 0 {
+		source := s.pendingSources[0]
+		s.pendingSources = s.pendingSources[1:]
+		s.activeSources = append(s.activeSources, source)
+		s.launchTailers(source)
+	}
+
+	s.pendingSourcesMutex.Unlock()
+
 	files := s.fileProvider.FilesToTail(s.validatePodContainerID, s.activeSources)
+	s.activeSourcesMutex.Unlock()
 	filesTailed := make(map[string]bool)
 	var allFiles []string
 
@@ -248,14 +279,28 @@ func (s *Launcher) cleanUpRotatedTailers() {
 	s.rotatedTailers = pendingTailers
 }
 
-// addSource keeps track of the new source and launch new tailers for this source.
+// addSource adds a source to the queue to be tailed. It will launch tailers in the scan function
 func (s *Launcher) addSource(source *sources.LogSource) {
-	s.activeSources = append(s.activeSources, source)
-	s.launchTailers(source)
+	s.pendingSourcesMutex.Lock()
+	defer s.pendingSourcesMutex.Unlock()
+
+	s.pendingSources = append(s.pendingSources, source)
 }
 
 // removeSource removes the source from cache.
 func (s *Launcher) removeSource(source *sources.LogSource) {
+	s.pendingSourcesMutex.Lock()
+	defer s.pendingSourcesMutex.Unlock()
+	s.activeSourcesMutex.Lock()
+	defer s.activeSourcesMutex.Unlock()
+
+	for i, src := range s.pendingSources {
+		if src == source {
+			s.pendingSources = slices.Delete(s.pendingSources, i, i+1)
+			break
+		}
+	}
+
 	for i, src := range s.activeSources {
 		if src == source {
 			// no need to stop the tailer here, it will be stopped in the next iteration of scan.
