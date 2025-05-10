@@ -317,6 +317,20 @@ func (a *Agent) Process(p *api.Payload) {
 	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, p.ProcessTags)
 
 	p.TracerPayload.Env = normalize.NormalizeTagValue(p.TracerPayload.Env)
+	// TODO: We should find a way to not repeat container tags resolution downstream in the stats writer.
+	// We will first need to deprecate the `enable_cid_stats` feature flag.
+	// Set payload's container tags just in case we're processing a payload that was not received via the agent's receiver
+	// (e.g. an OTEL converted payload)
+	if len(p.ContainerTags) == 0 && a.conf.ContainerTags != nil {
+		cTags, err := a.conf.ContainerTags(p.TracerPayload.ContainerID)
+		if err != nil {
+			log.Debugf("Failed getting container tags for ID %s: %v", p.TracerPayload.ContainerID, err)
+		} else {
+			p.ContainerTags = cTags
+		}
+	}
+
+	gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(p.ContainerTags)
 
 	a.discardSpans(p)
 
@@ -386,7 +400,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 		a.setPayloadAttributes(p, root, chunk)
 
-		pt := processedTrace(p, chunk, root, p.TracerPayload.ContainerID, a.conf)
+		pt := processedTrace(p, chunk, root, imageTag, gitCommitSha)
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, *pt.Clone())
 		}
@@ -444,7 +458,7 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 }
 
 // processedTrace creates a ProcessedTrace based on the provided chunk, root, containerID, and agent config.
-func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, containerID string, conf *config.AgentConfig) *traceutil.ProcessedTrace {
+func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, imageTag string, gitCommitSha string) *traceutil.ProcessedTrace {
 	pt := &traceutil.ProcessedTrace{
 		TraceChunk:             chunk,
 		Root:                   root,
@@ -454,17 +468,10 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, contain
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
 		GitCommitSha:           version.GetGitCommitShaFromTrace(root, chunk),
 	}
-	// TODO: We should find a way to not repeat container tags resolution downstream in the stats writer.
-	// We will first need to deprecate the `enable_cid_stats` feature flag.
-	gitCommitSha, imageTag, err := version.GetVersionDataFromContainerTags(containerID, conf)
-	if err != nil {
-		log.Debugf("Trace agent is unable to resolve container ID (%s) to container tags: %v", containerID, err)
-	} else {
-		pt.ImageTag = imageTag
-		// Only override the GitCommitSha if it was not set in the trace.
-		if pt.GitCommitSha == "" {
-			pt.GitCommitSha = gitCommitSha
-		}
+	pt.ImageTag = imageTag
+	// Only override the GitCommitSha if it was not set in the trace.
+	if pt.GitCommitSha == "" {
+		pt.GitCommitSha = gitCommitSha
 	}
 	return pt
 }
