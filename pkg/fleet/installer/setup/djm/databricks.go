@@ -89,7 +89,7 @@ var (
 func SetupDatabricks(s *common.Setup) error {
 	s.Packages.InstallInstaller()
 	s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
-	s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
+	//s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, databricksJavaTracerVersion)
 
 	s.Out.WriteString("Applying specific Data Jobs Monitoring config\n")
@@ -110,7 +110,7 @@ func SetupDatabricks(s *common.Setup) error {
 		}
 		tracerEnvConfigDatabricks = append(tracerEnvConfigDatabricks, debugLogs)
 	}
-	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigDatabricks
+	//s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigDatabricks
 
 	setupCommonHostTags(s)
 	installMethod := "manual"
@@ -221,6 +221,8 @@ func setClearHostTag(s *common.Setup, tagKey, value string) {
 }
 
 func setupDatabricksDriver(s *common.Setup) {
+	s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
+	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigDatabricks
 	s.Out.WriteString("Setting up Spark integration config on the Driver\n")
 	setClearHostTag(s, "spark_node", "driver")
 
