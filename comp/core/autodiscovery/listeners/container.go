@@ -70,7 +70,8 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 			pod = kubePod
 			annotations = pod.Annotations
 		} else {
-			log.Debugf("container %q belongs to a pod but was not found: %s", container.ID, err)
+			log.Debugf("container %q belongs to a pod but was not found, skipping until it can be found: %s", container.ID, err)
+			return
 		}
 	}
 	containerImg := container.Image
