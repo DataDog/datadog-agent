@@ -1013,6 +1013,9 @@ replace (
 	k8s.io/client-go => k8s.io/client-go v0.31.2
 )
 
+// Fork to remove some text/template usage, https://github.com/paulcacheux/opa/tree/lightweight
+replace github.com/open-policy-agent/opa => github.com/paulcacheux/opa v0.0.0-20250507091703-12dadb609ad1
+
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
