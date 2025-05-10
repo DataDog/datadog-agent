@@ -13,6 +13,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -141,4 +142,51 @@ func TestPodParser_Parse(t *testing.T) {
 		cmp.Equal(expected, parsed, opt),
 		cmp.Diff(expected, parsed, opt),
 	)
+}
+
+func TestPodParser_InstrumentationUSTs(t *testing.T) {
+	parser, err := NewPodParser(nil)
+	assert.NoError(t, err)
+
+	input := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-pod",
+			UID:  "identifier",
+			Labels: map[string]string{
+				"my-env": "foo-env",
+			},
+			Annotations: map[string]string{
+				"internal.apm.datadoghq.com/applied-target": `{
+					"ddTraceConfigs": [
+						{ "name": "DD_SERVICE", "value": "foo" },
+						{
+							"name": "DD_ENV",
+							"valueFrom": {
+								"fieldRef": {
+									"fieldPath": "metadata.labels['my-env']"
+								}
+							}
+						},
+						{
+							"name": "DD_VERSION",
+							"valueFrom": {
+								"fieldRef": {
+									"fieldPath": "metadata.name"
+								}
+							}
+						}
+					]
+				}`,
+			},
+		},
+	}
+
+	obj := parser.Parse(&input)
+	output := obj.(*workloadmeta.KubernetesPod)
+
+	assert.Equal(t, &workloadmeta.InstrumentationWorkloadTarget{
+		Service: "foo",
+		Env:     "foo-env",
+		Version: "test-pod",
+	}, output.EvaluatedInstrumentationWorkloadTarget)
 }

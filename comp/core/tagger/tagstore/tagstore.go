@@ -111,6 +111,7 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*types.TagInfo) {
 		}
 
 		storedTags, exist := s.store.Get(info.EntityID)
+		log.Debugf("tagStore entity=%s exists=%v info=%+v", info.EntityID, exist, info)
 
 		if info.DeleteEntity {
 			if exist {

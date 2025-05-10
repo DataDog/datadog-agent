@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/apm/instrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,7 +27,7 @@ import (
 
 const (
 	// AppliedTargetAnnotation is the JSON of the target that was applied to the pod.
-	AppliedTargetAnnotation = "internal.apm.datadoghq.com/applied-target"
+	AppliedTargetAnnotation = instrumentation.AppliedTargetAnnotation
 	// AppliedTargetEnvVar is the environment variable that contains the JSON of the target that was applied to the pod.
 	AppliedTargetEnvVar = "DD_INSTRUMENTATION_APPLIED_TARGET"
 )
@@ -357,7 +358,7 @@ func (t targetInternal) matchesPodSelector(podLabels map[string]string) bool {
 }
 
 // createJSON creates a json string of the target used to apply as an annotation.
-func createJSON(t Target) string {
+func createJSON(t instrumentation.Target) string {
 	data, err := json.Marshal(t)
 	if err != nil {
 		log.Errorf("error marshalling target %q: %v", t.Name, err)

@@ -55,17 +55,12 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 	containerLanguages := make(languagemodels.ContainersLanguages)
 
 	for annotation, languages := range deployment.Annotations {
-
 		containerName, isInitContainer := languagemodels.ExtractContainerFromAnnotationKey(annotation)
 		if containerName != "" && languages != "" {
-
-			updateContainerLanguage(
-				containerLanguages,
-				languagemodels.Container{
-					Name: containerName,
-					Init: isInitContainer,
-				},
-				languages)
+			updateContainerLanguage(containerLanguages, languagemodels.Container{
+				Name: containerName,
+				Init: isInitContainer,
+			}, languages)
 		}
 	}
 
