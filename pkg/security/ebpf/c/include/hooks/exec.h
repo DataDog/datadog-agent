@@ -412,7 +412,9 @@ TAIL_CALL_FNC(get_envs_offset, void *ctx) {
     u64 offset = syscall->exec.args_envs_ctx.envs_offset;
     u32 args_count = syscall->exec.args_envs_ctx.args_count;
 
+#ifndef USE_FENTRY
 #pragma unroll
+#endif
     for (i = 0; i < MAX_ARGS_READ_PER_TAIL && args_count < syscall->exec.args.count; i++) {
         bytes_read = bpf_probe_read_str(&buff->value[0], MAX_ARRAY_ELEMENT_SIZE, (void *)(args_start + offset));
         if (bytes_read < 0 || bytes_read == MAX_ARRAY_ELEMENT_SIZE) {
@@ -466,7 +468,9 @@ void __attribute__((always_inline)) parse_args_envs(void *ctx, struct args_envs_
 
     void *buff_ptr = &buff->value[0];
 
+#ifndef USE_FENTRY
 #pragma unroll
+#endif
     for (i = 0; i < MAX_ARRAY_ELEMENT_PER_TAIL; i++) {
         if (args_envs->counter == args_envs->count) {
             break;
