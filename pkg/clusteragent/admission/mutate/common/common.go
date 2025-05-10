@@ -133,12 +133,6 @@ func injectDynamicEnvInContainers(containers []corev1.Container, fn BuildEnvVarF
 // InjectVolume injects a volume into a pod template if it doesn't exist
 func InjectVolume(pod *corev1.Pod, volume corev1.Volume, volumeMount corev1.VolumeMount) bool {
 	podStr := PodString(pod)
-	for _, vol := range pod.Spec.Volumes {
-		if vol.Name == volume.Name {
-			log.Debugf("Ignoring pod %q: volume %q already exists", podStr, vol.Name)
-			return false
-		}
-	}
 
 	shouldInject := false
 	for i, container := range pod.Spec.Containers {
@@ -161,6 +155,12 @@ func InjectVolume(pod *corev1.Pod, volume corev1.Volume, volumeMount corev1.Volu
 	}
 
 	if shouldInject {
+		for _, vol := range pod.Spec.Volumes {
+			if vol.Name == volume.Name {
+				log.Debugf("Pod %q: Volume %q already exists. Not adding again", podStr, vol.Name)
+				return
+			}
+		}
 		pod.Spec.Volumes = append(pod.Spec.Volumes, volume)
 	}
 
