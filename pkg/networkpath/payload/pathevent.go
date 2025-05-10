@@ -34,6 +34,8 @@ const (
 	TCPConfigSACK TCPMethod = "sack"
 	// TCPConfigPreferSACK means to try SACK, and fall back to SYN if the remote doesn't support SACK
 	TCPConfigPreferSACK TCPMethod = "prefer_sack"
+	// TCPConfigSYNSocket means to use a SYN with TCP socket options to perform the traceroute (windows only)
+	TCPConfigSYNSocket TCPMethod = "syn_socket"
 )
 
 // TCPDefaultMethod is what method to use when nothing is specified

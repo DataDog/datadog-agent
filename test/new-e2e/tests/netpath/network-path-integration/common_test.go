@@ -9,14 +9,16 @@ package networkpathintegration
 import (
 	_ "embed"
 	"fmt"
+	"slices"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -54,7 +56,9 @@ func assertMetrics(fakeIntake *components.FakeIntake, c *assert.CollectT, metric
 		)
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics, fmt.Sprintf("metric with tags `%v` not found", tags))
+
 	}
+
 }
 
 func (s *baseNetworkPathIntegrationTestSuite) findNetpath(isMatch func(*aggregator.Netpath) bool) (*aggregator.Netpath, error) {
@@ -115,4 +119,30 @@ func (s *baseNetworkPathIntegrationTestSuite) checkGoogleDNSUDP(c *assert.Collec
 	assertPayloadBase(c, np, agentHostname)
 
 	assert.NotEmpty(c, np.Hops)
+}
+
+func (s *baseNetworkPathIntegrationTestSuite) checkGoogleTCPSocket(c *assert.CollectT, agentHostname string) {
+	np := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
+		// check to see if "tcp_method:syn_socket" is in tags
+		if !slices.Contains(np.Tags, "tcp_method:syn_socket") {
+			return false
+		}
+		return np.Destination.Hostname == "8.8.8.8" && np.Protocol == "TCP"
+	})
+	assert.NotZero(c, np.Destination.Port)
+
+	assertPayloadBase(c, np, agentHostname)
+
+	assert.NotEmpty(c, np.Hops)
+
+	// assert that one of the hops is not unknown_hop_x
+	countKnownHops := 0
+	for _, hop := range np.Hops {
+		hopName := fmt.Sprintf("unknown_hop_%d", hop.TTL)
+		if hop.Hostname != hopName {
+			countKnownHops++
+		}
+	}
+	// > 1 verifies that we have more than just the last hop known
+	assert.True(c, countKnownHops > 1, "expected to find at least one hop that is not unknown_hop_x")
 }
