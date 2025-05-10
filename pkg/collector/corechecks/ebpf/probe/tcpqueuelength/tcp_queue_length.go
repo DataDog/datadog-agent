@@ -83,6 +83,8 @@ func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.O
 		return nil, fmt.Errorf("failed to start manager: %w", err)
 	}
 
+	ebpf.AddProbeFDMappings(m)
+
 	statsMap, err := ebpfmaps.GetMap[StructStatsKey, []StructStatsValue](m, statsMapName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get map '%s': %w", statsMapName, err)

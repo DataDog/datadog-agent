@@ -104,7 +104,11 @@ func (m *dnsMonitor) WaitForDomain(domain string) error {
 // Start starts the monitor
 func (m *dnsMonitor) Start() error {
 	if m.p != nil {
-		return m.p.Start()
+		if err := m.p.Start(); err != nil {
+			return err
+		}
+
+		ddebpf.AddProbeFDMappings(m.p.Manager)
 	}
 	return nil
 }

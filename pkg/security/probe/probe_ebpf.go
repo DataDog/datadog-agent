@@ -1722,8 +1722,9 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 }
 
 func (p *EBPFProbe) updateEBPFCheckMapping() {
-	ddebpf.ClearNameMappings("cws")
+	ddebpf.ClearProgramIDMappings("cws")
 	ddebpf.AddNameMappings(p.Manager, "cws")
+	ddebpf.AddProbeFDMappings(p.Manager)
 }
 
 // GetDiscarders retrieve the discarders
