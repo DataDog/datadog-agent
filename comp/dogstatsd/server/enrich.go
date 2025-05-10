@@ -18,8 +18,9 @@ import (
 )
 
 var (
-	hostTagPrefix     = "host:"
-	entityIDTagPrefix = "dd.internal.entity_id:"
+	hostTagPrefix       = "host:"
+	runtimeMetricPrefix = "runtime."
+	entityIDTagPrefix   = "dd.internal.entity_id:"
 	//nolint:revive // TODO(AML) Fix revive linter
 	CardinalityTagPrefix = constants.CardinalityTagPrefix
 	jmxCheckNamePrefix   = "dd.internal.jmx_check_name:"
@@ -139,6 +140,10 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 
 	if conf.metricBlocklist.test(metricName) {
 		return []metrics.MetricSample{}
+	}
+
+	if strings.HasPrefix(metricName, runtimeMetricPrefix) {
+		extractedOrigin.ProductOrigin = origindetection.ProductOriginAPM
 	}
 
 	if conf.serverlessMode { // we don't want to set the host while running in serverless mode
