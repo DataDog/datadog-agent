@@ -31,6 +31,7 @@
 '@datadog/container-platform': '#container-platform'
 '@datadog/database-monitoring': '#database-monitoring'
 '@datadog/debugger': '#debugger-ops-prod'
+'@datadog/debugger-go': '#dynamic-instrumentation-go'
 '@datadog/documentation': DEFAULT_SLACK_CHANNEL
 '@datadog/ebpf-platform': '#ebpf-platform-ops'
 '@datadog/fleet': '#fleet-automation-monitoring'
