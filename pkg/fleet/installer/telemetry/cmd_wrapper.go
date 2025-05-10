@@ -40,5 +40,6 @@ func (c *TracedCmd) Run() (err error) {
 		return err
 	}
 	c.span.SetTag("exit_code", exitErr.ExitCode())
-	return errors.New(string(exitErr.Stderr))
+	c.span.SetTag("stderr", string(exitErr.Stderr))
+	return err
 }
