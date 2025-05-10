@@ -317,6 +317,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Otherwise, the old version of disk check will be used (maintaining backward compatibility).
 	config.BindEnvAndSetDefault("use_diskv2_check", false)
 
+	// If true, then new version of network v2 check will be used.
+	// Otherwise, the old version of network check will be used (maintaining backward compatibility).
+	config.BindEnvAndSetDefault("use_networkv2_check", false)
+
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
 	// compatibility with Agent5 behavior/win
