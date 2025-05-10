@@ -5,6 +5,7 @@
 
 //go:build !windows
 
+// Package service provides service manager utilities
 package service
 
 import "os/exec"
