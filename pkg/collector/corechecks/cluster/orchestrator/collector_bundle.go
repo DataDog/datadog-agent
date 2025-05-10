@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -393,7 +394,15 @@ func (cb *CollectorBundle) skipResources(groupVersion, resource string) bool {
 
 func (cb *CollectorBundle) terminatedResourceHandler(collector collectors.K8sCollector) func(obj interface{}) {
 	return func(obj interface{}) {
-		cb.terminatedResourceBundle.Add(collector, obj)
+		// Create a deep copy of unstructured objects to avoid concurrent map access
+		if unstruct, ok := obj.(*unstructured.Unstructured); ok {
+			// Use DeepCopy to create a safe copy before processing
+			objCopy := unstruct.DeepCopy()
+			cb.terminatedResourceBundle.Add(collector, objCopy)
+		} else {
+			// For other types, pass through as before
+			cb.terminatedResourceBundle.Add(collector, obj)
+		}
 	}
 }
 
