@@ -829,6 +829,20 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 		}
 	}
 
+	if eventType == model.ExecEventType {
+		if event.ProcessContext != nil {
+			execPath := utils.ProcExePath(event.ProcessContext.Pid)
+			var fileStats unix.Statx_t
+			if err := unix.Statx(unix.AT_FDCWD, execPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStats); err == nil {
+				event.Debug = fmt.Sprintf("Mount id: %d", fileStats.Mnt_id)
+			} else {
+				event.Debug = fmt.Sprintf("Mount id: err %v. ExecPath is %v", err, execPath)
+			}
+		} else {
+			event.Debug = "nil processcontext"
+		}
+	}
+
 	// flush exited process
 	p.Resolvers.ProcessResolver.DequeueExited()
 
@@ -856,6 +870,9 @@ func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, cgrou
 }
 
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
+
+	p.Resolvers.DentryResolver.ResetDebugLog()
+	p.Resolvers.MountResolver.ResetDebugLog()
 	// handle play snapshot
 	if p.playSnapShotState.Swap(false) {
 		// do not notify consumers as we are replaying the snapshot after a ruleset reload
@@ -1324,7 +1341,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 			var dnsLayer = new(layers.DNS)
 			if err := dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
-				seclog.Errorf("failed to decode DNS response: %s", err)
+				seclog.Errorf("failed to decode DNS response: %s. Dump: %x", err, data[offset:])
 				return
 			}
 			p.addToDNSResolver(dnsLayer)
