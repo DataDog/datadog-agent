@@ -455,8 +455,16 @@ func (s *datadogAgentServiceOCI) DisableStable(ctx HookContext) error {
 	return systemd.DisableUnit(ctx, s.SystemdMainUnitStable)
 }
 
-// RestartStable restarts the stable unit
+// RestartStable restarts the stable unit. It will only attempt to restart if the config exists.
 func (s *datadogAgentServiceOCI) RestartStable(ctx HookContext) error {
+	_, err := os.Stat("/etc/datadog-agent/datadog.yaml")
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to check if /etc/datadog-agent/datadog.yaml exists: %v", err)
+	} else if os.IsNotExist(err) {
+		// this is expected during a fresh install with the install script / ansible / chef / etc...
+		// the config is populated afterwards by the install method and the agent is restarted
+		return nil
+	}
 	return systemd.RestartUnit(ctx, s.SystemdMainUnitStable)
 }
 
