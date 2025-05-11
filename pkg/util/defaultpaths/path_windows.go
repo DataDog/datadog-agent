@@ -53,6 +53,7 @@ func init() {
 	}
 }
 
+// GetInstallPath returns the fully qualified path to the datadog-agent executable
 func GetInstallPath() string {
 	// fetch the installation path from the registry
 	installpath := filepath.Join(_here, "..")
