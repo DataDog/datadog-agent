@@ -11,6 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
-func initializeUSMEncoders(conns *network.Connections) []usmEncoder {
+func initializeUSMEncoders(*network.Connections) []usmEncoder {
 	return nil
 }
