@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	maxConnsMessageBatchSize     = 1000
+	//maxConnsMessageBatchSize     = 1000
 	maxOffsetThreshold           = 3000
 	defaultMaxProcessesTracked   = 1024
 	defaultMaxTrackedConnections = 65536
@@ -30,7 +30,7 @@ func adjustNetwork(cfg model.Config) {
 	deprecateInt(cfg, spNS("closed_channel_size"), netNS("closed_channel_size"))
 	applyDefault(cfg, netNS("closed_channel_size"), 500)
 
-	limitMaxInt(cfg, spNS("max_conns_per_message"), maxConnsMessageBatchSize)
+	//limitMaxInt(cfg, spNS("max_conns_per_message"), maxConnsMessageBatchSize)
 
 	if cfg.GetBool(spNS("disable_tcp")) {
 		cfg.Set(netNS("collect_tcp_v4"), false, model.SourceAgentRuntime)
