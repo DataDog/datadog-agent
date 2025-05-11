@@ -79,7 +79,7 @@ func GetInstallPath() string {
 func GetDistPath() string {
 	if len(distPath) == 0 {
 		var s string
-		if s = getInstallPath(); s == "" {
+		if s = GetInstallPath(); s == "" {
 			return ""
 		}
 		distPath = filepath.Join(s, `bin/agent/dist`)
