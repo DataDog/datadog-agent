@@ -622,25 +622,29 @@ func testCaptureWrappedCommands(t *testing.T, script string, commandWrapper []st
 	var err error
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		proc, err = process.NewProcess(int32(cmd.Process.Pid))
-		assert.NoError(collect, err)
+		require.NoError(collect, err)
+
+		// If we wrap the script with `sh -c`, we can have differences between a
+		// local run and a kmt run, as for kmt `sh` is symbolic link to bash,
+		// while locally it can be a symbolic link to dash.
+		//
+		// In the dash case, we will see 2 processes `sh -c script.py` and a
+		// sub-process `python3 script.py`, while in the bash case we will see
+		// only `python3 script.py` (after initially potentially seeing `sh -c
+		// script.py` before the process execs). We need to check for the
+		// command line arguments of the process to make sure we are looking at
+		// the right process.
+		cmdline, err := proc.Cmdline()
+		require.NoError(t, err)
+		if cmdline == strings.Join(commandLineArgs, " ") && len(commandWrapper) > 0 {
+			var children []*process.Process
+			children, err = proc.Children()
+			require.NoError(collect, err)
+			require.Len(collect, children, 1)
+			proc = children[0]
+		}
 	}, 10*time.Second, 100*time.Millisecond)
 
-	cmdline, err := proc.Cmdline()
-	require.NoError(t, err)
-	// If we wrap the script with `sh -c`, we can have differences between a local run and a kmt run, as for
-	// kmt `sh` is symbolic link to bash, while locally it can be a symbolic link to dash. In the dash case, we will
-	// see 2 processes `sh -c script.py` and a sub-process `python3 script.py`, while in the bash case we will see
-	// only `python3 script.py`. We need to check for the command line arguments of the process to make sure we
-	// are looking at the right process.
-	if cmdline == strings.Join(commandLineArgs, " ") && len(commandWrapper) > 0 {
-		var children []*process.Process
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
-			children, err = proc.Children()
-			assert.NoError(collect, err)
-			assert.Len(collect, children, 1)
-		}, 10*time.Second, 100*time.Millisecond)
-		proc = children[0]
-	}
 	t.Cleanup(func() { _ = proc.Kill() })
 
 	discovery := setupDiscoveryModule(t)

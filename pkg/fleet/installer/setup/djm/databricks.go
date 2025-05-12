@@ -108,7 +108,7 @@ func SetupDatabricks(s *common.Setup) error {
 			Key:   "DD_TRACE_DEBUG",
 			Value: "true",
 		}
-		tracerEnvConfigEmr = append(tracerEnvConfigDatabricks, debugLogs)
+		tracerEnvConfigDatabricks = append(tracerEnvConfigDatabricks, debugLogs)
 	}
 	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigDatabricks
 
