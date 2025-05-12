@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fips"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
@@ -374,6 +375,13 @@ func (ia *inventoryagent) fetchECSFargateAgentMetadata() {
 
 func (ia *inventoryagent) fetchFleetMetadata() {
 	ia.data["config_id"] = ia.conf.GetString("config_id")
+
+	// APM host-based auto injection (SSI)
+	autoInstrumentationEnabled, err := ssi.IsAutoInstrumentationEnabled()
+	if err != nil {
+		ia.log.Warnf("could not check if APM auto-instrumentation is enabled: %s", err)
+	}
+	ia.data["feature_auto_instrumentation_enabled"] = autoInstrumentationEnabled
 }
 
 func (ia *inventoryagent) refreshMetadata() {
