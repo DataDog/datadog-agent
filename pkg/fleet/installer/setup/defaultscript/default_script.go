@@ -179,7 +179,7 @@ func installAPMPackages(s *common.Setup) {
 	for _, library := range common.ApmLibraries {
 		lang := packageToLanguage(library)
 		_, installLibrary := s.Env.ApmLibraries[lang]
-		if (installAllAPMLibraries || len(s.Env.ApmLibraries) == 0 && apmInstrumentationEnabled) && library != common.DatadogAPMLibraryPHPPackage || installLibrary {
+		if (installAllAPMLibraries || len(s.Env.ApmLibraries) == 0 && apmInstrumentationEnabled) || installLibrary {
 			s.Packages.Install(library, getLibraryVersion(s.Env, library))
 		}
 	}
