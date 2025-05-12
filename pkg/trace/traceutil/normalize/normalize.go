@@ -288,12 +288,16 @@ func isValidNormalizedMetricName(name string) bool {
 	if name == "" {
 		return false
 	}
-	isValid := isAlphaLookup[name[0]]
+	if !isAlphaLookup[name[0]] {
+		return false
+	}
 	for j := 1; j < len(name); j++ {
 		b := name[j]
-		isValid = isValid && (isAlphaNumLookup[b] || (b == '.' && !(name[j-1] == '_')) || (b == '_' && !(name[j-1] == '_')))
+		if !(isAlphaNumLookup[b] || (b == '.' && !(name[j-1] == '_')) || (b == '_' && !(name[j-1] == '_'))) {
+			return false
+		}
 	}
-	return isValid
+	return true
 }
 
 // normMetricNameParse normalizes metric names with a parser instead of using
