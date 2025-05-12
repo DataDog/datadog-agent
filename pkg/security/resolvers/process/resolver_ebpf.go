@@ -1339,9 +1339,10 @@ func (p *EBPFResolver) newEntryFromProcfsAndSyncKernelMaps(proc *process.Process
 	}
 
 	// use the inode from the pid context if set so that we don't propagate a potentially wrong inode
+	// it may happen if the activity is from a process (same pid) that was replaced since then.
 	if inode != 0 {
 		if entry.FileEvent.Inode != inode {
-			seclog.Errorf("inode mismatch, using inode from pid context %d: %d != %d", pid, entry.FileEvent.Inode, inode)
+			seclog.Warnf("inode mismatch, using inode from pid context %d: %d != %d", pid, entry.FileEvent.Inode, inode)
 
 			entry.FileEvent.Inode = inode
 			entry.IsParentMissing = true
