@@ -15,7 +15,7 @@ def collect_pid(queue: Queue):
 class MultiPIDCheck(AgentCheck):
     def check(self, instance):
         """
-        Spawns 3 processes that emit their PIDs as metrics.
+        Spawns 3 processes that queue their PIDs to the main process that will emit them as metrics.
         """
         processes = []
         pid_queue = Queue()
