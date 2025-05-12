@@ -35,10 +35,6 @@ const (
 )
 
 var (
-	// DiskPartitions returns a list of mounted disk partitions using gopsutil.
-	DiskPartitions = gopsutil_disk.Partitions
-	// DiskUsage returns disk usage statistics for the given path using gopsutil.
-	DiskUsage = gopsutil_disk.Usage
 	// DiskIOCounters returns disk I/O statistics for the specified devices using gopsutil.
 	DiskIOCounters = gopsutil_disk.IOCounters
 )
@@ -119,7 +115,10 @@ func compileRegExp(expr string, ignoreCase bool) (*regexp.Regexp, error) {
 // Check represents the Disk check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	clock               clock.Clock
+	clock          clock.Clock
+	diskPartitions func(bool) ([]gopsutil_disk.PartitionStat, error)
+	diskUsage      func(string) (*gopsutil_disk.UsageStat, error)
+
 	initConfig          diskInitConfig
 	instanceConfig      diskInstanceConfig
 	includedDevices     []regexp.Regexp
@@ -134,6 +133,7 @@ type Check struct {
 
 // Run executes the check
 func (c *Check) Run() error {
+	log.Debug("weeeeeee")
 	sender, err := c.GetSender()
 	if err != nil {
 		return err
@@ -384,7 +384,7 @@ func (c *Check) configureIncludeMountPoint() error {
 }
 
 func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
-	partitions, err := DiskPartitions(c.instanceConfig.IncludeAllDevices)
+	partitions, err := c.diskPartitions(c.instanceConfig.IncludeAllDevices)
 	if err != nil {
 		log.Warnf("Unable to get disk partitions: %s", err)
 		return err
@@ -466,13 +466,11 @@ func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.Usage
 	// Start the disk usage call in a separate goroutine.
 	go func() {
 		// UsageWithContext in gopsutil ignores the context for now (PR opened: https://github.com/shirou/gopsutil/pull/1837)
-		usage, err := DiskUsage(mountpoint)
+		usage, err := c.diskUsage(mountpoint)
 		// Use select to avoid writing to resultCh if timeout already occurred.
 		select {
 		case resultCh <- usageResult{usage, err}:
 		case <-timeoutCh:
-			// timeout occurred — avoid writing to resultCh
-			return
 		}
 	}()
 	// Use select to wait for either the disk usage result or a timeout.
@@ -640,26 +638,35 @@ func (c *Check) fetchAllDeviceLabels() error {
 	return c.fetchAllDeviceLabelsFromBlkid()
 }
 
+// WithClock sets a custom clock on the Check and returns the updated Check.
+func (c *Check) WithClock(clock clock.Clock) *Check {
+	c.clock = clock
+	return c
+}
+
+// WithDiskPartitions sets a diskPartitions call on the Check and returns the updated Check.
+func (c *Check) WithDiskPartitions(f func(bool) ([]gopsutil_disk.PartitionStat, error)) *Check {
+	c.diskPartitions = f
+	return c
+}
+
+// WithDiskUsage sets a diskUsage call on the Check and returns the updated Check.
+func (c *Check) WithDiskUsage(f func(string) (*gopsutil_disk.UsageStat, error)) *Check {
+	c.diskUsage = f
+	return c
+}
+
 // Factory creates a new check factory
 func Factory() option.Option[func() check.Check] {
 	return option.New(newCheck)
 }
 
-// FactoryWithClock creates a new check factory with the clock dependency injection
-func FactoryWithClock(clock clock.Clock) option.Option[func() check.Check] {
-	return option.New(func() check.Check {
-		return newCheckWithClock(clock)
-	})
-}
-
 func newCheck() check.Check {
-	return newCheckWithClock(clock.New())
-}
-
-func newCheckWithClock(clock clock.Clock) check.Check {
 	return &Check{
-		CheckBase: core.NewCheckBase(CheckName),
-		clock:     clock,
+		CheckBase:      core.NewCheckBase(CheckName),
+		clock:          clock.New(),
+		diskPartitions: gopsutil_disk.Partitions,
+		diskUsage:      gopsutil_disk.Usage,
 		initConfig: diskInitConfig{
 			DeviceGlobalExclude:       []string{},
 			DeviceGlobalBlacklist:     []string{},
