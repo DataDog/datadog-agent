@@ -53,7 +53,7 @@ func (rb *RingBuffer) Init(mgr *manager.Manager, config *config.Config) error {
 		TelemetryEnabled: config.InternalTelemetryEnabled,
 	}
 
-	rb.EventQueue = make(chan Event, 100)
+	rb.EventQueue = make(chan Event, 2000)
 	ebpfTelemetry.ReportRingBufferTelemetry(rb.ringBuffer)
 	return nil
 }
