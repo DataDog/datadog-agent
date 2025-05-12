@@ -218,7 +218,7 @@ var (
 	// by `sys.path`. It's empty if the interpreter was not initialized.
 	PythonPath = ""
 
-	rtloader *C.rtloader_t = nil
+	rtloader *C.rtloader_t
 
 	expvarPyInit  *expvar.Map
 	pyInitLock    sync.RWMutex

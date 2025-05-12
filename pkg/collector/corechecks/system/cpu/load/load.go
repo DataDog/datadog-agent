@@ -4,6 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build !windows
 
+// Package load implements the cpu load check.
 package load
 
 import (
@@ -29,7 +30,7 @@ const (
 var loadAvg = load.Avg
 var cpuInfo = cpu.Info
 
-// LoadCheck doesn't need additional fields
+//nolint:revive
 type LoadCheck struct {
 	core.CheckBase
 	nbCPU int32

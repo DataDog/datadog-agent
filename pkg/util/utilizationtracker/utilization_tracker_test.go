@@ -36,88 +36,88 @@ func TestUtilizationTracker(t *testing.T) {
 	defer ut.Stop()
 
 	old := 0.0
-	new := 0.0
+	newValue := 0.0
 
 	// After some time without any checks running, the utilization
 	// should be a constant zero value
 	clk.Add(300 * time.Millisecond)
 	ut.Tick()
-	old, new = new, <-ut.Output
-	require.Equal(t, old, new)
+	old, newValue = newValue, <-ut.Output
+	require.Equal(t, old, newValue)
 
 	clk.Add(300 * time.Millisecond)
 	// Ramp up the expected utilization
 	ut.Started()
-	old, new = new, <-ut.Output
-	require.Equal(t, old, new)
+	old, newValue = newValue, <-ut.Output
+	require.Equal(t, old, newValue)
 
 	clk.Add(250 * time.Millisecond)
 	ut.Tick()
-	old, new = new, <-ut.Output
-	require.Greater(t, new, old)
+	old, newValue = newValue, <-ut.Output
+	require.Greater(t, newValue, old)
 
 	clk.Add(550 * time.Millisecond)
 	ut.Tick()
-	old, new = new, <-ut.Output
-	require.Greater(t, new, old)
+	old, newValue = newValue, <-ut.Output
+	require.Greater(t, newValue, old)
 
 	// Ramp down the expected utilization
 	ut.Finished()
-	old, new = new, <-ut.Output
-	require.Equal(t, old, new) //no time have passed
+	old, newValue = newValue, <-ut.Output
+	require.Equal(t, old, newValue) //no time have passed
 
 	clk.Add(250 * time.Millisecond)
 	ut.Tick()
-	old, new = new, <-ut.Output
-	require.Less(t, new, old)
+	old, newValue = newValue, <-ut.Output
+	require.Less(t, newValue, old)
 
 	clk.Add(550 * time.Millisecond)
 	ut.Tick()
-	require.Less(t, new, old)
+	require.Less(t, newValue, old)
 }
 
 func TestUtilizationTrackerCheckLifecycle(t *testing.T) {
 	ut, clk := newTracker(t)
 	defer ut.Stop()
 
-	var old, new float64
+	var old, newValue float64
 
 	// No tasks should equal no utilization
 	clk.Add(250 * time.Millisecond)
 	ut.Tick()
-	old, new = new, <-ut.Output
-	assert.Equal(t, old, new)
+	old, newValue = newValue, <-ut.Output
+	assert.Equal(t, old, newValue)
 
 	for idx := 0; idx < 3; idx++ {
 		// Ramp up utilization
 		ut.Started()
-		old, new = new, <-ut.Output
-		assert.Equal(t, old, new)
+		old, newValue = newValue, <-ut.Output
+		assert.Equal(t, old, newValue)
 
 		clk.Add(250 * time.Millisecond)
 		ut.Tick()
-		old, new = new, <-ut.Output
-		assert.Greater(t, new, old)
+		old, newValue = newValue, <-ut.Output
+		assert.Greater(t, newValue, old)
 
 		clk.Add(250 * time.Millisecond)
 		ut.Tick()
-		old, new = new, <-ut.Output
-		assert.Greater(t, new, old)
+		old, newValue = newValue, <-ut.Output
+		assert.Greater(t, newValue, old)
 
 		// Ramp down utilization
 		ut.Finished()
-		old, new = new, <-ut.Output
-		assert.Equal(t, new, old)
+		old, newValue = newValue, <-ut.Output
+		assert.Equal(t, newValue, old)
 
 		clk.Add(250 * time.Millisecond)
 		ut.Tick()
-		old, new = new, <-ut.Output
-		assert.Less(t, new, old)
+		old, newValue = newValue, <-ut.Output
+		assert.Less(t, newValue, old)
 
 		clk.Add(250 * time.Millisecond)
 		ut.Tick()
-		old, new = new, <-ut.Output
-		assert.Less(t, new, old)
+		old, newValue = newValue, <-ut.Output
+		assert.Less(t, newValue, old)
 	}
 }
 
