@@ -37,7 +37,9 @@ class GitlabJobStatus(Enum):
     WAITING_FOR_RESOURCE = "waiting_for_resource"  # A job that is waiting for resource.
 
     def has_finished(self) -> bool:
-        """Returns whether Gitlab has executed this job to the end, or skipped it"""
+        """Returns whether Gitlab has executed this job to the end, canceled it,
+        or skipped it. In other words, this function returns True when this job
+        won't be executed anymore unless manually retried."""
         return self in {self.CANCELED, self.CANCELING, self.FAILED, self.SUCCESS, self.SKIPPED}
 
     def is_pending(self) -> bool:
@@ -54,6 +56,17 @@ class GitlabJobStatus(Enum):
     def is_running(self) -> bool:
         """Returns whether Gitlab is currently executing this job"""
         return self in {self.RUNNING, self.PREPARING}
+
+    def will_run_automatically(self) -> bool:
+        """Returns True if this job isn't running right now but will be
+        eventually be executed by Gitlab without manual intervention"""
+        return self in {
+            self.CREATED,
+            self.PENDING,
+            self.WAITING_FOR_CALLBACK,
+            self.WAITING_FOR_RESOURCE,
+            self.SCHEDULED,
+        }
 
 
 class FilteredOutException(Exception):

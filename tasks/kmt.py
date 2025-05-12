@@ -1290,9 +1290,9 @@ def get_kmt_or_alien_stack(ctx, stack, vms, alien_vms):
         return stack
 
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(stack), (
-        f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
-    )
+    assert stacks.stack_exists(
+        stack
+    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
     return stack
 
 
@@ -1376,9 +1376,9 @@ def build(
 @task
 def clean(ctx: Context, stack: str | None = None, container=False, image=False):
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(stack), (
-        f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
-    )
+    assert stacks.stack_exists(
+        stack
+    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
 
     ctx.run("rm -rf ./test/new-e2e/tests/sysprobe-functional/artifacts/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
@@ -1972,9 +1972,9 @@ def selftest(ctx: Context, allow_infra_changes=False, filter: str | None = None)
 @task
 def show_last_test_results(ctx: Context, stack: str | None = None):
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(stack), (
-        f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
-    )
+    assert stacks.stack_exists(
+        stack
+    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
     assert tabulate is not None, "tabulate module is not installed, please install it to continue"
 
     paths = KMTPaths(stack, Arch.local())
@@ -2184,7 +2184,7 @@ def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, compone
     def _check_status(_):
         setup_job.refresh()
         info(f"[+] Status for job {setup_job.name}: {setup_job.status}")
-        return setup_job.has_finished, None
+        return setup_job.status.has_finished(), None
 
     loop_status(_check_status, timeout_sec=timeout_sec)
     info(f"[+] Setup job {setup_job.name} finished with status {setup_job.status}")
@@ -2377,8 +2377,8 @@ def retry_test_job_dependencies(ctx: Context, pipeline_id: int, job_id: int, onl
             info(f"[+] Skipping job {job.name} as it has not failed")
             continue
 
-        if job.status.is_running() or job.status == GitlabJobStatus.PENDING:
-            info(f"[+] Job {job.name} is already running, will wait for it to finish")
+        if job.status.is_running() or job.status.will_run_automatically():
+            info(f"[+] Job {job.name} is already running or will be scheduled soon, will wait for it to finish")
             jobs_to_wait_for.append(job.id)
         else:
             info(f"[+] Retrying job {job.name}")
