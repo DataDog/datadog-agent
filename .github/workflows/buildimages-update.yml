@@ -80,6 +80,12 @@ jobs:
         run: |
             echo "BUILDIMAGE_TAG=$(dda inv -- buildimages.get-tag)" >> $GITHUB_OUTPUT
 
+      - name: Install tools
+        # Updating the Go version requires having gopatch installed
+        id: install_tools
+        run: |
+          dda inv -- -e install-tools
+
       - name: Update buildimages IDs and Go version
         id: update_build_images
         env:
