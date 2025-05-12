@@ -119,6 +119,7 @@ func load() (*types.Config, error) {
 	ccmEnabled := cfg.GetBool(ccmNS("enabled"))
 	csmEnabled := cfg.GetBool(secNS("enabled"))
 	gpuEnabled := cfg.GetBool(gpuNS("enabled"))
+	diEnabled := cfg.GetBool(diNS("enabled"))
 
 	if npmEnabled || usmEnabled || ccmEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
@@ -129,12 +130,13 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(spNS("enable_oom_kill")) {
 		c.EnabledModules[OOMKillProbeModule] = struct{}{}
 	}
-	if cfg.GetBool(secNS("enabled")) ||
+	if csmEnabled ||
 		cfg.GetBool(secNS("fim_enabled")) ||
 		cfg.GetBool(evNS("process.enabled")) ||
 		(usmEnabled && cfg.GetBool(smNS("enable_event_stream"))) ||
-		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool(evNS("network_process.enabled")) ||
-			gpuEnabled) {
+		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool(evNS("network_process.enabled"))) ||
+		gpuEnabled ||
+		diEnabled {
 		c.EnabledModules[EventMonitorModule] = struct{}{}
 	}
 	if cfg.GetBool(secNS("enabled")) && cfg.GetBool(secNS("compliance_module.enabled")) {
@@ -143,7 +145,7 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(spNS("process_config.enabled")) {
 		c.EnabledModules[ProcessModule] = struct{}{}
 	}
-	if cfg.GetBool(diNS("enabled")) {
+	if diEnabled {
 		c.EnabledModules[DynamicInstrumentationModule] = struct{}{}
 	}
 	if cfg.GetBool(NSkey("ebpf_check", "enabled")) {
