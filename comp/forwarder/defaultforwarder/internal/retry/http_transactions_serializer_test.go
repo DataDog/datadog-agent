@@ -22,6 +22,8 @@ import (
 
 const apiKey1 = "apiKey1"
 const apiKey2 = "apiKey2"
+const apiKey3 = "apiKey3"
+const apiKey4 = "apiKey4"
 const domain = "domain"
 const vectorDomain = "vectorDomain"
 
@@ -110,6 +112,31 @@ func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 	_, errorCount, err = serializerMissingAPIKey.Deserialize(bytes)
 	r.NoError(err)
 	r.Equal(1, errorCount)
+}
+
+func TestHTTPTransactionSerializerUpdateAPIKey(t *testing.T) {
+	r := require.New(t)
+	log := logmock.New(t)
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", apiKey1, apiKey2)})
+	r.NoError(err)
+
+	serializer := NewHTTPTransactionsSerializer(log, res)
+
+	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey1}}, domain)))
+	bytes, err := serializer.GetBytesAndReset()
+	r.NoError(err)
+
+	r.NotContains(string(bytes), apiKey1, "Serialized data should not contain %s", apiKey1)
+
+	// Update the API keys.
+	res.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", apiKey4, apiKey2, apiKey3)})
+
+	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey3}}, domain)))
+	bytes, err = serializer.GetBytesAndReset()
+	r.NoError(err)
+
+	// New API key should be scrubbed.
+	r.NotContains(string(bytes), apiKey3, "Serialized data should not contain %s", apiKey3)
 }
 
 func TestHTTPTransactionFieldsCount(t *testing.T) {

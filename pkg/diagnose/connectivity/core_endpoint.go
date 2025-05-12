@@ -136,7 +136,7 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 	// Send requests to all endpoints for all domains
 	for _, domainResolver := range domainResolvers {
 		// Go through all API Keys of a domain and send an HTTP request on each endpoint
-		apiKeys, _ := domainResolver.GetAPIKeys()
+		apiKeys := domainResolver.GetAPIKeys()
 		for _, apiKey := range apiKeys {
 			for _, endpointInfo := range endpointsInfo {
 				// Initialize variables

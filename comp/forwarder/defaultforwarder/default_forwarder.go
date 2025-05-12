@@ -134,9 +134,10 @@ func NewOptions(config config.Component, log log.Component, keysPerDomain map[st
 	}
 	if r, ok := resolvers[utils.GetInfraEndpoint(config)]; ok && vectorMetricsURL != "" {
 		log.Debugf("Configuring forwarder to send metrics to observability_pipelines_worker: %s", vectorMetricsURL)
+		apiKeys, _ := r.GetAPIKeysInfo()
 		resolver, err := pkgresolver.NewDomainResolverWithMetricToVector(
 			r.GetBaseDomain(),
-			r.GetAPIKeysInfo(),
+			apiKeys,
 			vectorMetricsURL,
 		)
 		if err != nil {
@@ -328,7 +329,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		resolver.SetBaseDomain(domain)
 
 		_, isLocal := resolver.(*pkgresolver.LocalDomainResolver)
-		apiKeys, _ := resolver.GetAPIKeys()
+		apiKeys := resolver.GetAPIKeys()
 		if !isLocal && (apiKeys == nil || len(apiKeys) == 0) {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
@@ -422,7 +423,7 @@ func (f *DefaultForwarder) Start() error {
 	// log endpoints configuration
 	endpointLogs := make([]string, 0, len(f.domainResolvers))
 	for domain, dr := range f.domainResolvers {
-		apiKeys, _ := dr.GetAPIKeys()
+		apiKeys := dr.GetAPIKeys()
 		endpointLogs = append(endpointLogs, fmt.Sprintf("\"%s\" (%v api key(s))",
 			domain, len(apiKeys)))
 	}
@@ -525,7 +526,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 					transactions = append(transactions, t)
 				}
 			} else {
-				apiKeys, _ := dr.GetAPIKeys()
+				apiKeys := dr.GetAPIKeys()
 				for _, apiKey := range apiKeys {
 					t := transaction.NewHTTPTransaction()
 					t.Domain = drDomain

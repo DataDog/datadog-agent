@@ -81,7 +81,7 @@ func createOptions(params Params, config config.Component, log log.Component) (*
 	log.Infof("starting forwarder with %d endpoints", len(options.DomainResolvers))
 	for _, resolver := range options.DomainResolvers {
 		scrubbedKeys := []string{}
-		apiKeys, _ := resolver.GetAPIKeys()
+		apiKeys := resolver.GetAPIKeys()
 		for _, k := range apiKeys {
 			scrubbedKeys = append(scrubbedKeys, scrubber.HideKeyExceptLastFiveChars(k))
 		}

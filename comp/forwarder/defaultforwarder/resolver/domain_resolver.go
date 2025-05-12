@@ -40,9 +40,9 @@ type DomainResolver interface {
 	// destination type
 	Resolve(endpoint transaction.Endpoint) (string, DestinationType)
 	// GetAPIKeysInfo returns the list of API Keys and config paths associated with this `DomainResolver`
-	GetAPIKeysInfo() []utils.APIKeys
+	GetAPIKeysInfo() ([]utils.APIKeys, int)
 	// GetAPIKeys returns the list of API Keys associated with this `DomainResolver`
-	GetAPIKeys() ([]string, int)
+	GetAPIKeys() []string
 	// UpdateAPIKeys updates the api keys at the given config path and sets the deduped keys to the new list.
 	UpdateAPIKeys(configPath string, newKeys []utils.APIKeys)
 	// GetAPIKeyVersion gets the current version for the API keys (version should be incremented each time the
@@ -75,7 +75,8 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 	config.OnUpdate(func(setting string, oldValue, newValue any) {
 		found := false
 
-		for _, endpoint := range resolver.GetAPIKeysInfo() {
+		apiKeys, _ := resolver.GetAPIKeysInfo()
+		for _, endpoint := range apiKeys {
 			if endpoint.ConfigSettingPath == setting {
 				found = true
 				break
@@ -128,9 +129,9 @@ func updateAdditionalEndpoints(resolver DomainResolver, setting string, config c
 		return
 	}
 
-	oldKeys, _ := resolver.GetAPIKeys()
+	oldKeys := resolver.GetAPIKeys()
 	resolver.UpdateAPIKeys(setting, endpoints)
-	newKeys, _ := resolver.GetAPIKeys()
+	newKeys := resolver.GetAPIKeys()
 
 	removed := missing(oldKeys, newKeys)
 	added := missing(newKeys, oldKeys)
@@ -192,10 +193,10 @@ func (r *SingleDomainResolver) GetBaseDomain() string {
 }
 
 // GetAPIKeys returns the slice of API keys associated with this SingleDomainResolver
-func (r *SingleDomainResolver) GetAPIKeys() ([]string, int) {
+func (r *SingleDomainResolver) GetAPIKeys() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.dedupedAPIKeys, r.keyVersion
+	return r.dedupedAPIKeys
 }
 
 // GetAPIKeyVersion get the version of the keys.
@@ -223,10 +224,10 @@ func missing(a []string, b []string) []string {
 }
 
 // GetAPIKeysInfo returns the list of APIKeys and config paths associated with this `DomainResolver`
-func (r *SingleDomainResolver) GetAPIKeysInfo() []utils.APIKeys {
+func (r *SingleDomainResolver) GetAPIKeysInfo() ([]utils.APIKeys, int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.apiKeys
+	return r.apiKeys, r.keyVersion
 }
 
 // SetBaseDomain sets the only destination available for a SingleDomainResolver
@@ -324,10 +325,10 @@ func NewMultiDomainResolver(baseDomain string, apiKeys []utils.APIKeys) (*MultiD
 }
 
 // GetAPIKeys returns the slice of API keys associated with this SingleDomainResolver
-func (r *MultiDomainResolver) GetAPIKeys() ([]string, int) {
+func (r *MultiDomainResolver) GetAPIKeys() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.dedupedAPIKeys, r.keyVersion
+	return r.dedupedAPIKeys
 }
 
 // GetAPIKeyVersion get the version of the keys
@@ -356,10 +357,10 @@ func (r *MultiDomainResolver) UpdateAPIKeys(configPath string, newKeys []utils.A
 }
 
 // GetAPIKeysInfo returns the list of endpoints associated with this `DomainResolver`
-func (r *MultiDomainResolver) GetAPIKeysInfo() []utils.APIKeys {
+func (r *MultiDomainResolver) GetAPIKeysInfo() ([]utils.APIKeys, int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.apiKeys
+	return r.apiKeys, r.keyVersion
 }
 
 // Resolve returns the destiation for a given request endpoint
@@ -466,8 +467,8 @@ func (r *LocalDomainResolver) GetBaseDomain() string {
 }
 
 // GetAPIKeys is not implemented for LocalDomainResolver
-func (r *LocalDomainResolver) GetAPIKeys() ([]string, int) {
-	return []string{}, 0
+func (r *LocalDomainResolver) GetAPIKeys() []string {
+	return []string{}
 }
 
 // GetAPIKeyVersion get the version of the keys
@@ -476,8 +477,8 @@ func (r *LocalDomainResolver) GetAPIKeyVersion() int {
 }
 
 // GetAPIKeysInfo returns the list of endpoints associated with this `DomainResolver`
-func (r *LocalDomainResolver) GetAPIKeysInfo() []utils.APIKeys {
-	return []utils.APIKeys{}
+func (r *LocalDomainResolver) GetAPIKeysInfo() ([]utils.APIKeys, int) {
+	return []utils.APIKeys{}, 0
 }
 
 // SetBaseDomain sets the base domain to a new value
