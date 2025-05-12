@@ -120,6 +120,7 @@ type PhysicalDevice struct {
 
 var _ Device = &PhysicalDevice{}
 
+// MIGDevice represents a MIG device, implementing Device and providing common device info
 type MIGDevice struct {
 	SafeDevice
 	DeviceInfo
@@ -231,6 +232,7 @@ func (d *PhysicalDevice) GetDeviceInfo() *DeviceInfo {
 	return &d.DeviceInfo
 }
 
+// NewMIGDevice creates a new Device from the nvml.Device and caches some properties.
 func NewMIGDevice(dev SafeDevice) (*MIGDevice, error) {
 	device := &MIGDevice{
 		SafeDevice: dev,
@@ -251,6 +253,7 @@ func NewMIGDevice(dev SafeDevice) (*MIGDevice, error) {
 	return device, nil
 }
 
+// GetDeviceInfo returns the common device info for a GPU device
 func (d *MIGDevice) GetDeviceInfo() *DeviceInfo {
 	return &d.DeviceInfo
 }
