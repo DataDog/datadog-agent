@@ -45,6 +45,7 @@ var bpfMapNames = []string{
 	"fb_dns_stats",
 	"fd_link_pid",
 	"filter_policy",
+	"filtered_dns_rc",
 	"flow_pid",
 	"global_rate_lim",
 	"imds_event",
