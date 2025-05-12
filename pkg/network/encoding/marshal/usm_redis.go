@@ -18,10 +18,10 @@ import (
 
 type redisEncoder struct {
 	redisAggregationsBuilder *model.DatabaseAggregationsBuilder
-	byConnection             *USMConnectionIndex[redis.Key, *redis.RequestStat]
+	byConnection             *USMConnectionIndex[redis.Key, *redis.RequestStats]
 }
 
-func newRedisEncoder(redisPayloads map[redis.Key]*redis.RequestStat) *redisEncoder {
+func newRedisEncoder(redisPayloads map[redis.Key]*redis.RequestStats) *redisEncoder {
 	if len(redisPayloads) == 0 {
 		return nil
 	}
@@ -51,13 +51,50 @@ func (e *redisEncoder) WriteRedisAggregations(c network.ConnectionStats, builder
 	return staticTags
 }
 
-func (e *redisEncoder) encodeData(connectionData *USMConnectionData[redis.Key, *redis.RequestStat], w io.Writer) uint64 {
+func (e *redisEncoder) encodeData(connectionData *USMConnectionData[redis.Key, *redis.RequestStats], w io.Writer) uint64 {
 	var staticTags uint64
 	e.redisAggregationsBuilder.Reset(w)
 
-	for range connectionData.Data {
+	for _, kv := range connectionData.Data {
+		key := kv.Key
+		errorToStats := kv.Value
 		e.redisAggregationsBuilder.AddAggregations(func(builder *model.DatabaseStatsBuilder) {
-			builder.SetRedis(func(*model.RedisStatsBuilder) {})
+			builder.SetRedis(func(aggregationBuilder *model.RedisStatsBuilder) {
+				switch key.Command {
+				case redis.GetCommand:
+					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisGetCommand))
+				case redis.SetCommand:
+					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisSetCommand))
+				default:
+					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisUnknownCommand))
+				}
+				aggregationBuilder.SetTruncated(key.Truncated)
+				aggregationBuilder.SetKeyName(key.KeyName)
+
+				for isErr, stats := range errorToStats.ErrorToStats {
+					if stats.Count == 0 {
+						continue
+					}
+					staticTags |= stats.StaticTags
+					aggregationBuilder.AddErrorToStats(func(errorToStatsBuilder *model.RedisStats_ErrorToStatsEntryBuilder) {
+						if !isErr {
+							errorToStatsBuilder.SetKey(int32(model.RedisErrorType_RedisNoError))
+						} else {
+							errorToStatsBuilder.SetKey(int32(model.RedisErrorType_RedisErrorTypeUnknown))
+						}
+						errorToStatsBuilder.SetValue(func(statsBuilder *model.RedisStatsEntryBuilder) {
+							statsBuilder.SetCount(uint32(stats.Count))
+							if latencies := stats.Latencies; latencies != nil {
+								statsBuilder.SetLatencies(func(b *bytes.Buffer) {
+									latencies.EncodeProto(b)
+								})
+							} else {
+								statsBuilder.SetFirstLatencySample(stats.FirstLatencySample)
+							}
+						})
+					})
+				}
+			})
 		})
 	}
 
