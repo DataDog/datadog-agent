@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Network devices autodiscovery now deduplicates devices based on their name and uptime.
+    Network devices autodiscovery now deduplicates devices based on their name, description and uptime with config flag `use_deduplication`.

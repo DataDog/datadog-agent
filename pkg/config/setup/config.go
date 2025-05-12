@@ -440,6 +440,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("network_devices.autodiscovery.ping.interval")
 	config.SetKnown("network_devices.autodiscovery.ping.timeout")
 	config.SetKnown("network_devices.autodiscovery.ping.linux.use_raw_socket")
+	config.SetKnown("network_devices.autodiscovery.use_deduplication")
 
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)

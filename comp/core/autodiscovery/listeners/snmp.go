@@ -252,6 +252,10 @@ func (l *SNMPListener) checkDeviceReachable(authentication snmp.Authentication, 
 }
 
 func (l *SNMPListener) checkDeviceInfo(authentication snmp.Authentication, port uint16, deviceIP string) devicededuper.DeviceInfo {
+	if !l.config.Deduplicate {
+		return devicededuper.DeviceInfo{}
+	}
+
 	params, err := authentication.BuildSNMPParams(deviceIP, port)
 	if err != nil {
 		log.Errorf("Error building params for device %s: %v", deviceIP, err)
@@ -466,6 +470,9 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 }
 
 func (l *SNMPListener) registerDedupedDevices() {
+	if !l.config.Deduplicate {
+		return
+	}
 	for _, pendingSvc := range l.deviceDeduper.GetDedupedDevices() {
 		l.registerService(pendingSvc)
 	}
