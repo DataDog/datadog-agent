@@ -168,7 +168,7 @@ func createCheck() check.Check {
 		return partitionsFalse, nil
 	}).WithDiskUsage(func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
 		return usageData[mountpoint], nil
-	}).WithDiskIOCounters(func(_names ...string) (map[string]gopsutil_disk.IOCountersStat, error) {
+	}).WithDiskIOCounters(func(_ ...string) (map[string]gopsutil_disk.IOCountersStat, error) {
 		return ioCountersData, nil
 	})
 	return diskCheck

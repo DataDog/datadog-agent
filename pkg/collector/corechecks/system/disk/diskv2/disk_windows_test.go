@@ -42,7 +42,7 @@ func createWindowsCheck() check.Check {
 				Fstype:     "NTFS",
 				Opts:       []string{"rw", "relatime"},
 			}}, nil
-	}).WithDiskUsage(func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+	}).WithDiskUsage(func(_ string) (*gopsutil_disk.UsageStat, error) {
 		return &gopsutil_disk.UsageStat{
 			Path:              "D:\\",
 			Fstype:            "NTFS",
@@ -54,6 +54,18 @@ func createWindowsCheck() check.Check {
 			InodesUsed:        500000,
 			InodesFree:        500000,
 			InodesUsedPercent: 50.0,
+		}, nil
+	}).WithDiskIOCounters(func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
+		return map[string]gopsutil_disk.IOCountersStat{
+			"\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\": {
+				Name:       "sda1",
+				ReadCount:  100,
+				WriteCount: 200,
+				ReadBytes:  1048576,
+				WriteBytes: 2097152,
+				ReadTime:   300,
+				WriteTime:  450,
+			},
 		}, nil
 	})
 	return diskCheck
@@ -76,19 +88,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllUsageMetricsAreRe
 
 func TestGivenADiskCheckWithLowercaseDeviceTagConfigured_WhenCheckRuns_ThenLowercaseDevicesAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := createWindowsCheck().(*diskv2.Check).WithDiskIOCounters(func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
-		return map[string]gopsutil_disk.IOCountersStat{
-			"\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\": {
-				Name:       "sda1",
-				ReadCount:  100,
-				WriteCount: 200,
-				ReadBytes:  1048576,
-				WriteBytes: 2097152,
-				ReadTime:   300,
-				WriteTime:  450,
-			},
-		}, nil
-	})
+	diskCheck := createWindowsCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("lowercase_device_tag: true"))
