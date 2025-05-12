@@ -6,35 +6,41 @@
 // Package model contains types for service discovery.
 package model
 
+// TracerMetadata holds tracer metadata for a service instance.
+type TracerMetadata struct {
+	ServiceName string `json:"service_name,omitempty"`
+	RuntimeID   string `json:"runtime_id,omitempty"`
+	// Add more fields as needed in the future
+}
+
 // Service represents a listening process.
 type Service struct {
-	PID                        int      `json:"pid"`
-	Name                       string   `json:"name"`
-	GeneratedName              string   `json:"generated_name"`
-	GeneratedNameSource        string   `json:"generated_name_source"`
-	AdditionalGeneratedNames   []string `json:"additional_generated_names"`
-	ContainerServiceName       string   `json:"container_service_name"`
-	ContainerServiceNameSource string   `json:"container_service_name_source"`
-	ContainerTags              []string `json:"container_tags,omitempty"`
-	TracerServiceNames         []string `json:"tracer_service_names,omitempty"`
-	TracerRuntimeIDs           []string `json:"tracer_runtime_ids,omitempty"`
-	DDService                  string   `json:"dd_service"`
-	DDServiceInjected          bool     `json:"dd_service_injected"`
-	CheckedContainerData       bool     `json:"checked_container_data"`
-	Ports                      []uint16 `json:"ports"`
-	APMInstrumentation         string   `json:"apm_instrumentation"`
-	Language                   string   `json:"language"`
-	Type                       string   `json:"service_type"`
-	RSS                        uint64   `json:"rss"`
-	CommandLine                []string `json:"cmdline"`
-	StartTimeMilli             uint64   `json:"start_time"`
-	CPUCores                   float64  `json:"cpu_cores"`
-	ContainerID                string   `json:"container_id"`
-	LastHeartbeat              int64    `json:"last_heartbeat"`
-	RxBytes                    uint64   `json:"rx_bytes"`
-	TxBytes                    uint64   `json:"tx_bytes"`
-	RxBps                      float64  `json:"rx_bps"`
-	TxBps                      float64  `json:"tx_bps"`
+	PID                        int              `json:"pid"`
+	Name                       string           `json:"name"`
+	GeneratedName              string           `json:"generated_name"`
+	GeneratedNameSource        string           `json:"generated_name_source"`
+	AdditionalGeneratedNames   []string         `json:"additional_generated_names"`
+	ContainerServiceName       string           `json:"container_service_name"`
+	ContainerServiceNameSource string           `json:"container_service_name_source"`
+	ContainerTags              []string         `json:"container_tags,omitempty"`
+	TracerMetadata             []TracerMetadata `json:"tracer_metadata,omitempty"`
+	DDService                  string           `json:"dd_service"`
+	DDServiceInjected          bool             `json:"dd_service_injected"`
+	CheckedContainerData       bool             `json:"checked_container_data"`
+	Ports                      []uint16         `json:"ports"`
+	APMInstrumentation         string           `json:"apm_instrumentation"`
+	Language                   string           `json:"language"`
+	Type                       string           `json:"service_type"`
+	RSS                        uint64           `json:"rss"`
+	CommandLine                []string         `json:"cmdline"`
+	StartTimeMilli             uint64           `json:"start_time"`
+	CPUCores                   float64          `json:"cpu_cores"`
+	ContainerID                string           `json:"container_id"`
+	LastHeartbeat              int64            `json:"last_heartbeat"`
+	RxBytes                    uint64           `json:"rx_bytes"`
+	TxBytes                    uint64           `json:"tx_bytes"`
+	RxBps                      float64          `json:"rx_bps"`
+	TxBps                      float64          `json:"tx_bps"`
 }
 
 // ServicesResponse is the response for the system-probe /discovery/check endpoint.

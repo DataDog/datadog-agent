@@ -224,8 +224,14 @@ func (s *linuxTestSuite) assertService(t *testing.T, c *assert.CollectT, foundMa
 		assert.Equal(c, expected.ddService, found.Payload.DDService, "service %q: DD service", expected.name)
 		assert.Equal(c, expected.serviceNameSource, found.Payload.ServiceNameSource, "service %q: service name source", expected.name)
 		if len(expected.tracerServiceNames) > 0 {
-			assert.Equal(c, expected.tracerServiceNames, found.Payload.TracerServiceNames, "service %q: tracer service names", expected.name)
-			assert.Len(c, found.Payload.TracerRuntimeIDs, len(expected.tracerServiceNames), "service %q: tracer runtime ids", expected.name)
+			var foundServiceNames []string
+			var foundRuntimeIDs []string
+			for _, tm := range found.Payload.TracerMetadata {
+				foundServiceNames = append(foundServiceNames, tm.ServiceName)
+				foundRuntimeIDs = append(foundRuntimeIDs, tm.RuntimeID)
+			}
+			assert.Equal(c, expected.tracerServiceNames, foundServiceNames, "service %q: tracer service names", expected.name)
+			assert.Len(c, foundRuntimeIDs, len(expected.tracerServiceNames), "service %q: tracer runtime ids", expected.name)
 		}
 		assert.NotZero(c, found.Payload.RSSMemory, "service %q: expected non-zero memory usage", expected.name)
 	} else {

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
@@ -20,23 +21,22 @@ type ServiceDiscoveryPayload struct {
 	RequestType string `json:"request_type"`
 	APIVersion  string `json:"api_version"`
 	Payload     struct {
-		NamingSchemaVersion  string   `json:"naming_schema_version"`
-		ServiceName          string   `json:"service_name"`
-		GeneratedServiceName string   `json:"generated_service_name"`
-		TracerServiceNames   []string `json:"tracer_service_names"`
-		TracerRuntimeIDs     []string `json:"tracer_runtime_ids"`
-		DDService            string   `json:"dd_service,omitempty"`
-		HostName             string   `json:"host_name"`
-		Env                  string   `json:"env"`
-		ServiceLanguage      string   `json:"service_language"`
-		ServiceType          string   `json:"service_type"`
-		StartTime            int64    `json:"start_time"`
-		LastSeen             int64    `json:"last_seen"`
-		APMInstrumentation   string   `json:"apm_instrumentation"`
-		ServiceNameSource    string   `json:"service_name_source,omitempty"`
-		RSSMemory            uint64   `json:"rss_memory"`
-		CPUCores             float64  `json:"cpu_cores"`
-		ContainerID          string   `json:"container_id"`
+		NamingSchemaVersion  string                 `json:"naming_schema_version"`
+		ServiceName          string                 `json:"service_name"`
+		GeneratedServiceName string                 `json:"generated_service_name"`
+		TracerMetadata       []model.TracerMetadata `json:"tracer_metadata"`
+		DDService            string                 `json:"dd_service,omitempty"`
+		HostName             string                 `json:"host_name"`
+		Env                  string                 `json:"env"`
+		ServiceLanguage      string                 `json:"service_language"`
+		ServiceType          string                 `json:"service_type"`
+		StartTime            int64                  `json:"start_time"`
+		LastSeen             int64                  `json:"last_seen"`
+		APMInstrumentation   string                 `json:"apm_instrumentation"`
+		ServiceNameSource    string                 `json:"service_name_source,omitempty"`
+		RSSMemory            uint64                 `json:"rss_memory"`
+		CPUCores             float64                `json:"cpu_cores"`
+		ContainerID          string                 `json:"container_id"`
 	} `json:"payload"`
 }
 

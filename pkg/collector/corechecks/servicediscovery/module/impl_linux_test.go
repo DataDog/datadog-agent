@@ -461,8 +461,7 @@ func TestServiceName(t *testing.T) {
 	}, 30*time.Second, 100*time.Millisecond)
 
 	// Verify tracer metadata
-	assert.Equal(t, []string{trMeta.ServiceName}, startEvent.TracerServiceNames)
-	assert.Equal(t, []string{trMeta.RuntimeID}, startEvent.TracerRuntimeIDs)
+	assert.Equal(t, []model.TracerMetadata{{ServiceName: trMeta.ServiceName, RuntimeID: trMeta.RuntimeID}}, startEvent.TracerMetadata)
 	assert.Equal(t, string(language.Go), startEvent.Language)
 }
 

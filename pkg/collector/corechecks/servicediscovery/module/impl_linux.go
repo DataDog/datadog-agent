@@ -72,8 +72,7 @@ type serviceInfo struct {
 	containerServiceNameSource string
 	ddServiceName              string
 	ddServiceInjected          bool
-	tracerServiceNames         []string
-	tracerRuntimeIDs           []string
+	tracerMetadata             []model.TracerMetadata
 	ports                      []uint16
 	checkedContainerData       bool
 	language                   language.Language
@@ -109,8 +108,7 @@ func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Servi
 	out.ContainerServiceNameSource = i.containerServiceNameSource
 	out.DDService = i.ddServiceName
 	out.DDServiceInjected = i.ddServiceInjected
-	out.TracerServiceNames = i.tracerServiceNames
-	out.TracerRuntimeIDs = i.tracerRuntimeIDs
+	out.TracerMetadata = i.tracerMetadata
 	out.Ports = i.ports
 	out.APMInstrumentation = string(i.apmInstrumentation)
 	out.Language = string(i.language)
@@ -598,13 +596,14 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 		return nil, err
 	}
 
-	var tracerServiceNames []string
-	var tracerRuntimeIDs []string
+	var tracerMetadataArr []model.TracerMetadata
 
 	tracerMetadata, err := tracermetadata.GetTracerMetadata(int(pid), kernel.ProcFSRoot())
 	if err == nil {
-		tracerServiceNames = append(tracerServiceNames, tracerMetadata.ServiceName)
-		tracerRuntimeIDs = append(tracerRuntimeIDs, tracerMetadata.RuntimeID)
+		tracerMetadataArr = append(tracerMetadataArr, model.TracerMetadata{
+			ServiceName: tracerMetadata.ServiceName,
+			RuntimeID:   tracerMetadata.RuntimeID,
+		})
 	}
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
@@ -641,8 +640,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 		generatedNameSource:      string(nameMeta.Source),
 		additionalGeneratedNames: nameMeta.AdditionalNames,
 		ddServiceName:            nameMeta.DDService,
-		tracerServiceNames:       tracerServiceNames,
-		tracerRuntimeIDs:         tracerRuntimeIDs,
+		tracerMetadata:           tracerMetadataArr,
 		language:                 lang,
 		apmInstrumentation:       apmInstrumentation,
 		ddServiceInjected:        nameMeta.DDServiceInjected,

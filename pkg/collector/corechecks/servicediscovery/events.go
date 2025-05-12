@@ -27,36 +27,35 @@ const (
 )
 
 type eventPayload struct {
-	NamingSchemaVersion        string   `json:"naming_schema_version"`
-	ServiceName                string   `json:"service_name"`
-	GeneratedServiceName       string   `json:"generated_service_name"`
-	GeneratedServiceNameSource string   `json:"generated_service_name_source,omitempty"`
-	AdditionalGeneratedNames   []string `json:"additional_generated_names,omitempty"`
-	ContainerServiceName       string   `json:"container_service_name,omitempty"`
-	ContainerServiceNameSource string   `json:"container_service_name_source,omitempty"`
-	ContainerTags              []string `json:"container_tags,omitempty"`
-	TracerServiceNames         []string `json:"tracer_service_names,omitempty"`
-	TracerRuntimeIDs           []string `json:"tracer_runtime_ids,omitempty"`
-	DDService                  string   `json:"dd_service,omitempty"`
-	HostName                   string   `json:"host_name"`
-	Env                        string   `json:"env"`
-	ServiceLanguage            string   `json:"service_language"`
-	ServiceType                string   `json:"service_type"`
-	StartTime                  int64    `json:"start_time"`
-	StartTimeMilli             int64    `json:"start_time_milli"`
-	LastSeen                   int64    `json:"last_seen"`
-	APMInstrumentation         string   `json:"apm_instrumentation"`
-	ServiceNameSource          string   `json:"service_name_source,omitempty"`
-	Ports                      []uint16 `json:"ports"`
-	PID                        int      `json:"pid"`
-	CommandLine                []string `json:"command_line"`
-	RSSMemory                  uint64   `json:"rss_memory"`
-	CPUCores                   float64  `json:"cpu_cores"`
-	ContainerID                string   `json:"container_id"`
-	RxBytes                    uint64   `json:"rx_bytes"`
-	TxBytes                    uint64   `json:"tx_bytes"`
-	RxBps                      float64  `json:"rx_bps"`
-	TxBps                      float64  `json:"tx_bps"`
+	NamingSchemaVersion        string                 `json:"naming_schema_version"`
+	ServiceName                string                 `json:"service_name"`
+	GeneratedServiceName       string                 `json:"generated_service_name"`
+	GeneratedServiceNameSource string                 `json:"generated_service_name_source,omitempty"`
+	AdditionalGeneratedNames   []string               `json:"additional_generated_names,omitempty"`
+	ContainerServiceName       string                 `json:"container_service_name,omitempty"`
+	ContainerServiceNameSource string                 `json:"container_service_name_source,omitempty"`
+	ContainerTags              []string               `json:"container_tags,omitempty"`
+	TracerMetadata             []model.TracerMetadata `json:"tracer_metadata,omitempty"`
+	DDService                  string                 `json:"dd_service,omitempty"`
+	HostName                   string                 `json:"host_name"`
+	Env                        string                 `json:"env"`
+	ServiceLanguage            string                 `json:"service_language"`
+	ServiceType                string                 `json:"service_type"`
+	StartTime                  int64                  `json:"start_time"`
+	StartTimeMilli             int64                  `json:"start_time_milli"`
+	LastSeen                   int64                  `json:"last_seen"`
+	APMInstrumentation         string                 `json:"apm_instrumentation"`
+	ServiceNameSource          string                 `json:"service_name_source,omitempty"`
+	Ports                      []uint16               `json:"ports"`
+	PID                        int                    `json:"pid"`
+	CommandLine                []string               `json:"command_line"`
+	RSSMemory                  uint64                 `json:"rss_memory"`
+	CPUCores                   float64                `json:"cpu_cores"`
+	ContainerID                string                 `json:"container_id"`
+	RxBytes                    uint64                 `json:"rx_bytes"`
+	TxBytes                    uint64                 `json:"tx_bytes"`
+	RxBps                      float64                `json:"rx_bps"`
+	TxBps                      float64                `json:"tx_bps"`
 }
 
 type event struct {
@@ -94,8 +93,7 @@ func (ts *telemetrySender) newEvent(t eventType, service model.Service) *event {
 			ContainerServiceName:       service.ContainerServiceName,
 			ContainerServiceNameSource: service.ContainerServiceNameSource,
 			ContainerTags:              service.ContainerTags,
-			TracerServiceNames:         service.TracerServiceNames,
-			TracerRuntimeIDs:           service.TracerRuntimeIDs,
+			TracerMetadata:             service.TracerMetadata,
 			DDService:                  service.DDService,
 			HostName:                   host,
 			Env:                        env,
