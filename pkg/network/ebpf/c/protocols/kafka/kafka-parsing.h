@@ -1626,7 +1626,12 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         return false;
     }
 
-    // Report api version hits telemetry before checking whether the api version is supported
+    // Check if the api key and version are supported
+    if(!is_supported_kafka_api_version(kafka_header.api_key, kafka_header.api_version)) {
+        return false;
+    }
+
+    // Report api version hits telemetry after checking whether the api version is supported (to avoid false positives)
     switch (kafka_header.api_key) {
         case KAFKA_PRODUCE:
             update_classified_produce_api_version_hits_telemetry(kafka_tel, kafka_header.api_version);
@@ -1636,10 +1641,6 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
             break;
     }
 
-    // Check if the api key and version are supported
-    if(!is_supported_kafka_api_version(kafka_header.api_key, kafka_header.api_version)) {
-        return false;
-    }
 
     kafka_transaction->request_started = bpf_ktime_get_ns();
     kafka_transaction->response_last_seen = 0;
