@@ -41,6 +41,7 @@ type Launcher struct {
 	addedSources        chan *sources.LogSource
 	removedSources      chan *sources.LogSource
 	activeSources       []*sources.LogSource
+	activeSourcesMutex  sync.Mutex
 	tailingLimit        int
 	fileProvider        *fileprovider.FileProvider
 	tailers             *tailers.TailerContainer[*tailer.Tailer]
@@ -159,7 +160,12 @@ func (s *Launcher) cleanup() {
 func (s *Launcher) getFiles() {
 	defer s.wg.Done()
 
-	s.filesChan <- s.fileProvider.FilesToTail(s.validatePodContainerID, s.activeSources)
+	s.activeSourcesMutex.Lock()
+	activeSourcesCopy := make([]*sources.LogSource, len(s.activeSources))
+	copy(activeSourcesCopy, s.activeSources)
+	s.activeSourcesMutex.Unlock()
+
+	s.filesChan <- s.fileProvider.FilesToTail(s.validatePodContainerID, activeSourcesCopy)
 }
 
 // scan checks all the files we're expected to tail, compares them to the currently tailed files,
@@ -167,25 +173,25 @@ func (s *Launcher) getFiles() {
 // For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
 // The Scanner needs to stop that previous tailer, and start a new one for the new file.
 func (s *Launcher) scan(files []*tailer.File) {
-	filesCopy := make([]*tailer.File, len(files))
-	copy(filesCopy, files)
+	tailersFilesCopy := make([]*tailer.File, len(files))
+	copy(tailersFilesCopy, files)
 
 	s.addedSourceTailersMutex.Lock()
 	defer s.addedSourceTailersMutex.Unlock()
 
 	// Union so scan doesn't remove files added by addSource but not yet found by FilesToTail
-	filesCopy = append(filesCopy, s.addedSourceTailers...)
+	tailersFilesCopy = append(tailersFilesCopy, s.addedSourceTailers...)
 	s.addedSourceTailers = s.addedSourceTailers[:0]
 
 	filesTailed := make(map[string]bool)
 	var allFiles []string
 
-	log.Debugf("Scan - got %d files from FilesToTail and currently tailing %d files\n", len(filesCopy), s.tailers.Count())
+	log.Debugf("Scan - got %d files from FilesToTail and currently tailing %d files\n", len(tailersFilesCopy), s.tailers.Count())
 
 	// Pass 1 - Compare 'files' to our current set of tailed files. If any no longer need to be tailed,
 	// stop the tailers.
 	// Defer creation of new tailers until second pass.
-	for _, file := range filesCopy {
+	for _, file := range tailersFilesCopy {
 		allFiles = append(allFiles, file.Path)
 		// We're using generated key here: in case this file has been found while
 		// scanning files for container, the key will use the format:
@@ -240,7 +246,7 @@ func (s *Launcher) scan(files []*tailer.File) {
 	tailersLen := s.tailers.Count()
 	log.Debugf("After stopping tailers, there are %d tailers running.\n", tailersLen)
 
-	for _, file := range filesCopy {
+	for _, file := range tailersFilesCopy {
 		scanKey := file.GetScanKey()
 		isTailed := s.tailers.Contains(scanKey)
 		if !isTailed && tailersLen < s.tailingLimit {
@@ -277,6 +283,9 @@ func (s *Launcher) cleanUpRotatedTailers() {
 
 // addSource keeps track of the new source and launch new tailers for this source.
 func (s *Launcher) addSource(source *sources.LogSource) {
+	s.activeSourcesMutex.Lock()
+	defer s.activeSourcesMutex.Unlock()
+
 	s.activeSources = append(s.activeSources, source)
 	s.launchTailers(source)
 }
