@@ -53,14 +53,12 @@ func RunServer(t testing.TB, serverAddr, serverPort string, enableTLS bool) erro
 	require.NoError(t, err, "failed to create pattern scanner")
 
 	dockerCfg := dockerutils.NewComposeConfig(
-		dockerutils.WithBaseConfigForCompose(
-			dockerutils.WithName("amqp"),
-			dockerutils.WithTimeout(dockerutils.DefaultTimeout),
-			dockerutils.WithRetries(dockerutils.DefaultRetries),
-			dockerutils.WithPatternScanner(scanner),
+		dockerutils.NewBaseConfig(
+			"amqp",
+			scanner,
 			dockerutils.WithEnv(env),
 		),
-		dockerutils.WithFile(filepath.Join(dir, "testdata", "docker-compose.yml")))
+		filepath.Join(dir, "testdata", "docker-compose.yml"))
 	return dockerutils.Run(t, dockerCfg)
 }
 

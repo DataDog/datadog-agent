@@ -39,15 +39,12 @@ func RunServer(t testing.TB, serverAddress, serverPort string) error {
 	scanner, err := globalutils.NewScanner(regexp.MustCompile(fmt.Sprintf(".*Waiting for connections.*port.*:%s.*", serverPort)), globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
 
-	base := dockerutils.WithBaseConfigForCompose(
-		dockerutils.WithName("mongo"),
-		dockerutils.WithTimeout(dockerutils.DefaultTimeout),
-		dockerutils.WithRetries(dockerutils.DefaultRetries),
-		dockerutils.WithPatternScanner(scanner),
-		dockerutils.WithEnv(env),
-	)
-
-	dockerCfg := dockerutils.NewComposeConfig(base,
-		dockerutils.WithFile(filepath.Join(dir, "testdata", "docker-compose.yml")))
+	dockerCfg := dockerutils.NewComposeConfig(
+		dockerutils.NewBaseConfig(
+			"mongo",
+			scanner,
+			dockerutils.WithEnv(env),
+		),
+		filepath.Join(dir, "testdata", "docker-compose.yml"))
 	return dockerutils.Run(t, dockerCfg)
 }

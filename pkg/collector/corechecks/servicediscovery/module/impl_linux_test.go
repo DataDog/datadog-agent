@@ -923,14 +923,11 @@ func TestDocker(t *testing.T) {
 	require.NoError(t, err, "failed to create pattern scanner")
 
 	dockerCfg := dockerutils.NewComposeConfig(
-		dockerutils.WithBaseConfigForCompose(
-			dockerutils.WithName("foo-server"),
-			dockerutils.WithTimeout(dockerutils.DefaultTimeout),
-			dockerutils.WithRetries(dockerutils.DefaultRetries),
-			dockerutils.WithPatternScanner(scanner),
-			dockerutils.WithEnv(dockerutils.EmptyEnv),
+		dockerutils.NewBaseConfig(
+			"foo-server",
+			scanner,
 		),
-		dockerutils.WithFile(filepath.Join(dir, "testdata", "docker-compose.yml")))
+		filepath.Join(dir, "testdata", "docker-compose.yml"))
 	err = dockerutils.Run(t, dockerCfg)
 	require.NoError(t, err)
 

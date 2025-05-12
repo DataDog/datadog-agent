@@ -58,32 +58,32 @@ type LifecycleConfig interface {
 }
 
 // Timeout returns the timeout to be used when running a container/s
-func (b baseConfig) Timeout() time.Duration {
+func (b BaseConfig) Timeout() time.Duration {
 	return b.timeout
 }
 
 // Retries returns the number of retries to be used when trying to start the container/s
-func (b baseConfig) Retries() int {
+func (b BaseConfig) Retries() int {
 	return b.retries
 }
 
 // PatternScanner returns the patternScanner object used to match logs for readiness and completion of the target container/s
-func (b baseConfig) PatternScanner() *testutil.PatternScanner {
+func (b BaseConfig) PatternScanner() *testutil.PatternScanner {
 	return b.patternScanner
 }
 
 // Env returns the environment variables to set for the container/s
-func (b baseConfig) Env() []string {
+func (b BaseConfig) Env() []string {
 	return b.env
 }
 
 // Name returns the name of the docker container or a friendly name for the docker-compose setup
-func (b baseConfig) Name() string {
+func (b BaseConfig) Name() string {
 	return b.name
 }
 
-// baseConfig contains shared configurations for both Docker and Docker Compose.
-type baseConfig struct {
+// BaseConfig contains shared configurations for both Docker and Docker Compose.
+type BaseConfig struct {
 	name           string                   // Container name for docker or an alias for docker-compose
 	timeout        time.Duration            // Timeout for the entire operation.
 	retries        int                      // Number of retries for starting.
@@ -93,7 +93,7 @@ type baseConfig struct {
 
 // runConfig contains specific configurations for Docker containers, embedding BaseConfig.
 type runConfig struct {
-	baseConfig                    // Embed general configuration.
+	BaseConfig                    // Embed general configuration.
 	ImageName   string            // Docker image to use.
 	Binary      string            // Binary to run inside the container.
 	BinaryArgs  []string          // Arguments for the binary.
@@ -145,7 +145,7 @@ func (r runConfig) commandArgs(t subCommandType) []string {
 
 // composeConfig contains specific configurations for Docker Compose, embedding BaseConfig.
 type composeConfig struct {
-	baseConfig        // Embed general configuration.
+	BaseConfig        // Embed general configuration.
 	File       string // Path to the docker-compose file.
 }
 
@@ -161,20 +161,6 @@ func (c composeConfig) commandArgs(t subCommandType) []string {
 		return []string{"-f", c.File, "down", "--remove-orphans", "--volumes"}
 	default:
 		return nil
-	}
-}
-
-// WithImageName sets the Docker image name for the container configuration.
-func WithImageName(imageName string) RunConfigOption {
-	return func(c *runConfig) {
-		c.ImageName = imageName
-	}
-}
-
-// WithBinary sets the binary to run inside the container.
-func WithBinary(binary string) RunConfigOption {
-	return func(c *runConfig) {
-		c.Binary = binary
 	}
 }
 
@@ -207,32 +193,37 @@ func WithPIDMode(pidMode string) RunConfigOption {
 }
 
 // NewRunConfig creates a new runConfig instance for a single docker container.
-func NewRunConfig(opts ...RunConfigOption) LifecycleConfig {
-	cfg := &runConfig{}
+// The baseConfig is the base configuration for the docker container.
+// imageName is the name of the docker image to use.
+// binary is the binary to run inside the container.
+// baseConfig, imageName and binary are required.
+// opts are the optional parameters for the runConfig.
+func NewRunConfig(baseConfig BaseConfig, imageName string, binary string, opts ...RunConfigOption) LifecycleConfig {
+	cfg := &runConfig{
+		BaseConfig: baseConfig,
+		ImageName:  imageName,
+		Binary:     binary,
+	}
 	for _, opt := range opts {
 		opt(cfg)
 	}
 	return *cfg
-}
-
-// WithFile sets the path to the docker-compose file.
-func WithFile(file string) ComposeConfigOption {
-	return func(c *composeConfig) {
-		c.File = file
-	}
 }
 
 // NewComposeConfig creates a new composeConfig instance for the docker-compose.
-func NewComposeConfig(opts ...ComposeConfigOption) LifecycleConfig {
-	cfg := &composeConfig{}
-	for _, opt := range opts {
-		opt(cfg)
+// The baseConfig is the base configuration for the docker-compose setup.
+// The file is the path to the docker-compose file. Both are required.
+// NewComposeConfig does not have optional parameters.
+func NewComposeConfig(baseConfig BaseConfig, file string) LifecycleConfig {
+	cfg := &composeConfig{
+		BaseConfig: baseConfig,
+		File:       file,
 	}
-	return *cfg
+	return cfg
 }
 
 // BaseConfigOption represents options for the base configuration for all docker lifecycle configs
-type BaseConfigOption func(*baseConfig)
+type BaseConfigOption func(*BaseConfig)
 
 // RunConfigOption represents options for the run configuration for a docker container
 type RunConfigOption func(*runConfig)
@@ -240,59 +231,37 @@ type RunConfigOption func(*runConfig)
 // ComposeConfigOption represents options for the compose configuration for a docker-compose setup
 type ComposeConfigOption func(*composeConfig)
 
-// WithName sets the name of the container or docker-compose setup.
-func WithName(name string) BaseConfigOption {
-	return func(c *baseConfig) {
-		c.name = name
-	}
-}
-
 // WithTimeout sets the timeout for the container operation.
 func WithTimeout(timeout time.Duration) BaseConfigOption {
-	return func(c *baseConfig) {
+	return func(c *BaseConfig) {
 		c.timeout = timeout
 	}
 }
 
 // WithRetries sets the number of retries for starting the container.
 func WithRetries(retries int) BaseConfigOption {
-	return func(c *baseConfig) {
+	return func(c *BaseConfig) {
 		c.retries = retries
-	}
-}
-
-// WithPatternScanner sets the pattern scanner for monitoring container logs.
-func WithPatternScanner(patternScanner *testutil.PatternScanner) BaseConfigOption {
-	return func(c *baseConfig) {
-		c.patternScanner = patternScanner
 	}
 }
 
 // WithEnv sets the environment variables for the container.
 func WithEnv(env []string) BaseConfigOption {
-	return func(c *baseConfig) {
+	return func(c *BaseConfig) {
 		c.env = env
 	}
 }
 
-// WithBaseConfigForCompose allows setting the base configuration for a docker-compose setup
-func WithBaseConfigForCompose(opts ...BaseConfigOption) ComposeConfigOption {
-	return func(c *composeConfig) {
-		c.baseConfig = newBaseConfig(opts...)
-	}
-}
-
-// WithBaseConfigForRun allows setting the base configuration for a docker container
-func WithBaseConfigForRun(opts ...BaseConfigOption) RunConfigOption {
-	return func(c *runConfig) {
-		c.baseConfig = newBaseConfig(opts...)
-	}
-}
-
-func newBaseConfig(opts ...BaseConfigOption) baseConfig {
-	cfg := baseConfig{
-		timeout: DefaultTimeout,
-		retries: DefaultRetries,
+// NewBaseConfig creates a new base configuration for a docker container or docker-compose setup.
+// The name is used to identify the container or docker-compose setup.
+// The patternScanner is used to match logs for readiness and completion of the target container/s.
+// The opts are used to configure optional parameters for the base configuration.
+func NewBaseConfig(name string, patternScanner *testutil.PatternScanner, opts ...BaseConfigOption) BaseConfig {
+	cfg := BaseConfig{
+		name:           name,
+		patternScanner: patternScanner,
+		timeout:        DefaultTimeout,
+		retries:        DefaultRetries,
 	}
 	for _, opt := range opts {
 		opt(&cfg)

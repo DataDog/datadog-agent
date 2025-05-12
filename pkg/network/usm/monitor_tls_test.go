@@ -113,14 +113,11 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 				require.NoError(t, err, "failed to create pattern scanner")
 
 				dockerCfg := dockerutils.NewComposeConfig(
-					dockerutils.WithBaseConfigForCompose(
-						dockerutils.WithName("musl-alpine"),
-						dockerutils.WithTimeout(dockerutils.DefaultTimeout),
-						dockerutils.WithRetries(dockerutils.DefaultRetries),
-						dockerutils.WithPatternScanner(scanner),
-						dockerutils.WithEnv(dockerutils.EmptyEnv),
+					dockerutils.NewBaseConfig(
+						"musl-alpine",
+						scanner,
 					),
-					dockerutils.WithFile(path.Join(dir, "/docker-compose.yml")))
+					path.Join(dir, "/docker-compose.yml"))
 				err = dockerutils.Run(t, dockerCfg)
 				require.NoError(t, err)
 
