@@ -39,7 +39,7 @@ type HTTPTransactionsSerializer struct {
 	apiKeyToPlaceholder *strings.Replacer
 	placeholderToAPIKey *strings.Replacer
 	resolver            resolver.DomainResolver
-	placeholderMutex    sync.Mutex
+	placeholderMutex    sync.RWMutex
 }
 
 // NewHTTPTransactionsSerializer creates a new instance of HTTPTransactionsSerializer
@@ -85,15 +85,7 @@ func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransactio
 		pointCount = int32(transaction.Payload.GetPointCount())
 	}
 
-	version := s.resolver.GetAPIKeyVersion()
-	if version != s.currentKeyVersion {
-		// API keys have been updated so we need to rebuild.
-		s.placeholderMutex.Lock()
-		keys, version := s.resolver.GetAPIKeysInfo()
-		s.apiKeyToPlaceholder, s.placeholderToAPIKey = createReplacers(keys)
-		s.currentKeyVersion = version
-		s.placeholderMutex.Unlock()
-	}
+	s.checkAPIKeyUpdate()
 
 	endpoint := transaction.Endpoint
 	transactionProto := HttpTransactionProto{
@@ -116,6 +108,21 @@ func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransactio
 	return nil
 }
 
+// checkAPIKeyUpdate checks if the resolver has updated it's API keys - it does this by maintaining a version
+// number that increments with every update. If they have been updated, we reload the new set of keys and
+// update our replacers.
+func (s *HTTPTransactionsSerializer) checkAPIKeyUpdate() {
+	if s.resolver.GetAPIKeyVersion() != s.currentKeyVersion {
+		// API keys have been updated so we need to rebuild.
+		s.placeholderMutex.Lock()
+		defer s.placeholderMutex.Unlock()
+
+		keys, version := s.resolver.GetAPIKeysInfo()
+		s.apiKeyToPlaceholder, s.placeholderToAPIKey = createReplacers(keys)
+		s.currentKeyVersion = version
+	}
+}
+
 // GetBytesAndReset returns as bytes the serialized transactions and reset
 // the transaction collection.
 func (s *HTTPTransactionsSerializer) GetBytesAndReset() ([]byte, error) {
@@ -131,6 +138,8 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 	if err := proto.Unmarshal(bytes, &collection); err != nil {
 		return nil, 0, err
 	}
+
+	s.checkAPIKeyUpdate()
 
 	var httpTransactions []transaction.Transaction
 	errorCount := 0
@@ -178,15 +187,15 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 }
 
 func (r *HTTPTransactionsSerializer) replaceAPIKeys(str string) string {
-	r.placeholderMutex.Lock()
-	defer r.placeholderMutex.Unlock()
+	r.placeholderMutex.RLock()
+	defer r.placeholderMutex.RUnlock()
 
 	return r.apiKeyToPlaceholder.Replace(str)
 }
 
 func (r *HTTPTransactionsSerializer) restoreAPIKeys(str string) (string, error) {
-	r.placeholderMutex.Lock()
-	defer r.placeholderMutex.Unlock()
+	r.placeholderMutex.RLock()
+	defer r.placeholderMutex.RUnlock()
 
 	newStr := r.placeholderToAPIKey.Replace(str)
 

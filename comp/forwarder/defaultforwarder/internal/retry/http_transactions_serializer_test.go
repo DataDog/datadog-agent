@@ -24,6 +24,7 @@ const apiKey1 = "apiKey1"
 const apiKey2 = "apiKey2"
 const apiKey3 = "apiKey3"
 const apiKey4 = "apiKey4"
+const apiKey5 = "apiKey5"
 const domain = "domain"
 const vectorDomain = "vectorDomain"
 
@@ -137,6 +138,40 @@ func TestHTTPTransactionSerializerUpdateAPIKey(t *testing.T) {
 
 	// New API key should be scrubbed.
 	r.NotContains(string(bytes), apiKey3, "Serialized data should not contain %s", apiKey3)
+
+	// Ensure it can be restored
+	transactions, _, err := serializer.Deserialize(bytes)
+	r.NoError(err)
+	r.Contains(transactions[0].(*transaction.HTTPTransaction).Headers["Key"], apiKey3)
+}
+
+func TestHTTPTransactionSerializerUpdateDedupedAPIKey(t *testing.T) {
+	r := require.New(t)
+	log := logmock.New(t)
+
+	// apiKey1 is duplicated.
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{
+		utils.NewAPIKeys("api_key", apiKey1),
+		utils.NewAPIKeys("additional_endpoints", apiKey1, apiKey2),
+	})
+	r.NoError(err)
+
+	serializer := NewHTTPTransactionsSerializer(log, res)
+
+	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey1}}, domain)))
+	bytes, err := serializer.GetBytesAndReset()
+	r.NoError(err)
+
+	r.NotContains(string(bytes), apiKey1, "Serialized data should not contain %s", apiKey1)
+
+	// Update the API keys, there are now no duplicates.
+	res.UpdateAPIKeys("api_key", []utils.APIKeys{utils.NewAPIKeys("api_key", apiKey3)})
+	res.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", apiKey4, apiKey5)})
+
+	// When this transaction is restored, what was apiKey1 could now be either apiKey3 or apiKey4
+	transactions, _, err := serializer.Deserialize(bytes)
+	r.NoError(err)
+	r.Contains(transactions[0].(*transaction.HTTPTransaction).Headers["Key"], apiKey3)
 }
 
 func TestHTTPTransactionFieldsCount(t *testing.T) {
