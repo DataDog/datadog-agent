@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
 package scheduler
 
 import (
@@ -176,7 +175,7 @@ func (jq *jobQueue) process(s *Scheduler) bool {
 
 	select {
 	case <-jq.stop:
-		jq.health.Deregister() //nolint:errcheck
+		_ = jq.health.Deregister()
 		return false
 	case t := <-jq.bucketTicker.C:
 		log.Tracef("Bucket ticked... current index: %v", jq.currentBucketIdx)
@@ -206,7 +205,7 @@ func (jq *jobQueue) process(s *Scheduler) bool {
 			// blocking, we'll be here as long as it takes
 			case s.checksPipe <- check:
 			case <-jq.stop:
-				jq.health.Deregister() //nolint:errcheck
+				_ = jq.health.Deregister()
 				return false
 			}
 
