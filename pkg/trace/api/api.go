@@ -344,6 +344,11 @@ func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
+	if unixLn, ok := ln.(*net.UnixListener); ok {
+		// We do not want to unlink the socket here as we can't be sure if another trace-agent has already
+		// put a new file at the same path.
+		unixLn.SetUnlinkOnClose(false)
+	}
 	if err := os.Chmod(path, 0o722); err != nil {
 		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
@@ -369,7 +374,7 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 
 // Stop stops the receiver and shuts down the HTTP server.
 func (r *HTTPReceiver) Stop() error {
-	if !r.conf.ReceiverEnabled || r.conf.ReceiverPort == 0 {
+	if !r.conf.ReceiverEnabled || (r.conf.ReceiverPort == 0 && r.conf.ReceiverSocket == "" && r.conf.WindowsPipeName == "") {
 		return nil
 	}
 	r.exit <- struct{}{}

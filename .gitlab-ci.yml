@@ -203,8 +203,6 @@ variables:
   CI_IMAGE_RPM_X64: v64757622-c4fa0842
   CI_IMAGE_RPM_X64_SUFFIX: ""
   CI_IMAGE_RPM_ARM64: v64757622-c4fa0842
-  CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v64757622-c4fa0842
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
   CI_IMAGE_WIN_LTSC2022_X64: v64757622-c4fa0842
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
@@ -1265,4 +1263,4 @@ workflow:
 #
 # Current default: Windows Server 2022
 .windows_docker_default:
-  extends: .windows_docker_2022
+  extends: .windows_docker_v2_2022

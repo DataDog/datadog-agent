@@ -45,7 +45,7 @@ require (
 require go.opentelemetry.io/contrib/otelconf v0.15.0 // indirect
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.147 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.149 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.64.1 // indirect
