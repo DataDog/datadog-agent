@@ -36,8 +36,8 @@ const (
 )
 
 const (
-	expectedSessionsDefault           = 3
-	expectedSessionsWithCustomQueries = 3
+	expectedSessionsDefault           = 6
+	expectedSessionsWithCustomQueries = 6
 )
 
 func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
@@ -177,7 +177,13 @@ func newLegacyCheck(t *testing.T, instanceConfigAddition string, initConfig stri
 }
 
 func newDefaultCheck(t *testing.T, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {
-	return newTestCheck(t, getConnectData(t, useDefaultUser), instanceConfigAddition, initConfig)
+	c, m := newTestCheck(t, getConnectData(t, useDefaultUser), instanceConfigAddition, initConfig)
+	var err error
+	var n int
+	err = getWrapper(&c, &n, "select 1 from dual")
+	require.NoError(t, err, "can't execute a test query")
+
+	return c, m
 }
 
 func newSysCheck(t *testing.T, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {

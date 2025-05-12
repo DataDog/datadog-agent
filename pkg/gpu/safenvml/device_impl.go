@@ -157,7 +157,10 @@ func (d *safeDeviceImpl) GetMigDeviceHandleByIndex(index int) (SafeDevice, error
 	if err := NewNvmlAPIErrorOrNil("GetMigDeviceHandleByIndex", ret); err != nil {
 		return nil, err
 	}
-	return NewDevice(device)
+	return &safeDeviceImpl{
+		nvmlDevice: device,
+		lib:        d.lib,
+	}, nil
 }
 
 // GetMigMode returns the MIG mode of the device

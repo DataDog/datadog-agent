@@ -88,7 +88,7 @@
 /.gitlab/pkg_metrics/*                               @DataDog/agent-devx
 /.gitlab/post_rc_build/*                             @DataDog/agent-devx
 /.gitlab/setup/*                                     @DataDog/agent-devx
-/.gitlab/trigger_release/*                           @DataDog/agent-devx
+/.gitlab/trigger_release/*                           @DataDog/agent-devx @DataDog/agent-delivery
 
 /.gitlab/binary_build/cws_instrumentation.yml        @DataDog/agent-devx @DataDog/agent-security
 /.gitlab/binary_build/include.yml                    @DataDog/agent-devx
@@ -458,6 +458,7 @@
 /pkg/containerlifecycle/                @Datadog/container-integrations
 /pkg/diagnose/                          @Datadog/container-platform
 /pkg/diagnose/connectivity/             @DataDog/agent-configuration
+/pkg/diagnose/firewallscanner/          @DataDog/ndm-core
 /pkg/diagnose/ports/                    @DataDog/agent-configuration
 /pkg/diagnose/ports/*windows*.go        @DataDog/windows-agent
 /pkg/eventmonitor/                      @DataDog/ebpf-platform @DataDog/agent-security
