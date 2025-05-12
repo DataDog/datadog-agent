@@ -5,7 +5,7 @@
     - TAG_SUFFIX=${TAG_SUFFIX:-}
     - BUILD_ARG=${BUILD_ARG:-}
     - |
-      if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMAGE" =~ "ci/datadog-agent/agent" || "$IMAGE" =~ "ci/datadog-agent/cluster-agent" || "$IMAGE" =~ "ci/datadog-agent/cws-instrumentation" ) ]]; then
+      if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMAGE" =~ "ci/datadog-agent/agent" || "$IMAGE" =~ "ci/datadog-agent/cluster-agent" || "$IMAGE" =~ "ci/datadog-agent/cws-instrumentation"  || "$IMAGE" =~ "ci/datadog-agent/otel-agent" ) ]]; then
         export ECR_RELEASE_SUFFIX="-nightly"
       else
         export ECR_RELEASE_SUFFIX=${CI_COMMIT_TAG+-release}
@@ -199,8 +199,6 @@ docker_build_base_image_arm64:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs:
-    - job: docker_build_base_image_arm64
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/otel-agent
     BUILD_CONTEXT: Dockerfiles/otel-agent
@@ -211,10 +209,14 @@ docker_build_base_image_arm64:
 docker_build_ot_agent_standalone_amd64:
   extends:
     [.docker_build_ot_agent_standalone, .docker_build_job_definition_amd64]
+  needs:
+    - job: docker_build_base_image_amd64
 
 docker_build_ot_agent_standalone_arm64:
   extends:
     [.docker_build_ot_agent_standalone, .docker_build_job_definition_arm64]
+  needs:
+    - job: docker_build_base_image_arm64
 
 docker_build_agent7_full:
   extends: [.docker_build_job_definition_amd64, .docker_build_artifact]
