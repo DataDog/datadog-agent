@@ -26,7 +26,6 @@ import (
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
-	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -609,19 +608,6 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 	}
-}
-
-// getUID() return a key of length 5 as the kernel uprobe registration path is limited to a length of 64
-// ebpf-manager/utils.go:GenerateEventName() MaxEventNameLen = 64
-// MAX_EVENT_NAME_LEN (linux/kernel/trace/trace.h)
-//
-// Length 5 is arbitrary value as the full string of the eventName format is
-//
-//	fmt.Sprintf("%s_%.*s_%s_%s", probeType, maxFuncNameLen, functionName, UID, attachPIDstr)
-//
-// functionName is variable but with a minimum guarantee of 10 chars
-func getUID(lib utils.PathIdentifier) string {
-	return lib.Key()[:5]
 }
 
 // IsBuildModeSupported returns always true, as tls module is supported by all modes.
