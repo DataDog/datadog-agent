@@ -31,7 +31,7 @@ type metricEntry struct {
 }
 
 func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	s.log.Debug("onBlocklistUpdateCallback received updates:", len(updates))
+	s.log.Debugf("onBlocklistUpdateCallback received updates: %d", len(updates))
 
 	// special case: we received a response from RC, but RC didn't have any
 	// configuration for this agent, let's restore the local config and return
@@ -54,11 +54,11 @@ func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, a
 					State: state.ApplyStateError,
 					Error: "error unmarshalling payload",
 				})
-				s.log.Errorf("can't unmarshal received config: %v", err)
+				s.log.Errorf("can't unmarshal received blocklist config: %v", err)
 				continue
 			}
 			if len(config.BlockedMetrics.ByName.Metrics) == 0 {
-				s.log.Debug("received a configuration with no metric")
+				s.log.Debug("received a blocklist configuration with no metrics")
 				continue
 			}
 			blocklistUpdates = append(blocklistUpdates, config.BlockedMetrics)
