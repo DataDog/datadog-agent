@@ -1028,19 +1028,14 @@ func (s *tlsSuite) TestNativeTLSMapsCleanup() {
 
 	time.Sleep(500 * time.Millisecond)
 
-	if usmMonitor.ebpfProgram == nil || usmMonitor.ebpfProgram.Manager == nil {
-		t.Log("Monitor eBPF program or manager not initialized, cannot count map entries.")
-		require.FailNow(t, "eBPF program/manager not initialized for ssl_sock_by_ctx check")
-	} else {
-		sslSockMap, mapExists, errMap := usmMonitor.ebpfProgram.Manager.GetMap(sslSockByCtxMap)
-		require.NoErrorf(t, errMap, "Error getting map %s", sslSockByCtxMap)
-		require.Truef(t, mapExists, "Map %s does not exist.", sslSockByCtxMap)
-		require.NotNilf(t, sslSockMap, "Map %s object is nil.", sslSockByCtxMap)
+	sslSockMap, mapExists, errMap := usmMonitor.ebpfProgram.Manager.GetMap(sslSockByCtxMap)
+	require.NoErrorf(t, errMap, "Error getting map %s", sslSockByCtxMap)
+	require.Truef(t, mapExists, "Map %s does not exist.", sslSockByCtxMap)
+	require.NotNilf(t, sslSockMap, "Map %s object is nil.", sslSockByCtxMap)
 
-		sockMapCount := countMapEntries(t, sslSockMap)
-		t.Logf("Count for map '%s' after CloseIdleConnections(): %d", sslSockByCtxMap, sockMapCount)
-		assert.Equalf(t, 0, sockMapCount, "%s should be empty after cleanup on feature branch (post CloseIdleConnections)", sslSockByCtxMap)
-	}
+	sockMapCount := countMapEntries(t, sslSockMap)
+	t.Logf("Count for map '%s' after CloseIdleConnections(): %d", sslSockByCtxMap, sockMapCount)
+	assert.Equalf(t, 0, sockMapCount, "%s should be empty after cleanup on feature branch (post CloseIdleConnections)", sslSockByCtxMap)
 
 	sslTupleMap, mapExists, errMap := usmMonitor.ebpfProgram.Manager.GetMap(sslCtxByTupleMap)
 	require.NoErrorf(t, errMap, "Error getting map %s", sslCtxByTupleMap)
