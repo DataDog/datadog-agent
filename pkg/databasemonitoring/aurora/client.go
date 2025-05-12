@@ -5,7 +5,7 @@
 
 //go:build ec2
 
-package aws
+package aurora
 
 import (
 	"context"

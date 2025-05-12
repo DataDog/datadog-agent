@@ -15,13 +15,13 @@ import (
 	"time"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
+	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aurora"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type mockRDSClientConfigurer func(k *aws.MockRDSClient)
+type mockRDSClientConfigurer func(k *aurora.MockRDSClient)
 
 const defaultClusterTag = "datadoghq.com/scrape:true"
 const defaultDbmTag = "datadoghq.com/dbm:true"
@@ -29,7 +29,7 @@ const defaultDbmTag = "datadoghq.com/dbm:true"
 func TestDBMAuroraListener(t *testing.T) {
 	testCases := []struct {
 		name                  string
-		config                AuroraConfig
+		config                aurora.AuroraConfig
 		numDiscoveryIntervals int
 		rdsClientConfigurer   mockRDSClientConfigurer
 		expectedServices      []*DBMAuroraService
@@ -37,7 +37,7 @@ func TestDBMAuroraListener(t *testing.T) {
 	}{
 		{
 			name: "GetAuroraClustersFromTags context deadline exceeded produces no services",
-			config: AuroraConfig{
+			config: aurora.AuroraConfig{
 				DiscoveryInterval: 1,
 				QueryTimeout:      1,
 				Region:            "us-east-1",
@@ -45,7 +45,7 @@ func TestDBMAuroraListener(t *testing.T) {
 				DbmTag:            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 0,
-			rdsClientConfigurer: func(k *aws.MockRDSClient) {
+			rdsClientConfigurer: func(k *aurora.MockRDSClient) {
 				k.EXPECT().GetAuroraClustersFromTags(contextWithTimeout(1*time.Second), []string{defaultClusterTag}).DoAndReturn(
 					func(ctx context.Context, _ []string) ([]string, error) {
 						<-ctx.Done()
@@ -57,7 +57,7 @@ func TestDBMAuroraListener(t *testing.T) {
 		},
 		{
 			name: "GetAuroraClusterEndpoints context deadline exceeded produces no services",
-			config: AuroraConfig{
+			config: aurora.AuroraConfig{
 				DiscoveryInterval: 1,
 				QueryTimeout:      1,
 				Region:            "us-east-1",
@@ -65,11 +65,11 @@ func TestDBMAuroraListener(t *testing.T) {
 				DbmTag:            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 0,
-			rdsClientConfigurer: func(k *aws.MockRDSClient) {
+			rdsClientConfigurer: func(k *aurora.MockRDSClient) {
 				gomock.InOrder(
 					k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultClusterTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes(),
 					k.EXPECT().GetAuroraClusterEndpoints(contextWithTimeout(1*time.Second), []string{"my-cluster-1"}, defaultDbmTag).DoAndReturn(
-						func(ctx context.Context, _ []string, _ string) (map[string]*aws.AuroraCluster, error) {
+						func(ctx context.Context, _ []string, _ string) (map[string]*aurora.AuroraCluster, error) {
 							<-ctx.Done()
 							return nil, ctx.Err()
 						}).AnyTimes(),
@@ -81,14 +81,14 @@ func TestDBMAuroraListener(t *testing.T) {
 		},
 		{
 			name: "GetAuroraClustersFromTags error produces no services",
-			config: AuroraConfig{
+			config: aurora.AuroraConfig{
 				DiscoveryInterval: 1,
 				Region:            "us-east-1",
 				Tags:              []string{defaultClusterTag},
 				DbmTag:            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 0,
-			rdsClientConfigurer: func(k *aws.MockRDSClient) {
+			rdsClientConfigurer: func(k *aurora.MockRDSClient) {
 				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultClusterTag}).Return(nil, errors.New("big bad error")).AnyTimes()
 			},
 			expectedServices:    []*DBMAuroraService{},
@@ -96,14 +96,14 @@ func TestDBMAuroraListener(t *testing.T) {
 		},
 		{
 			name: "GetAuroraClusterEndpoints error produces no services",
-			config: AuroraConfig{
+			config: aurora.AuroraConfig{
 				DiscoveryInterval: 1,
 				Region:            "us-east-1",
 				Tags:              []string{defaultClusterTag},
 				DbmTag:            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 0,
-			rdsClientConfigurer: func(k *aws.MockRDSClient) {
+			rdsClientConfigurer: func(k *aurora.MockRDSClient) {
 				gomock.InOrder(
 					k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultClusterTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes(),
 					k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{"my-cluster-1"}, defaultDbmTag).Return(nil, errors.New("big bad error")).AnyTimes(),
@@ -114,19 +114,19 @@ func TestDBMAuroraListener(t *testing.T) {
 		},
 		{
 			name: "single endpoint discovered and created",
-			config: AuroraConfig{
+			config: aurora.AuroraConfig{
 				DiscoveryInterval: 1,
 				Region:            "us-east-1",
 				Tags:              []string{defaultClusterTag},
 				DbmTag:            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 1,
-			rdsClientConfigurer: func(k *aws.MockRDSClient) {
+			rdsClientConfigurer: func(k *aurora.MockRDSClient) {
 				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultClusterTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes()
 				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{"my-cluster-1"}, defaultDbmTag).Return(
-					map[string]*aws.AuroraCluster{
+					map[string]*aurora.AuroraCluster{
 						"my-cluster-1": {
-							Instances: []*aws.Instance{
+							Instances: []*aurora.Instance{
 								{
 									Endpoint:   "my-endpoint",
 									Port:       5432,
@@ -145,7 +145,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
 					region:       "us-east-1",
-					instance: &aws.Instance{
+					instance: &aurora.Instance{
 						Endpoint:   "my-endpoint",
 						Port:       5432,
 						IamEnabled: true,
@@ -158,19 +158,19 @@ func TestDBMAuroraListener(t *testing.T) {
 		},
 		{
 			name: "multiple endpoints discovered from single cluster and created",
-			config: AuroraConfig{
+			config: aurora.AuroraConfig{
 				DiscoveryInterval: 1,
 				Region:            "us-east-1",
 				Tags:              []string{defaultClusterTag},
 				DbmTag:            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 1,
-			rdsClientConfigurer: func(k *aws.MockRDSClient) {
+			rdsClientConfigurer: func(k *aurora.MockRDSClient) {
 				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultClusterTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes()
 				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{"my-cluster-1"}, defaultDbmTag).Return(
-					map[string]*aws.AuroraCluster{
+					map[string]*aurora.AuroraCluster{
 						"my-cluster-1": {
-							Instances: []*aws.Instance{
+							Instances: []*aurora.Instance{
 								{
 									Endpoint:   "my-endpoint",
 									Port:       5432,
@@ -200,7 +200,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
 					region:       "us-east-1",
-					instance: &aws.Instance{
+					instance: &aurora.Instance{
 						Endpoint:   "my-endpoint",
 						Port:       5432,
 						IamEnabled: true,
@@ -213,7 +213,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
 					region:       "us-east-1",
-					instance: &aws.Instance{
+					instance: &aurora.Instance{
 						Endpoint:   "foo-endpoint",
 						Port:       5432,
 						IamEnabled: true,
@@ -226,7 +226,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
 					region:       "us-east-1",
-					instance: &aws.Instance{
+					instance: &aurora.Instance{
 						Endpoint:   "bar-endpoint",
 						Port:       5444,
 						IamEnabled: false,
@@ -245,7 +245,7 @@ func TestDBMAuroraListener(t *testing.T) {
 			defer ctrl.Finish()
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("autodiscover_aurora_clusters", tc.config)
-			mockAWSClient := aws.NewMockRDSClient(ctrl)
+			mockAWSClient := aurora.NewMockRDSClient(ctrl)
 			tc.rdsClientConfigurer(mockAWSClient)
 			ticks := make(chan time.Time, 1)
 			l := newDBMAuroraListener(tc.config, mockAWSClient, ticks)
@@ -299,7 +299,7 @@ func TestGetExtraConfig(t *testing.T) {
 				checkName:    "postgres",
 				clusterID:    "my-cluster-1",
 				region:       "us-east-1",
-				instance: &aws.Instance{
+				instance: &aurora.Instance{
 					Endpoint:   "my-endpoint",
 					Port:       5432,
 					IamEnabled: true,

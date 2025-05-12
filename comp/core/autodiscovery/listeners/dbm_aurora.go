@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
+	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aurora"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,8 +35,8 @@ type DBMAuroraListener struct {
 	delService   chan<- Service
 	stop         chan bool
 	services     map[string]Service
-	config       AuroraConfig
-	awsRdsClient aws.RDSClient
+	config       aurora.AuroraConfig
+	awsRdsClient aurora.RDSClient
 	// ticks is used primarily for testing purposes so
 	// the frequency the discovers loop iterates can be controlled
 	ticks  <-chan time.Time
@@ -62,16 +62,16 @@ type DBMAuroraService struct {
 	checkName    string
 	clusterID    string
 	region       string
-	instance     *aws.Instance
+	instance     *aurora.Instance
 }
 
 // NewDBMAuroraListener returns a new DBMAuroraListener
 func NewDBMAuroraListener(ServiceListernerDeps) (ServiceListener, error) {
-	config, err := dbmconfig.NewAuroraAutodiscoveryConfig()
+	config, err := aurora.NewAuroraAutodiscoveryConfig()
 	if err != nil {
 		return nil, err
 	}
-	client, region, err := aws.NewRDSClient(config.Region)
+	client, region, err := aurora.NewRDSClient(config.Region)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func NewDBMAuroraListener(ServiceListernerDeps) (ServiceListener, error) {
 	return newDBMAuroraListener(config, client, nil), nil
 }
 
-func newDBMAuroraListener(config AuroraConfig, awsClient aws.RDSClient, ticks <-chan time.Time) ServiceListener {
+func newDBMAuroraListener(config aurora.AuroraConfig, awsClient aurora.RDSClient, ticks <-chan time.Time) ServiceListener {
 	l := &DBMAuroraListener{
 		config:       config,
 		services:     make(map[string]Service),
@@ -155,7 +155,7 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 	l.deleteServices(deletedServices)
 }
 
-func (l *DBMAuroraListener) createService(entityID, clusterID string, instance *aws.Instance) {
+func (l *DBMAuroraListener) createService(entityID, clusterID string, instance *aurora.Instance) {
 	if _, present := l.services[entityID]; present {
 		return
 	}

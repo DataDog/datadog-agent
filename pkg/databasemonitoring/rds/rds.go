@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-//go:build ec2
+//go:build rds
 
 // Package rds contains database-monitoring specific aurora discovery logic
 package rds
@@ -60,11 +60,7 @@ func (l *RDSListener) updateServices() {
 	// TODO: Implement logic to fetch RDS instances from AWS API
 	log.Info("Fetching RDS instances...")
 	// Example placeholder logic
-	rdsInstances, err := []string{"desired-tag-key", "desired-tag-value"}, nil
-	if err != nil {
-		log.Errorf("Failed to fetch RDS instances: %v", err)
-		return
-	}
+	rdsInstances := []string{"desired-tag-key", "desired-tag-value"}
 
 	for _, instance := range rdsInstances {
 		if _, found := l.rdsServices[instance]; !found {

@@ -5,8 +5,8 @@
 
 //go:build ec2
 
-// Package aws contains database-monitoring specific aurora discovery logic
-package aws
+// Package aurora contains database-monitoring specific aurora discovery logic
+package aurora
 
 import (
 	"context"

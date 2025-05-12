@@ -4,7 +4,7 @@
 //go:build ec2
 
 // Package aws is a generated GoMock package.
-package aws
+package aurora
 
 import (
 	context "context"
