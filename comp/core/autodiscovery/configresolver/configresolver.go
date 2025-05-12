@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package configresolver resolves config templates using information from a
+// Package configresolver resolves configuration templates against a given
+// service by replacing template variables with corresponding data from the
 // service.
 package configresolver
 
@@ -15,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -23,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -51,8 +54,8 @@ func (n *NoServiceError) Error() string {
 	return n.message
 }
 
-// NewNoServiceError returns a new NoServiceError
-func NewNoServiceError(message string) *NoServiceError {
+// newNoServiceError returns a new NoServiceError
+func newNoServiceError(message string) *NoServiceError {
 	return &NoServiceError{
 		message: message,
 	}
@@ -491,7 +494,7 @@ func tagsAdder(tags []string) func(interface{}) error {
 
 func getHost(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", NewNoServiceError("No service. %%%%host%%%% is not allowed")
+		return "", newNoServiceError("No service. %%%%host%%%% is not allowed")
 	}
 
 	hosts, err := svc.GetHosts(ctx)
@@ -540,7 +543,7 @@ func getFallbackHost(hosts map[string]string) (string, error) {
 // getPort returns ports of the service
 func getPort(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", NewNoServiceError("No service. %%%%port%%%% is not allowed")
+		return "", newNoServiceError("No service. %%%%port%%%% is not allowed")
 	}
 
 	ports, err := svc.GetPorts(ctx)
@@ -573,7 +576,7 @@ func getPort(ctx context.Context, tplVar string, svc listeners.Service) (string,
 // getPid returns the process identifier of the service
 func getPid(ctx context.Context, _ string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", NewNoServiceError("No service. %%%%pid%%%% is not allowed")
+		return "", newNoServiceError("No service. %%%%pid%%%% is not allowed")
 	}
 
 	pid, err := svc.GetPid(ctx)
@@ -587,7 +590,7 @@ func getPid(ctx context.Context, _ string, svc listeners.Service) (string, error
 // when the IP is unavailable or erroneous
 func getHostname(ctx context.Context, _ string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", NewNoServiceError("No service. %%%%hostname%%%% is not allowed")
+		return "", newNoServiceError("No service. %%%%hostname%%%% is not allowed")
 	}
 
 	name, err := svc.GetHostname(ctx)
@@ -604,7 +607,7 @@ func getHostname(ctx context.Context, _ string, svc listeners.Service) (string, 
 // the AD listener and what the template variable represents.
 func getAdditionalTplVariables(_ context.Context, tplVar string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", NewNoServiceError("No service. %%%%extra_*%%%% or %%%%kube_*%%%% are not allowed")
+		return "", newNoServiceError("No service. %%%%extra_*%%%% or %%%%kube_*%%%% are not allowed")
 	}
 
 	value, err := svc.GetExtraConfig(tplVar)
@@ -622,6 +625,14 @@ func getEnvvar(_ context.Context, envVar string, svc listeners.Service) (string,
 		}
 		return "", fmt.Errorf("envvar name is missing")
 	}
+
+	if !allowEnvVar(envVar) {
+		if svc != nil {
+			return "", fmt.Errorf("envvar %s is not allowed in check configs, skipping service %s", envVar, svc.GetServiceID())
+		}
+		return "", fmt.Errorf("envvar %s is not allowed in check configs", envVar)
+	}
+
 	value, found := os.LookupEnv(envVar)
 	if !found {
 		if svc != nil {
@@ -630,4 +641,22 @@ func getEnvvar(_ context.Context, envVar string, svc listeners.Service) (string,
 		return "", fmt.Errorf("failed to retrieve envvar %s", envVar)
 	}
 	return value, nil
+}
+
+func allowEnvVar(envVar string) bool {
+	if pkgconfigsetup.Datadog().GetBool("ad_disable_env_var_resolution") {
+		return false
+	}
+
+	allowedEnvs := pkgconfigsetup.Datadog().GetStringSlice("ad_allowed_env_vars")
+
+	// If the option is not set or is empty, the default behavior applies: all
+	// envs are allowed.
+	if len(allowedEnvs) == 0 {
+		return true
+	}
+
+	return slices.ContainsFunc(allowedEnvs, func(env string) bool {
+		return strings.EqualFold(env, envVar)
+	})
 }
