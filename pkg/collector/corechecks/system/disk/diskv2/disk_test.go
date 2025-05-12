@@ -154,9 +154,6 @@ var ioCountersData = map[string]gopsutil_disk.IOCountersStat{
 }
 
 func setupDefaultMocks() {
-	diskv2.DiskIOCounters = func(_names ...string) (map[string]gopsutil_disk.IOCountersStat, error) {
-		return ioCountersData, nil
-	}
 	setupPlatformMocks()
 }
 
@@ -171,6 +168,8 @@ func createCheck() check.Check {
 		return partitionsFalse, nil
 	}).WithDiskUsage(func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
 		return usageData[mountpoint], nil
+	}).WithDiskIOCounters(func(_names ...string) (map[string]gopsutil_disk.IOCountersStat, error) {
+		return ioCountersData, nil
 	})
 	return diskCheck
 }
@@ -260,10 +259,9 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndUsageSystemCallReturns
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndIOCountersSystemCallReturnsError_ThenErrorIsReturnedAndNoUsageMetricsAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskIOCounters = func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
+	diskCheck := createCheck().(*diskv2.Check).WithDiskIOCounters(func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
 		return nil, errors.New("error calling diskIOCounters")
-	}
-	diskCheck := createCheck()
+	})
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 

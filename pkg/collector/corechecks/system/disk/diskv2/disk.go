@@ -34,11 +34,6 @@ const (
 	inodeMetric = "system.fs.inodes.%s"
 )
 
-var (
-	// DiskIOCounters returns disk I/O statistics for the specified devices using gopsutil.
-	DiskIOCounters = gopsutil_disk.IOCounters
-)
-
 // diskInstanceConfig represents an instance configuration.
 type diskInitConfig struct {
 	DeviceGlobalExclude       []string `yaml:"device_global_exclude"`
@@ -118,6 +113,7 @@ type Check struct {
 	clock          clock.Clock
 	diskPartitions func(bool) ([]gopsutil_disk.PartitionStat, error)
 	diskUsage      func(string) (*gopsutil_disk.UsageStat, error)
+	diskIOCounters func(...string) (map[string]gopsutil_disk.IOCountersStat, error)
 
 	initConfig          diskInitConfig
 	instanceConfig      diskInstanceConfig
@@ -133,7 +129,6 @@ type Check struct {
 
 // Run executes the check
 func (c *Check) Run() error {
-	log.Debug("weeeeeee")
 	sender, err := c.GetSender()
 	if err != nil {
 		return err
@@ -419,7 +414,7 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 }
 
 func (c *Check) collectDiskMetrics(sender sender.Sender) error {
-	iomap, err := DiskIOCounters()
+	iomap, err := c.diskIOCounters()
 	if err != nil {
 		log.Warnf("Unable to get disk iocounters: %s", err)
 		return err
@@ -656,6 +651,12 @@ func (c *Check) WithDiskUsage(f func(string) (*gopsutil_disk.UsageStat, error)) 
 	return c
 }
 
+// WithDiskIOCounters sets a diskIOCounters call on the Check and returns the updated Check.
+func (c *Check) WithDiskIOCounters(f func(...string) (map[string]gopsutil_disk.IOCountersStat, error)) *Check {
+	c.diskIOCounters = f
+	return c
+}
+
 // Factory creates a new check factory
 func Factory() option.Option[func() check.Check] {
 	return option.New(newCheck)
@@ -667,6 +668,7 @@ func newCheck() check.Check {
 		clock:          clock.New(),
 		diskPartitions: gopsutil_disk.Partitions,
 		diskUsage:      gopsutil_disk.Usage,
+		diskIOCounters: gopsutil_disk.IOCounters,
 		initConfig: diskInitConfig{
 			DeviceGlobalExclude:       []string{},
 			DeviceGlobalBlacklist:     []string{},
