@@ -23,8 +23,7 @@ type blockedMetrics struct {
 }
 
 type byName struct {
-	ConfigurationID int           `json:"configuration_id"`
-	Metrics         []metricEntry `json:"values"`
+	Metrics []metricEntry `json:"values"`
 }
 
 type metricEntry struct {
@@ -65,11 +64,6 @@ func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, a
 			blocklistUpdates = append(blocklistUpdates, config.BlockedMetrics)
 		}
 	}
-
-	// sort by the configuration ID
-	slices.SortFunc(blocklistUpdates, func(a, b blockedMetrics) int {
-		return a.ByName.ConfigurationID - b.ByName.ConfigurationID
-	})
 
 	// build a map with all the received metrics
 	// and then use the values as a blocklist
