@@ -23,7 +23,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	output := make(chan *message.Payload)
 	flushChan := make(chan struct{})
 
-	s := NewBatchStrategy(input, output, flushChan, NewMockServerlessMeta(false), LineSerializer, 100*time.Millisecond, 2, 2, "test", compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""))
+	s := NewBatchStrategy(input, output, flushChan, NewMockServerlessMeta(false), ArraySerializer, 100*time.Millisecond, 2, 2, "test", compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""))
 	s.Start()
 
 	message1 := message.NewMessage([]byte("a"), nil, "", 0)
@@ -34,9 +34,9 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 
 	expectedPayload := &message.Payload{
 		MessageMetas:  []*message.MessageMetadata{&message1.MessageMetadata, &message2.MessageMetadata},
-		Encoded:       []byte("a\nb"),
+		Encoded:       []byte(`[a,b]`),
 		Encoding:      "identity",
-		UnencodedSize: 3,
+		UnencodedSize: 5,
 	}
 
 	// expect payload to be sent because buffer is full
@@ -55,7 +55,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 	timerInterval := 100 * time.Millisecond
 
 	clk := clock.NewMock()
-	s := newBatchStrategyWithClock(input, output, flushChan, NewMockServerlessMeta(false), LineSerializer, timerInterval, 100, 100, "test", clk, compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""))
+	s := newBatchStrategyWithClock(input, output, flushChan, NewMockServerlessMeta(false), ArraySerializer, timerInterval, 100, 100, "test", clk, compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""))
 	s.Start()
 
 	for round := 0; round < 3; round++ {
@@ -80,7 +80,7 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 	flushChan := make(chan struct{})
 
 	clk := clock.NewMock()
-	s := newBatchStrategyWithClock(input, output, flushChan, NewMockServerlessMeta(false), LineSerializer, 100*time.Millisecond, 2, 2, "test", clk, compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""))
+	s := newBatchStrategyWithClock(input, output, flushChan, NewMockServerlessMeta(false), ArraySerializer, 100*time.Millisecond, 2, 2, "test", clk, compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""))
 	s.Start()
 
 	message := message.NewMessage([]byte("a"), nil, "", 0)
@@ -105,7 +105,7 @@ func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 	output := make(chan *message.Payload)
 	flushChan := make(chan struct{})
 
-	s := NewBatchStrategy(input, output, flushChan, NewMockServerlessMeta(false), LineSerializer, 100*time.Millisecond, 2, 2, "test", compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""))
+	s := NewBatchStrategy(input, output, flushChan, NewMockServerlessMeta(false), ArraySerializer, 100*time.Millisecond, 2, 2, "test", compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""))
 	s.Start()
 	message := message.NewMessage([]byte{}, nil, "", 0)
 
@@ -129,7 +129,7 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 
 	// batch size is large so it will not flush until we trigger it manually
 	// flush time is large so it won't automatically trigger during this test
-	strategy := NewBatchStrategy(input, output, flushChan, NewMockServerlessMeta(false), LineSerializer, time.Hour, 100, 100, "test", compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""))
+	strategy := NewBatchStrategy(input, output, flushChan, NewMockServerlessMeta(false), ArraySerializer, time.Hour, 100, 100, "test", compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""))
 	strategy.Start()
 
 	// all of these messages will get buffered
@@ -177,7 +177,7 @@ func TestBatchStrategyFlushChannel(t *testing.T) {
 
 	// batch size is large so it will not flush until we trigger it manually
 	// flush time is large so it won't automatically trigger during this test
-	strategy := NewBatchStrategy(input, output, flushChan, NewMockServerlessMeta(false), LineSerializer, time.Hour, 100, 100, "test", compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""))
+	strategy := NewBatchStrategy(input, output, flushChan, NewMockServerlessMeta(false), ArraySerializer, time.Hour, 100, 100, "test", compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""))
 	strategy.Start()
 
 	// all of these messages will get buffered

@@ -14,24 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-func TestLineSerializer(t *testing.T) {
-	var messages []*message.Message
-	var payload []byte
-
-	serializer := LineSerializer
-
-	payload = serializeToBytes(t, serializer, messages)
-	assert.Len(t, payload, 0)
-
-	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0)}
-	payload = serializeToBytes(t, serializer, messages)
-	assert.Equal(t, []byte("a"), payload)
-
-	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0), message.NewMessage([]byte("b"), nil, "", 0)}
-	payload = serializeToBytes(t, serializer, messages)
-	assert.Equal(t, []byte("a\nb"), payload)
-}
-
 func TestArraySerializer(t *testing.T) {
 	var messages []*message.Message
 	var payload []byte
