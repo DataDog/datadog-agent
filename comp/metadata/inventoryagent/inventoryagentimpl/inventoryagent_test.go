@@ -534,6 +534,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			sysprobeconfig.NoneModule(),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			hostnameimpl.MockModule(),
 		),
 	)
 	ia = p.Comp.(*inventoryagent)

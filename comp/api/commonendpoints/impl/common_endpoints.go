@@ -17,6 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Requires is a struct that contains the components required by the common endpoints
+type Requires struct {
+	Hostname hostnameinterface.Component
+}
+
 // Provider provides the common Agent API endpoints
 type Provider struct {
 	VersionEndpoint  api.AgentEndpointProvider
@@ -25,10 +30,10 @@ type Provider struct {
 }
 
 // CommonEndpointProvider return a filled Provider struct
-func CommonEndpointProvider(hostname hostnameinterface.Component) Provider {
+func CommonEndpointProvider(requires Requires) Provider {
 	return Provider{
 		VersionEndpoint:  api.NewAgentEndpointProvider(version.Get, "/version", "GET"),
-		HostnameEndpoint: api.NewAgentEndpointProvider(getHostname(hostname), "/hostname", "GET"),
+		HostnameEndpoint: api.NewAgentEndpointProvider(getHostname(requires.Hostname), "/hostname", "GET"),
 		StopEndpoint:     api.NewAgentEndpointProvider(stopAgent, "/stop", "POST"),
 	}
 }
