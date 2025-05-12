@@ -6,7 +6,6 @@
 package listeners
 
 import (
-	"context"
 	"errors"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -37,7 +36,7 @@ type Service interface {
 	GetTagsWithCardinality(cardinality string) ([]string, error) // tags with given cardinality
 	GetPid() (int, error)                                        // process identifier
 	GetHostname() (string, error)                                // hostname.domainname for the entity
-	IsReady(context.Context) bool                                // is the service ready
+	IsReady() bool                                               // is the service ready
 	HasFilter(containers.FilterType) bool                        // whether the service is excluded by metrics or logs exclusion config
 	GetExtraConfig(string) (string, error)                       // Extra configuration values
 

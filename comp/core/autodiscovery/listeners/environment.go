@@ -6,8 +6,6 @@
 package listeners
 
 import (
-	"context"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -125,7 +123,7 @@ func (s *EnvironmentService) GetHostname() (string, error) {
 }
 
 // IsReady is always true
-func (s *EnvironmentService) IsReady(context.Context) bool {
+func (s *EnvironmentService) IsReady() bool {
 	return true
 }
 

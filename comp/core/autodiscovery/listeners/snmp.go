@@ -6,7 +6,6 @@
 package listeners
 
 import (
-	"context"
 	"encoding/json"
 	"expvar"
 	"fmt"
@@ -479,7 +478,7 @@ func (s *SNMPService) GetHostname() (string, error) {
 }
 
 // IsReady returns true
-func (s *SNMPService) IsReady(context.Context) bool {
+func (s *SNMPService) IsReady() bool {
 	return true
 }
 

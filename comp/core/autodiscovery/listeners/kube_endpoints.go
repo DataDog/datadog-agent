@@ -8,7 +8,6 @@
 package listeners
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"sync"
@@ -495,7 +494,7 @@ func (s *KubeEndpointService) GetHostname() (string, error) {
 }
 
 // IsReady returns if the service is ready
-func (s *KubeEndpointService) IsReady(context.Context) bool {
+func (s *KubeEndpointService) IsReady() bool {
 	return true
 }
 

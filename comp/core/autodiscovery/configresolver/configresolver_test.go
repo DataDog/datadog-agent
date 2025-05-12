@@ -6,7 +6,6 @@
 package configresolver
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"reflect"
@@ -79,7 +78,7 @@ func (s *dummyService) GetHostname() (string, error) {
 }
 
 // IsReady returns if the service is ready
-func (s *dummyService) IsReady(context.Context) bool {
+func (s *dummyService) IsReady() bool {
 	return true
 }
 

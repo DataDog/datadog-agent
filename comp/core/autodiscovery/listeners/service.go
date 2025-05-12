@@ -6,7 +6,6 @@
 package listeners
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 
@@ -115,7 +114,7 @@ func (s *service) GetHostname() (string, error) {
 }
 
 // IsReady returns whether the service is ready.
-func (s *service) IsReady(_ context.Context) bool {
+func (s *service) IsReady() bool {
 	return s.ready
 }
 

@@ -9,7 +9,6 @@
 package configresolver
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -72,7 +71,6 @@ func SubstituteTemplateEnvVars(config *integration.Config) error {
 // Resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
 func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
-	ctx := context.TODO()
 	// Copy original template
 	resolvedConfig := integration.Config{
 		Name:            tpl.Name,
@@ -92,7 +90,7 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)
 
-	if resolvedConfig.IsCheckConfig() && !svc.IsReady(ctx) {
+	if resolvedConfig.IsCheckConfig() && !svc.IsReady() {
 		return resolvedConfig, errors.New("unable to resolve, service not ready")
 	}
 

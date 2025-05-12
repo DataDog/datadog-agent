@@ -6,8 +6,6 @@
 package listeners
 
 import (
-	"context"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -112,7 +110,7 @@ func (s *StaticConfigService) GetHostname() (string, error) {
 }
 
 // IsReady is always true
-func (s *StaticConfigService) IsReady(context.Context) bool {
+func (s *StaticConfigService) IsReady() bool {
 	return true
 }
 

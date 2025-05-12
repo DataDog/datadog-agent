@@ -6,7 +6,6 @@
 package autodiscoveryimpl
 
 import (
-	"context"
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -70,7 +69,7 @@ func (s *dummyService) GetHostname() (string, error) {
 }
 
 // IsReady returns if the service is ready
-func (s *dummyService) IsReady(context.Context) bool {
+func (s *dummyService) IsReady() bool {
 	return true
 }
 

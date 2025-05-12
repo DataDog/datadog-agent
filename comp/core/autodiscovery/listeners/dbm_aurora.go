@@ -254,7 +254,7 @@ func (d *DBMAuroraService) GetHostname() (string, error) {
 }
 
 // IsReady returns true on DBMAuroraService
-func (d *DBMAuroraService) IsReady(context.Context) bool {
+func (d *DBMAuroraService) IsReady() bool {
 	return true
 }
 

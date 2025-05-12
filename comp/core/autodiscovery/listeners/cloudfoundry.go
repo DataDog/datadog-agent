@@ -9,7 +9,6 @@
 package listeners
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"sync"
@@ -249,7 +248,7 @@ func (s *CloudFoundryService) GetHostname() (string, error) {
 }
 
 // IsReady always returns true on CF
-func (s *CloudFoundryService) IsReady(context.Context) bool {
+func (s *CloudFoundryService) IsReady() bool {
 	return true
 }
 
