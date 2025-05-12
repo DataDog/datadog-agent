@@ -331,7 +331,7 @@ func (t *Tracer) GetNetworkID(_ context.Context) (string, error) {
 }
 
 // IsClosedConnectionsNearCapacity is not implemented on this OS for Tracer
-func (t *Tracer) IsClosedConnectionsNearCapacity(clientID string) (bool, error) {
+func (t *Tracer) IsClosedConnectionsNearCapacity(_ string) (bool, error) {
 	return false, nil
 }
 
