@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-//go:build rds
+//go:build ec2
 
 // Package rds contains database-monitoring specific aurora discovery logic
 package rds
@@ -11,7 +11,6 @@ package rds
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
