@@ -47,7 +47,7 @@ func (v *windowsStatusSuite) TestChecksMetadataWindows() {
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(
-			agentparams.WithFile("C:/ProgramData/Datadog/conf.d/custom_check.d/conf.yaml", string(customCheckYaml), true),
+			agentparams.WithIntegration("custom_check.d", string(customCheckYaml)),
 			agentparams.WithFile("C:/ProgramData/Datadog/checks.d/custom_check.py", string(customCheckPython), true),
 		)))
 
