@@ -200,7 +200,7 @@ func (fh *forwarderHealth) computeDomainURLAPIKeyMap() {
 	for domain, dr := range fh.domainResolvers {
 		if domainURLRegexp.MatchString(domain) {
 			domain = "https://api." + domainURLRegexp.FindString(domain)
-		
+		}
 		fh.keysPerAPIEndpoint[domain] = append(fh.keysPerAPIEndpoint[domain], dr.GetAPIKeys()...)
 	}
 	fh.keyMapMutex.Unlock()
