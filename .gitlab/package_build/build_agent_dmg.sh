@@ -125,13 +125,13 @@ if [ "$SIGN" = true ]; then
     export LATEST_DMG
     # shellcheck disable=SC2016
     ./tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" bash -c '
-        EXIT_CODE=
+        EXIT_CODE=0
         RESULT=$(xcrun notarytool submit --timeout "$NOTARIZATION_TIMEOUT" --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait || EXIT_CODE=$?)
         echo "Results: $RESULT"
-        SUBMISSION_ID=$(echo "$RESULT" | awk "\$1 == \"id:\"{print \$2; exit}")
+        SUBMISSION_ID="$(echo "$RESULT" | awk "\$1 == \"id:\"{print \$2; exit}")"
         echo "Submission ID: $SUBMISSION_ID"
         echo "Submission logs:"
-        xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID" || true
+        xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID"
         exit "$EXIT_CODE"
     '
     echo -e "\e[0Ksection_end:`date +%s`:notarization\r\e[0K"
