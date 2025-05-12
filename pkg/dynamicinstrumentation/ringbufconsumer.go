@@ -26,13 +26,8 @@ func (goDI *GoDI) startRingbufferConsumer(rate float64) (func(), error) {
 		return nil, fmt.Errorf("couldn't set up reader for ringbuffer: %w", err)
 	}
 
-	var (
-		record ringbuf.Record
-		closed = false
-	)
-
+	var record ringbuf.Record
 	closeFunc := func() {
-		closed = true
 		r.Close()
 	}
 
@@ -42,9 +37,6 @@ func (goDI *GoDI) startRingbufferConsumer(rate float64) (func(), error) {
 
 	go func() {
 		for {
-			if closed {
-				break
-			}
 			err = r.ReadInto(&record)
 			if err != nil {
 				if errors.Is(err, ringbuf.ErrClosed) {
