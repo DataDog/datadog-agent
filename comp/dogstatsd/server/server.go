@@ -101,9 +101,8 @@ type cachedOriginCounter struct {
 
 // Server represent a Dogstatsd server
 type server struct {
-	log      log.Component
-	config   model.Reader
-	hostname hostnameinterface.Component
+	log    log.Component
+	config model.Reader
 	// listeners are the instantiated socket listener (UDS or UDP or both)
 	listeners []listeners.StatsdListener
 
