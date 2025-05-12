@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    Enables support for NetPath on Window Client versions.
+    Enables support for NetPath on Windows client versions.
     To enable set tcp_method to syn_socket in the network_path.d configuration file.
