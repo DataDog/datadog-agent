@@ -1,8 +1,6 @@
 module github.com/DataDog/datadog-agent/test/new-e2e
 
-go 1.23.1
-
-toolchain go1.23.8
+go 1.23.8
 
 // Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
 // The plugin versions NEED to be aligned.
@@ -10,11 +8,11 @@ toolchain go1.23.8
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.149
-	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1
+	github.com/DataDog/datadog-agent/pkg/util/option v0.64.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.64.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.3
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.59.0
-	github.com/DataDog/datadog-agent/pkg/version v0.64.1
+	github.com/DataDog/datadog-agent/pkg/version v0.64.3
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.36.1
@@ -61,7 +59,7 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
+	github.com/DataDog/datadog-agent/pkg/proto v0.64.2
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -238,11 +236,11 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.64.0-devel
-	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.64.0
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.64.1
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.65.0-devel
 	github.com/DataDog/datadog-agent/pkg/metrics v0.64.0
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
-	github.com/DataDog/datadog-agent/pkg/trace v0.64.0-devel.0.20250129182827-bab631c10d61
+	github.com/DataDog/datadog-agent/pkg/trace v0.64.2
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.2
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
@@ -251,26 +249,41 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.60.0 // indirect
+	github.com/DataDog/datadog-agent v0.0.0-20250512084516-bb1d4142f459 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.64.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.64.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/network/payload v0.0.0-20250128160050-7ac9ccd58c07 // indirect
-	github.com/DataDog/datadog-agent/pkg/tagger/types v0.60.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/tagger/types v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.64.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.64.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.64.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.64.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.64.3 // indirect
+	github.com/DataDog/gopsutil v1.2.2 // indirect
+	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/aws/aws-sdk-go v1.55.6 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/charmbracelet/x/ansi v0.6.0 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/cheggaaa/pb v1.0.29 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
-	github.com/containerd/log v0.1.0 // indirect
 	github.com/creack/pty v1.1.23 // indirect
+	github.com/ebitengine/purego v0.8.2 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
-	github.com/google/pprof v0.0.0-20250317173921-a4b03ec1a45e // indirect
+	github.com/go-ole/go-ole v1.3.0 // indirect
+	github.com/gofrs/flock v0.12.1 // indirect
+	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
 	github.com/iwdgo/sigintwindows v0.2.2 // indirect
+	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
+	github.com/moby/sys/mountinfo v0.7.2 // indirect
 	github.com/onsi/ginkgo/v2 v2.22.0 // indirect
 	github.com/onsi/gomega v1.36.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
+	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.81.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.81.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.81.0 // indirect
@@ -279,11 +292,15 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.81.0 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v3 v3.7.0 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
+	github.com/shirou/gopsutil/v4 v4.25.3 // indirect
+	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
+	github.com/tklauser/go-sysconf v0.3.14 // indirect
+	github.com/tklauser/numcpus v0.9.0 // indirect
 	github.com/twinj/uuid v0.0.0-20151029044442-89173bcdda19 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
+	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.35.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 )
 
