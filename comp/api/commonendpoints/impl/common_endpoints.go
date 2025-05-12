@@ -12,8 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/api/version"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -25,24 +25,26 @@ type Provider struct {
 }
 
 // CommonEndpointProvider return a filled Provider struct
-func CommonEndpointProvider() Provider {
+func CommonEndpointProvider(hostname hostnameinterface.Component) Provider {
 	return Provider{
 		VersionEndpoint:  api.NewAgentEndpointProvider(version.Get, "/version", "GET"),
-		HostnameEndpoint: api.NewAgentEndpointProvider(getHostname, "/hostname", "GET"),
+		HostnameEndpoint: api.NewAgentEndpointProvider(getHostname(hostname), "/hostname", "GET"),
 		StopEndpoint:     api.NewAgentEndpointProvider(stopAgent, "/stop", "POST"),
 	}
 }
 
 // getHostname returns the hostname as a JSON response.
-func getHostname(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	hname, err := hostname.Get(r.Context())
-	if err != nil {
-		log.Warnf("Error getting hostname: %s\n", err) // or something like this
-		hname = ""
+func getHostname(hostname hostnameinterface.Component) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		hname, err := hostname.Get(r.Context())
+		if err != nil {
+			log.Warnf("Error getting hostname: %s\n", err) // or something like this
+			hname = ""
+		}
+		j, _ := json.Marshal(hname)
+		w.Write(j)
 	}
-	j, _ := json.Marshal(hname)
-	w.Write(j)
 }
 
 // StopAgent stops the agent by sending a signal to the stopper channel.

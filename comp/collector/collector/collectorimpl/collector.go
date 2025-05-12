@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
@@ -49,19 +50,21 @@ const (
 type dependencies struct {
 	fx.In
 
-	Lc      fx.Lifecycle
-	Config  config.Component
-	Log     log.Component
-	HaAgent haagent.Component
+	Lc       fx.Lifecycle
+	Config   config.Component
+	Log      log.Component
+	HaAgent  haagent.Component
+	Hostname hostnameinterface.Component
 
 	SenderManager    sender.SenderManager
 	MetricSerializer option.Option[serializer.MetricSerializer]
 }
 
 type collectorImpl struct {
-	log     log.Component
-	config  config.Component
-	haAgent haagent.Component
+	log      log.Component
+	config   config.Component
+	haAgent  haagent.Component
+	hostname hostnameinterface.Component
 
 	senderManager    sender.SenderManager
 	metricSerializer option.Option[serializer.MetricSerializer]
@@ -123,6 +126,7 @@ func newCollector(deps dependencies) *collectorImpl {
 		log:                deps.Log,
 		config:             deps.Config,
 		haAgent:            deps.HaAgent,
+		hostname:           deps.Hostname,
 		senderManager:      deps.SenderManager,
 		metricSerializer:   deps.MetricSerializer,
 		checks:             make(map[checkid.ID]*middleware.CheckWrapper),

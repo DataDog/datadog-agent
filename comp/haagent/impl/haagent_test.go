@@ -11,15 +11,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 )
 
 var testRCConfigID = "datadog/2/HA_AGENT/config-62345762794c0c0b/65f17d667fb50f8ae28a3c858bdb1be9ea994f20249c119e007c520ac115c807"
@@ -218,7 +221,11 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 				fx.Replace(config.MockParams{Overrides: agentConfigs}),
 			))
 
-			h := newHaAgentImpl(logmock.New(t), newHaAgentConfigs(agentConfigComponent))
+			hostnameComponent := fxutil.Test[hostnameinterface.Component](t, fx.Options(
+				hostnameimpl.MockModule(),
+			))
+
+			h := newHaAgentImpl(logmock.New(t), hostnameComponent, newHaAgentConfigs(agentConfigComponent))
 
 			if tt.initialState != "" {
 				h.state.Store(string(tt.initialState))

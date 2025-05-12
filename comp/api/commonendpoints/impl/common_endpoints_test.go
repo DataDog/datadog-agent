@@ -15,17 +15,23 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestGetHostname(t *testing.T) {
 	req, err := http.NewRequest("GET", "/hostname", nil)
 	require.NoError(t, err)
 
+	hostname := fxutil.Test[hostnameinterface.Component](t, fx.Options(
+		fx.Provide(hostnameinterface.MockModule),
+	))
+
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(getHostname)
+	handler := http.HandlerFunc(getHostname(hostname))
 	handler.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)

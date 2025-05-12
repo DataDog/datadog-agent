@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -61,6 +62,7 @@ type Requires struct {
 	Collector           option.Option[collector.Component]
 	RemoteAgentRegistry remoteagentregistry.Component
 	Telemetry           telemetry.Component
+	Hostname            hostnameinterface.Component
 }
 
 type server struct {
@@ -76,6 +78,7 @@ type server struct {
 	autodiscovery       autodiscovery.Component
 	configComp          config.Component
 	telemetry           telemetry.Component
+	hostname            hostnameinterface.Component
 }
 
 func (s *server) BuildServer() http.Handler {
@@ -153,6 +156,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			autodiscovery:       reqs.AutoConfig,
 			configComp:          reqs.Cfg,
 			telemetry:           reqs.Telemetry,
+			hostname:            reqs.Hostname,
 		},
 	}
 	return provides, nil
