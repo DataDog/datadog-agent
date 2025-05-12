@@ -152,8 +152,8 @@ TAIL_CALL_CLASSIFIER_FNC(dns_response, struct __sk_buff *skb) {
         return ACT_OK;
     }
 
-    if(!flags.qr) {
-        // Stop processing if it's not a query response
+    if(!flags.qr || flags.tc) {
+        // Stop processing if it's not a query response or if the message is truncated
         return ACT_OK;
     }
 

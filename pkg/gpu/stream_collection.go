@@ -123,7 +123,7 @@ func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*S
 
 	key := globalStreamKey{
 		pid:     pid,
-		gpuUUID: device.UUID,
+		gpuUUID: device.GetDeviceInfo().UUID,
 	}
 
 	stream, ok := sc.globalStreams[key]
@@ -165,7 +165,7 @@ func (sc *streamCollection) getNonGlobalStream(header *gpuebpf.CudaEventHeader) 
 
 // createStreamHandler creates a new StreamHandler for a given CUDA stream.
 // If the device not provided (it's nil), it will be retrieved from the system context.
-func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader, device *ddnvml.Device, containerIDFunc func() string) (*StreamHandler, error) {
+func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader, device ddnvml.Device, containerIDFunc func() string) (*StreamHandler, error) {
 	if sc.streamCount() >= sc.maxStreams {
 		sc.telemetry.rejectedStreams.Inc()
 		return nil, fmt.Errorf("max streams reached")
@@ -188,8 +188,8 @@ func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader,
 		}
 	}
 
-	metadata.gpuUUID = device.UUID
-	metadata.smVersion = device.SMVersion
+	metadata.gpuUUID = device.GetDeviceInfo().UUID
+	metadata.smVersion = device.GetDeviceInfo().SMVersion
 
 	return newStreamHandler(metadata, sc.sysCtx, sc.streamLimits, sc.telemetry)
 }

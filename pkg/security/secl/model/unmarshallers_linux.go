@@ -19,7 +19,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/gopacket/layers"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -1085,20 +1084,6 @@ func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
 		e.Destination.IPNet = *eval.IPNetFromIP(dstIP[:])
 	}
 	return read + 48, nil
-}
-
-// UnmarshalDNSResponse unmarshalls a binary representation of itself
-func (e *DNSEvent) UnmarshalDNSResponse(dnsLayer *layers.DNS, size uint16) {
-	e.ID = dnsLayer.ID
-	e.Response = &DNSResponse{
-		ResponseCode: uint8(dnsLayer.ResponseCode),
-	}
-
-	e.Question.Count = dnsLayer.QDCount
-	e.Question.Name = string(dnsLayer.Questions[0].Name)
-	e.Question.Class = uint16(dnsLayer.Questions[0].Class)
-	e.Question.Type = uint16(dnsLayer.Questions[0].Type)
-	e.Question.Size = size
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
