@@ -5,8 +5,7 @@
 #include "helpers/network/raw.h"
 #include "perf_ring.h"
 
-SEC("classifier/raw_packet_sender")
-int classifier_raw_packet_sender(struct __sk_buff *skb) {
+TAIL_CALL_CLASSIFIER_FNC(raw_packet_sender, struct __sk_buff *skb) {
     u64 rate = 10;
     LOAD_CONSTANT("raw_packet_limiter_rate", rate);
 

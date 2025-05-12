@@ -3,5 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package process implements the local process collector for Workloadmeta.
-package process
+//go:build !linux
+
+// Package runtime defines limits for the Go runtime
+package runtime
+
+// DisableTransparentHugePages is not supported on non-linux hosts.
+func DisableTransparentHugePages() error {
+	return nil
+}

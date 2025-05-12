@@ -1622,6 +1622,15 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
 
     log_debug("kafka: kafka_header.api_key: %d api_version: %d", kafka_header.api_key, kafka_header.api_version);
 
+    if (!is_valid_kafka_request_header(&kafka_header)) {
+        return false;
+    }
+
+    // Check if the api key and version are supported
+    if(!is_supported_api_version_for_classification(kafka_header.api_key, kafka_header.api_version)) {
+        return false;
+    }
+
     // Report api version hits telemetry & check if the api version is supported
     // Classification has different supported versions for various API keys.
     switch (kafka_header.api_key) {
@@ -1637,10 +1646,6 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
                 return false;
             }
             break;
-    }
-
-    if (!is_valid_kafka_request_header(&kafka_header)) {
-        return false;
     }
 
     kafka_transaction->request_started = bpf_ktime_get_ns();
