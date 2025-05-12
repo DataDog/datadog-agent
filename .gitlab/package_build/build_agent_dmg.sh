@@ -128,7 +128,7 @@ if [ "$SIGN" = true ]; then
         EXIT_CODE=
         RESULT=$(xcrun notarytool submit --timeout "$NOTARIZATION_TIMEOUT" --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait || EXIT_CODE=$?)
         echo "Results: $RESULT"
-        SUBMISSION_ID=$(echo "$RESULT" | awk "$1 == \"id:\"{print $2; exit}")
+        SUBMISSION_ID=$(echo "$RESULT" | awk "\$1 == \"id:\"{print \$2; exit}")
         echo "Submission ID: $SUBMISSION_ID"
         echo "Submission logs:"
         xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID" || true

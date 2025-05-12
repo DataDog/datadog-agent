@@ -14,8 +14,6 @@ else
     NB_ATTEMPTS=5
 fi
 
-NB_ATTEMPTS=5
-
 for i in $(seq 1 $NB_ATTEMPTS); do
     "$@" && exit 0;
     errorcode=$?
