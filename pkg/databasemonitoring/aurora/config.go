@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-// Package config contains database-monitoring auto-discovery configuration
-package config
+package aws
 
 import pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 

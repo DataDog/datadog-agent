@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
-	dbmconfig "github.com/DataDog/datadog-agent/pkg/databasemonitoring/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,7 +35,7 @@ type DBMAuroraListener struct {
 	delService   chan<- Service
 	stop         chan bool
 	services     map[string]Service
-	config       dbmconfig.AuroraConfig
+	config       AuroraConfig
 	awsRdsClient aws.RDSClient
 	// ticks is used primarily for testing purposes so
 	// the frequency the discovers loop iterates can be controlled
@@ -80,7 +79,7 @@ func NewDBMAuroraListener(ServiceListernerDeps) (ServiceListener, error) {
 	return newDBMAuroraListener(config, client, nil), nil
 }
 
-func newDBMAuroraListener(config dbmconfig.AuroraConfig, awsClient aws.RDSClient, ticks <-chan time.Time) ServiceListener {
+func newDBMAuroraListener(config AuroraConfig, awsClient aws.RDSClient, ticks <-chan time.Time) ServiceListener {
 	l := &DBMAuroraListener{
 		config:       config,
 		services:     make(map[string]Service),

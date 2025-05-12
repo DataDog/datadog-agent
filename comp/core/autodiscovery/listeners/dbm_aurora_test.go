@@ -16,7 +16,6 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
-	dbmconfig "github.com/DataDog/datadog-agent/pkg/databasemonitoring/config"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +29,7 @@ const defaultDbmTag = "datadoghq.com/dbm:true"
 func TestDBMAuroraListener(t *testing.T) {
 	testCases := []struct {
 		name                  string
-		config                dbmconfig.AuroraConfig
+		config                AuroraConfig
 		numDiscoveryIntervals int
 		rdsClientConfigurer   mockRDSClientConfigurer
 		expectedServices      []*DBMAuroraService
@@ -38,7 +37,7 @@ func TestDBMAuroraListener(t *testing.T) {
 	}{
 		{
 			name: "GetAuroraClustersFromTags context deadline exceeded produces no services",
-			config: dbmconfig.AuroraConfig{
+			config: AuroraConfig{
 				DiscoveryInterval: 1,
 				QueryTimeout:      1,
 				Region:            "us-east-1",
@@ -58,7 +57,7 @@ func TestDBMAuroraListener(t *testing.T) {
 		},
 		{
 			name: "GetAuroraClusterEndpoints context deadline exceeded produces no services",
-			config: dbmconfig.AuroraConfig{
+			config: AuroraConfig{
 				DiscoveryInterval: 1,
 				QueryTimeout:      1,
 				Region:            "us-east-1",
@@ -82,7 +81,7 @@ func TestDBMAuroraListener(t *testing.T) {
 		},
 		{
 			name: "GetAuroraClustersFromTags error produces no services",
-			config: dbmconfig.AuroraConfig{
+			config: AuroraConfig{
 				DiscoveryInterval: 1,
 				Region:            "us-east-1",
 				Tags:              []string{defaultClusterTag},
@@ -97,7 +96,7 @@ func TestDBMAuroraListener(t *testing.T) {
 		},
 		{
 			name: "GetAuroraClusterEndpoints error produces no services",
-			config: dbmconfig.AuroraConfig{
+			config: AuroraConfig{
 				DiscoveryInterval: 1,
 				Region:            "us-east-1",
 				Tags:              []string{defaultClusterTag},
@@ -115,7 +114,7 @@ func TestDBMAuroraListener(t *testing.T) {
 		},
 		{
 			name: "single endpoint discovered and created",
-			config: dbmconfig.AuroraConfig{
+			config: AuroraConfig{
 				DiscoveryInterval: 1,
 				Region:            "us-east-1",
 				Tags:              []string{defaultClusterTag},
@@ -159,7 +158,7 @@ func TestDBMAuroraListener(t *testing.T) {
 		},
 		{
 			name: "multiple endpoints discovered from single cluster and created",
-			config: dbmconfig.AuroraConfig{
+			config: AuroraConfig{
 				DiscoveryInterval: 1,
 				Region:            "us-east-1",
 				Tags:              []string{defaultClusterTag},
