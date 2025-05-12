@@ -147,6 +147,7 @@ require (
 	github.com/onsi/gomega v1.36.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.124.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
+	github.com/redis/go-redis/v9 v9.8.0 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
