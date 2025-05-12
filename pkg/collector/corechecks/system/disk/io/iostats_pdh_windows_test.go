@@ -16,7 +16,7 @@ import (
 	pdhtest "github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 )
 
-func testGetDriveType(drive string) uintptr {
+func testGetDriveType(_drive string) uintptr {
 	return DRIVE_FIXED
 }
 
