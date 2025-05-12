@@ -262,8 +262,9 @@
     - echo "CI_JOB_STAGE=${CI_JOB_STAGE}" >> $DD_AGENT_TESTING_DIR/job_env.txt
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - !reference [.define_if_collect_complexity]
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - dda inv -- -e kmt.retry-test-job-dependencies --pipeline-id $CI_PIPELINE_ID --job-id $CI_JOB_ID --only-if-job-is-retry
+    - unexport GITLAB_TOKEN  # Keep the write-api exported token as little as possible
   script:
     - INSTANCE_IP=$(jq --exit-status --arg ARCH $ARCH -r '.[$ARCH].ip' $CI_PROJECT_DIR/stack.output)
     - !reference [.shared_filters_and_queries]
