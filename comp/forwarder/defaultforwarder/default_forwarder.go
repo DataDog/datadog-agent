@@ -329,8 +329,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		resolver.SetBaseDomain(domain)
 
 		_, isLocal := resolver.(*pkgresolver.LocalDomainResolver)
-		apiKeys := resolver.GetAPIKeys()
-		if !isLocal && (apiKeys == nil || len(apiKeys) == 0) {
+		if !isLocal && (resolver.GetAPIKeys() == nil || len(resolver.GetAPIKeys()) == 0) {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
 			var domainFolderPath string
@@ -423,9 +422,8 @@ func (f *DefaultForwarder) Start() error {
 	// log endpoints configuration
 	endpointLogs := make([]string, 0, len(f.domainResolvers))
 	for domain, dr := range f.domainResolvers {
-		apiKeys := dr.GetAPIKeys()
 		endpointLogs = append(endpointLogs, fmt.Sprintf("\"%s\" (%v api key(s))",
-			domain, len(apiKeys)))
+			domain, len(dr.GetAPIKeys())))
 	}
 	f.log.Infof("Forwarder started, sending to %v endpoint(s) with %v worker(s) each: %s",
 		len(endpointLogs), f.NumberOfWorkers, strings.Join(endpointLogs, " ; "))
@@ -526,8 +524,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 					transactions = append(transactions, t)
 				}
 			} else {
-				apiKeys := dr.GetAPIKeys()
-				for _, apiKey := range apiKeys {
+				for _, apiKey := range dr.GetAPIKeys() {
 					t := transaction.NewHTTPTransaction()
 					t.Domain = drDomain
 					t.Endpoint = endpoint

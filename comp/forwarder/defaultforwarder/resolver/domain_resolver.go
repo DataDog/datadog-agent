@@ -253,8 +253,7 @@ func (r *SingleDomainResolver) UpdateAPIKeys(configPath string, newKeys []utils.
 
 	r.apiKeys = append(newAPIKeys, newKeys...)
 	r.dedupedAPIKeys = utils.DedupAPIKeys(r.apiKeys)
-
-	r.keyVersion += 1
+	r.keyVersion++
 }
 
 // UpdateAPIKey replaces instances of the oldKey with the newKey
@@ -278,6 +277,7 @@ func (r *SingleDomainResolver) UpdateAPIKey(configPath, oldKey, newKey string) {
 	}
 
 	r.dedupedAPIKeys = utils.DedupAPIKeys(r.apiKeys)
+	r.keyVersion++
 }
 
 // GetBearerAuthToken is not implemented for SingleDomainResolver
@@ -353,7 +353,7 @@ func (r *MultiDomainResolver) UpdateAPIKeys(configPath string, newKeys []utils.A
 	r.apiKeys = append(newAPIKeys, newKeys...)
 	r.dedupedAPIKeys = utils.DedupAPIKeys(r.apiKeys)
 
-	r.keyVersion += 1
+	r.keyVersion++
 }
 
 // GetAPIKeysInfo returns the list of endpoints associated with this `DomainResolver`

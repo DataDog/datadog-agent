@@ -90,8 +90,7 @@ func (fh *forwarderHealth) init() {
 	// by the total number of api keys to obtain the max duration for each key
 	apiKeyCount := 0
 	for _, dr := range fh.domainResolvers {
-		apiKeys := dr.GetAPIKeys()
-		apiKeyCount += len(apiKeys)
+		apiKeyCount += len(dr.GetAPIKeys())
 	}
 
 	fh.timeout = validateAPIKeyTimeout
@@ -201,9 +200,8 @@ func (fh *forwarderHealth) computeDomainURLAPIKeyMap() {
 	for domain, dr := range fh.domainResolvers {
 		if domainURLRegexp.MatchString(domain) {
 			domain = "https://api." + domainURLRegexp.FindString(domain)
-		}
-		apiKeys := dr.GetAPIKeys()
-		fh.keysPerAPIEndpoint[domain] = append(fh.keysPerAPIEndpoint[domain], apiKeys...)
+		
+		fh.keysPerAPIEndpoint[domain] = append(fh.keysPerAPIEndpoint[domain], dr.GetAPIKeys()...)
 	}
 	fh.keyMapMutex.Unlock()
 }
