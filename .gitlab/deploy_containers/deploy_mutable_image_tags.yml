@@ -2,6 +2,7 @@
 # Contains jobs which deploy Agent 7 related mutable image tags to the registries. That means - not uploading the image, but only creating the tags.
 
 stages:
+  - deploy_containers
   - deploy_mutable_image_tags
 
 include:
