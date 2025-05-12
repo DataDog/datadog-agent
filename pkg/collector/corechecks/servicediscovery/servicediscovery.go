@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -44,10 +45,11 @@ type Check struct {
 	os                       osImpl
 	sender                   *telemetrySender
 	metricDiscoveredServices telemetry.Gauge
+	wmeta                    workloadmeta.Component
 }
 
 // Factory creates a new check factory
-func Factory() option.Option[func() check.Check] {
+func Factory(wmeta workloadmeta.Component) option.Option[func() check.Check] {
 	// Since service_discovery is enabled by default, we want to prevent returning an error in Configure() for platforms
 	// where the check is not implemented. Instead of that, we return an empty check.
 	if newOSImpl == nil {
@@ -55,14 +57,15 @@ func Factory() option.Option[func() check.Check] {
 	}
 
 	return option.New(func() check.Check {
-		return newCheck()
+		return newCheck(wmeta)
 	})
 }
 
 // TODO: add metastore param
-func newCheck() *Check {
+func newCheck(wmeta workloadmeta.Component) *Check {
 	return &Check{
 		CheckBase: corechecks.NewCheckBase(CheckName),
+		wmeta:     wmeta,
 	}
 }
 
