@@ -10,13 +10,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 )
 
-// TracerMetadata holds tracer metadata for a service instance.
-type TracerMetadata struct {
-	ServiceName string `json:"service_name,omitempty"`
-	RuntimeID   string `json:"runtime_id,omitempty"`
-	// Add more fields as needed in the future
-}
-
 // Service represents a listening process.
 type Service struct {
 	PID                        int                             `json:"pid"`
