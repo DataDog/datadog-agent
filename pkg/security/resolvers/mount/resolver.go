@@ -122,6 +122,7 @@ type Resolver struct {
 	redemption      *simplelru.LRU[uint32, *redemptionEntry]
 	fallbackLimiter *utils.Limiter[uint64]
 	debugLog        AtomicString
+	conflictLog     AtomicString
 
 	// stats
 	cacheHitsStats *atomic.Int64
@@ -311,6 +312,25 @@ func (mr *Resolver) DelPid(pid uint32) {
 func (mr *Resolver) insert(m *model.Mount, pid uint32) {
 	// umount the previous one if exists
 	if prev, ok := mr.mounts.Get(m.MountID); prev != nil && ok {
+		// Log duplicate mountID detection
+		prevPath := prev.Path
+		if prevPath == "" {
+			prevPath = prev.MountPointStr
+		}
+		newPath := m.Path
+		if newPath == "" {
+			newPath = m.MountPointStr
+		}
+
+		conflict := fmt.Sprintf("DUPLICATE MOUNTID DETECTED: ID=%d\n", m.MountID)
+		conflict += fmt.Sprintf("  Previous mount: Path=%s, MountPoint=%s, Origin=%d\n",
+			prevPath, prev.MountPointStr, prev.Origin)
+		conflict += fmt.Sprintf("  New mount: Path=%s, MountPoint=%s, Origin=%d\n",
+			newPath, m.MountPointStr, m.Origin)
+
+		fmt.Print(conflict)
+		mr.conflictLog.Add(conflict)
+
 		// put the prev entry and the all the children in the redemption list
 		mr.delete(prev)
 		// force a finalize on the entry itself as it will be overridden by the new one
@@ -696,8 +716,9 @@ func (mr *Resolver) SendStats() error {
 // ToJSON return a json version of the cache
 func (mr *Resolver) ToJSON() ([]byte, error) {
 	dump := struct {
-		Entries []json.RawMessage
-		Trace   string
+		Entries   []json.RawMessage
+		Trace     string
+		Conflicts string
 	}{}
 
 	mr.lock.RLock()
@@ -711,6 +732,7 @@ func (mr *Resolver) ToJSON() ([]byte, error) {
 	}
 
 	dump.Trace = mr.debugLog.Get()
+	dump.Conflicts = mr.conflictLog.Get()
 	return json.Marshal(dump)
 }
 
