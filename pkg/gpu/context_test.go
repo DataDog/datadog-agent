@@ -158,7 +158,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 	for _, idx := range containerDeviceIndexes {
 		gpuUUID := testutil.GPUUUIDs[idx]
 		resource := workloadmeta.ContainerAllocatedResource{
-			Name: nvidiaResourceName,
+			Name: string(gpuutil.GpuNvidiaGeneric),
 			ID:   gpuUUID,
 		}
 		container.AllocatedResources = append(container.AllocatedResources, resource)

@@ -111,42 +111,55 @@ func TestGetVisibleDevices(t *testing.T) {
 
 func TestGetVisibleDevicesWithMIG(t *testing.T) {
 	// Create some sample devices
-	gpuNoMig := &ddnvml.Device{
-		UUID: "GPU-1234",
+	gpuNoMig := &ddnvml.PhysicalDevice{
+		DeviceInfo: ddnvml.DeviceInfo{
+			UUID: "GPU-1234",
+		},
 	}
 
-	gpuNoMig2 := &ddnvml.Device{
-		UUID: "GPU-1235",
+	gpuNoMig2 := &ddnvml.PhysicalDevice{
+		DeviceInfo: ddnvml.DeviceInfo{
+			UUID: "GPU-1235",
+		},
 	}
 
-	gpuWithOneMigChild := &ddnvml.Device{
-		UUID:                 "GPU-3456",
+	gpuWithOneMigChild := &ddnvml.PhysicalDevice{
+		DeviceInfo: ddnvml.DeviceInfo{
+			UUID: "GPU-3456",
+		},
 		HasMIGFeatureEnabled: true,
-		MIGChildren: []*ddnvml.Device{
+		MIGChildren: []*ddnvml.MIGDevice{
 			{
-				UUID:  "MIG-3456-1234-1234-1234",
-				IsMIG: true,
+				DeviceInfo: ddnvml.DeviceInfo{
+					UUID: "MIG-3456-1234-1234-1234",
+				},
 			},
 		},
 	}
 
-	gpuWithTwoMigChildren := &ddnvml.Device{
-		UUID:                 "GPU-7890",
+	gpuWithTwoMigChildren := &ddnvml.PhysicalDevice{
+		DeviceInfo: ddnvml.DeviceInfo{
+			UUID: "GPU-7890",
+		},
 		HasMIGFeatureEnabled: true,
-		MIGChildren: []*ddnvml.Device{
+		MIGChildren: []*ddnvml.MIGDevice{
 			{
-				UUID:  "MIG-7890-1234-1234-1234",
-				IsMIG: true,
+				DeviceInfo: ddnvml.DeviceInfo{
+					UUID: "MIG-7890-1234-1234-1234",
+				},
 			},
 			{
-				UUID:  "MIG-7891-1234-1234-1234",
-				IsMIG: true,
+				DeviceInfo: ddnvml.DeviceInfo{
+					UUID: "MIG-7891-1234-1234-1234",
+				},
 			},
 		},
 	}
 
-	gpuWithMigEnabledButNoChildren := &ddnvml.Device{
-		UUID:                 "GPU-9999",
+	gpuWithMigEnabledButNoChildren := &ddnvml.PhysicalDevice{
+		DeviceInfo: ddnvml.DeviceInfo{
+			UUID: "GPU-9999",
+		},
 		HasMIGFeatureEnabled: true,
 	}
 
@@ -160,147 +173,147 @@ func TestGetVisibleDevicesWithMIG(t *testing.T) {
 	// combinations of MIG devices and non-MIG devices, and the observed behavior was recorded.
 	cases := []struct {
 		name            string
-		systemDevices   []*ddnvml.Device
+		systemDevices   []ddnvml.Device
 		visibleDevices  string
-		expectedDevices []*ddnvml.Device
+		expectedDevices []ddnvml.Device
 		expectsError    bool
 	}{
 		// Basic behavior for MIG: the GPU with MIG devices gets replaced by the first MIG child
 		{
 			name:            "only one device with one MIG child, no CUDA_VISIBLE_DEVICES",
-			systemDevices:   []*ddnvml.Device{gpuWithOneMigChild},
+			systemDevices:   []ddnvml.Device{gpuWithOneMigChild},
 			visibleDevices:  "",
-			expectedDevices: []*ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
+			expectedDevices: []ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
 		},
 		{
 			name:            "only one device with one MIG child, CUDA_VISIBLE_DEVICES=0",
-			systemDevices:   []*ddnvml.Device{gpuWithOneMigChild},
+			systemDevices:   []ddnvml.Device{gpuWithOneMigChild},
 			visibleDevices:  "0",
-			expectedDevices: []*ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
+			expectedDevices: []ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
 		},
 		// If we select the parent GPU by UUID, and it has MIG children, the first MIG child gets selected
 		{
 			name:            "only one device with one MIG child, selected parent by UUID",
-			systemDevices:   []*ddnvml.Device{gpuWithOneMigChild},
+			systemDevices:   []ddnvml.Device{gpuWithOneMigChild},
 			visibleDevices:  gpuWithOneMigChild.UUID,
-			expectedDevices: []*ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
+			expectedDevices: []ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
 		},
 		{
 			name:            "only one device with one MIG child, selected MIG by UUID",
-			systemDevices:   []*ddnvml.Device{gpuWithOneMigChild},
+			systemDevices:   []ddnvml.Device{gpuWithOneMigChild},
 			visibleDevices:  gpuWithOneMigChild.MIGChildren[0].UUID,
-			expectedDevices: []*ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
+			expectedDevices: []ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
 		},
 		{
 			name:            "MIG with two children, no CUDA_VISIBLE_DEVICES",
-			systemDevices:   []*ddnvml.Device{gpuWithTwoMigChildren},
+			systemDevices:   []ddnvml.Device{gpuWithTwoMigChildren},
 			visibleDevices:  "",
-			expectedDevices: []*ddnvml.Device{gpuWithTwoMigChildren.MIGChildren[0]},
+			expectedDevices: []ddnvml.Device{gpuWithTwoMigChildren.MIGChildren[0]},
 		},
 		{
 			name:            "multiple MIG devices, no CUDA_VISIBLE_DEVICES",
-			systemDevices:   []*ddnvml.Device{gpuWithOneMigChild, gpuWithTwoMigChildren},
+			systemDevices:   []ddnvml.Device{gpuWithOneMigChild, gpuWithTwoMigChildren},
 			visibleDevices:  "",
-			expectedDevices: []*ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
+			expectedDevices: []ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
 		},
 		{
 			name:            "multiple MIG devices, CUDA_VISIBLE_DEVICES=0",
-			systemDevices:   []*ddnvml.Device{gpuWithOneMigChild, gpuWithTwoMigChildren},
+			systemDevices:   []ddnvml.Device{gpuWithOneMigChild, gpuWithTwoMigChildren},
 			visibleDevices:  "0",
-			expectedDevices: []*ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
+			expectedDevices: []ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
 		},
 		{
 			name:            "multiple MIG devices, CUDA_VISIBLE_DEVICES=1",
-			systemDevices:   []*ddnvml.Device{gpuWithOneMigChild, gpuWithTwoMigChildren},
+			systemDevices:   []ddnvml.Device{gpuWithOneMigChild, gpuWithTwoMigChildren},
 			visibleDevices:  "1",
-			expectedDevices: []*ddnvml.Device{gpuWithTwoMigChildren.MIGChildren[0]},
+			expectedDevices: []ddnvml.Device{gpuWithTwoMigChildren.MIGChildren[0]},
 		},
 		{
 			name:            "multiple MIG devices, CUDA_VISIBLE_DEVICES=0,1",
-			systemDevices:   []*ddnvml.Device{gpuWithOneMigChild, gpuWithTwoMigChildren},
+			systemDevices:   []ddnvml.Device{gpuWithOneMigChild, gpuWithTwoMigChildren},
 			visibleDevices:  "0,1",
-			expectedDevices: []*ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]}, // yes, only the first MIG child is selected, not an error
+			expectedDevices: []ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]}, // yes, only the first MIG child is selected, not an error
 		},
 		{
 			name:            "multiple MIG devices, selects first MIG child by UUID",
-			systemDevices:   []*ddnvml.Device{gpuWithOneMigChild, gpuWithTwoMigChildren},
+			systemDevices:   []ddnvml.Device{gpuWithOneMigChild, gpuWithTwoMigChildren},
 			visibleDevices:  gpuWithOneMigChild.MIGChildren[0].UUID,
-			expectedDevices: []*ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
+			expectedDevices: []ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
 		},
 		{
 			name:            "one non-MIG device and one MIG, selects non-MIG device by UUID",
-			systemDevices:   []*ddnvml.Device{gpuNoMig, gpuWithOneMigChild},
+			systemDevices:   []ddnvml.Device{gpuNoMig, gpuWithOneMigChild},
 			visibleDevices:  gpuNoMig.UUID,
-			expectedDevices: []*ddnvml.Device{gpuNoMig},
+			expectedDevices: []ddnvml.Device{gpuNoMig},
 		},
 		{
 			name:            "one non-MIG device and one MIG, selects MIG child by UUID",
-			systemDevices:   []*ddnvml.Device{gpuNoMig, gpuWithOneMigChild},
+			systemDevices:   []ddnvml.Device{gpuNoMig, gpuWithOneMigChild},
 			visibleDevices:  gpuWithOneMigChild.MIGChildren[0].UUID,
-			expectedDevices: []*ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
+			expectedDevices: []ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
 		},
 		{
 			name:            "one non-MIG device and one MIG, no CUDA_VISIBLE_DEVICES",
-			systemDevices:   []*ddnvml.Device{gpuNoMig, gpuWithOneMigChild},
+			systemDevices:   []ddnvml.Device{gpuNoMig, gpuWithOneMigChild},
 			visibleDevices:  "",
-			expectedDevices: []*ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
+			expectedDevices: []ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
 		},
 		{
 			name:            "one non-MIG device and one MIG, CUDA_VISIBLE_DEVICES=0",
-			systemDevices:   []*ddnvml.Device{gpuNoMig, gpuWithOneMigChild},
+			systemDevices:   []ddnvml.Device{gpuNoMig, gpuWithOneMigChild},
 			visibleDevices:  "0",
-			expectedDevices: []*ddnvml.Device{gpuNoMig},
+			expectedDevices: []ddnvml.Device{gpuNoMig},
 		},
 		{
 			name:            "one non-MIG device and one MIG, CUDA_VISIBLE_DEVICES=1",
-			systemDevices:   []*ddnvml.Device{gpuNoMig, gpuWithOneMigChild},
+			systemDevices:   []ddnvml.Device{gpuNoMig, gpuWithOneMigChild},
 			visibleDevices:  "1",
-			expectedDevices: []*ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
+			expectedDevices: []ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
 		},
 		// The MIG children get put at the end of the list, so they're not actually the first device
 		// The non-MIG devices get put at the beginning of the list
 		{
 			name:            "one MIG device and one non-MIG device, CUDA_VISIBLE_DEVICES=0",
-			systemDevices:   []*ddnvml.Device{gpuWithOneMigChild, gpuNoMig},
+			systemDevices:   []ddnvml.Device{gpuWithOneMigChild, gpuNoMig},
 			visibleDevices:  "0",
-			expectedDevices: []*ddnvml.Device{gpuNoMig},
+			expectedDevices: []ddnvml.Device{gpuNoMig},
 		},
 		{
 			name:            "one MIG device and one non-MIG device, CUDA_VISIBLE_DEVICES=1",
-			systemDevices:   []*ddnvml.Device{gpuWithOneMigChild, gpuNoMig},
+			systemDevices:   []ddnvml.Device{gpuWithOneMigChild, gpuNoMig},
 			visibleDevices:  "1",
-			expectedDevices: []*ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
+			expectedDevices: []ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
 		},
 		{
 			name:            "device with MIG enabled but no children gets ignored",
-			systemDevices:   []*ddnvml.Device{gpuWithMigEnabledButNoChildren, gpuWithOneMigChild},
+			systemDevices:   []ddnvml.Device{gpuWithMigEnabledButNoChildren, gpuWithOneMigChild},
 			visibleDevices:  "0",
-			expectedDevices: []*ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
+			expectedDevices: []ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
 		},
 		// Try the same but with multiple GPUs, to see if the order is still correct
 		{
 			name:            "mixed MIG and non-MIG devices, CUDA_VISIBLE_DEVICES=0",
-			systemDevices:   []*ddnvml.Device{gpuWithOneMigChild, gpuNoMig, gpuWithTwoMigChildren, gpuNoMig2},
+			systemDevices:   []ddnvml.Device{gpuWithOneMigChild, gpuNoMig, gpuWithTwoMigChildren, gpuNoMig2},
 			visibleDevices:  "0",
-			expectedDevices: []*ddnvml.Device{gpuNoMig},
+			expectedDevices: []ddnvml.Device{gpuNoMig},
 		},
 		{
 			name:            "mixed MIG and non-MIG devices, CUDA_VISIBLE_DEVICES=1",
-			systemDevices:   []*ddnvml.Device{gpuWithOneMigChild, gpuNoMig, gpuWithTwoMigChildren, gpuNoMig2},
+			systemDevices:   []ddnvml.Device{gpuWithOneMigChild, gpuNoMig, gpuWithTwoMigChildren, gpuNoMig2},
 			visibleDevices:  "1",
-			expectedDevices: []*ddnvml.Device{gpuNoMig2},
+			expectedDevices: []ddnvml.Device{gpuNoMig2},
 		},
 		{
 			name:            "mixed MIG and non-MIG devices, CUDA_VISIBLE_DEVICES=2",
-			systemDevices:   []*ddnvml.Device{gpuWithOneMigChild, gpuNoMig, gpuWithTwoMigChildren, gpuNoMig2},
+			systemDevices:   []ddnvml.Device{gpuWithOneMigChild, gpuNoMig, gpuWithTwoMigChildren, gpuNoMig2},
 			visibleDevices:  "2",
-			expectedDevices: []*ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
+			expectedDevices: []ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
 		},
 		{
 			name:            "mixed MIG and non-MIG devices, CUDA_VISIBLE_DEVICES=3",
-			systemDevices:   []*ddnvml.Device{gpuWithOneMigChild, gpuNoMig, gpuWithTwoMigChildren, gpuNoMig2},
+			systemDevices:   []ddnvml.Device{gpuWithOneMigChild, gpuNoMig, gpuWithTwoMigChildren, gpuNoMig2},
 			visibleDevices:  "3",
-			expectedDevices: []*ddnvml.Device{gpuWithTwoMigChildren.MIGChildren[0]},
+			expectedDevices: []ddnvml.Device{gpuWithTwoMigChildren.MIGChildren[0]},
 		},
 	}
 
@@ -319,65 +332,75 @@ func TestGetVisibleDevicesWithMIG(t *testing.T) {
 }
 
 func TestAdjustVisibleDevicesForMigDevices(t *testing.T) {
-	gpuNoMig := &ddnvml.Device{
-		UUID: "GPU-1234",
+	gpuNoMig := &ddnvml.PhysicalDevice{
+		DeviceInfo: ddnvml.DeviceInfo{
+			UUID: "GPU-1234",
+		},
 	}
 
-	gpuWithOneMigChild := &ddnvml.Device{
-		UUID:                 "GPU-3456",
+	gpuWithOneMigChild := &ddnvml.PhysicalDevice{
+		DeviceInfo: ddnvml.DeviceInfo{
+			UUID: "GPU-3456",
+		},
 		HasMIGFeatureEnabled: true,
-		MIGChildren: []*ddnvml.Device{
+		MIGChildren: []*ddnvml.MIGDevice{
 			{
-				UUID:  "MIG-3456-1234-1234-1234",
-				IsMIG: true,
+				DeviceInfo: ddnvml.DeviceInfo{
+					UUID: "MIG-3456-1234-1234-1234",
+				},
 			},
 		},
 	}
 
-	gpuWithTwoMigChildren := &ddnvml.Device{
-		UUID:                 "GPU-7890",
+	gpuWithTwoMigChildren := &ddnvml.PhysicalDevice{
+		DeviceInfo: ddnvml.DeviceInfo{
+			UUID: "GPU-7890",
+		},
 		HasMIGFeatureEnabled: true,
-		MIGChildren: []*ddnvml.Device{
+		MIGChildren: []*ddnvml.MIGDevice{
 			{
-				UUID:  "MIG-7890-1234-1234-1234",
-				IsMIG: true,
+				DeviceInfo: ddnvml.DeviceInfo{
+					UUID: "MIG-7890-1234-1234-1234",
+				},
 			},
 		},
 	}
 
-	gpuWithMigEnabledButNoChildren := &ddnvml.Device{
-		UUID:                 "GPU-9999",
+	gpuWithMigEnabledButNoChildren := &ddnvml.PhysicalDevice{
+		DeviceInfo: ddnvml.DeviceInfo{
+			UUID: "GPU-9999",
+		},
 		HasMIGFeatureEnabled: true,
 	}
 
 	cases := []struct {
 		name            string
-		systemDevices   []*ddnvml.Device
-		expectedDevices []*ddnvml.Device
+		systemDevices   []ddnvml.Device
+		expectedDevices []ddnvml.Device
 	}{
 		{
 			name:            "no MIG devices",
-			systemDevices:   []*ddnvml.Device{gpuNoMig},
-			expectedDevices: []*ddnvml.Device{gpuNoMig},
+			systemDevices:   []ddnvml.Device{gpuNoMig},
+			expectedDevices: []ddnvml.Device{gpuNoMig},
 		},
 		{
 			name:            "one MIG device",
-			systemDevices:   []*ddnvml.Device{gpuWithOneMigChild},
-			expectedDevices: []*ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
+			systemDevices:   []ddnvml.Device{gpuWithOneMigChild},
+			expectedDevices: []ddnvml.Device{gpuWithOneMigChild.MIGChildren[0]},
 		},
 		{
 			name:            "two MIG devices",
-			systemDevices:   []*ddnvml.Device{gpuWithTwoMigChildren},
-			expectedDevices: []*ddnvml.Device{gpuWithTwoMigChildren.MIGChildren[0]},
+			systemDevices:   []ddnvml.Device{gpuWithTwoMigChildren},
+			expectedDevices: []ddnvml.Device{gpuWithTwoMigChildren.MIGChildren[0]},
 		},
 		{
 			name:            "one non-MIG device and one MIG device",
-			systemDevices:   []*ddnvml.Device{gpuNoMig, gpuWithOneMigChild},
-			expectedDevices: []*ddnvml.Device{gpuNoMig, gpuWithOneMigChild.MIGChildren[0]},
+			systemDevices:   []ddnvml.Device{gpuNoMig, gpuWithOneMigChild},
+			expectedDevices: []ddnvml.Device{gpuNoMig, gpuWithOneMigChild.MIGChildren[0]},
 		},
 		{
 			name:            "MIG-enabled device with no children",
-			systemDevices:   []*ddnvml.Device{gpuWithMigEnabledButNoChildren},
+			systemDevices:   []ddnvml.Device{gpuWithMigEnabledButNoChildren},
 			expectedDevices: nil,
 		},
 	}
