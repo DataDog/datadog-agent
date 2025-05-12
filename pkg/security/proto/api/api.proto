@@ -226,7 +226,8 @@ message TranscodingRequestMessage {
 message ActivityDumpStreamParams {}
 
 message ActivityDumpStreamMessage {
-    ActivityDumpMessage Dump = 1;
+    WorkloadSelectorMessage Selector = 1;
+    bytes Header = 2;
     bytes Data = 3;
 }
 

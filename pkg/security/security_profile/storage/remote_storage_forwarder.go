@@ -10,27 +10,25 @@ package storage
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 )
-
-// ActivityDumpHandler represents an handler for the activity dumps sent by the probe
-type ActivityDumpHandler interface {
-	HandleActivityDump(dump *api.ActivityDumpStreamMessage)
-}
 
 // ActivityDumpRemoteStorageForwarder is a remote storage that forwards dumps to the security-agent
 type ActivityDumpRemoteStorageForwarder struct {
-	activityDumpHandler ActivityDumpHandler
+	activityDumpHandler backend.ActivityDumpHandler
 }
 
 // NewActivityDumpRemoteStorageForwarder returns a new instance of ActivityDumpRemoteStorageForwarder
-func NewActivityDumpRemoteStorageForwarder(handler ActivityDumpHandler) (*ActivityDumpRemoteStorageForwarder, error) {
+func NewActivityDumpRemoteStorageForwarder(handler backend.ActivityDumpHandler) (*ActivityDumpRemoteStorageForwarder, error) {
 	return &ActivityDumpRemoteStorageForwarder{
 		activityDumpHandler: handler,
 	}, nil
@@ -43,23 +41,25 @@ func (storage *ActivityDumpRemoteStorageForwarder) GetStorageType() config.Stora
 
 // Persist saves the provided buffer to the persistent storage
 func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.StorageRequest, p *profile.Profile, raw *bytes.Buffer) error {
+	selector := p.GetWorkloadSelector()
+
 	// set activity dump size for current encoding
 	p.Metadata.Size = uint64(raw.Len())
 
-	// generate stream message
-	msg := &api.ActivityDumpStreamMessage{
-		Dump: p.ToSecurityActivityDumpMessage(p.Metadata.End.Sub(p.Metadata.Start), map[config.StorageFormat][]config.StorageRequest{
-			request.Format: {request},
-		}),
-		Data: raw.Bytes(),
+	p.Header.DDTags = strings.Join(p.GetTags(), ",")
+	// marshal event metadata
+	headerData, err := json.Marshal(p.Header)
+	if err != nil {
+		return fmt.Errorf("couldn't marshall event metadata")
 	}
 
-	if handler := storage.activityDumpHandler; handler != nil {
-		handler.HandleActivityDump(msg)
+	if storage.activityDumpHandler == nil {
+		return nil
 	}
 
-	seclog.Infof("[%s] file for activity dump [%s] was forwarded to the security-agent", request.Format, p.GetSelectorStr())
-	return nil
+	err = storage.activityDumpHandler.HandleActivityDump(selector.Image, selector.Tag, headerData, raw.Bytes())
+	seclog.Infof("[%s] file for activity dump [%s] was forwarded to the security-agent", request.Format, selector)
+	return err
 }
 
 // SendTelemetry sends telemetry for the current storage
