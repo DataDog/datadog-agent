@@ -2,9 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
-//go:build windows
 
-//nolint:revive // TODO(WINA) Fix revive linter
+//go:build windows
 
 package windowscertificate
 
@@ -23,9 +22,7 @@ func TestWindowsCertificate(t *testing.T) {
 	certCheck := new(WinCertChk)
 
 	instanceConfig := []byte(`
-certificate_stores:
-  - ROOT
-  - CA
+certificate_store: ROOT
 certificate_subjects:
   - Microsoft
   - Datadog
@@ -53,7 +50,7 @@ func TestWindowsCertificateWithNoCertificates(t *testing.T) {
 	certCheck := new(WinCertChk)
 
 	instanceConfig := []byte(`
-certificate_stores:
+certificate_store:
 certificate_subjects:
 days_warning: 10
 days_critical: 5`)
@@ -73,8 +70,7 @@ func TestWindowsCertificateWithInvalidStore(t *testing.T) {
 	certCheck := new(WinCertChk)
 
 	instanceConfig := []byte(`
-certificate_stores:
-  - INVALID`)
+certificate_store: INVALID`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
 	m := mocksender.NewMockSender(certCheck.ID())
@@ -94,8 +90,7 @@ func TestWindowsCertificateWithInvalidSubject(t *testing.T) {
 	certCheck := new(WinCertChk)
 
 	instanceConfig := []byte(`
-certificate_stores:
-  - ROOT
+certificate_store: ROOT
 certificate_subjects:
   - INVALID
 days_warning: 10
@@ -118,8 +113,7 @@ func TestWindowsCertificateServiceCheckCritical(t *testing.T) {
 	certCheck := new(WinCertChk)
 
 	instanceConfig := []byte(`
-certificate_stores:
-  - ROOT
+certificate_store: ROOT
 days_warning: 10
 days_critical: 500000`)
 
@@ -142,8 +136,7 @@ func TestWindowsCertificateServiceCheckWarning(t *testing.T) {
 	certCheck := new(WinCertChk)
 
 	instanceConfig := []byte(`
-certificate_stores:
-  - ROOT
+certificate_store: ROOT
 certificate_subjects:
   - Microsoft
 days_warning: 500000
@@ -169,8 +162,7 @@ func TestWindowsCertificateNegativeDaysThresholds(t *testing.T) {
 	certCheck := new(WinCertChk)
 
 	instanceConfig := []byte(`
-certificate_stores:
-  - ROOT
+certificate_store: ROOT
 days_warning: -1
 days_critical: -1`)
 

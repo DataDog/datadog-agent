@@ -13,15 +13,12 @@ init_config:
 #
 instances:
 
-    ## @param certificate_stores - list of strings - required
-    ## The list of certificate stores to query from when verifying the Windows certificates.
+    ## @param certificate_store - string - required
+    ## The certificate store to query from when verifying the Windows certificates.
     ## This check can only query from local machine certificates.
-    ## Enter the store names as found in `HKEY_LOCAL_MACHINE\Software\Microsoft\SystemCertificates`
+    ## Enter the store name as found in `HKEY_LOCAL_MACHINE\Software\Microsoft\SystemCertificates`
     #
-    # - certificate_stores:
-    #   - MY
-    #   - ROOT
-    #   - CA
+    # - certificate_store: MY
 
     ## @param certificate_subject - list of strings - optional
     ## A list of strings to filter by the subjects of the certificates.
@@ -29,23 +26,23 @@ instances:
     ## and you have a certificate with subject,
     ## "CN=Microsoft Root Authority, OU=Microsoft Corporation, OU=Copyright (c) 1997 Microsoft Corp."
     ## then the certificate will be matched and metrics will be collected for that certificate.
-    ## If `certificate_subjects` is empty then all certificates in `certificate_stores` are collected.
+    ## If `certificate_subjects` is empty then all certificates in `certificate_store` are collected.
     #
     # certificate_subjects:
     #   - <SUBJECT_1>
     #   - <SUBJECT_2>
 
-    ## @param days_warning - number - optional - default: 14.0
+    ## @param days_warning - integer - optional - default: 14
     ## Number of days before certificate expiration from which the service check
     ## `tls.cert_expiration` begins emitting WARNING.
     #
-    # days_warning: 14.0
+    # days_warning: 14
 
-    ## @param days_critical - number - optional - default: 7.0
+    ## @param days_critical - integer - optional - default: 7
     ## Number of days before certificate expiration from which the service check
     ## `tls.cert_expiration` begins emitting CRITICAL.
     #
-    # days_critical: 7.0
+    # days_critical: 7
 
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.
@@ -63,11 +60,11 @@ instances:
     #
     # service: <SERVICE>
 
-    ## @param min_collection_interval - number - optional - default: 15
+    ## @param min_collection_interval - number - optional - default: 300
     ## This changes the collection interval of the check. For more information, see:
     ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
     #
-    # min_collection_interval: 15
+    # min_collection_interval: 300
 
     ## @param empty_default_hostname - boolean - optional - default: false
     ## This forces the check to send metrics with no hostname.
