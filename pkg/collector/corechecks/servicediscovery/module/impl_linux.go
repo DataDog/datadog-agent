@@ -72,7 +72,7 @@ type serviceInfo struct {
 	containerServiceNameSource string
 	ddServiceName              string
 	ddServiceInjected          bool
-	tracerMetadata             []model.TracerMetadata
+	tracerMetadata             []tracermetadata.TracerMetadata
 	ports                      []uint16
 	checkedContainerData       bool
 	language                   language.Language
@@ -596,14 +596,12 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 		return nil, err
 	}
 
-	var tracerMetadataArr []model.TracerMetadata
+	var tracerMetadataArr []tracermetadata.TracerMetadata
 
 	tracerMetadata, err := tracermetadata.GetTracerMetadata(int(pid), kernel.ProcFSRoot())
 	if err == nil {
-		tracerMetadataArr = append(tracerMetadataArr, model.TracerMetadata{
-			ServiceName: tracerMetadata.ServiceName,
-			RuntimeID:   tracerMetadata.RuntimeID,
-		})
+		// Currently we only get the first tracer metadata
+		tracerMetadataArr = append(tracerMetadataArr, tracerMetadata)
 	}
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")

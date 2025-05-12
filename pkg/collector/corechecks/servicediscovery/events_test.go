@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 )
 
 func mockSenderEvents(t *testing.T, m *mocksender.MockSender) []*event {
@@ -62,7 +63,7 @@ func Test_telemetrySender(t *testing.T) {
 		ContainerServiceNameSource: "service",
 		DDService:                  "dd-service",
 		DDServiceInjected:          true,
-		TracerMetadata: []model.TracerMetadata{
+		TracerMetadata: []tracermetadata.TracerMetadata{
 			{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
 			{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
 		},
@@ -100,7 +101,7 @@ func Test_telemetrySender(t *testing.T) {
 				ContainerServiceNameSource: "service",
 				DDService:                  "dd-service",
 				ServiceNameSource:          "injected",
-				TracerMetadata: []model.TracerMetadata{
+				TracerMetadata: []tracermetadata.TracerMetadata{
 					{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
 					{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
 				},
@@ -137,7 +138,7 @@ func Test_telemetrySender(t *testing.T) {
 				ContainerServiceNameSource: "service",
 				DDService:                  "dd-service",
 				ServiceNameSource:          "injected",
-				TracerMetadata: []model.TracerMetadata{
+				TracerMetadata: []tracermetadata.TracerMetadata{
 					{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
 					{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
 				},
@@ -174,7 +175,7 @@ func Test_telemetrySender(t *testing.T) {
 				ContainerServiceNameSource: "service",
 				DDService:                  "dd-service",
 				ServiceNameSource:          "injected",
-				TracerMetadata: []model.TracerMetadata{
+				TracerMetadata: []tracermetadata.TracerMetadata{
 					{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
 					{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
 				},
@@ -230,7 +231,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 		ContainerServiceName:       "container-service-name2",
 		ContainerServiceNameSource: "service",
 		DDService:                  "dd-service-provided",
-		TracerMetadata: []model.TracerMetadata{
+		TracerMetadata: []tracermetadata.TracerMetadata{
 			{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
 			{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
 		},
@@ -260,7 +261,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 				ContainerServiceNameSource: "service",
 				DDService:                  "dd-service-provided",
 				ServiceNameSource:          "provided",
-				TracerMetadata: []model.TracerMetadata{
+				TracerMetadata: []tracermetadata.TracerMetadata{
 					{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
 					{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
 				},
@@ -289,7 +290,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 				ContainerServiceNameSource: "service",
 				DDService:                  "dd-service-provided",
 				ServiceNameSource:          "provided",
-				TracerMetadata: []model.TracerMetadata{
+				TracerMetadata: []tracermetadata.TracerMetadata{
 					{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
 					{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
 				},
@@ -318,7 +319,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 				ContainerServiceNameSource: "service",
 				DDService:                  "dd-service-provided",
 				ServiceNameSource:          "provided",
-				TracerMetadata: []model.TracerMetadata{
+				TracerMetadata: []tracermetadata.TracerMetadata{
 					{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
 					{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
 				},
