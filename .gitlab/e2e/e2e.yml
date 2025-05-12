@@ -173,6 +173,9 @@ new-e2e-containers-eks:
   rules:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
+  needs:
+    - !reference [.new_e2e_template_needs_container_deploy, needs]
+    - new-e2e-containers-eks-init
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
