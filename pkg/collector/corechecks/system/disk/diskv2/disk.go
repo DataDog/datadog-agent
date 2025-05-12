@@ -133,7 +133,6 @@ type Check struct {
 
 // Run executes the check
 func (c *Check) Run() error {
-	log.Debug("weeeeeee")
 	sender, err := c.GetSender()
 	if err != nil {
 		return err
