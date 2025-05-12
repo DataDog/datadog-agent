@@ -33,6 +33,8 @@ dependency 'libpcap' if linux_target? and !heroku_target? # system-probe depende
 # Include traps db file in snmp.d/traps_db/
 dependency 'snmp-traps'
 
+dependency 'secret-generic-connector'
+
 # Additional software
 if windows_target?
   if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?

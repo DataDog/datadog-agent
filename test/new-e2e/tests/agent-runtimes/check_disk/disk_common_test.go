@@ -27,14 +27,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
-type baseCheckSuite struct {
+type diskCheckSuite struct {
 	e2e.BaseSuite[environments.Host]
 	descriptor            e2eos.Descriptor
 	metricCompareFraction float64
 	metricCompareDecimals int
 }
 
-func (v *baseCheckSuite) getSuiteOptions() []e2e.SuiteOption {
+func (v *diskCheckSuite) getSuiteOptions() []e2e.SuiteOption {
 	suiteOptions := []e2e.SuiteOption{}
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
@@ -45,7 +45,7 @@ func (v *baseCheckSuite) getSuiteOptions() []e2e.SuiteOption {
 	return suiteOptions
 }
 
-func (v *baseCheckSuite) TestCheckDisk() {
+func (v *diskCheckSuite) TestCheckDisk() {
 	testCases := []struct {
 		name        string
 		checkConfig string
@@ -118,7 +118,7 @@ func metricPayloadCompare(a, b check.Metric) int {
 	)
 }
 
-func (v *baseCheckSuite) runDiskCheck(agentConfig string, checkConfig string, useNewVersion bool) []check.Metric {
+func (v *diskCheckSuite) runDiskCheck(agentConfig string, checkConfig string, useNewVersion bool) []check.Metric {
 	v.T().Helper()
 
 	diskCheckVersion := "old"
