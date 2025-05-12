@@ -5,6 +5,7 @@
 
 //go:build !windows
 
+// Package windowscertificate implements a windows certificate check. It does nothing on Linux.
 package windowscertificate
 
 import (
