@@ -11,8 +11,8 @@ package tracermetadata
 // TracerMetadata as defined in
 // https://github.com/DataDog/libdatadog/blob/99056cf717cfe9/ddcommon/src/tracer_metadata.rs#L7-L29
 type TracerMetadata struct {
-	SchemaVersion  uint8  `msg:"schema_version"`
-	RuntimeID      string `msg:"runtime_id"`
-	TracerLanguage string `msg:"tracer_language"`
-	ServiceName    string `msg:"service_name"`
+	SchemaVersion  uint8  `msg:"schema_version" json:"schema_version"`
+	RuntimeID      string `msg:"runtime_id" json:"runtime_id"`
+	TracerLanguage string `msg:"tracer_language" json:"tracer_language"`
+	ServiceName    string `msg:"service_name" json:"service_name"`
 }
