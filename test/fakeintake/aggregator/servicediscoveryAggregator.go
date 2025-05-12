@@ -10,9 +10,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
+
+// TracerMetadata is part of the payload for the service_discovery check
+type TracerMetadata struct {
+	SchemaVersion  uint8  `json:"schema_version"`
+	RuntimeID      string `json:"runtime_id"`
+	TracerLanguage string `json:"tracer_language"`
+	ServiceName    string `json:"service_name"`
+}
 
 // ServiceDiscoveryPayload is a payload type for the service_discovery check
 type ServiceDiscoveryPayload struct {
@@ -21,22 +28,22 @@ type ServiceDiscoveryPayload struct {
 	RequestType string `json:"request_type"`
 	APIVersion  string `json:"api_version"`
 	Payload     struct {
-		NamingSchemaVersion  string                          `json:"naming_schema_version"`
-		ServiceName          string                          `json:"service_name"`
-		GeneratedServiceName string                          `json:"generated_service_name"`
-		TracerMetadata       []tracermetadata.TracerMetadata `json:"tracer_metadata"`
-		DDService            string                          `json:"dd_service,omitempty"`
-		HostName             string                          `json:"host_name"`
-		Env                  string                          `json:"env"`
-		ServiceLanguage      string                          `json:"service_language"`
-		ServiceType          string                          `json:"service_type"`
-		StartTime            int64                           `json:"start_time"`
-		LastSeen             int64                           `json:"last_seen"`
-		APMInstrumentation   string                          `json:"apm_instrumentation"`
-		ServiceNameSource    string                          `json:"service_name_source,omitempty"`
-		RSSMemory            uint64                          `json:"rss_memory"`
-		CPUCores             float64                         `json:"cpu_cores"`
-		ContainerID          string                          `json:"container_id"`
+		NamingSchemaVersion  string           `json:"naming_schema_version"`
+		ServiceName          string           `json:"service_name"`
+		GeneratedServiceName string           `json:"generated_service_name"`
+		TracerMetadata       []TracerMetadata `json:"tracer_metadata"`
+		DDService            string           `json:"dd_service,omitempty"`
+		HostName             string           `json:"host_name"`
+		Env                  string           `json:"env"`
+		ServiceLanguage      string           `json:"service_language"`
+		ServiceType          string           `json:"service_type"`
+		StartTime            int64            `json:"start_time"`
+		LastSeen             int64            `json:"last_seen"`
+		APMInstrumentation   string           `json:"apm_instrumentation"`
+		ServiceNameSource    string           `json:"service_name_source,omitempty"`
+		RSSMemory            uint64           `json:"rss_memory"`
+		CPUCores             float64          `json:"cpu_cores"`
+		ContainerID          string           `json:"container_id"`
 	} `json:"payload"`
 }
 
