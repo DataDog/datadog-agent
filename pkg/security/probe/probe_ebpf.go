@@ -2202,7 +2202,7 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		},
 		manager.ConstantEditor{
 			Name:  "is_sk_storage_supported",
-			Value: utils.BoolTouint64(p.useFentry && p.kernelVersion.HasSKStorageInTracingPrograms() && p.config.Probe.NetworkFlowMonitorSKStorageEnabled),
+			Value: utils.BoolTouint64(p.isSKStorageSupported()),
 		},
 		manager.ConstantEditor{
 			Name:  "is_network_flow_monitor_enabled",
@@ -2276,6 +2276,19 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 	}
 }
 
+func (p *EBPFProbe) isSKStorageSupported() bool {
+	if !p.config.Probe.NetworkFlowMonitorSKStorageEnabled {
+		return false
+	}
+
+	// BPF_SK_STORAGE is not supported for kprobes
+	if !p.useFentry {
+		return false
+	}
+
+	return p.kernelVersion.HasSKStorageInTracingPrograms()
+}
+
 // initManagerOptionsMaps initializes the eBPF manager map spec editors and map reader startup
 func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 	opts := probes.MapSpecEditorOpts{
@@ -2286,7 +2299,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		PathResolutionEnabled:     p.probe.Opts.PathResolutionEnabled,
 		SecurityProfileMaxCount:   p.config.RuntimeSecurity.SecurityProfileMaxCount,
 		NetworkFlowMonitorEnabled: p.config.Probe.NetworkFlowMonitorEnabled,
-		NetworkSkStorageEnabled:   p.config.Probe.NetworkFlowMonitorSKStorageEnabled,
+		NetworkSkStorageEnabled:   p.isSKStorageSupported(),
 		SpanTrackMaxCount:         1,
 	}
 
