@@ -41,8 +41,6 @@ func newOnDiskRetryQueue(
 	telemetry onDiskRetryQueueTelemetry,
 	pointCountTelemetry *PointCountTelemetry) (*onDiskRetryQueue, error) {
 
-	fmt.Println("Storage path", storagePath)
-
 	if err := os.MkdirAll(storagePath, 0700); err != nil {
 		return nil, err
 	}
