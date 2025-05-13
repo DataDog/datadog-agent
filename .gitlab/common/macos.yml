@@ -86,6 +86,7 @@
 
 .macos_gitlab:
   before_script:
+    - !reference [.vault_login]
     - !reference [.aws_retry_config]
     # Selecting the current Go version
     - |
