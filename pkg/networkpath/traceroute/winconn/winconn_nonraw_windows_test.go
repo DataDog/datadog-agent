@@ -164,7 +164,7 @@ func TestGetHop(t *testing.T) {
 			}
 
 			conn := &Conn{Socket: windows.Handle(123)}
-			ip, timestamp, err := conn.GetHop(tt.timeout, tt.destIP, tt.destPort)
+			ip, timestamp, _, _, err := conn.GetHop(tt.timeout, tt.destIP, tt.destPort)
 
 			if tt.expectError {
 				require.Error(t, err)

@@ -48,13 +48,15 @@ func (mr *MockConnWrapperMockRecorder) Close() *gomock.Call {
 }
 
 // GetHop mocks base method.
-func (m *MockConnWrapper) GetHop(timeout time.Duration, destIP net.IP, destPort uint16) (net.IP, time.Time, error) {
+func (m *MockConnWrapper) GetHop(timeout time.Duration, destIP net.IP, destPort uint16) (net.IP, time.Time, uint8, uint8, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetHop", timeout, destIP, destPort)
 	ret0, _ := ret[0].(net.IP)
 	ret1, _ := ret[1].(time.Time)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret2, _ := ret[2].(uint8)
+	ret3, _ := ret[3].(uint8)
+	ret4, _ := ret[4].(error)
+	return ret0, ret1, ret2, ret3, ret4
 }
 
 // GetHop indicates an expected call of GetHop.

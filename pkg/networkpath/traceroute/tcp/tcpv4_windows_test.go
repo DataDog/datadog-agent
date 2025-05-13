@@ -115,6 +115,8 @@ func TestSendAndReceiveSocket(t *testing.T) {
 		mockEnd         time.Time
 		mockGetHopError error
 		mockSetTTLError error
+		mockICMPType    uint8
+		mockICMPCode    uint8
 		expected        *common.Hop
 		errMsg          string
 	}{
@@ -129,9 +131,11 @@ func TestSendAndReceiveSocket(t *testing.T) {
 			errMsg:          "failed to get hop",
 		},
 		{
-			description: "successful send and receive, hop not found",
-			mockEnd:     time.Now().Add(60 * time.Minute), // end time greater than start time
-			mockHopIP:   net.IP{},
+			description:  "successful send and receive, hop not found",
+			mockEnd:      time.Now().Add(60 * time.Minute), // end time greater than start time
+			mockHopIP:    net.IP{},
+			mockICMPType: 0,
+			mockICMPCode: 0,
 			expected: &common.Hop{
 				IP:     net.IP{},
 				RTT:    0, // RTT should be zero
@@ -139,18 +143,22 @@ func TestSendAndReceiveSocket(t *testing.T) {
 			},
 		},
 		{
-			description: "successful send and receive, hop found",
-			mockEnd:     time.Now().Add(60 * time.Minute), // end time greater than start time
-			mockHopIP:   net.ParseIP("7.8.9.0"),
+			description:  "successful send and receive, hop found",
+			mockEnd:      time.Now().Add(60 * time.Minute), // end time greater than start time
+			mockHopIP:    net.ParseIP("7.8.9.0"),
+			mockICMPType: 0,
+			mockICMPCode: 0,
 			expected: &common.Hop{
 				IP:     net.ParseIP("7.8.9.0"),
 				IsDest: false,
 			},
 		},
 		{
-			description: "successful send and receive, destination hop found",
-			mockEnd:     time.Now().Add(60 * time.Minute), // end time greater than start time
-			mockHopIP:   dstIP,
+			description:  "successful send and receive, destination hop found",
+			mockEnd:      time.Now().Add(60 * time.Minute), // end time greater than start time
+			mockHopIP:    dstIP,
+			mockICMPType: 0,
+			mockICMPCode: 0,
 			expected: &common.Hop{
 				IP:     dstIP,
 				IsDest: true,
@@ -165,7 +173,7 @@ func TestSendAndReceiveSocket(t *testing.T) {
 			mockConn := winconn.NewMockConnWrapper(controller)
 			mockConn.EXPECT().SetTTL(gomock.Any()).Return(test.mockSetTTLError)
 			if test.mockSetTTLError == nil {
-				mockConn.EXPECT().GetHop(gomock.Any(), gomock.Any(), gomock.Any()).Return(test.mockHopIP, test.mockEnd, test.mockGetHopError)
+				mockConn.EXPECT().GetHop(gomock.Any(), gomock.Any(), gomock.Any()).Return(test.mockHopIP, test.mockEnd, test.mockICMPType, test.mockICMPCode, test.mockGetHopError)
 			}
 
 			actual, err := tcpv4.sendAndReceiveSocket(mockConn, 1, 1*time.Second)

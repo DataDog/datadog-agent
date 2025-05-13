@@ -74,7 +74,7 @@ func (t *TCPv4) sendAndReceiveSocket(s winconn.ConnWrapper, ttl int, timeout tim
 	}
 
 	start := time.Now() // TODO: is this the best place to start?
-	hopIP, end, err := s.GetHop(timeout, t.Target, t.DestPort)
+	hopIP, end, icmpType, icmpCode, err := s.GetHop(timeout, t.Target, t.DestPort)
 	if err != nil {
 		log.Errorf("failed to get hop: %s", err.Error())
 		return nil, fmt.Errorf("failed to get hop: %w", err)
@@ -88,7 +88,8 @@ func (t *TCPv4) sendAndReceiveSocket(s winconn.ConnWrapper, ttl int, timeout tim
 	return &common.Hop{
 		IP:       hopIP,
 		Port:     0, // TODO: fix this
-		ICMPType: 0, // TODO: fix this
+		ICMPType: icmpType,
+		ICMPCode: icmpCode,
 		RTT:      rtt,
 		IsDest:   hopIP.Equal(t.Target),
 	}, nil

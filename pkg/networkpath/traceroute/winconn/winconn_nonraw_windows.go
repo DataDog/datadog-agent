@@ -64,7 +64,7 @@ type (
 	// connection for Windows
 	ConnWrapper interface {
 		SetTTL(ttl int) error
-		GetHop(timeout time.Duration, destIP net.IP, destPort uint16) (net.IP, time.Time, error)
+		GetHop(timeout time.Duration, destIP net.IP, destPort uint16) (net.IP, time.Time, uint8, uint8, error)
 		Close()
 	}
 
@@ -155,10 +155,11 @@ func (r *Conn) sendConnect(destIP net.IP, destPort uint16) error {
 	return connect(r.Socket, sa)
 }
 
-// getHoppAddress gets the address of the hop
+// getHopAddress gets the address of the hop
 // this will only work if errorInfo is set
 // otherwise it will fail
-func (r *Conn) getHoppAddress() (net.IP, error) {
+// returns the address of the hop, the type of the error, the code of the error, and an error
+func (r *Conn) getHopAddress() (net.IP, uint8, uint8, error) {
 	var errorInfo ICMP_ERROR_INFO
 	var errorInfoSize = int32(unsafe.Sizeof(errorInfo))
 	// getsockopt for ICMP_ERROR_INFO
@@ -171,10 +172,10 @@ func (r *Conn) getHoppAddress() (net.IP, error) {
 		&errorInfoSize,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get hop address: %w", err)
+		return nil, 0, 0, fmt.Errorf("failed to get hop address: %w", err)
 	}
 
-	return errorInfo.SrcAddress.Ipv4.Addr[:], nil
+	return errorInfo.SrcAddress.Ipv4.Addr[:], errorInfo.Type, errorInfo.Code, nil
 }
 
 func wsaPoll(fds []WSAPOLLFD, timeout int) (int32, error) {
@@ -247,9 +248,9 @@ func (r *Conn) getSocketError() error {
 }
 
 // GetHop sends a TCP SYN packet to the destination IP and port
-// Waits to get ICMP response from hop and returns the IP of the hop
-// and the time it took to get the response
-func (r *Conn) GetHop(timeout time.Duration, destIP net.IP, destPort uint16) (net.IP, time.Time, error) {
+// Waits to get ICMP response from hop
+// returns the IP of the hop, the time it took to get the response, the ICMP type, the ICMP code, and an error
+func (r *Conn) GetHop(timeout time.Duration, destIP net.IP, destPort uint16) (net.IP, time.Time, uint8, uint8, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	err := r.sendConnect(destIP, destPort)
@@ -262,10 +263,10 @@ func (r *Conn) GetHop(timeout time.Duration, destIP net.IP, destPort uint16) (ne
 			_, canceled := err.(common.CanceledError)
 			if canceled {
 				log.Trace("timed out waiting for responses")
-				return net.IP{}, time.Time{}, nil
+				return net.IP{}, time.Time{}, 0, 0, nil
 			}
 			log.Errorf("failed to poll: %s", err.Error())
-			return net.IP{}, time.Time{}, fmt.Errorf("failed to poll: %w", err)
+			return net.IP{}, time.Time{}, 0, 0, fmt.Errorf("failed to poll: %w", err)
 		}
 		// get the new socket error
 		// this will be handled from other below if statments
@@ -277,16 +278,16 @@ func (r *Conn) GetHop(timeout time.Duration, destIP net.IP, destPort uint16) (ne
 	}
 
 	if errors.Is(err, windows.WSAEHOSTUNREACH) {
-		addr, err := r.getHoppAddress()
+		addr, imcpType, imcpCode, err := r.getHopAddress()
 		if err != nil {
-			return nil, time.Time{}, fmt.Errorf("failed to get hop address: %w", err)
+			return nil, time.Time{}, 0, 0, fmt.Errorf("failed to get hop address: %w", err)
 		}
 		log.Debugf("got hop address: %s", addr)
-		return addr, time.Now(), nil
+		return addr, time.Now(), imcpType, imcpCode, nil
 	} else if err != nil {
 		log.Errorf("failed to send connect: %s", err.Error())
-		return nil, time.Time{}, fmt.Errorf("failed to send connect: %w", err)
+		return nil, time.Time{}, 0, 0, fmt.Errorf("failed to send connect: %w", err)
 	}
 
-	return destIP, time.Now(), nil
+	return destIP, time.Now(), 0, 0, nil
 }
