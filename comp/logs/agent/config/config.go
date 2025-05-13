@@ -200,10 +200,9 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 		e.BackoffFactor = main.BackoffFactor
 		e.RecoveryInterval = main.RecoveryInterval
 		e.RecoveryReset = main.RecoveryReset
-		e.Version = main.Version
-		e.TrackType = intakeTrackType
-		e.Protocol = intakeProtocol
-		e.Origin = intakeOrigin
+		e.useSSL = main.useSSL
+		e.ConnectionResetInterval = logsConfig.connectionResetInterval()
+		e.ProxyAddress = logsConfig.socks5ProxyAddress()
 
 		additionals = append(additionals, e)
 	}
