@@ -45,7 +45,15 @@ param(
 
 . "$PSScriptRoot\common.ps1"
 
+# NuGet info
+Write-Host "1.3"
+curl.exe -v --tls-max 1.3 -o nul https://api.nuget.org/v3/index.json
+
+Write-Host "1.2"
+curl.exe -v --tls-max 1.2 -o nul https://api.nuget.org/v3/index.json
+
 # Clear NuGet cache
+Write-Host "Nuget cache"
 dotnet nuget locals all --clear
 
 Invoke-BuildScript `
@@ -70,6 +78,9 @@ Invoke-BuildScript `
     Write-Host "dda inv -- -e winbuild.agent-package $inv_args"
     dda inv -- -e winbuild.agent-package @inv_args
     if ($LASTEXITCODE -ne 0) {
+        Write-Host "Dotnet restore"
+        dotnet restore --verbosity
+
         Write-Error "Failed to build the agent package"
         exit 1
     }
@@ -84,4 +95,7 @@ Invoke-BuildScript `
         mkdir C:\mnt\omnibus\pkg -Force -ErrorAction Stop | Out-Null
         Copy-Item -Path ".\omnibus\pkg\*" -Destination "C:\mnt\omnibus\pkg" -Force -ErrorAction Stop
     }
+
+    Write-Host "Dotnet restore"
+    dotnet restore --verbosity
 }
