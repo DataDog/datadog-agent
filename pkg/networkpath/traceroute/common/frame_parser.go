@@ -7,6 +7,7 @@ package common
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net/netip"
 	"slices"
@@ -23,20 +24,35 @@ type FrameParser struct {
 	ICMP4    layers.ICMPv4
 	Payload  gopacket.Payload
 	Layers   []gopacket.LayerType
-	v4Parser *gopacket.DecodingLayerParser
+	parser   *gopacket.DecodingLayerParser
 }
+
+var ignoredLayerErr = &ReceiveProbeNoPktError{
+	Err: fmt.Errorf("FrameParser saw an a layer type not used by traceroute (e.g. ARP) and decided to ignore it"),
+}
+
+const expectedLayerCount = 3
 
 // NewFrameParser constructs a new FrameParser
 func NewFrameParser() *FrameParser {
 	p := &FrameParser{}
-	p.v4Parser = gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &p.Ethernet, &p.IP4, &p.TCP, &p.ICMP4, &p.Payload)
-	// p.v4Parser.IgnoreUnsupported = true
+	p.parser = gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &p.Ethernet, &p.IP4, &p.TCP, &p.ICMP4, &p.Payload)
+
 	return p
 }
 
 // Parse parses an ethernet packet
 func (p *FrameParser) Parse(buffer []byte) error {
-	err := p.v4Parser.DecodeLayers(buffer, &p.Layers)
+	err := p.parser.DecodeLayers(buffer, &p.Layers)
+	var unsupportedErr gopacket.UnsupportedLayerType
+	if errors.As(err, &unsupportedErr) {
+		if len(p.Layers) < expectedLayerCount {
+			// we saw some other protocol we don't care about, skip
+			return ignoredLayerErr
+		}
+		// there are extra layers beyond TLS, ignore those too
+		err = nil
+	}
 	if err != nil {
 		return fmt.Errorf("Parse: %w", err)
 	}
@@ -48,7 +64,7 @@ func (p *FrameParser) Parse(buffer []byte) error {
 
 // GetIPLayer gets the layer type of the IP layer (right now, only IPv4)
 func (p *FrameParser) GetIPLayer() gopacket.LayerType {
-	if len(p.Layers) < 2 {
+	if len(p.Layers) < expectedLayerCount {
 		return gopacket.LayerTypeZero
 	}
 	return p.Layers[1]
@@ -56,7 +72,7 @@ func (p *FrameParser) GetIPLayer() gopacket.LayerType {
 
 // GetTransportLayer gets the layer type of the transport layer (e.g. TCP, ICMP)
 func (p *FrameParser) GetTransportLayer() gopacket.LayerType {
-	if len(p.Layers) < 3 {
+	if len(p.Layers) < expectedLayerCount {
 		return gopacket.LayerTypeZero
 	}
 	return p.Layers[2]
@@ -68,9 +84,6 @@ var transportLayers = []gopacket.LayerType{layers.LayerTypeTCP, layers.LayerType
 
 // checkLayers sanity checks the layers of the parse.
 func (p *FrameParser) checkLayers() error {
-	if len(p.Layers) < 3 {
-		return fmt.Errorf("CheckLayers: not enough layers (got %d, expected >= 3)", len(p.Layers))
-	}
 	if !slices.Contains(ipLayers, p.GetIPLayer()) {
 		return fmt.Errorf("CheckLayers: first layer %s is not IP", p.GetIPLayer())
 	}
