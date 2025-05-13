@@ -10,7 +10,7 @@ features:
   - |
     A new core check, agentprofiling, has been introduced to automatically generate a flare 
     with profiles when the Datadog Agent exceeds a configured memory or CPU usage threshold. 
-    When a valid config file is set, the Agent will monitor its own memory and CPU usage and, 
+    When a valid config file is set, the Agent monitors its own memory and CPU usage and, 
     upon crossing the threshold, generate a flare with profiles is either generated locally or 
     sent to a Zendesk ticket. 
     
