@@ -1270,7 +1270,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenUsagePartitionTimeout_ThenUsageMet
 			}}, nil
 	}).WithDiskUsage(func(_ string) (*gopsutil_disk.UsageStat, error) {
 		// Sleep 10s (longer than default timeout)
-		time.Sleep(60 * time.Second)
+		time.Sleep(10 * time.Second)
 		return &gopsutil_disk.UsageStat{
 			Path:              "/dev/shm",
 			Fstype:            "tmpfs",
