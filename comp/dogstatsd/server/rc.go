@@ -44,25 +44,22 @@ func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, a
 
 	// unmarshal all the configurations received from
 	// the RC platform
-	if len(updates) > 0 {
-		// unmarshal all configs that can be unmarshalled
-		for configPath, v := range updates {
-			s.log.Debugf("received: %q", string(v.Config))
-			var config statsdBlocklistUpdate
-			if err := json.Unmarshal(v.Config, &config); err != nil {
-				applyStateCallback(configPath, state.ApplyStatus{
-					State: state.ApplyStateError,
-					Error: "error unmarshalling payload",
-				})
-				s.log.Errorf("can't unmarshal received blocklist config: %v", err)
-				continue
-			}
-			if len(config.BlockedMetrics.ByName.Metrics) == 0 {
-				s.log.Debug("received a blocklist configuration with no metrics")
-				continue
-			}
-			blocklistUpdates = append(blocklistUpdates, config.BlockedMetrics)
+	for configPath, v := range updates {
+		s.log.Debugf("received blocklist config: %q", string(v.Config))
+		var config statsdBlocklistUpdate
+		if err := json.Unmarshal(v.Config, &config); err != nil {
+			applyStateCallback(configPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: "error unmarshalling payload",
+			})
+			s.log.Errorf("can't unmarshal received blocklist config: %v", err)
+			continue
 		}
+		if len(config.BlockedMetrics.ByName.Metrics) == 0 {
+			s.log.Debug("received a blocklist configuration with no metrics")
+			continue
+		}
+		blocklistUpdates = append(blocklistUpdates, config.BlockedMetrics)
 	}
 
 	// build a map with all the received metrics
