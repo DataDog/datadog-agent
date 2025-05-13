@@ -62,7 +62,7 @@ dotnet nuget locals all --clear
 
 # Restore
 Write-Host "Nuget restore"
-dotnet restore --verbosity diagnostic
+dotnet restore ./tools/windows/DatadogAgentInstaller/AgentCustomActions/AgentCustomActions.csproj --verbosity diagnostic
 
 Invoke-BuildScript `
     -BuildOutOfSource $BuildOutOfSource `
