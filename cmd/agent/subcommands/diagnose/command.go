@@ -493,6 +493,9 @@ func printAgentFullTelemetry(config config.Component, client ipc.HTTPClient) err
 		return err
 	}
 	r, err := client.Get(fmt.Sprintf("http://%s:%s/telemetry", ipcAddress, config.GetString("expvar_port")))
+	if err != nil {
+		return fmt.Errorf("error getting full telemetry payload: %w", err)
+	}
 	fmt.Println(string(r))
 	return nil
 }

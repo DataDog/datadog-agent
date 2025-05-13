@@ -327,7 +327,7 @@ func TestFetchSecurityAgent(t *testing.T) {
 		fetchSecurityConfig = configFetcher.SecurityAgentConfig
 	}()
 
-	fetchSecurityConfig = func(config pkgconfigmodel.Reader, client ipc.HTTPClient) (string, error) {
+	fetchSecurityConfig = func(config pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
@@ -368,7 +368,7 @@ func TestFetchProcessAgent(t *testing.T) {
 		fetchProcessConfig = original
 	}(fetchProcessConfig)
 
-	fetchProcessConfig = func(config pkgconfigmodel.Reader, client ipc.HTTPClient) (string, error) {
+	fetchProcessConfig = func(config pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
@@ -415,7 +415,7 @@ func TestFetchTraceAgent(t *testing.T) {
 	defer func() {
 		fetchTraceConfig = configFetcher.TraceAgentConfig
 	}()
-	fetchTraceConfig = func(config pkgconfigmodel.Reader, client ipc.HTTPClient) (string, error) {
+	fetchTraceConfig = func(config pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
@@ -462,7 +462,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	defer func() {
 		fetchSystemProbeConfig = sysprobeConfigFetcher.SystemProbeConfig
 	}()
-	fetchSystemProbeConfig = func(config pkgconfigmodel.Reader, client ipc.HTTPClient) (string, error) {
+	fetchSystemProbeConfig = func(config pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		// test that the system-probe config was passed and not the agent config
 		assert.True(
 			t,

@@ -40,7 +40,7 @@ func makeDeps(t *testing.T) dependencies {
 	))
 }
 
-func makeConfigSync(t *testing.T, deps dependencies) *configSync {
+func makeConfigSync(deps dependencies) *configSync {
 	defaultURL := &url.URL{
 		Scheme: "https",
 		Host:   "localhost:1234",
@@ -75,7 +75,7 @@ func makeConfigSyncWithServer(t *testing.T, ctx context.Context, handler http.Ha
 
 	_, url := makeServer(t, ipcmock, handler)
 
-	cs := makeConfigSync(t, deps)
+	cs := makeConfigSync(deps)
 	cs.ctx = ctx
 	cs.url = url
 
