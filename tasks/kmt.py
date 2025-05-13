@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import getpass
 import io
 import itertools
@@ -10,6 +11,7 @@ import shutil
 import sys
 import tarfile
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from collections.abc import Callable, Iterable
@@ -2295,11 +2297,19 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, k
 
         _, test_jobs = get_all_jobs_for_pipeline(pipeline_id)
         for job in test_jobs:
+            if job.component != "system-probe":
+                print(f"Ignoring job {job.name} with component {job.component}, only using system-probe")
+                continue
+
             complexity_name = f"verifier-complexity-{job.arch}-{job.distro}-{job.component}"
             complexity_data_fname = f"test/new-e2e/tests/{complexity_name}.tar.gz"
+            download_start_time = time.time()
             data = job.artifact_file_binary(complexity_data_fname, ignore_not_found=True)
+            download_end_time = time.time()
+            download_end_tstamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            time_msg = f"Download took {download_end_time - download_start_time} seconds, finished at {download_end_tstamp}"
             if data is None:
-                print(f"Complexity data not found for {job.name} - filename {complexity_data_fname} not found")
+                print(f"Complexity data not found for {job.name} - filename {complexity_data_fname} not found ({time_msg})")
                 continue
 
             if keep_compressed_archives:
@@ -2310,7 +2320,8 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, k
             job_folder = dest_path / complexity_name
             job_folder.mkdir(parents=True, exist_ok=True)
             tar.extractall(dest_path / job_folder)
-            print(f"Extracted complexity data for {job.name} successfully, filename {complexity_data_fname}")
+            time_msg += f", extracted in {time.time() - download_end_time} seconds"
+            print(f"Extracted complexity data for {job.name} successfully, filename {complexity_data_fname} ({time_msg})")
 
 
 @task
