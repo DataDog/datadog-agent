@@ -96,6 +96,6 @@
     - !reference [.install_python_dependencies]
     # See there is no virtualization, we need to clean the environment regularly
     - !reference [.macos_runner_maintenance]
-    - dda inv -- -e rtloader.make
-    - dda inv -- -e rtloader.install
-    - dda inv -- -e install-tools
+    # - dda inv -- -e rtloader.make
+    # - dda inv -- -e rtloader.install
+    # - dda inv -- -e install-tools
