@@ -251,6 +251,11 @@
           "name": "process.user_sid",
           "definition": "Sid of the user of the process",
           "property_doc_link": "common-process-user_sid-doc"
+        },
+        {
+          "name": "rule.tags",
+          "definition": "Tags associated with the rule that's used to evaluate the event",
+          "property_doc_link": "rule-tags-doc"
         }
       ]
     },
@@ -1441,6 +1446,18 @@
       "definition": "Exit code of the process or number of the signal that caused the process to terminate",
       "prefixes": [
         "exit"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "rule.tags",
+      "link": "rule-tags-doc",
+      "type": "string",
+      "definition": "Tags associated with the rule that's used to evaluate the event",
+      "prefixes": [
+        ""
       ],
       "constants": "",
       "constants_link": "",

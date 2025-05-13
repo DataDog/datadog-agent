@@ -113,6 +113,7 @@ List of the available variables:
 | [`process.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`process.user`](#common-process-user-doc) | User name |
 | [`process.user_sid`](#common-process-user_sid-doc) | Sid of the user of the process |
+| [`rule.tags`](#rule-tags-doc) | Tags associated with the rule that's used to evaluate the event |
 
 ### Event `change_permission`
 
@@ -646,6 +647,13 @@ Definition: Cause of the process termination (one of EXITED, SIGNALED, COREDUMPE
 Type: int
 
 Definition: Exit code of the process or number of the signal that caused the process to terminate
+
+
+
+### `rule.tags` {#rule-tags-doc}
+Type: string
+
+Definition: Tags associated with the rule that's used to evaluate the event
 
 
 

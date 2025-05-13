@@ -1316,6 +1316,11 @@
           "name": "process.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "rule.tags",
+          "definition": "Tags associated with the rule that's used to evaluate the event",
+          "property_doc_link": "rule-tags-doc"
         }
       ]
     },
@@ -10877,6 +10882,18 @@
       "definition": "Path argument of the syscall",
       "prefixes": [
         "rmdir"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "rule.tags",
+      "link": "rule-tags-doc",
+      "type": "string",
+      "definition": "Tags associated with the rule that's used to evaluate the event",
+      "prefixes": [
+        ""
       ],
       "constants": "",
       "constants_link": "",

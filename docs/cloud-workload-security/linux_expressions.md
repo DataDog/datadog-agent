@@ -384,6 +384,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`process.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`process.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`rule.tags`](#rule-tags-doc) | Tags associated with the rule that's used to evaluate the event |
 
 ### Event `accept`
 
@@ -3296,6 +3297,13 @@ Definition: Path argument of the syscall
 Type: string
 
 Definition: Path argument of the syscall
+
+
+
+### `rule.tags` {#rule-tags-doc}
+Type: string
+
+Definition: Tags associated with the rule that's used to evaluate the event
 
 
 
