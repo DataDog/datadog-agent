@@ -16,10 +16,6 @@ import (
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/slice"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -121,12 +117,8 @@ type State interface {
 
 // Delta represents a delta of network data compared to the last call to State.
 type Delta struct {
-	Conns    []ConnectionStats
-	HTTP     map[http.Key]*http.RequestStats
-	HTTP2    map[http.Key]*http.RequestStats
-	Kafka    map[kafka.Key]*kafka.RequestStats
-	Postgres map[postgres.Key]*postgres.RequestStat
-	Redis    map[redis.Key]*redis.RequestStats
+	Conns   []ConnectionStats
+	USMData USMProtocolsData
 }
 
 type lastStateTelemetry struct {
@@ -237,13 +229,9 @@ type client struct {
 	closed    *closedConnections
 	stats     map[StatCookie]StatCounters
 	// maps by dns key the domain (string) to stats structure
-	dnsStats           dns.StatsByKeyByNameByType
-	httpStatsDelta     map[http.Key]*http.RequestStats
-	http2StatsDelta    map[http.Key]*http.RequestStats
-	kafkaStatsDelta    map[kafka.Key]*kafka.RequestStats
-	postgresStatsDelta map[postgres.Key]*postgres.RequestStat
-	redisStatsDelta    map[redis.Key]*redis.RequestStats
-	lastTelemetries    map[ConnTelemetryType]int64
+	dnsStats        dns.StatsByKeyByNameByType
+	usmDelta        USMProtocolsData
+	lastTelemetries map[ConnTelemetryType]int64
 }
 
 func (c *client) Reset() {
@@ -255,11 +243,7 @@ func (c *client) Reset() {
 	c.closed.conns = c.closed.conns[:0]
 	c.closed.byCookie = make(map[StatCookie]int)
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
-	c.httpStatsDelta = make(map[http.Key]*http.RequestStats)
-	c.http2StatsDelta = make(map[http.Key]*http.RequestStats)
-	c.kafkaStatsDelta = make(map[kafka.Key]*kafka.RequestStats)
-	c.postgresStatsDelta = make(map[postgres.Key]*postgres.RequestStat)
-	c.redisStatsDelta = make(map[redis.Key]*redis.RequestStats)
+	c.usmDelta.Reset()
 }
 
 type networkState struct {
@@ -402,12 +386,8 @@ func (ns *networkState) GetDelta(
 	ns.processUSMDelta(usmStats)
 
 	return Delta{
-		Conns:    append(active, closed...),
-		HTTP:     client.httpStatsDelta,
-		HTTP2:    client.http2StatsDelta,
-		Kafka:    client.kafkaStatsDelta,
-		Postgres: client.postgresStatsDelta,
-		Redis:    client.redisStatsDelta,
+		Conns:   append(active, closed...),
+		USMData: client.usmDelta,
 	}
 }
 
@@ -668,16 +648,12 @@ func (ns *networkState) getClient(clientID string) *client {
 	}
 	closedConnections := &closedConnections{conns: make([]ConnectionStats, 0, minClosedCapacity), byCookie: make(map[StatCookie]int)}
 	c := &client{
-		lastFetch:          time.Now(),
-		stats:              make(map[StatCookie]StatCounters),
-		closed:             closedConnections,
-		dnsStats:           dns.StatsByKeyByNameByType{},
-		httpStatsDelta:     map[http.Key]*http.RequestStats{},
-		http2StatsDelta:    map[http.Key]*http.RequestStats{},
-		kafkaStatsDelta:    map[kafka.Key]*kafka.RequestStats{},
-		postgresStatsDelta: map[postgres.Key]*postgres.RequestStat{},
-		redisStatsDelta:    map[redis.Key]*redis.RequestStats{},
-		lastTelemetries:    make(map[ConnTelemetryType]int64),
+		lastFetch:       time.Now(),
+		stats:           make(map[StatCookie]StatCounters),
+		closed:          closedConnections,
+		dnsStats:        dns.StatsByKeyByNameByType{},
+		usmDelta:        NewUSMProtocolsData(),
+		lastTelemetries: make(map[ConnTelemetryType]int64),
 	}
 	ns.clients[clientID] = c
 	return c

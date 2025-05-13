@@ -58,8 +58,8 @@ func (ns *networkState) storeHTTP2Stats(allStats map[http.Key]*http.RequestStats
 	storeUSMStats[http.Key, *http.RequestStats](
 		allStats,
 		ns.clients,
-		func(c *client) map[http.Key]*http.RequestStats { return c.http2StatsDelta },
-		func(c *client, m map[http.Key]*http.RequestStats) { c.http2StatsDelta = m },
+		func(c *client) map[http.Key]*http.RequestStats { return c.usmDelta.HTTP2 },
+		func(c *client, m map[http.Key]*http.RequestStats) { c.usmDelta.HTTP2 = m },
 		func(prev, new *http.RequestStats) { prev.CombineWith(new) },
 		ns.maxHTTPStats,
 		stateTelemetry.http2StatsDropped.Inc,
@@ -71,8 +71,8 @@ func (ns *networkState) storeKafkaStats(allStats map[kafka.Key]*kafka.RequestSta
 	storeUSMStats[kafka.Key, *kafka.RequestStats](
 		allStats,
 		ns.clients,
-		func(c *client) map[kafka.Key]*kafka.RequestStats { return c.kafkaStatsDelta },
-		func(c *client, m map[kafka.Key]*kafka.RequestStats) { c.kafkaStatsDelta = m },
+		func(c *client) map[kafka.Key]*kafka.RequestStats { return c.usmDelta.Kafka },
+		func(c *client, m map[kafka.Key]*kafka.RequestStats) { c.usmDelta.Kafka = m },
 		func(prev, new *kafka.RequestStats) { prev.CombineWith(new) },
 		ns.maxKafkaStats,
 		stateTelemetry.kafkaStatsDropped.Inc,
@@ -84,8 +84,8 @@ func (ns *networkState) storePostgresStats(allStats map[postgres.Key]*postgres.R
 	storeUSMStats[postgres.Key, *postgres.RequestStat](
 		allStats,
 		ns.clients,
-		func(c *client) map[postgres.Key]*postgres.RequestStat { return c.postgresStatsDelta },
-		func(c *client, m map[postgres.Key]*postgres.RequestStat) { c.postgresStatsDelta = m },
+		func(c *client) map[postgres.Key]*postgres.RequestStat { return c.usmDelta.Postgres },
+		func(c *client, m map[postgres.Key]*postgres.RequestStat) { c.usmDelta.Postgres = m },
 		func(prev, new *postgres.RequestStat) { prev.CombineWith(new) },
 		ns.maxPostgresStats,
 		stateTelemetry.postgresStatsDropped.Inc,
@@ -97,8 +97,8 @@ func (ns *networkState) storeRedisStats(allStats map[redis.Key]*redis.RequestSta
 	storeUSMStats[redis.Key, *redis.RequestStats](
 		allStats,
 		ns.clients,
-		func(c *client) map[redis.Key]*redis.RequestStats { return c.redisStatsDelta },
-		func(c *client, m map[redis.Key]*redis.RequestStats) { c.redisStatsDelta = m },
+		func(c *client) map[redis.Key]*redis.RequestStats { return c.usmDelta.Redis },
+		func(c *client, m map[redis.Key]*redis.RequestStats) { c.usmDelta.Redis = m },
 		func(prev, new *redis.RequestStats) { prev.CombineWith(new) },
 		ns.maxRedisStats,
 		stateTelemetry.redisStatsDropped.Inc,

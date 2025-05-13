@@ -54,8 +54,8 @@ func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats)
 	storeUSMStats[http.Key, *http.RequestStats](
 		allStats,
 		ns.clients,
-		func(c *client) map[http.Key]*http.RequestStats { return c.httpStatsDelta },
-		func(c *client, m map[http.Key]*http.RequestStats) { c.httpStatsDelta = m },
+		func(c *client) map[http.Key]*http.RequestStats { return c.usmDelta.HTTP },
+		func(c *client, m map[http.Key]*http.RequestStats) { c.usmDelta.HTTP = m },
 		func(prev, new *http.RequestStats) { prev.CombineWith(new) },
 		ns.maxHTTPStats,
 		stateTelemetry.httpStatsDropped.Inc,
