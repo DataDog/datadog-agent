@@ -2226,7 +2226,7 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		},
 		manager.ConstantEditor{
 			Name:  "dns_port",
-			Value: uint64(p.probe.Opts.DNSPort),
+			Value: uint64(utils.HostToNetworkShort(p.probe.Opts.DNSPort)),
 		},
 		manager.ConstantEditor{
 			Name:  "use_ring_buffer",
