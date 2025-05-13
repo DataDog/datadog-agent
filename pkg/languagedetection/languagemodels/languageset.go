@@ -8,8 +8,6 @@ package languagemodels
 import (
 	"reflect"
 	"time"
-
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
 
 ////////////////////////////////
@@ -27,17 +25,6 @@ func (s LanguageSet) Add(language LanguageName) bool {
 	_, found := s[language]
 	s[language] = struct{}{}
 	return !found
-}
-
-// ToProto returns a proto message Language
-func (s LanguageSet) ToProto() []*pbgo.Language {
-	res := make([]*pbgo.Language, 0, len(s))
-	for lang := range s {
-		res = append(res, &pbgo.Language{
-			Name: string(lang),
-		})
-	}
-	return res
 }
 
 ////////////////////////////////
