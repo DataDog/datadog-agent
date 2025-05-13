@@ -633,30 +633,6 @@ func (c *Check) fetchAllDeviceLabels() error {
 	return c.fetchAllDeviceLabelsFromBlkid()
 }
 
-// WithClock sets a custom clock on the Check and returns the updated Check.
-func (c *Check) WithClock(clock clock.Clock) *Check {
-	c.clock = clock
-	return c
-}
-
-// WithDiskPartitions sets a diskPartitions call on the Check and returns the updated Check.
-func (c *Check) WithDiskPartitions(f func(bool) ([]gopsutil_disk.PartitionStat, error)) *Check {
-	c.diskPartitions = f
-	return c
-}
-
-// WithDiskUsage sets a diskUsage call on the Check and returns the updated Check.
-func (c *Check) WithDiskUsage(f func(string) (*gopsutil_disk.UsageStat, error)) *Check {
-	c.diskUsage = f
-	return c
-}
-
-// WithDiskIOCounters sets a diskIOCounters call on the Check and returns the updated Check.
-func (c *Check) WithDiskIOCounters(f func(...string) (map[string]gopsutil_disk.IOCountersStat, error)) *Check {
-	c.diskIOCounters = f
-	return c
-}
-
 // Factory creates a new check factory
 func Factory() option.Option[func() check.Check] {
 	return option.New(newCheck)

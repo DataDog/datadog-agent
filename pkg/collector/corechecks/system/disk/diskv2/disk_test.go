@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/diskv2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/benbjohnson/clock"
@@ -156,19 +157,19 @@ func setupDefaultMocks() {
 	setupPlatformMocks()
 }
 
-func createDiskCheck() *diskv2.Check {
+func createDiskCheck() check.Check {
 	diskCheckOpt := diskv2.Factory()
 	diskCheckFunc, _ := diskCheckOpt.Get()
-	diskCheck := diskCheckFunc().(*diskv2.Check)
-	diskCheck.WithDiskPartitions(func(all bool) ([]gopsutil_disk.PartitionStat, error) {
+	diskCheck := diskCheckFunc()
+	diskCheck = diskv2.WithDiskPartitions(diskv2.WithDiskUsage(diskv2.WithDiskIOCounters(diskCheck, func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
+		return ioCountersData, nil
+	}), func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+		return usageData[mountpoint], nil
+	}), func(all bool) ([]gopsutil_disk.PartitionStat, error) {
 		if all {
 			return partitionsTrue, nil
 		}
 		return partitionsFalse, nil
-	}).WithDiskUsage(func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
-		return usageData[mountpoint], nil
-	}).WithDiskIOCounters(func(_ ...string) (map[string]gopsutil_disk.IOCountersStat, error) {
-		return ioCountersData, nil
 	})
 	return diskCheck
 }
@@ -211,7 +212,8 @@ func TestGivenADiskCheckAndStoppedSender(t *testing.T) {
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemCallReturnsError_ThenErrorIsReturnedAndNoUsageMetricsAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := createDiskCheck().WithDiskPartitions(func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+	diskCheck := createDiskCheck()
+	diskCheck = diskv2.WithDiskPartitions(diskCheck, func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return nil, errors.New("error calling disk.DiskPartitions")
 	})
 	m := mocksender.NewMockSender(diskCheck.ID())
@@ -228,7 +230,8 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemCallRe
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndUsageSystemCallReturnsError_ThenNoUsageMetricsAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := createDiskCheck().WithDiskUsage(func(_ string) (*gopsutil_disk.UsageStat, error) {
+	diskCheck := createDiskCheck()
+	diskCheck = diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
 		return nil, errors.New("error calling diskUsage")
 	})
 	m := mocksender.NewMockSender(diskCheck.ID())
@@ -258,7 +261,8 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndUsageSystemCallReturns
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndIOCountersSystemCallReturnsError_ThenErrorIsReturnedAndNoUsageMetricsAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := createDiskCheck().WithDiskIOCounters(func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
+	diskCheck := createDiskCheck()
+	diskCheck = diskv2.WithDiskIOCounters(diskCheck, func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
 		return nil, errors.New("error calling diskIOCounters")
 	})
 	m := mocksender.NewMockSender(diskCheck.ID())
@@ -824,7 +828,21 @@ file_system_include:
 
 func TestGivenADiskCheckWithMountPointGlobalExcludeNotConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithBinfmt_miscMountPoints(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := createDiskCheck().WithDiskPartitions(func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+	diskCheck := createDiskCheck()
+	diskCheck = diskv2.WithDiskPartitions(diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:              "/host/proc/sys/fs/binfmt_misc",
+			Fstype:            "ext4",
+			Total:             100000000000, // 100 GB
+			Free:              30000000000,  // 30 GB
+			Used:              70000000000,  // 70 GB
+			UsedPercent:       70.0,
+			InodesTotal:       1000000,
+			InodesUsed:        500000,
+			InodesFree:        500000,
+			InodesUsedPercent: 50.0,
+		}, nil
+	}), func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
 				Device:     "first",
@@ -838,19 +856,6 @@ func TestGivenADiskCheckWithMountPointGlobalExcludeNotConfigured_WhenCheckRuns_T
 				Fstype:     "ext4",
 				Opts:       []string{"rw", "relatime"},
 			}}, nil
-	}).WithDiskUsage(func(string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "/host/proc/sys/fs/binfmt_misc",
-			Fstype:            "ext4",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
 	})
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
@@ -982,15 +987,8 @@ mount_point_include:
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndUsageSystemCallReturnsAPartitionWithZeroTotal_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := createDiskCheck().WithDiskPartitions(func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "shm",
-				Mountpoint: "/dev/shm",
-				Fstype:     "tmpfs",
-				Opts:       []string{"rw", "nosuid", "nodev"},
-			}}, nil
-	}).WithDiskUsage(func(_ string) (*gopsutil_disk.UsageStat, error) {
+	diskCheck := createDiskCheck()
+	diskCheck = diskv2.WithDiskPartitions(diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
 		return &gopsutil_disk.UsageStat{
 			Path:              "/dev/shm",
 			Fstype:            "tmpfs",
@@ -1003,6 +1001,14 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndUsageSystemCallReturns
 			InodesFree:        0,
 			InodesUsedPercent: 0,
 		}, nil
+	}), func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "shm",
+				Mountpoint: "/dev/shm",
+				Fstype:     "tmpfs",
+				Opts:       []string{"rw", "nosuid", "nodev"},
+			}}, nil
 	})
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
@@ -1016,15 +1022,8 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndUsageSystemCallReturns
 
 func TestGivenADiskCheckWithMinDiskSizeConfiguredTo1MiBConfig_WhenCheckRunsAndUsageSystemCallReturnsAPartitionWith1024Total_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := createDiskCheck().WithDiskPartitions(func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "shm",
-				Mountpoint: "/dev/shm",
-				Fstype:     "tmpfs",
-				Opts:       []string{"rw", "nosuid", "nodev"},
-			}}, nil
-	}).WithDiskUsage(func(_ string) (*gopsutil_disk.UsageStat, error) {
+	diskCheck := createDiskCheck()
+	diskCheck = diskv2.WithDiskPartitions(diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
 		return &gopsutil_disk.UsageStat{
 			Path:              "/dev/shm",
 			Fstype:            "tmpfs",
@@ -1037,7 +1036,16 @@ func TestGivenADiskCheckWithMinDiskSizeConfiguredTo1MiBConfig_WhenCheckRunsAndUs
 			InodesFree:        0,
 			InodesUsedPercent: 0,
 		}, nil
+	}), func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "shm",
+				Mountpoint: "/dev/shm",
+				Fstype:     "tmpfs",
+				Opts:       []string{"rw", "nosuid", "nodev"},
+			}}, nil
 	})
+
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`min_disk_size: 1`))
@@ -1059,15 +1067,8 @@ func TestGivenADiskCheckWithMinDiskSizeConfiguredTo1MiBConfig_WhenCheckRunsAndUs
 
 func TestGivenADiskCheckWithMinDiskSizeConfiguredTo1MiBConfig_WhenCheckRunsAndUsageSystemCallReturnsAPartitionWith1048576Total_ThenUsageMetricsAreReportedForThatPartition(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := createDiskCheck().WithDiskPartitions(func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "shm",
-				Mountpoint: "/dev/shm",
-				Fstype:     "tmpfs",
-				Opts:       []string{"rw", "nosuid", "nodev"},
-			}}, nil
-	}).WithDiskUsage(func(_ string) (*gopsutil_disk.UsageStat, error) {
+	diskCheck := createDiskCheck()
+	diskCheck = diskv2.WithDiskPartitions(diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
 		return &gopsutil_disk.UsageStat{
 			Path:              "/dev/shm",
 			Fstype:            "tmpfs",
@@ -1080,7 +1081,16 @@ func TestGivenADiskCheckWithMinDiskSizeConfiguredTo1MiBConfig_WhenCheckRunsAndUs
 			InodesFree:        0,
 			InodesUsedPercent: 0,
 		}, nil
+	}), func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "shm",
+				Mountpoint: "/dev/shm",
+				Fstype:     "tmpfs",
+				Opts:       []string{"rw", "nosuid", "nodev"},
+			}}, nil
 	})
+
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`min_disk_size: 1`))
@@ -1260,15 +1270,8 @@ func TestGivenADiskCheckWithDefaultConfig_WhenUsagePartitionTimeout_ThenUsageMet
 		Clock:       mockClock,
 		afterCalled: afterCalled,
 	}
-	diskCheck := createDiskCheck().WithClock(testClock).WithDiskPartitions(func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "shm",
-				Mountpoint: "/dev/shm",
-				Fstype:     "tmpfs",
-				Opts:       []string{"rw", "nosuid", "nodev"},
-			}}, nil
-	}).WithDiskUsage(func(_ string) (*gopsutil_disk.UsageStat, error) {
+	diskCheck := createDiskCheck()
+	diskCheck = diskv2.WithClock(diskv2.WithDiskPartitions(diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
 		// Sleep 10s (longer than default timeout)
 		time.Sleep(10 * time.Second)
 		return &gopsutil_disk.UsageStat{
@@ -1283,7 +1286,16 @@ func TestGivenADiskCheckWithDefaultConfig_WhenUsagePartitionTimeout_ThenUsageMet
 			InodesFree:        0,
 			InodesUsedPercent: 0,
 		}, nil
-	})
+	}), func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "shm",
+				Mountpoint: "/dev/shm",
+				Fstype:     "tmpfs",
+				Opts:       []string{"rw", "nosuid", "nodev"},
+			}}, nil
+	}), testClock)
+
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 

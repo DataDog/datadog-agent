@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/diskv2"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,19 +30,23 @@ func setupPlatformMocks() {
 	}
 }
 
-func createWindowsCheck() *diskv2.Check {
+func createWindowsCheck() check.Check {
 	diskCheckOpt := diskv2.Factory()
 	diskCheckFunc, _ := diskCheckOpt.Get()
-	diskCheck := diskCheckFunc().(*diskv2.Check)
-	diskCheck.WithDiskPartitions(func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     `\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`,
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}).WithDiskUsage(func(_ string) (*gopsutil_disk.UsageStat, error) {
+	diskCheck := diskCheckFunc()
+	diskCheck = diskv2.WithDiskPartitions(diskv2.WithDiskUsage(diskv2.WithDiskIOCounters(diskCheck, func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
+		return map[string]gopsutil_disk.IOCountersStat{
+			"\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\": {
+				Name:       "sda1",
+				ReadCount:  100,
+				WriteCount: 200,
+				ReadBytes:  1048576,
+				WriteBytes: 2097152,
+				ReadTime:   300,
+				WriteTime:  450,
+			},
+		}, nil
+	}), func(_ string) (*gopsutil_disk.UsageStat, error) {
 		return &gopsutil_disk.UsageStat{
 			Path:              "D:\\",
 			Fstype:            "NTFS",
@@ -54,18 +59,14 @@ func createWindowsCheck() *diskv2.Check {
 			InodesFree:        500000,
 			InodesUsedPercent: 50.0,
 		}, nil
-	}).WithDiskIOCounters(func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
-		return map[string]gopsutil_disk.IOCountersStat{
-			"\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\": {
-				Name:       "sda1",
-				ReadCount:  100,
-				WriteCount: 200,
-				ReadBytes:  1048576,
-				WriteBytes: 2097152,
-				ReadTime:   300,
-				WriteTime:  450,
-			},
-		}, nil
+	}), func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     `\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`,
+				Mountpoint: "D:\\",
+				Fstype:     "NTFS",
+				Opts:       []string{"rw", "relatime"},
+			}}, nil
 	})
 	return diskCheck
 }
@@ -139,7 +140,8 @@ func TestGivenADiskCheckWithIncludeAllDevicesFalseConfigured_WhenCheckRuns_ThenO
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturnsEmptyDevice_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := createWindowsCheck().WithDiskPartitions(func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+	diskCheck := createWindowsCheck()
+	diskCheck = diskv2.WithDiskPartitions(diskCheck, func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
 				Device:     "",
@@ -209,7 +211,8 @@ device_whitelist:
 
 func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithIso9660FileSystems(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := createWindowsCheck().WithDiskPartitions(func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+	diskCheck := createWindowsCheck()
+	diskCheck = diskv2.WithDiskPartitions(diskCheck, func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
 				Device:     "cdrom",
@@ -241,7 +244,8 @@ func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_T
 
 func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithTracefsFileSystems(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := createWindowsCheck().WithDiskPartitions(func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+	diskCheck := createWindowsCheck()
+	diskCheck = diskv2.WithDiskPartitions(diskCheck, func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
 				Device:     "trace",
