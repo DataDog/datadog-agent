@@ -23,7 +23,7 @@ import (
 	"go.uber.org/fx"
 )
 
-// Make sure process checks run on the core agent only
+// TestProcessCheckEnablementOnCoreAgent Tests the process checks run on the core agent only
 func TestProcessCheckEnablementOnCoreAgent(t *testing.T) {
 	originalFlavor := flavor.GetFlavor()
 	defer flavor.SetFlavor(originalFlavor)
