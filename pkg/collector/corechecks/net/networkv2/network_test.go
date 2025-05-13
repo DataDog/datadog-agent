@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/shirou/gopsutil/v4/net"
@@ -81,6 +82,10 @@ func (n *fakeNetworkStats) GetProcPath() string {
 	return n.getProcPath
 }
 
+func (n *fakeNetworkStats) GetNetProcBasePath() string {
+	return n.getProcPath
+}
+
 type MockEthtool struct {
 	mock.Mock
 }
@@ -113,12 +118,12 @@ type MockCommandRunner struct {
 	mock.Mock
 }
 
-func (m *MockCommandRunner) FakeRunCommand(cmd []string) (string, error) {
-	if contains(cmd, "netstat") {
+func (m *MockCommandRunner) FakeRunCommand(cmd []string, _ []string) (string, error) {
+	if slices.Contains(cmd, "netstat") {
 		return `Proto Recv-Q Send-Q Local Address           Foreign Address         State
                 tcp        0      0 46.105.75.4:80          79.220.227.193:2032     TIME_WAIT
                 tcp        0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED`, nil
-	} else if contains(cmd, "ss") {
+	} else if slices.Contains(cmd, "ss") {
 		return `Netid   State     Recv-Q    Send-Q    Local Address           Foreign Address
 				tcp     ESTAB     0         0         127.0.0.1:60342         127.0.0.1:46153
 				tcp     TIME-WAIT 0         0         127.0.0.1:46153         127.0.0.1:60342`, nil
@@ -366,8 +371,8 @@ func TestNetworkCheck(t *testing.T) {
 	mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
 	mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
 
-	getDrvInfo = mockEthtool.DriverInfo
-	getStats = mockEthtool.Stats
+	getEthtoolDrvInfo = mockEthtool.DriverInfo
+	getEthtoolStats = mockEthtool.Stats
 
 	mockSS := new(MockSS)
 	ssAvailableFunction = mockSS.NetstatCommand
@@ -689,8 +694,8 @@ func TestFetchEthtoolStats(t *testing.T) {
 	mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
 	mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
 
-	getDrvInfo = mockEthtool.DriverInfo
-	getStats = mockEthtool.Stats
+	getEthtoolDrvInfo = mockEthtool.DriverInfo
+	getEthtoolStats = mockEthtool.Stats
 
 	net := &fakeNetworkStats{
 		counterStats: []net.IOCountersStat{
@@ -738,8 +743,8 @@ func TestFetchEthtoolStatsENOTTY(t *testing.T) {
 	mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
 	mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
 
-	getDrvInfo = mockEthtool.DriverInfo
-	getStats = mockEthtool.Stats
+	getEthtoolDrvInfo = mockEthtool.DriverInfo
+	getEthtoolStats = mockEthtool.Stats
 
 	net := &fakeNetworkStats{
 		counterStats: []net.IOCountersStat{
@@ -1125,7 +1130,7 @@ whitelist_conntrack_metrics: ["max", "include"]
 	assert.Nil(t, err)
 
 	mockSender.AssertNotCalled(t, "Gauge", "system.net.conntrack.insert", float64(13), "", []string{})
-	mockSender.AssertCalled(t, "Gauge", "system.net.conntrack.include", float64(14), "", []string{})
+	mockSender.AssertMetric(t, "Gauge", "system.net.conntrack.include", float64(14), "", []string{})
 }
 
 func TestFetchQueueStatsSS(t *testing.T) {

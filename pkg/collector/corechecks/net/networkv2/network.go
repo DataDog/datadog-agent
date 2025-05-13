@@ -399,7 +399,7 @@ func getQueueMetricsNetstat(ipVersion string, _ string) (map[string][]uint64, er
 
 func parseQueueMetrics(output string) (map[string][]uint64, error) {
 	queueMetrics := make(map[string][]uint64)
-	suffixMapping, _ := tcpStateMetricsSuffixMapping["ss"]
+	suffixMapping := tcpStateMetricsSuffixMapping["ss"]
 	lines := strings.Split(output, "\n")
 	for _, line := range lines {
 		fields := strings.Fields(line)
@@ -418,7 +418,7 @@ func parseQueueMetrics(output string) (map[string][]uint64, error) {
 
 func parseQueueMetricsNetstat(output string) (map[string][]uint64, error) {
 	queueMetrics := make(map[string][]uint64)
-	suffixMapping, _ := tcpStateMetricsSuffixMapping["netstat"]
+	suffixMapping := tcpStateMetricsSuffixMapping["netstat"]
 	lines := strings.Split(output, "\n")
 	for _, line := range lines {
 		if strings.Contains(line, "tcp") {
