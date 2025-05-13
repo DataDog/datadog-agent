@@ -11,14 +11,14 @@ import (
 	"github.com/go-ole/go-ole"
 )
 
-const s_false = 0x00000001
+const sFalse = 0x00000001
 
 func platformLoaderPrep() error {
 	// Initialize COM to multithreaded model
 	err := ole.CoInitializeEx(0, ole.COINIT_MULTITHREADED)
 	if err != nil {
 		oleCode := err.(*ole.OleError).Code()
-		if oleCode != ole.S_OK && oleCode != s_false {
+		if oleCode != ole.S_OK && oleCode != sFalse {
 			return err
 		}
 	}
