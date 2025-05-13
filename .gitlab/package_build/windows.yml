@@ -57,7 +57,6 @@
 
 windows_msi_and_bosh_zip_x64-a7:
   extends: .windows_main_agent_base
-  parallel: 4
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -117,6 +116,54 @@ windows_zip_agent_binaries_x64-a7:
       -e API_KEY_ORG2=${API_KEY_ORG2}
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-OmnibusTarget.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - get-childitem omnibus\pkg
+    - !reference [.upload_sbom_artifacts_windows]
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - omnibus/pkg
+
+celian:
+  stage: package_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  extends: .windows_docker_default
+  needs: []
+  variables:
+    ARCH: "x64"
+    OMNIBUS_TARGET: agent-binaries
+  script:
+    - $ErrorActionPreference = "Stop"
+    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
+    - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
+    - mkdir omnibus\pkg
+    - >
+      docker run --rm
+      -m 8192M
+      -v "$(Get-Location):c:\mnt"
+      -e CI_COMMIT_BRANCH=${CI_COMMIT_BRANCH}
+      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
+      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
+      -e CI_JOB_NAME_SLUG=${CI_JOB_NAME_SLUG}
+      -e CI_COMMIT_REF_NAME=${CI_COMMIT_REF_NAME}
+      -e OMNIBUS_TARGET=${OMNIBUS_TARGET}
+      -e WINDOWS_BUILDER=true
+      -e MAJOR_VERSION="7"
+      -e INTEGRATIONS_CORE_VERSION="$INTEGRATIONS_CORE_VERSION"
+      -e GOMODCACHE="c:\modcache"
+      -e AWS_NETWORKING=true
+      -e SIGN_WINDOWS_DD_WCS=true
+      -e BUCKET_BRANCH="$BUCKET_BRANCH"
+      -e INTEGRATION_WHEELS_CACHE_BUCKET="$INTEGRATION_WHEELS_CACHE_BUCKET"
+      -e S3_OMNIBUS_CACHE_BUCKET="$S3_OMNIBUS_CACHE_BUCKET"
+      -e USE_S3_CACHING="$USE_S3_CACHING"
+      -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG}
+      -e PIP_INDEX_URL=${PIP_INDEX_URL}
+      -e API_KEY_ORG2=${API_KEY_ORG2}
+      ${WINBUILDIMAGE}
+      powershell -C "c:\mnt\tasks\winbuildscripts\Celian.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - get-childitem omnibus\pkg
     - !reference [.upload_sbom_artifacts_windows]

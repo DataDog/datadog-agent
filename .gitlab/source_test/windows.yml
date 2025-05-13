@@ -63,7 +63,6 @@ tests_windows-x64:
   extends: .tests_windows_base
   variables:
     ARCH: "x64"
-  parallel: 4
 
 .tests_windows_sysprobe:
   stage: source_test
