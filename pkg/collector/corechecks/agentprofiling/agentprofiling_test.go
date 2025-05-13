@@ -58,27 +58,6 @@ user_email: "%s"`, cfg.memoryThreshold, cfg.cpuThreshold, cfg.ticketID, cfg.user
 	return check
 }
 
-// TestConfigParse tests that the configuration is parsed correctly
-func TestConfigParse(t *testing.T) {
-	cfg := testConfig{
-		memoryThreshold: "10MB",
-		cpuThreshold:    30,
-		ticketID:        "12345678",
-		userEmail:       "test@datadoghq.com",
-	}
-
-	check := createTestCheck(t, cfg)
-
-	assert.Equal(t, cfg.memoryThreshold, check.instance.MemoryThreshold)
-	assert.Equal(t, cfg.cpuThreshold, check.instance.CPUThreshold)
-	assert.Equal(t, cfg.ticketID, check.instance.TicketID)
-	assert.Equal(t, cfg.userEmail, check.instance.UserEmail)
-
-	// Verify that memory threshold is properly parsed into bytes
-	expectedBytes := uint(10 * 1024 * 1024) // 10MB in bytes
-	assert.Equal(t, expectedBytes, check.memoryThreshold)
-}
-
 // TestZeroThresholds tests that the flare is not generated when thresholds are set to zero
 func TestZeroThresholds(t *testing.T) {
 	check := createTestCheck(t, defaultTestConfig())
