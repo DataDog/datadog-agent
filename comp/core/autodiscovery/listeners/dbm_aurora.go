@@ -218,17 +218,17 @@ func (d *DBMAuroraService) GetTaggerEntity() string {
 }
 
 // GetADIdentifiers return the single AD identifier for a static config service
-func (d *DBMAuroraService) GetADIdentifiers(context.Context) ([]string, error) {
+func (d *DBMAuroraService) GetADIdentifiers() ([]string, error) {
 	return []string{d.adIdentifier}, nil
 }
 
 // GetHosts returns the host for the aurora endpoint
-func (d *DBMAuroraService) GetHosts(context.Context) (map[string]string, error) {
+func (d *DBMAuroraService) GetHosts() (map[string]string, error) {
 	return map[string]string{"": d.instance.Endpoint}, nil
 }
 
 // GetPorts returns the port for the aurora endpoint
-func (d *DBMAuroraService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (d *DBMAuroraService) GetPorts() ([]ContainerPort, error) {
 	port := int(d.instance.Port)
 	return []ContainerPort{{port, fmt.Sprintf("p%d", port)}}, nil
 }
@@ -244,17 +244,17 @@ func (d *DBMAuroraService) GetTagsWithCardinality(_ string) ([]string, error) {
 }
 
 // GetPid returns nil and an error because pids are currently not supported
-func (d *DBMAuroraService) GetPid(context.Context) (int, error) {
+func (d *DBMAuroraService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetHostname returns nothing - not supported
-func (d *DBMAuroraService) GetHostname(context.Context) (string, error) {
+func (d *DBMAuroraService) GetHostname() (string, error) {
 	return "", ErrNotSupported
 }
 
 // IsReady returns true on DBMAuroraService
-func (d *DBMAuroraService) IsReady(context.Context) bool {
+func (d *DBMAuroraService) IsReady() bool {
 	return true
 }
 
