@@ -668,12 +668,7 @@ func (ac *AutoConfig) GetProviderCatalog() map[string]providers.ConfigProviderFa
 // triggers scheduling events if it finds a valid config for it.
 func (ac *AutoConfig) processNewService(svc listeners.Service) {
 	// get all the templates matching service identifiers
-	ADIdentifiers, err := svc.GetADIdentifiers()
-	if err != nil {
-		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetServiceID(), err)
-		return
-	}
-
+	ADIdentifiers := svc.GetADIdentifiers()
 	changes := ac.cfgMgr.processNewService(ADIdentifiers, svc)
 	ac.applyChanges(changes)
 }

@@ -74,8 +74,8 @@ func (s *StaticConfigService) GetServiceID() string {
 }
 
 // GetADIdentifiers return the single AD identifier for a static config service
-func (s *StaticConfigService) GetADIdentifiers() ([]string, error) {
-	return []string{s.adIdentifier}, nil
+func (s *StaticConfigService) GetADIdentifiers() []string {
+	return []string{s.adIdentifier}
 }
 
 // GetHosts is not supported
