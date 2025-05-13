@@ -12,7 +12,6 @@ import (
 	"math"
 	"slices"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	gocmp "github.com/google/go-cmp/cmp"
@@ -27,22 +26,17 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
-type baseCheckSuite struct {
+type diskCheckSuite struct {
 	e2e.BaseSuite[environments.Host]
-	descriptor   e2eos.Descriptor
-	agentOptions []agentparams.Option
+	descriptor            e2eos.Descriptor
+	metricCompareFraction float64
+	metricCompareDecimals int
 }
 
-func getAgentOptions() []agentparams.Option {
-	agentOptions := []agentparams.Option{}
-	return agentOptions
-}
-
-func (v *baseCheckSuite) getSuiteOptions() []e2e.SuiteOption {
+func (v *diskCheckSuite) getSuiteOptions() []e2e.SuiteOption {
 	suiteOptions := []e2e.SuiteOption{}
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithAgentOptions(v.agentOptions...),
 			awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
 		),
 	))
@@ -50,18 +44,7 @@ func (v *baseCheckSuite) getSuiteOptions() []e2e.SuiteOption {
 	return suiteOptions
 }
 
-// a relative diff considered acceptable when comparing metrics (5%)
-const metricCompareFraction = 0.05
-
-// number of decimals when comparing metrics
-const metricCompareDecimals = 1
-
-// metrics that remain constant
-var constantMetricsSet = map[string]struct{}{
-	"system.disk.total": {},
-}
-
-func (v *baseCheckSuite) TestCheckDisk() {
+func (v *diskCheckSuite) TestCheckDisk() {
 	testCases := []struct {
 		name        string
 		checkConfig string
@@ -76,7 +59,7 @@ instances:
 			``,
 		},
 	}
-	p := math.Pow(10, float64(metricCompareDecimals))
+	p := math.Pow10(v.metricCompareDecimals)
 	for _, testCase := range testCases {
 		v.Run(testCase.name, func() {
 			v.T().Log("run the disk check using old version")
@@ -87,22 +70,16 @@ instances:
 			// assert the check output
 			diff := gocmp.Diff(pythonMetrics, goMetrics,
 				gocmp.Comparer(func(a, b check.Metric) bool {
-					if a.Host != b.Host ||
-						a.Interval != b.Interval ||
-						a.Metric != b.Metric ||
-						a.SourceTypeName != b.SourceTypeName ||
-						a.Type != b.Type {
-						return false
-					}
-					if !gocmp.Equal(a.Tags, b.Tags, gocmpopts.SortSlices(cmp.Less[string])) {
+					if !equalMetrics(a, b) {
 						return false
 					}
 					aValue := a.Points[0][1]
 					bValue := b.Points[0][1]
-					if _, ok := constantMetricsSet[a.Metric]; ok {
+					// system.disk.total metric is expected to be strictly equal between both checks
+					if a.Metric == "system.disk.total" {
 						return aValue == bValue
 					}
-					return compareValuesWithRelativeMargin(aValue, bValue, p, metricCompareFraction)
+					return compareValuesWithRelativeMargin(aValue, bValue, p, v.metricCompareFraction)
 				}),
 				gocmpopts.SortSlices(metricPayloadCompare), // sort metrics
 			)
@@ -111,10 +88,18 @@ instances:
 	}
 }
 
+func equalMetrics(a, b check.Metric) bool {
+	return a.Host == b.Host &&
+		a.Interval == b.Interval &&
+		a.Metric == b.Metric &&
+		a.SourceTypeName == b.SourceTypeName &&
+		a.Type == b.Type && gocmp.Equal(a.Tags, b.Tags, gocmpopts.SortSlices(cmp.Less[string]))
+}
+
 func compareValuesWithRelativeMargin(a, b, p, fraction float64) bool {
 	x := math.Round(a*p) / p
 	y := math.Round(b*p) / p
-	relMarg := fraction * math.Min(math.Abs(x), math.Abs(y))
+	relMarg := fraction * math.Abs(x)
 	return math.Abs(x-y) <= relMarg
 }
 
@@ -132,8 +117,10 @@ func metricPayloadCompare(a, b check.Metric) int {
 	)
 }
 
-func (v *baseCheckSuite) runDiskCheck(agentConfig string, checkConfig string, useNewVersion bool) []check.Metric {
+func (v *diskCheckSuite) runDiskCheck(agentConfig string, checkConfig string, useNewVersion bool) []check.Metric {
 	v.T().Helper()
+
+	host := v.Env().RemoteHost
 
 	diskCheckVersion := "old"
 	if useNewVersion {
@@ -144,20 +131,31 @@ func (v *baseCheckSuite) runDiskCheck(agentConfig string, checkConfig string, us
 	diskCheckVersionTag := fmt.Sprintf("disk_check_version:%s", diskCheckVersion)
 	checkConfig += fmt.Sprintf("\n    tags:\n      - %s", diskCheckVersionTag)
 
-	agentOptions := v.agentOptions
-	agentOptions = append(agentOptions,
-		agentparams.WithAgentConfig(agentConfig),
-	)
-	agentOptions = append(agentOptions,
-		agentparams.WithIntegration("disk.d", checkConfig),
-	)
-	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
-		awshost.WithAgentOptions(agentOptions...)),
-	)
+	tmpFolder, err := host.GetTmpFolder()
+	require.NoError(v.T(), err)
+
+	confFolder, err := host.GetAgentConfigFolder()
+	require.NoError(v.T(), err)
+
+	// update agent configuration without restarting it, so that we can run both versions of the check
+	// quickly one after the other, to minimize flakes in metric values
+	extraConfigFilePath := host.JoinPath(tmpFolder, "datadog.yaml")
+	_, err = host.WriteFile(extraConfigFilePath, []byte(agentConfig))
+	require.NoError(v.T(), err)
+	// we need to write to a temp file and then copy due to permission issues
+	tmpCheckConfigFile := host.JoinPath(tmpFolder, "check_config.yaml")
+	_, err = host.WriteFile(tmpCheckConfigFile, []byte(checkConfig))
+	require.NoError(v.T(), err)
+
+	configFile := host.JoinPath(confFolder, "conf.d", "disk.d", "conf.yaml")
+	if v.descriptor.Family() == e2eos.WindowsFamily {
+		host.MustExecute(fmt.Sprintf("copy %s %s", tmpCheckConfigFile, configFile))
+	} else {
+		host.MustExecute(fmt.Sprintf("sudo -u dd-agent cp %s %s", tmpCheckConfigFile, configFile))
+	}
 
 	// run the check
-	output := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"disk", "--json"}))
+	output := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"disk", "--json", "--extracfgpath", extraConfigFilePath}))
 	data := check.ParseJSONOutput(v.T(), []byte(output))
 
 	require.Len(v.T(), data, 1)

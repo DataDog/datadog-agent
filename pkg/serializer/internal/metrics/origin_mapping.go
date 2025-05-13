@@ -94,6 +94,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceDisk,
 		metrics.MetricSourceNetwork,
 		metrics.MetricSourceSnmp,
+		metrics.MetricSourceWlan,
 		// Plugins and non-checks
 		metrics.MetricSourceCloudFoundry,
 		metrics.MetricSourceJenkins,
@@ -1076,6 +1077,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceAzureAppServiceRuntime,
 		metrics.MetricSourceGoogleCloudRunRuntime:
 		return 474
+	case metrics.MetricSourceWlan:
+		return 475
 	default:
 		return 0
 	}
