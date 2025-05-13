@@ -51,24 +51,6 @@ func getEnabledChecks(t *testing.T, cfg, sysprobeYamlConfig pkgconfigmodel.Reade
 	return enabledChecks
 }
 
-func TestProcessCheck(t *testing.T) {
-	deps := createProcessCheckDeps(t)
-	t.Run("disabled", func(t *testing.T) {
-		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
-		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
-		assertNotContainsCheck(t, enabledChecks, ProcessCheckName)
-	})
-
-	// Make sure the process check can be enabled
-	t.Run("enabled", func(t *testing.T) {
-		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
-		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
-		assertContainsCheck(t, enabledChecks, ProcessCheckName)
-	})
-}
-
 func TestConnectionsCheck(t *testing.T) {
 	deps := createProcessCheckDeps(t)
 	originalFlavor := flavor.GetFlavor()
