@@ -201,7 +201,12 @@ func (s *sackDriver) handleProbeLayers(parser *common.FrameParser) (*common.Prob
 		// get the first sequence number that was dupe ACKed
 		relSeq, err := getMinSack(s.state.localInitSeq, parser.TCP.Options)
 		if err != nil {
-			return nil, &common.BadPacketError{Err: fmt.Errorf("sackDriver failed to get min SACK: %w", err)}
+			// note: this is a NotSupportedError, not a BadPacketError because we want to fail the whole
+			// traceroute if for some reason the endpoint returned SACK-permitted but isn't giving us SACK.
+			// I've seen akamai CDN do this when serving static files for example.com.
+			return nil, &NotSupportedError{
+				Err: fmt.Errorf("endpoint returned SACK-permitted but found no SACK options: %w", err),
+			}
 		}
 		rtt, err := s.getRTTFromRelSeq(relSeq)
 		if err != nil {
@@ -350,7 +355,7 @@ func (s *sackDriver) handleHandshake() error {
 	}
 
 	// set the localInitSeq and localInitAck based off the response
-	state.localInitSeq = parser.TCP.Ack - 1
+	state.localInitSeq = parser.TCP.Ack // this is NOT Ack - 1 because we need to leave a gap in the data
 	state.localInitAck = parser.TCP.Seq + 1
 	s.state = &state
 	return nil
