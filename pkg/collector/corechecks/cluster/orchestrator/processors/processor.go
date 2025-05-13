@@ -96,7 +96,7 @@ type K8sProcessorContext struct {
 // ECSProcessorContext holds ECS resource processing attributes
 type ECSProcessorContext struct {
 	BaseProcessorContext
-	AWSAccountID int
+	AWSAccountID string
 	ClusterName  string
 	Region       string
 	SystemInfo   *model.SystemInfo
