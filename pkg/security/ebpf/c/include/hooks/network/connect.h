@@ -94,8 +94,7 @@ int hook_security_socket_connect(ctx_t *ctx) {
     return 0;
 }
 
-SEC("tracepoint/handle_sys_connect_exit")
-int tracepoint_handle_sys_connect_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_connect_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_connect_ret(args, args->ret);
 }
 

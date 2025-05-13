@@ -58,7 +58,7 @@ int rethook_get_pipe_info(ctx_t *ctx) {
         syscall->resolver.ret = 0;
         syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
 
-        resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+        resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 
         // if the tail call fails, we need to pop the syscall cache entry
         pop_syscall(EVENT_SPLICE);
@@ -116,8 +116,7 @@ HOOK_SYSCALL_EXIT(splice) {
     return sys_splice_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
 
-SEC("tracepoint/handle_sys_splice_exit")
-int tracepoint_handle_sys_splice_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_splice_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_splice_ret(args, args->ret);
 }
 
