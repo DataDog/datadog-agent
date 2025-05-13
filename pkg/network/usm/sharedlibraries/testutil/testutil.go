@@ -27,6 +27,9 @@ import (
 // mutex protecting build process
 var mux sync.Mutex
 
+// BuildFmapperScanner creates a new pattern scanner for the fmapper program,
+// that scans for the "awaiting signal" pattern that indicates that the program
+// has started correctly.
 func BuildFmapperScanner(t testing.TB) *protocolstestutil.PatternScanner {
 	patternScanner, err := protocolstestutil.NewScanner(regexp.MustCompile("awaiting signal"), protocolstestutil.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")

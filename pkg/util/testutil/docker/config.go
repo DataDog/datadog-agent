@@ -103,7 +103,7 @@ type runConfig struct {
 	Mounts      map[string]string // Mounts (host path -> container path).
 	NetworkMode string            // Network mode to use for the container. If empty, the docker default will apply
 	PIDMode     string            // PID mode to use for the container. If empty, the docker default will apply
-	Privileged bool               // Whether to run the container in privileged mode.
+	Privileged  bool              // Whether to run the container in privileged mode.
 }
 
 func (r runConfig) command() string {
@@ -130,9 +130,6 @@ func (r runConfig) commandArgs(t subCommandType) []string {
 		if r.Privileged {
 			args = append(args, "--privileged")
 		}
-
-		args = append(args, "--network", "host")
-		args = append(args, "--pid", "host")
 
 		//append container name and container image name
 		args = append(args, "--name", r.Name(), r.ImageName)
