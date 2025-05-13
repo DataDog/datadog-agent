@@ -5,7 +5,6 @@ go 1.23.0
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.123.0
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/confmap v1.29.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v1.29.0
@@ -16,8 +15,6 @@ require (
 	go.uber.org/zap v1.27.0
 
 )
-
-require github.com/DataDog/datadog-agent/pkg/trace v0.64.2 // indirect
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
