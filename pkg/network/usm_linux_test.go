@@ -44,11 +44,11 @@ func TestHTTP2Stats(t *testing.T) {
 	delta := state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, getStats("/testpath"))
 
 	// Verify connection has HTTP2 data embedded in it
-	assert.Len(t, delta.HTTP2, 1)
+	assert.Len(t, delta.USMData.HTTP2, 1)
 
 	// Verify HTTP2 data has been flushed
 	delta = state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, nil)
-	assert.Len(t, delta.HTTP2, 0)
+	assert.Len(t, delta.USMData.HTTP2, 0)
 }
 
 func TestHTTP2StatsWithMultipleClients(t *testing.T) {
@@ -80,38 +80,38 @@ func TestHTTP2StatsWithMultipleClients(t *testing.T) {
 	state.RegisterClient(client2)
 
 	// We should have nothing on first call
-	assert.Len(t, state.GetDelta(client1, latestEpochTime(), nil, nil, nil).HTTP2, 0)
-	assert.Len(t, state.GetDelta(client2, latestEpochTime(), nil, nil, nil).HTTP2, 0)
+	assert.Len(t, state.GetDelta(client1, latestEpochTime(), nil, nil, nil).USMData.HTTP2, 0)
+	assert.Len(t, state.GetDelta(client2, latestEpochTime(), nil, nil, nil).USMData.HTTP2, 0)
 
 	// Store the connection to both clients & pass HTTP2 stats to the first client
 	c.LastUpdateEpoch = latestEpochTime()
 	state.StoreClosedConnection(&c)
 
 	delta := state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("/testpath"))
-	assert.Len(t, delta.HTTP2, 1)
+	assert.Len(t, delta.USMData.HTTP2, 1)
 
 	// Verify that the HTTP2 stats were also stored in the second client
 	delta = state.GetDelta(client2, latestEpochTime(), nil, nil, nil)
-	assert.Len(t, delta.HTTP2, 1)
+	assert.Len(t, delta.USMData.HTTP2, 1)
 
 	// Register a third client & verify that it does not have the HTTP2 stats
 	delta = state.GetDelta(client3, latestEpochTime(), []ConnectionStats{c}, nil, nil)
-	assert.Len(t, delta.HTTP2, 0)
+	assert.Len(t, delta.USMData.HTTP2, 0)
 
 	c.LastUpdateEpoch = latestEpochTime()
 	state.StoreClosedConnection(&c)
 
 	// Pass in new HTTP2 stats to the first client
 	delta = state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("/testpath2"))
-	assert.Len(t, delta.HTTP2, 1)
+	assert.Len(t, delta.USMData.HTTP2, 1)
 
 	// And the second client
 	delta = state.GetDelta(client2, latestEpochTime(), nil, nil, getStats("/testpath3"))
-	assert.Len(t, delta.HTTP2, 2)
+	assert.Len(t, delta.USMData.HTTP2, 2)
 
 	// Verify that the third client also accumulated both new HTTP2 stats
 	delta = state.GetDelta(client3, latestEpochTime(), nil, nil, nil)
-	assert.Len(t, delta.HTTP2, 2)
+	assert.Len(t, delta.USMData.HTTP2, 2)
 }
 
 func TestRedisStats(t *testing.T) {
@@ -138,11 +138,11 @@ func TestRedisStats(t *testing.T) {
 	delta := state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, usmStats)
 
 	// Verify connection has Redis data embedded in it
-	assert.Len(t, delta.Redis, 1)
+	assert.Len(t, delta.USMData.Redis, 1)
 
 	// Verify Redis data has been flushed
 	delta = state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, nil)
-	assert.Len(t, delta.Redis, 0)
+	assert.Len(t, delta.USMData.Redis, 0)
 }
 
 func TestRedisStatsWithMultipleClients(t *testing.T) {
@@ -178,38 +178,38 @@ func TestRedisStatsWithMultipleClients(t *testing.T) {
 	state.RegisterClient(client2)
 
 	// We should have nothing on first call
-	assert.Len(t, state.GetDelta(client1, latestEpochTime(), nil, nil, nil).Redis, 0)
-	assert.Len(t, state.GetDelta(client2, latestEpochTime(), nil, nil, nil).Redis, 0)
+	assert.Len(t, state.GetDelta(client1, latestEpochTime(), nil, nil, nil).USMData.Redis, 0)
+	assert.Len(t, state.GetDelta(client2, latestEpochTime(), nil, nil, nil).USMData.Redis, 0)
 
 	// Store the connection to both clients & pass Redis stats to the first client
 	c.LastUpdateEpoch = latestEpochTime()
 	state.StoreClosedConnection(&c)
 
 	delta := state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("key-name"))
-	assert.Len(t, delta.Redis, 1)
+	assert.Len(t, delta.USMData.Redis, 1)
 
 	// Verify that the Redis stats were also stored in the second client
 	delta = state.GetDelta(client2, latestEpochTime(), nil, nil, nil)
-	assert.Len(t, delta.Redis, 1)
+	assert.Len(t, delta.USMData.Redis, 1)
 
 	// Register a third client & verify that it does not have the Redis stats
 	delta = state.GetDelta(client3, latestEpochTime(), []ConnectionStats{c}, nil, nil)
-	assert.Len(t, delta.Redis, 0)
+	assert.Len(t, delta.USMData.Redis, 0)
 
 	c.LastUpdateEpoch = latestEpochTime()
 	state.StoreClosedConnection(&c)
 
 	// Pass in new Redis stats to the first client
 	delta = state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("key-name"))
-	assert.Len(t, delta.Redis, 1)
+	assert.Len(t, delta.USMData.Redis, 1)
 
 	// And the second client
 	delta = state.GetDelta(client2, latestEpochTime(), nil, nil, getStats("key-name-2"))
-	assert.Len(t, delta.Redis, 2)
+	assert.Len(t, delta.USMData.Redis, 2)
 
 	// Verify that the third client also accumulated both Redis stats
 	delta = state.GetDelta(client3, latestEpochTime(), nil, nil, getStats("key-name-2"))
-	assert.Len(t, delta.Redis, 2)
+	assert.Len(t, delta.USMData.Redis, 2)
 }
 
 func TestKafkaStats(t *testing.T) {
@@ -236,11 +236,11 @@ func TestKafkaStats(t *testing.T) {
 	delta := state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, usmStats)
 
 	// Verify connection has Kafka data embedded in it
-	assert.Len(t, delta.Kafka, 1)
+	assert.Len(t, delta.USMData.Kafka, 1)
 
 	// Verify Kafka data has been flushed
 	delta = state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, nil)
-	assert.Len(t, delta.Kafka, 0)
+	assert.Len(t, delta.USMData.Kafka, 0)
 }
 
 func TestKafkaStatsWithMultipleClients(t *testing.T) {
@@ -276,36 +276,36 @@ func TestKafkaStatsWithMultipleClients(t *testing.T) {
 	state.RegisterClient(client2)
 
 	// We should have nothing on first call
-	assert.Len(t, state.GetDelta(client1, latestEpochTime(), nil, nil, nil).Kafka, 0)
-	assert.Len(t, state.GetDelta(client2, latestEpochTime(), nil, nil, nil).Kafka, 0)
+	assert.Len(t, state.GetDelta(client1, latestEpochTime(), nil, nil, nil).USMData.Kafka, 0)
+	assert.Len(t, state.GetDelta(client2, latestEpochTime(), nil, nil, nil).USMData.Kafka, 0)
 
 	// Store the connection to both clients & pass HTTP stats to the first client
 	c.LastUpdateEpoch = latestEpochTime()
 	state.StoreClosedConnection(&c)
 
 	delta := state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("my-topic"))
-	assert.Len(t, delta.Kafka, 1)
+	assert.Len(t, delta.USMData.Kafka, 1)
 
 	// Verify that the HTTP stats were also stored in the second client
 	delta = state.GetDelta(client2, latestEpochTime(), nil, nil, nil)
-	assert.Len(t, delta.Kafka, 1)
+	assert.Len(t, delta.USMData.Kafka, 1)
 
 	// Register a third client & verify that it does not have the Kafka stats
 	delta = state.GetDelta(client3, latestEpochTime(), []ConnectionStats{c}, nil, nil)
-	assert.Len(t, delta.Kafka, 0)
+	assert.Len(t, delta.USMData.Kafka, 0)
 
 	c.LastUpdateEpoch = latestEpochTime()
 	state.StoreClosedConnection(&c)
 
 	// Pass in new Kafka stats to the first client
 	delta = state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("my-topic"))
-	assert.Len(t, delta.Kafka, 1)
+	assert.Len(t, delta.USMData.Kafka, 1)
 
 	// And the second client
 	delta = state.GetDelta(client2, latestEpochTime(), nil, nil, getStats("my-topic2"))
-	assert.Len(t, delta.Kafka, 2)
+	assert.Len(t, delta.USMData.Kafka, 2)
 
 	// Verify that the third client also accumulated both Kafka stats
 	delta = state.GetDelta(client3, latestEpochTime(), nil, nil, getStats("my-topic2"))
-	assert.Len(t, delta.Kafka, 2)
+	assert.Len(t, delta.USMData.Kafka, 2)
 }

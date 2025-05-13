@@ -118,38 +118,40 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 				postgresDefaultConnection,
 			},
 		},
-		Postgres: map[postgres.Key]*postgres.RequestStat{
-			selectKey: {
-				Count:              10,
-				FirstLatencySample: 5,
-			},
-			insertKey: {
-				Count:              10,
-				FirstLatencySample: 5,
-			},
-			deleteKey: {
-				Count:              10,
-				FirstLatencySample: 5,
-			},
-			truncateKey: {
-				Count:              10,
-				FirstLatencySample: 5,
-			},
-			updateKey: {
-				Count:              10,
-				FirstLatencySample: 5,
-			},
-			createKey: {
-				Count:              10,
-				FirstLatencySample: 5,
-			},
-			dropKey: {
-				Count:              10,
-				FirstLatencySample: 5,
-			},
-			alterKey: {
-				Count:              10,
-				FirstLatencySample: 5,
+		USMData: network.USMProtocolsData{
+			Postgres: map[postgres.Key]*postgres.RequestStat{
+				selectKey: {
+					Count:              10,
+					FirstLatencySample: 5,
+				},
+				insertKey: {
+					Count:              10,
+					FirstLatencySample: 5,
+				},
+				deleteKey: {
+					Count:              10,
+					FirstLatencySample: 5,
+				},
+				truncateKey: {
+					Count:              10,
+					FirstLatencySample: 5,
+				},
+				updateKey: {
+					Count:              10,
+					FirstLatencySample: 5,
+				},
+				createKey: {
+					Count:              10,
+					FirstLatencySample: 5,
+				},
+				dropKey: {
+					Count:              10,
+					FirstLatencySample: 5,
+				},
+				alterKey: {
+					Count:              10,
+					FirstLatencySample: 5,
+				},
 			},
 		},
 	}
@@ -238,7 +240,7 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 		},
 	}
 
-	encoder := newPostgresEncoder(in.Postgres)
+	encoder := newPostgresEncoder(in.USMData.Postgres)
 	t.Cleanup(encoder.Close)
 
 	aggregations := getPostgresAggregations(t, encoder, in.Conns[0])
@@ -280,15 +282,17 @@ func (s *PostgresSuite) TestPostgresIDCollisionRegression() {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		Postgres: map[postgres.Key]*postgres.RequestStat{
-			postgresKey: {
-				Count:              10,
-				FirstLatencySample: 3,
+		USMData: network.USMProtocolsData{
+			Postgres: map[postgres.Key]*postgres.RequestStat{
+				postgresKey: {
+					Count:              10,
+					FirstLatencySample: 3,
+				},
 			},
 		},
 	}
 
-	encoder := newPostgresEncoder(in.Postgres)
+	encoder := newPostgresEncoder(in.USMData.Postgres)
 	t.Cleanup(encoder.Close)
 	aggregations := getPostgresAggregations(t, encoder, in.Conns[0])
 
@@ -340,15 +344,17 @@ func (s *PostgresSuite) TestPostgresLocalhostScenario() {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		Postgres: map[postgres.Key]*postgres.RequestStat{
-			postgresKey: {
-				Count:              10,
-				FirstLatencySample: 2,
+		USMData: network.USMProtocolsData{
+			Postgres: map[postgres.Key]*postgres.RequestStat{
+				postgresKey: {
+					Count:              10,
+					FirstLatencySample: 2,
+				},
 			},
 		},
 	}
 
-	encoder := newPostgresEncoder(in.Postgres)
+	encoder := newPostgresEncoder(in.USMData.Postgres)
 	t.Cleanup(encoder.Close)
 
 	// assert that both ends (client:server, server:client) of the connection
@@ -382,7 +388,9 @@ func generateBenchMarkPayloadPostgres(sourcePortsMax, destPortsMax uint16) netwo
 		BufferedData: network.BufferedData{
 			Conns: make([]network.ConnectionStats, sourcePortsMax*destPortsMax),
 		},
-		Postgres: make(map[postgres.Key]*postgres.RequestStat),
+		USMData: network.USMProtocolsData{
+			Postgres: make(map[postgres.Key]*postgres.RequestStat),
+		},
 	}
 
 	for sport := uint16(0); sport < sourcePortsMax; sport++ {
@@ -402,7 +410,7 @@ func generateBenchMarkPayloadPostgres(sourcePortsMax, destPortsMax uint16) netwo
 				}
 			}
 
-			payload.Postgres[postgres.NewKey(
+			payload.USMData.Postgres[postgres.NewKey(
 				localhost,
 				localhost,
 				sport+1,
@@ -427,7 +435,7 @@ func commonBenchmarkPostgresEncoder(b *testing.B, numberOfPorts uint16) {
 	b.ReportAllocs()
 	var h *postgresEncoder
 	for i := 0; i < b.N; i++ {
-		h = newPostgresEncoder(payload.Postgres)
+		h = newPostgresEncoder(payload.USMData.Postgres)
 		streamer.Reset()
 		for _, conn := range payload.Conns {
 			h.EncodeConnection(conn, a)

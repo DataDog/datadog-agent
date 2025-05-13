@@ -83,17 +83,19 @@ func (s *KafkaSuite) TestFormatKafkaStats() {
 				defaultConnection,
 			},
 		},
-		Kafka: map[kafka.Key]*kafka.RequestStats{
-			kafkaKey1: {
-				ErrorCodeToStat: map[int32]*kafka.RequestStat{
-					0: {Count: 10},
-					1: {Count: 2},
+		USMData: network.USMProtocolsData{
+			Kafka: map[kafka.Key]*kafka.RequestStats{
+				kafkaKey1: {
+					ErrorCodeToStat: map[int32]*kafka.RequestStat{
+						0: {Count: 10},
+						1: {Count: 2},
+					},
 				},
-			},
-			kafkaKey2: {
-				ErrorCodeToStat: map[int32]*kafka.RequestStat{
-					0:  {Count: 2},
-					10: {Count: 5},
+				kafkaKey2: {
+					ErrorCodeToStat: map[int32]*kafka.RequestStat{
+						0:  {Count: 2},
+						10: {Count: 5},
+					},
 				},
 			},
 		},
@@ -119,7 +121,7 @@ func (s *KafkaSuite) TestFormatKafkaStats() {
 		},
 	}
 
-	encoder := newKafkaEncoder(in.Kafka)
+	encoder := newKafkaEncoder(in.USMData.Kafka)
 	t.Cleanup(encoder.Close)
 
 	aggregations := getKafkaAggregations(t, encoder, in.Conns[0])
@@ -162,16 +164,18 @@ func (s *KafkaSuite) TestKafkaIDCollisionRegression() {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		Kafka: map[kafka.Key]*kafka.RequestStats{
-			kafkaKey: {
-				ErrorCodeToStat: map[int32]*kafka.RequestStat{
-					0: {Count: 10},
+		USMData: network.USMProtocolsData{
+			Kafka: map[kafka.Key]*kafka.RequestStats{
+				kafkaKey: {
+					ErrorCodeToStat: map[int32]*kafka.RequestStat{
+						0: {Count: 10},
+					},
 				},
 			},
 		},
 	}
 
-	encoder := newKafkaEncoder(in.Kafka)
+	encoder := newKafkaEncoder(in.USMData.Kafka)
 	t.Cleanup(encoder.Close)
 	aggregations := getKafkaAggregations(t, encoder, in.Conns[0])
 
@@ -223,16 +227,18 @@ func (s *KafkaSuite) TestKafkaLocalhostScenario() {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		Kafka: map[kafka.Key]*kafka.RequestStats{
-			kafkaKey: {
-				ErrorCodeToStat: map[int32]*kafka.RequestStat{
-					0: {Count: 10},
+		USMData: network.USMProtocolsData{
+			Kafka: map[kafka.Key]*kafka.RequestStats{
+				kafkaKey: {
+					ErrorCodeToStat: map[int32]*kafka.RequestStat{
+						0: {Count: 10},
+					},
 				},
 			},
 		},
 	}
 
-	encoder := newKafkaEncoder(in.Kafka)
+	encoder := newKafkaEncoder(in.USMData.Kafka)
 	t.Cleanup(encoder.Close)
 
 	// assert that both ends (client:server, server:client) of the connection
@@ -265,7 +271,9 @@ func generateBenchMarkPayloadKafka(entries uint16) network.Connections {
 		BufferedData: network.BufferedData{
 			Conns: make([]network.ConnectionStats, 1),
 		},
-		Kafka: map[kafka.Key]*kafka.RequestStats{},
+		USMData: network.USMProtocolsData{
+			Kafka: map[kafka.Key]*kafka.RequestStats{},
+		},
 	}
 
 	payload.Conns[0].Dest = localhost
@@ -274,7 +282,7 @@ func generateBenchMarkPayloadKafka(entries uint16) network.Connections {
 	payload.Conns[0].SPort = 1112
 
 	for index := uint16(0); index < entries; index++ {
-		payload.Kafka[kafka.NewKey(
+		payload.USMData.Kafka[kafka.NewKey(
 			localhost,
 			localhost,
 			1112,
@@ -298,7 +306,7 @@ func commonBenchmarkKafkaEncoder(b *testing.B, entries uint16) {
 	b.ReportAllocs()
 	var h *kafkaEncoder
 	for i := 0; i < b.N; i++ {
-		h = newKafkaEncoder(payload.Kafka)
+		h = newKafkaEncoder(payload.USMData.Kafka)
 		streamer.Reset()
 		h.EncodeConnection(payload.Conns[0], a)
 		h.Close()
