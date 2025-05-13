@@ -6,3 +6,20 @@
 //go:build !((linux && linux_bpf) || (windows && npm))
 
 package network
+
+import (
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+)
+
+// USMProtocolsData is a placeholder for unsupported platforms.
+type USMProtocolsData struct{}
+
+// NewUSMProtocolsData creates a new instance of USMProtocolsData with initialized maps.
+// This is a no-op for unsupported platforms.
+func NewUSMProtocolsData() USMProtocolsData {
+	return USMProtocolsData{}
+}
+
+// Reset clears the maps in USMProtocolsData.
+// This is a no-op for unsupported platforms.
+func (*USMProtocolsData) Reset() {}

@@ -6,3 +6,26 @@
 //go:build npm
 
 package network
+
+import (
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+)
+
+// USMProtocolsData encapsulates the protocols data for Windows version of USM.
+type USMProtocolsData struct {
+	HTTP map[http.Key]*http.RequestStats
+}
+
+// NewUSMProtocolsData creates a new instance of USMProtocolsData with initialized maps.
+func NewUSMProtocolsData() USMProtocolsData {
+	return USMProtocolsData{
+		HTTP: make(map[http.Key]*http.RequestStats),
+	}
+}
+
+// Reset clears the maps in USMProtocolsData.
+func (o *USMProtocolsData) Reset() {
+	if len(o.HTTP) > 0 {
+		o.HTTP = make(map[http.Key]*http.RequestStats)
+	}
+}
