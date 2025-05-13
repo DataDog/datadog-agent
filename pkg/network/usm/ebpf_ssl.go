@@ -870,6 +870,10 @@ func (o *sslProgram) cleanupDeadPids(alivePIDs map[uint32]struct{}) {
 			log.Debugf("SSL map %q cleanup error: %v", mapName, err)
 		}
 	}
+
+	if err := deleteDeadPidsInSSLCtxMap(o.ebpfManager, alivePIDs); err != nil {
+		log.Debugf("SSL map %q cleanup error: %v", sslCtxByPIDTGIDMap, err)
+	}
 }
 
 // deleteDeadPidsInMap finds a map by name and deletes dead processes.
@@ -893,6 +897,36 @@ func deleteDeadPidsInMap(manager *manager.Manager, mapName string, alivePIDs map
 	}
 	for _, k := range keysToDelete {
 		_ = emap.Delete(unsafe.Pointer(&k))
+	}
+
+	return nil
+}
+
+func deleteDeadPidsInSSLCtxMap(manager *manager.Manager, alivePIDs map[uint32]struct{}) error {
+	sslCtxByPIDTGIDMapObj, _, err := manager.GetMap(sslCtxByPIDTGIDMap)
+	if err != nil {
+		return fmt.Errorf("dead process cleaner failed to get map: %q error: %w", sslCtxByPIDTGIDMap, err)
+	}
+
+	sslSockByCtxMapObj, _, err := manager.GetMap(sslSockByCtxMap)
+	if err != nil {
+		return fmt.Errorf("dead process cleaner failed to get map: %q error: %w", sslSockByCtxMap, err)
+	}
+
+	var keysToDelete []uint64
+	var key uint64
+	value := make([]byte, sslCtxByPIDTGIDMapObj.ValueSize())
+	iter := sslCtxByPIDTGIDMapObj.Iterate()
+
+	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+		pid := uint32(key >> 32)
+		if _, exists := alivePIDs[pid]; !exists {
+			_ = sslSockByCtxMapObj.Delete(unsafe.Pointer(&value))
+			keysToDelete = append(keysToDelete, key)
+		}
+	}
+	for _, k := range keysToDelete {
+		_ = sslCtxByPIDTGIDMapObj.Delete(unsafe.Pointer(&k))
 	}
 
 	return nil
