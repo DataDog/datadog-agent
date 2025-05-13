@@ -62,7 +62,7 @@ dotnet nuget locals all --clear
 
 # Restore
 Write-Host "Nuget restore"
-dotnet nuget restore --verbosity
+dotnet restore --verbosity diagnostic
 
 Invoke-BuildScript `
     -BuildOutOfSource $BuildOutOfSource `
