@@ -403,6 +403,7 @@ func (a *InjectorInstaller) addLocalStableConfig(ctx context.Context) (err error
 				cfg.Default.AppsecScaEnabled = a.Env.InstallScript.AppsecScaEnabled
 			}
 			if a.Env.InstallScript.ProfilingEnabled != "" {
+				hasChanged = true
 				cfg.Default.ProfilingEnabled = &a.Env.InstallScript.ProfilingEnabled
 			}
 

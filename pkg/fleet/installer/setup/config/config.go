@@ -53,7 +53,7 @@ func WriteConfigs(config Config, configDir string) error {
 	if config.ApplicationMonitoringYAML != nil {
 		err = writeConfig(filepath.Join(configDir, "application_monitoring.yaml"), config.ApplicationMonitoringYAML, 0644, true)
 		if err != nil {
-			return fmt.Errorf("could not write system-probe.yaml: %w", err)
+			return fmt.Errorf("could not write application_monitoring.yaml: %w", err)
 		}
 	}
 	for name, config := range config.IntegrationConfigs {
