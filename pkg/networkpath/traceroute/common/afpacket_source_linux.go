@@ -24,23 +24,14 @@ type AFPacketSource struct {
 
 var _ PacketSource = &AFPacketSource{}
 
+// ethPAllNetwork is all protocols, in network byte order
+var ethPAllNetwork = htons(uint16(unix.ETH_P_ALL))
+
 // NewAFPacketSource creates a new AFPacketSource
 func NewAFPacketSource() (*AFPacketSource, error) {
-	fd, err := unix.Socket(unix.AF_PACKET, unix.SOCK_RAW|unix.SOCK_NONBLOCK, unix.ETH_P_ALL)
+	fd, err := unix.Socket(unix.AF_PACKET, unix.SOCK_RAW|unix.SOCK_NONBLOCK, int(ethPAllNetwork))
 	if err != nil {
 		return nil, fmt.Errorf("NewAFPacketSource failed to create socket: %s", err)
-	}
-
-	// TODO attach dropAllFilter here once we are using BPF filtering
-
-	s := &unix.SockaddrLinklayer{
-		Protocol: htons(uint16(unix.ETH_P_ALL)),
-		Ifindex:  0, // bind to all interfaces
-	}
-	err = unix.Bind(fd, s)
-	if err != nil {
-		unix.Close(fd)
-		return nil, fmt.Errorf("NewAFPacketSource failed to bind socket: %s", err)
 	}
 
 	sock := os.NewFile(uintptr(fd), "")
