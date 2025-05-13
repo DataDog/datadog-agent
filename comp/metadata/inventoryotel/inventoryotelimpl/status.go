@@ -43,6 +43,7 @@ func (io *inventoryotel) HTML(_ bool, buffer io.Writer) error {
 }
 
 func (io *inventoryotel) populateStatus(stats map[string]interface{}) {
+	stats["enabled"] = io.conf.GetBool("otelcollector.enabled")
 	stats["otel_metadata"] = io.Get()
 }
 

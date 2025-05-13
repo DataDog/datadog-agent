@@ -44,11 +44,13 @@ func RunServer(t testing.TB, serverAddr, serverPort string, enableTLS bool) erro
 
 	scanner, err := globalutils.NewScanner(regexp.MustCompile(".*Ready to accept connections"), globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
-	dockerCfg := dockerutils.NewComposeConfig("redis",
-		dockerutils.DefaultTimeout,
-		dockerutils.DefaultRetries,
-		scanner,
-		env,
+
+	dockerCfg := dockerutils.NewComposeConfig(
+		dockerutils.NewBaseConfig(
+			"redis",
+			scanner,
+			dockerutils.WithEnv(env),
+		),
 		filepath.Join(dir, "testdata", "docker-compose.yml"))
 	return dockerutils.Run(t, dockerCfg)
 }
