@@ -433,19 +433,7 @@ def build_repackaged_agent(ctx, log_level="info"):
 
     env['OMNIBUS_REPACKAGE_SOURCE_URL'] = f"https://apt.datad0g.com/{latest_package.filename}"
     env['OMNIBUS_REPACKAGE_SOURCE_SHA256'] = latest_package.sha256
-
     print("Using the following package as a base:", env['OMNIBUS_REPACKAGE_SOURCE_URL'])
-
-    # Instruct omnibus to use the toolchain targetting the right glibc
-    if sys.platform == "linux":
-        env["PATH"] = f"/opt/toolchains/x86_64/bin:{os.environ.get('PATH', '')}"
-        env.update(
-            {
-                "DD_CC": "x86_64-unknown-linux-gnu-gcc",
-                "DD_CXX": "x86_64-unknown-linux-gnu-g++",
-                "DD_CMAKE_TOOLCHAIN": "/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake",
-            }
-        )
 
     bundle_install_omnibus(ctx, None, env)
 
