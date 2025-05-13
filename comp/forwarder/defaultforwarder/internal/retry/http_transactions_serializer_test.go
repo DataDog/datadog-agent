@@ -174,6 +174,30 @@ func TestHTTPTransactionSerializerUpdateDedupedAPIKey(t *testing.T) {
 	r.Contains(transactions[0].(*transaction.HTTPTransaction).Headers["Key"], apiKey3)
 }
 
+func TestHTTPTransactionSerializerUpdateAPIKeyBeforeSerializing(t *testing.T) {
+	r := require.New(t)
+	log := logmock.New(t)
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", apiKey1, apiKey2)})
+	r.NoError(err)
+
+	serializer := NewHTTPTransactionsSerializer(log, res)
+	txn := createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey1}}, domain)
+
+	// Update the API keys.
+	res.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", apiKey4, apiKey2)})
+
+	r.NoError(serializer.Add(txn))
+
+	bytes, err := serializer.GetBytesAndReset()
+	r.NoError(err)
+
+	r.NotContains(string(bytes), apiKey1, "Serialized data should not contain %s", apiKey1)
+
+	transactions, _, err := serializer.Deserialize(bytes)
+	r.NoError(err)
+	r.Contains(transactions[0].(*transaction.HTTPTransaction).Headers["Key"], apiKey4)
+}
+
 func TestHTTPTransactionFieldsCount(t *testing.T) {
 	tr := transaction.HTTPTransaction{}
 	transactionType := reflect.TypeOf(tr)

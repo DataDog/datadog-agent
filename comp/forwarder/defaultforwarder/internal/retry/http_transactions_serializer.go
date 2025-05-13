@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 
 	proto "github.com/golang/protobuf/proto"
@@ -30,6 +31,8 @@ const squareChar = "\xfe"
 const placeHolderPrefix = squareChar + "API_KEY" + squareChar
 const placeHolderFormat = placeHolderPrefix + "%v" + squareChar
 
+var tlmV1TransactionsDeserialized = telemetry.NewCounterWithOpts("transactions", "v1deserialized", []string{}, "", telemetry.Options{DefaultMetric: true})
+
 // HTTPTransactionsSerializer serializes Transaction instances.
 // To support a new Transaction implementation, add a new
 // method `func (s *HTTPTransactionsSerializer) Add(transaction NEW_TYPE) error {`
@@ -39,7 +42,7 @@ type HTTPTransactionsSerializer struct {
 
 	currentKeyVersion     int
 	placeholderMutex      sync.RWMutex
-	apiKeyToPlaceholder   *strings.Replacer
+	apiKeyToPlaceholder   []*strings.Replacer
 	placeholderToAPIKey   *strings.Replacer
 	placeholderToAPIKeyV1 *strings.Replacer
 
@@ -49,7 +52,7 @@ type HTTPTransactionsSerializer struct {
 // NewHTTPTransactionsSerializer creates a new instance of HTTPTransactionsSerializer
 func NewHTTPTransactionsSerializer(log log.Component, resolver resolver.DomainResolver) *HTTPTransactionsSerializer {
 	keys, version := resolver.GetAPIKeysInfo()
-	apiKeyToPlaceholder, placeholderToAPIKey := createReplacers(keys)
+	apiKeyToPlaceholder, placeholderToAPIKey := createReplacers(keys, []*strings.Replacer{})
 
 	dedupedKeys := resolver.GetAPIKeys()
 	placeholderToAPIKeyV1 := createReplacerV1(dedupedKeys)
@@ -126,7 +129,7 @@ func (s *HTTPTransactionsSerializer) checkAPIKeyUpdate() {
 		defer s.placeholderMutex.Unlock()
 
 		keys, version := s.resolver.GetAPIKeysInfo()
-		s.apiKeyToPlaceholder, s.placeholderToAPIKey = createReplacers(keys)
+		s.apiKeyToPlaceholder, s.placeholderToAPIKey = createReplacers(keys, s.apiKeyToPlaceholder)
 		s.currentKeyVersion = version
 	}
 }
@@ -194,11 +197,23 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 	return httpTransactions, errorCount, nil
 }
 
+// replaceAPIKeys iterates backward through our list of replacer, returns when
+// one of them is able to replace the key.
+// Needs to iterate backwards to ensure the latest version of the replacers takes
+// priority.
 func (s *HTTPTransactionsSerializer) replaceAPIKeys(str string) string {
 	s.placeholderMutex.RLock()
 	defer s.placeholderMutex.RUnlock()
 
-	return s.apiKeyToPlaceholder.Replace(str)
+	for replacer := len(s.apiKeyToPlaceholder) - 1; replacer >= 0; replacer-- {
+		replaced := s.apiKeyToPlaceholder[replacer].Replace(str)
+		if str != replaced {
+			return replaced
+		}
+	}
+
+	return str
+
 }
 
 func (s *HTTPTransactionsSerializer) restoreAPIKeys(str string, protoVersion int32) (string, error) {
@@ -206,6 +221,9 @@ func (s *HTTPTransactionsSerializer) restoreAPIKeys(str string, protoVersion int
 	if protoVersion == 1 {
 		// Handle transactions serialized in a prior version
 		newStr = s.placeholderToAPIKeyV1.Replace(str)
+		if newStr != str {
+			tlmV1TransactionsDeserialized.Inc()
+		}
 	} else {
 		s.placeholderMutex.RLock()
 		newStr = s.placeholderToAPIKey.Replace(str)
@@ -312,7 +330,10 @@ func createReplacerV1(apiKeys []string) *strings.Replacer {
 // createReplacers will create the replacers from and to an API key.
 // This relies on the position that the key is found in our list. If the position of the keys in the config
 // are changed, then the transaction will be restored to a different, likely wrong, API key.
-func createReplacers(apiKeys []utils.APIKeys) (*strings.Replacer, *strings.Replacer) {
+// We take the list of current APIKey->Placeholder replacers and append the new one to it because we need to
+// maintain a history of API keys since a transaction being serialized may contain an old API key and we
+// still need to make sure we can replace that one.
+func createReplacers(apiKeys []utils.APIKeys, currentAPIKeyPlaceholder []*strings.Replacer) ([]*strings.Replacer, *strings.Replacer) {
 	var apiKeyPlaceholder []string
 	var placeholderToAPIKey []string
 	index := 0
@@ -324,5 +345,5 @@ func createReplacers(apiKeys []utils.APIKeys) (*strings.Replacer, *strings.Repla
 			index++
 		}
 	}
-	return strings.NewReplacer(apiKeyPlaceholder...), strings.NewReplacer(placeholderToAPIKey...)
+	return append(currentAPIKeyPlaceholder, strings.NewReplacer(apiKeyPlaceholder...)), strings.NewReplacer(placeholderToAPIKey...)
 }
