@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux && linux_bpf
+
 package marshal
 
 import (
@@ -39,7 +41,6 @@ type RedisSuite struct {
 }
 
 func TestRedisStats(t *testing.T) {
-	skipIfNotLinux(t)
 	suite.Run(t, &RedisSuite{})
 }
 
