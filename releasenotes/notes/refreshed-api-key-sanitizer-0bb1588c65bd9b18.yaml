@@ -11,5 +11,5 @@ fixes:
     If a metric transaction can't be sent to the endpoint for whatever
     reason, this transaction can be serialized to disk. When this happens
     the API key needs to be sanitised. This ensures that when an API key
-    that comes from a secret that is refreshed the replacer will continue
+    that comes from a secret is refreshed the replacer will continue
     to sanitise the new API key.
