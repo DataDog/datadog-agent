@@ -97,7 +97,7 @@ func (s *server) BuildServer() http.Handler {
 	// event size should be small enough to fit within the grpc max message size
 	maxEventSize := maxMessageSize / 2
 	grpcServer := googleGrpc.NewServer(opts...)
-	pb.RegisterAgentServer(grpcServer, &agentServer{})
+	pb.RegisterAgentServer(grpcServer, &agentServer{hostname: s.hostname})
 	pb.RegisterAgentSecureServer(grpcServer, &serverSecure{
 		configService:    s.configService,
 		configServiceMRF: s.configServiceMRF,
