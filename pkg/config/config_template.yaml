@@ -3959,6 +3959,10 @@ api_key:
     #                             # If `use_raw_socket` is set to true, you MUST also enable
     #                             # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
 
+    ## @param use_deduplication - boolean - optional - default: false
+    ## Deduplicate IP addresses corresponding to the same device.
+    ## The deduplication logic is based on the sysName, sysDesc, sysObjectID and sysUptime
+
     ## @param configs - list - required
     ## The actual list of configurations used to discover SNMP devices in various subnets.
     ## Example:
