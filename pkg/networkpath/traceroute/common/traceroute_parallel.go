@@ -68,9 +68,6 @@ type TracerouteDriver interface {
 	// SendProbe sends a traceroute packet with a specific TTL
 	SendProbe(ttl uint8) error
 	// ReceiveProbe polls to get a traceroute response with a timeout.
-	// If the TTL is 0, that means we couldn't determine what hop it was from the packet data.
-	// * For TracerouteSerial (coming soon), TTL=0 is fine, it gets added as the next hop of the traceroute.
-	// * For TracerouteParallel, TTL=0 should never happen (SupportsParallel should be false).
 	ReceiveProbe(timeout time.Duration) (*ProbeResponse, error)
 }
 
