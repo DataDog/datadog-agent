@@ -228,7 +228,7 @@ func TestIDCollisionRegression(t *testing.T) {
 	// addresses but different PIDs *won't* be associated with the HTTP stats
 	// object
 	streamer := NewProtoTestStreamer[*model.Connection]()
-	httpEncoder.GetHTTPAggregationsAndTags(connections[1], model.NewConnectionBuilder(streamer))
+	httpEncoder.EncodeConnection(connections[1], model.NewConnectionBuilder(streamer))
 
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)
@@ -309,7 +309,7 @@ func TestLocalhostScenario(t *testing.T) {
 
 func getHTTPAggregations(t *testing.T, encoder *httpEncoder, c network.ConnectionStats) (*model.HTTPAggregations, uint64, map[string]struct{}) {
 	streamer := NewProtoTestStreamer[*model.Connection]()
-	staticTags, dynamicTags := encoder.GetHTTPAggregationsAndTags(c, model.NewConnectionBuilder(streamer))
+	staticTags, dynamicTags := encoder.EncodeConnection(c, model.NewConnectionBuilder(streamer))
 
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)
