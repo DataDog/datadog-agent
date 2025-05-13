@@ -8,12 +8,11 @@ package process
 import (
 	"encoding/json"
 	"fmt"
-	agentmodel "github.com/DataDog/agent-payload/v5/process"
-	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -165,22 +164,6 @@ func (s *windowsTestSuite) TestAPIKeyRefreshAdditionalEndpoints() {
 	}, 2*time.Minute, 10*time.Second)
 }
 
-func assertProcessCMDArgs(t require.TestingT, processes []*agentmodel.Process, processCMDArgs []string) {
-	for _, proc := range processes {
-		// command arguments include the first command/program which can differ depending on the path,
-		// so we compare the user provided arguments starting from index 1
-		assert.Truef(t, slices.Equal(proc.Command.Args[1:], processCMDArgs[1:]), "process args do not match. Expected %+v", processCMDArgs)
-	}
-}
-
-func getMatchingProcessesByName(payloads []*aggregator.ProcessPayload, processName string) []*agentmodel.Process {
-	var procs []*agentmodel.Process
-	for _, payload := range payloads {
-		procs = append(procs, filterProcesses(processName, payload.Processes)...)
-	}
-	return procs
-}
-
 func assertProcessCheck(t *testing.T, env *environments.Host, withIOStats bool, withSystemProbe bool, processName string, processCMDArgs []string) {
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, env.Agent.Client, []string{"process", "rtprocess"}, withSystemProbe)
@@ -194,9 +177,9 @@ func assertProcessCheck(t *testing.T, env *environments.Host, withIOStats bool, 
 
 		assertProcessCollectedNew(c, payloads, withIOStats, processName)
 
-		procs := getMatchingProcessesByName(payloads, processName)
+		procs := filterProcessPayloadsByName(payloads, processName)
 		require.NotEmpty(t, procs, "'%s' process not found in payloads: \n%+v", processName, payloads)
-		assertProcessCMDArgs(c, procs, processCMDArgs)
+		assertProcessCommandLineArgs(c, procs, processCMDArgs)
 	}, 2*time.Minute, 10*time.Second)
 }
 
@@ -225,7 +208,7 @@ func (s *windowsTestSuite) TestUnprotectedProcessCheck() {
 		"-t",
 		"127.0.0.1",
 	}
-	process, err := runCMD(t, s.Env().RemoteHost, cmd)
+	process, err := runWindowsCommand(t, s.Env().RemoteHost, cmd)
 	require.NoError(s.T(), err)
 
 	// ping shows up as a capitalized process name, so in order to find the right process, we need to capitalize
@@ -322,7 +305,7 @@ func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
 
 		procs := filterProcesses(process, checkOutput.Processes)
 		require.NotEmpty(c, procs, "'%s' process not found in check:\n%s\n", process, check)
-		assertProcessCMDArgs(c, procs, cmd)
+		assertProcessCommandLineArgs(c, procs, cmd)
 	}, 1*time.Minute, 5*time.Second)
 }
 
@@ -352,11 +335,11 @@ func runDiskSpd(t *testing.T, remoteHost *components.RemoteHost) (string, []stri
 		"-w50",
 		"disk-speed-test.dat",
 	}
-	processName, err := runCMD(t, remoteHost, cmd)
+	processName, err := runWindowsCommand(t, remoteHost, cmd)
 	return processName, cmd, err
 }
 
-func runCMD(t *testing.T, remoteHost *components.RemoteHost, cmd []string) (string, error) {
+func runWindowsCommand(t *testing.T, remoteHost *components.RemoteHost, cmd []string) (string, error) {
 	session, stdin, _, err := remoteHost.Start(strings.Join(cmd, " "))
 	if err != nil {
 		return "", err

@@ -549,7 +549,7 @@ func OpenProcessHandle(pid int32) (windows.Handle, bool, error) {
 	// more info: https://learn.microsoft.com/en-us/windows/win32/procthread/process-security-and-access-rights#protected-processes
 	isProtected, err := winutil.IsProcessProtected(procHandle)
 	if err != nil {
-		log.Debugf("Couldn't access process %v protection info %v", pid, err)
+		log.Debugf("Couldn't access process %v protection info %v. Will attempt to re-open with PROCESS_VM_READ access", pid, err)
 	}
 	if isProtected {
 		return procHandle, isProtected, err
