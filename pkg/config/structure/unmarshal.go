@@ -20,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // features allowed for handling edge-cases
@@ -112,19 +111,15 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 		o(fs)
 	}
 	rawval := cfg.Get(key)
-	log.Debugf("unmarshalKeyReflection for key %s, rawval type: %T, value: %v", key, rawval, rawval)
 
 	// Don't create a reflect.Value out of nil, just return immediately
 	if rawval == nil {
-		log.Debug("rawval is nil, returning immediately")
 		return nil
 	}
 	input, err := nodetreemodel.NewNodeTree(rawval, cfg.GetSource(key))
 	if err != nil {
-		log.Debugf("Error creating node tree: %v", err)
 		return err
 	}
-	log.Debugf("Created node tree of type: %T", input)
 	outValue := reflect.ValueOf(target)
 	if outValue.Kind() == reflect.Pointer {
 		outValue = reflect.Indirect(outValue)
@@ -375,11 +370,8 @@ func copyList(target reflect.Value, inputList []nodetreemodel.Node, currPath []s
 
 func copyAny(target reflect.Value, input nodetreemodel.Node, currPath []string, fs *featureSet) error {
 	if target.Kind() == reflect.Pointer {
-		log.Debugf("target is a pointer to: %v", target.Type().Elem())
 		if target.Type().Elem().Kind() != reflect.Invalid && isScalarKind(reflect.New(target.Type().Elem()).Elem()) {
-			log.Debugf("target is a pointer to scalar type: %v", target.Type().Elem())
 			if leaf, ok := input.(nodetreemodel.LeafNode); ok {
-				log.Debugf("input is a leaf node, value: %v", leaf.Get())
 				// For nil leaf values or nil leaf objects, set target to nil
 				if leaf == nil || leaf.Get() == nil {
 					target.Set(reflect.Zero(target.Type()))

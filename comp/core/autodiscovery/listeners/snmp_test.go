@@ -11,44 +11,34 @@ import (
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	"github.com/stretchr/testify/assert"
 )
 
-type MockConfigWrapper struct {
-	model.Config
-}
-
-func (m *MockConfigWrapper) IsProviderEnabled(value string) bool {
-	return value != ""
-}
-
 func TestSNMPListener(t *testing.T) {
 	newSvc := make(chan Service, 10)
 	delSvc := make(chan Service, 10)
 	testChan := make(chan snmpJob, 10)
 
-	snmpConfig := snmp.Config{
-		Network:   "192.168.0.0/24",
-		Community: "public",
-		Authentications: []snmp.Authentication{
-			{
-				User: "someUser",
+	snmpConfig := map[string]interface{}{
+		"network":   "192.168.0.0/24",
+		"community": "public",
+		"loader":    "core",
+		"authentications": []interface{}{
+			map[string]interface{}{
+				"user": "someUser",
 			},
 		},
-		Loader: "core",
 	}
-	listenerConfig := snmp.ListenerConfig{
-		Configs: []snmp.Config{snmpConfig},
-		Workers: 1,
+	listenerConfig := map[string]interface{}{
+		"configs": []interface{}{snmpConfig},
+		"workers": 1,
 	}
 
-	mockConfig := MockConfigWrapper{Config: configmock.New(t)}
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
-	mockConfig.IsProviderEnabled("")
 
 	worker = func(_ *SNMPListener, jobs <-chan snmpJob) {
 		for {
@@ -57,9 +47,7 @@ func TestSNMPListener(t *testing.T) {
 		}
 	}
 
-	l, err := NewSNMPListener(ServiceListernerDeps{
-		Config: &mockConfig,
-	})
+	l, err := NewSNMPListener(ServiceListernerDeps{})
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 
@@ -84,19 +72,20 @@ func TestSNMPListenerSubnets(t *testing.T) {
 	delSvc := make(chan Service, 10)
 	testChan := make(chan snmpJob)
 
-	listenerConfig := snmp.ListenerConfig{
-		Configs: []snmp.Config{},
-		Workers: 10,
+	configs := make([]map[string]interface{}, 0, 100)
+	for i := 0; i < 100; i++ {
+		snmpConfig := map[string]interface{}{
+			"network":      "172.18.0.0/30",
+			"community":    "f5-big-ip",
+			"port":         1161,
+			"context_name": "context" + strconv.Itoa(i),
+		}
+		configs = append(configs, snmpConfig)
 	}
 
-	for i := 0; i < 100; i++ {
-		snmpConfig := snmp.Config{
-			Network:     "172.18.0.0/30",
-			Community:   "f5-big-ip",
-			Port:        1161,
-			ContextName: "context" + strconv.Itoa(i),
-		}
-		listenerConfig.Configs = append(listenerConfig.Configs, snmpConfig)
+	listenerConfig := map[string]interface{}{
+		"configs": configs,
+		"workers": 10,
 	}
 
 	mockConfig := configmock.New(t)
@@ -140,14 +129,15 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 	delSvc := make(chan Service, 10)
 	testChan := make(chan snmpJob, 10)
 
-	snmpConfig := snmp.Config{
-		Network:            "192.168.0.0/24",
-		Community:          "public",
-		IgnoredIPAddresses: map[string]bool{"192.168.0.0": true},
+	snmpConfig := map[string]interface{}{
+		"network":              "192.168.0.0/24",
+		"community":            "public",
+		"ignored_ip_addresses": map[string]bool{"192.168.0.0": true},
 	}
-	listenerConfig := snmp.ListenerConfig{
-		Configs: []snmp.Config{snmpConfig},
-		Workers: 1,
+
+	listenerConfig := map[string]interface{}{
+		"configs": []interface{}{snmpConfig},
+		"workers": 1,
 	}
 
 	mockConfig := configmock.New(t)
