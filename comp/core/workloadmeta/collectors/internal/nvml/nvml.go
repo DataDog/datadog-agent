@@ -37,14 +37,6 @@ type collector struct {
 	store   workloadmeta.Component
 }
 
-// getMigProfileName() returns the canonical name of the MIG device
-func getMigProfileName(attr nvml.DeviceAttributes) (string, error) {
-	g := attr.GpuInstanceSliceCount
-	gb := (attr.MemorySizeMB + 1024 - 1) / 1024
-	r := fmt.Sprintf("%dg.%dgb", g, gb)
-	return r, nil
-}
-
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
 	devInfo := device.GetDeviceInfo()
 	gpuDeviceInfo := workloadmeta.GPU{

@@ -1372,10 +1372,13 @@ const (
 	GPUCOUNT
 )
 
+// GPUDeviceType is an enum to identify the type of the GPU device.
 type GPUDeviceType int
 
 const (
+	// GPUDeviceTypePhysical represents a physical GPU device.
 	GPUDeviceTypePhysical GPUDeviceType = iota
+	// GPUDeviceTypeMIG represents a MIG device.
 	GPUDeviceTypeMIG
 )
 
