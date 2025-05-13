@@ -69,8 +69,6 @@ build do
   end
 
   configure_args << [
-    "--with-zlib-lib=#{install_dir}/embedded/lib",
-    "--with-zlib-include=#{install_dir}/embedded/include",
     "--libdir=lib",
     "no-idea",
     "no-mdc2",
@@ -81,14 +79,18 @@ build do
   ]
 
   if windows?
-    configure_args << "zlib-dynamic"
+    configure_args << "no-zlib"
     if ENV["AGENT_FLAVOR"] == "fips"
       configure_args << '--openssldir="C:/Program Files/Datadog/Datadog Agent/embedded3/ssl"'
       # Provide a context name for our configuration through the registry
       configure_args << "-DOSSL_WINCTX=datadog-fips-agent"
     end
   else
-    configure_args << "zlib"
+    configure_args << [
+      "--with-zlib-lib=#{install_dir}/embedded/lib",
+      "--with-zlib-include=#{install_dir}/embedded/include",
+      "zlib",
+    ]
   end
 
   # Out of abundance of caution, we put the feature flags first and then

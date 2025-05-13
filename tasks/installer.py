@@ -71,7 +71,7 @@ def build(
 
 
 @task
-def build_linux_script(ctx, flavor, version, bin_amd64, bin_arm64, output):
+def build_linux_script(ctx, flavor, version, bin_amd64, bin_arm64, output, package="installer-package"):
     '''
     Builds the script that is used to install datadog on linux.
     '''
@@ -88,6 +88,7 @@ def build_linux_script(ctx, flavor, version, bin_amd64, bin_arm64, output):
     bin_arm64_sha256 = hashlib.sha256(open(bin_arm64, 'rb').read()).hexdigest()
     install_script = install_script.replace('INSTALLER_AMD64_SHA256', bin_amd64_sha256)
     install_script = install_script.replace('INSTALLER_ARM64_SHA256', bin_arm64_sha256)
+    install_script = install_script.replace('PACKAGE_NAME', package)
 
     makedirs(DIR_BIN, exist_ok=True)
     with open(path.join(DIR_BIN, output), 'w') as f:

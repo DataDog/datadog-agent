@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/docker"
@@ -59,10 +61,10 @@ func (suite *DockerSuite) TestDockerMetrics() {
 		expectedTags := append([]string{
 			`^container_id:`,
 			`^container_name:redis$`,
-			`^docker_image:public.ecr.aws/docker/library/redis:latest$`,
+			fmt.Sprintf(`^docker_image:public.ecr.aws/docker/library/redis:%s$`, redis.RedisVersion),
 			`^image_id:sha256:`,
 			`^image_name:public.ecr.aws/docker/library/redis$`,
-			`^image_tag:latest$`,
+			fmt.Sprintf(`^image_tag:%s$`, redis.RedisVersion),
 			`^runtime:docker$`,
 			`^short_image:redis$`,
 		}, extraTags...)
@@ -113,10 +115,10 @@ func (suite *DockerSuite) TestDockerMetrics() {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
-				`^docker_image:public.ecr.aws/docker/library/redis:latest$`,
+				fmt.Sprintf(`^docker_image:public.ecr.aws/docker/library/redis:%s$`, redis.RedisVersion),
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
-				`^image_tag:latest$`,
+				fmt.Sprintf(`^image_tag:%s$`, redis.RedisVersion),
 				`^short_image:redis$`,
 			},
 			Value: &testMetricExpectValueArgs{
