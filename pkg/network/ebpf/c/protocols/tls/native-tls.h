@@ -537,21 +537,9 @@ static __always_inline void gnutls_goodbye(struct pt_regs *ctx, void *ssl_sessio
     log_debug("gnutls_goodbye: pid=%llu ctx=%p", pid_tgid, ssl_session);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
     if (t == NULL) {
-        // If we can't find the tuple, we likely can't find the sock* either.
-        // Still attempt to delete the original map entry based on ssl_session.
-        bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_session);
         return;
     }
 
-    // Attempt to get the sock* to clean the inverse map
-    // ssl_sock_t *ssl_sock = bpf_map_lookup_elem(&ssl_sock_by_ctx, &ssl_session); // No longer needed for ssl_ctx_by_sock cleanup
-
-    // tls_finish can launch a tail call, thus cleanup should be done before.
-    // Delete original ctx -> sock_t map first
-    bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_session); // Delete original map
-    // Now delete from the tuple -> ctx map using the normalized tuple t
-    // (Tuple t from tup_from_ssl_ctx should already be normalized)
-    bpf_map_delete_elem(&ssl_ctx_by_tuple, t);
     tls_finish(ctx, t, false);
 }
 
