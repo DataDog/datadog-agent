@@ -173,8 +173,8 @@ docker_trigger_internal-ot_standalone:
   tags: ["arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
-    IMAGE_VERSION: tmpl-v14
-    IMAGE_NAME: datadog-agent
+    IMAGE_VERSION: tmpl-v1
+    IMAGE_NAME: otel-agent
     RELEASE_TAG: ${CI_COMMIT_REF_SLUG}
     BUILD_TAG: ${CI_COMMIT_REF_SLUG}
     TMPL_SRC_IMAGE: v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7
@@ -189,5 +189,5 @@ docker_trigger_internal-ot_standalone:
         TMPL_SRC_REPO="${TMPL_SRC_REPO}-nightly"
       fi
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
-    - "inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable BUILD_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+    - "inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref ali/add-otel-agent-image --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable BUILD_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
   retry: 2
