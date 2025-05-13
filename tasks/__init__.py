@@ -39,6 +39,7 @@ from tasks import (
     issue,
     kmt,
     linter,
+    macos,
     modules,
     msi,
     new_e2e_tests,
@@ -179,6 +180,7 @@ ns.add_collection(dogstatsd)
 ns.add_collection(ebpf)
 ns.add_collection(emacs)
 ns.add_collection(vim)
+ns.add_collection(macos)
 ns.add_collection(epforwarder)
 ns.add_collection(fips)
 ns.add_collection(go_deps)

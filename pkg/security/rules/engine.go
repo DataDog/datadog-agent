@@ -490,7 +490,7 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 
 	// add matched rules before any auto suppression check to ensure that this information is available in activity dumps
 	if ev.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
-		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Def.Version))
+		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Version))
 	}
 
 	if e.AutoSuppression.Suppresses(rule, ev) {
@@ -660,14 +660,16 @@ func getPoliciesVersions(rs *rules.RuleSet, includeInternalPolicies bool) []stri
 
 	cache := make(map[string]bool)
 	for _, rule := range rs.GetRules() {
-		if rule.Policy.IsInternal && !includeInternalPolicies {
-			continue
-		}
-		version := rule.Policy.Def.Version
-		if _, exists := cache[version]; !exists {
-			cache[version] = true
+		for _, pInfo := range rule.UsedBy {
+			if rule.Policy.IsInternal && !includeInternalPolicies {
+				continue
+			}
 
-			versions = append(versions, version)
+			version := pInfo.Version
+			if _, exists := cache[version]; !exists {
+				cache[version] = true
+				versions = append(versions, version)
+			}
 		}
 	}
 

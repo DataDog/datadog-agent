@@ -1086,7 +1086,6 @@ def get_preset_contexts(required_tests):
         ("RUN_UNIT_TESTS", ["on"]),
     ]
     integrations_core_contexts = [
-        ("RELEASE_VERSION", ["nightly"]),
         ("BUCKET_BRANCH", ["dev"]),
         ("DEPLOY_AGENT", ["false"]),
         ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]

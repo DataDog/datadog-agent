@@ -140,7 +140,7 @@ func addRule(expression string, groupID string, opts SECLRuleOpts) *rules.RuleDe
 	ruleDef := &rules.RuleDefinition{
 		Expression: expression,
 		GroupID:    groupID,
-		ID:         strings.Replace(uuid.New().String(), "-", "_", -1),
+		ID:         strings.ReplaceAll(uuid.New().String(), "-", "_"),
 	}
 	applyContext(ruleDef, opts)
 	if opts.EnableKill {
@@ -183,7 +183,7 @@ func getGroupID(opts SECLRuleOpts) string {
 	if len(opts.ImageName) != 0 {
 		groupID = fmt.Sprintf("%s%s", groupID, opts.ImageName)
 	} else {
-		groupID = fmt.Sprintf("%s%s", groupID, strings.Replace(uuid.New().String(), "-", "_", -1)) // It should be unique so that we can target it at least, but ImageName should be always set
+		groupID = fmt.Sprintf("%s%s", groupID, strings.ReplaceAll(uuid.New().String(), "-", "_")) // It should be unique so that we can target it at least, but ImageName should be always set
 	}
 	if len(opts.ImageTag) != 0 {
 		groupID = fmt.Sprintf("%s_%s", groupID, opts.ImageTag)

@@ -82,11 +82,11 @@ type AutoConfig struct {
 	cfgMgr                   configManager
 	serviceListenerFactories map[string]listeners.ServiceListenerFactory
 	providerCatalog          map[string]providers.ConfigProviderFactory
-	started                  bool
 	wmeta                    option.Option[workloadmeta.Component]
 	taggerComp               tagger.Component
 	logs                     logComp.Component
 	telemetryStore           *acTelemetry.Store
+	startOnce                sync.Once
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -206,7 +206,6 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		ranOnce:                  atomic.NewBool(false),
 		serviceListenerFactories: make(map[string]listeners.ServiceListenerFactory),
 		providerCatalog:          make(map[string]providers.ConfigProviderFactory),
-		started:                  false,
 		wmeta:                    wmeta,
 		taggerComp:               taggerComp,
 		logs:                     logs,
@@ -231,7 +230,7 @@ func (ac *AutoConfig) serviceListening() {
 			cancel()
 			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 		case svc := <-ac.newService:
-			ac.processNewService(ctx, svc)
+			ac.processNewService(svc)
 		case svc := <-ac.delService:
 			ac.processDelService(ctx, svc)
 		}
@@ -261,7 +260,7 @@ func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
 func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 	var response integration.ConfigCheckResponse
 
-	configSlice := ac.LoadedConfigs()
+	configSlice := ac.GetAllConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {
 		return configSlice[i].Name < configSlice[j].Name
 	})
@@ -284,7 +283,7 @@ func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 	response.ResolveWarnings = GetResolveWarnings()
 	response.ConfigErrors = GetConfigErrors()
 
-	unresolved := ac.GetUnresolvedTemplates()
+	unresolved := ac.getUnresolvedTemplates()
 	scrubbedUnresolved := make(map[string][]integration.Config, len(unresolved))
 
 	for ids, configs := range unresolved {
@@ -305,7 +304,7 @@ func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
 	var response integration.ConfigCheckResponse
 
-	configSlice := ac.LoadedConfigs()
+	configSlice := ac.GetAllConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {
 		return configSlice[i].Name < configSlice[j].Name
 	})
@@ -327,7 +326,7 @@ func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
 
 	response.ResolveWarnings = GetResolveWarnings()
 	response.ConfigErrors = GetConfigErrors()
-	response.Unresolved = ac.GetUnresolvedTemplates()
+	response.Unresolved = ac.getUnresolvedTemplates()
 
 	return response
 }
@@ -401,17 +400,13 @@ func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
 // Usually, Start and Stop methods should not be in the component interface as it should be handled using Lifecycle hooks.
 // We make exceptions here because we need to disable it at runtime.
 func (ac *AutoConfig) Start() {
-	listeners.RegisterListeners(ac.serviceListenerFactories)
-	providers.RegisterProviders(ac.providerCatalog)
-	setupAcErrors()
-	ac.started = true
-	// Start the service listener
-	go ac.serviceListening()
-}
-
-// IsStarted returns true if the AutoConfig has been started.
-func (ac *AutoConfig) IsStarted() bool {
-	return ac.started
+	ac.startOnce.Do(func() {
+		listeners.RegisterListeners(ac.serviceListenerFactories)
+		providers.RegisterProviders(ac.providerCatalog)
+		setupAcErrors()
+		// Start the service listener
+		go ac.serviceListening()
+	})
 }
 
 // Stop just shuts down AutoConfig in a clean way.
@@ -651,40 +646,9 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	ac.deleteMappingsOfCheckIDsWithSecrets(changes.Unschedule)
 }
 
-// MapOverLoadedConfigs calls the given function with the map of all
-// loaded configs (those that would be returned from LoadedConfigs).
-//
-// This is done with the config store locked, so callers should perform minimal
-// work within f.
-func (ac *AutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)) {
-	if ac == nil || ac.store == nil {
-		log.Error("AutoConfig store not initialized")
-		f(map[string]integration.Config{})
-		return
-	}
-	ac.cfgMgr.mapOverLoadedConfigs(f)
-}
-
-// LoadedConfigs returns a slice of all loaded configs.  Loaded configs are non-template
-// configs, either as received from a config provider or as resolved from a template and
-// a service.  They do not include service configs.
-//
-// The returned slice is freshly created and will not be modified after return.
-func (ac *AutoConfig) LoadedConfigs() []integration.Config {
-	var configs []integration.Config
-	ac.cfgMgr.mapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
-		configs = make([]integration.Config, 0, len(loadedConfigs))
-		for _, c := range loadedConfigs {
-			configs = append(configs, c)
-		}
-	})
-
-	return configs
-}
-
-// GetUnresolvedTemplates returns all templates in the cache, in their unresolved
+// getUnresolvedTemplates returns all templates in the cache, in their unresolved
 // state.
-func (ac *AutoConfig) GetUnresolvedTemplates() map[string][]integration.Config {
+func (ac *AutoConfig) getUnresolvedTemplates() map[string][]integration.Config {
 	return ac.store.templateCache.getUnresolvedTemplates()
 }
 
@@ -702,9 +666,9 @@ func (ac *AutoConfig) GetProviderCatalog() map[string]providers.ConfigProviderFa
 
 // processNewService takes a service, tries to match it against templates and
 // triggers scheduling events if it finds a valid config for it.
-func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Service) {
+func (ac *AutoConfig) processNewService(svc listeners.Service) {
 	// get all the templates matching service identifiers
-	ADIdentifiers, err := svc.GetADIdentifiers(ctx)
+	ADIdentifiers, err := svc.GetADIdentifiers()
 	if err != nil {
 		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetServiceID(), err)
 		return

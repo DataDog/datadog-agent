@@ -12,6 +12,7 @@ package diconfig
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sync"
 
 	"github.com/cilium/ebpf/ringbuf"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/eventparser"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/proctracker"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -54,47 +56,56 @@ type configUpdateCallback func(*ditypes.ProcessInfo, *ditypes.Probe)
 // instrumenting tracked processes
 type ConfigManager interface {
 	GetProcInfos() ditypes.DIProcs
+	GetProcInfo(ditypes.PID) *ditypes.ProcessInfo
 	Stop()
 }
 
 // RCConfigManager is the configuration manager which utilizes remote-config
 type RCConfigManager struct {
-	sync.RWMutex
 	procTracker *proctracker.ProcessTracker
 
-	diProcs  ditypes.DIProcs
-	callback configUpdateCallback
+	mu struct {
+		sync.RWMutex
+		diProcs  ditypes.DIProcs
+		callback configUpdateCallback
+	}
 }
 
 // NewRCConfigManager creates a new configuration manager which utilizes remote-config
-func NewRCConfigManager() (*RCConfigManager, error) {
+func NewRCConfigManager(pm process.Subscriber) (*RCConfigManager, error) {
 	log.Info("Creating new RC config manager")
-	cm := &RCConfigManager{
-		callback: applyConfigUpdate,
-	}
+	cm := &RCConfigManager{}
+	cm.mu.callback = applyConfigUpdate
+	cm.mu.diProcs = ditypes.NewDIProcs()
 
-	cm.procTracker = proctracker.NewProcessTracker(cm.updateProcesses)
+	cm.procTracker = proctracker.NewProcessTracker(pm, cm.updateProcesses)
 	err := cm.procTracker.Start()
 	if err != nil {
 		return nil, fmt.Errorf("could not start process tracker: %w", err)
 	}
-	cm.diProcs = ditypes.NewDIProcs()
 	return cm, nil
 }
 
-// GetProcInfos returns a copy of the state of the RCConfigManager
+// GetProcInfos returns a copy of the state of the RCConfigManager.
 func (cm *RCConfigManager) GetProcInfos() ditypes.DIProcs {
-	cm.RLock()
-	defer cm.RUnlock()
-	return cm.diProcs
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return maps.Clone(cm.mu.diProcs)
+}
+
+// GetProcInfo returns the ProcessInfo for the given PID.
+func (cm *RCConfigManager) GetProcInfo(pid ditypes.PID) *ditypes.ProcessInfo {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.mu.diProcs[pid]
 }
 
 // Stop closes the config and proc trackers used by the RCConfigManager
 func (cm *RCConfigManager) Stop() {
-	cm.Lock()
-	defer cm.Unlock()
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
 	cm.procTracker.Stop()
-	for _, procInfo := range cm.diProcs {
+	for _, procInfo := range cm.mu.diProcs {
 		procInfo.CloseAllUprobeLinks()
 	}
 }
@@ -105,21 +116,21 @@ func (cm *RCConfigManager) Stop() {
 // It compares the previously known state of services on the machine and creates a hook on the remote-config
 // callback for configurations on new ones, and deletes the hook on old ones.
 func (cm *RCConfigManager) updateProcesses(runningProcs ditypes.DIProcs) {
-	cm.Lock()
-	defer cm.Unlock()
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
 	// Remove processes that are no longer running from state and close their uprobe links
-	for pid, procInfo := range cm.diProcs {
+	for pid, procInfo := range cm.mu.diProcs {
 		_, ok := runningProcs[pid]
 		if !ok {
 			procInfo.CloseAllUprobeLinks()
-			delete(cm.diProcs, pid)
+			delete(cm.mu.diProcs, pid)
 		}
 	}
 
 	for pid, runningProcInfo := range runningProcs {
-		_, ok := cm.diProcs[pid]
+		_, ok := cm.mu.diProcs[pid]
 		if !ok {
-			cm.diProcs[pid] = runningProcInfo
+			cm.mu.diProcs[pid] = runningProcInfo
 			err := cm.installConfigProbe(runningProcInfo)
 			if err != nil {
 				log.Infof("could not install config probe for service %s (pid %d): %s", runningProcInfo.ServiceName, runningProcInfo.PID, err)
@@ -209,9 +220,9 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 
 		// An empty config means that this probe has been removed for this process
 		if configEventParams[2].ValueStr == "" {
-			cm.Lock()
-			cm.diProcs.DeleteProbe(procInfo.PID, configPath.ProbeUUID.String())
-			cm.Unlock()
+			cm.mu.Lock()
+			cm.mu.diProcs.DeleteProbe(procInfo.PID, configPath.ProbeUUID.String())
+			cm.mu.Unlock()
 			continue
 		}
 
@@ -237,10 +248,10 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 			MaxFieldCount:     conf.Capture.MaxFieldCount,
 		}
 
-		cm.Lock()
+		cm.mu.Lock()
 		probe := procInfo.ProbesByID.Get(configPath.ProbeUUID.String())
 		if probe == nil {
-			cm.diProcs.SetProbe(procInfo.PID, procInfo.ServiceName, conf.Where.TypeName, conf.Where.MethodName, configPath.ProbeUUID, runtimeID, opts)
+			cm.mu.diProcs.SetProbe(procInfo.PID, procInfo.ServiceName, conf.Where.TypeName, conf.Where.MethodName, configPath.ProbeUUID, runtimeID, opts)
 			diagnostics.Diagnostics.SetStatus(procInfo.ServiceName, runtimeID.String(), configPath.ProbeUUID.String(), ditypes.StatusReceived)
 			probe = procInfo.ProbesByID.Get(configPath.ProbeUUID.String())
 		}
@@ -250,14 +261,14 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 			err := AnalyzeBinary(procInfo)
 			if err != nil {
 				log.Errorf("couldn't inspect binary (%s): %v\n", procInfo.BinaryPath, err)
-				cm.Unlock()
+				cm.mu.Unlock()
 				continue
 			}
 
 			probe.InstrumentationInfo.ConfigurationHash = configPath.Hash
 			applyConfigUpdate(procInfo, probe)
 		}
-		cm.Unlock()
+		cm.mu.Unlock()
 	}
 }
 
