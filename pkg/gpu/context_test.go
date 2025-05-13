@@ -55,7 +55,7 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: containerID,
 		},
-		AllocatedResources: []workloadmeta.ContainerAllocatedResource{
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 			{
 				Name: string(gpuutil.GpuNvidiaGeneric),
 				ID:   gpuUUID,
@@ -72,7 +72,7 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: containerIDNoGpu,
 		},
-		AllocatedResources: nil,
+		ResolvedAllocatedResources: nil,
 	}
 
 	wmetaMock.Set(container)
@@ -161,7 +161,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 			Name: string(gpuutil.GpuNvidiaGeneric),
 			ID:   gpuUUID,
 		}
-		container.AllocatedResources = append(container.AllocatedResources, resource)
+		container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, resource)
 	}
 
 	wmetaMock.Set(container)

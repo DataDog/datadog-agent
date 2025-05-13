@@ -175,7 +175,7 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 
 	var filteredDevices []ddnvml.Device
 	numContainerGPUs := 0
-	for _, resource := range container.AllocatedResources {
+	for _, resource := range container.ResolvedAllocatedResources {
 		// Only consider NVIDIA GPUs
 		if !gpuutil.IsNvidiaKubernetesResource(resource.Name) {
 			continue
@@ -227,7 +227,7 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 	// If the container has GPUs assigned to it but we couldn't match it to our
 	// devices, return the error for this case and show the allocated resources
 	// for debugging purposes.
-	return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v", containerID, container.AllocatedResources)
+	return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v", containerID, container.ResolvedAllocatedResources)
 }
 
 // getCurrentActiveGpuDevice returns the active GPU device for a given process and thread, based on the
