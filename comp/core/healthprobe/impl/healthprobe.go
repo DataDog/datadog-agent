@@ -15,11 +15,12 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/gorilla/mux"
+
 	healthprobeComponent "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/gorilla/mux"
 )
 
 const defaultTimeout = time.Second
@@ -55,7 +56,7 @@ func (h *healthprobe) stop() error {
 	timeout, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	h.log.Debug("Stopping Health check")
-	return h.server.Shutdown(timeout) //nolint:errcheck
+	return h.server.Shutdown(timeout)
 }
 
 // NewComponent creates a new healthprobe component
