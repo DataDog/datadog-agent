@@ -667,9 +667,7 @@ func (ac *AutoConfig) GetProviderCatalog() map[string]providers.ConfigProviderFa
 // processNewService takes a service, tries to match it against templates and
 // triggers scheduling events if it finds a valid config for it.
 func (ac *AutoConfig) processNewService(svc listeners.Service) {
-	// get all the templates matching service identifiers
-	ADIdentifiers := svc.GetADIdentifiers()
-	changes := ac.cfgMgr.processNewService(ADIdentifiers, svc)
+	changes := ac.cfgMgr.processNewService(svc)
 	ac.applyChanges(changes)
 }
 
