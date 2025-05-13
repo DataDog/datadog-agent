@@ -308,7 +308,7 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 	}
 
-	if kv.HasSKStorage() && opts.NetworkSkStorageEnabled {
+	if opts.NetworkSkStorageEnabled {
 		// SK_Storage maps are enabled and available, delete fall back
 		editors["sock_meta"] = manager.MapSpecEditor{
 			Type:       ebpf.Hash,
