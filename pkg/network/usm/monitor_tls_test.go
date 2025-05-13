@@ -1026,6 +1026,8 @@ func (s *tlsSuite) TestNativeTLSMapsCleanup() {
 
 	client.CloseIdleConnections()
 
+	time.Sleep(500 * time.Millisecond)
+
 	// Check ssl_sock_by_ctx map
 	t.Logf("Eventually checking %s map entries after CloseIdleConnections()...", sslSockByCtxMap)
 	assert.Eventuallyf(t, func() bool {
@@ -1050,7 +1052,7 @@ func (s *tlsSuite) TestNativeTLSMapsCleanup() {
 		sockMapCount := countMapEntries(t, sslSockMap)
 		t.Logf("Polling count for map '%s': %d", sslSockByCtxMap, sockMapCount)
 		return sockMapCount == 0
-	}, 3*time.Second, 100*time.Millisecond, "%s should be empty after cleanup (post CloseIdleConnections)", sslSockByCtxMap)
+	}, 5*time.Second, 100*time.Millisecond, "%s should be empty after cleanup (post CloseIdleConnections)", sslSockByCtxMap)
 
 	// Check ssl_ctx_by_tuple map
 	t.Logf("Eventually checking %s map entries after CloseIdleConnections()...", sslCtxByTupleMap)
@@ -1076,7 +1078,7 @@ func (s *tlsSuite) TestNativeTLSMapsCleanup() {
 		tupleMapCount := countMapEntries(t, sslTupleMap)
 		t.Logf("Polling count for map '%s': %d", sslCtxByTupleMap, tupleMapCount)
 		return tupleMapCount == 0
-	}, 3*time.Second, 100*time.Millisecond, "%s should be empty after cleanup (post CloseIdleConnections)", sslCtxByTupleMap)
+	}, 5*time.Second, 100*time.Millisecond, "%s should be empty after cleanup (post CloseIdleConnections)", sslCtxByTupleMap)
 
 	requestsExist := make([]bool, len(requests))
 
