@@ -111,11 +111,12 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 				dir = path.Join(dir, "testdata", "musl")
 				scanner, err := globalutils.NewScanner(regexp.MustCompile("started"), globalutils.NoPattern)
 				require.NoError(t, err, "failed to create pattern scanner")
-				dockerCfg := dockerutils.NewComposeConfig("musl-alpine",
-					dockerutils.DefaultTimeout,
-					dockerutils.DefaultRetries,
-					scanner,
-					dockerutils.EmptyEnv,
+
+				dockerCfg := dockerutils.NewComposeConfig(
+					dockerutils.NewBaseConfig(
+						"musl-alpine",
+						scanner,
+					),
 					path.Join(dir, "/docker-compose.yml"))
 				err = dockerutils.Run(t, dockerCfg)
 				require.NoError(t, err)
