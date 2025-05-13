@@ -345,8 +345,12 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 		s.Env().RemoteHost.MustExecute("curl https://bootstrap.pypa.io/pip/3.6/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py")
 		s.Env().RemoteHost.MustExecute("python3 -m pip install ansible")
 		pathPrefix = "/home/centos/.local/bin/"
-	case e2eos.AmazonLinux, e2eos.RedHat:
+	case e2eos.AmazonLinux:
 		s.Env().RemoteHost.MustExecute("sudo yum install -y python3 python3-pip && yes | pip3 install ansible")
+		pathPrefix = "/home/ec2-user/.local/bin/"
+	case e2eos.RedHat:
+		// Python already installed on RedHat9
+		s.Env().RemoteHost.MustExecute("sudo yum install -y python3-pip && yes | pip3 install ansible")
 		pathPrefix = "/home/ec2-user/.local/bin/"
 	case e2eos.Suse:
 		s.Env().RemoteHost.MustExecute("sudo zypper install -y python3 python3-pip && sudo pip3 install ansible")
