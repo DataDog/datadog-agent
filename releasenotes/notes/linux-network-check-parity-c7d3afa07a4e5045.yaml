@@ -6,7 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
 features:
   - |
     Add a networkv2 check that is a port of the Python network check to Go. This
