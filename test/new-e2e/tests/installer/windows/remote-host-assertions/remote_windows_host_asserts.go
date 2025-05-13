@@ -107,7 +107,7 @@ func (r *RemoteWindowsHostAssertions) HasARunningDatadogAgentService() *RemoteWi
 
 	installPath, err := windowsagent.GetInstallPathFromRegistry(r.remoteHost)
 	r.require.NoError(err)
-	binPath := installPath + `\bin\` + consts.BinaryName
+	binPath := installPath + `\bin\agent.exe`
 	r.FileExists(binPath)
 
 	r.HasAService("datadogagent").WithStatus("Running")
