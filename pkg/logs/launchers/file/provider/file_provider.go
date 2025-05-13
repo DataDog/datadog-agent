@@ -7,6 +7,7 @@
 package fileprovider
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -159,7 +160,7 @@ func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFile
 // FilesToTail returns all the Files matching paths in sources,
 // it cannot return more than filesLimit Files.
 // Files are collected according to the fileProvider's wildcardOrder and selectionMode
-func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*sources.LogSource) []*tailer.File {
+func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID bool, inputSources []*sources.LogSource) []*tailer.File {
 	var filesToTail []*tailer.File
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
@@ -170,13 +171,62 @@ func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*
 
 		// First pass - collect all wildcard sources and add files for non-wildcard sources
 		for i := 0; i < len(inputSources); i++ {
-			source := inputSources[i]
-			isWildcardSource := config.ContainsWildcard(source.Config.Path)
-			if isWildcardSource {
-				wildcardSources = append(wildcardSources, source)
-				continue
-			} else { //nolint:revive // TODO(AML) Fix revive linter
+			select {
+			case <-ctx.Done():
+				log.Debugf("FileProvider context cancelled, not collecting files.")
+				return nil
+			default:
+				source := inputSources[i]
+				isWildcardSource := config.ContainsWildcard(source.Config.Path)
+				if isWildcardSource {
+					wildcardSources = append(wildcardSources, source)
+					continue
+				} else { //nolint:revive // TODO(AML) Fix revive linter
+					files, err := p.CollectFiles(source)
+					if err != nil {
+						source.Status.Error(err)
+						if shouldLogErrors {
+							log.Warnf("Could not collect files: %v", err)
+						}
+						continue
+					}
+					filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter)
+				}
+			}
+		}
+
+		// Second pass, resolve all wildcards and add them to one big list
+		wildcardFiles := make([]*tailer.File, 0, p.filesLimit)
+		for _, source := range wildcardSources {
+			select {
+			case <-ctx.Done():
+				log.Debugf("FileProvider context cancelled, not collecting files.")
+				return nil
+			default:
+				files, err := p.filesMatchingSource(source)
+				wildcardFileCounter.setTotal(source, len(files))
+				if err != nil {
+					continue
+				}
+				wildcardFiles = append(wildcardFiles, files...)
+			}
+		}
+
+		p.applyOrdering(wildcardFiles)
+		filesToTail = p.addFilesToTailList(validatePodContainerID, wildcardFiles, filesToTail, &wildcardFileCounter)
+	} else if p.selectionMode == greedySelection {
+		// Consume all sources one-by-one, fitting as many as possible into 'filesToTail'
+		for _, source := range inputSources {
+			select {
+			case <-ctx.Done():
+				log.Debugf("FileProvider context cancelled, not collecting files.")
+				return nil
+			default:
+				isWildcardSource := config.ContainsWildcard(source.Config.Path)
 				files, err := p.CollectFiles(source)
+				if isWildcardSource {
+					wildcardFileCounter.setTotal(source, len(files))
+				}
 				if err != nil {
 					source.Status.Error(err)
 					if shouldLogErrors {
@@ -186,38 +236,6 @@ func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*
 				}
 				filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter)
 			}
-		}
-
-		// Second pass, resolve all wildcards and add them to one big list
-		wildcardFiles := make([]*tailer.File, 0, p.filesLimit)
-		for _, source := range wildcardSources {
-			files, err := p.filesMatchingSource(source)
-			wildcardFileCounter.setTotal(source, len(files))
-			if err != nil {
-				continue
-			}
-			wildcardFiles = append(wildcardFiles, files...)
-		}
-
-		p.applyOrdering(wildcardFiles)
-		filesToTail = p.addFilesToTailList(validatePodContainerID, wildcardFiles, filesToTail, &wildcardFileCounter)
-	} else if p.selectionMode == greedySelection {
-		// Consume all sources one-by-one, fitting as many as possible into 'filesToTail'
-		for _, source := range inputSources {
-			isWildcardSource := config.ContainsWildcard(source.Config.Path)
-			files, err := p.CollectFiles(source)
-			if isWildcardSource {
-				wildcardFileCounter.setTotal(source, len(files))
-			}
-			if err != nil {
-				source.Status.Error(err)
-				if shouldLogErrors {
-					log.Warnf("Could not collect files: %v", err)
-				}
-				continue
-			}
-
-			filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter)
 		}
 	} else {
 		log.Errorf("Invalid file selection mode '%v', no files selected.", p.selectionMode)

@@ -7,6 +7,7 @@
 package file
 
 import (
+	"context"
 	"regexp"
 	"slices"
 	"sync"
@@ -57,10 +58,11 @@ type Launcher struct {
 	scanPeriod              time.Duration
 	flarecontroller         *flareController.FlareController
 	tagger                  tagger.Component
-	wg                      sync.WaitGroup
 	filesChan               chan []*tailer.File
 	addedSourceTailers      []*tailer.File
 	addedSourceTailersMutex sync.Mutex
+	ctx                     context.Context
+	cancel                  context.CancelFunc
 }
 
 // NewLauncher returns a new launcher.
@@ -77,6 +79,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		wildcardStrategy = fileprovider.WildcardUseFileName
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Launcher{
 		tailingLimit:           tailingLimit,
 		fileProvider:           fileprovider.NewFileProvider(tailingLimit, wildcardStrategy),
@@ -89,6 +92,8 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		scanPeriod:             scanPeriod,
 		flarecontroller:        flarecontroller,
 		tagger:                 tagger,
+		ctx:                    ctx,
+		cancel:                 cancel,
 	}
 }
 
@@ -122,16 +127,22 @@ func (s *Launcher) run() {
 		case source := <-s.removedSources:
 			s.removeSource(source)
 		case <-scanTicker.C:
-			s.wg.Add(1)
+
+			activeSourcesCopy := make([]*sources.LogSource, len(s.activeSources))
+			copy(activeSourcesCopy, s.activeSources)
+
 			scanTicker.Stop()
-			go s.getFiles()
+			go func() {
+				s.filesChan <- s.fileProvider.FilesToTail(s.ctx, s.validatePodContainerID, activeSourcesCopy)
+			}()
 		case files := <-s.filesChan:
 			s.cleanUpRotatedTailers()
 
-			s.scan(files)
+			s.resolveActiveTailers(files)
 			scanTicker.Reset(s.scanPeriod)
 		case <-s.stop:
-			s.wg.Wait()
+			// Cancel the context passed to fileProvider.FilesToTail
+			s.cancel()
 			// no more file should be tailed
 			s.cleanup()
 			return
@@ -155,24 +166,11 @@ func (s *Launcher) cleanup() {
 	stopper.Stop()
 }
 
-// getFiles sends all the files the launcher is expected to tail to the scan
-// function via a channel
-func (s *Launcher) getFiles() {
-	defer s.wg.Done()
-
-	s.activeSourcesMutex.Lock()
-	activeSourcesCopy := make([]*sources.LogSource, len(s.activeSources))
-	copy(activeSourcesCopy, s.activeSources)
-	s.activeSourcesMutex.Unlock()
-
-	s.filesChan <- s.fileProvider.FilesToTail(s.validatePodContainerID, activeSourcesCopy)
-}
-
-// scan checks all the files we're expected to tail, compares them to the currently tailed files,
+// resolveActiveTailers checks all the files we're expected to tail, compares them to the currently tailed files,
 // and triggers the required updates.
 // For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
 // The Scanner needs to stop that previous tailer, and start a new one for the new file.
-func (s *Launcher) scan(files []*tailer.File) {
+func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 	tailersFilesCopy := make([]*tailer.File, len(files))
 	copy(tailersFilesCopy, files)
 
