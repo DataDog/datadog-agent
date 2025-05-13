@@ -35,6 +35,11 @@ func (BaseHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext, re
 }
 
 //nolint:revive // TODO(CAPP) Fix revive linter
+func (BaseHandlers) GetNodeName(ctx processors.ProcessorContext, resource interface{}) string {
+	return ""
+}
+
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (BaseHandlers) GetMetadataTags(ctx processors.ProcessorContext, resource interface{}) []string {
 	return nil
 }
@@ -54,6 +59,7 @@ func ExtractModelManifests(ctx processors.ProcessorContext, resourceManifests []
 		Manifests:   manifests,
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
+		HostName:    pctx.HostName,
 		Tags:        pctx.Cfg.ExtraTags,
 	}
 	return cm
