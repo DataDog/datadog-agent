@@ -531,7 +531,7 @@ static __always_inline void gnutls_goodbye(struct pt_regs *ctx, void *ssl_sessio
     }
 
     // tls_finish can launch a tail call, thus cleanup should be done before.
-    bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
+    bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_session);
     tls_finish(ctx, t, false);
 }
 
