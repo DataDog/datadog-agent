@@ -40,8 +40,7 @@ func makeDeps(t *testing.T) dependencies {
 	))
 }
 
-func makeConfigSync(t *testing.T) *configSync {
-	deps := makeDeps(t)
+func makeConfigSync(t *testing.T, deps dependencies) *configSync {
 	defaultURL := &url.URL{
 		Scheme: "https",
 		Host:   "localhost:1234",
@@ -52,29 +51,32 @@ func makeConfigSync(t *testing.T) *configSync {
 		Log:    deps.Log,
 		IPC:    deps.IPC,
 		url:    defaultURL,
-		client: http.DefaultClient,
+		client: deps.IPC.GetClient(),
 		ctx:    context.Background(),
 	}
 	return cs
 }
 
-func makeServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *http.Client, *url.URL) {
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
+func makeServer(t *testing.T, ipcmock *ipcmock.IPCMock, handler http.HandlerFunc) (*httptest.Server, *url.URL) {
+	server := ipcmock.NewMockServer(handler)
 
 	url, err := url.Parse(server.URL)
 	require.NoError(t, err)
 
-	return server, server.Client(), url
+	return server, url
 }
 
 //nolint:revive
 func makeConfigSyncWithServer(t *testing.T, ctx context.Context, handler http.HandlerFunc) *configSync {
-	_, client, url := makeServer(t, handler)
+	deps := makeDeps(t)
 
-	cs := makeConfigSync(t)
+	ipcmock, ok := deps.IPC.(*ipcmock.IPCMock)
+	require.True(t, ok)
+
+	_, url := makeServer(t, ipcmock, handler)
+
+	cs := makeConfigSync(t, deps)
 	cs.ctx = ctx
-	cs.client = client
 	cs.url = url
 
 	return cs

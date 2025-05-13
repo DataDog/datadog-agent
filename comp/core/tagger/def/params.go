@@ -17,9 +17,6 @@ type RemoteParams struct {
 	// RemoteTarget function return the target in which the remote tagger will connect
 	// If it returns an error we stop the application
 	RemoteTarget func(config.Component) (string, error)
-	// RemoteTokenFetcher is the function to fetch the token for the remote tagger
-	// If it returns an error the remote tagger will continue to attempt to fetch the token
-	RemoteTokenFetcher func(config.Component) func() (string, error)
 }
 
 // DualParams provides dual tagger parameters

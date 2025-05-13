@@ -59,9 +59,11 @@ func Module() fxutil.Module {
 
 var (
 	// for testing
-	installinfoGet         = installinfo.Get
-	fetchSecurityConfig    = configFetcher.SecurityAgentConfig
-	fetchProcessConfig     = func(cfg model.Reader) (string, error) { return configFetcher.ProcessAgentConfig(cfg, true) }
+	installinfoGet      = installinfo.Get
+	fetchSecurityConfig = configFetcher.SecurityAgentConfig
+	fetchProcessConfig  = func(cfg model.Reader, client ipc.HTTPClient) (string, error) {
+		return configFetcher.ProcessAgentConfig(cfg, client, true)
+	}
 	fetchTraceConfig       = configFetcher.TraceAgentConfig
 	fetchSystemProbeConfig = sysprobeConfigFetcher.SystemProbeConfig
 )
@@ -198,10 +200,10 @@ func (z *zeroConfigGetter) GetString(string) string { return "" }
 
 // getCorrectConfig tries to fetch the configuration from another process. It returns a new
 // configuration object on success and the local config upon failure.
-func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, configFetcher func(config model.Reader) (string, error)) configGetter {
+func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, configFetcher func(config model.Reader, client ipc.HTTPClient) (string, error)) configGetter {
 	// We query the configuration from another agent itself to have accurate data. If the other process isn't
 	// available we fallback on the current configuration.
-	if remoteConfig, err := configFetcher(localConf); err == nil {
+	if remoteConfig, err := configFetcher(localConf, ia.ipc.GetClient()); err == nil {
 		cfg := viper.New()
 		cfg.SetConfigType("yaml")
 		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {
