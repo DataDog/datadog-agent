@@ -21,7 +21,7 @@ include:
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - go env -w GOPRIVATE="github.com/DataDog/*"
     - export PATH=$PATH:$(go env GOPATH)/bin
-    - go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
+    - go install github.com/DataDog/datadog-packages/cmd/datadog-package@baptiste.foy/FA/public-acl-test-bucket
     - datadog-package push registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:${VERSION} ${OMNIBUS_PACKAGE_DIR}/${OCI_PRODUCT}-${VERSION}.oci.tar
     # This is used for E2E tests. Doesn't cost more than an additional tag to the registry.
     - datadog-package push registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} ${OMNIBUS_PACKAGE_DIR}/${OCI_PRODUCT}-${VERSION}.oci.tar
