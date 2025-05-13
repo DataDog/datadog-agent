@@ -370,7 +370,7 @@ func checkPolicies(_ log.Component, _ config.Component, args *checkPoliciesCliPa
 }
 
 func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.Writer) error {
-	output, err := client.GetRuleSetReport()
+	output, err := client.GetKernelFilterReport()
 	if err != nil {
 		return fmt.Errorf("unable to send request to system-probe: %w", err)
 	}
@@ -378,7 +378,7 @@ func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.
 		return fmt.Errorf("get policies request failed: %s", output.Error)
 	}
 
-	transformedOutput := output.GetRuleSetReportMessage().FromProtoToKFiltersRuleSetReport()
+	transformedOutput := output.GetKernelFilterReportMessage().FromProtoToKernelFilterReport()
 
 	content, _ := json.MarshalIndent(transformedOutput, "", "\t")
 	_, err = fmt.Fprintf(writer, "%s\n", string(content))

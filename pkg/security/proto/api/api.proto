@@ -40,15 +40,19 @@ message SecurityConfigMessage {
     bool ActivityDumpEnabled = 3;
 }
 
-message RuleSetReportMessage{
-    repeated EventTypePolicy Policies = 1;
+message KernelFilterReportMessage{
+    repeated ApproverReport ApproverReports = 1;
 }
 
-message EventTypePolicy{
+message AcceptModeRuleMessage{
+    string RuleID = 1;
+}
+
+message ApproverReport{
     string EventType = 1;
     uint32 Mode = 2;
-    // field 3 is deprecated
-    Approvers Approvers = 4;
+    Approvers Approvers = 3;
+    repeated AcceptModeRuleMessage AcceptModeRules = 4;
 }
 
 message Approvers {
@@ -62,10 +66,10 @@ message ApproverDetails {
     int32 Type = 3;
 }
 
-message GetRuleSetReportParams{}
+message GetKernelFilterReportParams{}
 
-message GetRuleSetReportResultMessage{
-    RuleSetReportMessage RuleSetReportMessage = 1;
+message GetKernelFilterReportMessage{
+    KernelFilterReportMessage KernelFilterReportMessage = 1;
     string Error = 2;
 }
 
@@ -311,7 +315,7 @@ service SecurityModule {
     rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
     rpc GetStatus(GetStatusParams) returns (Status) {}
     rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
-    rpc GetRuleSetReport(GetRuleSetReportParams) returns (GetRuleSetReportResultMessage) {}
+    rpc GetKernelFilterReport(GetKernelFilterReportParams) returns (GetKernelFilterReportMessage) {}
     rpc ReloadPolicies(ReloadPoliciesParams) returns (ReloadPoliciesResultMessage) {}
     rpc DumpNetworkNamespace(DumpNetworkNamespaceParams) returns (DumpNetworkNamespaceMessage) {}
     rpc DumpDiscarders(DumpDiscardersParams) returns (DumpDiscardersMessage) {}

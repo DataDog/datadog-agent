@@ -7,36 +7,68 @@
 package kfilters
 
 import (
+	"encoding/json"
+
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-// PolicyReport describes the result of the kernel policy and the approvers for an event type
-type PolicyReport struct {
-	Mode      PolicyMode
-	Approvers rules.Approvers
+// AcceptModeRule describes a rule that is in accept mode
+type AcceptModeRule struct {
+	RuleID string `json:"rule_id"`
 }
 
-// ApplyRuleSetReport describes the event types and their associated policy policies
-type ApplyRuleSetReport struct {
-	Policies map[string]*PolicyReport
+// ApproverReport describes the result of the kernel policy and the approvers for an event type
+type ApproverReport struct {
+	Mode            PolicyMode       `json:"mode"`
+	Approvers       rules.Approvers  `json:"approvers,omitempty"`
+	AcceptModeRules []AcceptModeRule `json:"accept_mode_rules,omitempty"`
 }
 
-// NewApplyRuleSetReport returns filtering policy applied per event type
-func NewApplyRuleSetReport(config *config.Config, rs *rules.RuleSet) (*ApplyRuleSetReport, error) {
-	policies := make(map[eval.EventType]*PolicyReport)
+// KernelFilterReport describes the event types and their associated policy policies
+type KernelFilterReport struct {
+	ApproverReports map[string]*ApproverReport `json:"approvers"`
+}
+
+// MarshalJSON marshals the KernelFilterReport to JSON
+func (r *KernelFilterReport) MarshalJSON() ([]byte, error) {
+	reports := make(map[string]json.RawMessage)
+
+	for eventType, report := range r.ApproverReports {
+		if (report.Mode == PolicyModeNoFilter || report.Mode == PolicyModeAccept) && len(report.AcceptModeRules) == 0 {
+			continue
+		}
+		raw, err := json.Marshal(report)
+		if err != nil {
+			return nil, err
+		}
+		reports[eventType] = raw
+	}
+
+	return json.Marshal(reports)
+}
+
+// String returns a JSON representation of the KernelFilterReport
+func (r *KernelFilterReport) String() string {
+	content, _ := json.Marshal(r)
+	return string(content)
+}
+
+// NewKernelFilterReport returns filtering policy applied per event type
+func NewKernelFilterReport(config *config.Config, rs *rules.RuleSet) (*KernelFilterReport, error) {
+	approverReports := make(map[eval.EventType]*ApproverReport)
 
 	// We need to call the approver detection even when approvers aren't enabled as it may have impact on some rule flags and
 	// the discarder mechanism, see ruleset.go
-	approvers, err := rs.GetApprovers(GetCapababilities())
+	approvers, rules, err := rs.GetApprovers(GetCapababilities())
 	if err != nil {
 		return nil, err
 	}
 
 	for _, eventType := range rs.GetEventTypes() {
-		report := &PolicyReport{Mode: PolicyModeDeny}
-		policies[eventType] = report
+		report := &ApproverReport{Mode: PolicyModeDeny}
+		approverReports[eventType] = report
 
 		if !config.EnableKernelFilters {
 			report.Mode = PolicyModeNoFilter
@@ -57,8 +89,13 @@ func NewApplyRuleSetReport(config *config.Config, rs *rules.RuleSet) (*ApplyRule
 			report.Approvers = values
 		} else {
 			report.Mode = PolicyModeAccept
+			if rule := rules[eventType]; rule != nil {
+				report.AcceptModeRules = append(report.AcceptModeRules, AcceptModeRule{
+					RuleID: rule.ID,
+				})
+			}
 		}
 	}
 
-	return &ApplyRuleSetReport{Policies: policies}, nil
+	return &KernelFilterReport{ApproverReports: approverReports}, nil
 }

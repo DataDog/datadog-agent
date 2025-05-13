@@ -41,7 +41,7 @@ type SecurityModuleClientWrapper interface {
 	GetStatus() (*api.Status, error)
 	RunSelfTest() (*api.SecuritySelfTestResultMessage, error)
 	ReloadPolicies() (*api.ReloadPoliciesResultMessage, error)
-	GetRuleSetReport() (*api.GetRuleSetReportResultMessage, error)
+	GetKernelFilterReport() (*api.GetKernelFilterReportMessage, error)
 	GetEvents() (api.SecurityModule_GetEventsClient, error)
 	GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error)
 	ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error)
@@ -132,8 +132,8 @@ func (c *RuntimeSecurityClient) ReloadPolicies() (*api.ReloadPoliciesResultMessa
 }
 
 // GetRuleSetReport gets the currently loaded policies from the system probe
-func (c *RuntimeSecurityClient) GetRuleSetReport() (*api.GetRuleSetReportResultMessage, error) {
-	response, err := c.apiClient.GetRuleSetReport(context.Background(), &api.GetRuleSetReportParams{})
+func (c *RuntimeSecurityClient) GetKernelFilterReport() (*api.GetKernelFilterReportMessage, error) {
+	response, err := c.apiClient.GetKernelFilterReport(context.Background(), &api.GetKernelFilterReportParams{})
 	if err != nil {
 		return nil, err
 	}
