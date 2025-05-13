@@ -181,9 +181,9 @@ func getMatchingProcessesByName(payloads []*aggregator.ProcessPayload, processNa
 	return procs
 }
 
-func assertProcessCheck(t *testing.T, env *environments.Host, withIOStats bool, processName string, processCMDArgs []string) {
+func assertProcessCheck(t *testing.T, env *environments.Host, withIOStats bool, withSystemProbe bool, processName string, processCMDArgs []string) {
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, env.Agent.Client, []string{"process", "rtprocess"}, false)
+		assertRunningChecks(collect, env.Agent.Client, []string{"process", "rtprocess"}, withSystemProbe)
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
@@ -206,34 +206,32 @@ func (s *windowsTestSuite) TestProtectedProcessCheck() {
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)),
 	))
 	// MsMpEng.exe is a protected process so we can't access any command line arguments
-	assertProcessCheck(s.T(), s.Env(), false, "MsMpEng.exe", []string{"MsMpEng.exe"})
+	assertProcessCheck(s.T(), s.Env(), false, false, "MsMpEng.exe", []string{"MsMpEng.exe"})
 }
 
 func (s *windowsTestSuite) TestUnprotectedProcessCheck() {
 	t := s.T()
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
-		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)),
 	))
 
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(t, err)
 
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, true)
-	}, 1*time.Minute, 5*time.Second)
-
 	// unprotected process
 	cmd := []string{
-		"chkdsk",
-		"C:",
-		"/i",
-		"/c",
+		"ping",
+		"-t",
+		"127.0.0.1",
 	}
 	process, err := runCMD(t, s.Env().RemoteHost, cmd)
 	require.NoError(s.T(), err)
 
-	assertProcessCheck(s.T(), s.Env(), false, process, cmd)
+	// ping shows up as a capitalized process name, so in order to find the right process, we need to capitalize
+	process = strings.ToUpper(process)
+
+	assertProcessCheck(s.T(), s.Env(), false, false, process, cmd)
 }
 
 func (s *windowsTestSuite) TestProtectedProcessChecksInCoreAgent() {
@@ -241,7 +239,7 @@ func (s *windowsTestSuite) TestProtectedProcessChecksInCoreAgent() {
 	s.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr))))
 	// MsMpEng.exe is a protected process so we can't access any command line arguments
-	assertProcessCheck(t, s.Env(), false, "MsMpEng.exe", []string{"MsMpEng.exe"})
+	assertProcessCheck(t, s.Env(), false, false, "MsMpEng.exe", []string{"MsMpEng.exe"})
 
 	// Verify the process component is not running in the core agent
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -273,7 +271,6 @@ func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 }
 
 func (s *windowsTestSuite) TestProcessCheckIO() {
-	t := s.T()
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
@@ -282,14 +279,10 @@ func (s *windowsTestSuite) TestProcessCheckIO() {
 	// Flush fake intake to remove payloads that won't have IO stats
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, true)
-	}, 1*time.Minute, 5*time.Second)
-
 	process, cmd, err := runDiskSpd(s.T(), s.Env().RemoteHost)
 	require.NoError(s.T(), err)
 
-	assertProcessCheck(s.T(), s.Env(), true, process, cmd)
+	assertProcessCheck(s.T(), s.Env(), true, true, process, cmd)
 }
 
 func (s *windowsTestSuite) TestManualProcessCheck() {
