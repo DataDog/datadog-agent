@@ -6,7 +6,7 @@
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
   needs: ["go_deps", "go_tools_deps"]
-  extends: 
+  extends:
     - .windows_docker_default
   script:
     - $ErrorActionPreference = "Stop"
@@ -63,6 +63,7 @@ tests_windows-x64:
   extends: .tests_windows_base
   variables:
     ARCH: "x64"
+  parallel: 4
 
 .tests_windows_sysprobe:
   stage: source_test

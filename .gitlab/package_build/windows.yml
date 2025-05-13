@@ -57,6 +57,7 @@
 
 windows_msi_and_bosh_zip_x64-a7:
   extends: .windows_main_agent_base
+  parallel: 4
   rules:
     - !reference [.except_mergequeue]
     - when: on_success

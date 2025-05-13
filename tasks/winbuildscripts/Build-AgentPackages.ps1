@@ -45,6 +45,9 @@ param(
 
 . "$PSScriptRoot\common.ps1"
 
+# Clear NuGet cache
+dotnet nuget locals all --clear
+
 Invoke-BuildScript `
     -BuildOutOfSource $BuildOutOfSource `
     -InstallDeps $InstallDeps `
