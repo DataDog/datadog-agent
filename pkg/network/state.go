@@ -399,25 +399,7 @@ func (ns *networkState) GetDelta(
 
 	aggr.finalize()
 
-	for protocolType, protocolStats := range usmStats {
-		switch protocolType {
-		case protocols.HTTP:
-			stats := protocolStats.(map[http.Key]*http.RequestStats)
-			ns.storeHTTPStats(stats)
-		case protocols.Kafka:
-			stats := protocolStats.(map[kafka.Key]*kafka.RequestStats)
-			ns.storeKafkaStats(stats)
-		case protocols.HTTP2:
-			stats := protocolStats.(map[http.Key]*http.RequestStats)
-			ns.storeHTTP2Stats(stats)
-		case protocols.Postgres:
-			stats := protocolStats.(map[postgres.Key]*postgres.RequestStat)
-			ns.storePostgresStats(stats)
-		case protocols.Redis:
-			stats := protocolStats.(map[redis.Key]*redis.RequestStats)
-			ns.storeRedisStats(stats)
-		}
-	}
+	ns.processUSMDelta(usmStats)
 
 	return Delta{
 		Conns:    append(active, closed...),

@@ -8,6 +8,7 @@
 package network
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
@@ -102,4 +103,27 @@ func (ns *networkState) storeRedisStats(allStats map[redis.Key]*redis.RequestSta
 		ns.maxRedisStats,
 		stateTelemetry.redisStatsDropped.Inc,
 	)
+}
+
+// processUSMDelta processes the USM delta for Linux.
+func (ns *networkState) processUSMDelta(stats map[protocols.ProtocolType]interface{}) {
+	for protocolType, protocolStats := range stats {
+		switch protocolType {
+		case protocols.HTTP:
+			stats := protocolStats.(map[http.Key]*http.RequestStats)
+			ns.storeHTTPStats(stats)
+		case protocols.Kafka:
+			stats := protocolStats.(map[kafka.Key]*kafka.RequestStats)
+			ns.storeKafkaStats(stats)
+		case protocols.HTTP2:
+			stats := protocolStats.(map[http.Key]*http.RequestStats)
+			ns.storeHTTP2Stats(stats)
+		case protocols.Postgres:
+			stats := protocolStats.(map[postgres.Key]*postgres.RequestStat)
+			ns.storePostgresStats(stats)
+		case protocols.Redis:
+			stats := protocolStats.(map[redis.Key]*redis.RequestStats)
+			ns.storeRedisStats(stats)
+		}
+	}
 }

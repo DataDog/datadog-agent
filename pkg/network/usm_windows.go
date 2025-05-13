@@ -8,6 +8,7 @@
 package network
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 )
 
@@ -27,5 +28,16 @@ func NewUSMProtocolsData() USMProtocolsData {
 func (o *USMProtocolsData) Reset() {
 	if len(o.HTTP) > 0 {
 		o.HTTP = make(map[http.Key]*http.RequestStats)
+	}
+}
+
+// processUSMDelta processes the USM delta for Windows.
+func (ns *networkState) processUSMDelta(stats map[protocols.ProtocolType]interface{}) {
+	for protocolType, protocolStats := range stats {
+		switch protocolType {
+		case protocols.HTTP:
+			stats := protocolStats.(map[http.Key]*http.RequestStats)
+			ns.storeHTTPStats(stats)
+		}
 	}
 }

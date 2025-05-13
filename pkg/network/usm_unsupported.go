@@ -23,3 +23,7 @@ func NewUSMProtocolsData() USMProtocolsData {
 // Reset clears the maps in USMProtocolsData.
 // This is a no-op for unsupported platforms.
 func (*USMProtocolsData) Reset() {}
+
+// processUSMDelta processes the USM delta for unsupported platforms.
+// This is a no-op for unsupported platforms.
+func (*networkState) processUSMDelta(map[protocols.ProtocolType]interface{}) {}
