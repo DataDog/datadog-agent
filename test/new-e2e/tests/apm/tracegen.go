@@ -60,7 +60,7 @@ func tracegenUDSCommands(service string, peerTags string, enableClientSideStats 
 		" -e DD_GIT_COMMIT_SHA=abcd1234 " +
 		" -e TRACEGEN_ADDSPANTAGS=" + peerTags +
 		" -e DD_TRACE_STATS_COMPUTATION_ENABLED=" + strconv.FormatBool(enableClientSideStats) +
-		" ghcr.io/datadog/apps-tracegen:main"
+		" ghcr.io/datadog/apps-tracegen:v0.0.1"
 	rm := "docker rm -f " + service
 	return run, rm
 }
@@ -72,7 +72,7 @@ func tracegenTCPCommands(service string, peerTags string, enableClientSideStats 
 		" -e DD_GIT_COMMIT_SHA=abcd1234 " +
 		" -e TRACEGEN_ADDSPANTAGS=" + peerTags +
 		" -e DD_TRACE_STATS_COMPUTATION_ENABLED=" + strconv.FormatBool(enableClientSideStats) +
-		" ghcr.io/datadog/apps-tracegen:main"
+		" ghcr.io/datadog/apps-tracegen:v0.0.1"
 	rm := "docker rm -f " + service
 	return run, rm
 }
