@@ -1328,6 +1328,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 				return
 			}
 			p.addToDNSResolver(dnsLayer)
+			event.Type = uint32(model.DNSEventType) // remap to regular DNS event type
 			event.DNS = model.DNSEvent{
 				ID: dnsLayer.ID,
 				Question: model.DNSQuestion{

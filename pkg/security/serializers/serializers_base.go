@@ -416,12 +416,6 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule) *BaseEventSeri
 
 	eventType := model.EventType(event.Type)
 
-	// map event type back to regular DNS so that we send a DNS event
-	// for both requests and responses.
-	if eventType == model.FullDNSResponseEventType {
-		eventType = model.DNSEventType
-	}
-
 	s := &BaseEventSerializer{
 		EventContextSerializer: EventContextSerializer{
 			Name:        eventType.String(),
