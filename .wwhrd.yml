@@ -49,4 +49,4 @@ exceptions:
 
 additional:
   # list here paths to additional licenses
-  golang/go: "raw.githubusercontent.com/golang/go/go1.23.8/LICENSE"
+  golang/go: "raw.githubusercontent.com/golang/go/go1.23.9/LICENSE"
