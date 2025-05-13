@@ -1598,6 +1598,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.region", "")
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.query_timeout", 10)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.tags", []string{"datadoghq.com/scrape:true"})
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.dbm_tag", "datadoghq.com/dbm:true")
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
@@ -1622,6 +1623,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tokenizer_max_input_bytes", 60)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_max_size", 20)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_match_threshold", 0.75)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_aggregation", true)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tag_aggregated_json", false)
 
 	// Enable the legacy auto multiline detection (v1)
 	config.BindEnvAndSetDefault("logs_config.force_auto_multi_line_detection_v1", false)
