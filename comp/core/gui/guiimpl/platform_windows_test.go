@@ -159,8 +159,8 @@ func TestRenderIndexPage(t *testing.T) {
 	assert.Equal(t, "text/html; charset=utf-8", res.Header.Get("Content-Type"))
 
 	// We replace windows line break by linux so the tests pass on every OS
-	expectedResult := strings.Replace(expectedBody, "\r\n", "\n", -1)
-	output := strings.Replace(string(bodyBytes), "\r\n", "\n", -1)
+	expectedResult := strings.ReplaceAll(expectedBody, "\r\n", "\n")
+	output := strings.ReplaceAll(string(bodyBytes), "\r\n", "\n")
 
 	assert.Equal(t, expectedResult, output)
 }

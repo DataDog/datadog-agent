@@ -91,7 +91,7 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 		for name, builder := range builders {
 			c, err := builder(dev)
 			if errors.Is(err, errUnsupportedDevice) {
-				log.Warnf("device %s does not support collector %s", dev.UUID, name)
+				log.Warnf("device %s does not support collector %s", dev.GetDeviceInfo().UUID, name)
 				continue
 			} else if err != nil {
 				log.Warnf("failed to create collector %s: %s", name, err)
@@ -115,19 +115,20 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 	tagsMapping := make(map[string][]string, devCount)
 
 	for _, dev := range deviceCache.All() {
-		entityID := taggertypes.NewEntityID(taggertypes.GPU, dev.UUID)
+		uuid := dev.GetDeviceInfo().UUID
+		entityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
 		tags, err := tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
 		if err != nil {
-			log.Warnf("Error collecting GPU tags for GPU UUID %s: %s", dev.UUID, err)
+			log.Warnf("Error collecting GPU tags for GPU UUID %s: %s", uuid, err)
 		}
 
 		if len(tags) == 0 {
 			// If we get no tags (either WMS hasn't collected GPUs yet, or we are running the check standalone with 'agent check')
 			// add at least the UUID as a tag to distinguish the values.
-			tags = []string{fmt.Sprintf("gpu_uuid:%s", dev.UUID)}
+			tags = []string{fmt.Sprintf("gpu_uuid:%s", uuid)}
 		}
 
-		tagsMapping[dev.UUID] = tags
+		tagsMapping[uuid] = tags
 	}
 
 	return tagsMapping

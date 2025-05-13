@@ -8,12 +8,12 @@ import requests
 
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
 from tasks.libs.common.utils import get_metric_origin
+from tasks.libs.releasing.version import RELEASE_JSON_DEPENDENCIES
 from tasks.release import _get_release_json_value
 
 
 def _get_omnibus_commits(field):
-    release_version = os.environ['RELEASE_VERSION']
-    return _get_release_json_value(f'{release_version}::{field}')
+    return _get_release_json_value(f'{RELEASE_JSON_DEPENDENCIES}::{field}')
 
 
 def _get_environment_for_cache() -> dict:
@@ -39,6 +39,7 @@ def _get_environment_for_cache() -> dict:
             'CONDUCTOR_',
             'DATADOG_AGENT_',
             'DD_',
+            'DDCI_',
             'DDR_',
             'DEB_',
             'DESTINATION_',
@@ -99,10 +100,12 @@ def _get_environment_for_cache() -> dict:
             "CLUSTERS",
             "CODECOV",
             "CODECOV_TOKEN",
+            "COMPARE_TO_BRANCH",
             "COMPUTERNAME",
             "CONDA_PROMPT_MODIFIER",
             "CONSUL_HTTP_ADDR",
             "DATACENTERS",
+            "DDCI",
             "DDR",
             "DEPLOY_AGENT",
             "DOGSTATSD_BINARIES_DIR",
@@ -144,6 +147,7 @@ def _get_environment_for_cache() -> dict:
             "PACKAGE_ARCH",
             "PIP_EXTRA_INDEX_URL",
             "PIP_INDEX_URL",
+            "PIPELINE_KEY_ALIAS",
             "PROCESS_S3_BUCKET",
             "PWD",
             "PROMPT",

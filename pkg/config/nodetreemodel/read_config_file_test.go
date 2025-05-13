@@ -6,6 +6,7 @@
 package nodetreemodel
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -204,7 +205,7 @@ c:
 	c := cfg.(*ntmConfig)
 
 	require.Len(t, c.warnings, 1)
-	assert.Equal(t, "unknown key from YAML: c.unknown", c.warnings[0])
+	assert.Equal(t, errors.New("unknown key from YAML: c.unknown"), c.warnings[0])
 
 	expected := &innerNode{
 		children: map[string]Node{
@@ -237,7 +238,7 @@ c: 1234
 	c := cfg.(*ntmConfig)
 
 	require.Len(t, c.warnings, 1)
-	assert.Equal(t, "invalid type from configuration for key 'c'", c.warnings[0])
+	assert.Equal(t, errors.New("invalid type from configuration for key 'c'"), c.warnings[0])
 
 	expected := &innerNode{
 		children: map[string]Node{
