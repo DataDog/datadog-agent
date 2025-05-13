@@ -90,13 +90,3 @@ func (p *Packages) Install(pkg string, version string) {
 		version: version,
 	}
 }
-
-// InstallInstaller marks the installer package to be installed
-func (p *Packages) InstallInstaller() {
-	p.install[DatadogInstallerPackage] = packageWithVersion{
-		name: DatadogInstallerPackage,
-		// HACK: There is an assumption that the parrent install-*.sh script will set the version.
-		// We will fail if the version is not set.
-		version: "unset",
-	}
-}
