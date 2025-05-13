@@ -680,46 +680,6 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 	}
 }
 
-// storeUSMStats is a generic function to store USM stats for all clients.
-func storeUSMStats[K, S comparable](
-	allStats map[K]S,
-	clients map[string]*client,
-	getDelta func(*client) map[K]S,
-	setDelta func(*client, map[K]S),
-	combineStats func(S, S),
-	limit int,
-	incDropped func(...string),
-) {
-	if len(clients) == 1 {
-		for _, client := range clients {
-			delta := getDelta(client)
-			if len(delta) == 0 && len(allStats) <= limit {
-				setDelta(client, allStats)
-				return
-			}
-		}
-	}
-
-	for key, stats := range allStats {
-		for _, client := range clients {
-			delta := getDelta(client)
-			prevStats, ok := delta[key]
-			if !ok && len(delta) >= limit {
-				incDropped()
-				continue
-			}
-
-			var zero S
-			if prevStats != zero {
-				combineStats(prevStats, stats)
-				delta[key] = prevStats
-			} else {
-				delta[key] = stats
-			}
-		}
-	}
-}
-
 // storeHTTPStats stores the latest HTTP stats for all clients
 func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats) {
 	storeUSMStats[http.Key, *http.RequestStats](
