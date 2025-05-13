@@ -17,6 +17,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
+from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 
@@ -84,12 +85,8 @@ def running_in_gitlab_ci():
     return os.environ.get("GITLAB_CI") == "true"
 
 
-def running_in_circleci():
-    return os.environ.get("CIRCLECI") == "true"
-
-
 def running_in_ci():
-    return running_in_circleci() or running_in_github_actions() or running_in_gitlab_ci()
+    return running_in_github_actions() or running_in_gitlab_ci()
 
 
 def running_in_pyapp():
@@ -180,6 +177,15 @@ def get_embedded_path(ctx):
     return None
 
 
+def get_repo_root():
+    """
+    Get the root of the repository, where the .git directory is.
+    """
+    import tasks
+
+    return Path(tasks.__file__).parent.parent
+
+
 def get_xcode_version(ctx):
     """
     Get the version of XCode used depending on how it's installed.
@@ -218,6 +224,9 @@ def get_build_flags(
     We need to invoke external processes here so this function need the
     Context object.
     """
+    if arch is None:
+        arch = Arch.local()
+
     gcflags = ""
     ldflags = get_version_ldflags(ctx, major_version=major_version, install_path=install_path)
     # External linker flags; needs to be handled separately to avoid overrides
@@ -317,15 +326,17 @@ def get_build_flags(
                 file=sys.stderr,
             )
 
-    if arch and arch.is_cross_compiling():
+    if os.getenv("DD_CC"):
+        env["CC"] = os.getenv("DD_CC")
+    if os.getenv("DD_CXX"):
+        env["CXX"] = os.getenv("DD_CXX")
+
+    if arch.is_cross_compiling():
         # For cross-compilation we need to be explicit about certain Go settings
         env["GOARCH"] = arch.go_arch
         env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
-        env["CC"] = arch.gcc_compiler()
-    if os.getenv('DD_CC'):
-        env['CC'] = os.getenv('DD_CC')
-    if os.getenv('DD_CXX'):
-        env['CXX'] = os.getenv('DD_CXX')
+        env["CC"] = os.getenv("DD_CC_CROSS", arch.gcc_compiler())
+        env["CXX"] = os.getenv("DD_CXX_CROSS", arch.gpp_compiler())
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
@@ -434,10 +445,6 @@ def get_git_pretty_ref():
     # https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables
     if running_in_github_actions():
         return os.environ.get("GITHUB_HEAD_REF") or os.environ["GITHUB_REF"].split("/")[-1]
-
-    # https://circleci.com/docs/variables/#built-in-environment-variables
-    if running_in_circleci():
-        return os.environ.get("CIRCLE_TAG") or os.environ["CIRCLE_BRANCH"]
 
     current_branch = get_git_branch_name()
     if current_branch != "HEAD":

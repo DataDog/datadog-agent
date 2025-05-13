@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -24,6 +23,7 @@ import (
 	gpusubscriberfxmock "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -49,35 +49,6 @@ func getEnabledChecks(t *testing.T, cfg, sysprobeYamlConfig pkgconfigmodel.Reade
 		}
 	}
 	return enabledChecks
-}
-
-func TestProcessDiscovery(t *testing.T) {
-	deps := createProcessCheckDeps(t)
-
-	// Make sure the process_discovery check can be enabled
-	t.Run("enabled", func(t *testing.T) {
-		cfg, sysprobeCfg := configmock.New(t), configmock.NewSystemProbe(t)
-		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
-		enabledChecks := getEnabledChecks(t, cfg, sysprobeCfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
-		assertContainsCheck(t, enabledChecks, DiscoveryCheckName)
-	})
-
-	// Make sure the process_discovery check can be disabled
-	t.Run("disabled", func(t *testing.T) {
-		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
-		cfg.SetWithoutSource("process_config.process_discovery.enabled", false)
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
-		assertNotContainsCheck(t, enabledChecks, DiscoveryCheckName)
-	})
-
-	// Make sure the process and process_discovery checks are mutually exclusive
-	t.Run("mutual exclusion", func(t *testing.T) {
-		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
-		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
-		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
-		assertNotContainsCheck(t, enabledChecks, DiscoveryCheckName)
-	})
 }
 
 func TestProcessCheck(t *testing.T) {

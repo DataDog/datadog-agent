@@ -104,6 +104,9 @@ event_monitoring_config:
     - {{.}}
   {{end}}
 
+  span_tracking:
+    enabled: true
+
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
   internal_monitoring:
@@ -199,6 +202,7 @@ runtime_security_config:
   hash_resolver:
     enabled: true
   enforcement:
+    enabled: true
     exclude_binaries:
       - {{ .EnforcementExcludeBinary }}
     rule_source_allowed:
@@ -351,7 +355,7 @@ func assertReturnValue(tb testing.TB, retval, expected int64) bool {
 
 //nolint:deadcode,unused
 func validateProcessContextLineage(tb testing.TB, event *model.Event) {
-	eventJSON, err := serializers.MarshalEvent(event)
+	eventJSON, err := serializers.MarshalEvent(event, nil)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -470,7 +474,7 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 	valid := nameFieldValid && pathFieldValid
 
 	if !valid {
-		eventJSON, err := serializers.MarshalEvent(event)
+		eventJSON, err := serializers.MarshalEvent(event, nil)
 		if err != nil {
 			tb.Errorf("failed to marshal event: %v", err)
 			return
@@ -525,7 +529,7 @@ func validateSyscallContext(tb testing.TB, event *model.Event, jsonPath string) 
 		return
 	}
 
-	eventJSON, err := serializers.MarshalEvent(event)
+	eventJSON, err := serializers.MarshalEvent(event, nil)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -737,6 +741,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 			SyscallsMonitorEnabled:   true,
 			TTYFallbackEnabled:       true,
 			EBPFLessEnabled:          ebpfLessEnabled,
+			DNSPort:                  opts.staticOpts.dnsPort,
 		},
 	}
 

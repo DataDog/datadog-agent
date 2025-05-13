@@ -141,7 +141,10 @@ func (s *installerScriptBaseSuite) ProvisionerOptions() []awshost.ProvisionerOpt
 
 func (s *installerScriptBaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch)
+	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
+	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
 }
 
 type installerScriptBaseSuite struct {

@@ -94,6 +94,7 @@ type ExpvarsMap struct {
 	WlmExtractorCacheSize           int                 `json:"workloadmeta_extractor_cache_size"`
 	WlmExtractorStaleDiffs          int                 `json:"workloadmeta_extractor_stale_diffs"`
 	WlmExtractorDiffsDropped        int                 `json:"workloadmeta_extractor_diffs_dropped"`
+	SubmissionErrorCount            int                 `json:"submission_error_count"`
 }
 
 // ProcessExpvars holds values fetched from the exp var server

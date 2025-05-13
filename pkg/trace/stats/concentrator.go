@@ -41,6 +41,7 @@ type Concentrator struct {
 	exit          chan struct{}
 	exitWG        sync.WaitGroup
 	cidStats      bool
+	processStats  bool
 	agentEnv      string
 	agentHostname string
 	agentVersion  string
@@ -56,11 +57,13 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 		BucketInterval:         bsize,
 	}, now)
 	_, disabledCIDStats := conf.Features["disable_cid_stats"]
+	_, disabledProcessStats := conf.Features["disable_process_stats"]
 	c := Concentrator{
 		spanConcentrator: sc,
 		Writer:           writer,
 		exit:             make(chan struct{}),
 		cidStats:         !disabledCIDStats,
+		processStats:     !disabledProcessStats,
 		agentEnv:         conf.DefaultEnv,
 		agentHostname:    conf.Hostname,
 		agentVersion:     conf.AgentVersion,
@@ -113,28 +116,46 @@ type Input struct {
 	Traces        []traceutil.ProcessedTrace
 	ContainerID   string
 	ContainerTags []string
+	ProcessTags   string
 }
 
 // NewStatsInput allocates a stats input for an incoming trace payload
-func NewStatsInput(numChunks int, containerID string, clientComputedStats bool) Input {
+func NewStatsInput(numChunks int, containerID string, clientComputedStats bool, processTags string) Input {
 	if clientComputedStats {
 		return Input{}
 	}
-	return Input{Traces: make([]traceutil.ProcessedTrace, 0, numChunks), ContainerID: containerID}
+	return Input{Traces: make([]traceutil.ProcessedTrace, 0, numChunks), ContainerID: containerID, ProcessTags: processTags}
 }
 
 // Add applies the given input to the concentrator.
 func (c *Concentrator) Add(t Input) {
-	for _, trace := range t.Traces {
-		c.addNow(&trace, t.ContainerID, t.ContainerTags)
+	tags := infraTags{
+		containerID:     t.ContainerID,
+		containerTags:   t.ContainerTags,
+		processTagsHash: processTagsHash(t.ProcessTags),
+		processTags:     t.ProcessTags,
 	}
+	for _, trace := range t.Traces {
+		c.addNow(&trace, tags)
+	}
+}
+
+type infraTags struct {
+	containerID     string
+	containerTags   []string
+	processTagsHash uint64
+	processTags     string
 }
 
 // addNow adds the given input into the concentrator.
 // Callers must guard!
-func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string, containerTags []string) {
+func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, tags infraTags) {
 	if !c.cidStats {
-		containerID = ""
+		tags.containerID = ""
+	}
+	if !c.processStats {
+		tags.processTagsHash = 0
+		tags.processTags = ""
 	}
 	hostname := pt.TracerHostname
 	if hostname == "" {
@@ -146,17 +167,18 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string, 
 	}
 	weight := weight(pt.Root)
 	aggKey := PayloadAggregationKey{
-		Env:          env,
-		Hostname:     hostname,
-		Version:      pt.AppVersion,
-		ContainerID:  containerID,
-		GitCommitSha: pt.GitCommitSha,
-		ImageTag:     pt.ImageTag,
+		Env:             env,
+		Hostname:        hostname,
+		Version:         pt.AppVersion,
+		ContainerID:     tags.containerID,
+		GitCommitSha:    pt.GitCommitSha,
+		ImageTag:        pt.ImageTag,
+		ProcessTagsHash: tags.processTagsHash,
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		statSpan, ok := c.spanConcentrator.NewStatSpanFromPB(s, c.peerTagKeys)
 		if ok {
-			c.spanConcentrator.addSpan(statSpan, aggKey, containerID, containerTags, pt.TraceChunk.Origin, weight)
+			c.spanConcentrator.addSpan(statSpan, aggKey, tags, pt.TraceChunk.Origin, weight)
 		}
 	}
 }

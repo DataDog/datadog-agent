@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package middleware contains a check wrapper helper
 package middleware
 
 import (

@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
@@ -49,6 +49,7 @@ var (
 		"CONFIG_INIT_ON_FREE_DEFAULT_ON",
 		"CONFIG_IOMMU_DEFAULT_DMA_STRICT",
 		"CONFIG_KFENCE",
+		"CONFIG_HAVE_ARCH_KFENCE",
 		"CONFIG_KFENCE_SAMPLE_INTERVAL",
 		"CONFIG_RANDOMIZE_KSTACK_OFFSET_DEFAULT",
 		"CONFIG_CC_STACKPROTECTOR",
@@ -142,6 +143,7 @@ var (
 		// various kernel behavior
 		"CONFIG_KEXEC",
 		"CONFIG_KEXEC_SIG",
+		"CONFIG_KEXEC_SIG_FORCE",
 		"CONFIG_HIBERNATION",
 		"CONFIG_BINFMT_MISC",
 		"CONFIG_LEGACY_PTYS",

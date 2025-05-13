@@ -20,7 +20,7 @@ import (
 
 const (
 	emrInjectorVersion   = "0.35.0-1"
-	emrJavaTracerVersion = "1.46.1-1"
+	emrJavaTracerVersion = "1.48.0-1"
 	emrAgentVersion      = "7.63.3-1"
 	hadoopLogFolder      = "/var/log/hadoop-yarn/containers/"
 )
@@ -209,6 +209,7 @@ func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 
 func enableEmrLogs(s *common.Setup) {
 	s.Config.DatadogYAML.LogsEnabled = true
+	loadLogProcessingRules(s)
 	s.Span.SetTag("host_tag_set.logs_enabled", "true")
 	// Add dd-agent user to yarn group so that it gets read permission to the hadoop-yarn logs folder
 	s.DdAgentAdditionalGroups = append(s.DdAgentAdditionalGroups, "yarn")
@@ -221,7 +222,7 @@ func enableEmrLogs(s *common.Setup) {
 			Source:  "hadoop-yarn",
 			Service: "emr-logs",
 			LogProcessingRules: []common.LogProcessingRule{
-				{Type: "multi_line", Name: "dataframe_show", Pattern: "`\\|[\\sa-zA-Z-_.\\|]+\\|$`gm"},
+				{Type: "multi_line", Name: "logger_dataframe_show", Pattern: "(^\\+[-+]+\\n(\\|.*\\n)+\\+[-+]+$)|^(ERROR|INFO|DEBUG|WARN|CRITICAL|NOTSET|Traceback)"},
 			},
 		},
 		{

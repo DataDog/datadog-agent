@@ -62,7 +62,7 @@ func (v *linuxStatusSuite) TestFIPSProxyStatus() {
 // This test asserts the presence of metadata sent by Python checks in the status subcommand output.
 func (v *linuxStatusSuite) TestChecksMetadataUnix() {
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(
-		agentparams.WithFile("/etc/datadog-agent/conf.d/custom_check.yaml", string(customCheckYaml), true),
+		agentparams.WithIntegration("custom_check.d", string(customCheckYaml)),
 		agentparams.WithFile("/etc/datadog-agent/checks.d/custom_check.py", string(customCheckPython), true),
 	)))
 

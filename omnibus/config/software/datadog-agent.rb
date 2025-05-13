@@ -91,7 +91,7 @@ build do
       do_windows_sysprobe = "--windows-sysprobe"
     end
     command "dda inv -- -e rtloader.clean"
-    command "dda inv -- -e rtloader.make --install-prefix \"#{windows_safe_path(python_3_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\\\"\"", :env => env
+    command "dda inv -- -e rtloader.make --install-prefix \"#{windows_safe_path(python_3_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\\\" \\\"-DCMAKE_BUILD_TYPE=RelWithDebInfo\\\"\"", :env => env
     command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
     command "dda inv -- -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
     command "dda inv -- -e systray.build --major-version #{major_version_arg}", env: env
@@ -106,10 +106,6 @@ build do
         include_sds = "--include-sds" # we only support SDS on Linux targets for now
     end
     command "dda inv -- -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
-
-    if heroku_target?
-      command "dda inv -- -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent --bundle agent", env: env
-    end
   end
 
   if osx_target?
@@ -161,17 +157,17 @@ build do
   end
 
   # System-probe
-  if sysprobe_enabled? || (windows_target? && do_windows_sysprobe != "")
-    if windows_target?
-      command "invoke -e system-probe.build #{fips_args}", env: env
-    elsif linux_target?
+  if sysprobe_enabled? || osx_target? || (windows_target? && do_windows_sysprobe != "")
+    if linux_target?
       command "invoke -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: env
       command "!(objdump -p ./bin/system-probe/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])')"
+    else
+      command "invoke -e system-probe.build #{fips_args}", env: env
     end
 
     if windows_target?
       copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
-    elsif linux_target?
+    else
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
     end
 
@@ -251,6 +247,16 @@ build do
         dest: "#{conf_dir}/com.datadoghq.agent.plist.example",
         mode: 0644,
         vars: { install_dir: install_dir }
+
+    erb source: "launchd.sysprobe.plist.example.erb",
+        dest: "#{conf_dir}/com.datadoghq.sysprobe.plist.example",
+        mode: 0644,
+        vars: {
+          # Due to how install_dir actually matches where the Agent is built rather than
+          # its actual final destination, we hardcode here the currently sole supported install location
+          install_dir: "/opt/datadog-agent",
+          conf_dir: "/opt/datadog-agent/etc",
+        }
 
     erb source: "gui.launchd.plist.erb",
         dest: "#{conf_dir}/com.datadoghq.gui.plist.example",

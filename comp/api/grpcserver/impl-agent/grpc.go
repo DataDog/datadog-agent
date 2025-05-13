@@ -16,15 +16,16 @@ import (
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -52,17 +53,18 @@ type Requires struct {
 	SecretResolver      secrets.Component
 	RcService           option.Option[rcservice.Component]
 	RcServiceMRF        option.Option[rcservicemrf.Component]
-	AuthToken           authtoken.Component
+	IPC                 ipc.Component
 	Tagger              tagger.Component
 	Cfg                 config.Component
 	AutoConfig          autodiscovery.Component
 	WorkloadMeta        workloadmeta.Component
 	Collector           option.Option[collector.Component]
 	RemoteAgentRegistry remoteagentregistry.Component
+	Telemetry           telemetry.Component
 }
 
 type server struct {
-	authToken           authtoken.Component
+	IPC                 ipc.Component
 	taggerComp          tagger.Component
 	workloadMeta        workloadmeta.Component
 	configService       option.Option[rcservice.Component]
@@ -73,6 +75,7 @@ type server struct {
 	remoteAgentRegistry remoteagentregistry.Component
 	autodiscovery       autodiscovery.Component
 	configComp          config.Component
+	telemetry           telemetry.Component
 }
 
 func (s *server) BuildServer() http.Handler {
@@ -81,7 +84,7 @@ func (s *server) BuildServer() http.Handler {
 	maxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
 	opts := []googleGrpc.ServerOption{
-		googleGrpc.Creds(credentials.NewTLS(s.authToken.GetTLSServerConfig())),
+		googleGrpc.Creds(credentials.NewTLS(s.IPC.GetTLSServerConfig())),
 		googleGrpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
 		googleGrpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
 		googleGrpc.MaxRecvMsgSize(maxMessageSize),
@@ -95,7 +98,7 @@ func (s *server) BuildServer() http.Handler {
 	pb.RegisterAgentSecureServer(grpcServer, &serverSecure{
 		configService:    s.configService,
 		configServiceMRF: s.configServiceMRF,
-		taggerServer:     taggerserver.NewServer(s.taggerComp, maxEventSize, s.configComp.GetInt("remote_tagger.max_concurrent_sync")),
+		taggerServer:     taggerserver.NewServer(s.taggerComp, s.telemetry, maxEventSize, s.configComp.GetInt("remote_tagger.max_concurrent_sync")),
 		taggerComp:       s.taggerComp,
 		// TODO(components): decide if workloadmetaServer should be componentized itself
 		workloadmetaServer:  workloadmetaServer.NewServer(s.workloadMeta),
@@ -111,7 +114,7 @@ func (s *server) BuildServer() http.Handler {
 }
 
 func (s *server) BuildGatewayMux(cmdAddr string) (http.Handler, error) {
-	dopts := []googleGrpc.DialOption{googleGrpc.WithTransportCredentials(credentials.NewTLS(s.authToken.GetTLSClientConfig()))}
+	dopts := []googleGrpc.DialOption{googleGrpc.WithTransportCredentials(credentials.NewTLS(s.IPC.GetTLSClientConfig()))}
 	ctx := context.Background()
 	gwmux := runtime.NewServeMux()
 	err := pb.RegisterAgentHandlerFromEndpoint(
@@ -138,7 +141,7 @@ type Provides struct {
 func NewComponent(reqs Requires) (Provides, error) {
 	provides := Provides{
 		Comp: &server{
-			authToken:           reqs.AuthToken,
+			IPC:                 reqs.IPC,
 			configService:       reqs.RcService,
 			configServiceMRF:    reqs.RcServiceMRF,
 			taggerComp:          reqs.Tagger,
@@ -149,6 +152,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			remoteAgentRegistry: reqs.RemoteAgentRegistry,
 			autodiscovery:       reqs.AutoConfig,
 			configComp:          reqs.Cfg,
+			telemetry:           reqs.Telemetry,
 		},
 	}
 	return provides, nil

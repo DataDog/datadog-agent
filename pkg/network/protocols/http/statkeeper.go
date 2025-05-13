@@ -106,7 +106,6 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 
 // Close closes the stat keeper.
 func (h *StatKeeper) Close() {
-	h.oversizedLogLimit.Close()
 }
 
 func (h *StatKeeper) add(tx Transaction) {

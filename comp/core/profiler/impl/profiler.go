@@ -19,8 +19,6 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	profilercomp "github.com/DataDog/datadog-agent/comp/core/profiler/def"
@@ -29,6 +27,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 )
 
 // Requires defines the dependencies for the profiler component

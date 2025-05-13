@@ -27,6 +27,7 @@ Packages installed:
 {{- end }}
 
 {{ with index .Packages.States "datadog-apm-inject" -}}
+{{- if ne .Stable "" -}}
 APM SSI is installed. Instrumentation status:
 {{- if eq $.ApmInjectionStatus.HostInstrumented true }}
     {{ greenText "●" }} Host: Instrumented
@@ -39,5 +40,6 @@ APM SSI is installed. Instrumentation status:
     {{ greenText "●" }} Docker: Instrumented
 {{- else }}
     {{ redText "●" }} Docker: Not instrumented
+{{- end -}}
 {{- end -}}
 {{- end }}

@@ -78,6 +78,7 @@ type Controller struct {
 
 // NewController returns a new workload autoscaling controller
 func NewController(
+	clock clock.Clock,
 	clusterID string,
 	eventRecorder record.EventRecorder,
 	restMapper apimeta.RESTMapper,
@@ -92,7 +93,7 @@ func NewController(
 ) (*Controller, error) {
 	c := &Controller{
 		clusterID:         clusterID,
-		clock:             clock.RealClock{},
+		clock:             clock,
 		eventRecorder:     eventRecorder,
 		localSender:       localSender,
 		isFallbackEnabled: false, // keep fallback disabled by default
@@ -503,9 +504,10 @@ func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model
 
 	// Check if horizontal scaling is disabled; if disabled, always use main values as source
 	if podAutoscalerInternal.Spec().ApplyPolicy != nil {
-		scaleUpStrategy := podAutoscalerInternal.Spec().ApplyPolicy.ScaleUp
-		scaleDownStrategy := podAutoscalerInternal.Spec().ApplyPolicy.ScaleDown
-		if (scaleUpStrategy != nil && *scaleUpStrategy.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect) && (scaleDownStrategy != nil && *scaleDownStrategy.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect) {
+		scaleUpPolicy := podAutoscalerInternal.Spec().ApplyPolicy.ScaleUp
+		scaleDownPolicy := podAutoscalerInternal.Spec().ApplyPolicy.ScaleDown
+
+		if (scaleUpPolicy != nil && scaleUpPolicy.Strategy != nil && *scaleUpPolicy.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect) && (scaleDownPolicy != nil && scaleDownPolicy.Strategy != nil && *scaleDownPolicy.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect) {
 			return pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource), activeVerticalSource
 		}
 	}

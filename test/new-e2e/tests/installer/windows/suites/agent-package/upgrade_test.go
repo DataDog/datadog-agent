@@ -7,6 +7,7 @@ package agenttests
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -42,10 +43,10 @@ func (s *testAgentUpgradeSuite) TestUpgradeMSI() {
 	s.setAgentConfig()
 
 	s.installPreviousAgentVersion()
-	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().Version())
+	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
 	s.installCurrentAgentVersion()
-	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 }
 
 // TestUpgradeAgentPackage tests that the daemon can upgrade the Agent
@@ -57,9 +58,35 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 
 	// Act
 	s.MustStartExperimentCurrentVersion()
-	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
 	s.Installer().PromoteExperiment(consts.AgentPackage)
-	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+
+	// Assert
+}
+
+// TestUpgradeAgentPackageAfterRollback tests that upgrade works after an initial upgrade failed.
+//
+// This is a regression test for WINA-1469, where the Agent account password and
+// password from the LSA did not match after rollback to a version before LSA support was added.
+func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageAfterRollback() {
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+
+	// Act
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+
+	// stop experiment to trigger rollback
+	s.Installer().StopExperiment(consts.AgentPackage)
+	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
+
+	// Try upgrade again
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
 }
@@ -75,15 +102,15 @@ func (s *testAgentUpgradeSuite) TestRunAgentMSIAfterExperiment() {
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
 	s.MustStartExperimentPreviousVersion()
-	s.AssertSuccessfulAgentStartExperiment(s.StableAgentVersion().Version())
+	s.AssertSuccessfulAgentStartExperiment(s.StableAgentVersion().PackageVersion())
 	s.Installer().PromoteExperiment(consts.AgentPackage)
-	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().Version())
+	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
 	// Act
 	s.installCurrentAgentVersion(
 		installerwindows.WithMSILogFile("install-current-version-again.log"),
 	)
-	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 }
 
 // TestUpgradeAgentPackage tests that the daemon can downgrade the Agent
@@ -95,9 +122,9 @@ func (s *testAgentUpgradeSuite) TestDowngradeAgentPackage() {
 
 	// Act
 	s.MustStartExperimentPreviousVersion()
-	s.AssertSuccessfulAgentStartExperiment(s.StableAgentVersion().Version())
+	s.AssertSuccessfulAgentStartExperiment(s.StableAgentVersion().PackageVersion())
 	s.Installer().PromoteExperiment(consts.AgentPackage)
-	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().Version())
+	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
 	// Assert
 }
@@ -111,9 +138,9 @@ func (s *testAgentUpgradeSuite) TestStopExperiment() {
 
 	// Act
 	s.MustStartExperimentCurrentVersion()
-	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
 	s.Installer().StopExperiment(consts.AgentPackage)
-	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
+	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
@@ -133,14 +160,16 @@ func (s *testAgentUpgradeSuite) TestExperimentForNonExistingPackageFails() {
 	// Act
 	_, err := s.Installer().StartExperiment(consts.AgentPackage, "unknown-version")
 	s.Require().ErrorContains(err, "could not get package")
-	s.Installer().StopExperiment(consts.AgentPackage)
-	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().GetNumberAndPre())
 
 	// Assert
+	s.assertDaemonStaysRunning(func() {
+		s.Installer().StopExperiment(consts.AgentPackage)
+		s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().PackageVersion())
+	})
 	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(consts.BinaryPath).
 		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, s.CurrentAgentVersion().GetNumberAndPre())
+			s.Require().Contains(version, s.CurrentAgentVersion().Version())
 		})
 }
 
@@ -154,14 +183,16 @@ func (s *testAgentUpgradeSuite) TestExperimentCurrentVersionFails() {
 	// Act
 	_, err := s.StartExperimentCurrentVersion()
 	s.Require().ErrorContains(err, "cannot set new experiment to the same version as the current experiment")
-	s.Installer().StopExperiment(consts.AgentPackage)
-	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().GetNumberAndPre())
 
 	// Assert
+	s.assertDaemonStaysRunning(func() {
+		s.Installer().StopExperiment(consts.AgentPackage)
+		s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().PackageVersion())
+	})
 	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(consts.BinaryPath).
 		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, s.CurrentAgentVersion().GetNumberAndPre())
+			s.Require().Contains(version, s.CurrentAgentVersion().Version())
 		})
 }
 
@@ -171,14 +202,16 @@ func (s *testAgentUpgradeSuite) TestStopWithoutExperiment() {
 	s.installCurrentAgentVersion()
 
 	// Act
-	s.Installer().StopExperiment(consts.AgentPackage)
+	s.assertDaemonStaysRunning(func() {
+		s.Installer().StopExperiment(consts.AgentPackage)
+		s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().PackageVersion())
+	})
 
 	// Assert
-	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().GetNumberAndPre())
 	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(consts.BinaryPath).
 		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, s.CurrentAgentVersion().GetNumberAndPre())
+			s.Require().Contains(version, s.CurrentAgentVersion().Version())
 		})
 }
 
@@ -191,7 +224,7 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDies() {
 
 	// Act
 	s.MustStartExperimentCurrentVersion()
-	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
 	windowscommon.StopService(s.Env().RemoteHost, consts.ServiceName)
 
 	// Assert
@@ -204,8 +237,10 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDies() {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		})
 	// backend will send stop experiment now
-	s.Installer().StopExperiment(consts.AgentPackage)
-	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
+	s.assertDaemonStaysRunning(func() {
+		s.Installer().StopExperiment(consts.AgentPackage)
+		s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
+	})
 }
 
 // TestRevertsExperimentWhenServiceDies tests that the watchdog will revert
@@ -219,7 +254,7 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 
 	// Act
 	s.MustStartExperimentCurrentVersion()
-	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
 	err := s.waitForInstallerVersion(s.StableAgentVersion().Version())
@@ -234,8 +269,10 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		})
 	// backend will send stop experiment now
-	s.Installer().StopExperiment(consts.AgentPackage)
-	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
+	s.assertDaemonStaysRunning(func() {
+		s.Installer().StopExperiment(consts.AgentPackage)
+		s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
+	})
 }
 
 // TestUpgradeWithAgentUser tests that the agent user is preserved across remote upgrades.
@@ -259,9 +296,9 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithAgentUser() {
 
 	// Act
 	s.MustStartExperimentCurrentVersion()
-	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
 	s.Installer().PromoteExperiment(consts.AgentPackage)
-	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
@@ -281,8 +318,7 @@ func (s *testAgentUpgradeSuite) setWatchdogTimeout(timeout int) {
 func (s *testAgentUpgradeSuite) installPreviousAgentVersion(opts ...installerwindows.MsiOption) {
 	agentVersion := s.StableAgentVersion().Version()
 	options := []installerwindows.MsiOption{
-		installerwindows.WithOption(installerwindows.WithURLFromPipeline("58948204")),
-		installerwindows.WithMSIDevEnvOverrides("PREVIOUS_AGENT"),
+		installerwindows.WithOption(installerwindows.WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-previous-version.log"),
 	}
 	options = append(options, opts...)
@@ -298,10 +334,10 @@ func (s *testAgentUpgradeSuite) installPreviousAgentVersion(opts ...installerwin
 }
 
 func (s *testAgentUpgradeSuite) installCurrentAgentVersion(opts ...installerwindows.MsiOption) {
-	agentVersion := s.CurrentAgentVersion().GetNumberAndPre()
+	agentVersion := s.CurrentAgentVersion().Version()
 
 	options := []installerwindows.MsiOption{
-		installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"),
+		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-current-version.log"),
 	}
 	options = append(options, opts...)
@@ -350,4 +386,85 @@ func (s *testAgentUpgradeSuite) waitForInstallerVersionWithBackoff(version strin
 		}
 		return nil
 	}, b)
+}
+
+// assertDaemonStaysRunning asserts that the daemon service PID is the same before and after the function is called.
+//
+// For example, used to verify that "stop-experiment" does not reinstall stable when it is already installed.
+func (s *testAgentUpgradeSuite) assertDaemonStaysRunning(f func()) {
+	s.T().Helper()
+
+	originalPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
+	s.Require().NoError(err)
+	s.Require().Greater(originalPID, 0)
+
+	f()
+
+	newPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
+	s.Require().NoError(err)
+	s.Require().Equal(originalPID, newPID, "daemon should not have been restarted")
+}
+
+type testAgentUpgradeFromGASuite struct {
+	testAgentUpgradeSuite
+}
+
+// TestAgentUpgradesFromGA tests that we can upgrade from GA release (7.65.0) to current
+//
+// It embeds testAgentUpgradeSuite so it can run any of the upgrade tests.
+func TestAgentUpgradesFromGA(t *testing.T) {
+	s := &testAgentUpgradeFromGASuite{}
+	s.testAgentUpgradeSuite.BaseSuite.CreateStableAgent = s.createStableAgent
+	e2e.Run(t, s,
+		e2e.WithProvisioner(
+			winawshost.ProvisionerNoAgentNoFakeIntake(),
+		),
+	)
+}
+
+// createStableAgent provides AgentVersionManager for the 7.65.0 Agent release to the suite
+func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.AgentVersionManager, error) {
+	previousVersion := "7.65.0-rc.10"
+	previousVersionPackage := "7.65.0-rc.10-1"
+
+	// Get previous version OCI package
+	previousOCI, err := installerwindows.NewPackageConfig(
+		installerwindows.WithName(consts.AgentPackage),
+		installerwindows.WithVersion(previousVersion),
+		installerwindows.WithRegistry("install.datad0g.com"),
+		installerwindows.WithDevEnvOverrides("STABLE_AGENT"),
+	)
+	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
+
+	// Get previous version MSI package
+	url, err := windowsagent.GetChannelURL("beta")
+	s.Require().NoError(err)
+	previousMSI, err := windowsagent.NewPackage(
+		windowsagent.WithVersion(previousVersionPackage),
+		windowsagent.WithURLFromInstallersJSON(url, previousVersionPackage),
+		windowsagent.WithDevEnvOverrides("STABLE_AGENT"),
+	)
+	s.Require().NoError(err, "Failed to lookup MSI for previous agent version")
+
+	// Allow override of version and version package via environment variables
+	// if not running in the CI, to reduce risk of accidentally using the wrong version in the CI.
+	if os.Getenv("CI") == "" {
+		if val := os.Getenv("STABLE_AGENT_VERSION"); val != "" {
+			previousVersion = val
+		}
+		if val := os.Getenv("STABLE_AGENT_VERSION_PACKAGE"); val != "" {
+			previousVersionPackage = val
+		}
+	}
+
+	// Setup previous Agent artifacts
+	agent, err := installerwindows.NewAgentVersionManager(
+		previousVersion,
+		previousVersionPackage,
+		previousOCI,
+		previousMSI,
+	)
+	s.Require().NoError(err, "Stable agent version was in an incorrect format")
+
+	return agent, nil
 }

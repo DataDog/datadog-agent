@@ -6,17 +6,18 @@
 package process
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -43,6 +44,9 @@ func TestWindowsTestSuite(t *testing.T) {
 
 func (s *windowsTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	// Start an antivirus scan to use as process for testing
 	s.Env().RemoteHost.MustExecute("Start-MpScan -ScanType FullScan -AsJob")
 	// Install chocolatey - https://chocolatey.org/install
@@ -80,7 +84,8 @@ func (s *windowsTestSuite) TestAPIKeyRefresh() {
 	)
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertAPIKey(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().Agent.Client, s.Env().FakeIntake.Client(), false)
+		assertAPIKeyStatus(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().Agent.Client, false)
+		assertLastPayloadAPIKey(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().FakeIntake.Client())
 	}, 2*time.Minute, 10*time.Second)
 
 	// API key refresh
@@ -89,7 +94,70 @@ func (s *windowsTestSuite) TestAPIKeyRefresh() {
 	require.Contains(t, secretRefreshOutput, "api_key")
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertAPIKey(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().Agent.Client, s.Env().FakeIntake.Client(), false)
+		assertAPIKeyStatus(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().Agent.Client, false)
+		assertLastPayloadAPIKey(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().FakeIntake.Client())
+	}, 2*time.Minute, 10*time.Second)
+}
+
+func (s *windowsTestSuite) TestAPIKeyRefreshAdditionalEndpoints() {
+	t := s.T()
+
+	fakeIntakeURL := s.Env().FakeIntake.Client().URL()
+
+	additionalEndpoint := fmt.Sprintf(`  additional_endpoints:
+    "%s":
+      - ENC[api_key_additional]`, fakeIntakeURL)
+	config := processAgentWinRefreshStr + additionalEndpoint
+
+	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, `C:\TestFolder`)
+	apiKey := "apikeyabcde"
+	apiKeyAdditional := "apikey12345"
+	secretClient.SetSecret("api_key", apiKey)
+	secretClient.SetSecret("api_key_additional", apiKeyAdditional)
+
+	agentParams := []func(*agentparams.Params) error{
+		agentparams.WithSkipAPIKeyInConfig(),
+		agentparams.WithAgentConfig(config),
+	}
+	agentParams = append(agentParams, secretsutils.WithWindowsSetupScript("C:/TestFolder/wrapper.bat", true)...)
+
+	s.UpdateEnv(
+		awshost.Provisioner(
+			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+			awshost.WithAgentOptions(
+				agentParams...,
+			),
+		),
+	)
+
+	fakeIntakeClient := s.Env().FakeIntake.Client()
+	agentClient := s.Env().Agent.Client
+
+	fakeIntakeClient.FlushServerAndResetAggregators()
+
+	// Assert that the status and payloads have the correct API key
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assertAPIKeyStatus(collect, apiKey, agentClient, false)
+		assertAPIKeyStatus(collect, apiKeyAdditional, agentClient, false)
+		assertAllPayloadsAPIKeys(collect, []string{apiKey, apiKeyAdditional}, fakeIntakeClient)
+	}, 2*time.Minute, 10*time.Second)
+
+	// Refresh secrets in the agent
+	apiKey = "apikeyfghijk"
+	apiKeyAdditional = "apikey67890"
+	secretClient.SetSecret("api_key", apiKey)
+	secretClient.SetSecret("api_key_additional", apiKeyAdditional)
+	secretRefreshOutput := s.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
+	require.Contains(t, secretRefreshOutput, "api_key")
+	require.Contains(t, secretRefreshOutput, "api_key_additional")
+
+	fakeIntakeClient.FlushServerAndResetAggregators()
+
+	// Assert that the status and payloads have the correct API key
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assertAPIKeyStatus(collect, apiKey, agentClient, false)
+		assertAPIKeyStatus(collect, apiKeyAdditional, agentClient, false)
+		assertAllPayloadsAPIKeys(collect, []string{apiKey, apiKeyAdditional}, fakeIntakeClient)
 	}, 2*time.Minute, 10*time.Second)
 }
 
@@ -156,8 +224,6 @@ func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 
 func (s *windowsTestSuite) TestProcessCheckIO() {
 	t := s.T()
-	// https://datadoghq.atlassian.net/browse/CTK-3960
-	flake.Mark(t)
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
@@ -197,10 +263,6 @@ func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
 }
 
 func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
-	// MsMpEng.exe process missing IO stats, agent process does not always have CPU stats populated as it is restarted multiple times during the test suite run
-	// Investigation & fix tracked in https://datadoghq.atlassian.net/browse/PROCS-3757
-	flake.Mark(s.T())
-
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),

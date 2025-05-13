@@ -154,7 +154,7 @@ func (suite *PodTestSuite) SetupSuite() {
 		sender:    sender,
 		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(mockConfig, mockStore, fakeTagger)),
 		hostName:  testHostName,
-		config:    oconfig.NewDefaultOrchestratorConfig(),
+		config:    oconfig.NewDefaultOrchestratorConfig(nil),
 		tagger:    fakeTagger,
 	}
 }

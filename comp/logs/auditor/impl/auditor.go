@@ -14,12 +14,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/status/health"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 // DefaultRegistryFilename is the default registry filename
@@ -49,6 +49,7 @@ type JSONRegistry struct {
 // A registryAuditor is storing the Auditor information using a registry.
 type registryAuditor struct {
 	health             *health.Handle
+	healthRegistrar    healthdef.Component
 	chansMutex         sync.Mutex
 	inputChan          chan *message.Payload
 	registry           map[string]*RegistryEntry
@@ -67,6 +68,7 @@ type registryAuditor struct {
 type Dependencies struct {
 	Log    log.Component
 	Config config.Component
+	Health healthdef.Component
 }
 
 // Provides contains the auditor component
@@ -89,6 +91,7 @@ func newAuditor(deps Dependencies) *registryAuditor {
 		entryTTL:           ttl,
 		messageChannelSize: messageChannelSize,
 		log:                deps.Log,
+		healthRegistrar:    deps.Health,
 	}
 
 	return registryAuditor
@@ -97,7 +100,6 @@ func newAuditor(deps Dependencies) *registryAuditor {
 // NewProvides creates a new auditor component
 func NewProvides(deps Dependencies) Provides {
 	auditorImpl := newAuditor(deps)
-
 	return Provides{
 		Comp: auditorImpl,
 	}
@@ -105,8 +107,7 @@ func NewProvides(deps Dependencies) Provides {
 
 // Start starts the Auditor
 func (a *registryAuditor) Start() {
-	health := health.RegisterLiveness("logs-agent")
-	a.health = health
+	a.health = a.healthRegistrar.RegisterLiveness("logs-agent")
 
 	a.createChannels()
 	a.registry = a.recoverRegistry()

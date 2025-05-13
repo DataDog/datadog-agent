@@ -132,6 +132,8 @@ func TestOnDemandChdir(t *testing.T) {
 }
 
 func TestOnDemandMprotect(t *testing.T) {
+	t.Skip("skipping mprotect test, because mprotect are too frequent globally to not trip the rate limiter")
+
 	SkipIfNotAvailable(t)
 
 	onDemands := []rules.OnDemandHookPoint{
@@ -153,7 +155,7 @@ func TestOnDemandMprotect(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_mprotect",
-			Expression: `ondemand.name == "security_file_mprotect" && (ondemand.arg3.uint & (VM_READ|VM_WRITE)) == (VM_READ|VM_WRITE) && process.file.name == "testsuite"`,
+			Expression: `ondemand.name == "security_file_mprotect" && (ondemand.arg3.uint & (PROT_READ|PROT_WRITE)) == (PROT_READ|PROT_WRITE) && process.file.name == "testsuite"`,
 		},
 	}
 
@@ -173,6 +175,11 @@ func TestOnDemandMprotect(t *testing.T) {
 		if err = unix.Mprotect(data, unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC); err != nil {
 			return fmt.Errorf("couldn't mprotect segment: %w", err)
 		}
+
+		if err := unix.Munmap(data); err != nil {
+			return fmt.Errorf("couldn't unmap segment: %w", err)
+		}
+
 		return nil
 	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "ondemand", event.GetType(), "wrong event type")

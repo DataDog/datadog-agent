@@ -19,7 +19,15 @@ processors:
 service:
   telemetry:
     metrics:
-      address: "localhost:1234"
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: "localhost"
+                port: 1234
+                without_scope_info: true
+                without_type_suffix: true
+                without_units: true
   extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined]
   pipelines:
       traces:

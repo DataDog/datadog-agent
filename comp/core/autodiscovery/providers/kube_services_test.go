@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -247,6 +248,7 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 
 			provider := KubeServiceConfigProvider{
 				telemetryStore: telemetryStore,
+				upToDate:       atomic.NewBool(false),
 			}
 			cfgs, _ := provider.parseServiceAnnotations([]*v1.Service{tc.service}, cfg)
 			assert.EqualValues(t, tc.expectedOut, cfgs)
@@ -337,7 +339,7 @@ func TestInvalidateIfChanged(t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			ctx := context.Background()
-			provider := &KubeServiceConfigProvider{upToDate: true}
+			provider := &KubeServiceConfigProvider{upToDate: atomic.NewBool(true)}
 			provider.invalidateIfChanged(tc.old, tc.obj)
 
 			upToDate, err := provider.IsUpToDate(ctx)
@@ -475,6 +477,7 @@ func TestGetConfigErrors_KubeServices(t *testing.T) {
 				lister:         lister,
 				configErrors:   test.currentErrors,
 				telemetryStore: telemetryStore,
+				upToDate:       atomic.NewBool(false),
 			}
 
 			configs, err := provider.Collect(context.TODO())
