@@ -7,6 +7,8 @@
 
 package network
 
+import "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+
 // storeUSMStats is a generic function to store USM stats for all clients.
 func storeUSMStats[K, S comparable](
 	allStats map[K]S,
@@ -45,4 +47,17 @@ func storeUSMStats[K, S comparable](
 			}
 		}
 	}
+}
+
+// storeHTTPStats stores the latest HTTP stats for all clients
+func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats) {
+	storeUSMStats[http.Key, *http.RequestStats](
+		allStats,
+		ns.clients,
+		func(c *client) map[http.Key]*http.RequestStats { return c.httpStatsDelta },
+		func(c *client, m map[http.Key]*http.RequestStats) { c.httpStatsDelta = m },
+		func(prev, new *http.RequestStats) { prev.CombineWith(new) },
+		ns.maxHTTPStats,
+		stateTelemetry.httpStatsDropped.Inc,
+	)
 }
