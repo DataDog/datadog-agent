@@ -622,7 +622,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 	ctx.ContextMap = contextMap
 
 	nameMeta := detector.GetServiceName(lang, ctx)
-	apmInstrumentation := apm.Detect(lang, ctx)
+	apmInstrumentation := apm.Detect(lang, ctx, firstMetadata)
 
 	name := nameMeta.DDService
 	if name == "" {
