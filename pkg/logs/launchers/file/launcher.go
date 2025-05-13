@@ -10,7 +10,6 @@ import (
 	"context"
 	"regexp"
 	"slices"
-	"sync"
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -42,7 +41,6 @@ type Launcher struct {
 	addedSources        chan *sources.LogSource
 	removedSources      chan *sources.LogSource
 	activeSources       []*sources.LogSource
-	activeSourcesMutex  sync.Mutex
 	tailingLimit        int
 	fileProvider        *fileprovider.FileProvider
 	tailers             *tailers.TailerContainer[*tailer.Tailer]
@@ -54,15 +52,14 @@ type Launcher struct {
 	// set to true if we want to use `ContainersLogsDir` to validate that a new
 	// pod log file is being attached to the correct containerID.
 	// Feature flag defaulting to false, use `logs_config.validate_pod_container_id`.
-	validatePodContainerID  bool
-	scanPeriod              time.Duration
-	flarecontroller         *flareController.FlareController
-	tagger                  tagger.Component
-	filesChan               chan []*tailer.File
-	addedSourceTailers      []*tailer.File
-	addedSourceTailersMutex sync.Mutex
-	ctx                     context.Context
-	cancel                  context.CancelFunc
+	validatePodContainerID bool
+	scanPeriod             time.Duration
+	flarecontroller        *flareController.FlareController
+	tagger                 tagger.Component
+	filesChan              chan []*tailer.File
+	addedSourceTailers     []*tailer.File
+	ctx                    context.Context
+	cancel                 context.CancelFunc
 }
 
 // NewLauncher returns a new launcher.
@@ -174,9 +171,6 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 	tailersFilesCopy := make([]*tailer.File, len(files))
 	copy(tailersFilesCopy, files)
 
-	s.addedSourceTailersMutex.Lock()
-	defer s.addedSourceTailersMutex.Unlock()
-
 	// Union so scan doesn't remove files added by addSource but not yet found by FilesToTail
 	tailersFilesCopy = append(tailersFilesCopy, s.addedSourceTailers...)
 	s.addedSourceTailers = s.addedSourceTailers[:0]
@@ -281,9 +275,6 @@ func (s *Launcher) cleanUpRotatedTailers() {
 
 // addSource keeps track of the new source and launch new tailers for this source.
 func (s *Launcher) addSource(source *sources.LogSource) {
-	s.activeSourcesMutex.Lock()
-	defer s.activeSourcesMutex.Unlock()
-
 	s.activeSources = append(s.activeSources, source)
 	s.launchTailers(source)
 }
@@ -311,9 +302,6 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		log.Warnf("Could not collect files: %v", err)
 		return
 	}
-
-	s.addedSourceTailersMutex.Lock()
-	defer s.addedSourceTailersMutex.Unlock()
 
 	for _, file := range files {
 		if s.tailers.Count() >= s.tailingLimit {
