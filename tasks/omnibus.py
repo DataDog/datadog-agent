@@ -395,12 +395,12 @@ def manifest(
     )
 
 
-@task
+@task()
 def build_repackaged_agent(ctx, log_level="info"):
     """
     Create an Agent package by using an existing Agent package as a base and rebuilding the Agent binaries with the local checkout.
 
-    Currently only works for debian packages.
+    Currently only expected to work for debian packages, and requires the `dpkg` command to be available.
     """
     # Make sure we let the user know that we're going to overwrite the existing Agent installation if present
     agent_path = "/opt/datadog-agent"
@@ -416,10 +416,12 @@ def build_repackaged_agent(ctx, log_level="info"):
 
         shutil.rmtree("/opt/datadog-agent")
 
+    architecture = ctx.run("dpkg --print-architecture", hide=True).stdout.strip()
+
     # Fetch the Packages file from the nightly repository and get the datadog-agent package with the highest pipeline ID
     # The assumption here is that only nightlies from master are pushed to the nightly repository
     # and that simply picking up the highest pipeline ID will give us what we want without having to query Gitlab.
-    packages_url = "https://apt.datad0g.com/dists/nightly/7/binary-amd64/Packages"
+    packages_url = f"https://apt.datad0g.com/dists/nightly/7/binary-{architecture}/Packages"
     with requests.get(packages_url, stream=True) as response:
         response.raise_for_status()
         lines = response.iter_lines(decode_unicode=True)

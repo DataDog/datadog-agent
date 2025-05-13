@@ -326,12 +326,13 @@ Description: Datadog Monitoring Agent
  This package doesn't have a pipeline ID
 """
         mock_ctx = MockContextRaising(run={})
-        # Set up some broadly catching patterns for commands that are known to run
+        # Set up patterns for commands that are known to run
         patterns = [
             (r'bundle .*', Result()),
             (r'git describe --tags .*', Result('7.67.0-beta.0-1-g4f19118')),
             (r'git .*', Result()),
             (r'aws s3 .*', Result()),
+            (r'dpkg --print-architecture', Result('amd64')),
         ]
         for pattern, result in patterns:
             mock_ctx.set_result_for('run', re.compile(pattern), result)
@@ -347,6 +348,11 @@ Description: Datadog Monitoring Agent
             mock_get.return_value = mock_response
 
             omnibus.build_repackaged_agent(mock_ctx)
+
+            # Verify that the URL we requested matches the architecture we set
+            mock_get.assert_called_once_with(
+                'https://apt.datad0g.com/dists/nightly/7/binary-amd64/Packages', stream=True
+            )
 
             # Verify omnibus_run_task was called with the correct environment variables
             mock_run_task.assert_called_once()
