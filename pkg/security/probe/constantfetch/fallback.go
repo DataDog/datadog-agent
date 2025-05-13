@@ -123,6 +123,7 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameFileFinode:                  getFileFinodeOffset,
 		OffsetNameFileFpath:                   getFileFpathOffset,
 		OffsetNameMountMntID:                  getMountIDOffset,
+		OffsetNameDeviceStructNdNet:           getDeviceStructNdNet,
 	}
 }
 
@@ -968,5 +969,14 @@ func getMountIDOffset(kv *kernel.Version) uint64 {
 		return 268
 	default:
 		return 284
+	}
+}
+
+func getDeviceStructNdNet(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
+		return 1256
+	default:
+		return 1264
 	}
 }
