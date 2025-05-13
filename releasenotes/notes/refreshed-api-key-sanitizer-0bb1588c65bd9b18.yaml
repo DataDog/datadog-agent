@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    If a metric transaction can't be sent to the endpoint for whatever
+    reason, this transaction can be serialized to disk. When this happens
+    the API key needs to be sanitised. This ensures that when an API key
+    that comes from a secret that is refreshed the replacer will continue
+    to sanitise the new API key.
