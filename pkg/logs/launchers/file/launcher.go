@@ -320,15 +320,16 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			continue
 		}
 
-		s.addedSourceTailers = append(s.addedSourceTailers, file)
-
 		mode, isSet := config.TailingModeFromString(source.Config.TailingMode)
 		if !isSet && source.Config.Identifier != "" {
 			mode = config.Beginning
 			source.Config.TailingMode = mode.String()
 		}
 
-		s.startNewTailer(file, mode)
+		newTailerStarted := s.startNewTailer(file, mode)
+		if newTailerStarted {
+			s.addedSourceTailers = append(s.addedSourceTailers, file)
+		}
 	}
 }
 
