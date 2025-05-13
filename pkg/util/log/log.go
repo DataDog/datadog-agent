@@ -94,7 +94,7 @@ func setupCommonLogger(i LoggerInterface, level string) *DatadogLogger {
 	// The fact we need a constant "additional depth" means some
 	// theoretical refactor to avoid duplication in the functions
 	// below cannot be performed.
-	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 
 	return l
 }
@@ -426,10 +426,10 @@ func logContext(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(strin
 		addLogToBuffer(bufferFunc)
 	} else if l.shouldLog(logLevel) {
 		l.inner.SetContext(context)
-		l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+		_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 		scrubAndLogFunc(message)
 		l.inner.SetContext(nil)
-		l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+		_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 	}
 }
 func logContextWithError(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(string) error, message string, fallbackStderr bool, depth int, context ...interface{}) error {
@@ -454,10 +454,10 @@ func logContextWithError(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc f
 		}
 	} else if l.shouldLog(logLevel) {
 		l.inner.SetContext(context)
-		l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+		_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 		err := scrubAndLogFunc(message)
 		l.inner.SetContext(nil)
-		l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+		_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 		defer l.l.Unlock()
 		return err
 	}
@@ -493,9 +493,9 @@ func (sw *loggerPointer) traceStackDepth(s string, depth int) {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
 
-	l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	l.inner.Trace(scrubbed)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 
 	for _, l := range l.extra {
 		l.Trace(scrubbed)
@@ -517,12 +517,12 @@ func (sw *loggerPointer) debug(s string) {
 func (sw *loggerPointer) debugStackDepth(s string, depth int) {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	l.inner.Debug(scrubbed)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 
 	for _, l := range l.extra {
-		l.Debug(scrubbed) //nolint:errcheck
+		l.Debug(scrubbed)
 	}
 }
 
@@ -540,12 +540,12 @@ func (sw *loggerPointer) info(s string) {
 func (sw *loggerPointer) infoStackDepth(s string, depth int) {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	l.inner.Info(scrubbed)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 
 	for _, l := range l.extra {
-		l.Info(scrubbed) //nolint:errcheck
+		l.Info(scrubbed)
 	}
 }
 
@@ -556,7 +556,7 @@ func (sw *loggerPointer) warn(s string) error {
 	err := l.inner.Warn(scrubbed)
 
 	for _, l := range l.extra {
-		l.Warn(scrubbed) //nolint:errcheck
+		_ = l.Warn(scrubbed)
 	}
 
 	return err
@@ -566,12 +566,12 @@ func (sw *loggerPointer) warn(s string) error {
 func (sw *loggerPointer) warnStackDepth(s string, depth int) error {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	err := l.inner.Warn(scrubbed)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 
 	for _, l := range l.extra {
-		l.Warn(scrubbed) //nolint:errcheck
+		_ = l.Warn(scrubbed)
 	}
 
 	return err
@@ -584,7 +584,7 @@ func (sw *loggerPointer) error(s string) error {
 	err := l.inner.Error(scrubbed)
 
 	for _, l := range l.extra {
-		l.Error(scrubbed) //nolint:errcheck
+		_ = l.Error(scrubbed)
 	}
 
 	return err
@@ -594,12 +594,12 @@ func (sw *loggerPointer) error(s string) error {
 func (sw *loggerPointer) errorStackDepth(s string, depth int) error {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	err := l.inner.Error(scrubbed)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 
 	for _, l := range l.extra {
-		l.Error(scrubbed) //nolint:errcheck
+		_ = l.Error(scrubbed)
 	}
 
 	return err
@@ -612,7 +612,7 @@ func (sw *loggerPointer) critical(s string) error {
 	err := l.inner.Critical(scrubbed)
 
 	for _, l := range l.extra {
-		l.Critical(scrubbed) //nolint:errcheck
+		_ = l.Critical(scrubbed)
 	}
 
 	return err
@@ -622,12 +622,12 @@ func (sw *loggerPointer) critical(s string) error {
 func (sw *loggerPointer) criticalStackDepth(s string, depth int) error {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	err := l.inner.Critical(scrubbed)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 
 	for _, l := range l.extra {
-		l.Critical(scrubbed) //nolint:errcheck
+		_ = l.Critical(scrubbed)
 	}
 
 	return err
@@ -673,7 +673,7 @@ func (sw *loggerPointer) warnf(format string, params ...interface{}) error {
 	err := l.inner.Warn(scrubbed)
 
 	for _, l := range l.extra {
-		l.Warn(scrubbed) //nolint:errcheck
+		_ = l.Warn(scrubbed)
 	}
 
 	return err
@@ -686,7 +686,7 @@ func (sw *loggerPointer) errorf(format string, params ...interface{}) error {
 	err := l.inner.Error(scrubbed)
 
 	for _, l := range l.extra {
-		l.Error(scrubbed) //nolint:errcheck
+		_ = l.Error(scrubbed)
 	}
 
 	return err
@@ -699,7 +699,7 @@ func (sw *loggerPointer) criticalf(format string, params ...interface{}) error {
 	err := l.inner.Critical(scrubbed)
 
 	for _, l := range l.extra {
-		l.Critical(scrubbed) //nolint:errcheck
+		_ = l.Critical(scrubbed)
 	}
 
 	return err

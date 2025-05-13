@@ -43,7 +43,7 @@ func (l *MockCoreLoader) Name() string {
 	return "core"
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Load loads a check
 func (l *MockCoreLoader) Load(_ sender.SenderManager, config integration.Config, _ integration.Data) (check.Check, error) {
 	mockCheck := MockCheck{Name: config.Name, LoaderName: l.Name()}
 	return &mockCheck, nil
@@ -55,7 +55,7 @@ func (l *MockPythonLoader) Name() string {
 	return "python"
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Load loads a check
 func (l *MockPythonLoader) Load(_ sender.SenderManager, config integration.Config, _ integration.Data) (check.Check, error) {
 	mockCheck := MockCheck{Name: config.Name, LoaderName: l.Name()}
 	return &mockCheck, nil

@@ -187,7 +187,7 @@ func (end *IPCEndpoint) DoGet(options ...ipc.RequestOption) ([]byte, error) {
 	res, err := end.client.Get(target.String(), options...)
 	if err != nil {
 		var errMap = make(map[string]string)
-		_ = json.Unmarshal(res, &errMap) //nolint:errcheck
+		_ = json.Unmarshal(res, &errMap)
 		// If the error has been marshalled into a json object, check it and return it properly
 		if errStr, found := errMap["error"]; found {
 			return nil, errors.New(errStr)
