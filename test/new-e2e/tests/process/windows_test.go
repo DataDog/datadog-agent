@@ -6,7 +6,11 @@
 package process
 
 import (
+	"encoding/json"
 	"fmt"
+	agentmodel "github.com/DataDog/agent-payload/v5/process"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -161,7 +165,23 @@ func (s *windowsTestSuite) TestAPIKeyRefreshAdditionalEndpoints() {
 	}, 2*time.Minute, 10*time.Second)
 }
 
-func assertProcessCheck(t *testing.T, env *environments.Host) {
+func assertProcessCMDArgs(t require.TestingT, processes []*agentmodel.Process, processCMDArgs []string) {
+	for _, proc := range processes {
+		// command arguments include the first command/program which can differ depending on the path,
+		// so we compare the user provided arguments starting from index 1
+		assert.Truef(t, slices.Equal(proc.Command.Args[1:], processCMDArgs[1:]), "process args do not match. Expected %+v", processCMDArgs)
+	}
+}
+
+func getMatchingProcessesByName(payloads []*aggregator.ProcessPayload, processName string) []*agentmodel.Process {
+	var procs []*agentmodel.Process
+	for _, payload := range payloads {
+		procs = append(procs, filterProcesses(processName, payload.Processes)...)
+	}
+	return procs
+}
+
+func assertProcessCheck(t *testing.T, env *environments.Host, withIOStats bool, processName string, processCMDArgs []string) {
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, env.Agent.Client, []string{"process", "rtprocess"}, false)
 	}, 1*time.Minute, 5*time.Second)
@@ -172,26 +192,56 @@ func assertProcessCheck(t *testing.T, env *environments.Host) {
 		payloads, err = env.FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
-		// Wait for two payloads, as processes must be detected in two check runs to be returned
-		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
+		assertProcessCollectedNew(c, payloads, withIOStats, processName)
 
-	assertProcessCollected(t, payloads, false, "MsMpEng.exe")
+		procs := getMatchingProcessesByName(payloads, processName)
+		require.NotEmpty(t, procs, "'%s' process not found in payloads: \n%+v", processName, payloads)
+		assertProcessCMDArgs(c, procs, processCMDArgs)
+	}, 2*time.Minute, 10*time.Second)
 }
 
-func (s *windowsTestSuite) TestProcessCheck() {
+func (s *windowsTestSuite) TestProtectedProcessCheck() {
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)),
 	))
-	assertProcessCheck(s.T(), s.Env())
+	// MsMpEng.exe is a protected process so we can't access any command line arguments
+	assertProcessCheck(s.T(), s.Env(), false, "MsMpEng.exe", []string{"MsMpEng.exe"})
 }
 
-func (s *windowsTestSuite) TestProcessChecksInCoreAgent() {
+func (s *windowsTestSuite) TestUnprotectedProcessCheck() {
+	t := s.T()
+	s.UpdateEnv(awshost.Provisioner(
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
+	))
+
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(t, err)
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, true)
+	}, 1*time.Minute, 5*time.Second)
+
+	// unprotected process
+	cmd := []string{
+		"chkdsk",
+		"C:",
+		"/i",
+		"/c",
+	}
+	process, err := runCMD(t, s.Env().RemoteHost, cmd)
+	require.NoError(s.T(), err)
+
+	assertProcessCheck(s.T(), s.Env(), false, process, cmd)
+}
+
+func (s *windowsTestSuite) TestProtectedProcessChecksInCoreAgent() {
 	t := s.T()
 	s.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr))))
-	assertProcessCheck(t, s.Env())
+	// MsMpEng.exe is a protected process so we can't access any command line arguments
+	assertProcessCheck(t, s.Env(), false, "MsMpEng.exe", []string{"MsMpEng.exe"})
 
 	// Verify the process component is not running in the core agent
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -236,17 +286,10 @@ func (s *windowsTestSuite) TestProcessCheckIO() {
 		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, true)
 	}, 1*time.Minute, 5*time.Second)
 
-	err := runDiskSpd(s.T(), s.Env().RemoteHost)
+	process, cmd, err := runDiskSpd(s.T(), s.Env().RemoteHost)
 	require.NoError(s.T(), err)
 
-	var payloads []*aggregator.ProcessPayload
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		var err error
-		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
-		assert.NoError(c, err, "failed to get process payloads from fakeintake")
-
-		assertProcessCollectedNew(c, payloads, true, "diskspd.exe")
-	}, 2*time.Minute, 10*time.Second)
+	assertProcessCheck(s.T(), s.Env(), true, process, cmd)
 }
 
 func (s *windowsTestSuite) TestManualProcessCheck() {
@@ -268,20 +311,31 @@ func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
 	))
 
-	err := runDiskSpd(s.T(), s.Env().RemoteHost)
+	process, cmd, err := runDiskSpd(s.T(), s.Env().RemoteHost)
 	require.NoError(s.T(), err)
 
 	// Try multiple times as all the I/O data may not be available in a given instant
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		check := s.Env().RemoteHost.
 			MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
-		assertManualProcessCheck(c, check, true, "diskspd.exe")
+		assertManualProcessCheck(c, check, true, process)
+
+		var checkOutput struct {
+			Processes []*agentmodel.Process `json:"processes"`
+		}
+
+		err := json.Unmarshal([]byte(check), &checkOutput)
+		require.NoError(c, err, "failed to unmarshal process check output")
+
+		procs := filterProcesses(process, checkOutput.Processes)
+		require.NotEmpty(c, procs, "'%s' process not found in check:\n%s\n", process, check)
+		assertProcessCMDArgs(c, procs, cmd)
 	}, 1*time.Minute, 5*time.Second)
 }
 
 // Runs Diskspd in another ssh session
 // https://github.com/Microsoft/diskspd/wiki/Command-line-and-parameters
-func runDiskSpd(t *testing.T, remoteHost *components.RemoteHost) error {
+func runDiskSpd(t *testing.T, remoteHost *components.RemoteHost) (string, []string, error) {
 	// Disk speed parameters
 	// -d120: Duration of the test in seconds
 	// -c128M: Size of the test file in bytes
@@ -292,14 +346,32 @@ func runDiskSpd(t *testing.T, remoteHost *components.RemoteHost) error {
 	// -r: Random I/O
 	// -Sh: Disable both software caching and hardware write caching.
 	// -w50: Write percentage
-	session, stdin, _, err := remoteHost.Start("diskspd -d120 -c128M -t2 -o4 -b8k -L -r -Sh -w50 disk-speed-test.dat")
+	cmd := []string{
+		"diskspd",
+		"-d120",
+		"-c128M",
+		"-t2",
+		"-o4",
+		"-b8k",
+		"-L",
+		"-r",
+		"-Sh",
+		"-w50",
+		"disk-speed-test.dat",
+	}
+	processName, err := runCMD(t, remoteHost, cmd)
+	return processName, cmd, err
+}
+
+func runCMD(t *testing.T, remoteHost *components.RemoteHost, cmd []string) (string, error) {
+	session, stdin, _, err := remoteHost.Start(strings.Join(cmd, " "))
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	t.Cleanup(func() {
 		_ = session.Close()
 		_ = stdin.Close()
 	})
-	return nil
+	return fmt.Sprintf("%s.exe", cmd[0]), nil
 }
