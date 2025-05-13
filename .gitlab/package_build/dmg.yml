@@ -4,6 +4,14 @@
   - !reference [.select_python_env_commands]
   - !reference [.install_python_dependencies]
 
+celian:
+  stage: package_build
+  tags: ["macos:ventura-amd64", "specific:true"]
+  needs: []
+  script:
+    - !reference [.macos_setup_python]
+    - echo hello world
+
 .macos_setup_go:
   - echo Setting up Go
   - mkdir -p ~/go
