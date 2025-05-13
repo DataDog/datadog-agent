@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var serialParams = TracerouteParallelParams{
+var serialParams = TracerouteSerialParams{
 	TracerouteParams{
 		MinTTL:            1,
 		MaxTTL:            10,
@@ -27,7 +27,7 @@ var serialInfo = TracerouteDriverInfo{
 }
 
 func TestTracerouteSerial(t *testing.T) {
-	m := initMockDriver(t, serialParams.TracerouteParams, parallelInfo)
+	m := initMockDriver(t, serialParams.TracerouteParams, serialInfo)
 	t.Parallel()
 
 	var expectedResults []*ProbeResponse
@@ -69,7 +69,7 @@ func TestTracerouteSerial(t *testing.T) {
 }
 
 func TestTracerouteSerialMissingHop(t *testing.T) {
-	m := initMockDriver(t, serialParams.TracerouteParams, parallelInfo)
+	m := initMockDriver(t, serialParams.TracerouteParams, serialInfo)
 	t.Parallel()
 
 	var expectedResults []*ProbeResponse
@@ -116,7 +116,7 @@ func TestTracerouteSerialMissingHop(t *testing.T) {
 
 func TestTracerouteSerialWrongHop(t *testing.T) {
 	// this test checks that TracerouteSerial correctly handles a probe that returns the wrong hop
-	m := initMockDriver(t, serialParams.TracerouteParams, parallelInfo)
+	m := initMockDriver(t, serialParams.TracerouteParams, serialInfo)
 	t.Parallel()
 
 	var expectedResults []*ProbeResponse
@@ -164,7 +164,7 @@ func TestTracerouteSerialWrongHop(t *testing.T) {
 }
 
 func TestTracerouteSerialMissingDest(t *testing.T) {
-	m := initMockDriver(t, serialParams.TracerouteParams, parallelInfo)
+	m := initMockDriver(t, serialParams.TracerouteParams, serialInfo)
 	t.Parallel()
 
 	var expectedResults []*ProbeResponse

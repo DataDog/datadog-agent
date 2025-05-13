@@ -16,15 +16,9 @@ type TracerouteSerialParams struct {
 	TracerouteParams
 }
 
-// MaxTimeout combines the timeout+probe delays into a total timeout for the traceroute
-func (p TracerouteSerialParams) MaxTimeout() time.Duration {
-	delaySum := p.TracerouteTimeout * time.Duration(p.ProbeCount())
-	return delaySum
-}
-
 // TracerouteSerial runs a traceroute in serial. Sometimes this is necessary over TracerouteParallel
 // because the driver doesn't support parallel.
-func TracerouteSerial(ctx context.Context, t TracerouteDriver, p TracerouteParallelParams) ([]*ProbeResponse, error) {
+func TracerouteSerial(ctx context.Context, t TracerouteDriver, p TracerouteSerialParams) ([]*ProbeResponse, error) {
 	if err := p.validate(); err != nil {
 		return nil, err
 	}
