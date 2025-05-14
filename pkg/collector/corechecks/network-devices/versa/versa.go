@@ -128,7 +128,7 @@ func (v *VersaCheck) Run() error {
 	for ip, tags := range directorDeviceTags {
 		deviceTags[ip] = append(deviceTags[ip], tags...)
 	}
-	v.metricsSender.SetDeviceTags(deviceTags)
+	v.metricsSender.SetDeviceTagsMap(deviceTags)
 
 	// Send the metadata to the metrics sender
 	if *v.config.SendNDMMetadata {

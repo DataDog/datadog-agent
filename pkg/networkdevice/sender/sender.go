@@ -35,8 +35,8 @@ type Sender interface {
 	CountWithTimestampWrapper(name string, value float64, tags []string, ts float64)
 	// UpdateTimestamps updates the last sent timestamps
 	UpdateTimestamps(newTimestamps map[string]float64)
-	// SetDeviceTags sets the device tags map
-	SetDeviceTags(deviceTags map[string][]string)
+	// SetDeviceTagsMap sets the device tags map
+	SetDeviceTagsMap(deviceTags map[string][]string)
 	// GetDeviceTags returns the device tags for a given IP address
 	GetDeviceTags(defaultIPTag string, deviceIP string) []string
 	// ShouldSendEntry checks if a metric entry should be sent based on its timestamp
@@ -85,8 +85,8 @@ func (s *IntegrationSender) UpdateTimestamps(newTimestamps map[string]float64) {
 	maps.Copy(s.lastTimeSent, newTimestamps)
 }
 
-// SetDeviceTags sets the device tags map
-func (s *IntegrationSender) SetDeviceTags(deviceTags map[string][]string) {
+// SetDeviceTagsMap sets the device tags map
+func (s *IntegrationSender) SetDeviceTagsMap(deviceTags map[string][]string) {
 	s.deviceTags = deviceTags
 }
 
