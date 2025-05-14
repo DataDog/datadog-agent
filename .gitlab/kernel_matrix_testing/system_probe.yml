@@ -21,7 +21,7 @@ upload_dependencies_sysprobe_arm64:
 
 # --- Docker test images
 .pull_test_dockers:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   needs: []
   tags: ["arch:amd64"]
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
