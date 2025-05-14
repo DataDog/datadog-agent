@@ -38,11 +38,12 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
-				Tags:       []string{},
-				Hostname:   "",
-				HTTPProxy:  "",
-				HTTPSProxy: "",
-				NoProxy:    os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
+				Tags:              []string{},
+				Hostname:          "",
+				HTTPProxy:         "",
+				HTTPSProxy:        "",
+				SkipTLSValidation: false,
+				NoProxy:           os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
 			},
 		},
 		{
@@ -77,6 +78,7 @@ func TestFromEnv(t *testing.T) {
 				envDDHTTPProxy:                                "http://proxy.example.com:8080",
 				envDDHTTPSProxy:                               "http://proxy.example.com:8080",
 				envDDNoProxy:                                  "localhost",
+				envDDSkipTLSValidation:                        "true",
 			},
 			expected: &Env{
 				APIKey:               "123456",
@@ -120,11 +122,12 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
 				},
-				Tags:       []string{"k1:v1", "k2:v2", "k3:v3", "k4:v4"},
-				Hostname:   "hostname",
-				HTTPProxy:  "http://proxy.example.com:8080",
-				HTTPSProxy: "http://proxy.example.com:8080",
-				NoProxy:    "localhost",
+				Tags:              []string{"k1:v1", "k2:v2", "k3:v3", "k4:v4"},
+				Hostname:          "hostname",
+				HTTPProxy:         "http://proxy.example.com:8080",
+				HTTPSProxy:        "http://proxy.example.com:8080",
+				NoProxy:           "localhost",
+				SkipTLSValidation: true,
 			},
 		},
 		{
@@ -250,11 +253,12 @@ func TestToEnv(t *testing.T) {
 					"dotnet": "latest",
 					"ruby":   "1.2",
 				},
-				Tags:       []string{"k1:v1", "k2:v2"},
-				Hostname:   "hostname",
-				HTTPProxy:  "http://proxy.example.com:8080",
-				HTTPSProxy: "http://proxy.example.com:8080",
-				NoProxy:    "localhost",
+				Tags:              []string{"k1:v1", "k2:v2"},
+				Hostname:          "hostname",
+				HTTPProxy:         "http://proxy.example.com:8080",
+				HTTPSProxy:        "http://proxy.example.com:8080",
+				NoProxy:           "localhost",
+				SkipTLSValidation: true,
 			},
 			expected: []string{
 				"DD_API_KEY=123456",
@@ -283,6 +287,7 @@ func TestToEnv(t *testing.T) {
 				"HTTP_PROXY=http://proxy.example.com:8080",
 				"HTTPS_PROXY=http://proxy.example.com:8080",
 				"NO_PROXY=localhost",
+				"DD_SKIP_TLS_VALIDATION=true",
 			},
 		},
 	}

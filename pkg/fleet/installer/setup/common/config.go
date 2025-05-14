@@ -129,6 +129,7 @@ type DatadogConfig struct {
 	Hostname             string                     `yaml:"hostname,omitempty"`
 	Site                 string                     `yaml:"site,omitempty"`
 	Proxy                DatadogConfigProxy         `yaml:"proxy,omitempty"`
+	SkipTLSValidation    bool                       `yaml:"skip_tls_validation,omitempty"`
 	Env                  string                     `yaml:"env,omitempty"`
 	Tags                 []string                   `yaml:"tags,omitempty"`
 	ExtraTags            []string                   `yaml:"extra_tags,omitempty"`
