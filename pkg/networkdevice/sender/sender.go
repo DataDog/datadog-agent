@@ -19,6 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// timestampExpiration defines the expiration time for timestamps
+// to ensure we continue to send metrics even if the timestamp is not updated
+// for a long time. This is useful for devices that may not update their
+// metrics frequently.
 const timestampExpiration = 6 * time.Hour
 
 // TimeNow useful for mocking
@@ -114,10 +118,6 @@ func (s *IntegrationSender) ShouldSendEntry(key string, ts float64) bool {
 func (s *IntegrationSender) Commit() {
 	s.Sender.Commit()
 	s.expireTimeSent()
-}
-
-func (s *IntegrationSender) updateTimestamps(newTimestamps map[string]float64) {
-	maps.Copy(s.lastTimeSent, newTimestamps)
 }
 
 func (s *IntegrationSender) expireTimeSent() {
