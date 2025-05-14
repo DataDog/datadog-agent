@@ -464,10 +464,10 @@ retry:
 			log.Errorf("unable to get program name for kprobe id %d: %v", key.Kprobe_id, err)
 			continue
 		}
-		module, err := ddebpf.GetModuleFromProgID(key.Kprobe_id)
-		if err != nil {
-			log.Errorf("unable to get module name for kprobe id %d: %v", key.Kprobe_id, err)
-			continue
+
+		module := "unknown"
+		if mod, err := ddebpf.GetModuleFromProgID(key.Kprobe_id); err == nil {
+			module = mod
 		}
 
 		progKey, ok := cookies[*key]
