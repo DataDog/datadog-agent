@@ -162,11 +162,13 @@ func makeSackParams(target net.IP, targetPort uint16, maxTTL uint8, timeout time
 		return sack.Params{}, fmt.Errorf("invalid target IP")
 	}
 	parallelParams := common.TracerouteParallelParams{
-		MinTTL:            DefaultMinTTL,
-		MaxTTL:            maxTTL,
-		TracerouteTimeout: timeout,
-		PollFrequency:     100 * time.Millisecond,
-		SendDelay:         10 * time.Millisecond,
+		TracerouteParams: common.TracerouteParams{
+			MinTTL:            DefaultMinTTL,
+			MaxTTL:            maxTTL,
+			TracerouteTimeout: timeout,
+			PollFrequency:     100 * time.Millisecond,
+			SendDelay:         10 * time.Millisecond,
+		},
 	}
 	params := sack.Params{
 		Target:           netip.AddrPortFrom(targetAddr, targetPort),

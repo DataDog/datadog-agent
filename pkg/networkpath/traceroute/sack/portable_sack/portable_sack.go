@@ -53,11 +53,13 @@ func main() {
 		HandshakeTimeout: 500 * time.Millisecond,
 		FinTimeout:       500 * time.Millisecond,
 		ParallelParams: common.TracerouteParallelParams{
-			MinTTL:            1,
-			MaxTTL:            30,
-			TracerouteTimeout: 1 * time.Second,
-			PollFrequency:     100 * time.Millisecond,
-			SendDelay:         10 * time.Millisecond,
+			TracerouteParams: common.TracerouteParams{
+				MinTTL:            1,
+				MaxTTL:            30,
+				TracerouteTimeout: 1 * time.Second,
+				PollFrequency:     100 * time.Millisecond,
+				SendDelay:         10 * time.Millisecond,
+			},
 		},
 		LoosenICMPSrc: true,
 	}
