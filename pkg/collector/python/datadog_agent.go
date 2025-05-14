@@ -200,7 +200,7 @@ func SetCheckMetadata(checkID, name, value *C.char) {
 func WritePersistentCache(key, value *C.char) {
 	keyName := C.GoString(key)
 	val := C.GoString(value)
-	persistentcache.Write(keyName, val) //nolint:errcheck
+	_ = persistentcache.Write(keyName, val)
 }
 
 // ReadPersistentCache retrieves a value for one check instance

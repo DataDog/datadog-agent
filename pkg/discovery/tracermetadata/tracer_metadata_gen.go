@@ -30,10 +30,22 @@ func (z *TracerMetadata) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "SchemaVersion")
 				return
 			}
+		case "runtime_id":
+			z.RuntimeID, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "RuntimeID")
+				return
+			}
 		case "tracer_language":
 			z.TracerLanguage, err = dc.ReadString()
 			if err != nil {
 				err = msgp.WrapError(err, "TracerLanguage")
+				return
+			}
+		case "service_name":
+			z.ServiceName, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "ServiceName")
 				return
 			}
 		default:
@@ -48,16 +60,26 @@ func (z *TracerMetadata) DecodeMsg(dc *msgp.Reader) (err error) {
 }
 
 // EncodeMsg implements msgp.Encodable
-func (z TracerMetadata) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 2
+func (z *TracerMetadata) EncodeMsg(en *msgp.Writer) (err error) {
+	// map header, size 4
 	// write "schema_version"
-	err = en.Append(0x82, 0xae, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	err = en.Append(0x84, 0xae, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
 	if err != nil {
 		return
 	}
 	err = en.WriteUint8(z.SchemaVersion)
 	if err != nil {
 		err = msgp.WrapError(err, "SchemaVersion")
+		return
+	}
+	// write "runtime_id"
+	err = en.Append(0xaa, 0x72, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x5f, 0x69, 0x64)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(z.RuntimeID)
+	if err != nil {
+		err = msgp.WrapError(err, "RuntimeID")
 		return
 	}
 	// write "tracer_language"
@@ -70,19 +92,35 @@ func (z TracerMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "TracerLanguage")
 		return
 	}
+	// write "service_name"
+	err = en.Append(0xac, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(z.ServiceName)
+	if err != nil {
+		err = msgp.WrapError(err, "ServiceName")
+		return
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
-func (z TracerMetadata) MarshalMsg(b []byte) (o []byte, err error) {
+func (z *TracerMetadata) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 2
+	// map header, size 4
 	// string "schema_version"
-	o = append(o, 0x82, 0xae, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	o = append(o, 0x84, 0xae, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendUint8(o, z.SchemaVersion)
+	// string "runtime_id"
+	o = append(o, 0xaa, 0x72, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x5f, 0x69, 0x64)
+	o = msgp.AppendString(o, z.RuntimeID)
 	// string "tracer_language"
 	o = append(o, 0xaf, 0x74, 0x72, 0x61, 0x63, 0x65, 0x72, 0x5f, 0x6c, 0x61, 0x6e, 0x67, 0x75, 0x61, 0x67, 0x65)
 	o = msgp.AppendString(o, z.TracerLanguage)
+	// string "service_name"
+	o = append(o, 0xac, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65)
+	o = msgp.AppendString(o, z.ServiceName)
 	return
 }
 
@@ -110,10 +148,22 @@ func (z *TracerMetadata) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "SchemaVersion")
 				return
 			}
+		case "runtime_id":
+			z.RuntimeID, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "RuntimeID")
+				return
+			}
 		case "tracer_language":
 			z.TracerLanguage, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "TracerLanguage")
+				return
+			}
+		case "service_name":
+			z.ServiceName, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "ServiceName")
 				return
 			}
 		default:
@@ -129,7 +179,7 @@ func (z *TracerMetadata) UnmarshalMsg(bts []byte) (o []byte, err error) {
 }
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
-func (z TracerMetadata) Msgsize() (s int) {
-	s = 1 + 15 + msgp.Uint8Size + 16 + msgp.StringPrefixSize + len(z.TracerLanguage)
+func (z *TracerMetadata) Msgsize() (s int) {
+	s = 1 + 15 + msgp.Uint8Size + 11 + msgp.StringPrefixSize + len(z.RuntimeID) + 16 + msgp.StringPrefixSize + len(z.TracerLanguage) + 13 + msgp.StringPrefixSize + len(z.ServiceName)
 	return
 }

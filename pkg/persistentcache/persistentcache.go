@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package persistentcache provides a disk-based cache.
 package persistentcache
 
 import (

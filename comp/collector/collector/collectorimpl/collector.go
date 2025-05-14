@@ -214,7 +214,7 @@ func (c *collectorImpl) stop(_ context.Context) error {
 	defer c.m.Unlock()
 
 	if c.scheduler != nil {
-		c.scheduler.Stop() //nolint:errcheck
+		_ = c.scheduler.Stop()
 		c.scheduler = nil
 	}
 	if c.runner != nil {
