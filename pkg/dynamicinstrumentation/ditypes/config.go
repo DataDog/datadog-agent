@@ -15,12 +15,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/google/uuid"
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const ConfigBPFProbeID = "config" // ConfigBPFProbeID is the ID used for the config bpf program
@@ -173,7 +173,7 @@ func (procs DIProcs) CloseUprobe(pid PID, probeID ProbeID) {
 	}
 	err := proc.CloseUprobeLink(probeID)
 	if err != nil {
-		log.Infof("could not close uprobe: %s", err)
+		log.Errorf("could not close uprobe: %s", err)
 	}
 }
 
@@ -421,7 +421,7 @@ func (pi *ProcessInfo) DeleteProbe(probeID ProbeID) {
 	}
 	err := pi.CloseUprobeLink(probeID)
 	if err != nil {
-		log.Infof("could not close uprobe link: %s", err)
+		log.Errorf("could not close uprobe link: %s", err)
 	}
 	if pi.ProbesByID != nil {
 		pi.ProbesByID.Delete(probeID)
@@ -481,7 +481,7 @@ type Probe struct {
 }
 
 // GetBPFFuncName cleans the function name to be allowed by the bpf compiler
-func (p *Probe) GetBPFFuncName() string {
+func GetBPFFuncName(p *Probe) string {
 	// can't have '.', '-' or '/' in bpf program name
 	replacer := strings.NewReplacer(".", "_", "/", "_", "-", "_", "[", "_", "]", "_", "*", "ptr_", "(", "", ")", "")
 	return replacer.Replace(p.FuncName)

@@ -2289,8 +2289,8 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, k
 
     for pipeline_id in pipeline_ids:
         pipeline = gitlab.pipelines.get(pipeline_id)
-        if pipeline.source != "push":
-            print(f"Ignoring pipeline {pipeline_id}, only using push pipelines")
+        if pipeline.source != "push" and pipeline.source != "api":
+            print(f"Ignoring pipeline {pipeline_id} with source {pipeline.source}, only using push/api pipelines")
             continue
 
         _, test_jobs = get_all_jobs_for_pipeline(pipeline_id)

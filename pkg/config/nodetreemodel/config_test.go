@@ -387,6 +387,21 @@ func TestEnvVarMultipleSettings(t *testing.T) {
 	assert.Equal(t, 0, cfg.GetInt("c"))
 }
 
+func TestEmptyEnvVarSettings(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("a", -1)
+	cfg.BindEnv("a")
+
+	// This empty string is ignored, so the default value of -1 will be returned by GetInt
+	t.Setenv("TEST_A", "")
+
+	cfg.BuildSchema()
+	assert.Equal(t, -1, cfg.GetInt("a"))
+
+	cfg.Set("a", 123, model.SourceFile)
+	assert.Equal(t, 123, cfg.GetInt("a"))
+}
+
 func TestAllKeysLowercased(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)

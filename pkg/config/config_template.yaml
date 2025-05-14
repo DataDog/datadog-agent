@@ -397,19 +397,37 @@ api_key:
 ## https://docs.datadoghq.com/integrations/faq/how-do-i-pull-my-ec2-tags-without-using-the-aws-integration/
 #
 # collect_ec2_tags: false
+#
+
+## @param collect_ec2_instance_info - boolean - optional - default: false
+## @env DD_COLLECT_EC2_INSTANCE_INFO - boolean - optional - default: false
+## Extend host tags with AWS EC2 instance information. The added tags are:
+##  - region
+##  - instance-type
+##  - aws_account
+##  - image
+##  - availability-zone
+##
+## This should only be enabled when the Datadog AWS integration cannot be enabled (see
+## https://docs.datadoghq.com/integrations/amazon_web_services/ for more information on the AWS integration).
+## Using the AWS integration is recommended as it offers more features and a better integration with the AWS environment.
+#
+# collect_ec2_instance_info: false
 
 ## @param exclude_ec2_tags - list of strings - optional - default: []
 ## @env DD_EXCLUDE_EC2_TAGS - space separated list of strings - optional - default: []
-## EC2 tags to exclude from being converted into host tags -- only applicable when collect_ec2_tags is true. This does
-## not impact tags collected by the AWS Integration (see https://docs.datadoghq.com/integrations/amazon_web_services/
-## for more information on the AWS integration).
+## EC2 tags to exclude from being converted into host tags. This does not impact tags collected by the AWS Integration
+## (see https://docs.datadoghq.com/integrations/amazon_web_services/ for more information on the AWS integration).
+##
+## This requires 'collect_ec2_tags' setting to be set to true.
 #
 # exclude_ec2_tags: []
 
 ## @param collect_ec2_tags_use_imds - boolean - optional - default: false
 ## @env DD_COLLECT_EC2_TAGS_USE_IMDS - boolean - optional - default: false
 ## Use instance metadata service (IMDS) instead of EC2 API to collect AWS EC2 custom tags.
-## Requires `collect_ec2_tags`.
+##
+## This requires 'collect_ec2_tags' setting to be set to true.
 #
 # collect_ec2_tags_use_imds: false
 
@@ -3941,6 +3959,10 @@ api_key:
     #                             # sending pings in an unprivileged fashion (using a UDP socket).
     #                             # If `use_raw_socket` is set to true, you MUST also enable
     #                             # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
+
+    ## @param use_deduplication - boolean - optional - default: false
+    ## Deduplicate IP addresses corresponding to the same device.
+    ## The deduplication logic is based on the sysName, sysDesc, sysObjectID and sysUptime
 
     ## @param configs - list - required
     ## The actual list of configurations used to discover SNMP devices in various subnets.
