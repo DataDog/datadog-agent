@@ -371,6 +371,7 @@ func submitProtocolMetrics(sender sender.Sender, protocolStats net.ProtoCounters
 	}
 }
 
+// Try using `ss` for increased performance over `netstat`
 func checkSSExecutable() error {
 	_, err := exec.LookPath("ss")
 	if err != nil {
@@ -382,6 +383,7 @@ func checkSSExecutable() error {
 func getQueueMetrics(ipVersion string, procfsPath string) (map[string][]uint64, error) {
 	env := []string{"PROC_ROOT=" + procfsPath}
 	ipFlag := fmt.Sprintf("--ipv%s", ipVersion)
+	// Go's exec.Command environment is the same as the running process unlike python so we do not need to adjust the PATH
 	output, err := runCommandFunction([]string{"sh", "-c", "ss", "--numeric", "--tcp", "--all", ipFlag}, env)
 	if err != nil {
 		return nil, fmt.Errorf("error executing ss command: %v", err)
@@ -400,6 +402,12 @@ func getQueueMetricsNetstat(ipVersion string, _ string) (map[string][]uint64, er
 func parseQueueMetrics(output string) (map[string][]uint64, error) {
 	queueMetrics := make(map[string][]uint64)
 	suffixMapping := tcpStateMetricsSuffixMapping["ss"]
+
+	// 7624 CLOSE-WAIT
+	//   72 ESTAB
+	//    9 LISTEN
+	//    1 State
+	//   37 TIME-WAIT
 	lines := strings.Split(output, "\n")
 	for _, line := range lines {
 		fields := strings.Fields(line)
@@ -419,6 +427,16 @@ func parseQueueMetrics(output string) (map[string][]uint64, error) {
 func parseQueueMetricsNetstat(output string) (map[string][]uint64, error) {
 	queueMetrics := make(map[string][]uint64)
 	suffixMapping := tcpStateMetricsSuffixMapping["netstat"]
+
+	// Active Internet connections (w/o servers)
+	// Proto Recv-Q Send-Q Local Address           Foreign Address         State
+	// tcp        0      0 46.105.75.4:80          79.220.227.193:2032     SYN_RECV
+	// tcp        0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED
+	// tcp        0      0 46.105.75.4:50468       107.20.207.175:443      TIME_WAIT
+	// tcp6       0      0 46.105.75.4:80          93.15.237.188:58038     FIN_WAIT2
+	// tcp6       0      0 46.105.75.4:80          79.220.227.193:2029     ESTABLISHED
+	// udp        0      0 0.0.0.0:123             0.0.0.0:*
+	// udp6       0      0 :::41458                :::*
 	lines := strings.Split(output, "\n")
 	for _, line := range lines {
 		if strings.Contains(line, "tcp") {
@@ -489,7 +507,9 @@ func submitConnectionsMetrics(
 	if collectConnectionQueues && protocolName[:3] == "tcp" {
 		var queues map[string][]uint64
 		var err error
-		// pass in version number
+		// Pass the IP version to `ss` because there's no built-in way of distinguishing between the IP versions in the output
+		// Also calls `ss` for each protocol, because on some systems (e.g. Ubuntu 14.04), there is a bug that print `tcp` even if it's `udp`
+		// The `-H` flag isn't available on old versions of `ss`.
 		queues, err = queueFunc(protocolName[len(protocolName)-1:], procfsPath)
 		if err != nil {
 			log.Debug("Error getting queue metrics:", err)
@@ -525,6 +545,11 @@ func netstatAndSnmpCounters(procfsPath string, protocolNames []string) (map[stri
 		}
 		defer f.Close()
 
+		// Inter-|   Receive                                                 |  Transmit
+		//  face |bytes     packets errs drop fifo frame compressed multicast|bytes       packets errs drop fifo colls carrier compressed
+		//     lo:45890956   112797   0    0    0     0          0         0    45890956   112797    0    0    0     0       0          0
+		//   eth0:631947052 1042233   0   19    0   184          0      1206  1208625538  1320529    0    0    0     0       0          0
+		//   eth1:       0        0   0    0    0     0          0         0           0        0    0    0    0     0       0          0
 		scanner := bufio.NewScanner(f)
 		var protocolName string
 		for scanner.Scan() {
@@ -575,6 +600,7 @@ func readIntFile(filePath string, fs afero.Fs) (int, error) {
 }
 
 func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSudoConntrack bool) {
+	// In CentOS, conntrack is located in /sbin and /usr/sbin which may not be in the agent user PATH
 	cmd := []string{conntrackPath, "-S"}
 	if useSudoConntrack {
 		cmd = append([]string{"sudo"}, cmd...)
@@ -586,6 +612,11 @@ func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSud
 		return
 	}
 
+	// conntrack -S sample:
+	// cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 insert_failed=1 \
+	//       drop=1 early_drop=0 error=0 search_restart=39936711
+	// cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 insert_failed=1 \
+	//       drop=1 early_drop=0 error=0 search_restart=36983181
 	lines := strings.Split(output, "\n")
 	for _, line := range lines {
 		if line == "" {
@@ -642,6 +673,9 @@ func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo
 				}
 			}
 		}
+
+		// By default, only max and count are reported. However if the blacklist is set,
+		// the whitelist is losing its default value
 		for _, metricName := range availableFiles {
 			if len(blacklistConntrackMetrics) > 0 {
 				if slices.Contains(blacklistConntrackMetrics, metricName) {
