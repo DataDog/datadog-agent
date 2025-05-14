@@ -127,7 +127,7 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	}
 
 	// Create mandatory dirs
-	err = os.Mkdir("/var/log/datadog/dotnet", 0777)
+	err = os.MkdirAll("/var/log/datadog/dotnet", 0755)
 	if err != nil && !os.IsExist(err) {
 		return fmt.Errorf("error creating /var/log/datadog/dotnet: %w", err)
 	}
