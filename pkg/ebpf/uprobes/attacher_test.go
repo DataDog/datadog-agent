@@ -716,6 +716,10 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 }
 
 func testUprobeAttacherInner(t *testing.T, attacherFunc func() AttacherRunner, targetFunc func() AttacherTargetRunner) {
+	if !sharedlibraries.IsSupported(ddebpf.NewConfig()) {
+		t.Skip("skip as shared libraries are not supported for this platform")
+	}
+
 	attacher := attacherFunc()
 	target := targetFunc()
 
