@@ -18,11 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var defaultDumper storeDumper
+
 type storeDumper struct {
 	store *store
 }
-
-var defaultDumper storeDumper
 
 // InitDumper initializes the default dumper with a given store
 func InitDumper(store *store) {
@@ -32,6 +32,26 @@ func InitDumper(store *store) {
 // AutoscalersInfo is used to dump the autoscaling store content
 type AutoscalersInfo struct {
 	PodAutoscalers []model.PodAutoscalerInternal `json:"pod_autoscalers"`
+}
+
+// Print writes the autoscaling store content to a given writer in a human-readable format
+func (info *AutoscalersInfo) Print(writer io.Writer) {
+	if info == nil {
+		return
+	}
+
+	if writer != color.Output {
+		color.NoColor = true
+	}
+
+	for _, autoscaler := range info.PodAutoscalers {
+		fmt.Fprintf(writer, "\n=== PodAutoscaler %s ===\n", color.GreenString(autoscaler.ID()))
+
+		// Use the String() method of PodAutoscalerInternal
+		fmt.Fprintln(writer, autoscaler.String(true))
+
+		fmt.Fprintln(writer, "===")
+	}
 }
 
 // Dump returns the autoscaling store content
@@ -55,24 +75,4 @@ func Dump() *AutoscalersInfo {
 	}
 
 	return &response
-}
-
-// Print writes the autoscaling store content to a given writer in a human-readable format
-func (info *AutoscalersInfo) Print(writer io.Writer) {
-	if info == nil {
-		return
-	}
-
-	if writer != color.Output {
-		color.NoColor = true
-	}
-
-	for _, autoscaler := range info.PodAutoscalers {
-		fmt.Fprintf(writer, "\n=== PodAutoscaler %s ===\n", color.GreenString(autoscaler.ID()))
-
-		// Use the String() method of PodAutoscalerInternal
-		fmt.Fprintln(writer, autoscaler.String(true))
-
-		fmt.Fprintln(writer, "===")
-	}
 }
