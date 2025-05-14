@@ -10,7 +10,11 @@ rc_kubernetes_deploy:
     - if: $RC_BUILD == "true"
       when: manual
   needs:
-    - job: docker_trigger_internal
+    - job: docker_trigger_internal-jmx
+      artifacts: false
+    - job: docker_trigger_internal-fips
+      artifacts: false
+    - job: docker_trigger_internal-ot_standalone
       artifacts: false
     - job: docker_trigger_cluster_agent_internal
       artifacts: false
