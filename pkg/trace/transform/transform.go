@@ -80,10 +80,10 @@ func OtelSpanToDDSpanMinimal(
 	rattr := otelres.Attributes()
 
 	ddspan := &pb.Span{
-		Service:  traceutil.GetOTelAttrVal(rattr, true, KeyDatadogService),
-		Name:     traceutil.GetOTelAttrVal(sattr, true, KeyDatadogName),
-		Resource: traceutil.GetOTelAttrVal(sattr, true, KeyDatadogResource),
-		Type:     traceutil.GetOTelAttrVal(sattr, true, KeyDatadogType),
+		Service:  traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogService),
+		Name:     traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogName),
+		Resource: traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogResource),
+		Type:     traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogType),
 		TraceID:  traceutil.OTelTraceIDToUint64(otelspan.TraceID()),
 		SpanID:   traceutil.OTelSpanIDToUint64(otelspan.SpanID()),
 		ParentID: traceutil.OTelSpanIDToUint64(otelspan.ParentSpanID()),
@@ -100,18 +100,23 @@ func OtelSpanToDDSpanMinimal(
 		}
 	}
 
-	if incomingSpanKindName := traceutil.GetOTelAttrVal(sattr, true, KeyDatadogSpanKind); incomingSpanKindName != "" {
+	if incomingSpanKindName := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogSpanKind); incomingSpanKindName != "" {
 		ddspan.Meta["span.kind"] = incomingSpanKindName
+	}
+
+	var code uint32
+	if incomingCode, ok := otelspan.Attributes().Get(KeyDatadogHTTPStatusCode); ok {
+		code = uint32(incomingCode.Int())
 	}
 
 	if !conf.OTLPReceiver.IgnoreMissingDatadogFields {
 		if ddspan.Service == "" {
-			ddspan.Service = traceutil.GetOTelService(otelres, true)
+			ddspan.Service = traceutil.GetOTelService(otelspan, otelres, true)
 		}
 
 		if OperationAndResourceNameV2Enabled(conf) {
 			if ddspan.Name == "" {
-				ddspan.Name = traceutil.GetOTelOperationNameV2(otelspan)
+				ddspan.Name = traceutil.GetOTelOperationNameV2(otelspan, otelres)
 			}
 			if ddspan.Resource == "" {
 				ddspan.Resource = traceutil.GetOTelResourceV2(otelspan, otelres)
@@ -140,27 +145,25 @@ func OtelSpanToDDSpanMinimal(
 		if !spanMetaHasKey(ddspan, "span.kind") {
 			ddspan.Meta["span.kind"] = traceutil.OTelSpanKindName(spanKind)
 		}
-		var code uint32
-		if incomingCode, ok := otelspan.Attributes().Get(KeyDatadogHTTPStatusCode); ok {
-			code = uint32(incomingCode.Int())
-		} else {
-			code = traceutil.GetOTelStatusCode(otelspan)
+		if code == 0 {
+			code = traceutil.GetOTelStatusCode(otelspan, otelres)
 		}
-		if code != 0 {
-			ddspan.Metrics[traceutil.TagStatusCode] = float64(code)
-		}
+	}
+
+	if code != 0 {
+		ddspan.Metrics[traceutil.TagStatusCode] = float64(code)
 	}
 	if isTopLevel {
 		traceutil.SetTopLevel(ddspan, true)
 	}
-	if isMeasured := traceutil.GetOTelAttrVal(sattr, false, "_dd.measured"); isMeasured == "1" {
+	if isMeasured := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, false, "_dd.measured"); isMeasured == "1" {
 		traceutil.SetMeasured(ddspan, true)
 	} else if topLevelByKind && (spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer) {
 		// When enable_otlp_compute_top_level_by_span_kind is true, compute stats for client-side spans
 		traceutil.SetMeasured(ddspan, true)
 	}
 	for _, peerTagKey := range peerTagKeys {
-		if peerTagVal := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, peerTagKey); peerTagVal != "" {
+		if peerTagVal := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, false, peerTagKey); peerTagVal != "" {
 			ddspan.Meta[peerTagKey] = peerTagVal
 		}
 	}
@@ -202,7 +205,7 @@ func conditionallyMapOTLPAttributeToMeta(k string, value string, ddspan *pb.Span
 		if _, ok := apmConventionKeysToDDNamespacedKeys[mappedKey]; ok && ignoreMissingDatadogFields {
 			return
 		}
-		SetMetaOTLP(ddspan, mappedKey, value)
+		SetMetaOTLPIfEmpty(ddspan, mappedKey, value)
 	}
 }
 
@@ -219,18 +222,14 @@ func conditionallyMapOTLPAttributeToMetric(k string, value float64, ddspan *pb.S
 		if _, ok := apmConventionKeysToDDNamespacedKeys[mappedKey]; ok && ignoreMissingDatadogFields {
 			return
 		}
-		SetMetricOTLP(ddspan, mappedKey, value)
+		SetMetricOTLPIfEmpty(ddspan, mappedKey, value)
 	}
 }
 
-// If these DD namespaced keys are found in OTLP resource attributes, map them to the corresponding keys in ddspan.Meta
-var ddNamespacedKeysToAPMConventionKeysForResourceAttributes = map[string]string{
-	KeyDatadogEnvironment: "env",
-	KeyDatadogVersion:     "version",
-}
-
-// If these DD namespaced keys are found in OTLP span attributes, map them to the corresponding keys in ddspan.Meta
-var ddNamespacedKeysToAPMConventionKeysForSpanAttributes = map[string]string{
+// If these DD namespaced keys are found in OTLP attributes, map them to the corresponding keys in ddspan.Meta
+var ddNamespacedKeysToAPMConventionKeys = map[string]string{
+	KeyDatadogEnvironment:    "env",
+	KeyDatadogVersion:        "version",
 	KeyDatadogHTTPStatusCode: "http.status_code",
 	KeyDatadogErrorMsg:       "error.msg",
 	KeyDatadogErrorType:      "error.type",
@@ -270,7 +269,7 @@ func OtelSpanToDDSpan(
 	// Span attributes take precedence over resource attributes in the event of key collisions; so, use span attributes first
 
 	// DD namespaced keys take precedence over OTLP keys, so use them first
-	for ddNamespacedKey, apmConventionKey := range ddNamespacedKeysToAPMConventionKeysForSpanAttributes {
+	for ddNamespacedKey, apmConventionKey := range ddNamespacedKeysToAPMConventionKeys {
 		copyAttrToMapIfExists(otelspan.Attributes(), ddNamespacedKey, ddspan.Meta, apmConventionKey)
 	}
 
@@ -287,25 +286,15 @@ func OtelSpanToDDSpan(
 		return true
 	})
 
-	for ddNamespacedKey, apmConventionKey := range ddNamespacedKeysToAPMConventionKeysForResourceAttributes {
+	for ddNamespacedKey, apmConventionKey := range ddNamespacedKeysToAPMConventionKeys {
 		copyAttrToMapIfExists(otelres.Attributes(), ddNamespacedKey, ddspan.Meta, apmConventionKey)
-	}
-
-	otelres.Attributes().Range(func(k string, v pcommon.Value) bool {
-		value := v.AsString()
-		conditionallyMapOTLPAttributeToMeta(k, value, ddspan, conf.OTLPReceiver.IgnoreMissingDatadogFields)
-		return true
-	})
-
-	for k, v := range lib.Attributes().Range {
-		ddspan.Meta[k] = v.AsString()
 	}
 
 	traceID := otelspan.TraceID()
 	ddspan.Meta["otel.trace_id"] = hex.EncodeToString(traceID[:])
 	if !spanMetaHasKey(ddspan, "version") {
-		if serviceVersion, ok := otelres.Attributes().Get(semconv.AttributeServiceVersion); ok {
-			ddspan.Meta["version"] = serviceVersion.AsString()
+		if version := traceutil.GetOTelAttrFromEitherMap(otelspan.Attributes(), otelres.Attributes(), true, semconv.AttributeServiceVersion); version != "" {
+			ddspan.Meta["version"] = version
 		}
 	}
 
@@ -337,10 +326,20 @@ func OtelSpanToDDSpan(
 		}
 
 		if !spanMetaHasKey(ddspan, "env") {
-			if env := traceutil.GetOTelEnv(otelres); env != "" {
+			if env := traceutil.GetOTelEnv(otelspan, otelres); env != "" {
 				ddspan.Meta["env"] = env
 			}
 		}
+	}
+
+	otelres.Attributes().Range(func(k string, v pcommon.Value) bool {
+		value := v.AsString()
+		conditionallyMapOTLPAttributeToMeta(k, value, ddspan, conf.OTLPReceiver.IgnoreMissingDatadogFields)
+		return true
+	})
+
+	for k, v := range lib.Attributes().Range {
+		ddspan.Meta[k] = v.AsString()
 	}
 
 	return ddspan
@@ -502,6 +501,40 @@ func SetMetaOTLP(s *pb.Span, k, v string) {
 	}
 }
 
+// SetMetaOTLPIfEmpty sets the k/v OTLP attribute pair as a tag on span s, if the corresponding value hasn't been set already.
+func SetMetaOTLPIfEmpty(s *pb.Span, k, v string) {
+	switch k {
+	case "operation.name":
+		if s.Name == "" {
+			s.Name = v
+		}
+	case "service.name":
+		if s.Service == "" {
+			s.Service = v
+		}
+	case "resource.name":
+		if s.Resource == "" {
+			s.Resource = v
+		}
+	case "span.type":
+		if s.Type == "" {
+			s.Type = v
+		}
+	case "analytics.event":
+		if v, err := strconv.ParseBool(v); err == nil {
+			if _, ok := s.Metrics[sampler.KeySamplingRateEventExtraction]; !ok {
+				if v {
+					s.Metrics[sampler.KeySamplingRateEventExtraction] = 1
+				} else {
+					s.Metrics[sampler.KeySamplingRateEventExtraction] = 0
+				}
+			}
+		}
+	default:
+		s.Meta[k] = v
+	}
+}
+
 // SetMetricOTLP sets the k/v OTLP attribute pair as a metric on span s.
 func SetMetricOTLP(s *pb.Span, k string, v float64) {
 	switch k {
@@ -509,6 +542,20 @@ func SetMetricOTLP(s *pb.Span, k string, v float64) {
 		s.Metrics["_sampling_priority_v1"] = v
 	default:
 		s.Metrics[k] = v
+	}
+}
+
+// SetMetricOTLPIfEmpty sets the k/v OTLP attribute pair as a metric on span s, if the corresponding value hasn't been set already.
+func SetMetricOTLPIfEmpty(s *pb.Span, k string, v float64) {
+	var key string
+	switch k {
+	case "sampling.priority":
+		key = "_sampling_priority_v1"
+	default:
+		key = k
+	}
+	if _, ok := s.Metrics[key]; !ok {
+		s.Metrics[key] = v
 	}
 }
 

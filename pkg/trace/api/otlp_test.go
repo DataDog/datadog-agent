@@ -163,6 +163,7 @@ func TestOTLPMetrics(t *testing.T) {
 }
 
 func testOTLPMetrics(enableReceiveResourceSpansV2 bool, t *testing.T) {
+	t.Helper()
 	assert := assert.New(t)
 	cfg := NewTestConfig(t)
 	if !enableReceiveResourceSpansV2 {
@@ -228,6 +229,7 @@ func TestOTLPNameRemapping(t *testing.T) {
 }
 
 func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
+	t.Helper()
 	cfg := NewTestConfig(t)
 	if !enableReceiveResourceSpansV2 {
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
@@ -265,6 +267,7 @@ func TestOTLPSpanNameV2(t *testing.T) {
 }
 
 func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
+	t.Helper()
 	cfg := NewTestConfig(t)
 	if !enableReceiveResourceSpansV2 {
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
@@ -786,6 +789,7 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 }
 
 func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.T) {
+	t.Helper()
 	cfg := NewTestConfig(t)
 	if !enableReceiveResourceSpansV2 {
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
@@ -1256,6 +1260,7 @@ func TestOTLPHostname(t *testing.T) {
 }
 
 func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
+	t.Helper()
 	testcases := []struct {
 		config, resource, span string
 		out                    string
@@ -1318,41 +1323,6 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	}
 }
 
-func TestResourceRelatedSpanAttributesAreIgnored_ReceiveResourceSpansV2(t *testing.T) {
-	cfg := NewTestConfig(t)
-	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
-	rattr := map[string]interface{}{}
-	sattr := map[string]interface{}{
-		"datadog.host.name":           "do-not-use",
-		"container.id":                "do-not-use",
-		"k8s.pod.id":                  "do-not-use",
-		"deployment.environment.name": "do-not-use",
-		"service.name":                "do-not-use",
-		"service.version":             "do-not-use",
-	}
-	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
-		{
-			LibName:    "a",
-			LibVersion: "1.2",
-			Attributes: rattr,
-			Spans:      []*testutil.OTLPSpan{{Attributes: sattr}},
-		},
-	}).Traces().ResourceSpans().At(0), http.Header{}, nil)
-	timeout := time.After(500 * time.Millisecond)
-	select {
-	case <-timeout:
-		t.Fatal("timed out")
-	case p := <-out:
-		span := p.Chunk(0).Spans[0]
-		assert.Empty(t, p.TracerPayload.Hostname)
-		assert.Empty(t, p.TracerPayload.ContainerID)
-		assert.Empty(t, p.TracerPayload.Env)
-		assert.Equal(t, traceutil.DefaultOTLPServiceName, span.Service)
-		assert.Empty(t, span.Meta["version"])
-	}
-}
-
 func TestOTLPReceiver(t *testing.T) {
 	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
 		testOTLPReceiver(false, t)
@@ -1364,6 +1334,7 @@ func TestOTLPReceiver(t *testing.T) {
 }
 
 func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
+	t.Helper()
 	t.Run("New", func(t *testing.T) {
 		cfg := NewTestConfig(t)
 		if !enableReceiveResourceSpansV2 {
@@ -1648,6 +1619,7 @@ func TestOTelSpanToDDSpan(t *testing.T) {
 }
 
 func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
+	t.Helper()
 	cfg := NewTestConfig(t)
 	now := uint64(otlpTestSpan.StartTimestamp())
 	if !enableOperationAndResourceNameV2 {
@@ -1736,14 +1708,13 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				Start:      now,
 				End:        now + 200000000,
 				Attributes: map[string]interface{}{
-					"name":                   "john",
-					"peer.service":           "userbase",
-					"deployment.environment": "prod",
-					"http.method":            "GET",
-					"http.route":             "/path",
-					"approx":                 1.2,
-					"count":                  2,
-					"span.kind":              "server",
+					"name":         "john",
+					"peer.service": "userbase",
+					"http.method":  "GET",
+					"http.route":   "/path",
+					"approx":       1.2,
+					"count":        2,
+					"span.kind":    "server",
 				},
 				Events: []testutil.OTLPSpanEvent{
 					{
@@ -1819,7 +1790,6 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				Error:    1,
 				Meta: map[string]string{
 					"name":                          "john",
-					"deployment.environment":        "prod",
 					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
 					"otel.status_code":              "Error",
 					"otel.status_description":       "Error",
@@ -1950,7 +1920,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			resourceNameV1:  "GET /path",
 			resourceNameV2:  "GET /path",
 			out: &pb.Span{
-				Service:  "myservice",
+				Service:  "pylons",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -2180,51 +2150,6 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			},
 		},
 		{
-			rattr:   map[string]string{},
-			libname: "ddtracer",
-			libver:  "v2",
-			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
-				Name:       "POST /uploads/:document_id",
-				Start:      now,
-				End:        now + 200000000,
-				StatusCode: ptrace.StatusCodeError,
-				Attributes: map[string]interface{}{
-					"datadog.host.name":           "do-not-use",
-					"deployment.environment.name": "do-not-use",
-					"service.name":                "do-not-use",
-					"container.id":                "do-not-use",
-					"k8s.pod.uid":                 "do-not-use",
-				},
-			}),
-			operationNameV1: "ddtracer.unspecified",
-			operationNameV2: "Internal",
-			resourceNameV1:  "POST /uploads/:document_id",
-			resourceNameV2:  "POST /uploads/:document_id",
-			out: &pb.Span{
-				Service:  traceutil.DefaultOTLPServiceName,
-				TraceID:  2594128270069917171,
-				SpanID:   2594128270069917171,
-				ParentID: 0,
-				Start:    int64(now),
-				Duration: 200000000,
-				Error:    1,
-				Meta: map[string]string{
-					"deployment.environment.name": "do-not-use",
-					"container.id":                "do-not-use",
-					"k8s.pod.uid":                 "do-not-use",
-					"otel.library.name":           "ddtracer",
-					"otel.library.version":        "v2",
-					"otel.status_code":            "Error",
-					"otel.trace_id":               "72df520af2bde7a5240031ead750e5f3",
-					"span.kind":                   "unspecified",
-				},
-				Type: "custom",
-			},
-			topLevelOutMetrics: map[string]float64{
-				"_top_level": 1,
-			},
-		},
-		{
 			rattr: map[string]string{
 				transform.KeyDatadogService:     "test-service",
 				transform.KeyDatadogEnvironment: "test-env",
@@ -2322,7 +2247,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			resourceNameV1:  "test-resource",
 			resourceNameV2:  "test-resource",
 			out: &pb.Span{
-				Service:  traceutil.DefaultOTLPServiceName,
+				Service:  "test-service",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -2340,6 +2265,8 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"error.type":           "mem",
 					"error.stack":          "1/2/3",
 					"http.status_code":     "404",
+					"env":                  "test-env",
+					"version":              "test-version",
 				},
 				Metrics: map[string]float64{
 					"http.status_code": 404,
@@ -2567,6 +2494,67 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				"rpc.grpc.status_code": 0,
 			},
 		},
+		{
+			rattr: map[string]string{
+				"service.name":           "res-service",
+				"deployment.environment": "res-env",
+				"operation.name":         "res-op",
+				"resource.name":          "res-res",
+				"span.type":              "res-type",
+				"http.status_code":       "res-status",
+				"version":                "res-version",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID: otlpTestTraceID,
+				SpanID:  otlpTestSpanID,
+				Name:    "/path",
+				Kind:    ptrace.SpanKindServer,
+				Start:   now,
+				End:     now + 200000000,
+				Attributes: map[string]interface{}{
+					"service.name":           "span-service",
+					"deployment.environment": "span-env",
+					"operation.name":         "span-op",
+					"resource.name":          "span-res",
+					"span.type":              "span-type",
+					"http.status_code":       "span-status",
+					"service.version":        "span-service-version",
+				},
+			}),
+			operationNameV1: "res_op",
+			operationNameV2: "span-op",
+			resourceNameV1:  "res-res",
+			resourceNameV2:  "span-res",
+			out: &pb.Span{
+				Name:     "span-op",
+				Resource: "span-res",
+				Service:  "span-service",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Meta: map[string]string{
+					"env":                    "span-env",
+					"deployment.environment": "span-env",
+					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":       "Unset",
+					"otel.library.name":      "ddtracer",
+					"otel.library.version":   "v2",
+					"service.version":        "span-service-version",
+					"version":                "span-service-version",
+					"span.kind":              "server",
+					"http.status_code":       "span-status",
+				},
+				Type:    "span-type",
+				Metrics: map[string]float64{},
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level": 1,
+			},
+		},
 	} {
 		t.Run("", func(t *testing.T) {
 			cfg.OTLPReceiver.IgnoreMissingDatadogFields = tt.ignoreMissingDatadogFields
@@ -2655,6 +2643,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 }
 
 func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
+	t.Helper()
 	cfg := NewTestConfig(t)
 	now := uint64(otlpTestSpan.StartTimestamp())
 	if !enableOperationAndResourceNameV2 {
@@ -3179,7 +3168,7 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			for k, v := range tt.rattr {
 				res.Attributes().PutStr(k, v)
 			}
-			got := o.convertSpan(tt.rattr, lib, tt.in)
+			got := o.convertSpan(res, lib, tt.in)
 			if len(want.Meta) != len(got.Meta) {
 				t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
 			}
@@ -3232,7 +3221,7 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 
 			// test new top-level identification feature flag
 			o.conf.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
-			got = o.convertSpan(tt.rattr, lib, tt.in)
+			got = o.convertSpan(res, lib, tt.in)
 			wantMetrics := tt.topLevelOutMetrics
 			if len(wantMetrics) != len(got.Metrics) {
 				t.Fatalf("(%d) Metrics count mismatch:\n\n%v\n\n%v", i, wantMetrics, got.Metrics)
@@ -3286,6 +3275,7 @@ func TestOTelSpanToDDSpanSetPeerService(t *testing.T) {
 	})
 }
 func testOTLPConvertSpanSetPeerService(enableOperationAndResourceNameV2 bool, t *testing.T) {
+	t.Helper()
 	now := uint64(otlpTestSpan.StartTimestamp())
 	cfg := NewTestConfig(t)
 	if !enableOperationAndResourceNameV2 {
@@ -3641,7 +3631,7 @@ func testOTLPConvertSpanSetPeerService(enableOperationAndResourceNameV2 bool, t 
 			for k, v := range tt.rattr {
 				res.Attributes().PutStr(k, v)
 			}
-			got := o.convertSpan(tt.rattr, lib, tt.in)
+			got := o.convertSpan(res, lib, tt.in)
 			want := tt.out
 			if enableOperationAndResourceNameV2 {
 				want.Name = tt.operationNameV2
@@ -4023,31 +4013,6 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 			assert.Equal(want, got, i)
 		})
 	}
-}
-
-// TestResourceAttributesMap is a regression test ensuring that the resource attributes map
-// passed to convertSpan is not modified by it.
-func TestResourceAttributesMap(t *testing.T) {
-	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
-		testResourceAttributesMap(false, t)
-	})
-
-	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
-		testResourceAttributesMap(true, t)
-	})
-}
-
-func testResourceAttributesMap(enableReceiveResourceSpansV2 bool, t *testing.T) {
-	rattr := map[string]string{"key": "val"}
-	lib := pcommon.NewInstrumentationScope()
-	span := testutil.NewOTLPSpan(&testutil.OTLPSpan{})
-	cfg := NewTestConfig(t)
-	if !enableReceiveResourceSpansV2 {
-		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
-	}
-	NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}).convertSpan(rattr, lib, span)
-	assert.Len(t, rattr, 1) // ensure "rattr" has no new entries
-	assert.Equal(t, "val", rattr["key"])
 }
 
 func makeEventsSlice(name string, attrs map[string]any, timestamp int, dropped uint32) ptrace.SpanEventSlice {

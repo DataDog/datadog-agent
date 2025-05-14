@@ -184,8 +184,8 @@ func GetTopLevelOTelSpans(spanByID map[pcommon.SpanID]ptrace.Span, resByID map[p
 			continue
 		}
 
-		svc := GetOTelService(resByID[spanID], true)
-		parentSvc := GetOTelService(resByID[parentSpan.SpanID()], true)
+		svc := GetOTelService(span, resByID[spanID], true)
+		parentSvc := GetOTelService(span, resByID[parentSpan.SpanID()], true)
 		if svc != parentSvc {
 			// case 3: parent is not in the same service
 			topLevelSpans[spanID] = struct{}{}
@@ -212,6 +212,17 @@ func GetOTelAttrVal(attrs pcommon.Map, normalize bool, keys ...string) string {
 	}
 
 	return val
+}
+
+// GetOTelAttrFromEitherMap returns the matched value as a string in either attribute map with the given keys.
+// If there are multiple keys present, the first matched one is returned.
+// If the key is present in both maps, map1 takes precedence.
+// If normalize is true, normalize the return value with NormalizeTagValue.
+func GetOTelAttrFromEitherMap(map1 pcommon.Map, map2 pcommon.Map, normalize bool, keys ...string) string {
+	if val := GetOTelAttrVal(map1, normalize, keys...); val != "" {
+		return val
+	}
+	return GetOTelAttrVal(map2, normalize, keys...)
 }
 
 // GetOTelAttrValInResAndSpanAttrs returns the matched value as a string in the OTel resource attributes and span attributes with the given keys.
@@ -253,7 +264,10 @@ func SpanKind2Type(span ptrace.Span, res pcommon.Resource) string {
 // GetOTelSpanType returns the DD span type based on OTel span kind and attributes.
 // This logic is used in ReceiveResourceSpansV2 logic
 func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
-	typ := GetOTelAttrValInResAndSpanAttrs(span, res, false, "span.type")
+	sattr := span.Attributes()
+	rattr := res.Attributes()
+
+	typ := GetOTelAttrFromEitherMap(sattr, rattr, false, "span.type")
 	if typ != "" {
 		return typ
 	}
@@ -261,7 +275,7 @@ func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
 	case ptrace.SpanKindServer:
 		typ = "web"
 	case ptrace.SpanKindClient:
-		db := GetOTelAttrValInResAndSpanAttrs(span, res, true, semconv.AttributeDBSystem)
+		db := GetOTelAttrFromEitherMap(sattr, rattr, true, semconv.AttributeDBSystem)
 		if db == "" {
 			typ = "http"
 		} else {
@@ -274,9 +288,9 @@ func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
 }
 
 // GetOTelService returns the DD service name based on OTel span and resource attributes.
-func GetOTelService(res pcommon.Resource, normalize bool) string {
+func GetOTelService(span ptrace.Span, res pcommon.Resource, normalize bool) string {
 	// No need to normalize with NormalizeTagValue since we will do NormalizeService later
-	svc := GetOTelAttrVal(res.Attributes(), false, semconv.AttributeServiceName)
+	svc := GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), false, semconv.AttributeServiceName)
 	if svc == "" {
 		svc = DefaultOTLPServiceName
 	}
@@ -340,77 +354,84 @@ func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) (resName string) 
 			resName = resName[:normalizeutil.MaxResourceLen]
 		}
 	}()
-	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "resource.name"); m != "" {
+	// Use span and resource attributes for lookups
+	sattr := span.Attributes()
+	rattr := res.Attributes()
+
+	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, "resource.name"); m != "" {
 		resName = m
 		return
 	}
 
-	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "http.request.method", semconv.AttributeHTTPMethod); m != "" {
+	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, "http.request.method", semconv.AttributeHTTPMethod); m != "" {
 		if m == "_OTHER" {
 			m = "HTTP"
 		}
 		// use the HTTP method + route (if available)
 		resName = m
 		if span.Kind() == ptrace.SpanKindServer {
-			if route := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeHTTPRoute); route != "" {
+			if route := GetOTelAttrFromEitherMap(sattr, rattr, false, semconv.AttributeHTTPRoute); route != "" {
 				resName = resName + " " + route
 			}
 		}
 		return
 	}
 
-	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeMessagingOperation); m != "" {
+	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, semconv.AttributeMessagingOperation); m != "" {
 		resName = m
 		// use the messaging operation
-		if dest := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeMessagingDestination, semconv117.AttributeMessagingDestinationName); dest != "" {
+		if dest := GetOTelAttrFromEitherMap(sattr, rattr, false, semconv.AttributeMessagingDestination, semconv117.AttributeMessagingDestinationName); dest != "" {
 			resName = resName + " " + dest
 		}
 		return
 	}
 
-	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeRPCMethod); m != "" {
+	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, semconv.AttributeRPCMethod); m != "" {
 		resName = m
 		// use the RPC method
-		if svc := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeRPCService); m != "" {
+		if svc := GetOTelAttrFromEitherMap(sattr, rattr, false, semconv.AttributeRPCService); svc != "" {
 			// ...and service if available
 			resName = resName + " " + svc
 		}
 		return
 	}
 
-	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv117.AttributeGraphqlOperationType); m != "" {
-		// Enrich GraphQL query resource names.
-		// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
+	// Enrich GraphQL query resource names.
+	// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
+	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, semconv117.AttributeGraphqlOperationType); m != "" {
 		resName = m
-		if name := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv117.AttributeGraphqlOperationName); name != "" {
+		if name := GetOTelAttrFromEitherMap(sattr, rattr, false, semconv117.AttributeGraphqlOperationName); name != "" {
 			resName = resName + " " + name
 		}
 		return
 	}
 
-	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeDBSystem); m != "" {
+	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, semconv.AttributeDBSystem); m != "" {
 		// Since traces are obfuscated by span.Resource in pkg/trace/agent/obfuscate.go, we should use span.Resource as the resource name.
 		// https://github.com/DataDog/datadog-agent/blob/62619a69cff9863f5b17215847b853681e36ff15/pkg/trace/agent/obfuscate.go#L32
-		if dbStatement := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeDBStatement); dbStatement != "" {
+		if dbStatement := GetOTelAttrFromEitherMap(sattr, rattr, false, semconv.AttributeDBStatement); dbStatement != "" {
 			resName = dbStatement
 			return
 		}
-		if dbQuery := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv126.AttributeDBQueryText); dbQuery != "" {
+		if dbQuery := GetOTelAttrFromEitherMap(sattr, rattr, false, semconv126.AttributeDBQueryText); dbQuery != "" {
 			resName = dbQuery
 			return
 		}
 	}
 
 	resName = span.Name()
-
 	return
 }
 
 // GetOTelOperationNameV2 returns the DD operation name based on OTel span and resource attributes and given configs.
 func GetOTelOperationNameV2(
 	span ptrace.Span,
+	res pcommon.Resource,
 ) string {
-	if operationName := GetOTelAttrVal(span.Attributes(), true, "operation.name"); operationName != "" {
+	sattr := span.Attributes()
+	rattr := res.Attributes()
+
+	if operationName := GetOTelAttrFromEitherMap(sattr, rattr, true, "operation.name"); operationName != "" {
 		return operationName
 	}
 
@@ -418,7 +439,7 @@ func GetOTelOperationNameV2(
 	isServer := span.Kind() == ptrace.SpanKindServer
 
 	// http
-	if method := GetOTelAttrVal(span.Attributes(), false, "http.request.method", semconv.AttributeHTTPMethod); method != "" {
+	if method := GetOTelAttrFromEitherMap(sattr, rattr, false, "http.request.method", semconv.AttributeHTTPMethod); method != "" {
 		if isServer {
 			return "http.server.request"
 		}
@@ -428,13 +449,13 @@ func GetOTelOperationNameV2(
 	}
 
 	// database
-	if v := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeDBSystem); v != "" && isClient {
+	if v := GetOTelAttrFromEitherMap(sattr, rattr, true, semconv.AttributeDBSystem); v != "" && isClient {
 		return v + ".query"
 	}
 
 	// messaging
-	system := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeMessagingSystem)
-	op := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeMessagingOperation)
+	system := GetOTelAttrFromEitherMap(sattr, rattr, true, semconv.AttributeMessagingSystem)
+	op := GetOTelAttrFromEitherMap(sattr, rattr, true, semconv.AttributeMessagingOperation)
 	if system != "" && op != "" {
 		switch span.Kind() {
 		case ptrace.SpanKindClient, ptrace.SpanKindServer, ptrace.SpanKindConsumer, ptrace.SpanKindProducer:
@@ -443,16 +464,17 @@ func GetOTelOperationNameV2(
 	}
 
 	// RPC & AWS
-	rpcValue := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeRPCSystem)
+	rpcValue := GetOTelAttrFromEitherMap(sattr, rattr, true, semconv.AttributeRPCSystem)
 	isRPC := rpcValue != ""
 	isAws := isRPC && (rpcValue == "aws-api")
 	// AWS client
 	if isAws && isClient {
-		if service := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeRPCService); service != "" {
+		if service := GetOTelAttrFromEitherMap(sattr, rattr, true, semconv.AttributeRPCService); service != "" {
 			return "aws." + service + ".request"
 		}
 		return "aws.client.request"
 	}
+
 	// RPC client
 	if isRPC && isClient {
 		return rpcValue + ".client.request"
@@ -463,25 +485,25 @@ func GetOTelOperationNameV2(
 	}
 
 	// FAAS client
-	provider := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeFaaSInvokedProvider)
-	invokedName := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeFaaSInvokedName)
+	provider := GetOTelAttrFromEitherMap(sattr, rattr, true, semconv.AttributeFaaSInvokedProvider)
+	invokedName := GetOTelAttrFromEitherMap(sattr, rattr, true, semconv.AttributeFaaSInvokedName)
 	if provider != "" && invokedName != "" && isClient {
 		return provider + "." + invokedName + ".invoke"
 	}
 
 	// FAAS server
-	trigger := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeFaaSTrigger)
+	trigger := GetOTelAttrFromEitherMap(sattr, rattr, true, semconv.AttributeFaaSTrigger)
 	if trigger != "" && isServer {
 		return trigger + ".invoke"
 	}
 
 	// GraphQL
-	if GetOTelAttrVal(span.Attributes(), true, "graphql.operation.type") != "" {
+	if GetOTelAttrFromEitherMap(sattr, rattr, true, "graphql.operation.type") != "" {
 		return "graphql.server.request"
 	}
 
 	// if nothing matches, checking for generic http server/client
-	protocol := GetOTelAttrVal(span.Attributes(), true, "network.protocol.name")
+	protocol := GetOTelAttrFromEitherMap(sattr, rattr, true, "network.protocol.name")
 	if isServer {
 		if protocol != "" {
 			return protocol + ".server.request"
@@ -573,11 +595,17 @@ func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Tran
 }
 
 // GetOTelStatusCode returns the DD status code of the OTel span.
-func GetOTelStatusCode(span ptrace.Span) uint32 {
+func GetOTelStatusCode(span ptrace.Span, res pcommon.Resource) uint32 {
+	if code, ok := span.Attributes().Get(semconv.AttributeHTTPStatusCode); ok {
+		return uint32(code.Int())
+	}
 	if code, ok := span.Attributes().Get("http.response.status_code"); ok {
 		return uint32(code.Int())
 	}
-	if code, ok := span.Attributes().Get(semconv.AttributeHTTPStatusCode); ok {
+	if code, ok := res.Attributes().Get(semconv.AttributeHTTPStatusCode); ok {
+		return uint32(code.Int())
+	}
+	if code, ok := res.Attributes().Get("http.response.status_code"); ok {
 		return uint32(code.Int())
 	}
 	return 0
@@ -606,9 +634,9 @@ func GetOTelContainerTags(rattrs pcommon.Map, tagKeys []string) []string {
 	return containerTags
 }
 
-// GetOTelEnv returns the environment based on OTel resource attributes.
-func GetOTelEnv(res pcommon.Resource) string {
-	return GetOTelAttrVal(res.Attributes(), true, semconv127.AttributeDeploymentEnvironmentName, semconv.AttributeDeploymentEnvironment)
+// GetOTelEnv returns the environment based on OTel span and resource attributes, with span taking precedence.
+func GetOTelEnv(span ptrace.Span, res pcommon.Resource) string {
+	return GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, semconv127.AttributeDeploymentEnvironmentName, semconv.AttributeDeploymentEnvironment)
 }
 
 // OTelTraceIDToUint64 converts an OTel trace ID to an uint64

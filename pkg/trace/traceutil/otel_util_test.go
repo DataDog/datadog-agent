@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv117 "go.opentelemetry.io/collector/semconv/v1.17.0"
 	semconv126 "go.opentelemetry.io/collector/semconv/v1.26.0"
+	semconv127 "go.opentelemetry.io/collector/semconv/v1.27.0"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"go.opentelemetry.io/otel/metric/noop"
 
@@ -163,6 +164,7 @@ func TestGetOTelSpanType(t *testing.T) {
 		name     string
 		spanKind ptrace.SpanKind
 		rattrs   map[string]string
+		sattrs   map[string]string
 		expected string
 	}{
 		{
@@ -228,10 +230,48 @@ func TestGetOTelSpanType(t *testing.T) {
 			spanKind: ptrace.SpanKindInternal,
 			expected: "custom",
 		},
+		{
+			name:     "span.type in both span and resource (span wins)",
+			rattrs:   map[string]string{"span.type": "resource-type"},
+			sattrs:   map[string]string{"span.type": "span-type"},
+			expected: "span-type",
+		},
+		{
+			name:     "span.type only in span",
+			sattrs:   map[string]string{"span.type": "span-type"},
+			expected: "span-type",
+		},
+		{
+			name:     "span.type only in resource",
+			rattrs:   map[string]string{"span.type": "resource-type"},
+			expected: "resource-type",
+		},
+		{
+			name:     "db.system in both span and resource (span wins)",
+			spanKind: ptrace.SpanKindClient,
+			rattrs:   map[string]string{"db.system": "redis"},
+			sattrs:   map[string]string{"db.system": "memcached"},
+			expected: spanTypeMemcached,
+		},
+		{
+			name:     "db.system only in span",
+			spanKind: ptrace.SpanKindClient,
+			sattrs:   map[string]string{"db.system": "redis"},
+			expected: spanTypeRedis,
+		},
+		{
+			name:     "db.system only in resource",
+			spanKind: ptrace.SpanKindClient,
+			rattrs:   map[string]string{"db.system": "redis"},
+			expected: spanTypeRedis,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			span := ptrace.NewSpan()
 			span.SetKind(tt.spanKind)
+			for k, v := range tt.sattrs {
+				span.Attributes().PutStr(k, v)
+			}
 			res := pcommon.NewResource()
 			for k, v := range tt.rattrs {
 				res.Attributes().PutStr(k, v)
@@ -305,6 +345,7 @@ func TestGetOTelService(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
 		rattrs    map[string]string
+		sattrs    map[string]string
 		normalize bool
 		expected  string
 	}{
@@ -313,9 +354,20 @@ func TestGetOTelService(t *testing.T) {
 			expected: "otlpresourcenoservicename",
 		},
 		{
-			name:     "normal service",
+			name:     "normal service in resource",
 			rattrs:   map[string]string{semconv.AttributeServiceName: "svc"},
 			expected: "svc",
+		},
+		{
+			name:     "normal service in span",
+			sattrs:   map[string]string{semconv.AttributeServiceName: "svc"},
+			expected: "svc",
+		},
+		{
+			name:     "service in both, span takes precedence",
+			rattrs:   map[string]string{semconv.AttributeServiceName: "resource_svc"},
+			sattrs:   map[string]string{semconv.AttributeServiceName: "span_svc"},
+			expected: "span_svc",
 		},
 		{
 			name:      "truncate long service",
@@ -335,7 +387,11 @@ func TestGetOTelService(t *testing.T) {
 			for k, v := range tt.rattrs {
 				res.Attributes().PutStr(k, v)
 			}
-			actual := GetOTelService(res, tt.normalize)
+			span := ptrace.NewSpan()
+			for k, v := range tt.sattrs {
+				span.Attributes().PutStr(k, v)
+			}
+			actual := GetOTelService(span, res, tt.normalize)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
@@ -420,6 +476,55 @@ func TestGetOTelResource(t *testing.T) {
 			sattrs:     map[string]string{"span.name": "span_name"},
 			expectedV1: "span_name",
 			expectedV2: "SET key value",
+		},
+		{
+			name:       "resource.name in both span and resource (span wins)",
+			rattrs:     map[string]string{"resource.name": "res_resource"},
+			sattrs:     map[string]string{"resource.name": "res_span"},
+			expectedV1: "res_resource",
+			expectedV2: "res_span",
+		},
+		{
+			name:       "http.request.method in both span and resource (span wins)",
+			rattrs:     map[string]string{"http.request.method": "POST"},
+			sattrs:     map[string]string{"http.request.method": "GET"},
+			expectedV1: "POST",
+			expectedV2: "GET",
+		},
+		{
+			name:       "messaging.operation in both span and resource (span wins)",
+			rattrs:     map[string]string{"messaging.operation": "receive"},
+			sattrs:     map[string]string{"messaging.operation": "process"},
+			expectedV1: "receive",
+			expectedV2: "process",
+		},
+		{
+			name:       "rpc.method in both span and resource (span wins)",
+			rattrs:     map[string]string{"rpc.method": "resource_method", "rpc.service": "resource_service"},
+			sattrs:     map[string]string{"rpc.method": "span_method", "rpc.service": "span_service"},
+			expectedV1: "resource_method resource_service",
+			expectedV2: "span_method span_service",
+		},
+		{
+			name:       "GraphQL type in both span and resource (span wins)",
+			rattrs:     map[string]string{"graphql.operation.type": "mutation"},
+			sattrs:     map[string]string{"graphql.operation.type": "query", "graphql.operation.name": "myQuery"},
+			expectedV1: "mutation myQuery",
+			expectedV2: "query myQuery",
+		},
+		{
+			name:       "DB statement in both span and resource (span wins)",
+			rattrs:     map[string]string{"db.system": "mysql", "db.statement": "SELECT * FROM resource"},
+			sattrs:     map[string]string{"db.system": "mysql", "db.statement": "SELECT * FROM span"},
+			expectedV1: "span_name",
+			expectedV2: "SELECT * FROM span",
+		},
+		{
+			name:       "fallback to span name if nothing set",
+			sattrs:     map[string]string{},
+			rattrs:     map[string]string{},
+			expectedV1: "span_name",
+			expectedV2: "span_name",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -568,14 +673,50 @@ func TestGetOTelHostname(t *testing.T) {
 }
 
 func TestGetOTelStatusCode(t *testing.T) {
-	span := ptrace.NewSpan()
-	span.SetName("span_name")
-	assert.Equal(t, uint32(0), GetOTelStatusCode(span))
-	span.Attributes().PutInt(semconv.AttributeHTTPStatusCode, 200)
-	assert.Equal(t, uint32(200), GetOTelStatusCode(span))
-	span.Attributes().Remove(semconv.AttributeHTTPStatusCode)
-	span.Attributes().PutInt("http.response.status_code", 404)
-	assert.Equal(t, uint32(404), GetOTelStatusCode(span))
+	tests := []struct {
+		name     string
+		sattrs   map[string]int64
+		rattrs   map[string]int64
+		expected uint32
+	}{
+		{
+			name:     "none set",
+			expected: 0,
+		},
+		{
+			name:     "span semconv.AttributeHTTPStatusCode",
+			sattrs:   map[string]int64{semconv.AttributeHTTPStatusCode: 200},
+			expected: 200,
+		},
+		{
+			name:     "span http.response.status_code",
+			sattrs:   map[string]int64{"http.response.status_code": 404},
+			expected: 404,
+		},
+		{
+			name:     "resource semconv.AttributeHTTPStatusCode",
+			rattrs:   map[string]int64{semconv.AttributeHTTPStatusCode: 201},
+			expected: 201,
+		},
+		{
+			name:     "resource http.response.status_code",
+			rattrs:   map[string]int64{"http.response.status_code": 418},
+			expected: 418,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			for k, v := range tt.sattrs {
+				span.Attributes().PutInt(k, v)
+			}
+			res := pcommon.NewResource()
+			for k, v := range tt.rattrs {
+				res.Attributes().PutInt(k, v)
+			}
+			assert.Equal(t, tt.expected, GetOTelStatusCode(span, res))
+		})
+	}
 }
 
 func TestGetOTelContainerTags(t *testing.T) {
@@ -587,4 +728,62 @@ func TestGetOTelContainerTags(t *testing.T) {
 	res.Attributes().PutStr("az", "my-az")
 	assert.Contains(t, GetOTelContainerTags(res.Attributes(), []string{"az", semconv.AttributeContainerID, semconv.AttributeContainerName, semconv.AttributeContainerImageName, semconv.AttributeContainerImageTag}), "container_id:cid", "container_name:cname", "image_name:ciname", "image_tag:citag", "az:my-az")
 	assert.Contains(t, GetOTelContainerTags(res.Attributes(), []string{"az"}), "az:my-az")
+}
+
+func TestGetOTelEnv(t *testing.T) {
+	tests := []struct {
+		name     string
+		sattrs   map[string]string
+		rattrs   map[string]string
+		expected string
+	}{
+		{
+			name:     "neither set",
+			expected: "",
+		},
+		{
+			name:     "only in resource (semconv127)",
+			rattrs:   map[string]string{semconv127.AttributeDeploymentEnvironmentName: "env-res-127"},
+			expected: "env-res-127",
+		},
+		{
+			name:     "only in resource (semconv)",
+			rattrs:   map[string]string{semconv.AttributeDeploymentEnvironment: "env-res"},
+			expected: "env-res",
+		},
+		{
+			name:     "only in span (semconv127)",
+			sattrs:   map[string]string{semconv127.AttributeDeploymentEnvironmentName: "env-span-127"},
+			expected: "env-span-127",
+		},
+		{
+			name:     "only in span (semconv)",
+			sattrs:   map[string]string{semconv.AttributeDeploymentEnvironment: "env-span"},
+			expected: "env-span",
+		},
+		{
+			name:     "both set (span wins)",
+			sattrs:   map[string]string{semconv.AttributeDeploymentEnvironment: "env-span"},
+			rattrs:   map[string]string{semconv.AttributeDeploymentEnvironment: "env-res"},
+			expected: "env-span",
+		},
+		{
+			name:     "normalization",
+			sattrs:   map[string]string{semconv.AttributeDeploymentEnvironment: "  ENV "},
+			expected: "_env",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			for k, v := range tt.sattrs {
+				span.Attributes().PutStr(k, v)
+			}
+			res := pcommon.NewResource()
+			for k, v := range tt.rattrs {
+				res.Attributes().PutStr(k, v)
+			}
+			assert.Equal(t, tt.expected, GetOTelEnv(span, res))
+		})
+	}
 }

@@ -73,7 +73,7 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		if _, exists := ignoreResNames[resourceName]; exists {
 			continue
 		}
-		env := traceutil.GetOTelEnv(otelres)
+		env := traceutil.GetOTelEnv(otelspan, otelres)
 		hostname := traceutil.GetOTelHostname(otelspan, otelres, conf.OTLPReceiver.AttributesTranslator, conf.Hostname)
 		version := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeServiceVersion)
 		cid := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)

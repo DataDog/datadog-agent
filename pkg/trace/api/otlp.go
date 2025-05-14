@@ -388,14 +388,14 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
 		libspans := rspans.ScopeSpans().At(i)
 		lib := libspans.Scope()
-		for i := 0; i < libspans.Spans().Len(); i++ {
+		for j := 0; j < libspans.Spans().Len(); j++ {
 			spancount++
-			span := libspans.Spans().At(i)
+			span := libspans.Spans().At(j)
 			traceID := traceutil.OTelTraceIDToUint64(span.TraceID())
 			if tracesByID[traceID] == nil {
 				tracesByID[traceID] = pb.Trace{}
 			}
-			ddspan := o.convertSpan(rattr, lib, span)
+			ddspan := o.convertSpan(rspans.Resource(), lib, span)
 			if !srcok {
 				// if we didn't find a hostname at the resource level
 				// try and see if the span has a hostname set
@@ -528,7 +528,7 @@ func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesBy
 			decisionMaker = "-9"
 		}
 		// `_dd.p.dm` must not be set even if a drop decision is applied to the trace here.
-		// Traces with a drop decision by the OTLPReceiver’s probabilistic sampler are re-evaluated by ErrorsSampler later.
+		// Traces with a drop decision by the OTLPReceiver's probabilistic sampler are re-evaluated by ErrorsSampler later.
 		if samplingPriorty.IsKeep() {
 			traceutil.SetMeta(spans[0], "_dd.p.dm", decisionMaker)
 		}
@@ -538,9 +538,9 @@ func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesBy
 	return traceChunks
 }
 
-// convertSpan converts the span in to a Datadog span, and uses the rattr resource tags and the lib instrumentation
+// convertSpan converts the span in to a Datadog span, and uses the res resource and the lib instrumentation
 // library attributes to further augment it.
-func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.InstrumentationScope, in ptrace.Span) *pb.Span {
+func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.InstrumentationScope, in ptrace.Span) *pb.Span {
 	traceID := [16]byte(in.TraceID())
 	span := &pb.Span{
 		TraceID:  traceutil.OTelTraceIDToUint64(traceID),
@@ -548,12 +548,13 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		ParentID: traceutil.OTelSpanIDToUint64(in.ParentSpanID()),
 		Start:    int64(in.StartTimestamp()),
 		Duration: int64(in.EndTimestamp()) - int64(in.StartTimestamp()),
-		Meta:     make(map[string]string, len(rattr)),
+		Meta:     make(map[string]string, res.Attributes().Len()),
 		Metrics:  map[string]float64{},
 	}
-	for k, v := range rattr {
-		transform.SetMetaOTLP(span, k, v)
-	}
+	res.Attributes().Range(func(k string, v pcommon.Value) bool {
+		transform.SetMetaOTLP(span, k, v.AsString())
+		return true
+	})
 
 	spanKind := in.Kind()
 	if o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind") {
@@ -563,8 +564,8 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	transform.SetMetaOTLP(span, "otel.trace_id", hex.EncodeToString(traceID[:]))
 	transform.SetMetaOTLP(span, "span.kind", traceutil.OTelSpanKindName(spanKind))
 	if _, ok := span.Meta["version"]; !ok {
-		if ver := rattr[string(semconv.AttributeServiceVersion)]; ver != "" {
-			transform.SetMetaOTLP(span, "version", ver)
+		if ver, ok := res.Attributes().Get(semconv.AttributeServiceVersion); ok && ver.AsString() != "" {
+			transform.SetMetaOTLP(span, "version", ver.AsString())
 		}
 	}
 	if in.Events().Len() > 0 {
@@ -638,7 +639,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	}
 	span.Error = transform.Status2Error(in.Status(), in.Events(), span.Meta)
 	if transform.OperationAndResourceNameV2Enabled(o.conf) {
-		span.Name = traceutil.GetOTelOperationNameV2(in)
+		span.Name = traceutil.GetOTelOperationNameV2(in, res)
 	} else {
 		if span.Name == "" {
 			name := in.Name()
@@ -658,10 +659,6 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	}
 	if span.Service == "" {
 		span.Service = "OTLPResourceNoServiceName"
-	}
-	res := pcommon.NewResource()
-	for k, v := range rattr {
-		res.Attributes().PutStr(k, v)
 	}
 	if span.Resource == "" {
 		if transform.OperationAndResourceNameV2Enabled(o.conf) {
