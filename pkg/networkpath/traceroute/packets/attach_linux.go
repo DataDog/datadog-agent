@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package filter
+package packets
 
 import (
 	"errors"

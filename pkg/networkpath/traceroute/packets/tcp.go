@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package filter has BPF filters for sockets useful for traceroutes
-package filter
+package packets
 
 import (
 	"encoding/binary"

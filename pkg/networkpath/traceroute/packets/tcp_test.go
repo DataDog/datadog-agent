@@ -5,7 +5,7 @@
 
 //go:build test && linux && linux_bpf
 
-package filter
+package packets
 
 import (
 	"bufio"

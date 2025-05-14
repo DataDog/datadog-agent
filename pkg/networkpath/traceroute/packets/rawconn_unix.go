@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package filter
+//go:build unix || linux
+
+package packets
 
 import (
 	"context"
