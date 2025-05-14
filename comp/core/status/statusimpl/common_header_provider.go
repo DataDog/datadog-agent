@@ -109,9 +109,14 @@ func populateConfig(config config.Component) map[string]string {
 	conf["confd_path"] = config.GetString("confd_path")
 	conf["additional_checksd"] = config.GetString("additional_checksd")
 
-	conf["fips_enabled"] = config.GetString("fips.enabled")
-	conf["fips_local_address"] = config.GetString("fips.local_address")
-	conf["fips_port_range_start"] = config.GetString("fips.port_range_start")
+	// fips.Enabled() returns true for datadog-fips-agent builds which is incompatible for use with the fips-proxy
+	// so we need to guard against displaying the fips-proxy configuration in the header since it is ignored
+	fipsBuildFlavor, _ := fips.Enabled()
+	if !fipsBuildFlavor {
+		conf["fips_enabled"] = config.GetString("fips.enabled")
+		conf["fips_local_address"] = config.GetString("fips.local_address")
+		conf["fips_port_range_start"] = config.GetString("fips.port_range_start")
+	}
 
 	return conf
 }
