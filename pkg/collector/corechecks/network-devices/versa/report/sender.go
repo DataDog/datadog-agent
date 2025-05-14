@@ -8,6 +8,8 @@ package report
 
 import (
 	"fmt"
+	"math"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +26,10 @@ const (
 	versaTimestampFormat          = "2006-01-02 15:04:05.0"
 	alternateVersaTimestampFormat = "2006/01/02 15:04:05"
 	timestampExpiration           = 6 * time.Hour
+)
+
+var (
+	versaUptimeRegex = regexp.MustCompile(`(?i)(\d+)\s+(year?|days?|hours?|minutes?|seconds?)`)
 )
 
 // Sender implements methods for sending Versa metrics and metadata
@@ -146,6 +152,87 @@ func (s *Sender) SendSLAMetrics(slaMetrics []client.SLAMetrics, deviceNameToIDMa
 	}
 }
 
+// SendDirectorUptimeMetrics sends director uptime metrics
+func (s *Sender) SendDirectorUptimeMetrics(director *client.DirectorStatus) {
+	ipAddress, err := director.IPAddress()
+	if err != nil {
+		log.Errorf("Error getting director IP address: %s", err)
+		return
+	}
+	tags := s.GetDeviceTags(defaultIPTag, ipAddress)
+
+	appUptime, err := parseUptimeString(director.SystemUpTime.ApplicationUpTime)
+	if err != nil {
+		log.Errorf("error parsing director application uptime: %v", err)
+	} else {
+		s.Gauge(versaMetricPrefix+"device.uptime", appUptime, "", append(tags, "type:application"))
+	}
+
+	sysUptime, err := parseUptimeString(director.SystemUpTime.SysProcUptime)
+	if err != nil {
+		log.Errorf("error parsing director system uptime: %v", err)
+	} else {
+		s.Gauge(versaMetricPrefix+"device.uptime", sysUptime, "", append(tags, "type:system"))
+	}
+}
+
+// SendDirectorStatus sends the director status metric
+func (s *Sender) SendDirectorStatus(director *client.DirectorStatus) {
+	ipAddress, err := director.IPAddress()
+	if err != nil {
+		log.Errorf("Error getting director IP address: %s", err)
+		return
+	}
+	tags := s.GetDeviceTags(defaultIPTag, ipAddress)
+
+	s.Gauge(versaMetricPrefix+"device.reachable", 1, "", tags)
+}
+
+// SendDirectorDeviceMetrics sends director device metrics like CPU, memory, and disk usage
+func (s *Sender) SendDirectorDeviceMetrics(director *client.DirectorStatus) {
+	ipAddress, err := director.IPAddress()
+	if err != nil {
+		log.Errorf("Error getting director IP address: %s", err)
+		return
+	}
+	tags := s.GetDeviceTags(defaultIPTag, ipAddress)
+
+	// Convert lastUpdatedTime to unix timestamp
+	lastUpdatedTime := float64(time.Now().UnixMilli())
+
+	ts := lastUpdatedTime / 1000 // convert to seconds
+	cpuLoadString := director.SystemDetails.CPULoad
+	cpuLoad, err := strconv.ParseFloat(cpuLoadString, 64)
+	if err != nil {
+		log.Warnf("Error parsing CPULoad %s: %s", cpuLoadString, err)
+		cpuLoad = 0
+	}
+
+	// Parse memory metrics
+	memFree, err := parseSize(director.SystemDetails.MemoryFree)
+	if err != nil {
+		log.Warnf("Error parsing FreeMemory %s: %s", director.SystemDetails.MemoryFree, err)
+		memFree = 0
+	}
+	memTotal, err := parseSize(director.SystemDetails.Memory)
+	if err != nil {
+		log.Warnf("Error parsing Memory %s: %s", director.SystemDetails.Memory, err)
+		memTotal = 1
+	}
+	memUsage := 100 - (memFree / memTotal * float64(100))
+
+	// Parse disk metrics
+	diskUsage, err := strconv.ParseFloat(director.SystemDetails.DiskUsage, 64)
+	if err != nil {
+		log.Warnf("Error parsing DiskUsage %s: %s", director.SystemDetails.DiskUsage, err)
+		diskUsage = 0
+	}
+
+	s.GaugeWithTimestampWrapper(versaMetricPrefix+"cpu.usage", cpuLoad, tags, ts)
+	s.GaugeWithTimestampWrapper(versaMetricPrefix+"memory.usage", memUsage, tags, ts)
+	s.GaugeWithTimestampWrapper(versaMetricPrefix+"disk.usage", diskUsage, tags, ts)
+}
+
 // parseTimestamp parses a timestamp string in the Versa formats and returns the unix timestamp in milliseconds
 // If the timestamp is invalid, it returns the current time in milliseconds
 func parseTimestamp(timestamp string) (float64, error) {
@@ -165,38 +252,70 @@ func parseTimestamp(timestamp string) (float64, error) {
 func parseSize(sizeString string) (float64, error) {
 	// bytes will be checked for separately
 	units := map[string]float64{
+		"b":   1,
 		"kib": 1 << 10,
 		"mib": 1 << 20,
 		"gib": 1 << 30,
 		"tib": 1 << 40,
 		"pib": 1 << 50,
 		"eib": 1 << 60,
+		"kb":  1e3,
+		"mb":  1e6,
+		"gb":  1e9,
+		"tb":  1e12,
+		"pb":  1e15,
+		"eb":  1e18,
 	}
 
 	normalizedSize := strings.TrimSpace(strings.ToLower(sizeString))
-	var suffix string
-	if len(normalizedSize) >= 3 {
-		suffix = normalizedSize[len(normalizedSize)-3:]
-
-		// check if suffix is in units map
-		if factor, ok := units[suffix]; ok {
-			size, err := strconv.ParseFloat(normalizedSize[:len(normalizedSize)-len(suffix)], 64)
-			if err != nil {
-				// If parsing fails, see if it's a number longer than 3 digits but has bytes
-				return 0, fmt.Errorf("error parsing size %q: %w", sizeString, err)
+	longestUnit := ""
+	largestFactor := 1.0
+	for unit, factor := range units {
+		if strings.HasSuffix(normalizedSize, unit) {
+			if len(unit) > len(longestUnit) {
+				longestUnit = unit
+				largestFactor = factor
 			}
-			return size * factor, nil
 		}
 	}
+	// Remove the unit from the size string
+	size, err := strconv.ParseFloat(normalizedSize[:len(normalizedSize)-len(longestUnit)], 64)
+	if err != nil {
+		return 0, fmt.Errorf("error parsing size %q: %w", sizeString, err)
+	}
+	return size * largestFactor, nil
+}
 
-	// check if suffix is bytes
-	if strings.HasSuffix(normalizedSize, "b") {
-		size, err := strconv.ParseFloat(normalizedSize[:len(normalizedSize)-1], 64)
+func parseUptimeString(uptime string) (float64, error) {
+	uptime = strings.TrimSuffix(uptime, ".") // Remove the trailing period
+	matches := versaUptimeRegex.FindAllStringSubmatch(uptime, -1)
+
+	var total time.Duration
+	for _, match := range matches {
+		if len(match) < 3 {
+			return 0, fmt.Errorf("invalid uptime format: %s", uptime)
+		}
+		valueStr := match[1]
+		unit := strings.ToLower(match[2])
+
+		value, err := strconv.Atoi(valueStr)
 		if err != nil {
-			return 0, fmt.Errorf("error parsing size %q: %w", sizeString, err)
+			return 0, fmt.Errorf("invalid number %s: %v", valueStr, err)
 		}
-		return size, nil
+
+		switch unit {
+		case "year", "years":
+			total += time.Duration(value) * 365 * 24 * time.Hour
+		case "day", "days":
+			total += time.Duration(value) * 24 * time.Hour
+		case "hour", "hours":
+			total += time.Duration(value) * time.Hour
+		case "minute", "minutes":
+			total += time.Duration(value) * time.Minute
+		case "second", "seconds":
+			total += time.Duration(value) * time.Second
+		}
 	}
 
-	return 0, fmt.Errorf("no matching units found for: %q", sizeString)
+	return math.Round(float64(total.Milliseconds()) / 10), nil // In hundredths of a second, to match SNMP
 }

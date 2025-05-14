@@ -6,6 +6,8 @@
 // Package client implements a Versa API client
 package client
 
+import "fmt"
+
 // Content encapsulates the content types of the Versa API
 type Content interface {
 	[]Appliance |
@@ -334,4 +336,13 @@ type SLAMetrics struct {
 	FwdLossRatio        float64
 	RevLossRatio        float64
 	PDULossRatio        float64
+}
+
+// IPAddress returns the first management IP address of the director
+// or an error if no management IPs are found
+func (d *DirectorStatus) IPAddress() (string, error) {
+	if len(d.HAConfig.MyVnfManagementIPs) == 0 {
+		return "", fmt.Errorf("no management IPs found for director")
+	}
+	return d.HAConfig.MyVnfManagementIPs[0], nil
 }

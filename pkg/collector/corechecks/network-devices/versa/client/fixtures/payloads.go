@@ -388,7 +388,7 @@ const GetDirectorStatus = `
     "memory": "64.01GB",
     "memoryFree": "20.10GB",
     "disk": "128GB",
-    "diskUsage": "fakeDiskUsage"
+    "diskUsage": "100GB",
   },
   "pkgInfo": {
     "version": "10.1",
