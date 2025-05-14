@@ -218,8 +218,8 @@ func (d *DBMAuroraService) GetTaggerEntity() string {
 }
 
 // GetADIdentifiers return the single AD identifier for a static config service
-func (d *DBMAuroraService) GetADIdentifiers() ([]string, error) {
-	return []string{d.adIdentifier}, nil
+func (d *DBMAuroraService) GetADIdentifiers() []string {
+	return []string{d.adIdentifier}
 }
 
 // GetHosts returns the host for the aurora endpoint
