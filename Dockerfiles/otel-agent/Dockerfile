@@ -43,16 +43,9 @@ WORKDIR /workspace/datadog-agent
 # Install Go based on architecture
 RUN GO_VERSION=$(cat .go-version) && \
     ARCH=$(dpkg --print-architecture) && \
-    if [ "$ARCH" = "amd64" ]; then \
-    GO_ARCH="linux-amd64"; \
-    elif [ "$ARCH" = "arm64" ]; then \
-    GO_ARCH="linux-arm64"; \
-    else \
-    echo "Unsupported architecture: $ARCH" && exit 1; \
-    fi && \
-    curl -OL https://golang.org/dl/go${GO_VERSION}.$GO_ARCH.tar.gz && \
-    tar -C /usr/local -xzf go${GO_VERSION}.$GO_ARCH.tar.gz && \
-    rm go${GO_VERSION}.$GO_ARCH.tar.gz
+    curl -OL https://golang.org/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz && \
+    tar -C /usr/local -xzf go${GO_VERSION}.linux-${ARCH}.tar.gz && \
+    rm go${GO_VERSION}.linux-${ARCH}.tar.gz
 
 # Set up Go environment
 ENV PATH="/usr/local/go/bin:${PATH}"
