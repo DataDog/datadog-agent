@@ -298,7 +298,7 @@
 
 notify_ebpf_complexity_changes:
   extends: .notify-job
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules:
     - !reference [.except_main_release_or_mq]
@@ -336,6 +336,7 @@ notify_ebpf_complexity_changes:
   before_script:
     - python3 -m dda self dep sync -f legacy-tasks
     - !reference [.setup_agent_github_app]
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
   script:
     - dda inv -- -e ebpf.generate-complexity-summary-for-pr

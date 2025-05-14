@@ -89,7 +89,7 @@ func init() {
 
 // PythonCheckLoader is a specific loader for checks living in Python modules
 //
-//nolint:revive // TODO(AML) Fix revive linter
+//nolint:revive
 type PythonCheckLoader struct {
 	logReceiver option.Option[integrations.Component]
 }
@@ -319,7 +319,7 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 			// validatePython3 is CPU and memory hungry, make sure we only run one instance of it
 			// at once to avoid CPU and mem usage spikes
 			linterLock.Lock()
-			warnings, err := validatePython3(checkName, checkFilePath)
+			warnings, err := validatePython3(checkFilePath)
 			linterLock.Unlock()
 
 			if err != nil {

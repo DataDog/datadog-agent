@@ -52,11 +52,13 @@ func RunServer(t testing.TB, serverAddr, serverPort string, enableTLS bool) erro
 
 	scanner, err := globalutils.NewScanner(regexp.MustCompile(fmt.Sprintf(".*listening on IPv4 address \"0.0.0.0\", port %s", serverPort)), globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
-	dockerCfg := dockerutils.NewComposeConfig("postgres",
-		dockerutils.DefaultTimeout,
-		dockerutils.DefaultRetries,
-		scanner,
-		env,
+
+	dockerCfg := dockerutils.NewComposeConfig(
+		dockerutils.NewBaseConfig(
+			"postgres",
+			scanner,
+			dockerutils.WithEnv(env),
+		),
 		filepath.Join(testDataDir, "docker-compose.yml"))
 	return dockerutils.Run(t, dockerCfg)
 }

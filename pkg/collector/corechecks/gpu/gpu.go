@@ -30,6 +30,7 @@ import (
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -324,14 +325,14 @@ func (c *Check) getContainerTags(containerID string) []string {
 
 func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 	containers := c.wmeta.ListContainersWithFilter(func(cont *workloadmeta.Container) bool {
-		return len(cont.AllocatedResources) > 0
+		return len(cont.ResolvedAllocatedResources) > 0
 	})
 
 	gpuToContainers := make(map[string][]*workloadmeta.Container)
 
 	for _, container := range containers {
-		for _, resource := range container.AllocatedResources {
-			if resource.Name == "nvidia.com/gpu" {
+		for _, resource := range container.ResolvedAllocatedResources {
+			if gpuutil.IsNvidiaKubernetesResource(resource.Name) {
 				gpuToContainers[resource.ID] = append(gpuToContainers[resource.ID], container)
 			}
 		}
