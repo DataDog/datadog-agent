@@ -24,6 +24,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+type connTag = uint64
+
+// ConnTag constant must be the same for all platform
+const (
+	tagGnuTLS  connTag = 0x01 // network.ConnTagGnuTLS
+	tagOpenSSL connTag = 0x02 // network.ConnTagOpenSSL
+	tagTLS     connTag = 0x10 // network.ConnTagTLS
+)
+
 func TestFormatHTTPStats(t *testing.T) {
 	var (
 		clientPort  = uint16(52800)
