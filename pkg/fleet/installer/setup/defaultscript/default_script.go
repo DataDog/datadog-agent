@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -99,19 +100,19 @@ func setConfigSecurityProducts(s *common.Setup) {
 	runtimeSecurityConfigEnabled, runtimeSecurityConfigEnabledOk := os.LookupEnv("DD_RUNTIME_SECURITY_CONFIG_ENABLED")
 	complianceConfigEnabled, complianceConfigEnabledOk := os.LookupEnv("DD_COMPLIANCE_CONFIG_ENABLED")
 	if runtimeSecurityConfigEnabledOk || complianceConfigEnabledOk {
-		s.Config.SecurityAgentYAML = &common.SecurityAgentConfig{}
-		s.Config.SystemProbeYAML = &common.SystemProbeConfig{}
+		s.Config.SecurityAgentYAML = &config.SecurityAgentConfig{}
+		s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
 	}
 	if complianceConfigEnabledOk && strings.ToLower(complianceConfigEnabled) != "false" {
-		s.Config.SecurityAgentYAML.ComplianceConfig = common.SecurityAgentComplianceConfig{
+		s.Config.SecurityAgentYAML.ComplianceConfig = config.SecurityAgentComplianceConfig{
 			Enabled: true,
 		}
 	}
 	if runtimeSecurityConfigEnabledOk && strings.ToLower(runtimeSecurityConfigEnabled) != "false" {
-		s.Config.SecurityAgentYAML.RuntimeSecurityConfig = common.RuntimeSecurityConfig{
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig = config.RuntimeSecurityConfig{
 			Enabled: true,
 		}
-		s.Config.SystemProbeYAML.RuntimeSecurityConfig = common.RuntimeSecurityConfig{
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig = config.RuntimeSecurityConfig{
 			Enabled: true,
 		}
 	}
@@ -130,8 +131,8 @@ func setConfigInstallerRegistries(s *common.Setup) {
 	registryURL, registryURLOk := os.LookupEnv("DD_INSTALLER_REGISTRY_URL")
 	registryAuth, registryAuthOk := os.LookupEnv("DD_INSTALLER_REGISTRY_AUTH")
 	if registryURLOk || registryAuthOk {
-		s.Config.DatadogYAML.Installer = common.DatadogConfigInstaller{
-			Registry: common.DatadogConfigInstallerRegistry{
+		s.Config.DatadogYAML.Installer = config.DatadogConfigInstaller{
+			Registry: config.DatadogConfigInstallerRegistry{
 				URL:  registryURL,
 				Auth: registryAuth,
 			},
