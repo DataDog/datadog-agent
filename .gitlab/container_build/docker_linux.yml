@@ -199,6 +199,7 @@ docker_build_base_image_arm64:
   before_script:
     - cp bin/otel-agent/otel-agent $BUILD_CONTEXT/
     - cp cmd/otel-agent/dist/otel-config.yaml $BUILD_CONTEXT/
+    - ls -l $BUILD_CONTEXT/
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
