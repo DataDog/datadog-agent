@@ -135,6 +135,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
 | [`event.origin`](#event-origin-doc) | Origin of the event |
 | [`event.os`](#event-os-doc) | Operating system of the event |
+| [`event.rule.tags`](#event-rule-tags-doc) | Tags associated with the rule that's used to evaluate the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`process.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
@@ -384,7 +385,6 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`process.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`process.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
-| [`rule.tags`](#rule-tags-doc) | Tags associated with the rule that's used to evaluate the event |
 
 ### Event `accept`
 
@@ -2931,6 +2931,13 @@ Definition: Operating system of the event
 
 
 
+### `event.rule.tags` {#event-rule-tags-doc}
+Type: string
+
+Definition: Tags associated with the rule that's used to evaluate the event
+
+
+
 ### `event.service` {#event-service-doc}
 Type: string
 
@@ -3297,13 +3304,6 @@ Definition: Path argument of the syscall
 Type: string
 
 Definition: Path argument of the syscall
-
-
-
-### `rule.tags` {#rule-tags-doc}
-Type: string
-
-Definition: Tags associated with the rule that's used to evaluate the event
 
 
 

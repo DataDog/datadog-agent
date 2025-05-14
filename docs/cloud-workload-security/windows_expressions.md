@@ -71,6 +71,7 @@ List of the available variables:
 | [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
 | [`event.origin`](#event-origin-doc) | Origin of the event |
 | [`event.os`](#event-os-doc) | Operating system of the event |
+| [`event.rule.tags`](#event-rule-tags-doc) | Tags associated with the rule that's used to evaluate the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`process.ancestors.cmdline`](#common-process-cmdline-doc) | Command line of the process |
@@ -113,7 +114,6 @@ List of the available variables:
 | [`process.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`process.user`](#common-process-user-doc) | User name |
 | [`process.user_sid`](#common-process-user_sid-doc) | Sid of the user of the process |
-| [`rule.tags`](#rule-tags-doc) | Tags associated with the rule that's used to evaluate the event |
 
 ### Event `change_permission`
 
@@ -622,6 +622,13 @@ Definition: Operating system of the event
 
 
 
+### `event.rule.tags` {#event-rule-tags-doc}
+Type: string
+
+Definition: Tags associated with the rule that's used to evaluate the event
+
+
+
 ### `event.service` {#event-service-doc}
 Type: string
 
@@ -647,13 +654,6 @@ Definition: Cause of the process termination (one of EXITED, SIGNALED, COREDUMPE
 Type: int
 
 Definition: Exit code of the process or number of the signal that caused the process to terminate
-
-
-
-### `rule.tags` {#rule-tags-doc}
-Type: string
-
-Definition: Tags associated with the rule that's used to evaluate the event
 
 
 

@@ -130,9 +130,7 @@ type BaseEvent struct {
 	Origin        string         `field:"event.origin"`                                                  // SECLDoc[event.origin] Definition:`Origin of the event`
 	Service       string         `field:"event.service,handler:ResolveService,opts:skip_ad|gen_getters"` // SECLDoc[event.service] Definition:`Service associated with the event`
 	Hostname      string         `field:"event.hostname,handler:ResolveHostname"`                        // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
-
-	// Fields populated upon rule evaluation
-	RuleTags []string `field:"rule.tags"` // SECLDoc[rule.tags] Definition:`Tags associated with the rule that's used to evaluate the event`
+	RuleTags      []string       `field:"event.rule.tags"`                                               // SECLDoc[event.rule.tags] Definition:`Tags associated with the rule that's used to evaluate the event`
 
 	// context shared with all event types
 	ProcessContext         *ProcessContext        `field:"process"`

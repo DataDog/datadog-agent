@@ -73,6 +73,11 @@
           "property_doc_link": "event-os-doc"
         },
         {
+          "name": "event.rule.tags",
+          "definition": "Tags associated with the rule that's used to evaluate the event",
+          "property_doc_link": "event-rule-tags-doc"
+        },
+        {
           "name": "event.service",
           "definition": "Service associated with the event",
           "property_doc_link": "event-service-doc"
@@ -1316,11 +1321,6 @@
           "name": "process.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
-        },
-        {
-          "name": "rule.tags",
-          "definition": "Tags associated with the rule that's used to evaluate the event",
-          "property_doc_link": "rule-tags-doc"
         }
       ]
     },
@@ -10312,6 +10312,18 @@
       "examples": []
     },
     {
+      "name": "event.rule.tags",
+      "link": "event-rule-tags-doc",
+      "type": "string",
+      "definition": "Tags associated with the rule that's used to evaluate the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "event.service",
       "link": "event-service-doc",
       "type": "string",
@@ -10882,18 +10894,6 @@
       "definition": "Path argument of the syscall",
       "prefixes": [
         "rmdir"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "rule.tags",
-      "link": "rule-tags-doc",
-      "type": "string",
-      "definition": "Tags associated with the rule that's used to evaluate the event",
-      "prefixes": [
-        ""
       ],
       "constants": "",
       "constants_link": "",

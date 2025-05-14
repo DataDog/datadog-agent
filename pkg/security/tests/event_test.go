@@ -292,12 +292,12 @@ func TestEventProductTags(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:          "rule_tags_match",
-			Expression:  `open.file.path == "{{.Root}}/test-tags-match" && open.flags&O_CREAT == O_CREAT && rule.tags in ["tag:match"]`,
+			Expression:  `open.file.path == "{{.Root}}/test-tags-match" && open.flags&O_CREAT == O_CREAT && event.rule.tags in ["tag:match"]`,
 			ProductTags: []string{"tag:match"},
 		},
 		{
 			ID:          "rule_tags_no_match",
-			Expression:  `open.file.path == "{{.Root}}/test-tags-no-match" && open.flags&O_CREAT == O_CREAT && rule.tags in ["tag:match"]`,
+			Expression:  `open.file.path == "{{.Root}}/test-tags-no-match" && open.flags&O_CREAT == O_CREAT && event.rule.tags in ["tag:match"]`,
 			ProductTags: []string{"tag:no-match"},
 		},
 	}
