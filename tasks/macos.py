@@ -4,6 +4,7 @@ import time
 
 from invoke import task
 
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 
 
@@ -114,6 +115,11 @@ def remove_inactive_versions(ctx, lang, target_version="", n_days=30, dry_run=Fa
     ci_active_versions = list_ci_active_versions(ctx, lang, n_days)
     # These are X.YY.ZZ versions
     runner_active_versions = list_runner_active_versions(ctx, lang)
+
+    # Avoid removing everything if metrics are not found
+    if not ci_active_versions:
+        print(f'{color_message("WARNING", Color.ORANGE)}: No versions metrics found in Datadog, skipping removal')
+        return
 
     # Transform target version from go<version> to <version>
     if lang == "go":
