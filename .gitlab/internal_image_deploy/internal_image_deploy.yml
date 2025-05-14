@@ -48,7 +48,7 @@
   TMPL_SRC_REPO: ci/datadog-agent/otel-agent
 
 # -- publish jobs --
-publish-internal-container-image-jmx:
+publish_internal_container_image-jmx:
   extends: .docker_trigger_base
   needs:
     - job: docker_build_agent7_jmx
@@ -61,7 +61,7 @@ publish-internal-container-image-jmx:
     RELEASE_TAG_SUFFIX: "-jmx"
     TMPL_SRC_IMAGE_SUFFIX: "-7-jmx"
 
-publish-internal-container-image-fips:
+publish_internal_container_image-fips:
   extends: .docker_trigger_base
   needs:
     - job: docker_build_fips_agent7_jmx
@@ -73,7 +73,7 @@ publish-internal-container-image-fips:
     RELEASE_TAG_SUFFIX: "-fips-jmx"
     TMPL_SRC_IMAGE_SUFFIX: "-7-fips-jmx"
 
-publish-internal-container-image-full:
+publish_internal_container_image-full:
   extends: .docker_trigger_base
   needs:
     - job: docker_build_agent7_full
@@ -86,7 +86,7 @@ publish-internal-container-image-full:
     RELEASE_TAG_SUFFIX: "-full"
     TMPL_SRC_IMAGE_SUFFIX: "-7-full"
 
-publish-internal-container-image-ot_standalone:
+publish_internal_container_image-ot_standalone:
   extends: .docker_trigger_base
   needs:
     - job: docker_build_ot_agent_standalone_amd64
@@ -98,7 +98,7 @@ publish-internal-container-image-ot_standalone:
     TMPL_SRC_IMAGE_SUFFIX: "-7"
 
 # DCA publish jobs
-publish-internal-dca-container-image:
+publish_internal_dca_container_image:
   extends: .docker_trigger_base
   needs:
     - job: docker_build_cluster_agent_amd64
@@ -108,7 +108,7 @@ publish-internal-dca-container-image:
   variables:
     <<: *cluster_agent_variables
 
-publish-internal-dca-container-image-fips:
+publish_internal_dca_container_image-fips:
   extends: .docker_trigger_base
   needs:
     - job: docker_build_cluster_agent_fips_amd64

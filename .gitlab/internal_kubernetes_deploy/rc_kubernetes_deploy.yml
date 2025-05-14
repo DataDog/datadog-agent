@@ -10,15 +10,15 @@ rc_kubernetes_deploy:
     - if: $RC_BUILD == "true"
       when: manual
   needs:
-    - job: publish-internal-container-image-jmx
+    - job: publish_internal_container_image-jmx
       artifacts: false
-    - job: publish-internal-container-image-fips
+    - job: publish_internal_container_image-fips
       artifacts: false
-    - job: publish-internal-container-image-ot_standalone
+    - job: publish_internal_container_image-ot_standalone
       artifacts: false
-    - job: publish-internal-dca-container-image
+    - job: publish_internal_dca_container_image
       artifacts: false
-    - job: publish-internal-container-image-full
+    - job: publish_internal_container_image-full
       artifacts: false
     - job: k8s-e2e-main # Currently only require container Argo workflow
       artifacts: false
