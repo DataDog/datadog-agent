@@ -6,6 +6,8 @@
 package secretsimpl
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"math/rand"
 	"os"
@@ -19,9 +21,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -1003,4 +1007,35 @@ func TestIsLikelyAPIOrAppKey(t *testing.T) {
 			assert.Equal(t, tc.expect, result)
 		})
 	}
+}
+
+func TestBackendTypeWithInvalidConfig(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(l, "error")
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	r := newEnabledSecretResolver(tel)
+
+	r.enabled = true
+	r.backendType = "aws.secrets"
+	r.backendConfig = map[string]interface{}{
+		"secret_id": "/datadog/secret/test",
+		"aws_session": map[string]interface{}{
+			"invalid_nested_key": "us-east-1", // <- Not allowed
+		},
+	}
+
+	r.fetchHookFunc = func([]string) (map[string]string, error) {
+		return map[string]string{
+			"pass1": "password1",
+			"pass2": "password2",
+		}, nil
+	}
+
+	r.Configure(secrets.ConfigParams{Type: r.backendType, Config: r.backendConfig})
+	w.Flush()
+	assert.Contains(t, b.String(), "unsupported nested key 'aws_session.invalid_nested_key'")
 }
