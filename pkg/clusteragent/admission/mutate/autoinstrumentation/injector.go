@@ -33,7 +33,9 @@ var sourceVolume = volume{
 	Volume: corev1.Volume{
 		Name: volumeName,
 		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{},
+			CSI: &corev1.CSIVolumeSource{
+				Driver: "example.csi.driver",
+			},
 		},
 	},
 }
