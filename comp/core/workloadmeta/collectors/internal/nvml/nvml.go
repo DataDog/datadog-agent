@@ -38,6 +38,8 @@ type collector struct {
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
+	// build the GPU device info using the pre-computed values
+	// from the device cache
 	devInfo := device.GetDeviceInfo()
 	gpuDeviceInfo := workloadmeta.GPU{
 		EntityID: workloadmeta.EntityID{
@@ -50,15 +52,29 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 		Vendor: nvidiaVendor,
 		Device: devInfo.Name,
 		Index:  devInfo.Index,
+		ComputeCapability: workloadmeta.GPUComputeCapability{
+			Major: int(devInfo.SMVersion / 10),
+			Minor: int(devInfo.SMVersion % 10),
+		},
+		TotalCores:  devInfo.CoreCount,
+		TotalMemory: devInfo.Memory,
 	}
 
-	c.fillAttributes(&gpuDeviceInfo, device)
+	switch device.(type) {
+	case *ddnvml.PhysicalDevice:
+		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypePhysical
+	case *ddnvml.MIGDevice:
+		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypeMIG
+	}
+
+	c.fillNVMLAttributes(&gpuDeviceInfo, device)
 	c.fillProcesses(&gpuDeviceInfo, device)
 
 	return &gpuDeviceInfo, nil
 }
 
-func (c *collector) fillAttributes(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
+// fillNVMLAttributes fills the attributes of the GPU device by querying NVML API
+func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
 	arch, err := device.GetArchitecture()
 	if err != nil {
 		if logLimiter.ShouldLog() {
@@ -66,18 +82,6 @@ func (c *collector) fillAttributes(gpuDeviceInfo *workloadmeta.GPU, device ddnvm
 		}
 	} else {
 		gpuDeviceInfo.Architecture = gpuArchToString(arch)
-	}
-
-	gpuDeviceInfo.ComputeCapability.Minor = int(device.GetDeviceInfo().SMVersion % 10)
-	gpuDeviceInfo.ComputeCapability.Major = int(device.GetDeviceInfo().SMVersion / 10)
-	gpuDeviceInfo.TotalCores = device.GetDeviceInfo().CoreCount
-	gpuDeviceInfo.TotalMemory = device.GetDeviceInfo().Memory
-
-	switch device.(type) {
-	case *ddnvml.PhysicalDevice:
-		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypePhysical
-	case *ddnvml.MIGDevice:
-		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypeMIG
 	}
 
 	memBusWidth, err := device.GetMemoryBusWidth()
