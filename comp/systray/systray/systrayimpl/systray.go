@@ -128,7 +128,7 @@ func newSystray(deps dependencies) (systray.Component, error) {
 		flare:      deps.Flare,
 		diagnose:   deps.Diagnose,
 		params:     deps.Params,
-		client:     deps.IPC,
+		client:     deps.Client,
 		shutdowner: deps.Shutdowner,
 	}
 
