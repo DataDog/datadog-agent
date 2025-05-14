@@ -908,7 +908,6 @@ api_key:
 #
 # secret_backend_remove_trailing_line_break: false
 
-
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
 ## Enter specific configurations for internal profiling.

@@ -341,6 +341,11 @@ def tidy(ctx, verbose: bool = False):
         promise.join()
 
 
+@task(autoprint=True)
+def version(_):
+    return Path(".go-version").read_text(encoding="utf-8").strip()
+
+
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')

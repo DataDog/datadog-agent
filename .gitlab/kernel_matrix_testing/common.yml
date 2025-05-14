@@ -300,6 +300,7 @@ notify_ebpf_complexity_changes:
   extends: .notify-job
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
+  timeout: 15m
   rules:
     - !reference [.except_main_release_or_mq]
     - !reference [.except_no_tests_no_deploy]

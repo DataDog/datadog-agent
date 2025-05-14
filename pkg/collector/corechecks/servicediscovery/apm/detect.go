@@ -54,7 +54,7 @@ var (
 )
 
 // Detect attempts to detect the type of APM instrumentation for the given service.
-func Detect(lang language.Language, ctx usm.DetectionContext) Instrumentation {
+func Detect(lang language.Language, ctx usm.DetectionContext, tracerMetadata *tracermetadata.TracerMetadata) Instrumentation {
 	// first check to see if the DD_INJECTION_ENABLED is set to tracer
 	if isInjected(ctx.Envs) {
 		return Injected
@@ -62,7 +62,7 @@ func Detect(lang language.Language, ctx usm.DetectionContext) Instrumentation {
 
 	// if the process has valid tracer's metadata, then the
 	// instrumentation is provided
-	if isTracerMetadataValid(ctx) {
+	if tracerMetadata != nil {
 		return Provided
 	}
 
@@ -72,11 +72,6 @@ func Detect(lang language.Language, ctx usm.DetectionContext) Instrumentation {
 	}
 
 	return None
-}
-
-func isTracerMetadataValid(ctx usm.DetectionContext) bool {
-	_, err := tracermetadata.GetTracerMetadata(ctx.Pid, kernel.ProcFSRoot())
-	return err == nil
 }
 
 func isInjected(envs envs.Variables) bool {

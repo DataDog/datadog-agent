@@ -982,7 +982,7 @@ type ECSTask struct {
 	ContainerInstanceTags   MapTags
 	ClusterName             string
 	ContainerInstanceARN    string
-	AWSAccountID            int
+	AWSAccountID            string
 	Region                  string
 	AvailabilityZone        string
 	Family                  string
