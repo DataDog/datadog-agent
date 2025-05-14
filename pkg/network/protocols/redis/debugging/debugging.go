@@ -9,8 +9,6 @@
 package debugging
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -41,7 +39,7 @@ type RequestSummary struct {
 	Command      string
 	KeyName      string
 	Truncated    bool
-	ErrorToStats map[int32]Stats
+	ErrorToStats map[redis.RedisErrorType]Stats
 }
 
 // Redis returns a debug-friendly representation of map[redis.Key]redis.RequestStats
@@ -70,15 +68,11 @@ func Redis(stats map[redis.Key]*redis.RequestStats) []RequestSummary {
 					Port: k.DstPort,
 				},
 			},
-			ErrorToStats: make(map[int32]Stats, len(stats[k].ErrorToStats)),
+			ErrorToStats: make(map[redis.RedisErrorType]Stats, len(stats[k].ErrorToStats)),
 		}
 
 		for err, stat := range stats[k].ErrorToStats {
-			errKey := int32(model.RedisErrorType_RedisNoError)
-			if err {
-				errKey = int32(model.RedisErrorType_RedisErrorTypeUnknown)
-			}
-			requestSummary.ErrorToStats[errKey] = Stats{
+			requestSummary.ErrorToStats[err] = Stats{
 				Count:              stat.Count,
 				FirstLatencySample: stat.FirstLatencySample,
 				LatencyP50:         protocols.GetSketchQuantile(stat.Latencies, 0.5),

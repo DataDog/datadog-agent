@@ -13,6 +13,7 @@
 #define METHOD_LEN 3 // We only support GET and SET for now, both with length 3.
 #define MAX_DIGITS_KEY_LEN_PREFIX 3 // Since we clamp key length to 128, when reading key length prefix, we only need to read up to 3 digits.
 #define MAX_KEY_LEN 128
+#define MAX_ERROR_SIZE 16
 #define MIN_PARAM_COUNT 2 // GET command has 2 parameters
 #define MAX_PARAM_COUNT 5 // SET command has 3-5 parameters
 #define MAX_READABLE_KEY_LEN 999 // Since we read up to 3 digits of key length, the maximum readable length is 999.
