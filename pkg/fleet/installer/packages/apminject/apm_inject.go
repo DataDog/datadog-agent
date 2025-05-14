@@ -19,13 +19,14 @@ import (
 	"regexp"
 	"strings"
 
+	"go.uber.org/multierr"
+	"gopkg.in/yaml.v3"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/multierr"
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -94,7 +95,7 @@ func (a *InjectorInstaller) Setup(ctx context.Context) error {
 	}
 
 	// Create mandatory dirs
-	err = os.Mkdir("/var/log/datadog/dotnet", 0777)
+	err = os.MkdirAll("/var/log/datadog/dotnet", 0755)
 	if err != nil && !os.IsExist(err) {
 		return fmt.Errorf("error creating /var/log/datadog/dotnet: %w", err)
 	}
