@@ -19,14 +19,14 @@ ENV GOPATH=/go
 
 # Set the working directory
 WORKDIR /workspace
+COPY otel-* /workspace
 
 # Update and install necessary packages
 # TODO: For now we have to clone the whole repository and checkout to a specific commit / ref / branch then recompile the otel-agent
 # Cloning the whole repo is necessary because `get_version` in the build script runs git describe --tags --candidates=50...
-# We should eventually just fetch the binary and just copy it
 RUN ls -l / && ls -l /workspace
 RUN \
-    if [ ! -f /otel-agent ]; then \
+    if [ ! -f /workspace/otel-agent ]; then \
         apt-get update && \
         apt-get install -y --no-install-recommends \
         curl \
@@ -55,8 +55,8 @@ RUN \
         invoke otel-agent.build; \
     else \
         mkdir -p /workspace/datadog-agent/bin/otel-agent/otel-agent && \
-        cp /otel-agent /workspace/datadog-agent/bin/otel-agent/ && \
-        cp /otel-config.yaml /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml; \
+        cp /workspace/otel-agent /workspace/datadog-agent/bin/otel-agent/ && \
+        cp /workspace/otel-config.yaml /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml; \
     fi
 
 # ------------------------------
