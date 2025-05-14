@@ -12,12 +12,13 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"time"
 )
 
-// GetTags returns host tags or static tags that are automatically added to
-// ECS metrics
-func GetTags(ctx context.Context) ([]string, error) {
+var ecsGetTagsCacheKey = cache.BuildAgentKey("ecs", "GetTags")
+
+func fetchEcsTags(ctx context.Context) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 
@@ -31,9 +32,32 @@ func GetTags(ctx context.Context) ([]string, error) {
 	if !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
 		hostTags = append(hostTags, fmt.Sprintf("%s:%s", tags.ClusterName, cluster))
 	}
-
 	// always tag with ecs_cluster_name
 	hostTags = append(hostTags, fmt.Sprintf("%s:%s", tags.EcsClusterName, cluster))
 
 	return hostTags, nil
+}
+
+func fetchEcsTagsFromCache(ctx context.Context) ([]string, error) {
+	// cache hit
+	if ecsTags, found := cache.Cache.Get(ecsGetTagsCacheKey); found {
+		return ecsTags.([]string), nil
+	}
+
+	// cache miss
+	ecsTags, err := fetchEcsTags(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// populate cache
+	cache.Cache.Set(ecsGetTagsCacheKey, ecsTags, cache.NoExpiration)
+
+	return ecsTags, nil
+}
+
+// GetTags returns host tags or static tags that are automatically added to
+// ECS metrics
+func GetTags(ctx context.Context) ([]string, error) {
+	return fetchEcsTagsFromCache(ctx)
 }
