@@ -38,7 +38,7 @@ func CommonEndpointProvider(requires Requires) Provider {
 	}
 }
 
-// getHostname returns the hostname as a JSON response.
+// getHostname returns an http handler that writes the hostname as a JSON response.
 func getHostname(hostname hostnameinterface.Component) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
