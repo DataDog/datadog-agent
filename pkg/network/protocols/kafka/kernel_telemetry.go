@@ -95,7 +95,7 @@ func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [Topic
 	return result
 }
 
-func computeProduceAPIVersionHitsBucketDifferences(bucket, otherBucket [TelemetryMaxAPIVersion + 1]uint64) [TelemetryMaxAPIVersion + 1]uint64 {
+func computeProduceAPIVersionHitsBucketDifferences(bucket, otherBucket [ClassificationMaxSupportedProduceRequestApiVersion + 1]uint64) [ClassificationMaxSupportedProduceRequestApiVersion + 1]uint64 {
 	var result [len(bucket)]uint64
 
 	for i := 0; i < len(result); i++ {
@@ -105,7 +105,7 @@ func computeProduceAPIVersionHitsBucketDifferences(bucket, otherBucket [Telemetr
 	return result
 }
 
-func computeFetchAPIVersionHitsBucketDifferences(bucket, otherBucket [TelemetryMaxAPIVersion + 1]uint64) [TelemetryMaxAPIVersion + 1]uint64 {
+func computeFetchAPIVersionHitsBucketDifferences(bucket, otherBucket [ClassificationMaxSupportedFetchRequestApiVersion + 1]uint64) [ClassificationMaxSupportedFetchRequestApiVersion + 1]uint64 {
 	var result [len(bucket)]uint64
 
 	for i := 0; i < len(result); i++ {
