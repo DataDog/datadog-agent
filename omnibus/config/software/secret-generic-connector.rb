@@ -79,5 +79,6 @@ build do
   else
     # Extract the tar.gz file
     copy "#{project_dir}/datadog-secret-backend", "#{install_dir}/embedded/bin/secret-generic-connector"
+    chmod "500", "#{install_dir}/embedded/bin/secret-generic-connector"
   end
 end
