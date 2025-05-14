@@ -35,8 +35,6 @@ RUN git clone --filter=blob:none https://github.com/DataDog/datadog-agent.git da
     cd datadog-agent && \
     git checkout $DD_GIT_COMMIT_SHA
 
-RUN ls /workspace/
-
 # Set the working directory to the source code
 WORKDIR /workspace/datadog-agent
 
@@ -51,11 +49,6 @@ RUN GO_VERSION=$(cat .go-version) && \
 ENV PATH="/usr/local/go/bin:${PATH}"
 RUN mkdir /go
 ENV GOPATH=/go
-
-# Verify installations
-RUN go version && \
-    python3 --version && \
-    curl --version
 
 # Create and activate virtual environment, then install requirements
 RUN python3 -m venv venv && \
