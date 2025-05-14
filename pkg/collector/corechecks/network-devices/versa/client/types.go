@@ -6,6 +6,8 @@
 // Package client implements a Versa API client
 package client
 
+import "fmt"
+
 // Content encapsulates the content types of the Versa API
 type Content interface {
 	[]Appliance |
@@ -306,4 +308,13 @@ type Organization struct {
 	ProviderOrg             bool     `json:"providerOrg"`
 	Depth                   int      `json:"depth"`
 	PushCaConfig            bool     `json:"pushCaConfig"`
+}
+
+// IPAddress returns the first management IP address of the director
+// or an error if no management IPs are found
+func (d *DirectorStatus) IPAddress() (string, error) {
+	if len(d.HAConfig.MyVnfManagementIPs) == 0 {
+		return "", fmt.Errorf("no management IPs found for director")
+	}
+	return d.HAConfig.MyVnfManagementIPs[0], nil
 }

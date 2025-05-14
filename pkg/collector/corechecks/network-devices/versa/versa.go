@@ -143,6 +143,11 @@ func (v *VersaCheck) Run() error {
 		v.metricsSender.SendDeviceMetrics(appliances)
 		v.metricsSender.SendUptimeMetrics(uptimes)
 		v.metricsSender.SendDeviceStatusMetrics(deviceStatus)
+
+		// Director metrics
+		v.metricsSender.SendDirectorDeviceMetrics(directorStatus)
+		v.metricsSender.SendDirectorUptimeMetrics(directorStatus)
+		v.metricsSender.SendDirectorStatus(directorStatus)
 	}
 
 	// Commit

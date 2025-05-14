@@ -51,9 +51,13 @@ func TestParseSize(t *testing.T) {
 		{"50.12KiB", 50.12 * 1024, ""},
 		{"100MiB", 100 * 1024 * 1024, ""},
 		{"80.09GiB", 80.09 * float64(1<<30), ""},
-		{"", 0, "no matching units found for"},
+		{"", 0, "error parsing size"},
 		{"1.5ZKiB", 0, "error parsing size"},
 		{"9ZB", 0, "error parsing size"},
+		{"120.05KB", 120.05e3, ""},
+		{"101.5GB", 101.5e9, ""},
+		{"1.5TB", 1.5e12, ""},
+		{"1.5PB", 1.5e15, ""},
 	}
 
 	for _, test := range tests {
