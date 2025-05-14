@@ -96,12 +96,14 @@ func (c *BaseProcessorContext) IsTerminatedResources() bool {
 // K8sProcessorContext holds k8s resource processing attributes
 type K8sProcessorContext struct {
 	BaseProcessorContext
-	APIClient         *apiserver.APIClient
-	HostName          string
-	SystemInfo        *model.SystemInfo
-	ResourceType      string
-	LabelsAsTags      map[string]string
-	AnnotationsAsTags map[string]string
+	APIClient          *apiserver.APIClient
+	HostName           string
+	SystemInfo         *model.SystemInfo
+	ResourceType       string
+	LabelsAsTags       map[string]string
+	AnnotationsAsTags  map[string]string
+	NodeName           string
+	APIGroupVersionTag string
 }
 
 // ECSProcessorContext holds ECS resource processing attributes
@@ -158,6 +160,8 @@ type Handlers interface {
 
 	// ResourceTaggerTags returns the resource tags.
 	ResourceTaggerTags(ctx ProcessorContext, resource interface{}) []string
+
+	GetNodeName(ctx ProcessorContext, resource interface{}) string
 
 	// ScrubBeforeExtraction replaces sensitive information in the resource
 	// before resource extraction.
@@ -266,6 +270,9 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 			Version:         "v1",
 			ContentType:     "json",
 			Tags:            p.h.ResourceTaggerTags(ctx, resource),
+			Kind:            ctx.GetKind(),
+			ApiVersion:      ctx.GetAPIVersion(),
+			NodeName:        p.h.GetNodeName(ctx, resource),
 		})
 	}
 
