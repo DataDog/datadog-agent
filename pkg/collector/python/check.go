@@ -14,12 +14,14 @@ import (
 	"fmt"
 	"runtime"
 	"runtime/pprof"
+	"strconv"
 	"strings"
 	"time"
 	"unsafe"
 
 	yaml "gopkg.in/yaml.v2"
 
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -29,7 +31,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 /*
@@ -64,10 +68,11 @@ type PythonCheck struct {
 	initConfig     string
 	instanceConfig string
 	haSupported    bool
+	agentTelemetry option.Option[agenttelemetry.Component]
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
-func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rtloader_pyobject_t, haSupported bool) (*PythonCheck, error) {
+func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rtloader_pyobject_t, haSupported bool, agentTelemetry option.Option[agenttelemetry.Component]) (*PythonCheck, error) {
 	glock, err := newStickyLock()
 	if err != nil {
 		return nil, err
@@ -77,20 +82,40 @@ func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rt
 	glock.unlock()
 
 	pyCheck := &PythonCheck{
-		senderManager: senderManager,
-		ModuleName:    name,
-		class:         class,
-		interval:      defaults.DefaultCheckInterval,
-		lastWarnings:  []error{},
-		telemetry:     utils.IsCheckTelemetryEnabled(name, pkgconfigsetup.Datadog()),
-		haSupported:   haSupported,
+		senderManager:  senderManager,
+		ModuleName:     name,
+		class:          class,
+		interval:       defaults.DefaultCheckInterval,
+		lastWarnings:   []error{},
+		telemetry:      utils.IsCheckTelemetryEnabled(name, pkgconfigsetup.Datadog()),
+		haSupported:    haSupported,
+		agentTelemetry: agentTelemetry,
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 
 	return pyCheck, nil
 }
 
-func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
+// setTraceID sets the trace ID on the Python check instance
+// unsafe because it does not get the sticky lock
+func (c *PythonCheck) setTraceID(traceID string, parentSpanID string) (string, error) {
+	// Insert the trace ID into the instance config yaml
+	var parsed map[string]interface{}
+	err := yaml.Unmarshal([]byte(c.instanceConfig), &parsed)
+	if err != nil {
+		return "", err
+	}
+	parsed["dd_trace_id"] = traceID
+	parsed["dd_parent_span_id"] = parentSpanID
+	instanceConfig, err := yaml.Marshal(parsed)
+	if err != nil {
+		return "", err
+	}
+
+	return string(instanceConfig), nil
+}
+
+func (c *PythonCheck) runCheckImpl(commitMetrics bool) (checkErr error) {
 	// Lock the GIL and release it at the end of the run
 	gstate, err := newStickyLock()
 	if err != nil {
@@ -100,7 +125,46 @@ func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 
 	log.Debugf("Running python check %s (version: '%s', id: '%s')", c.ModuleName, c.version, c.id)
 
-	cResult := C.run_check(rtloader, c.instance)
+	instance := c.instance
+	var span *installertelemetry.Span
+	defer func() {
+		if span != nil {
+			span.Finish(checkErr)
+		}
+	}()
+	if c.telemetry {
+		agentTelemetry, ok := c.agentTelemetry.Get()
+		if ok {
+			// Get trace ID and span ID from agent telemetry
+			span, _ = agentTelemetry.StartStartupSpan("python.check")
+			if span != nil {
+				instanceConfig, err := c.setTraceID(strconv.FormatUint(span.GetTraceID(), 10), strconv.FormatUint(span.GetSpanID(), 10))
+				if err != nil {
+					log.Warnf("Failed to set trace ID for check %s: %v", c.ModuleName, err)
+					// Continue with original instance
+				} else {
+					// Store original instance config for reverting later
+					originalInstance := c.instanceConfig
+					cInstance := TrackedCString(instanceConfig)
+					defer C._free(unsafe.Pointer(cInstance))
+
+					// Set the new instance with trace ID
+					if C.set_instance(rtloader, c.instance, cInstance) != 0 {
+						// After the check runs, revert back to original instance
+						defer func() {
+							originalCInstance := TrackedCString(originalInstance)
+							defer C._free(unsafe.Pointer(originalCInstance))
+							if C.set_instance(rtloader, c.instance, originalCInstance) == 0 {
+								log.Warnf("Failed to revert instance for check %s", c.ModuleName)
+							}
+						}()
+					}
+				}
+			}
+		}
+	}
+
+	cResult := C.run_check(rtloader, instance)
 	if cResult == nil {
 		if err := getRtLoaderError(); err != nil {
 			return err

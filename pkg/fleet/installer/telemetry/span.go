@@ -132,6 +132,16 @@ func (s *Span) SetTag(key string, value interface{}) {
 	}
 }
 
+// GetTraceID returns the trace ID of the span.
+func (s *Span) GetTraceID() uint64 {
+	return s.span.TraceID
+}
+
+// GetSpanID returns the span ID of the span.
+func (s *Span) GetSpanID() uint64 {
+	return s.span.SpanID
+}
+
 type spanIDs struct {
 	traceID uint64
 	spanID  uint64
