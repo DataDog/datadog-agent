@@ -9,5 +9,5 @@ invoke_unit_tests:
     - !reference [.on_invoke_tasks_changes]
   script:
     - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
-    - python3 -m dda self dep sync -f legacy-tasks
+    - python3 -m dda self dep sync -f legacy-tasks -f legacy-kernel-matrix-testing
     - dda inv -- -e invoke-unit-tests.run
