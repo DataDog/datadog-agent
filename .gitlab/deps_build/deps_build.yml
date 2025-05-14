@@ -115,7 +115,7 @@ build_processed_btfhub_archive:
     - !reference [.on_scheduled_main]
     - !reference [.manual]
   stage: deps_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/btf-gen$CI_IMAGE_BTF_GEN_SUFFIX:$CI_IMAGE_BTF_GEN
   tags: ["arch:amd64"]
   variables:
     KUBERNETES_CPU_REQUEST: 32
