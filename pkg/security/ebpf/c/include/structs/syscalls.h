@@ -121,6 +121,7 @@ struct syscall_cache_t {
             struct dentry *dentry;
             struct file_t file;
             const char *name;
+            u64 pid_tgid;
         } xattr;
 
         struct {

@@ -218,21 +218,16 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 // It waits for service events to trigger template resolution and
 // checks the tags on existing services are up to date.
 func (ac *AutoConfig) serviceListening() {
-	ctx, cancel := context.WithCancel(context.Background())
-
 	for {
 		select {
 		case <-ac.listenerStop:
 			ac.healthListening.Deregister() //nolint:errcheck
-			cancel()
 			return
-		case healthDeadline := <-ac.healthListening.C:
-			cancel()
-			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
+		case <-ac.healthListening.C: // To be considered healthy
 		case svc := <-ac.newService:
 			ac.processNewService(svc)
 		case svc := <-ac.delService:
-			ac.processDelService(ctx, svc)
+			ac.processDelService(svc)
 		}
 	}
 }
@@ -667,20 +662,13 @@ func (ac *AutoConfig) GetProviderCatalog() map[string]providers.ConfigProviderFa
 // processNewService takes a service, tries to match it against templates and
 // triggers scheduling events if it finds a valid config for it.
 func (ac *AutoConfig) processNewService(svc listeners.Service) {
-	// get all the templates matching service identifiers
-	ADIdentifiers, err := svc.GetADIdentifiers()
-	if err != nil {
-		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetServiceID(), err)
-		return
-	}
-
-	changes := ac.cfgMgr.processNewService(ADIdentifiers, svc)
+	changes := ac.cfgMgr.processNewService(svc)
 	ac.applyChanges(changes)
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache
-func (ac *AutoConfig) processDelService(ctx context.Context, svc listeners.Service) {
-	changes := ac.cfgMgr.processDelService(ctx, svc)
+func (ac *AutoConfig) processDelService(svc listeners.Service) {
+	changes := ac.cfgMgr.processDelService(svc)
 	ac.applyChanges(changes)
 }
 

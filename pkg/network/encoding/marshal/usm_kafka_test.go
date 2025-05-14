@@ -183,7 +183,7 @@ func (s *KafkaSuite) TestKafkaIDCollisionRegression() {
 	// addresses but different PIDs *won't* be associated with the Kafka stats
 	// object
 	streamer := NewProtoTestStreamer[*model.Connection]()
-	encoder.WriteKafkaAggregations(in.Conns[1], model.NewConnectionBuilder(streamer))
+	encoder.EncodeConnection(in.Conns[1], model.NewConnectionBuilder(streamer))
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)
 	assert.Empty(conn.DataStreamsAggregations)
@@ -246,7 +246,7 @@ func (s *KafkaSuite) TestKafkaLocalhostScenario() {
 
 func getKafkaAggregations(t *testing.T, encoder *kafkaEncoder, c network.ConnectionStats) *model.DataStreamsAggregations {
 	streamer := NewProtoTestStreamer[*model.Connection]()
-	encoder.WriteKafkaAggregations(c, model.NewConnectionBuilder(streamer))
+	encoder.EncodeConnection(c, model.NewConnectionBuilder(streamer))
 
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)
@@ -300,7 +300,7 @@ func commonBenchmarkKafkaEncoder(b *testing.B, entries uint16) {
 	for i := 0; i < b.N; i++ {
 		h = newKafkaEncoder(payload.Kafka)
 		streamer.Reset()
-		h.WriteKafkaAggregations(payload.Conns[0], a)
+		h.EncodeConnection(payload.Conns[0], a)
 		h.Close()
 	}
 }
