@@ -86,9 +86,10 @@ func (gl *GoCheckLoader) String() string {
 }
 
 func init() {
-	factory := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, error) {
-		return NewGoCheckLoader()
+	factory := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, int, error) {
+		loader, err := NewGoCheckLoader()
+		return loader, 30, err
 	}
 
-	loaders.RegisterLoader(30, factory)
+	loaders.RegisterLoader(factory)
 }
