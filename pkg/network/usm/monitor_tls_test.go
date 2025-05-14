@@ -1028,57 +1028,23 @@ func (s *tlsSuite) TestNativeTLSMapsCleanup() {
 
 	time.Sleep(500 * time.Millisecond)
 
-	// Check ssl_sock_by_ctx map
-	t.Logf("Eventually checking %s map entries after CloseIdleConnections()...", sslSockByCtxMap)
-	assert.Eventuallyf(t, func() bool {
-		if usmMonitor.ebpfProgram == nil || usmMonitor.ebpfProgram.Manager == nil {
-			t.Logf("Monitor eBPF program or manager not initialized during eventual check for %s.", sslSockByCtxMap)
-			return false
-		}
-		sslSockMap, mapExists, errMap := usmMonitor.ebpfProgram.Manager.GetMap(sslSockByCtxMap)
-		if errMap != nil {
-			t.Logf("Error getting map '%s' during eventual check: %v", sslSockByCtxMap, errMap)
-			return false
-		}
-		if !mapExists {
-			t.Logf("Map '%s' does not exist during eventual check.", sslSockByCtxMap)
-			return false
-		}
-		if sslSockMap == nil {
-			t.Logf("Map '%s' object is nil during eventual check.", sslSockByCtxMap)
-			return false
-		}
+	sslSockMap, mapExists, errMap := usmMonitor.ebpfProgram.Manager.GetMap(sslSockByCtxMap)
+	require.NoErrorf(t, errMap, "Error getting map %s", sslSockByCtxMap)
+	require.Truef(t, mapExists, "Map %s does not exist on this branch. This test expects it.", sslSockByCtxMap)
+	require.NotNilf(t, sslSockMap, "Map %s object is nil.", sslSockByCtxMap)
 
-		sockMapCount := countMapEntries(t, sslSockMap)
-		t.Logf("Polling count for map '%s': %d", sslSockByCtxMap, sockMapCount)
-		return sockMapCount == 0
-	}, 5*time.Second, 100*time.Millisecond, "%s should be empty after cleanup (post CloseIdleConnections)", sslSockByCtxMap)
+	ctxMapCount := countMapEntries(t, sslSockMap)
+	t.Logf("Count for map '%s' after CloseIdleConnections(): %d", sslSockByCtxMap, ctxMapCount)
+	assert.Equalf(t, 0, ctxMapCount, "%s should be empty after cleanup on feature branch (post CloseIdleConnections)", sslCtxByTupleMap)
 
-	// Check ssl_ctx_by_tuple map
-	t.Logf("Eventually checking %s map entries after CloseIdleConnections()...", sslCtxByTupleMap)
-	assert.Eventuallyf(t, func() bool {
-		if usmMonitor.ebpfProgram == nil || usmMonitor.ebpfProgram.Manager == nil {
-			t.Logf("Monitor eBPF program or manager not initialized during eventual check for %s.", sslCtxByTupleMap)
-			return false
-		}
-		sslTupleMap, mapExists, errMap := usmMonitor.ebpfProgram.Manager.GetMap(sslCtxByTupleMap)
-		if errMap != nil {
-			t.Logf("Error getting map '%s' during eventual check: %v", sslCtxByTupleMap, errMap)
-			return false
-		}
-		if !mapExists {
-			t.Logf("Map '%s' does not exist during eventual check. This test expects it on the feature branch.", sslCtxByTupleMap)
-			return false
-		}
-		if sslTupleMap == nil {
-			t.Logf("Map '%s' object is nil during eventual check.", sslCtxByTupleMap)
-			return false
-		}
+	sslTupleMap, mapExists, errMap := usmMonitor.ebpfProgram.Manager.GetMap(sslCtxByTupleMap)
+	require.NoErrorf(t, errMap, "Error getting map %s", sslCtxByTupleMap)
+	require.Truef(t, mapExists, "Map %s does not exist on this branch. This test expects it.", sslCtxByTupleMap)
+	require.NotNilf(t, sslTupleMap, "Map %s object is nil.", sslCtxByTupleMap)
 
-		tupleMapCount := countMapEntries(t, sslTupleMap)
-		t.Logf("Polling count for map '%s': %d", sslCtxByTupleMap, tupleMapCount)
-		return tupleMapCount == 0
-	}, 5*time.Second, 100*time.Millisecond, "%s should be empty after cleanup (post CloseIdleConnections)", sslCtxByTupleMap)
+	tupleMapCount := countMapEntries(t, sslTupleMap)
+	t.Logf("Count for map '%s' after CloseIdleConnections(): %d", sslCtxByTupleMap, tupleMapCount)
+	assert.Equalf(t, 0, tupleMapCount, "%s should be empty after cleanup on feature branch (post CloseIdleConnections)", sslCtxByTupleMap)
 
 	requestsExist := make([]bool, len(requests))
 
@@ -1101,12 +1067,16 @@ func (s *tlsSuite) TestNativeTLSMapsCleanup() {
 		for reqIndex, exists := range requestsExist {
 			if !exists {
 				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
-				return false
 			}
 		}
 
 		return true
 	}, 3*time.Second, 100*time.Millisecond, "connection not found")
+	if t.Failed() {
+		// Dump relevant maps on failure
+		ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, sslSockByCtxMap, sslCtxByTupleMap)
+		t.FailNow()
+	}
 }
 
 // countMapEntries counts entries in a specific BPF map.
