@@ -42,6 +42,12 @@ def byte_to_string(size, unit_power=None, with_unit=True):
         unit_power = int(math.log(size, 1024))
     p = math.pow(1024, unit_power)
     s = round(size / p, 2)
+    # If s is not exactly 0 but rounded like (0.0 or -0.0)
+    # Goal is to output +0 / -0 for very small changes and 0 for no changes at all
+    if id(s) != id(0) and s == 0:
+        s = 0
+        if not sign:
+            sign = "+"
     return f"{sign}{s}{' '+size_name[unit_power] if with_unit else ''}"
 
 
@@ -115,22 +121,20 @@ class GateMetricHandler:
             string_value = "+" + string_value
             return string_to_latex_color(string_value, "red")
         elif value < 0:
-            return string_to_latex_color(string_value, "lightgreen")
+            return string_to_latex_color(string_value, "green")
         else:
-            return string_to_latex_color(string_value, "lightblue")
+            return string_to_latex_color(string_value, "blue")
 
     def get_formatted_metric_comparison(self, gate_name, first_metric, limit_metric):
         first_value = self.metrics[gate_name][first_metric]
         second_value = self.metrics[gate_name][limit_metric]
-        limit_value_string = string_to_latex_color(
-            byte_to_string(second_value, unit_power=2, with_unit=False), "orange"
-        )
+        limit_value_string = string_to_latex_color(byte_to_string(second_value, unit_power=2, with_unit=False), "blue")
         if first_value > second_value:
             return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False), "red")} > {limit_value_string}"
         elif first_value < second_value:
-            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False), "lightgreen")} < {limit_value_string}"
+            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False), "green")} < {limit_value_string}"
         else:
-            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False), "lightblue")} = {limit_value_string}"
+            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False), "orange")} = {limit_value_string}"
 
     def register_metric(self, gate_name, metric_name, metric_value):
         if self.metrics.get(gate_name, None) is None:
