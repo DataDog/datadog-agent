@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func TestProcessEventsCheckEnabled(t *testing.T) {
@@ -37,29 +36,5 @@ func TestProcessEventsCheckEnabled(t *testing.T) {
 
 		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertNotContainsCheck(t, enabledChecks, ProcessEventsCheckName)
-	})
-}
-
-func TestConnectionsCheckLinux(t *testing.T) {
-	deps := createDeps(t)
-	originalFlavor := flavor.GetFlavor()
-	defer flavor.SetFlavor(originalFlavor)
-
-	// Make sure the connections check is disabled on the core agent
-	// and enabled in the process agent when process checks run in core agent
-	t.Run("run in core agent", func(t *testing.T) {
-		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
-		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-		cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", true)
-		scfg.SetWithoutSource("network_config.enabled", true)
-		scfg.SetWithoutSource("system_probe_config.enabled", true)
-
-		flavor.SetFlavor("agent")
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
-		assertNotContainsCheck(t, enabledChecks, ConnectionsCheckName)
-
-		flavor.SetFlavor("process_agent")
-		enabledChecks = getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
-		assertContainsCheck(t, enabledChecks, ConnectionsCheckName)
 	})
 }

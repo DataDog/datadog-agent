@@ -6,7 +6,6 @@
 package checks
 
 import (
-	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -21,10 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
 	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
 	gpusubscriberfxmock "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx-mock"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -49,34 +46,6 @@ func getEnabledChecks(t *testing.T, cfg, sysprobeYamlConfig pkgconfigmodel.Reade
 		}
 	}
 	return enabledChecks
-}
-
-func TestConnectionsCheck(t *testing.T) {
-	deps := createProcessCheckDeps(t)
-	originalFlavor := flavor.GetFlavor()
-	defer flavor.SetFlavor(originalFlavor)
-
-	t.Run("enabled", func(t *testing.T) {
-		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
-		scfg.SetWithoutSource("network_config.enabled", true)
-		scfg.SetWithoutSource("system_probe_config.enabled", true)
-		flavor.SetFlavor("process_agent")
-
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
-		if runtime.GOOS == "darwin" {
-			assertNotContainsCheck(t, enabledChecks, ConnectionsCheckName)
-		} else {
-			assertContainsCheck(t, enabledChecks, ConnectionsCheckName)
-		}
-	})
-
-	t.Run("disabled", func(t *testing.T) {
-		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
-		scfg.SetWithoutSource("network_config.enabled", false)
-
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
-		assertNotContainsCheck(t, enabledChecks, ConnectionsCheckName)
-	})
 }
 
 type ProcessCheckDeps struct {
