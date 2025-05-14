@@ -2,6 +2,27 @@
 Release Notes
 =============
 
+.. _Release Notes_7.65.2:
+
+7.65.2
+======
+
+.. _Release Notes_7.65.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-05-13
+Pinned to datadog-agent v7.65.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7652>`_.
+
+.. _Release Notes_7.65.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix wrong computation of the init container resources in the autoinstrumentation webhook.
+
+
 .. _Release Notes_7.65.1:
 
 7.65.1
