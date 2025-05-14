@@ -9,7 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// MessageBuffer accumulates messages to a buffer until the max capacity is reached.
+// MessageBuffer accumulates message metadata to a buffer until the max capacity is reached.
 type MessageBuffer struct {
 	messageBuffer    []*message.MessageMetadata
 	contentSize      int
@@ -24,11 +24,17 @@ func NewMessageBuffer(batchSizeLimit int, contentSizeLimit int) *MessageBuffer {
 	}
 }
 
+// CanAddMessage returns true if the message can be added to the buffer.
+func (p *MessageBuffer) CanAddMessage(message *message.Message) bool {
+	contentSize := len(message.GetContent())
+	return len(p.messageBuffer) < cap(p.messageBuffer) && p.contentSize+contentSize <= p.contentSizeLimit
+}
+
 // AddMessage adds a message to the buffer if there is still some free space,
 // returns true if the message was added.
 func (p *MessageBuffer) AddMessage(message *message.Message) bool {
 	contentSize := len(message.GetContent())
-	if len(p.messageBuffer) < cap(p.messageBuffer) && p.contentSize+contentSize <= p.contentSizeLimit {
+	if p.CanAddMessage(message) {
 		meta := message.MessageMetadata // Copy metadata instead of taking reference
 		p.messageBuffer = append(p.messageBuffer, &meta)
 		p.contentSize += contentSize

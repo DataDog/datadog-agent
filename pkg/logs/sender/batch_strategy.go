@@ -149,13 +149,13 @@ func (s *batchStrategy) addMessage(m *message.Message) bool {
 	s.utilization.Start()
 	defer s.utilization.Stop()
 
-	if s.buffer.AddMessage(m) {
+	if s.buffer.CanAddMessage(m) {
 		err := s.serializer.Serialize(m, s.writeCounter)
 		if err != nil {
 			log.Warnf("Failed to serialize message in pipeline=%s reason=serialize-error err=%s", s.pipelineName, err)
 			return false
 		}
-		return true
+		return s.buffer.AddMessage(m)
 	}
 	return false
 }
@@ -188,6 +188,8 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	s.utilization.Start()
 	if err := s.serializer.Finish(s.writeCounter); err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
+		s.buffer.Clear()
+		s.MakeCompressor()
 		s.utilization.Stop()
 		return
 	}
@@ -223,6 +225,8 @@ func (s *batchStrategy) sendMessages(messagesMetadata []*message.MessageMetadata
 	}
 
 	p := message.NewPayload(messagesMetadata, s.encodedPayload.Bytes(), s.compression.ContentEncoding(), unencodedSize)
+	// print the payload bytes as string
+	log.Debugf("Payload: %s", s.encodedPayload.Bytes())
 
 	s.utilization.Stop()
 	outputChan <- p
