@@ -281,7 +281,6 @@ func (s *testAgentUpgradeSuite) setWatchdogTimeout(timeout int) {
 func (s *testAgentUpgradeSuite) installPreviousAgentVersion(opts ...installerwindows.MsiOption) {
 	agentVersion := s.StableAgentVersion().Version()
 	options := []installerwindows.MsiOption{
-		installerwindows.WithOption(installerwindows.WithURLFromPipeline("58948204")),
 		installerwindows.WithMSIDevEnvOverrides("PREVIOUS_AGENT"),
 		installerwindows.WithMSILogFile("install-previous-version.log"),
 	}
