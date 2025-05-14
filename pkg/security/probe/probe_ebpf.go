@@ -1322,6 +1322,10 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			}
 			offset += read
 
+			if len(data[offset:]) > 512 {
+				seclog.Warnf("DNS message larger than 512 bytes. data: %x", err, data[offset:])
+			}
+
 			var dnsLayer = new(layers.DNS)
 			if err := dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
 				seclog.Errorf("failed to decode DNS response: %s. data: %x", err, data[offset:])

@@ -65,8 +65,6 @@ __attribute__((always_inline)) union dns_responses_t *reset_dns_response_event(s
         return NULL;
     }
 
-    __builtin_memset(evt, 0, sizeof(*evt));
-
     return evt;
 }
 
