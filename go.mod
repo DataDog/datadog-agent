@@ -474,7 +474,7 @@ require (
 	github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e
 	github.com/kraken-hpc/go-fork v0.1.1
 	github.com/mattn/go-sqlite3 v1.14.24
-	github.com/shirou/gopsutil/v4 v4.25.3
+	github.com/shirou/gopsutil/v4 v4.25.4
 	go.opentelemetry.io/collector/component/componenttest v0.125.0
 	modernc.org/sqlite v1.36.2 // indirect
 )
