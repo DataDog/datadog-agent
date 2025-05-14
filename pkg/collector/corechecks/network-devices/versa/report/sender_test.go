@@ -10,6 +10,7 @@ package report
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseTimestamp(t *testing.T) {
@@ -72,6 +73,51 @@ func TestParseSize(t *testing.T) {
 		}
 		if result != test.expected {
 			t.Errorf("Expected %2f, got %2f for input %s", test.expected, result, test.input)
+		}
+	}
+}
+
+func TestParseUptimeString(t *testing.T) {
+	tests := []struct {
+		description     string
+		input           string
+		expectedYears   int64
+		expectedDays    int64
+		expectedHours   int64
+		expectedMinutes int64
+		expectedSeconds int64
+		errMsg          string
+	}{
+		{"Valid uptime", "10 days 2 hours 3 minutes 4 seconds.", 0, 10, 2, 3, 4, ""},
+		{"Valid uptime with years", "5 years 278 days 16 hours 0 minutes 30 seconds.", 5, 278, 16, 0, 30, ""},
+		{"Invalid uptime", "5x years, invalid", 0, 0, 0, 0, 0, ""},
+	}
+
+	for _, test := range tests {
+		result, err := parseUptimeString(test.input)
+		if err != nil {
+			if test.errMsg == "" {
+				t.Errorf("Unexpected error parsing uptime %s: %v", test.input, err)
+			} else if !strings.Contains(err.Error(), test.errMsg) {
+				t.Errorf("Expected error message to contain %q, got %q", test.errMsg, err.Error())
+			}
+			continue
+		}
+
+		result *= float64(time.Millisecond) * 10
+		resultDuration := time.Duration(result)
+		years := resultDuration / (365 * 24 * time.Hour)
+		resultDuration -= years * 365 * 24 * time.Hour
+		days := resultDuration / (24 * time.Hour)
+		resultDuration -= days * 24 * time.Hour
+		hours := resultDuration / time.Hour
+		resultDuration -= hours * time.Hour
+		minutes := resultDuration / time.Minute
+		resultDuration -= minutes * time.Minute
+		seconds := resultDuration / time.Second
+		resultDuration -= seconds * time.Second
+		if int64(years) != test.expectedYears || int64(days) != test.expectedDays || int64(hours) != test.expectedHours || int64(minutes) != test.expectedMinutes || int64(seconds) != test.expectedSeconds {
+			t.Errorf("Result mismatch, expected %s, got %d years %d days %d hours %d minutes %d seconds", test.input, years, days, hours, minutes, seconds)
 		}
 	}
 }
