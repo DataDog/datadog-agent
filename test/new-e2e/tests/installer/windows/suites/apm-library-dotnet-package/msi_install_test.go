@@ -325,7 +325,6 @@ func (s *testAgentMSIInstallsDotnetLibrary) installPreviousAgentVersion(opts ...
 	agentVersion := s.StableAgentVersion().Version()
 	options := []installerwindows.MsiOption{
 		// TODO: switch to prod stable entry when available
-		installerwindows.WithOption(installerwindows.WithURLFromPipeline("59253404")),
 		installerwindows.WithMSILogFile("install-previous-version.log"),
 	}
 	options = append(options, opts...)
