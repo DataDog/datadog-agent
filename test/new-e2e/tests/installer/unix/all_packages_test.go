@@ -311,6 +311,7 @@ func (s *packageBaseSuite) setupFakeIntake() {
 	var env []string
 	if s.Env().FakeIntake != nil {
 		env = append(env, []string{
+			"DD_SKIP_TLS_VALIDATION=true",
 			"DD_SKIP_SSL_VALIDATION=true",
 			"DD_URL=" + s.Env().FakeIntake.URL,
 			"DD_APM_DD_URL=" + s.Env().FakeIntake.URL,
