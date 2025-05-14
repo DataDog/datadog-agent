@@ -84,7 +84,7 @@ type K8sCollectorRunConfig struct {
 // ECSCollectorRunConfig is the configuration used to initialize or run the ECS collector.
 type ECSCollectorRunConfig struct {
 	WorkloadmetaStore workloadmeta.Component
-	AWSAccountID      int
+	AWSAccountID      string
 	Region            string
 	ClusterName       string
 	SystemInfo        *model.SystemInfo
