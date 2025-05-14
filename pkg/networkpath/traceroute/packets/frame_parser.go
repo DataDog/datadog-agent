@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package common
+package packets
 
 import (
 	"encoding/binary"
@@ -12,6 +12,7 @@ import (
 	"net/netip"
 	"slices"
 
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 )
@@ -27,7 +28,7 @@ type FrameParser struct {
 	parser   *gopacket.DecodingLayerParser
 }
 
-var ignoredLayerErr = &ReceiveProbeNoPktError{
+var ignoredLayerErr = &common.ReceiveProbeNoPktError{
 	Err: fmt.Errorf("FrameParser saw an a layer type not used by traceroute (e.g. ARP) and decided to ignore it"),
 }
 
