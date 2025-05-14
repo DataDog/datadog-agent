@@ -45,7 +45,7 @@ require (
 require go.opentelemetry.io/contrib/otelconf v0.15.0 // indirect
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.147 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.149 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.64.1 // indirect
@@ -149,7 +149,7 @@ require (
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/ebitengine/purego v0.8.2 // indirect
+	github.com/ebitengine/purego v0.8.3 // indirect
 	github.com/elastic/go-grok v0.3.1 // indirect
 	github.com/elastic/lunes v0.1.0 // indirect
 	github.com/fatih/color v1.18.0 // indirect

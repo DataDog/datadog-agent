@@ -324,6 +324,8 @@ func (e *EbpfProgram) start() error {
 		return err
 	}
 
+	ddebpf.AddProbeFDMappings(e.Manager.Manager)
+
 	for _, handler := range e.libsets {
 		if !handler.requested {
 			continue
