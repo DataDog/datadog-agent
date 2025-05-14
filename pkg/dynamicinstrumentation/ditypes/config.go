@@ -302,7 +302,15 @@ type ProcessInfo struct {
 	ProbesByID             *ProbesByID
 	InstrumentationUprobes *InstrumentationUprobesMap
 	InstrumentationObjects *InstrumentationObjectsMap
+	DDTracegoVersion       DDTraceGoVersion
 }
+
+type DDTraceGoVersion byte
+
+const (
+	DDTraceGoVersionV1 DDTraceGoVersion = iota + 1
+	DDTraceGoVersionV2
+)
 
 // SetupConfigUprobe sets the configuration probe for the process
 func (pi *ProcessInfo) SetupConfigUprobe() (*ebpf.Map, error) {
