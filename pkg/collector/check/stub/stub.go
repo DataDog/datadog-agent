@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+//go:build test
+
+// Package stub is a stub package for testing purposes
 package stub
 
 import (
@@ -18,7 +20,7 @@ import (
 
 // StubCheck stubs a check, should only be used in tests
 //
-//nolint:revive // TODO(AML) Fix revive linter
+//nolint:revive
 type StubCheck struct{}
 
 // String provides a printable version of the check name

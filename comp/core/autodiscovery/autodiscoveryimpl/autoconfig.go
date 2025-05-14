@@ -230,7 +230,7 @@ func (ac *AutoConfig) serviceListening() {
 			cancel()
 			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 		case svc := <-ac.newService:
-			ac.processNewService(ctx, svc)
+			ac.processNewService(svc)
 		case svc := <-ac.delService:
 			ac.processDelService(ctx, svc)
 		}
@@ -666,15 +666,8 @@ func (ac *AutoConfig) GetProviderCatalog() map[string]providers.ConfigProviderFa
 
 // processNewService takes a service, tries to match it against templates and
 // triggers scheduling events if it finds a valid config for it.
-func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Service) {
-	// get all the templates matching service identifiers
-	ADIdentifiers, err := svc.GetADIdentifiers(ctx)
-	if err != nil {
-		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetServiceID(), err)
-		return
-	}
-
-	changes := ac.cfgMgr.processNewService(ADIdentifiers, svc)
+func (ac *AutoConfig) processNewService(svc listeners.Service) {
+	changes := ac.cfgMgr.processNewService(svc)
 	ac.applyChanges(changes)
 }
 

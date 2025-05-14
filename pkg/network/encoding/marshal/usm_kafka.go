@@ -34,21 +34,21 @@ func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStats) *kafkaEnco
 	}
 }
 
-func (e *kafkaEncoder) WriteKafkaAggregations(c network.ConnectionStats, builder *model.ConnectionBuilder) uint64 {
+func (e *kafkaEncoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (uint64, map[string]struct{}) {
 	if e == nil {
-		return 0
+		return 0, nil
 	}
 
 	connectionData := e.byConnection.Find(c)
 	if connectionData == nil || len(connectionData.Data) == 0 || connectionData.IsPIDCollision(c) {
-		return 0
+		return 0, nil
 	}
 
 	staticTags := uint64(0)
 	builder.SetDataStreamsAggregations(func(b *bytes.Buffer) {
 		staticTags = e.encodeData(connectionData, b)
 	})
-	return staticTags
+	return staticTags, nil
 }
 
 func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *kafka.RequestStats], w io.Writer) uint64 {
