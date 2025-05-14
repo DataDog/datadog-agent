@@ -15,14 +15,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	configcomponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	profilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	profilermock "github.com/DataDog/datadog-agent/comp/core/profiler/mock"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-
-	configcomponent "github.com/DataDog/datadog-agent/comp/core/config"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -79,6 +80,8 @@ func getProfiler(t testing.TB, overrideConfig map[string]interface{}, overrideSy
 		}),
 		settingsimpl.MockModule(),
 		fxutil.ProvideComponentConstructor(NewComponent),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 	)
 
 	return deps.Comp.(profiler)

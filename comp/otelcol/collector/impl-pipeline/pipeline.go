@@ -10,7 +10,6 @@ package pipelineimpl
 
 import (
 	"context"
-	"net/http"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -26,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -49,8 +47,8 @@ type Requires struct {
 	// Log specifies the logging component.
 	Log log.Component
 
-	// IPC specifies the IPC component.
-	IPC ipc.Component
+	// Client specifies the IPC HTTP client.
+	Client ipc.HTTPClient
 
 	// Serializer specifies the metrics serializer that is used to export metrics
 	// to Datadog.
@@ -75,7 +73,6 @@ type Provides struct {
 }
 
 type collectorImpl struct {
-	ipc            ipc.Component
 	col            *otlp.Pipeline
 	config         config.Component
 	log            log.Component
@@ -83,7 +80,8 @@ type collectorImpl struct {
 	logsAgent      option.Option[logsagentpipeline.Component]
 	inventoryAgent inventoryagent.Component
 	tagger         tagger.Component
-	client         *http.Client
+	client         ipc.HTTPClient
+	clientTimeout  time.Duration
 	ctx            context.Context
 }
 
@@ -134,17 +132,16 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if timeoutSeconds == 0 {
 		timeoutSeconds = defaultExtensionTimeout
 	}
-	client := apiutil.GetClientWithTimeout(time.Duration(timeoutSeconds) * time.Second)
 
 	collector := &collectorImpl{
-		ipc:            reqs.IPC,
+		client:         reqs.Client,
+		clientTimeout:  time.Duration(timeoutSeconds) * time.Second,
 		config:         reqs.Config,
 		log:            reqs.Log,
 		serializer:     reqs.Serializer,
 		logsAgent:      reqs.LogsAgent,
 		inventoryAgent: reqs.InventoryAgent,
 		tagger:         reqs.Tagger,
-		client:         client,
 		ctx:            context.Background(),
 	}
 

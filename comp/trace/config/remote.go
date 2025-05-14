@@ -21,8 +21,8 @@ func remote(c corecompcfg.Component, ipcAddress string, ipc ipc.Component) (conf
 	return rc.NewGRPCClient(
 		ipcAddress,
 		pkgconfigsetup.GetIPCPort(),
-		func() (string, error) { return ipc.GetAuthToken(), nil }, // TODO IPC: GRPC client will be provided by the IPC component
-		ipc.GetTLSClientConfig,
+		ipc.GetAuthToken(), // TODO IPC: GRPC client will be provided by the IPC component
+		ipc.GetTLSClientConfig(),
 		rc.WithAgent(rcClientName, version.AgentVersion),
 		rc.WithProducts(state.ProductAPMSampling, state.ProductAgentConfig),
 		rc.WithPollInterval(rcClientPollInterval),

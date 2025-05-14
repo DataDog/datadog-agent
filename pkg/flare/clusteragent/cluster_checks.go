@@ -16,14 +16,15 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 )
 
 // GetClusterChecks dumps the clustercheck dispatching state to the writer
-func GetClusterChecks(w io.Writer, checkName string) error {
+func GetClusterChecks(w io.Writer, checkName string, c ipc.HTTPClient) error {
 	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 
 	if w != color.Output {
@@ -35,15 +36,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 		return nil
 	}
 
-	c := util.GetClient()
-
-	// Set session token
-	err := util.SetAuthToken(pkgconfigsetup.Datadog())
-	if err != nil {
-		return err
-	}
-
-	r, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
+	r, err := c.Get(urlstr, ipchttp.WithLeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(w, "The agent ran into an error while checking config: %s\n", string(r))
@@ -111,7 +104,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 }
 
 // GetEndpointsChecks dumps the endpointschecks dispatching state to the writer
-func GetEndpointsChecks(w io.Writer, checkName string) error {
+func GetEndpointsChecks(w io.Writer, checkName string, c ipc.HTTPClient) error {
 	if !endpointschecksEnabled() {
 		return nil
 	}
@@ -122,15 +115,8 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 		color.NoColor = true
 	}
 
-	c := util.GetClient()
-
-	// Set session token
-	if err := util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
-		return err
-	}
-
 	// Query the cluster agent API
-	r, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
+	r, err := c.Get(urlstr, ipchttp.WithLeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(w, "The agent ran into an error while checking config: %s\n", string(r))

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/systray/systray"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -52,6 +53,7 @@ type dependencies struct {
 	Flare    flare.Component
 	Diagnose diagnose.Component
 	Params   systray.Params
+	Client   ipc.HTTPClient
 }
 
 type systrayImpl struct {
@@ -63,7 +65,7 @@ type systrayImpl struct {
 	flare    flare.Component
 	diagnose diagnose.Component
 	params   systray.Params
-
+	client   ipc.HTTPClient
 	// allocated in start, destroyed in stop
 	singletonEventHandle windows.Handle
 
@@ -126,6 +128,7 @@ func newSystray(deps dependencies) (systray.Component, error) {
 		flare:      deps.Flare,
 		diagnose:   deps.Diagnose,
 		params:     deps.Params,
+		client:     deps.Client,
 		shutdowner: deps.Shutdowner,
 	}
 

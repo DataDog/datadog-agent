@@ -131,7 +131,7 @@ func (s *ipcClient) do(req *http.Request, contentType string, onChunk func([]byt
 	}
 
 	if r.StatusCode >= 400 {
-		return body, errors.New(string(body))
+		return body, fmt.Errorf("status code: %d, body: %s", r.StatusCode, string(body))
 	}
 	return body, nil
 }
