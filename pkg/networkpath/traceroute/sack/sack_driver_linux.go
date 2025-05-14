@@ -226,7 +226,6 @@ func (s *sackDriver) handleProbeLayers(parser *packets.FrameParser) (*common.Pro
 		if err != nil {
 			return nil, &common.BadPacketError{Err: fmt.Errorf("sackDriver failed to get ICMP info: %w", err)}
 		}
-
 		tcpInfo, err := packets.ParseTCPFirstBytes(icmpInfo.Payload)
 		if err != nil {
 			return nil, &common.BadPacketError{Err: fmt.Errorf("sackDriver failed to parse TCP info: %w", err)}
