@@ -34,7 +34,6 @@
 .agent_variables: &agent_variables
   IMAGE_VERSION: tmpl-v14
   IMAGE_NAME: datadog-agent
-  TMPL_ADP_VERSION: 0.1.7
   TMPL_SRC_REPO: ci/datadog-agent/agent
 
 .cluster_agent_variables: &cluster_agent_variables
@@ -52,6 +51,7 @@ publish-internal-container-image-jmx:
       artifacts: false
   variables:
     <<: *agent_variables
+    TMPL_ADP_VERSION: 0.1.7
     RELEASE_TAG_SUFFIX: "-jmx"
     TMPL_SRC_IMAGE_SUFFIX: "-7-jmx"
 
@@ -98,6 +98,7 @@ publish-internal-container-image-full:
       artifacts: false
   variables:
     <<: *agent_variables
+    TMPL_ADP_VERSION: 0.1.7
     RELEASE_TAG_SUFFIX: "-full"
     TMPL_SRC_IMAGE_SUFFIX: "-7-full"
 
