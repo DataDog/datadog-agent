@@ -65,6 +65,8 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypePhysical
 	case *ddnvml.MIGDevice:
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypeMIG
+	default:
+		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypeUnknown
 	}
 
 	c.fillNVMLAttributes(&gpuDeviceInfo, device)

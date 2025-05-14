@@ -1380,6 +1380,8 @@ const (
 	GPUDeviceTypePhysical GPUDeviceType = iota
 	// GPUDeviceTypeMIG represents a MIG device.
 	GPUDeviceTypeMIG
+	// GPUDeviceTypeUnknown represents an unknown device type.
+	GPUDeviceTypeUnknown
 )
 
 // GPU represents a GPU resource.
