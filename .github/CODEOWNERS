@@ -218,6 +218,7 @@
 /cmd/agent/dist/conf.d/service_discovery.d/          @DataDog/agent-discovery
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/ndm-core
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-agent
+/cmd/agent/dist/conf.d/windows_certificate.d/ @DataDog/windows-agent
 /cmd/agent/installer.go                 @DataDog/fleet
 /cmd/agent/install*.sh                  @DataDog/container-ecosystems @DataDog/agent-delivery
 /cmd/cluster-agent/                     @DataDog/container-platform
@@ -437,6 +438,7 @@
 /pkg/collector/corechecks/system/                 @DataDog/agent-runtimes
 /pkg/collector/corechecks/system/**/*_windows*.go @DataDog/agent-runtimes @DataDog/windows-agent
 /pkg/collector/corechecks/system/wincrashdetect/  @DataDog/windows-agent
+/pkg/collector/corechecks/system/windowscertificate/ @DataDog/windows-agent
 /pkg/collector/corechecks/system/winkmem/         @DataDog/windows-agent
 /pkg/collector/corechecks/system/winproc/         @DataDog/windows-agent
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
