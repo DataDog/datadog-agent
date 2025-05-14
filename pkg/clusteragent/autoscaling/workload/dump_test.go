@@ -104,7 +104,7 @@ Timestamp: %[1]s
 Replicas: 100
 --------------------------------
 [Vertical]
-Vertical Error: <nil>
+Vertical Error: test vertical error
 Source: Autoscaling
 Timestamp: %[1]s
 ResourcesHash: 1234567890
@@ -184,7 +184,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 	err = json.Unmarshal(jsonDpai, &unmarshalledDpai)
 	assert.NoError(t, err)
 
-	compareTestOutput(t, unmarshalledDpai.String(true), realDpai.String(true))
+	compareTestOutput(t, realDpai.String(true), unmarshalledDpai.String(true))
 }
 
 func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal {
@@ -308,7 +308,7 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 					},
 				},
 			},
-			VerticalError:   nil,
+			VerticalError:   fmt.Errorf("test vertical error"),
 			HorizontalError: nil,
 			Error:           fmt.Errorf("test error"),
 		},

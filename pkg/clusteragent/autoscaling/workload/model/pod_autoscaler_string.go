@@ -249,54 +249,6 @@ func printResourceList(resourceList corev1.ResourceList) string {
 	return sb.String()
 }
 
-// MarshalJSON implements the json.Marshaler interface for PodAutoscalerInternal
-func (p *PodAutoscalerInternal) MarshalJSON() ([]byte, error) {
-	// Create a map with all the fields we want to include in the JSON
-	return json.Marshal(map[string]interface{}{
-		"namespace":          p.namespace,
-		"name":               p.name,
-		"creation_timestamp": p.creationTimestamp,
-		"generation":         p.generation,
-		"spec":               p.spec,
-		"settings_timestamp": p.settingsTimestamp,
-		"scaling_values": map[string]interface{}{
-			"horizontal":       p.scalingValues.Horizontal,
-			"vertical":         p.scalingValues.Vertical,
-			"error":            errorToString(p.scalingValues.Error),
-			"horizontal_error": errorToString(p.scalingValues.HorizontalError),
-			"vertical_error":   errorToString(p.scalingValues.VerticalError),
-		},
-
-		"main_scaling_values": map[string]interface{}{
-			"horizontal":       p.mainScalingValues.Horizontal,
-			"vertical":         p.mainScalingValues.Vertical,
-			"error":            errorToString(p.mainScalingValues.Error),
-			"horizontal_error": errorToString(p.mainScalingValues.HorizontalError),
-			"vertical_error":   errorToString(p.mainScalingValues.VerticalError),
-		},
-
-		"fallback_scaling_values": map[string]interface{}{
-			"horizontal":       p.fallbackScalingValues.Horizontal,
-			"vertical":         p.fallbackScalingValues.Vertical,
-			"error":            errorToString(p.fallbackScalingValues.Error),
-			"horizontal_error": errorToString(p.fallbackScalingValues.HorizontalError),
-			"vertical_error":   errorToString(p.fallbackScalingValues.VerticalError),
-		},
-		"horizontal_last_actions":          p.horizontalLastActions,
-		"horizontal_last_limit_reason":     p.horizontalLastLimitReason,
-		"horizontal_last_action_error":     errorToString(p.horizontalLastActionError),
-		"vertical_last_action":             p.verticalLastAction,
-		"vertical_last_action_error":       errorToString(p.verticalLastActionError),
-		"current_replicas":                 p.currentReplicas,
-		"scaled_replicas":                  p.scaledReplicas,
-		"error":                            errorToString(p.error),
-		"deleted":                          p.deleted,
-		"target_gvk":                       p.targetGVK,
-		"horizontal_events_retention":      p.horizontalEventsRetention,
-		"custom_recommender_configuration": p.customRecommenderConfiguration,
-	})
-}
-
 // Helper function to handle potential nil errors
 func errorToString(err error) interface{} {
 	if err == nil {
@@ -323,31 +275,77 @@ func stringToError(value interface{}) error {
 	return errors.New(str)
 }
 
+// MarshalJSON implements the json.Marshaler interface for PodAutoscalerInternal
+func (p *PodAutoscalerInternal) MarshalJSON() ([]byte, error) {
+	// Create a map with all the fields we want to include in the JSON
+	return json.Marshal(map[string]interface{}{
+		"namespace":                                p.namespace,
+		"name":                                     p.name,
+		"creation_timestamp":                       p.creationTimestamp,
+		"generation":                               p.generation,
+		"spec":                                     p.spec,
+		"settings_timestamp":                       p.settingsTimestamp,
+		"scaling_values":                           p.scalingValues,
+		"scaling_values_error":                     errorToString(p.scalingValues.Error),
+		"scaling_values_horizontal_error":          errorToString(p.scalingValues.HorizontalError),
+		"scaling_values_vertical_error":            errorToString(p.scalingValues.VerticalError),
+		"main_scaling_values":                      p.mainScalingValues,
+		"main_scaling_values_error":                errorToString(p.mainScalingValues.Error),
+		"main_scaling_values_horizontal_error":     errorToString(p.mainScalingValues.HorizontalError),
+		"main_scaling_values_vertical_error":       errorToString(p.mainScalingValues.VerticalError),
+		"fallback_scaling_values":                  p.fallbackScalingValues,
+		"fallback_scaling_values_error":            errorToString(p.fallbackScalingValues.Error),
+		"fallback_scaling_values_horizontal_error": errorToString(p.fallbackScalingValues.HorizontalError),
+		"fallback_scaling_values_vertical_error":   errorToString(p.fallbackScalingValues.VerticalError),
+		"horizontal_last_actions":                  p.horizontalLastActions,
+		"horizontal_last_limit_reason":             p.horizontalLastLimitReason,
+		"horizontal_last_action_error":             errorToString(p.horizontalLastActionError),
+		"vertical_last_action":                     p.verticalLastAction,
+		"vertical_last_action_error":               errorToString(p.verticalLastActionError),
+		"current_replicas":                         p.currentReplicas,
+		"scaled_replicas":                          p.scaledReplicas,
+		"error":                                    errorToString(p.error),
+		"deleted":                                  p.deleted,
+		"target_gvk":                               p.targetGVK,
+		"horizontal_events_retention":              p.horizontalEventsRetention,
+		"custom_recommender_configuration":         p.customRecommenderConfiguration,
+	})
+}
+
 // UnmarshalJSON implements the json.Unmarshaler interface for PodAutoscalerInternal
 func (p *PodAutoscalerInternal) UnmarshalJSON(data []byte) error {
 	// Create a temporary struct to unmarshal into
 	var temp struct {
-		Namespace                      string                                                 `json:"namespace"`
-		Name                           string                                                 `json:"name"`
-		CreationTimestamp              time.Time                                              `json:"creation_timestamp"`
-		Generation                     int64                                                  `json:"generation"`
-		Spec                           *v1alpha2.DatadogPodAutoscalerSpec                     `json:"spec"`
-		SettingsTimestamp              time.Time                                              `json:"settings_timestamp"`
-		ScalingValues                  map[string]interface{}                                 `json:"scaling_values"`
-		MainScalingValues              map[string]interface{}                                 `json:"main_scaling_values"`
-		FallbackScalingValues          map[string]interface{}                                 `json:"fallback_scaling_values"`
-		HorizontalLastActions          []datadoghqcommon.DatadogPodAutoscalerHorizontalAction `json:"horizontal_last_actions"`
-		HorizontalLastLimitReason      string                                                 `json:"horizontal_last_limit_reason"`
-		HorizontalLastActionError      interface{}                                            `json:"horizontal_last_action_error"`
-		VerticalLastAction             *datadoghqcommon.DatadogPodAutoscalerVerticalAction    `json:"vertical_last_action"`
-		VerticalLastActionError        interface{}                                            `json:"vertical_last_action_error"`
-		CurrentReplicas                *int32                                                 `json:"current_replicas"`
-		ScaledReplicas                 *int32                                                 `json:"scaled_replicas"`
-		Error                          interface{}                                            `json:"error"`
-		Deleted                        bool                                                   `json:"deleted"`
-		TargetGVK                      schema.GroupVersionKind                                `json:"target_gvk"`
-		HorizontalEventsRetention      time.Duration                                          `json:"horizontal_events_retention"`
-		CustomRecommenderConfiguration *RecommenderConfiguration                              `json:"custom_recommender_configuration"`
+		Namespace                            string                                                 `json:"namespace"`
+		Name                                 string                                                 `json:"name"`
+		CreationTimestamp                    time.Time                                              `json:"creation_timestamp"`
+		Generation                           int64                                                  `json:"generation"`
+		Spec                                 *v1alpha2.DatadogPodAutoscalerSpec                     `json:"spec"`
+		SettingsTimestamp                    time.Time                                              `json:"settings_timestamp"`
+		ScalingValues                        ScalingValues                                          `json:"scaling_values"`
+		ScalingValuesError                   interface{}                                            `json:"scaling_values_error"`
+		ScalingValuesHorizontalError         interface{}                                            `json:"scaling_values_horizontal_error"`
+		ScalingValuesVerticalError           interface{}                                            `json:"scaling_values_vertical_error"`
+		MainScalingValues                    ScalingValues                                          `json:"main_scaling_values"`
+		MainScalingValuesError               interface{}                                            `json:"main_scaling_values_error"`
+		MainScalingValuesHorizontalError     interface{}                                            `json:"main_scaling_values_horizontal_error"`
+		MainScalingValuesVerticalError       interface{}                                            `json:"main_scaling_values_vertical_error"`
+		FallbackScalingValues                ScalingValues                                          `json:"fallback_scaling_values"`
+		FallbackScalingValuesError           interface{}                                            `json:"fallback_scaling_values_error"`
+		FallbackScalingValuesHorizontalError interface{}                                            `json:"fallback_scaling_values_horizontal_error"`
+		FallbackScalingValuesVerticalError   interface{}                                            `json:"fallback_scaling_values_vertical_error"`
+		HorizontalLastActions                []datadoghqcommon.DatadogPodAutoscalerHorizontalAction `json:"horizontal_last_actions"`
+		HorizontalLastLimitReason            string                                                 `json:"horizontal_last_limit_reason"`
+		HorizontalLastActionError            interface{}                                            `json:"horizontal_last_action_error"`
+		VerticalLastAction                   *datadoghqcommon.DatadogPodAutoscalerVerticalAction    `json:"vertical_last_action"`
+		VerticalLastActionError              interface{}                                            `json:"vertical_last_action_error"`
+		CurrentReplicas                      *int32                                                 `json:"current_replicas"`
+		ScaledReplicas                       *int32                                                 `json:"scaled_replicas"`
+		Error                                interface{}                                            `json:"error"`
+		Deleted                              bool                                                   `json:"deleted"`
+		TargetGVK                            schema.GroupVersionKind                                `json:"target_gvk"`
+		HorizontalEventsRetention            time.Duration                                          `json:"horizontal_events_retention"`
+		CustomRecommenderConfiguration       *RecommenderConfiguration                              `json:"custom_recommender_configuration"`
 	}
 
 	if err := json.Unmarshal(data, &temp); err != nil {
@@ -373,47 +371,17 @@ func (p *PodAutoscalerInternal) UnmarshalJSON(data []byte) error {
 	p.horizontalEventsRetention = temp.HorizontalEventsRetention
 	p.customRecommenderConfiguration = temp.CustomRecommenderConfiguration
 	p.error = stringToError(temp.Error)
-
-	if temp.ScalingValues != nil {
-		p.scalingValues = unmarshalScalingValues(temp.ScalingValues)
-	}
-	if temp.MainScalingValues != nil {
-		p.mainScalingValues = unmarshalScalingValues(temp.MainScalingValues)
-	}
-	if temp.FallbackScalingValues != nil {
-		p.fallbackScalingValues = unmarshalScalingValues(temp.FallbackScalingValues)
-	}
-
+	p.scalingValues = temp.ScalingValues
+	p.scalingValues.Error = stringToError(temp.ScalingValuesError)
+	p.scalingValues.HorizontalError = stringToError(temp.ScalingValuesHorizontalError)
+	p.scalingValues.VerticalError = stringToError(temp.ScalingValuesVerticalError)
+	p.mainScalingValues = temp.MainScalingValues
+	p.mainScalingValues.Error = stringToError(temp.MainScalingValuesError)
+	p.mainScalingValues.HorizontalError = stringToError(temp.MainScalingValuesHorizontalError)
+	p.mainScalingValues.VerticalError = stringToError(temp.MainScalingValuesVerticalError)
+	p.fallbackScalingValues = temp.FallbackScalingValues
+	p.fallbackScalingValues.Error = stringToError(temp.FallbackScalingValuesError)
+	p.fallbackScalingValues.HorizontalError = stringToError(temp.FallbackScalingValuesHorizontalError)
+	p.fallbackScalingValues.VerticalError = stringToError(temp.FallbackScalingValuesVerticalError)
 	return nil
-}
-
-func unmarshalScalingValues(data map[string]interface{}) ScalingValues {
-	result := ScalingValues{}
-
-	// Handle the horizontal field
-	if h, ok := data["horizontal"]; ok {
-		if hBytes, err := json.Marshal(h); err == nil {
-			var horizontal HorizontalScalingValues
-			if err := json.Unmarshal(hBytes, &horizontal); err == nil {
-				result.Horizontal = &horizontal
-			}
-		}
-	}
-
-	// Handle vertical similarly
-	if v, ok := data["vertical"]; ok {
-		if vBytes, err := json.Marshal(v); err == nil {
-			var vertical VerticalScalingValues
-			if err := json.Unmarshal(vBytes, &vertical); err == nil {
-				result.Vertical = &vertical
-			}
-		}
-	}
-
-	// Handle error fields
-	result.Error = stringToError(data["error"])
-	result.HorizontalError = stringToError(data["horizontal_error"])
-	result.VerticalError = stringToError(data["vertical_error"])
-
-	return result
 }
