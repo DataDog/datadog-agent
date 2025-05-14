@@ -25,6 +25,7 @@ from invoke.exceptions import Exit
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
 from tasks.libs.common.utils import retry_function
+from tasks.libs.types.types import JobDependency
 
 BASE_URL = "https://gitlab.ddbuild.io"
 CONFIG_SPECIAL_OBJECTS = {
@@ -1342,3 +1343,26 @@ def update_image_tag(lines, tag, variables, test=True):
         else:
             output.append(line)
     return output
+
+
+def get_gitlab_job_dependencies(gitlab_cfg: dict, job_name: str) -> list[JobDependency]:
+    """
+    Get the dependencies of a job from the gitlab configuration.
+    """
+    job_dependencies = []
+    job_data = gitlab_cfg[job_name]
+    if "needs" in job_data:
+        for need in job_data["needs"]:
+            job_name = need["job"]
+            matrix_needs = need.get('parallel', {}).get('matrix', [])
+            tags = []
+            for matrix_need in matrix_needs:
+                need_tags = []
+                for tag_name, tag_values in matrix_need.items():
+                    if isinstance(tag_values, str):
+                        tag_values = [tag_values]
+                    need_tags.append((tag_name, set(tag_values)))
+                tags.append(need_tags)
+
+            job_dependencies.append(JobDependency(job_name, tags))
+    return job_dependencies

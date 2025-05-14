@@ -48,12 +48,17 @@ from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.ciproviders.gitlab_api import (
+    get_gitlab_ci_configuration,
+    get_gitlab_job_dependencies,
+    get_gitlab_repo,
+)
 from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import loop_status
 from tasks.libs.releasing.version import VERSION_RE, check_version
 from tasks.libs.types.arch import Arch, KMTArchName
+from tasks.libs.types.types import JobDependency
 from tasks.security_agent import build_functional_tests
 from tasks.system_probe import (
     BPF_TAG,
@@ -2278,11 +2283,27 @@ def install_ddagent(
         "commit": "The commit to download the complexity data for",
         "dest_path": "The path to save the complexity data to",
         "keep_compressed_archives": "Keep the compressed archives after extracting the data. Useful for testing, as it replicates the exact state of the artifacts in CI",
+        "download_all_jobs": "Download the complexity data for all jobs instead of just the ones that are marked as dependencies for the notify_ebpf_complexity_changes_job. This will make the download take far longer.",
     }
 )
-def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, keep_compressed_archives: bool = False):
+def download_complexity_data(
+    ctx: Context,
+    commit: str,
+    dest_path: str | Path,
+    keep_compressed_archives: bool = False,
+    download_all_jobs: bool = False,
+):
     gitlab = get_gitlab_repo()
     dest_path = Path(dest_path)
+    deps: list[JobDependency] = []
+
+    if not download_all_jobs:
+        print("Parsing .gitlab-ci.yml file to understand the dependencies for notify_ebpf_complexity_changes")
+        gitlab_ci_file = os.fspath(Path(__file__).parent.parent / ".gitlab-ci.yml")
+        gitlab_config = get_gitlab_ci_configuration(ctx, gitlab_ci_file, job="notify_ebpf_complexity_changes")
+
+        deps = get_gitlab_job_dependencies(gitlab_config, "notify_ebpf_complexity_changes")
+        print(f"Dependencies for notify_ebpf_complexity_changes: {deps}")
 
     # We can't get all the pipelines associated with a commit directly, so we get it by the commit statuses
     commit_statuses = gitlab.commits.get(commit, lazy=True).statuses.list(all=True)
@@ -2297,8 +2318,8 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, k
 
         _, test_jobs = get_all_jobs_for_pipeline(pipeline_id)
         for job in test_jobs:
-            if job.component != "system-probe":
-                print(f"Ignoring job {job.name} with component {job.component}, only using system-probe")
+            if not download_all_jobs and not any(dep.matches(job.name) for dep in deps):
+                print(f"Ignoring job {job.name} because it is not a dependency of notify_ebpf_complexity_changes")
                 continue
 
             complexity_name = f"verifier-complexity-{job.arch}-{job.distro}-{job.component}"
@@ -2307,9 +2328,13 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, k
             data = job.artifact_file_binary(complexity_data_fname, ignore_not_found=True)
             download_end_time = time.time()
             download_end_tstamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            time_msg = f"Download took {download_end_time - download_start_time} seconds, finished at {download_end_tstamp}"
+            time_msg = (
+                f"Download took {download_end_time - download_start_time} seconds, finished at {download_end_tstamp}"
+            )
             if data is None:
-                print(f"Complexity data not found for {job.name} - filename {complexity_data_fname} not found ({time_msg})")
+                print(
+                    f"Complexity data not found for {job.name} - filename {complexity_data_fname} not found ({time_msg})"
+                )
                 continue
 
             if keep_compressed_archives:
@@ -2321,7 +2346,9 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, k
             job_folder.mkdir(parents=True, exist_ok=True)
             tar.extractall(dest_path / job_folder)
             time_msg += f", extracted in {time.time() - download_end_time} seconds"
-            print(f"Extracted complexity data for {job.name} successfully, filename {complexity_data_fname} ({time_msg})")
+            print(
+                f"Extracted complexity data for {job.name} successfully, filename {complexity_data_fname} ({time_msg})"
+            )
 
 
 @task
