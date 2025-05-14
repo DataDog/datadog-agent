@@ -24,6 +24,7 @@ WORKDIR /workspace
 # TODO: For now we have to clone the whole repository and checkout to a specific commit / ref / branch then recompile the otel-agent
 # Cloning the whole repo is necessary because `get_version` in the build script runs git describe --tags --candidates=50...
 # We should eventually just fetch the binary and just copy it
+RUN ls -l / && ls -l /workspace
 RUN \
     if [ ! -f /otel-agent ]; then \
         apt-get update && \
