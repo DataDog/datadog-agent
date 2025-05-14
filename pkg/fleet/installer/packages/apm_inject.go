@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -388,37 +389,55 @@ func (a *apmInjectorInstaller) addLocalStableConfig(ctx context.Context) (err er
 	span, _ := telemetry.StartSpanFromContext(ctx, "add_local_stable_config")
 	defer func() { span.Finish(err) }()
 
-	type ApmConfigDefault struct {
-		RuntimeMetricsEnabled *bool   `yaml:"DD_RUNTIME_METRICS_ENABLED,omitempty"`
-		LogsInjection         *bool   `yaml:"DD_LOGS_INJECTION,omitempty"`
-		APMTracingEnabled     *bool   `yaml:"DD_APM_TRACING_ENABLED,omitempty"`
-		ProfilingEnabled      *string `yaml:"DD_PROFILING_ENABLED,omitempty"`
-		DataStreamsEnabled    *bool   `yaml:"DD_DATA_STREAMS_ENABLED,omitempty"`
-		AppsecEnabled         *bool   `yaml:"DD_APPSEC_ENABLED,omitempty"`
-		IastEnabled           *bool   `yaml:"DD_IAST_ENABLED,omitempty"`
-		DataJobsEnabled       *bool   `yaml:"DD_DATA_JOBS_ENABLED,omitempty"`
-		AppsecScaEnabled      *bool   `yaml:"DD_APPSEC_SCA_ENABLED,omitempty"`
-	}
-	type ApplicationMonitoring struct {
-		Default ApmConfigDefault `yaml:"apm_configuration_default"`
-	}
-
 	appMonitoringConfigMutator := newFileMutator(
 		localStableConfigPath,
-		func(_ context.Context, _ []byte) ([]byte, error) {
-			cfg := ApplicationMonitoring{
-				Default: ApmConfigDefault{
-					RuntimeMetricsEnabled: a.envs.InstallScript.RuntimeMetricsEnabled,
-					LogsInjection:         a.envs.InstallScript.LogsInjection,
-					APMTracingEnabled:     a.envs.InstallScript.APMTracingEnabled,
-					DataStreamsEnabled:    a.envs.InstallScript.DataStreamsEnabled,
-					AppsecEnabled:         a.envs.InstallScript.AppsecEnabled,
-					IastEnabled:           a.envs.InstallScript.IastEnabled,
-					DataJobsEnabled:       a.envs.InstallScript.DataJobsEnabled,
-					AppsecScaEnabled:      a.envs.InstallScript.AppsecScaEnabled,
-				},
+		func(_ context.Context, existing []byte) ([]byte, error) {
+			cfg := config.ApplicationMonitoringConfig{
+				Default: config.APMConfigurationDefault{},
+			}
+			hasChanged := false
+
+			if len(existing) > 0 {
+				err := yaml.Unmarshal(existing, &cfg)
+				if err != nil {
+					return nil, fmt.Errorf("failed to unmarshal existing application_monitoring.yaml: %w", err)
+				}
+			}
+
+			if a.envs.InstallScript.RuntimeMetricsEnabled != nil {
+				hasChanged = true
+				cfg.Default.RuntimeMetricsEnabled = a.envs.InstallScript.RuntimeMetricsEnabled
+			}
+			if a.envs.InstallScript.LogsInjection != nil {
+				hasChanged = true
+				cfg.Default.LogsInjection = a.envs.InstallScript.LogsInjection
+			}
+			if a.envs.InstallScript.APMTracingEnabled != nil {
+				hasChanged = true
+				cfg.Default.APMTracingEnabled = a.envs.InstallScript.APMTracingEnabled
+			}
+			if a.envs.InstallScript.DataStreamsEnabled != nil {
+				hasChanged = true
+				cfg.Default.DataStreamsEnabled = a.envs.InstallScript.DataStreamsEnabled
+			}
+			if a.envs.InstallScript.AppsecEnabled != nil {
+				hasChanged = true
+				cfg.Default.AppsecEnabled = a.envs.InstallScript.AppsecEnabled
+			}
+			if a.envs.InstallScript.IastEnabled != nil {
+				hasChanged = true
+				cfg.Default.IastEnabled = a.envs.InstallScript.IastEnabled
+			}
+			if a.envs.InstallScript.DataJobsEnabled != nil {
+				hasChanged = true
+				cfg.Default.DataJobsEnabled = a.envs.InstallScript.DataJobsEnabled
+			}
+			if a.envs.InstallScript.AppsecScaEnabled != nil {
+				hasChanged = true
+				cfg.Default.AppsecScaEnabled = a.envs.InstallScript.AppsecScaEnabled
 			}
 			if a.envs.InstallScript.ProfilingEnabled != nil {
+				hasChanged = true
 				profEnabled := "false"
 				if *a.envs.InstallScript.ProfilingEnabled {
 					profEnabled = "auto"
@@ -426,7 +445,11 @@ func (a *apmInjectorInstaller) addLocalStableConfig(ctx context.Context) (err er
 				cfg.Default.ProfilingEnabled = &profEnabled
 			}
 
-			return yaml.Marshal(cfg)
+			// Avoid creating a .backup file and overwriting the existing file if no changes were made
+			if hasChanged {
+				return yaml.Marshal(cfg)
+			}
+			return existing, nil
 		},
 		nil, nil,
 	)
@@ -435,7 +458,7 @@ func (a *apmInjectorInstaller) addLocalStableConfig(ctx context.Context) (err er
 		return err
 	}
 	err = os.Chmod(localStableConfigPath, 0644)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to set permissions for application_monitoring.yaml: %w", err)
 	}
 
