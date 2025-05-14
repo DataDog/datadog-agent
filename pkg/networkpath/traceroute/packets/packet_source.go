@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package common
+// Package packets has packet capture/emitting/filtering logic
+package packets
 
 import (
 	"encoding/hex"
@@ -12,11 +13,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// PacketSource is an interface representing ethernet packet capture
-type PacketSource interface {
+// Source is an interface representing ethernet packet capture
+type Source interface {
 	// SetReadDeadline sets the deadline for when a Read() call must finish
 	SetReadDeadline(t time.Time) error
 	// Read reads a packet (including the ethernet frame)
@@ -26,10 +28,10 @@ type PacketSource interface {
 }
 
 // ReadAndParse reads from the given source into the buffer, and parses it with parser
-func ReadAndParse(source PacketSource, buffer []byte, parser *FrameParser) error {
+func ReadAndParse(source Source, buffer []byte, parser *FrameParser) error {
 	n, err := source.Read(buffer)
 	if errors.Is(err, os.ErrDeadlineExceeded) {
-		return &ReceiveProbeNoPktError{Err: err}
+		return &common.ReceiveProbeNoPktError{Err: err}
 	}
 	if err != nil {
 		return fmt.Errorf("ConnHandle failed to Read: %w", err)
@@ -44,7 +46,7 @@ func ReadAndParse(source PacketSource, buffer []byte, parser *FrameParser) error
 			data := hex.EncodeToString(buffer[:n])
 			return fmt.Sprintf("error parsing packet of length %d: %s, %s", n, err, data)
 		})
-		return &BadPacketError{Err: fmt.Errorf("sackDriver failed to parse packet of length %d: %w", n, err)}
+		return &common.BadPacketError{Err: fmt.Errorf("sackDriver failed to parse packet of length %d: %w", n, err)}
 	}
 
 	return nil

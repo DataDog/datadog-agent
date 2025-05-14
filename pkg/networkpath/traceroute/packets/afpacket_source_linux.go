@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package common
+package packets
 
 import (
 	"fmt"
@@ -22,7 +22,7 @@ type AFPacketSource struct {
 	sock *os.File
 }
 
-var _ PacketSource = &AFPacketSource{}
+var _ Source = &AFPacketSource{}
 
 // ethPAllNetwork is all protocols, in network byte order
 var ethPAllNetwork = htons(uint16(unix.ETH_P_ALL))
