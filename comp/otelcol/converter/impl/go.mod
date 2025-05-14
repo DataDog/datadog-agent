@@ -5,7 +5,6 @@ go 1.23.0
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.125.0
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/confmap v1.31.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v1.31.0
@@ -15,11 +14,6 @@ require (
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.31.0
 	go.uber.org/zap v1.27.0
 
-)
-
-require (
-	github.com/DataDog/datadog-agent/pkg/trace v0.64.3 // indirect
-	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
 require (
@@ -95,6 +89,7 @@ require (
 	golang.org/x/time v0.11.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
