@@ -130,7 +130,7 @@ type Delta struct {
 	HTTP2    map[http.Key]*http.RequestStats
 	Kafka    map[kafka.Key]*kafka.RequestStats
 	Postgres map[postgres.Key]*postgres.RequestStat
-	Redis    map[redis.Key]*redis.RequestStat
+	Redis    map[redis.Key]*redis.RequestStats
 }
 
 type lastStateTelemetry struct {
@@ -246,7 +246,7 @@ type client struct {
 	http2StatsDelta    map[http.Key]*http.RequestStats
 	kafkaStatsDelta    map[kafka.Key]*kafka.RequestStats
 	postgresStatsDelta map[postgres.Key]*postgres.RequestStat
-	redisStatsDelta    map[redis.Key]*redis.RequestStat
+	redisStatsDelta    map[redis.Key]*redis.RequestStats
 	lastTelemetries    map[ConnTelemetryType]int64
 	// Flag for handling closed connection capacity pressure for this client
 	closedConnectionsNearCapacity atomic.Bool
@@ -265,7 +265,7 @@ func (c *client) Reset() {
 	c.http2StatsDelta = make(map[http.Key]*http.RequestStats)
 	c.kafkaStatsDelta = make(map[kafka.Key]*kafka.RequestStats)
 	c.postgresStatsDelta = make(map[postgres.Key]*postgres.RequestStat)
-	c.redisStatsDelta = make(map[redis.Key]*redis.RequestStat)
+	c.redisStatsDelta = make(map[redis.Key]*redis.RequestStats)
 	// Reset the capacity flag when client state is reset
 	c.closedConnectionsNearCapacity.Store(false)
 }
@@ -422,7 +422,7 @@ func (ns *networkState) GetDelta(
 			stats := protocolStats.(map[postgres.Key]*postgres.RequestStat)
 			ns.storePostgresStats(stats)
 		case protocols.Redis:
-			stats := protocolStats.(map[redis.Key]*redis.RequestStat)
+			stats := protocolStats.(map[redis.Key]*redis.RequestStats)
 			ns.storeRedisStats(stats)
 		}
 	}
@@ -697,159 +697,108 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 	}
 }
 
-// storeHTTPStats stores the latest HTTP stats for all clients
-func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats) {
-	if len(ns.clients) == 1 {
-		for _, client := range ns.clients {
-			if len(client.httpStatsDelta) == 0 && len(allStats) <= ns.maxHTTPStats {
-				// optimization for the common case:
-				// if there is only one client and no previous state, no memory allocation is needed
-				client.httpStatsDelta = allStats
+// storeUSMStats is a generic function to store USM stats for all clients.
+func storeUSMStats[K, S comparable](
+	allStats map[K]S,
+	clients map[string]*client,
+	getDelta func(*client) map[K]S,
+	setDelta func(*client, map[K]S),
+	combineStats func(S, S),
+	limit int,
+	incDropped func(...string),
+) {
+	if len(clients) == 1 {
+		for _, client := range clients {
+			delta := getDelta(client)
+			if len(delta) == 0 && len(allStats) <= limit {
+				setDelta(client, allStats)
 				return
 			}
 		}
 	}
 
 	for key, stats := range allStats {
-		for _, client := range ns.clients {
-			prevStats, ok := client.httpStatsDelta[key]
-			if !ok && len(client.httpStatsDelta) >= ns.maxHTTPStats {
-				stateTelemetry.httpStatsDropped.Inc()
+		for _, client := range clients {
+			delta := getDelta(client)
+			prevStats, ok := delta[key]
+			if !ok && len(delta) >= limit {
+				incDropped()
 				continue
 			}
 
-			if prevStats != nil {
-				prevStats.CombineWith(stats)
-				client.httpStatsDelta[key] = prevStats
+			var zero S
+			if prevStats != zero {
+				combineStats(prevStats, stats)
+				delta[key] = prevStats
 			} else {
-				client.httpStatsDelta[key] = stats
+				delta[key] = stats
 			}
 		}
 	}
 }
 
+// storeHTTPStats stores the latest HTTP stats for all clients
+func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats) {
+	storeUSMStats[http.Key, *http.RequestStats](
+		allStats,
+		ns.clients,
+		func(c *client) map[http.Key]*http.RequestStats { return c.httpStatsDelta },
+		func(c *client, m map[http.Key]*http.RequestStats) { c.httpStatsDelta = m },
+		func(prev, new *http.RequestStats) { prev.CombineWith(new) },
+		ns.maxHTTPStats,
+		stateTelemetry.httpStatsDropped.Inc,
+	)
+}
+
 func (ns *networkState) storeHTTP2Stats(allStats map[http.Key]*http.RequestStats) {
-	if len(ns.clients) == 1 {
-		for _, client := range ns.clients {
-			if len(client.http2StatsDelta) == 0 && len(allStats) <= ns.maxHTTPStats {
-				// optimization for the common case:
-				// if there is only one client and no previous state, no memory allocation is needed
-				client.http2StatsDelta = allStats
-				return
-			}
-		}
-	}
-
-	for key, stats := range allStats {
-		for _, client := range ns.clients {
-			prevStats, ok := client.http2StatsDelta[key]
-			// Currently, we are using maxHTTPStats for HTTP2.
-			if !ok && len(client.http2StatsDelta) >= ns.maxHTTPStats {
-				stateTelemetry.http2StatsDropped.Inc()
-				continue
-			}
-
-			if prevStats != nil {
-				prevStats.CombineWith(stats)
-				client.http2StatsDelta[key] = prevStats
-			} else {
-				client.http2StatsDelta[key] = stats
-			}
-		}
-	}
+	storeUSMStats[http.Key, *http.RequestStats](
+		allStats,
+		ns.clients,
+		func(c *client) map[http.Key]*http.RequestStats { return c.http2StatsDelta },
+		func(c *client, m map[http.Key]*http.RequestStats) { c.http2StatsDelta = m },
+		func(prev, new *http.RequestStats) { prev.CombineWith(new) },
+		ns.maxHTTPStats,
+		stateTelemetry.http2StatsDropped.Inc,
+	)
 }
 
 // storeKafkaStats stores the latest Kafka stats for all clients
 func (ns *networkState) storeKafkaStats(allStats map[kafka.Key]*kafka.RequestStats) {
-	if len(ns.clients) == 1 {
-		for _, client := range ns.clients {
-			if len(client.kafkaStatsDelta) == 0 && len(allStats) <= ns.maxKafkaStats {
-				// optimization for the common case:
-				// if there is only one client and no previous state, no memory allocation is needed
-				client.kafkaStatsDelta = allStats
-				return
-			}
-		}
-	}
-
-	for key, stats := range allStats {
-		for _, client := range ns.clients {
-			prevStats, ok := client.kafkaStatsDelta[key]
-			if !ok && len(client.kafkaStatsDelta) >= ns.maxKafkaStats {
-				stateTelemetry.kafkaStatsDropped.Inc()
-				continue
-			}
-
-			if prevStats != nil {
-				prevStats.CombineWith(stats)
-				client.kafkaStatsDelta[key] = prevStats
-			} else {
-				client.kafkaStatsDelta[key] = stats
-			}
-		}
-	}
+	storeUSMStats[kafka.Key, *kafka.RequestStats](
+		allStats,
+		ns.clients,
+		func(c *client) map[kafka.Key]*kafka.RequestStats { return c.kafkaStatsDelta },
+		func(c *client, m map[kafka.Key]*kafka.RequestStats) { c.kafkaStatsDelta = m },
+		func(prev, new *kafka.RequestStats) { prev.CombineWith(new) },
+		ns.maxKafkaStats,
+		stateTelemetry.kafkaStatsDropped.Inc,
+	)
 }
 
 // storePostgresStats stores the latest Postgres stats for all clients
 func (ns *networkState) storePostgresStats(allStats map[postgres.Key]*postgres.RequestStat) {
-	if len(ns.clients) == 1 {
-		for _, client := range ns.clients {
-			if len(client.postgresStatsDelta) == 0 && len(allStats) <= ns.maxPostgresStats {
-				// optimization for the common case:
-				// if there is only one client and no previous state, no memory allocation is needed
-				client.postgresStatsDelta = allStats
-				return
-			}
-		}
-	}
-
-	for key, stats := range allStats {
-		for _, client := range ns.clients {
-			prevStats, ok := client.postgresStatsDelta[key]
-			if !ok && len(client.postgresStatsDelta) >= ns.maxPostgresStats {
-				stateTelemetry.postgresStatsDropped.Inc()
-				continue
-			}
-
-			if prevStats != nil {
-				prevStats.CombineWith(stats)
-				client.postgresStatsDelta[key] = prevStats
-			} else {
-				client.postgresStatsDelta[key] = stats
-			}
-		}
-	}
+	storeUSMStats[postgres.Key, *postgres.RequestStat](
+		allStats,
+		ns.clients,
+		func(c *client) map[postgres.Key]*postgres.RequestStat { return c.postgresStatsDelta },
+		func(c *client, m map[postgres.Key]*postgres.RequestStat) { c.postgresStatsDelta = m },
+		func(prev, new *postgres.RequestStat) { prev.CombineWith(new) },
+		ns.maxPostgresStats,
+		stateTelemetry.postgresStatsDropped.Inc,
+	)
 }
 
 // storeRedisStats stores the latest Redis stats for all clients
-func (ns *networkState) storeRedisStats(allStats map[redis.Key]*redis.RequestStat) {
-	if len(ns.clients) == 1 {
-		for _, client := range ns.clients {
-			if len(client.redisStatsDelta) == 0 && len(allStats) <= ns.maxRedisStats {
-				// optimization for the common case:
-				// if there is only one client and no previous state, no memory allocation is needed
-				client.redisStatsDelta = allStats
-				return
-			}
-		}
-	}
-
-	for key, stats := range allStats {
-		for _, client := range ns.clients {
-			prevStats, ok := client.redisStatsDelta[key]
-			if !ok && len(client.redisStatsDelta) >= ns.maxRedisStats {
-				stateTelemetry.redisStatsDropped.Inc()
-				continue
-			}
-
-			if prevStats != nil {
-				prevStats.CombineWith(stats)
-				client.redisStatsDelta[key] = prevStats
-			} else {
-				client.redisStatsDelta[key] = stats
-			}
-		}
-	}
+func (ns *networkState) storeRedisStats(allStats map[redis.Key]*redis.RequestStats) {
+	storeUSMStats[redis.Key, *redis.RequestStats](
+		allStats,
+		ns.clients,
+		func(c *client) map[redis.Key]*redis.RequestStats { return c.redisStatsDelta },
+		func(c *client, m map[redis.Key]*redis.RequestStats) { c.redisStatsDelta = m },
+		func(prev, new *redis.RequestStats) { prev.CombineWith(new) },
+		ns.maxRedisStats,
+		stateTelemetry.redisStatsDropped.Inc,
+	)
 }
 
 func (ns *networkState) getClient(clientID string) *client {
@@ -866,7 +815,7 @@ func (ns *networkState) getClient(clientID string) *client {
 		http2StatsDelta:    map[http.Key]*http.RequestStats{},
 		kafkaStatsDelta:    map[kafka.Key]*kafka.RequestStats{},
 		postgresStatsDelta: map[postgres.Key]*postgres.RequestStat{},
-		redisStatsDelta:    map[redis.Key]*redis.RequestStat{},
+		redisStatsDelta:    map[redis.Key]*redis.RequestStats{},
 		lastTelemetries:    make(map[ConnTelemetryType]int64),
 	}
 	ns.clients[clientID] = c

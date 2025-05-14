@@ -59,7 +59,7 @@ func (h *PersistentVolumeHandlers) BuildMessageBody(ctx processors.ProcessorCont
 		GroupId:           pctx.MsgGroupID,
 		GroupSize:         int32(groupSize),
 		PersistentVolumes: models,
-		Tags:              append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:              pctx.ExtraTags,
 	}
 }
 
@@ -80,7 +80,7 @@ func (h *PersistentVolumeHandlers) ResourceList(ctx processors.ProcessorContext,
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources

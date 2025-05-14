@@ -10,17 +10,15 @@ import (
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 )
 
-type windowsStatusSuite struct {
-	baseCheckSuite
+type windowsDiskCheckSuite struct {
+	diskCheckSuite
 }
 
 func TestWindowsDiskSuite(t *testing.T) {
-	flake.Mark(t)
 	t.Parallel()
-	suite := &windowsStatusSuite{baseCheckSuite{descriptor: e2eos.WindowsDefault, agentOptions: getAgentOptions()}}
+	suite := &windowsDiskCheckSuite{diskCheckSuite{descriptor: e2eos.WindowsDefault, metricCompareFraction: 0.02, metricCompareDecimals: 1}}
 	e2e.Run(t, suite, suite.getSuiteOptions()...)
 }

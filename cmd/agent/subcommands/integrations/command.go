@@ -107,7 +107,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	integrationCmd.PersistentFlags().StringVarP(&cliParams.pythonMajorVersion, "python", "", "", "the version of Python to act upon (2 or 3). defaults to the python_version setting in datadog.yaml")
 
 	// Power user flags - mark as hidden
-	integrationCmd.PersistentFlags().MarkHidden("use-sys-python") //nolint:errcheck
+	_ = integrationCmd.PersistentFlags().MarkHidden("use-sys-python")
 
 	// all subcommands use the same provided components, with a different oneShot callback
 	runOneShot := func(callback interface{}) error {

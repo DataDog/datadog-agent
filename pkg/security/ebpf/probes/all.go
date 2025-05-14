@@ -36,6 +36,19 @@ var (
 	EventsPerfRingBufferSize = 256 * os.Getpagesize()
 )
 
+// see kernel definitions
+func tailCallFnc(name string) string {
+	return "tail_call_" + name
+}
+
+func tailCallTracepointFnc(name string) string {
+	return "tail_call_tracepoint_" + name
+}
+
+func tailCallClassifierFnc(name string) string {
+	return "tail_call_classifier_" + name
+}
+
 func appendSyscallProbes(probes []*manager.Probe, fentry bool, flag int, compat bool, syscalls ...string) []*manager.Probe {
 	for _, syscall := range syscalls {
 		probes = append(probes,
@@ -295,7 +308,7 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 	}
 
-	if kv.HasSKStorage() && opts.NetworkSkStorageEnabled {
+	if opts.NetworkSkStorageEnabled {
 		// SK_Storage maps are enabled and available, delete fall back
 		editors["sock_meta"] = manager.MapSpecEditor{
 			Type:       ebpf.Hash,
@@ -372,7 +385,7 @@ func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, networkFlowMonit
 // AllBPFProbeWriteUserProgramFunctions returns the list of program functions that use the bpf_probe_write_user helper
 func AllBPFProbeWriteUserProgramFunctions() []string {
 	return []string{
-		"tail_call_target_dentry_resolver_erpc_write_user",
+		tailCallFnc("dentry_resolver_erpc_write_user"),
 	}
 }
 
