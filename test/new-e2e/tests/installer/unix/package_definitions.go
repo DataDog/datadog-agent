@@ -80,8 +80,10 @@ func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architectu
 	if apiKey == "" {
 		apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
 	}
+
 	env["DD_API_KEY"] = apiKey
 	env["DD_SITE"] = "datadoghq.com"
+	env["DD_SKIP_SSL_VALIDATION"] = "true"
 	// Install Script env variables
 	env["DD_INSTALLER"] = "true"
 	env["TESTING_KEYS_URL"] = "keys.datadoghq.com"
