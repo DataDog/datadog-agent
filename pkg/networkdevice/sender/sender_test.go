@@ -37,7 +37,7 @@ func TestTimestampExpiration(t *testing.T) {
 		"test-id-2": 946684700,
 	}
 
-	ms.updateTimestamps(testTimestamps)
+	ms.UpdateTimestamps(testTimestamps)
 	ms.expireTimeSent()
 
 	// Assert "test-id" is expired
