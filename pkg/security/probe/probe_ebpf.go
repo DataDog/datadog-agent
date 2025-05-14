@@ -2291,12 +2291,8 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.Probe.NetworkRawPacketFilter != "none"),
 		},
 		manager.ConstantEditor{
-			Name:  "ring_buffer_size",
-			Value: uint64(p.managerOptions.MapSpecEditors["events"].MaxEntries),
-		},
-		manager.ConstantEditor{
 			Name:  "ring_buffer_threshold",
-			Value: uint64(p.config.Probe.EventStreamBufferThreshold),
+			Value: uint64(p.managerOptions.MapSpecEditors["events"].MaxEntries * uint32(p.config.Probe.EventStreamBufferThreshold) / 100),
 		},
 	)
 
