@@ -1327,7 +1327,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 			var dnsLayer = new(layers.DNS)
 			if err := dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
-				seclog.Errorf("failed to decode DNS response: %s", err)
+				seclog.Warnf("failed to decode DNS response: %s", err)
 				return
 			}
 			p.addToDNSResolver(dnsLayer)
