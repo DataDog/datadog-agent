@@ -225,8 +225,6 @@ func (s *batchStrategy) sendMessages(messagesMetadata []*message.MessageMetadata
 	}
 
 	p := message.NewPayload(messagesMetadata, s.encodedPayload.Bytes(), s.compression.ContentEncoding(), unencodedSize)
-	// print the payload bytes as string
-	log.Debugf("Payload: %s", s.encodedPayload.Bytes())
 
 	s.utilization.Stop()
 	outputChan <- p
