@@ -9,11 +9,12 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema"
 	"os"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema"
 )
 
-//go:generate go run ./main.go ../schema/profile_rc_schema.json
+//go:generate go run -tags jsonschema ./main.go ../schema/profile_rc_schema.json
 
 func main() {
 	var output string
