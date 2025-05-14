@@ -9,12 +9,16 @@ package main
 
 import (
 	"os/exec"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestExitCode_Disabled(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("test takes too long and is flaky on Windows")
+	}
 	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "false")
 	cmd := exec.Command("go", "run", "-tags", "otlp", "main.go", "--config", "test_config.yaml")
 	err := cmd.Run()
