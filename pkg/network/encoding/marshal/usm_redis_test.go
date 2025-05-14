@@ -160,7 +160,7 @@ func (s *RedisSuite) TestRedisIDCollisionRegression() {
 	// addresses but different PIDs *won't* be associated with the Redis stats
 	// object
 	streamer := NewProtoTestStreamer[*model.Connection]()
-	encoder.WriteRedisAggregations(in.Conns[1], model.NewConnectionBuilder(streamer))
+	encoder.EncodeConnection(in.Conns[1], model.NewConnectionBuilder(streamer))
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)
 	assert.Empty(conn.DataStreamsAggregations)
@@ -221,7 +221,7 @@ func (s *RedisSuite) TestRedisLocalhostScenario() {
 
 func getRedisAggregations(t *testing.T, encoder *redisEncoder, c network.ConnectionStats) *model.DatabaseAggregations {
 	streamer := NewProtoTestStreamer[*model.Connection]()
-	encoder.WriteRedisAggregations(c, model.NewConnectionBuilder(streamer))
+	encoder.EncodeConnection(c, model.NewConnectionBuilder(streamer))
 
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)
@@ -286,7 +286,7 @@ func commonBenchmarkRedisEncoder(b *testing.B, numberOfPorts uint16) {
 		h = newRedisEncoder(payload.Redis)
 		streamer.Reset()
 		for _, conn := range payload.Conns {
-			h.WriteRedisAggregations(conn, a)
+			h.EncodeConnection(conn, a)
 		}
 		h.Close()
 	}

@@ -19,6 +19,7 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -56,7 +57,7 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		},
 		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 			{
-				Name: nvidiaResourceName,
+				Name: string(gpuutil.GpuNvidiaGeneric),
 				ID:   gpuUUID,
 			},
 		},
@@ -157,7 +158,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 	for _, idx := range containerDeviceIndexes {
 		gpuUUID := testutil.GPUUUIDs[idx]
 		resource := workloadmeta.ContainerAllocatedResource{
-			Name: nvidiaResourceName,
+			Name: string(gpuutil.GpuNvidiaGeneric),
 			ID:   gpuUUID,
 		}
 		container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, resource)
