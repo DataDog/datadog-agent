@@ -54,7 +54,7 @@ RUN \
         invoke collector.generate && \
         invoke otel-agent.build; \
     else \
-        mkdir -p /workspace/datadog-agent/bin/otel-agent/ && \
+        mkdir -p /workspace/datadog-agent/bin/otel-agent/dist && \
         cp /workspace/otel-agent /workspace/datadog-agent/bin/otel-agent/ && \
         cp /workspace/otel-config.yaml /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml; \
     fi
