@@ -1431,7 +1431,7 @@ func TestValidInvalidTracerMetadata(t *testing.T) {
 		// Test with valid metadata from file
 		curDir, err := testutil.CurDir()
 		require.NoError(t, err)
-		testDataPath := filepath.Join(curDir, "../apm/testdata/tracer_cpp.data")
+		testDataPath := filepath.Join(curDir, "testdata/tracer_cpp.data")
 		data, err := os.ReadFile(testDataPath)
 		require.NoError(t, err)
 
