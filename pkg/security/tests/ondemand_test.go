@@ -132,8 +132,6 @@ func TestOnDemandChdir(t *testing.T) {
 }
 
 func TestOnDemandMprotect(t *testing.T) {
-	t.Skip("skipping mprotect test, because mprotect are too frequent globally to not trip the rate limiter")
-
 	SkipIfNotAvailable(t)
 
 	onDemands := []rules.OnDemandHookPoint{

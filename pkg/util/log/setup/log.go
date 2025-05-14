@@ -131,7 +131,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 		if err != nil {
 			return
 		}
-		seelog.ReplaceLogger(logger) //nolint:errcheck
+		_ = seelog.ReplaceLogger(logger)
 		// We wire the new logger with the Datadog logic
 		log.ChangeLogLevel(logger, seelogLogLevel)
 	})
@@ -584,9 +584,9 @@ func appendFmt(builder *strings.Builder, format contextFormat, s string, buf []b
 }
 
 func init() {
-	seelog.RegisterCustomFormatter("CustomSyslogHeader", createSyslogHeaderFormatter) //nolint:errcheck
-	seelog.RegisterCustomFormatter("ShortFilePath", parseShortFilePath)               //nolint:errcheck
-	seelog.RegisterCustomFormatter("ExtraJSONContext", createExtraJSONContext)        //nolint:errcheck
-	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)        //nolint:errcheck
-	seelog.RegisterReceiver("syslog", &SyslogReceiver{})                              //nolint:errcheck
+	_ = seelog.RegisterCustomFormatter("CustomSyslogHeader", createSyslogHeaderFormatter)
+	_ = seelog.RegisterCustomFormatter("ShortFilePath", parseShortFilePath)
+	_ = seelog.RegisterCustomFormatter("ExtraJSONContext", createExtraJSONContext)
+	_ = seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
+	seelog.RegisterReceiver("syslog", &SyslogReceiver{})
 }

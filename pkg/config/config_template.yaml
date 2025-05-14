@@ -908,7 +908,6 @@ api_key:
 #
 # secret_backend_remove_trailing_line_break: false
 
-
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
 ## Enter specific configurations for internal profiling.
@@ -3959,6 +3958,10 @@ api_key:
     #                             # sending pings in an unprivileged fashion (using a UDP socket).
     #                             # If `use_raw_socket` is set to true, you MUST also enable
     #                             # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
+
+    ## @param use_deduplication - boolean - optional - default: false
+    ## Deduplicate IP addresses corresponding to the same device.
+    ## The deduplication logic is based on the sysName, sysDesc, sysObjectID and sysUptime
 
     ## @param configs - list - required
     ## The actual list of configurations used to discover SNMP devices in various subnets.
