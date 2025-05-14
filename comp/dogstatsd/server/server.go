@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -36,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
@@ -87,6 +89,7 @@ type provides struct {
 
 	Comp          Component
 	StatsEndpoint api.AgentEndpointProvider
+	RCListener    rctypes.ListenerProvider
 }
 
 // When the internal telemetry is enabled, used to tag the origin
@@ -97,6 +100,11 @@ type cachedOriginCounter struct {
 	err    map[string]string
 	okCnt  telemetry.SimpleCounter
 	errCnt telemetry.SimpleCounter
+}
+
+type localBlocklistConfig struct {
+	metricNames []string
+	matchPrefix bool
 }
 
 // Server represent a Dogstatsd server
@@ -157,7 +165,8 @@ type server struct {
 	// originTelemetry is true if we want to report telemetry per origin.
 	originTelemetry bool
 
-	enrichConfig enrichConfig
+	enrichConfig
+	localBlocklistConfig
 
 	wmeta option.Option[workloadmeta.Component]
 
@@ -193,9 +202,15 @@ func newServer(deps dependencies) provides {
 		})
 	}
 
+	var rcListener rctypes.ListenerProvider
+	rcListener.ListenerProvider = rctypes.RCListener{
+		state.ProductMetricControl: s.onBlocklistUpdateCallback,
+	}
+
 	return provides{
 		Comp:          s,
 		StatsEndpoint: api.NewAgentEndpointProvider(s.writeStats, "/dogstatsd-stats", "GET"),
+		RCListener:    rcListener,
 	}
 }
 
@@ -220,10 +235,6 @@ func newServerCompat(cfg model.Reader, log log.Component, hostname hostnameinter
 	}
 
 	metricPrefixBlacklist := cfg.GetStringSlice("statsd_metric_namespace_blacklist")
-	metricBlocklist := newBlocklist(
-		cfg.GetStringSlice("statsd_metric_blocklist"),
-		cfg.GetBool("statsd_metric_blocklist_match_prefix"),
-	)
 
 	defaultHostname, err := hostname.Get(context.TODO())
 	if err != nil {
@@ -296,7 +307,6 @@ func newServerCompat(cfg model.Reader, log log.Component, hostname hostnameinter
 		enrichConfig: enrichConfig{
 			metricPrefix:              metricPrefix,
 			metricPrefixBlacklist:     metricPrefixBlacklist,
-			metricBlocklist:           metricBlocklist,
 			entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
@@ -498,15 +508,29 @@ func (s *server) SetExtraTags(tags []string) {
 	s.extraTags = tags
 }
 
+// SetBlocklist updates the metric names blocklist on all running worker.
+func (s *server) SetBlocklist(metricNames []string, matchPrefix bool) {
+	s.log.Debugf("SetBlocklist with %d metrics", len(metricNames))
+	// each worker receives its own copy
+	for _, worker := range s.workers {
+		blocklist := newBlocklist(metricNames, matchPrefix)
+		worker.BlocklistUpdate <- blocklist
+	}
+}
+
 func (s *server) handleMessages() {
 	if s.Statistics != nil {
 		go s.Statistics.Process()
 		go s.Statistics.Update(&dogstatsdPacketsLastSec)
 	}
 
+	// start the listeners
+
 	for _, l := range s.listeners {
 		l.Listen()
 	}
+
+	// create and start all the workers
 
 	workersCount, _ := aggregator.GetDogStatsDWorkerAndPipelineCount()
 
@@ -524,6 +548,21 @@ func (s *server) handleMessages() {
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}
+
+	// init the metric names blocklist
+
+	s.localBlocklistConfig = localBlocklistConfig{
+		metricNames: s.config.GetStringSlice("statsd_metric_blocklist"),
+		matchPrefix: s.config.GetBool("statsd_metric_blocklist_match_prefix"),
+	}
+	s.restoreBlocklistFromLocalConfig()
+}
+
+func (s *server) restoreBlocklistFromLocalConfig() {
+	s.SetBlocklist(
+		s.localBlocklistConfig.metricNames,
+		s.localBlocklistConfig.matchPrefix,
+	)
 }
 
 func (s *server) UDPLocalAddr() string {
@@ -626,7 +665,7 @@ func (s *server) errLog(format string, params ...interface{}) {
 }
 
 // workers are running this function in their goroutine
-func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch) metrics.MetricSampleBatch {
+func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch, blocklist *blocklist) metrics.MetricSampleBatch {
 	for _, packet := range packets {
 		s.log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
@@ -662,7 +701,7 @@ func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets 
 
 				samples = samples[0:0]
 
-				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, packet.ProcessID, packet.ListenerID, s.originTelemetry)
+				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, packet.ProcessID, packet.ListenerID, s.originTelemetry, blocklist)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
 					continue
@@ -737,7 +776,7 @@ func (s *server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter,
 // which will be slower when processing millions of samples. It could use a boolean returned by `parseMetricSample` which
 // is the first part aware of processing a late metric. Also, it may help us having a telemetry of a "late_metrics" type here
 // which we can't do today.
-func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, processID uint32, listenerID string, originTelemetry bool) ([]metrics.MetricSample, error) {
+func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, processID uint32, listenerID string, originTelemetry bool, blocklist *blocklist) ([]metrics.MetricSample, error) {
 	okCnt := s.tlmProcessedOk
 	errorCnt := s.tlmProcessedError
 	if origin != "" && originTelemetry {
@@ -760,7 +799,7 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		}
 	}
 
-	metricSamples = enrichMetricSample(metricSamples, sample, origin, processID, listenerID, s.enrichConfig)
+	metricSamples = enrichMetricSample(metricSamples, sample, origin, processID, listenerID, s.enrichConfig, blocklist)
 
 	if len(sample.values) > 0 {
 		s.sharedFloat64List.put(sample.values)

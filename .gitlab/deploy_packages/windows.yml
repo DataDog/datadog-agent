@@ -32,16 +32,7 @@ deploy_staging_windows_tags-7:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    # used for cloudfoundry bosh
-    - $S3_CP_CMD
-      --recursive
-      --exclude "*"
-      --include "datadog-agent-7.*.zip"
-      $OMNIBUS_PACKAGE_DIR
-      $S3_DSD6_URI/windows/agent7/bosh/
-      --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
-      full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
-    # used for cloudfoundry buildpack and azure-app-services
+    # used for azure-app-services
     - $S3_CP_CMD
       --recursive
       --exclude "*"
