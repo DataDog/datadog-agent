@@ -30,7 +30,7 @@
     - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable TMPL_ADP_VERSION --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
   retry: 2
 
-# Binary specific variables
+# -- binary specific variables --
 .agent_variables: &agent_variables
   IMAGE_VERSION: tmpl-v14
   IMAGE_NAME: datadog-agent
@@ -47,7 +47,7 @@
   IMAGE_NAME: otel-agent
   TMPL_SRC_REPO: ci/datadog-agent/otel-agent
 
-# Agent JMX jobs
+# -- publish jobs --
 publish-internal-container-image-jmx:
   extends: .docker_trigger_base
   needs:
@@ -73,7 +73,31 @@ publish-internal-container-image-fips:
     RELEASE_TAG_SUFFIX: "-fips-jmx"
     TMPL_SRC_IMAGE_SUFFIX: "-7-fips-jmx"
 
-# Cluster Agent jobs
+publish-internal-container-image-full:
+  extends: .docker_trigger_base
+  needs:
+    - job: docker_build_agent7_full
+      artifacts: false
+    - job: docker_build_agent7_full_arm64
+      artifacts: false
+  variables:
+    <<: *agent_variables
+    TMPL_ADP_VERSION: 0.1.7
+    RELEASE_TAG_SUFFIX: "-full"
+    TMPL_SRC_IMAGE_SUFFIX: "-7-full"
+
+publish-internal-container-image-ot_standalone:
+  extends: .docker_trigger_base
+  needs:
+    - job: docker_build_ot_agent_standalone_amd64
+      artifacts: false
+    - job: docker_build_ot_agent_standalone_arm64
+      artifacts: false
+  variables:
+    <<: *ot_standalone_variables
+    TMPL_SRC_IMAGE_SUFFIX: "-7"
+
+# DCA publish jobs
 publish-internal-dca-container-image:
   extends: .docker_trigger_base
   needs:
@@ -95,29 +119,3 @@ publish-internal-dca-container-image-fips:
     <<: *cluster_agent_variables
     RELEASE_TAG_SUFFIX: "-fips"
     TMPL_SRC_IMAGE_SUFFIX: "-fips"
-
-# Full Agent jobs
-publish-internal-container-image-full:
-  extends: .docker_trigger_base
-  needs:
-    - job: docker_build_agent7_full
-      artifacts: false
-    - job: docker_build_agent7_full_arm64
-      artifacts: false
-  variables:
-    <<: *agent_variables
-    TMPL_ADP_VERSION: 0.1.7
-    RELEASE_TAG_SUFFIX: "-full"
-    TMPL_SRC_IMAGE_SUFFIX: "-7-full"
-
-# OT Standalone jobs
-publish-internal-container-image-ot_standalone:
-  extends: .docker_trigger_base
-  needs:
-    - job: docker_build_ot_agent_standalone_amd64
-      artifacts: false
-    - job: docker_build_ot_agent_standalone_arm64
-      artifacts: false
-  variables:
-    <<: *ot_standalone_variables
-    TMPL_SRC_IMAGE_SUFFIX: "-7"
