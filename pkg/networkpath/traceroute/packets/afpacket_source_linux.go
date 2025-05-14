@@ -43,9 +43,18 @@ func (a *AFPacketSource) SetReadDeadline(t time.Time) error {
 	return a.sock.SetReadDeadline(t)
 }
 
-// Read reads a packet (including the ethernet frame)
+// Read reads a packet (starting with the IP frame)
 func (a *AFPacketSource) Read(buf []byte) (int, error) {
-	return a.sock.Read(buf)
+	n, err := a.sock.Read(buf)
+	if err != nil {
+		return n, err
+	}
+	payload, err := stripEthernetHeader(buf[:n])
+	if err != nil {
+		return n, err
+	}
+	copy(buf, payload)
+	return n, nil
 }
 
 // Close closes the socket
