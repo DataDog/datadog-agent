@@ -9,8 +9,9 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
 	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
 )
 
 const (
@@ -41,6 +42,7 @@ const (
 	envNoProxy                     = "NO_PROXY"
 	envnoProxy                     = "no_proxy"
 	envIsFromDaemon                = "DD_INSTALLER_FROM_DAEMON"
+	envSkipTLSValidation           = "DD_SKIP_TLS_VALIDATION"
 )
 
 type bootstrapperCmd struct {
@@ -74,6 +76,7 @@ func newBootstrapperCmd(operation string) *bootstrapperCmd {
 	cmd.span.SetTag("env_var.https_proxy", redactURL(os.Getenv(envhttpsProxy)))
 	cmd.span.SetTag("env_var.NO_PROXY", os.Getenv(envNoProxy))
 	cmd.span.SetTag("env_var.no_proxy", os.Getenv(envnoProxy))
+	cmd.span.SetTag("env_var.DD_SKIP_TLS_VALIDATION", os.Getenv(envSkipTLSValidation))
 	return &bootstrapperCmd{
 		cmd: cmd,
 	}

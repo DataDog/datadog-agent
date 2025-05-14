@@ -8,6 +8,7 @@ package env
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -51,6 +52,7 @@ const (
 	envHTTPSProxy              = "HTTPS_PROXY"
 	envDDNoProxy               = "DD_PROXY_NO_PROXY"
 	envNoProxy                 = "NO_PROXY"
+	envDDSkipTLSValidation     = "DD_SKIP_TLS_VALIDATION"
 	envIsFromDaemon            = "DD_INSTALLER_FROM_DAEMON"
 
 	// install script
@@ -163,9 +165,10 @@ type Env struct {
 	Tags     []string
 	Hostname string
 
-	HTTPProxy  string
-	HTTPSProxy string
-	NoProxy    string
+	HTTPProxy         string
+	HTTPSProxy        string
+	NoProxy           string
+	SkipTLSValidation bool
 
 	IsCentos6 bool
 
@@ -182,6 +185,14 @@ func (e *Env) HTTPClient() *http.Client {
 	proxyFunc := func(r *http.Request) (*url.URL, error) {
 		return proxyConfig.ProxyFunc()(r.URL)
 	}
+
+	var tlsConfig *tls.Config
+	if e.SkipTLSValidation {
+		tlsConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+	}
+
 	client := &http.Client{
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
@@ -193,6 +204,7 @@ func (e *Env) HTTPClient() *http.Client {
 			TLSHandshakeTimeout:   10 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
 			Proxy:                 proxyFunc,
+			TLSClientConfig:       tlsConfig,
 		},
 	}
 	return client
@@ -248,9 +260,10 @@ func FromEnv() *Env {
 		),
 		Hostname: os.Getenv(envHostname),
 
-		HTTPProxy:  getProxySetting(envDDHTTPProxy, envHTTPProxy),
-		HTTPSProxy: getProxySetting(envDDHTTPSProxy, envHTTPSProxy),
-		NoProxy:    getProxySetting(envDDNoProxy, envNoProxy),
+		HTTPProxy:         getProxySetting(envDDHTTPProxy, envHTTPProxy),
+		HTTPSProxy:        getProxySetting(envDDHTTPSProxy, envHTTPSProxy),
+		NoProxy:           getProxySetting(envDDNoProxy, envNoProxy),
+		SkipTLSValidation: strings.ToLower(os.Getenv(envDDSkipTLSValidation)) == "true",
 
 		IsCentos6:    DetectCentos6(),
 		IsFromDaemon: os.Getenv(envIsFromDaemon) == "true",
@@ -319,6 +332,9 @@ func (e *Env) ToEnv() []string {
 	env = appendStringEnv(env, envHTTPProxy, e.HTTPProxy, "")
 	env = appendStringEnv(env, envHTTPSProxy, e.HTTPSProxy, "")
 	env = appendStringEnv(env, envNoProxy, e.NoProxy, "")
+	if e.SkipTLSValidation {
+		env = append(env, envDDSkipTLSValidation+"=true")
+	}
 	if e.IsFromDaemon {
 		env = append(env, envIsFromDaemon+"=true")
 		// This is a bit of a hack; as we should properly redirect the log level
