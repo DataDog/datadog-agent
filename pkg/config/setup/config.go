@@ -1695,8 +1695,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// Control how the stream-logs log file is managed
 	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", DefaultStreamlogsLogFile)
-	config.BindEnvAndSetDefault("logs_config.auditor_ttl", 23)
-	config.BindEnvAndSetDefault("logs_config.message_channel_size", 100)
+
+	// If true, then the registry file will be written atomically. This behavior is not supported on ECS Fargate.
 	config.BindEnvAndSetDefault("logs_config.atomic_registry_write", !pkgconfigenv.IsECSFargate())
 }
 
