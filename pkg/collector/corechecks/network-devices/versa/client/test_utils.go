@@ -80,6 +80,7 @@ func setupCommonServerMux() *http.ServeMux {
 // SLAMetricsURL holds the API endpoint for Versa Analytics SLA metrics
 var SLAMetricsURL = "/versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN"
 
+// SetupMockAPIServer starts a mock API server
 func SetupMockAPIServer() *httptest.Server {
 	mux := setupCommonServerMux()
 

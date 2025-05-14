@@ -292,8 +292,7 @@ func parseAaData(data [][]interface{}) ([]SLAMetrics, error) {
 
 // GetSLAMetrics retrieves SLA metrics from the Versa Analytics API
 func (client *Client) GetSLAMetrics() ([]SLAMetrics, error) {
-	baseURL := "/versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN"
-	analyticsURL := buildAnalyticsURL(baseURL, "15minutesAgo", "slam(localsite,remotesite,localaccckt,remoteaccckt,fc)", "tableData", []string{
+	analyticsURL := buildAnalyticsPath("datadog", "SDWAN", "15minutesAgo", "slam(localsite,remotesite,localaccckt,remoteaccckt,fc)", "tableData", []string{
 		"delay",
 		"fwdDelayVar",
 		"revDelayVar",
@@ -314,17 +313,20 @@ func (client *Client) GetSLAMetrics() ([]SLAMetrics, error) {
 	return metrics, nil
 }
 
-// BuildSlamURL constructs a Versa Analytics query URL in a cleaner way so multiple metrics can be added.
+// buildAnalyticsPath constructs a Versa Analytics query path in a cleaner way so multiple metrics can be added.
 //
 // Parameters:
-//   - basePath: base API endpoint path (e.g., "/versa/analytics/...").
+//   - tenant: tenant name within the environment (e.g., "datadog")
+//   - feature: category of analytics metrics (e.g., "SDWAN, "SYSTEM", "CGNAT", etc.).
 //   - startDate: relative start date (e.g., "15minutesAgo", "1h", "24h").
 //   - query: Versa query expression (e.g., "slam(...columns...)").
-//   - queryType: type of query (e.g., "tableData").
+//   - queryType: type of query (e.g., "tableData", "table", "summary").
 //   - metrics: list of metric strings (e.g., "delay", "fwdLossRatio").
 //
 // Returns the full encoded URL string.
-func buildAnalyticsURL(baseURL string, startDate string, query string, queryType string, metrics []string) string {
+func buildAnalyticsPath(tenant string, feature string, startDate string, query string, queryType string, metrics []string) string {
+	baseAnalyticsPath := "/versa/analytics/v1.0.0/data/provider"
+	path := fmt.Sprintf("%s/tenants/%s/features/%s", baseAnalyticsPath, tenant, feature)
 	params := url.Values{
 		"start-date": []string{startDate},
 		"qt":         []string{queryType},
@@ -334,5 +336,5 @@ func buildAnalyticsURL(baseURL string, startDate string, query string, queryType
 	for _, m := range metrics {
 		params.Add("metrics", m)
 	}
-	return baseURL + "?" + params.Encode()
+	return path + "?" + params.Encode()
 }
