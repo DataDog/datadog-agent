@@ -161,8 +161,8 @@ func formatConstraints(constraints *datadoghqcommon.DatadogPodAutoscalerConstrai
 			_, _ = fmt.Fprintln(&sb, "Enabled:", *container.Enabled)
 		}
 		if container.Requests != nil {
-			_, _ = fmt.Fprintln(&sb, "Requests Min Allowed:", toResourceQuantityMap(container.Requests.MinAllowed))
-			_, _ = fmt.Fprintln(&sb, "Requests Max Allowed:", toResourceQuantityMap(container.Requests.MaxAllowed))
+			_, _ = fmt.Fprintln(&sb, "Requests Min Allowed:", printResourceList(container.Requests.MinAllowed))
+			_, _ = fmt.Fprintln(&sb, "Requests Max Allowed:", printResourceList(container.Requests.MaxAllowed))
 		}
 	}
 	return sb.String()
@@ -207,8 +207,8 @@ func formatScalingValues(scalingValues ScalingValues) string {
 		_, _ = fmt.Fprintln(&sb, "ResourcesHash:", scalingValues.Vertical.ResourcesHash)
 		for _, containerResources := range scalingValues.Vertical.ContainerResources {
 			_, _ = fmt.Fprintln(&sb, "Container Name:", containerResources.Name)
-			_, _ = fmt.Fprintln(&sb, "Container Resources:", toResourceQuantityMap(containerResources.Requests))
-			_, _ = fmt.Fprintln(&sb, "Container Limits:", toResourceQuantityMap(containerResources.Limits))
+			_, _ = fmt.Fprintln(&sb, "Container Resources:", printResourceList(containerResources.Requests))
+			_, _ = fmt.Fprintln(&sb, "Container Limits:", printResourceList(containerResources.Limits))
 		}
 	}
 	_, _ = fmt.Fprintln(&sb, "--------------------------------")
@@ -238,13 +238,15 @@ func formatVerticalAction(action *datadoghqcommon.DatadogPodAutoscalerVerticalAc
 	return strings.TrimRight(sb.String(), "\n")
 }
 
-// TODO: move to common util, shared with orchestrator
-func toResourceQuantityMap(resourceList corev1.ResourceList) map[string]string {
-	quantities := make(map[string]string)
-	for name, quantity := range resourceList {
-		quantities[string(name)] = quantity.String()
+func printResourceList(resourceList corev1.ResourceList) string {
+	var sb strings.Builder
+	if cpuQuantity, exists := resourceList[corev1.ResourceCPU]; exists {
+		_, _ = fmt.Fprintf(&sb, "[cpu:%s]", cpuQuantity.String())
 	}
-	return quantities
+	if memoryQuantity, exists := resourceList[corev1.ResourceMemory]; exists {
+		_, _ = fmt.Fprintf(&sb, "[memory:%s]", memoryQuantity.String())
+	}
+	return sb.String()
 }
 
 // MarshalJSON implements the json.Marshaler interface for PodAutoscalerInternal
