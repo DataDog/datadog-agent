@@ -72,6 +72,7 @@ void __attribute__((always_inline)) send_event_with_size_ptr(void *ctx, u64 even
             if (!stats) {
                 return;
             }
+
             __sync_fetch_and_add(&stats->discarded, 1);
             return;
         }
