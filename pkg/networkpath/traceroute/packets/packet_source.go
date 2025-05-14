@@ -21,7 +21,7 @@ import (
 type Source interface {
 	// SetReadDeadline sets the deadline for when a Read() call must finish
 	SetReadDeadline(t time.Time) error
-	// Read reads a packet (including the ethernet frame)
+	// Read reads a packet (starting with the IP frame)
 	Read(buf []byte) (int, error)
 	// Close closes the socket
 	Close() error
