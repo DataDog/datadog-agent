@@ -26,8 +26,8 @@ type kernelTelemetry struct {
 	// classifiedFetchAPIVersionHits and classifiedProduceAPIVersionHits are the number of classified fetch and produce requests
 	// broken by API version (the index)
 	// Make them have MAX_SUPPORTED + 1 length because we want to support api version 0.
-	classifiedFetchAPIVersionHits   [ClassificationMaxSupportedFetchRequestApiVersion + 1]*libtelemetry.Counter
-	classifiedProduceAPIVersionHits [ClassificationMaxSupportedProduceRequestApiVersion + 1]*libtelemetry.Counter
+	classifiedFetchAPIVersionHits   [TelemetryMaxAPIVersion + 1]*libtelemetry.Counter
+	classifiedProduceAPIVersionHits [TelemetryMaxAPIVersion + 1]*libtelemetry.Counter
 
 	// telemetryLastState represents the latest Kafka eBPF Kernel telemetry observed from the kernel
 	telemetryLastState RawKernelTelemetry

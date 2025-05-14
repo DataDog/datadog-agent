@@ -458,7 +458,12 @@ func (a *APIServer) expireEvent(msg *api.SecurityEventMessage) {
 func (a *APIServer) expireDump(dump *api.ActivityDumpStreamMessage) {
 	// update metric
 	a.expiredDumps.Inc()
-	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", dump.GetDump().GetMetadata().GetName())
+
+	selectorStr := "<unknown>"
+	if sel := dump.GetSelector(); sel != nil {
+		selectorStr = fmt.Sprintf("%s:%s", sel.GetName(), sel.GetTag())
+	}
+	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", selectorStr)
 }
 
 // GetStats returns a map indexed by ruleIDs that describes the amount of events
