@@ -11,7 +11,6 @@
   script:
     # Constant variables
     - export RELEASE_STAGING="true"
-    - export RELEASE_PROD="true"
     - export DYNAMIC_BUILD_RENDER_RULES="agent-build-only"
     # Job specific variables
     - export RELEASE_TAG="${CI_COMMIT_REF_SLUG}${RELEASE_TAG_SUFFIX}"
@@ -41,6 +40,7 @@
   IMAGE_VERSION: tmpl-v6
   IMAGE_NAME: datadog-cluster-agent
   TMPL_SRC_REPO: ci/datadog-agent/cluster-agent
+  RELEASE_PROD: "true"
 
 .ot_standalone_variables: &ot_standalone_variables
   IMAGE_VERSION: tmpl-v1
@@ -81,6 +81,8 @@ publish-internal-dca-container-image:
       artifacts: false
     - job: docker_build_cluster_agent_arm64
       artifacts: false
+  variables:
+    <<: *cluster_agent_variables
 
 publish-internal-dca-container-image-fips:
   extends: .docker_trigger_base
