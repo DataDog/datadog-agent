@@ -38,8 +38,12 @@ func main() {
 			ddAgentHost = "localhost"
 		}
 		// Start the tracer and defer the Stop method.
-		tracer.Start(tracer.WithAgentAddr(net.JoinHostPort(ddAgentHost, "8126")),
+		err := tracer.Start(tracer.WithAgentAddr(net.JoinHostPort(ddAgentHost, "8126")),
 			tracer.WithDebugMode(true))
+		if err != nil {
+			log.Printf("error starting tracer: %s", err)
+		}
+		defer tracer.Stop()
 	}
 
 	ticker := time.NewTicker(time.Second / 2)
