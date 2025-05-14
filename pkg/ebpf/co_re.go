@@ -119,34 +119,35 @@ func (c *coreAssetLoader) reportTelemetry(assetName string, result COREResult) {
 	// capacity should match number of tags
 	tags := make([]string, 0, 6)
 	tags = append(tags, platform.String(), platformVersion, kernelVersion, arch, assetName)
-	if BTFResult(result) < BtfNotFound {
-		switch BTFResult(result) {
-		case SuccessCustomBTF:
-			tags = append(tags, "custom")
-		case SuccessEmbeddedBTF:
-			tags = append(tags, "embedded")
-		case SuccessDefaultBTF:
-			tags = append(tags, "default")
-		default:
-			return
-		}
+	switch BTFResult(result) {
+	case SuccessCustomBTF:
+		tags = append(tags, "custom")
 		c.telemetry.success.Inc(tags...)
-		return
-	}
-
-	if BTFResult(result) == BtfNotFound {
+	case SuccessEmbeddedBTF:
+		tags = append(tags, "embedded")
+		c.telemetry.success.Inc(tags...)
+	case SuccessDefaultBTF:
+		tags = append(tags, "default")
+		c.telemetry.success.Inc(tags...)
+	case SuccessRemoteConfigBTF:
+		tags = append(tags, "remoteconfig")
+		c.telemetry.success.Inc(tags...)
+	case BtfNotFound:
 		tags = append(tags, "btf_not_found")
-	} else {
+		c.telemetry.error.Inc(tags...)
+	default:
 		switch result {
 		case AssetReadError:
 			tags = append(tags, "asset_read")
+			c.telemetry.error.Inc(tags...)
 		case VerifierError:
 			tags = append(tags, "verifier")
+			c.telemetry.error.Inc(tags...)
 		case LoaderError:
 			tags = append(tags, "loader")
+			c.telemetry.error.Inc(tags...)
 		default:
 			return
 		}
 	}
-	c.telemetry.error.Inc(tags...)
 }

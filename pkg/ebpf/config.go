@@ -80,6 +80,9 @@ type Config struct {
 	// BypassEnabled is used in tests only.
 	// It enables a ebpf-manager feature to bypass programs on-demand for controlled visibility.
 	BypassEnabled bool
+
+	// RemoteConfigBTFEnabled indicates whether we can use remote config to obtain BTF
+	RemoteConfigBTFEnabled bool
 }
 
 // NewConfig creates a config with ebpf-related settings
@@ -95,9 +98,10 @@ func NewConfig() *Config {
 		ProcRoot:                 kernel.ProcFSRoot(),
 		InternalTelemetryEnabled: cfg.GetBool(sysconfig.FullKeyPath(spNS, "telemetry_enabled")),
 
-		EnableCORE:   cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_co_re")),
-		BTFPath:      cfg.GetString(sysconfig.FullKeyPath(spNS, "btf_path")),
-		BTFOutputDir: cfg.GetString(sysconfig.FullKeyPath(spNS, "btf_output_dir")),
+		EnableCORE:             cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_co_re")),
+		BTFPath:                cfg.GetString(sysconfig.FullKeyPath(spNS, "btf_path")),
+		BTFOutputDir:           cfg.GetString(sysconfig.FullKeyPath(spNS, "btf_output_dir")),
+		RemoteConfigBTFEnabled: cfg.GetBool(sysconfig.FullKeyPath(spNS, "remote_config_btf_enabled")),
 
 		EnableRuntimeCompiler:        cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_runtime_compiler")),
 		RuntimeCompilerOutputDir:     cfg.GetString(sysconfig.FullKeyPath(spNS, "runtime_compiler_output_dir")),
@@ -113,5 +117,8 @@ func NewConfig() *Config {
 		AttachKprobesWithKprobeEventsABI: cfg.GetBool(sysconfig.FullKeyPath(spNS, "attach_kprobes_with_kprobe_events_abi")),
 	}
 
+	if !pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
+		c.RemoteConfigBTFEnabled = false
+	}
 	return c
 }
