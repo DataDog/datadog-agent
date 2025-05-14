@@ -83,8 +83,8 @@ Min Replicas: 1
 Max Replicas: 10
 Container: app
 Enabled: true
-Requests Min Allowed: map[cpu:100m memory:100Mi]
-Requests Max Allowed: map[cpu:1 memory:1000Mi]
+Requests Min Allowed: [cpu:100m][memory:100Mi]
+Requests Max Allowed: [cpu:1][memory:1000Mi]
 
 ----------- PodAutoscaler Objectives -----------
 Objective Type: PodResource
@@ -109,8 +109,8 @@ Source: Autoscaling
 Timestamp: %[1]s
 ResourcesHash: 1234567890
 Container Name: app
-Container Resources: map[cpu:100m memory:100Mi]
-Container Limits: map[cpu:1 memory:1000Mi]
+Container Resources: [cpu:100m][memory:100Mi]
+Container Limits: [cpu:1][memory:1000Mi]
 --------------------------------
 Error: test error
 
@@ -127,8 +127,8 @@ Source: Autoscaling
 Timestamp: %[1]s
 ResourcesHash: 1234567890
 Container Name: app
-Container Resources: map[cpu:100m memory:100Mi]
-Container Limits: map[cpu:1 memory:1000Mi]
+Container Resources: [cpu:100m][memory:100Mi]
+Container Limits: [cpu:1][memory:1000Mi]
 --------------------------------
 Error: <nil>
 
@@ -145,8 +145,8 @@ Source: Autoscaling
 Timestamp: %[1]s
 ResourcesHash: 1234567890
 Container Name: app
-Container Resources: map[cpu:100m memory:100Mi]
-Container Limits: map[cpu:1 memory:1000Mi]
+Container Resources: [cpu:100m][memory:100Mi]
+Container Limits: [cpu:1][memory:1000Mi]
 --------------------------------
 Error: <nil>
 
