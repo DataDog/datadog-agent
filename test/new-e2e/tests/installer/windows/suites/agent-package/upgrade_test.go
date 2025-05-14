@@ -326,21 +326,22 @@ func (s *testAgentUpgradeSuite) TestExperimentMSIRollbackMaintainsCustomUserAndA
 	s.setExperimentMSIArgs([]string{"WIXFAILWHENDEFERRED=1"})
 
 	// Act
-	s.StartExperimentCurrentVersion()
-	// This returns before the MSI is installed, so we need to wait for the service to start
-
-	// wait for upgrade to stop the service
-	err := s.WaitForInstallerService("Stopped")
-	s.Require().NoError(err)
+	s.waitForDaemonToStop(func() {
+		s.StartExperimentCurrentVersion()
+		// This returns while the upgrade is still running, so we need to wait for the service to stop
+		// We can't use WaitForInstallerService here because it can be racy with MSI rollback,
+		// the service could stop and then restart before we check the status again.
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 100))
 
 	// wait for upgrade to restart the service
 	// this is racy, we'll either catch the new service running briefly before MSI rollback
 	// triggers, or we'll catch the previous service running after MSI rollback completes
 	// The next set of checks quiesce the race.
-	err = s.WaitForInstallerService("Running")
+	err := s.WaitForInstallerService("Running")
 	s.Require().NoError(err)
 
-	// Now we can wait for the stable version to be placed on disk via MSI rollback
+	// Now that the service is running, we know that the stable version has been removed,
+	// so we can wait for the stable version to be placed on disk once again via MSI rollback
 	err = s.waitForInstallerVersion(s.StableAgentVersion().Version())
 	s.Require().NoError(err)
 	// and wait again to ensure the stable service is running
@@ -566,6 +567,29 @@ func (s *testAgentUpgradeSuite) assertDaemonStaysRunning(f func()) {
 	newPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
 	s.Require().NoError(err)
 	s.Require().Equal(originalPID, newPID, "daemon should not have been restarted")
+}
+
+// waitForDaemonToStop waits for the daemon service PID to change after the function is called.
+func (s *testAgentUpgradeSuite) waitForDaemonToStop(f func(), b backoff.BackOff) {
+	s.T().Helper()
+
+	originalPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
+	s.Require().NoError(err)
+	s.Require().Greater(originalPID, 0)
+
+	f()
+
+	err = backoff.Retry(func() error {
+		newPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
+		if err != nil {
+			return err
+		}
+		if newPID == originalPID {
+			return fmt.Errorf("daemon PID %d is still running", newPID)
+		}
+		return nil
+	}, b)
+	s.Require().NoError(err)
 }
 
 type testAgentUpgradeFromGASuite struct {
