@@ -1158,6 +1158,8 @@ github.com/kraken-hpc/go-fork v0.1.1 h1:O3X/ynoNy/eS7UIcZYef8ndFq2RXEIOue9kZqyzF
 github.com/kraken-hpc/go-fork v0.1.1/go.mod h1:uu0e5h+V4ONH5Qk/xuVlyNXJXy/swhqGIEMK7w+9dNc=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
+github.com/lebauce/iouring-go v0.0.0-20250508214508-1407955fc3cf h1:1LP5U5K+6VUnJwFsMOi/MjGZExCTVjHlsjOoL15uKMU=
+github.com/lebauce/iouring-go v0.0.0-20250508214508-1407955fc3cf/go.mod h1:LEzdaZarZ5aqROlLIwJ4P7h3+4o71008fSy6wpaEB+s=
 github.com/ledongthuc/pdf v0.0.0-20220302134840-0c2507a12d80/go.mod h1:imJHygn/1yfhB7XSJJKlFZKl/J+dCPAknuiaGOshXAs=
 github.com/leodido/go-syslog/v4 v4.2.0 h1:A7vpbYxsO4e2E8udaurkLlxP5LDpDbmPMsGnuhb7jVk=
 github.com/leodido/go-syslog/v4 v4.2.0/go.mod h1:eJ8rUfDN5OS6dOkCOBYlg2a+hbAg6pJa99QXXgMrd98=
@@ -1549,8 +1551,6 @@ github.com/pascaldekloe/goe v0.1.0 h1:cBOtyMzM9HTpWjXfbbunk26uA6nG3a8n06Wieeh0Mw
 github.com/pascaldekloe/goe v0.1.0/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=
 github.com/patrickmn/go-cache v2.1.0+incompatible h1:HRMgzkcYKYpi3C8ajMPV8OFXaaRUnok+kx1WdO15EQc=
 github.com/patrickmn/go-cache v2.1.0+incompatible/go.mod h1:3Qf8kWWT7OJRJbdiICTKqZju1ZixQ/KpMGzzAfe6+WQ=
-github.com/paulcacheux/iouring-go v0.0.0-20241115154236-2c7785c40a0f h1:y9Dz6t0aNsYtm0UrwTbu85LlsKN8GjnEhABMSrxEmvU=
-github.com/paulcacheux/iouring-go v0.0.0-20241115154236-2c7785c40a0f/go.mod h1:LEzdaZarZ5aqROlLIwJ4P7h3+4o71008fSy6wpaEB+s=
 github.com/paulcacheux/opa v0.0.0-20250507091703-12dadb609ad1 h1:WC1f90tnhRiQdkmMuHZUtL+otsISOdkREHlFlVtwTTk=
 github.com/paulcacheux/opa v0.0.0-20250507091703-12dadb609ad1/go.mod h1:DNzZPKqKh4U0n0ANxcCVlw8lCSv2c+h5G/3QvSYdWZ8=
 github.com/pborman/getopt v0.0.0-20170112200414-7148bc3a4c30/go.mod h1:85jBQOZwpVEaDAr341tbn15RS4fCAsIst0qp7i8ex1o=

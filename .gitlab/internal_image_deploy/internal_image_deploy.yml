@@ -173,10 +173,10 @@ docker_trigger_internal-ot_standalone:
   tags: ["arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
-    IMAGE_VERSION: tmpl-v14
-    IMAGE_NAME: datadog-agent
-    RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-7
-    BUILD_TAG: ${CI_COMMIT_REF_SLUG}-7
+    IMAGE_VERSION: tmpl-v1
+    IMAGE_NAME: otel-agent
+    RELEASE_TAG: ${CI_COMMIT_REF_SLUG}
+    BUILD_TAG: ${CI_COMMIT_REF_SLUG}
     TMPL_SRC_IMAGE: v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7
     TMPL_SRC_REPO: ci/datadog-agent/otel-agent
     RELEASE_STAGING: "true"
