@@ -22,7 +22,8 @@ type Component interface {
 	SubscribeAgentTask()
 	// Subscribe is the generic way to start listening to a specific product update
 	// Component can also automatically subscribe to updates by returning a `ListenerProvider` struct
-	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
+	// It returns a function that will unsubscribe the listener when called
+	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) func()
 }
 
 // Params is the input parameter struct for the RC client Component.

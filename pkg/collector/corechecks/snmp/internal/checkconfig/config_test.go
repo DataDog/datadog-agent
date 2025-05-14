@@ -2050,17 +2050,18 @@ func (m *mockRCClient) SubscribeAgentTask() {}
 func (m *mockRCClient) applyStateCallback(string, state.ApplyStatus) {}
 
 func (m *mockRCClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig,
-	applyStateCallback func(string, state.ApplyStatus))) {
+	applyStateCallback func(string, state.ApplyStatus))) func() {
 	if product != state.ProductNDMDeviceProfilesCustom {
 		m.err = fmt.Errorf("unexpected subscription to %v", product)
-		return
+		return func() {}
 	}
 	if m.subscribed {
 		m.err = fmt.Errorf("double subscription to ProductNDMDeviceProfilesCustom")
-		return
+		return func() {}
 	}
 	m.subscribed = true
 	fn(m.profiles, m.applyStateCallback)
+	return func() {}
 }
 
 func TestExplicitRCConfig(t *testing.T) {

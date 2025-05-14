@@ -330,7 +330,8 @@ func (c *Client) SetAgentName(agentName string) {
 }
 
 // SubscribeAll subscribes to all events (config updates, state changed, ...)
-func (c *Client) SubscribeAll(product string, listener Listener) {
+// It returns a function that will unsubscribe the listener when called.
+func (c *Client) SubscribeAll(product string, listener Listener) func() {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -341,16 +342,25 @@ func (c *Client) SubscribeAll(product string, listener Listener) {
 	}
 
 	c.listeners[product] = append(c.listeners[product], listener)
+	return func() {
+		c.m.Lock()
+		defer c.m.Unlock()
+		c.listeners[product] = slices.DeleteFunc(c.listeners[product], func(fn Listener) bool {
+			return fn == listener
+		})
+	}
 }
 
 // Subscribe subscribes to config updates of a product.
-func (c *Client) Subscribe(product string, cb func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
-	c.SubscribeAll(product, NewUpdateListener(cb))
+// It returns a function that will unsubscribe the listener when called.
+func (c *Client) Subscribe(product string, cb func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) func() {
+	return c.SubscribeAll(product, NewUpdateListener(cb))
 }
 
 // SubscribeIgnoreExpiration subscribes to config updates of a product, but ignores the case when signatures have expired.
-func (c *Client) SubscribeIgnoreExpiration(product string, cb func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
-	c.SubscribeAll(product, NewUpdateListenerIgnoreExpiration(cb))
+// It returns a function that will unsubscribe the listener when called.
+func (c *Client) SubscribeIgnoreExpiration(product string, cb func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) func() {
+	return c.SubscribeAll(product, NewUpdateListenerIgnoreExpiration(cb))
 }
 
 // GetConfigs returns the current configs applied of a product.
