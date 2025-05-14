@@ -597,18 +597,17 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 	}
 
 	var tracerMetadataArr []tracermetadata.TracerMetadata
+	var firstMetadata *tracermetadata.TracerMetadata
 
 	tracerMetadata, err := tracermetadata.GetTracerMetadata(int(pid), kernel.ProcFSRoot())
 	if err == nil {
 		// Currently we only get the first tracer metadata
 		tracerMetadataArr = append(tracerMetadataArr, tracerMetadata)
+		firstMetadata = &tracerMetadata
 	}
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
-	lang := language.FindInArgs(exe, cmdline)
-	if lang == "" {
-		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
-	}
+	lang := language.Detect(exe, cmdline, proc.Pid, s.privilegedDetector, firstMetadata)
 	env, err := getTargetEnvs(proc)
 	if err != nil {
 		return nil, err
@@ -623,7 +622,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 	ctx.ContextMap = contextMap
 
 	nameMeta := detector.GetServiceName(lang, ctx)
-	apmInstrumentation := apm.Detect(lang, ctx)
+	apmInstrumentation := apm.Detect(lang, ctx, firstMetadata)
 
 	name := nameMeta.DDService
 	if name == "" {

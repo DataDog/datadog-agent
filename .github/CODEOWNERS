@@ -241,7 +241,7 @@
 /cmd/system-probe/modules/traceroute*   @Datadog/Networks
 /cmd/system-probe/modules/ping*         @DataDog/ndm-core
 /cmd/system-probe/modules/language_detection* @DataDog/container-intake @DataDog/agent-discovery
-/cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger
+/cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger-go
 /cmd/system-probe/windows_resources/    @DataDog/windows-agent
 /cmd/system-probe/main_windows*.go      @DataDog/windows-agent
 /cmd/system-probe/subcommands/runtime/  @DataDog/agent-security
@@ -464,7 +464,7 @@
 /pkg/diagnose/ports/                    @DataDog/agent-configuration
 /pkg/diagnose/ports/*windows*.go        @DataDog/windows-agent
 /pkg/eventmonitor/                      @DataDog/ebpf-platform @DataDog/agent-security
-/pkg/dynamicinstrumentation/            @DataDog/debugger
+/pkg/dynamicinstrumentation/            @DataDog/debugger-go
 /pkg/flare/                             @DataDog/agent-configuration
 /pkg/flare/clusteragent/manifests.go    @DataDog/container-ecosystems @DataDog/agent-configuration
 /pkg/flare/*_win.go                     @Datadog/windows-agent @DataDog/agent-configuration
