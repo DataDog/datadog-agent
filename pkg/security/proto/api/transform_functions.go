@@ -91,6 +91,7 @@ func FromKernelFilterToProto(kernelFilterReport *kfilters.KernelFilterReport) *K
 	}
 }
 
+// FromAcceptModeRulesToProto transforms a kfilter to a proto accept mode rules
 func FromAcceptModeRulesToProto(acceptModeRules []kfilters.AcceptModeRule) []*AcceptModeRuleMessage {
 	protoAcceptModeRules := make([]*AcceptModeRuleMessage, len(acceptModeRules))
 	for i, rule := range acceptModeRules {
