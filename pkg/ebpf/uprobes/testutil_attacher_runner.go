@@ -227,7 +227,7 @@ func (r *ContainerizedFmapperRunner) Run(t *testing.T, paths ...string) {
 }
 
 // GetTargetPid returns the PID of the target process
-func (r *ContainerizedFmapperRunner) GetTargetPid(t *testing.T) int {
+func (r *ContainerizedFmapperRunner) GetTargetPid(_ *testing.T) int {
 	return int(r.pid)
 }
 
@@ -244,8 +244,7 @@ func (r *ContainerizedFmapperRunner) Stop(t *testing.T) {
 
 // FmapperRunner runs the target process directly on the host
 type FmapperRunner struct {
-	cmd               *exec.Cmd
-	programExecutable string
+	cmd *exec.Cmd
 }
 
 // NewFmapperRunner creates a new runner that executes the target directly on the host
@@ -263,7 +262,7 @@ func (r *FmapperRunner) Run(t *testing.T, paths ...string) {
 }
 
 // GetTargetPid returns the PID of the target process
-func (r *FmapperRunner) GetTargetPid(t *testing.T) int {
+func (r *FmapperRunner) GetTargetPid(_ *testing.T) int {
 	return r.cmd.Process.Pid
 }
 
@@ -273,6 +272,7 @@ func (r *FmapperRunner) Stop(t *testing.T) {
 	require.NoError(t, err, "failed to kill fmapper")
 }
 
+// SameProcessAttacherRunner runs the attacher in the same process as the caller code
 type SameProcessAttacherRunner struct {
 	attachedProbes []attachedProbe
 }
@@ -284,6 +284,7 @@ type attachedProbe struct {
 
 var _ AttacherRunner = &SameProcessAttacherRunner{}
 
+// NewSameProcessAttacherRunner creates a new runner that executes the attacher in the same process as the caller code
 func NewSameProcessAttacherRunner() AttacherRunner {
 	return &SameProcessAttacherRunner{}
 }
@@ -306,7 +307,7 @@ func (r *SameProcessAttacherRunner) RunAttacher(t *testing.T, configName Attache
 	err = ddebpf.LoadCOREAsset("uprobe_attacher-test.o", func(buf bytecode.AssetReader, opts manager.Options) error {
 		require.NoError(t, mgr.InitWithOptions(buf, opts))
 		require.NoError(t, mgr.Start())
-		t.Cleanup(func() { mgr.Stop(manager.CleanAll) })
+		t.Cleanup(func() { _ = mgr.Stop(manager.CleanAll) })
 
 		return nil
 	})
@@ -317,7 +318,7 @@ func (r *SameProcessAttacherRunner) RunAttacher(t *testing.T, configName Attache
 }
 
 // GetProbes returns the current state of all attached probes
-func (r *SameProcessAttacherRunner) GetProbes(t assert.TestingT) []ProbeStatus {
+func (r *SameProcessAttacherRunner) GetProbes(_ assert.TestingT) []ProbeStatus {
 	probes := []ProbeStatus{}
 	for _, probe := range r.attachedProbes {
 		probes = append(probes, ProbeStatus{

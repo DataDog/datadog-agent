@@ -30,7 +30,7 @@ func main() {
 	// While this is not a real test, it's part of the test code so it makes sense,
 	// We also cannot write this as a regular test because then it would be executed by the go test command
 	testing.Init()
-	testing.Main(func(pat, str string) (bool, error) {
+	testing.Main(func(_, _ string) (bool, error) {
 		return true, nil
 	}, []testing.InternalTest{
 		{Name: "RunAttacher", F: run},
@@ -47,7 +47,7 @@ func run(t *testing.T) {
 	runner.RunAttacher(t, uprobes.AttacherTestConfigName(*configName))
 
 	// Start HTTP server
-	http.HandleFunc("/probes", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/probes", func(w http.ResponseWriter, _ *http.Request) {
 		probes := runner.GetProbes(t)
 		err := json.NewEncoder(w).Encode(probes)
 		if err != nil {
