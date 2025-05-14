@@ -5,12 +5,10 @@
 
 //go:build !((linux && linux_bpf) || (windows && npm))
 
-package marshal
+package network
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 )
 
-func initializeUSMEncoders(*network.Connections) []usmEncoder {
-	return nil
-}
+func (ns *networkState) processUSMDelta(map[protocols.ProtocolType]interface{}) {}

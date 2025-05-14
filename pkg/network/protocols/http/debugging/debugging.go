@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build (windows && npm) || (linux_bpf && linux)
+
 // Package debugging provides a debugging view of the HTTP protocol.
 package debugging
 

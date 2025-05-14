@@ -3,6 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows && npm
+//go:build !windows && !linux_bpf
 
-package kafka
+package network
+
+// USMProtocolsData represents the unsupported version
+type USMProtocolsData struct{}
+
+// NewUsmProtocolsData empty
+func NewUsmProtocolsData() USMProtocolsData {
+	return USMProtocolsData{}
+}

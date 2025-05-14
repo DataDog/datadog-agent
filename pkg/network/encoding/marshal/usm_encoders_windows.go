@@ -14,7 +14,7 @@ import (
 func initializeUSMEncoders(conns *network.Connections) []usmEncoder {
 	encoders := make([]usmEncoder, 0, 1)
 
-	if encoder := newHTTPEncoder(conns.HTTP); encoder != nil {
+	if encoder := newHTTPEncoder(conns.USMData.HTTP); encoder != nil {
 		encoders = append(encoders, encoder)
 	}
 

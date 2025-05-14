@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build (linux && linux_bpf) || (windows && npm)
+
 package marshal
 
 import (
@@ -65,9 +67,11 @@ func TestFormatHTTPStats(t *testing.T) {
 				}},
 			},
 		},
-		HTTP: map[http.Key]*http.RequestStats{
-			httpKey1: httpStats1,
-			httpKey2: httpStats2,
+		USMData: network.USMProtocolsData{
+			HTTP: map[http.Key]*http.RequestStats{
+				httpKey1: httpStats1,
+				httpKey2: httpStats2,
+			},
 		},
 	}
 	out := &model.HTTPAggregations{
@@ -92,7 +96,7 @@ func TestFormatHTTPStats(t *testing.T) {
 		out.EndpointAggregations[1].StatsByStatusCode[int32(statusCode)] = &model.HTTPStats_Data{Count: 1, FirstLatencySample: 20, Latencies: nil}
 	}
 
-	httpEncoder := newHTTPEncoder(in.HTTP)
+	httpEncoder := newHTTPEncoder(in.USMData.HTTP)
 	aggregations, tags, _ := getHTTPAggregations(t, httpEncoder, in.Conns[0])
 
 	require.NotNil(t, aggregations)
@@ -143,11 +147,13 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 				}},
 			},
 		},
-		HTTP: map[http.Key]*http.RequestStats{
-			key: httpReqStats,
+		USMData: network.USMProtocolsData{
+			HTTP: map[http.Key]*http.RequestStats{
+				key: httpReqStats,
+			},
 		},
 	}
-	httpEncoder := newHTTPEncoder(payload.HTTP)
+	httpEncoder := newHTTPEncoder(payload.USMData.HTTP)
 	httpAggregations, tags, _ := getHTTPAggregations(t, httpEncoder, payload.Conns[0])
 
 	require.NotNil(t, httpAggregations)
@@ -211,12 +217,14 @@ func TestIDCollisionRegression(t *testing.T) {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		HTTP: map[http.Key]*http.RequestStats{
-			httpKey: httpStats,
+		USMData: network.USMProtocolsData{
+			HTTP: map[http.Key]*http.RequestStats{
+				httpKey: httpStats,
+			},
 		},
 	}
 
-	httpEncoder := newHTTPEncoder(in.HTTP)
+	httpEncoder := newHTTPEncoder(in.USMData.HTTP)
 
 	// assert that the first connection matching the HTTP data will get
 	// back a non-nil result
@@ -270,8 +278,10 @@ func TestLocalhostScenario(t *testing.T) {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		HTTP: map[http.Key]*http.RequestStats{
-			httpKey: httpStats,
+		USMData: network.USMProtocolsData{
+			HTTP: map[http.Key]*http.RequestStats{
+				httpKey: httpStats,
+			},
 		},
 	}
 	if runtime.GOOS == "windows" {
@@ -291,10 +301,10 @@ func TestLocalhostScenario(t *testing.T) {
 			http.MethodGet,
 		)
 
-		in.HTTP[httpKeyWin] = httpStats
+		in.USMData.HTTP[httpKeyWin] = httpStats
 	}
 
-	httpEncoder := newHTTPEncoder(in.HTTP)
+	httpEncoder := newHTTPEncoder(in.USMData.HTTP)
 
 	// assert that both ends (client:server, server:client) of the connection
 	// will have HTTP stats
@@ -348,7 +358,9 @@ func generateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Conne
 		BufferedData: network.BufferedData{
 			Conns: make([]network.ConnectionStats, sourcePortsMax*destPortsMax),
 		},
-		HTTP: make(map[http.Key]*http.RequestStats),
+		USMData: network.USMProtocolsData{
+			HTTP: make(map[http.Key]*http.RequestStats),
+		},
 	}
 
 	httpStats := http.NewRequestStats()
@@ -375,7 +387,7 @@ func generateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Conne
 				}
 			}
 
-			payload.HTTP[http.NewKey(
+			payload.USMData.HTTP[http.NewKey(
 				localhost,
 				localhost,
 				sport+1,
@@ -396,7 +408,7 @@ func commonBenchmarkHTTPEncoder(b *testing.B, numberOfPorts uint16) {
 	b.ReportAllocs()
 	var h *httpEncoder
 	for i := 0; i < b.N; i++ {
-		h = newHTTPEncoder(payload.HTTP)
+		h = newHTTPEncoder(payload.USMData.HTTP)
 	}
 	runtime.KeepAlive(h)
 }

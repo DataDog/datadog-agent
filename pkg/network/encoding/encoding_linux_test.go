@@ -79,16 +79,18 @@ func TestHTTP2SerializationWithLocalhostTraffic(t *testing.T) {
 				}},
 			},
 		},
-		HTTP2: map[http.Key]*http.RequestStats{
-			http.NewKey(
-				localhost,
-				localhost,
-				clientPort,
-				serverPort,
-				[]byte("/testpath"),
-				true,
-				http.MethodPost,
-			): http2ReqStats,
+		USMData: network.USMProtocolsData{
+			HTTP2: map[http.Key]*http.RequestStats{
+				http.NewKey(
+					localhost,
+					localhost,
+					clientPort,
+					serverPort,
+					[]byte("/testpath"),
+					true,
+					http.MethodPost,
+				): http2ReqStats,
+			},
 		},
 	}
 
@@ -188,7 +190,7 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 				Content:  http.Interner.GetString(fmt.Sprintf("/path-%d", i)),
 				FullPath: true,
 			}
-			in.HTTP2 = map[http.Key]*http.RequestStats{httpKey: {}}
+			in.USMData.HTTP2 = map[http.Key]*http.RequestStats{httpKey: {}}
 			out := encodeAndDecodeHTTP2(in)
 
 			require.NotNil(t, out)
@@ -196,7 +198,7 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 			require.Equal(t, httpKey.Path.Content.Get(), out.EndpointAggregations[0].Path)
 		} else {
 			// No HTTP2 data in this payload, so we should never get HTTP2 data back after the serialization
-			in.HTTP2 = nil
+			in.USMData.HTTP2 = nil
 			out := encodeAndDecodeHTTP2(in)
 			require.Nil(t, out, "expected a nil object, but got garbage")
 		}
@@ -243,9 +245,11 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		Kafka: map[kafka.Key]*kafka.RequestStats{
-			kafkaKey: {
-				ErrorCodeToStat: map[int32]*kafka.RequestStat{0: {Count: 10, FirstLatencySample: 5}},
+		USMData: network.USMProtocolsData{
+			Kafka: map[kafka.Key]*kafka.RequestStats{
+				kafkaKey: {
+					ErrorCodeToStat: map[int32]*kafka.RequestStat{0: {Count: 10, FirstLatencySample: 5}},
+				},
 			},
 		},
 	}

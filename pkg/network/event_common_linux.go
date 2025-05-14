@@ -15,6 +15,10 @@ import (
 
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 )
 
@@ -156,5 +160,25 @@ func (c *ConnectionStats) FromTCPStats(tcpStats *netebpf.TCPStats) {
 		c.TCPFailures = map[uint16]uint32{
 			tcpStats.Failure_reason: 1,
 		}
+	}
+}
+
+// USMProtocolsData represents the linux version
+type USMProtocolsData struct {
+	HTTP     map[http.Key]*http.RequestStats
+	HTTP2    map[http.Key]*http.RequestStats
+	Kafka    map[kafka.Key]*kafka.RequestStats
+	Postgres map[postgres.Key]*postgres.RequestStat
+	Redis    map[redis.Key]*redis.RequestStats
+}
+
+// NewUsmProtocolsData linux
+func NewUsmProtocolsData() USMProtocolsData {
+	return USMProtocolsData{
+		HTTP:     make(map[http.Key]*http.RequestStats),
+		HTTP2:    make(map[http.Key]*http.RequestStats),
+		Kafka:    make(map[kafka.Key]*kafka.RequestStats),
+		Postgres: make(map[postgres.Key]*postgres.RequestStat),
+		Redis:    make(map[redis.Key]*redis.RequestStats),
 	}
 }

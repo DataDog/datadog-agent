@@ -2298,9 +2298,9 @@ func testHTTPLikeSketches(t *testing.T, tr *tracer.Tracer, client *nethttp.Clien
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 
-		requests := conns.HTTP
+		requests := conns.USMData.HTTP
 		if isHTTP2 {
-			requests = conns.HTTP2
+			requests = conns.USMData.HTTP2
 		}
 		if getRequestStats == nil || postRequestsStats == nil {
 			require.True(ct, len(requests) > 0, "no requests")
@@ -2438,7 +2438,7 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 
-		requests := conns.Kafka
+		requests := conns.USMData.Kafka
 		if fetchRequestStats == nil || produceRequestsStats == nil {
 			require.True(ct, len(requests) > 0, "no requests")
 		}
@@ -2497,7 +2497,7 @@ func testPostgresSketches(t *testing.T, tr *tracer.Tracer) {
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 
-		requests := conns.Postgres
+		requests := conns.USMData.Postgres
 		if insertRequestStats == nil || selectRequestsStats == nil {
 			require.True(ct, len(requests) > 0, "no requests")
 		}
