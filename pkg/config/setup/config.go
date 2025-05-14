@@ -1065,6 +1065,22 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_agent_registry.idle_timeout", time.Duration(30*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.query_timeout", time.Duration(3*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.recommended_refresh_interval", time.Duration(10*time.Second))
+	pkgconfigmodel.AddOverrideFunc(setupOTLPReceiverDefaults)
+}
+
+// setupOTLPReceiverDefaults
+func setupOTLPReceiverDefaults(config pkgconfigmodel.Config) {
+	var isEnabled bool
+	for _, key := range config.AllKeysLowercased() {
+		if strings.HasPrefix(key, "otlp_config.receiver") && config.IsConfigured(key) {
+			isEnabled = true
+		}
+	}
+	if isEnabled {
+		if !config.IsConfigured("otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib") {
+			config.SetDefault("otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib", 10)
+		}
+	}
 }
 
 func agent(config pkgconfigmodel.Setup) {
