@@ -114,5 +114,4 @@ publish-internal-container-image-ot_standalone:
     IMAGE_VERSION: tmpl-v1
     IMAGE_NAME: otel-agent
     TMPL_SRC_REPO: ci/datadog-agent/otel-agent
-    RELEASE_TAG_SUFFIX: "-7"
     TMPL_SRC_IMAGE_SUFFIX: "-7"
