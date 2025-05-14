@@ -509,24 +509,24 @@ func (_c *SecurityModuleClientWrapper_GetEvents_Call) RunAndReturn(run func() (a
 	return _c
 }
 
-// GetRuleSetReport provides a mock function with no fields
-func (_m *SecurityModuleClientWrapper) GetRuleSetReport() (*api.GetRuleSetReportResultMessage, error) {
+// GetKernelFilterReport provides a mock function with no fields
+func (_m *SecurityModuleClientWrapper) GetKernelFilterReport() (*api.GetKernelFilterReportMessage, error) {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetRuleSetReport")
+		panic("no return value specified for GetKernelFilterReport")
 	}
 
-	var r0 *api.GetRuleSetReportResultMessage
+	var r0 *api.GetKernelFilterReportMessage
 	var r1 error
-	if rf, ok := ret.Get(0).(func() (*api.GetRuleSetReportResultMessage, error)); ok {
+	if rf, ok := ret.Get(0).(func() (*api.GetKernelFilterReportMessage, error)); ok {
 		return rf()
 	}
-	if rf, ok := ret.Get(0).(func() *api.GetRuleSetReportResultMessage); ok {
+	if rf, ok := ret.Get(0).(func() *api.GetKernelFilterReportMessage); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.GetRuleSetReportResultMessage)
+			r0 = ret.Get(0).(*api.GetKernelFilterReportMessage)
 		}
 	}
 
@@ -539,29 +539,29 @@ func (_m *SecurityModuleClientWrapper) GetRuleSetReport() (*api.GetRuleSetReport
 	return r0, r1
 }
 
-// SecurityModuleClientWrapper_GetRuleSetReport_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetRuleSetReport'
-type SecurityModuleClientWrapper_GetRuleSetReport_Call struct {
+// SecurityModuleClientWrapper_GetKernelFilterReport_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetKernelFilterReport'
+type SecurityModuleClientWrapper_GetKernelFilterReport_Call struct {
 	*mock.Call
 }
 
-// GetRuleSetReport is a helper method to define mock.On call
-func (_e *SecurityModuleClientWrapper_Expecter) GetRuleSetReport() *SecurityModuleClientWrapper_GetRuleSetReport_Call {
-	return &SecurityModuleClientWrapper_GetRuleSetReport_Call{Call: _e.mock.On("GetRuleSetReport")}
+// GetKernelFilterReport is a helper method to define mock.On call
+func (_e *SecurityModuleClientWrapper_Expecter) GetKernelFilterReport() *SecurityModuleClientWrapper_GetKernelFilterReport_Call {
+	return &SecurityModuleClientWrapper_GetKernelFilterReport_Call{Call: _e.mock.On("GetKernelFilterReport")}
 }
 
-func (_c *SecurityModuleClientWrapper_GetRuleSetReport_Call) Run(run func()) *SecurityModuleClientWrapper_GetRuleSetReport_Call {
+func (_c *SecurityModuleClientWrapper_GetKernelFilterReport_Call) Run(run func()) *SecurityModuleClientWrapper_GetKernelFilterReport_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run()
 	})
 	return _c
 }
 
-func (_c *SecurityModuleClientWrapper_GetRuleSetReport_Call) Return(_a0 *api.GetRuleSetReportResultMessage, _a1 error) *SecurityModuleClientWrapper_GetRuleSetReport_Call {
+func (_c *SecurityModuleClientWrapper_GetKernelFilterReport_Call) Return(_a0 *api.GetKernelFilterReportMessage, _a1 error) *SecurityModuleClientWrapper_GetKernelFilterReport_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *SecurityModuleClientWrapper_GetRuleSetReport_Call) RunAndReturn(run func() (*api.GetRuleSetReportResultMessage, error)) *SecurityModuleClientWrapper_GetRuleSetReport_Call {
+func (_c *SecurityModuleClientWrapper_GetKernelFilterReport_Call) RunAndReturn(run func() (*api.GetKernelFilterReportMessage, error)) *SecurityModuleClientWrapper_GetKernelFilterReport_Call {
 	_c.Call.Return(run)
 	return _c
 }

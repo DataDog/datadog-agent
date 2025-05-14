@@ -414,28 +414,28 @@ func (_c *SecurityModuleServer_GetEvents_Call) RunAndReturn(run func(*api.GetEve
 	return _c
 }
 
-// GetRuleSetReport provides a mock function with given fields: _a0, _a1
-func (_m *SecurityModuleServer) GetRuleSetReport(_a0 context.Context, _a1 *api.GetRuleSetReportParams) (*api.GetRuleSetReportResultMessage, error) {
+// GetKernelFilterReport provides a mock function with given fields: _a0, _a1
+func (_m *SecurityModuleServer) GetKernelFilterReport(_a0 context.Context, _a1 *api.GetKernelFilterReportParams) (*api.GetKernelFilterReportMessage, error) {
 	ret := _m.Called(_a0, _a1)
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetRuleSetReport")
+		panic("no return value specified for GetKernelFilterReport")
 	}
 
-	var r0 *api.GetRuleSetReportResultMessage
+	var r0 *api.GetKernelFilterReportMessage
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *api.GetRuleSetReportParams) (*api.GetRuleSetReportResultMessage, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *api.GetKernelFilterReportParams) (*api.GetKernelFilterReportMessage, error)); ok {
 		return rf(_a0, _a1)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *api.GetRuleSetReportParams) *api.GetRuleSetReportResultMessage); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *api.GetKernelFilterReportParams) *api.GetKernelFilterReportMessage); ok {
 		r0 = rf(_a0, _a1)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.GetRuleSetReportResultMessage)
+			r0 = ret.Get(0).(*api.GetKernelFilterReportMessage)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *api.GetRuleSetReportParams) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *api.GetKernelFilterReportParams) error); ok {
 		r1 = rf(_a0, _a1)
 	} else {
 		r1 = ret.Error(1)
@@ -444,31 +444,31 @@ func (_m *SecurityModuleServer) GetRuleSetReport(_a0 context.Context, _a1 *api.G
 	return r0, r1
 }
 
-// SecurityModuleServer_GetRuleSetReport_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetRuleSetReport'
-type SecurityModuleServer_GetRuleSetReport_Call struct {
+// SecurityModuleServer_GetKernelFilterReport_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetKernelFilterReport'
+type SecurityModuleServer_GetKernelFilterReport_Call struct {
 	*mock.Call
 }
 
-// GetRuleSetReport is a helper method to define mock.On call
+// GetKernelFilterReport is a helper method to define mock.On call
 //   - _a0 context.Context
-//   - _a1 *api.GetRuleSetReportParams
-func (_e *SecurityModuleServer_Expecter) GetRuleSetReport(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_GetRuleSetReport_Call {
-	return &SecurityModuleServer_GetRuleSetReport_Call{Call: _e.mock.On("GetRuleSetReport", _a0, _a1)}
+//   - _a1 *api.GetKernelFilterReportParams
+func (_e *SecurityModuleServer_Expecter) GetKernelFilterReport(_a0 interface{}, _a1 interface{}) *SecurityModuleServer_GetKernelFilterReport_Call {
+	return &SecurityModuleServer_GetKernelFilterReport_Call{Call: _e.mock.On("GetKernelFilterReport", _a0, _a1)}
 }
 
-func (_c *SecurityModuleServer_GetRuleSetReport_Call) Run(run func(_a0 context.Context, _a1 *api.GetRuleSetReportParams)) *SecurityModuleServer_GetRuleSetReport_Call {
+func (_c *SecurityModuleServer_GetKernelFilterReport_Call) Run(run func(_a0 context.Context, _a1 *api.GetKernelFilterReportParams)) *SecurityModuleServer_GetKernelFilterReport_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*api.GetRuleSetReportParams))
+		run(args[0].(context.Context), args[1].(*api.GetKernelFilterReportParams))
 	})
 	return _c
 }
 
-func (_c *SecurityModuleServer_GetRuleSetReport_Call) Return(_a0 *api.GetRuleSetReportResultMessage, _a1 error) *SecurityModuleServer_GetRuleSetReport_Call {
+func (_c *SecurityModuleServer_GetKernelFilterReport_Call) Return(_a0 *api.GetKernelFilterReportMessage, _a1 error) *SecurityModuleServer_GetKernelFilterReport_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *SecurityModuleServer_GetRuleSetReport_Call) RunAndReturn(run func(context.Context, *api.GetRuleSetReportParams) (*api.GetRuleSetReportResultMessage, error)) *SecurityModuleServer_GetRuleSetReport_Call {
+func (_c *SecurityModuleServer_GetKernelFilterReport_Call) RunAndReturn(run func(context.Context, *api.GetKernelFilterReportParams) (*api.GetKernelFilterReportMessage, error)) *SecurityModuleServer_GetKernelFilterReport_Call {
 	_c.Call.Return(run)
 	return _c
 }
