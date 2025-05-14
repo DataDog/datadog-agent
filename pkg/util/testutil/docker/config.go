@@ -131,9 +131,6 @@ func (r runConfig) commandArgs(t subCommandType) []string {
 			args = append(args, "--privileged")
 		}
 
-		//append container name and container image name
-		args = append(args, "--name", r.Name(), r.ImageName)
-
 		if r.NetworkMode != "" {
 			args = append(args, "--network", r.NetworkMode)
 		}
@@ -141,6 +138,9 @@ func (r runConfig) commandArgs(t subCommandType) []string {
 		if r.PIDMode != "" {
 			args = append(args, "--pid", r.PIDMode)
 		}
+
+		//append container name and container image name
+		args = append(args, "--name", r.Name(), r.ImageName)
 
 		//provide main binary and binary arguments to run inside the docker container
 		args = append(args, r.Binary)
