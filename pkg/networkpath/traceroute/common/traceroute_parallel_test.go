@@ -20,7 +20,7 @@ import (
 )
 
 var parallelParams = TracerouteParallelParams{
-	TracerouteParams{
+	TracerouteParams: TracerouteParams{
 		MinTTL:            1,
 		MaxTTL:            10,
 		TracerouteTimeout: 500 * time.Millisecond,
