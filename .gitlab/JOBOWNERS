@@ -103,8 +103,8 @@ qa_dca*                                @DataDog/agent-devx
 qa_dogstatsd*                          @DataDog/agent-devx
 
 # Internal image deploy
-docker_trigger_internal*                     @Datadog/agent-delivery
-docker_trigger_cluster_agent_internal*       @Datadog/agent-delivery
+publish-internal-container-image*            @Datadog/agent-delivery
+publish-internal-dca-container-image*        @Datadog/agent-delivery
 
 # Internal kubernetes deploy
 internal_kubernetes_deploy*            @Datadog/agent-delivery

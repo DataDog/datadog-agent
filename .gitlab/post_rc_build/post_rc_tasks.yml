@@ -6,15 +6,15 @@ update_rc_build_links:
   rules:
     - if: $RC_BUILD == "true"
   needs:
-    - job: docker_trigger_internal-jmx
+    - job: publish-internal-container-image-jmx
       artifacts: false
-    - job: docker_trigger_internal-fips
+    - job: publish-internal-container-image-fips
       artifacts: false
-    - job: docker_trigger_internal-ot_standalone
+    - job: publish-internal-container-image-ot_standalone
       artifacts: false
-    - job: docker_trigger_cluster_agent_internal
+    - job: publish-internal-dca-container-image
       artifacts: false
-    - job: docker_trigger_internal-full
+    - job: publish-internal-container-image-full
       artifacts: false
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
