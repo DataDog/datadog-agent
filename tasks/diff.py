@@ -150,7 +150,7 @@ def go_deps(
                                 "GOOS": goos,
                                 "GOARCH": goarch,
                                 "CGO_ENABLED": "1",
-                                "GOTOOLCHAIN": f"go{dot_go_version(ctx)}",
+                                "GOTOOLCHAIN": "1.23.9",
                             }
                             ctx.run(f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}", env=env)
         finally:
