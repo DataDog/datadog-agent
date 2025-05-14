@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
+//go:generate mockgen -source=$GOFILE -destination=../remoteconfighandler/mock_remote_client.go -package=remoteconfighandler
+
 // ServiceName specifies the service name used in the operating system.
 const ServiceName = "datadog-trace-agent"
 
