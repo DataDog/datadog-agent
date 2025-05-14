@@ -66,8 +66,6 @@ func TracerouteSerial(ctx context.Context, t TracerouteDriver, p TracerouteSeria
 
 		// wait for at least SendDelay to pass
 		<-sendDelay
-
-		cancel()
 	}
 
 	// if we got externally cancelled, report that
