@@ -16,10 +16,6 @@ import (
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/slice"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -121,12 +117,8 @@ type State interface {
 
 // Delta represents a delta of network data compared to the last call to State.
 type Delta struct {
-	Conns    []ConnectionStats
-	HTTP     map[http.Key]*http.RequestStats
-	HTTP2    map[http.Key]*http.RequestStats
-	Kafka    map[kafka.Key]*kafka.RequestStats
-	Postgres map[postgres.Key]*postgres.RequestStat
-	Redis    map[redis.Key]*redis.RequestStats
+	Conns   []ConnectionStats
+	USMData USMProtocolsData
 }
 
 type lastStateTelemetry struct {
@@ -237,13 +229,9 @@ type client struct {
 	closed    *closedConnections
 	stats     map[StatCookie]StatCounters
 	// maps by dns key the domain (string) to stats structure
-	dnsStats           dns.StatsByKeyByNameByType
-	httpStatsDelta     map[http.Key]*http.RequestStats
-	http2StatsDelta    map[http.Key]*http.RequestStats
-	kafkaStatsDelta    map[kafka.Key]*kafka.RequestStats
-	postgresStatsDelta map[postgres.Key]*postgres.RequestStat
-	redisStatsDelta    map[redis.Key]*redis.RequestStats
-	lastTelemetries    map[ConnTelemetryType]int64
+	dnsStats        dns.StatsByKeyByNameByType
+	usmDelta        USMProtocolsData
+	lastTelemetries map[ConnTelemetryType]int64
 }
 
 func (c *client) Reset() {
@@ -255,11 +243,7 @@ func (c *client) Reset() {
 	c.closed.conns = c.closed.conns[:0]
 	c.closed.byCookie = make(map[StatCookie]int)
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
-	c.httpStatsDelta = make(map[http.Key]*http.RequestStats)
-	c.http2StatsDelta = make(map[http.Key]*http.RequestStats)
-	c.kafkaStatsDelta = make(map[kafka.Key]*kafka.RequestStats)
-	c.postgresStatsDelta = make(map[postgres.Key]*postgres.RequestStat)
-	c.redisStatsDelta = make(map[redis.Key]*redis.RequestStats)
+	c.usmDelta.Reset()
 }
 
 type networkState struct {
@@ -399,33 +383,11 @@ func (ns *networkState) GetDelta(
 
 	aggr.finalize()
 
-	for protocolType, protocolStats := range usmStats {
-		switch protocolType {
-		case protocols.HTTP:
-			stats := protocolStats.(map[http.Key]*http.RequestStats)
-			ns.storeHTTPStats(stats)
-		case protocols.Kafka:
-			stats := protocolStats.(map[kafka.Key]*kafka.RequestStats)
-			ns.storeKafkaStats(stats)
-		case protocols.HTTP2:
-			stats := protocolStats.(map[http.Key]*http.RequestStats)
-			ns.storeHTTP2Stats(stats)
-		case protocols.Postgres:
-			stats := protocolStats.(map[postgres.Key]*postgres.RequestStat)
-			ns.storePostgresStats(stats)
-		case protocols.Redis:
-			stats := protocolStats.(map[redis.Key]*redis.RequestStats)
-			ns.storeRedisStats(stats)
-		}
-	}
+	ns.processUSMDelta(usmStats)
 
 	return Delta{
-		Conns:    append(active, closed...),
-		HTTP:     client.httpStatsDelta,
-		HTTP2:    client.http2StatsDelta,
-		Kafka:    client.kafkaStatsDelta,
-		Postgres: client.postgresStatsDelta,
-		Redis:    client.redisStatsDelta,
+		Conns:   append(active, closed...),
+		USMData: client.usmDelta,
 	}
 }
 
@@ -680,126 +642,18 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 	}
 }
 
-// storeUSMStats is a generic function to store USM stats for all clients.
-func storeUSMStats[K, S comparable](
-	allStats map[K]S,
-	clients map[string]*client,
-	getDelta func(*client) map[K]S,
-	setDelta func(*client, map[K]S),
-	combineStats func(S, S),
-	limit int,
-	incDropped func(...string),
-) {
-	if len(clients) == 1 {
-		for _, client := range clients {
-			delta := getDelta(client)
-			if len(delta) == 0 && len(allStats) <= limit {
-				setDelta(client, allStats)
-				return
-			}
-		}
-	}
-
-	for key, stats := range allStats {
-		for _, client := range clients {
-			delta := getDelta(client)
-			prevStats, ok := delta[key]
-			if !ok && len(delta) >= limit {
-				incDropped()
-				continue
-			}
-
-			var zero S
-			if prevStats != zero {
-				combineStats(prevStats, stats)
-				delta[key] = prevStats
-			} else {
-				delta[key] = stats
-			}
-		}
-	}
-}
-
-// storeHTTPStats stores the latest HTTP stats for all clients
-func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats) {
-	storeUSMStats[http.Key, *http.RequestStats](
-		allStats,
-		ns.clients,
-		func(c *client) map[http.Key]*http.RequestStats { return c.httpStatsDelta },
-		func(c *client, m map[http.Key]*http.RequestStats) { c.httpStatsDelta = m },
-		func(prev, new *http.RequestStats) { prev.CombineWith(new) },
-		ns.maxHTTPStats,
-		stateTelemetry.httpStatsDropped.Inc,
-	)
-}
-
-func (ns *networkState) storeHTTP2Stats(allStats map[http.Key]*http.RequestStats) {
-	storeUSMStats[http.Key, *http.RequestStats](
-		allStats,
-		ns.clients,
-		func(c *client) map[http.Key]*http.RequestStats { return c.http2StatsDelta },
-		func(c *client, m map[http.Key]*http.RequestStats) { c.http2StatsDelta = m },
-		func(prev, new *http.RequestStats) { prev.CombineWith(new) },
-		ns.maxHTTPStats,
-		stateTelemetry.http2StatsDropped.Inc,
-	)
-}
-
-// storeKafkaStats stores the latest Kafka stats for all clients
-func (ns *networkState) storeKafkaStats(allStats map[kafka.Key]*kafka.RequestStats) {
-	storeUSMStats[kafka.Key, *kafka.RequestStats](
-		allStats,
-		ns.clients,
-		func(c *client) map[kafka.Key]*kafka.RequestStats { return c.kafkaStatsDelta },
-		func(c *client, m map[kafka.Key]*kafka.RequestStats) { c.kafkaStatsDelta = m },
-		func(prev, new *kafka.RequestStats) { prev.CombineWith(new) },
-		ns.maxKafkaStats,
-		stateTelemetry.kafkaStatsDropped.Inc,
-	)
-}
-
-// storePostgresStats stores the latest Postgres stats for all clients
-func (ns *networkState) storePostgresStats(allStats map[postgres.Key]*postgres.RequestStat) {
-	storeUSMStats[postgres.Key, *postgres.RequestStat](
-		allStats,
-		ns.clients,
-		func(c *client) map[postgres.Key]*postgres.RequestStat { return c.postgresStatsDelta },
-		func(c *client, m map[postgres.Key]*postgres.RequestStat) { c.postgresStatsDelta = m },
-		func(prev, new *postgres.RequestStat) { prev.CombineWith(new) },
-		ns.maxPostgresStats,
-		stateTelemetry.postgresStatsDropped.Inc,
-	)
-}
-
-// storeRedisStats stores the latest Redis stats for all clients
-func (ns *networkState) storeRedisStats(allStats map[redis.Key]*redis.RequestStats) {
-	storeUSMStats[redis.Key, *redis.RequestStats](
-		allStats,
-		ns.clients,
-		func(c *client) map[redis.Key]*redis.RequestStats { return c.redisStatsDelta },
-		func(c *client, m map[redis.Key]*redis.RequestStats) { c.redisStatsDelta = m },
-		func(prev, new *redis.RequestStats) { prev.CombineWith(new) },
-		ns.maxRedisStats,
-		stateTelemetry.redisStatsDropped.Inc,
-	)
-}
-
 func (ns *networkState) getClient(clientID string) *client {
 	if c, ok := ns.clients[clientID]; ok {
 		return c
 	}
 	closedConnections := &closedConnections{conns: make([]ConnectionStats, 0, minClosedCapacity), byCookie: make(map[StatCookie]int)}
 	c := &client{
-		lastFetch:          time.Now(),
-		stats:              make(map[StatCookie]StatCounters),
-		closed:             closedConnections,
-		dnsStats:           dns.StatsByKeyByNameByType{},
-		httpStatsDelta:     map[http.Key]*http.RequestStats{},
-		http2StatsDelta:    map[http.Key]*http.RequestStats{},
-		kafkaStatsDelta:    map[kafka.Key]*kafka.RequestStats{},
-		postgresStatsDelta: map[postgres.Key]*postgres.RequestStat{},
-		redisStatsDelta:    map[redis.Key]*redis.RequestStats{},
-		lastTelemetries:    make(map[ConnTelemetryType]int64),
+		lastFetch:       time.Now(),
+		stats:           make(map[StatCookie]StatCounters),
+		closed:          closedConnections,
+		dnsStats:        dns.StatsByKeyByNameByType{},
+		usmDelta:        NewUSMProtocolsData(),
+		lastTelemetries: make(map[ConnTelemetryType]int64),
 	}
 	ns.clients[clientID] = c
 	return c

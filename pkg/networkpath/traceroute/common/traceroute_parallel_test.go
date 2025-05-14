@@ -25,17 +25,18 @@ type MockDriver struct {
 
 	sentTTLs map[uint8]struct{}
 
-	info               TracerouteDriverInfo
-	sendHandler        func(ttl uint8) error
-	receiveHandler     func() (*ProbeResponse, error)
-	icmpReceiveHandler func() (*ProbeResponse, error)
+	info           TracerouteDriverInfo
+	sendHandler    func(ttl uint8) error
+	receiveHandler func() (*ProbeResponse, error)
 }
 
 func initMockDriver(t *testing.T, params TracerouteParallelParams) *MockDriver {
 	return &MockDriver{
-		t:              t,
-		params:         params,
-		info:           TracerouteDriverInfo{UsesReceiveICMPProbe: true},
+		t:      t,
+		params: params,
+		info: TracerouteDriverInfo{
+			SupportsParallel: true,
+		},
 		sentTTLs:       make(map[uint8]struct{}),
 		sendHandler:    nil,
 		receiveHandler: nil,
@@ -64,28 +65,16 @@ func (m *MockDriver) ReceiveProbe(timeout time.Duration) (*ProbeResponse, error)
 		return noData(timeout)
 	}
 	res, err := m.receiveHandler()
-	if !errors.Is(err, ErrReceiveProbeNoPkt) {
+	var errNoPkt *ReceiveProbeNoPktError
+	if !errors.As(err, &errNoPkt) {
 		m.t.Logf("read %+v, %v\n", res, err)
-	}
-	return res, err
-}
-
-func (m *MockDriver) ReceiveICMPProbe(timeout time.Duration) (*ProbeResponse, error) {
-	require.Equal(m.t, m.params.PollFrequency, timeout)
-
-	if m.icmpReceiveHandler == nil {
-		return noData(timeout)
-	}
-	res, err := m.icmpReceiveHandler()
-	if !errors.Is(err, ErrReceiveProbeNoPkt) {
-		m.t.Logf("icmp read %+v, %v\n", res, err)
 	}
 	return res, err
 }
 
 func noData(pollFrequency time.Duration) (*ProbeResponse, error) {
 	time.Sleep(pollFrequency)
-	return nil, ErrReceiveProbeNoPkt
+	return nil, &ReceiveProbeNoPktError{Err: fmt.Errorf("testing, no data")}
 }
 
 var testParams = TracerouteParallelParams{
@@ -150,11 +139,7 @@ func TestParallelTraceroute(t *testing.T) {
 	require.Len(t, results, mockDestTTL)
 }
 
-type targets struct {
-	useRegular, useIcmp bool
-}
-
-func testParallelTracerouteShuffled(t *testing.T, seed int64, getTargets func(uint8) targets) {
+func testParallelTracerouteShuffled(t *testing.T, seed int64) {
 	// similar to TestParallelTraceroute, except it shuffles the received probes
 	// and expects them to come back in the correct order
 	r := rand.New(rand.NewSource(seed))
@@ -164,7 +149,6 @@ func testParallelTracerouteShuffled(t *testing.T, seed int64, getTargets func(ui
 
 	var expectedResults []*ProbeResponse
 	receiveProbes := make(chan *ProbeResponse, testParams.MaxTTL)
-	icmpProbes := make(chan *ProbeResponse, testParams.MaxTTL)
 
 	m.sendHandler = func(ttl uint8) error {
 		result := mockResult(ttl)
@@ -173,16 +157,9 @@ func testParallelTracerouteShuffled(t *testing.T, seed int64, getTargets func(ui
 
 			if result.IsDest {
 				for _, p := range r.Perm(len(expectedResults)) {
-					targets := getTargets(ttl)
-					if targets.useRegular {
-						receiveProbes <- expectedResults[p]
-					}
-					if targets.useIcmp {
-						icmpProbes <- expectedResults[p]
-					}
+					receiveProbes <- expectedResults[p]
 				}
 				close(receiveProbes)
-				close(icmpProbes)
 			}
 		}
 
@@ -196,52 +173,16 @@ func testParallelTracerouteShuffled(t *testing.T, seed int64, getTargets func(ui
 		return probe, nil
 	}
 
-	m.icmpReceiveHandler = func() (*ProbeResponse, error) {
-		probe, ok := <-icmpProbes
-		if !ok {
-			return noData(testParams.PollFrequency)
-		}
-		return probe, nil
-	}
-
 	results, err := TracerouteParallel(context.Background(), m, testParams)
 	require.NoError(t, err)
 	require.Equal(t, expectedResults, results)
 	require.Len(t, results, mockDestTTL)
 }
 func TestParallelTracerouteShuffled(t *testing.T) {
-	seed := int64(0)
-	for range 3 {
-		t.Run(fmt.Sprintf("seed=%d, regular", seed), func(t *testing.T) {
-			regular := func(uint8) targets { return targets{useRegular: true} }
-			testParallelTracerouteShuffled(t, seed, regular)
+	for seed := range 9 {
+		t.Run(fmt.Sprintf("seed=%d", seed), func(t *testing.T) {
+			testParallelTracerouteShuffled(t, int64(seed))
 		})
-		seed++
-	}
-	for range 3 {
-		t.Run(fmt.Sprintf("seed=%d, icmp", seed), func(t *testing.T) {
-			icmp := func(uint8) targets { return targets{useIcmp: true} }
-			testParallelTracerouteShuffled(t, seed, icmp)
-		})
-		seed++
-	}
-	for range 3 {
-		t.Run(fmt.Sprintf("seed=%d, mixed", seed), func(t *testing.T) {
-			getTargets := func(ttl uint8) targets {
-				useRegular := ttl%2 == 0
-				return targets{useRegular: useRegular, useIcmp: !useRegular}
-			}
-			testParallelTracerouteShuffled(t, seed, getTargets)
-		})
-		seed++
-	}
-	for range 3 {
-		t.Run(fmt.Sprintf("seed=%d, both", seed), func(t *testing.T) {
-			// send it to both - that way we exercise the mutex in writeProbe()
-			both := func(uint8) targets { return targets{useRegular: true, useIcmp: true} }
-			testParallelTracerouteShuffled(t, seed, both)
-		})
-		seed++
 	}
 }
 
@@ -546,7 +487,7 @@ func TestParallelTracerouteDoubleReceive(t *testing.T) {
 }
 
 func TestCheckParallelRetryable(t *testing.T) {
-	require.True(t, CheckParallelRetryable("test", ErrReceiveProbeNoPkt))
+	require.True(t, CheckParallelRetryable("test", &ReceiveProbeNoPktError{fmt.Errorf("foo")}))
 	require.True(t, CheckParallelRetryable("test", &BadPacketError{fmt.Errorf("foo")}))
 
 	require.False(t, CheckParallelRetryable("test", fmt.Errorf("foo")))
@@ -599,19 +540,4 @@ func TestParallelTracerouteDestOverwrite(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expectedResults, results)
 	require.Len(t, results, mockDestTTL)
-}
-
-func TestParallelTracerouteDisableICMP(t *testing.T) {
-	// this test checks that TracerouteParallel doesn't call ReceiveICMPProbe when it's disabled
-	m := initMockDriver(t, testParams)
-	m.info.UsesReceiveICMPProbe = false
-	t.Parallel()
-
-	m.icmpReceiveHandler = func() (*ProbeResponse, error) {
-		t.Fatal("should not have called ReceiveICMPProbe")
-		return nil, fmt.Errorf("should not have called ReceiveICMPProbe")
-	}
-
-	_, err := TracerouteParallel(context.Background(), m, testParams)
-	require.NoError(t, err)
 }
