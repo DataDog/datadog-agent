@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package common
+// Package config defines the configurations to install.
+package config
 
 import (
 	"bytes"
@@ -25,7 +26,8 @@ const (
 	injectTracerConfigFile = "inject/tracer.yaml"
 )
 
-func writeConfigs(config Config, configDir string) error {
+// WriteConfigs writes the configuration files to the given directory.
+func WriteConfigs(config Config, configDir string) error {
 	// ensure config root is created with correct permissions
 	err := paths.EnsureInstallerDataDir()
 	if err != nil {
@@ -48,9 +50,11 @@ func writeConfigs(config Config, configDir string) error {
 			return fmt.Errorf("could not write system-probe.yaml: %w", err)
 		}
 	}
-	err = writeConfig(filepath.Join(configDir, injectTracerConfigFile), config.InjectTracerYAML, 0644, false)
-	if err != nil {
-		return fmt.Errorf("could not write tracer.yaml: %w", err)
+	if config.ApplicationMonitoringYAML != nil {
+		err = writeConfig(filepath.Join(configDir, "application_monitoring.yaml"), config.ApplicationMonitoringYAML, 0644, true)
+		if err != nil {
+			return fmt.Errorf("could not write application_monitoring.yaml: %w", err)
+		}
 	}
 	for name, config := range config.IntegrationConfigs {
 		err = writeConfig(filepath.Join(configDir, "conf.d", name), config, 0644, false)
@@ -117,10 +121,10 @@ type Config struct {
 	SecurityAgentYAML *SecurityAgentConfig
 	// SystemProbeYAML is the content of the system-probe.yaml file
 	SystemProbeYAML *SystemProbeConfig
-	// InjectTracerYAML is the content of the inject/tracer.yaml file
-	InjectTracerYAML InjectTracerConfig
 	// IntegrationConfigs is the content of the integration configuration files under conf.d/
 	IntegrationConfigs map[string]IntegrationConfig
+	// ApplicationMonitoringYAML is the content of the application_monitoring.yaml configuration file
+	ApplicationMonitoringYAML *ApplicationMonitoringConfig
 }
 
 // DatadogConfig represents the configuration to write in /etc/datadog-agent/datadog.yaml
@@ -248,6 +252,28 @@ type LogProcessingRule struct {
 	Pattern string `yaml:"pattern" json:"pattern"`
 }
 
+// ApplicationMonitoringConfig represents the configuration for the application monitoring
+type ApplicationMonitoringConfig struct {
+	Default APMConfigurationDefault `yaml:"apm_configuration_default,omitempty"`
+}
+
+// APMConfigurationDefault represents a host-wide configuration for services
+type APMConfigurationDefault struct {
+	TraceDebug                    *bool   `yaml:"DD_TRACE_DEBUG,omitempty"`
+	IntegrationsEnabled           *bool   `yaml:"DD_INTEGRATIONS_ENABLED,omitempty"`
+	DataJobsCommandPattern        string  `yaml:"DD_DATA_JOBS_COMMAND_PATTERN,omitempty"`
+	DataJobsSparkAppNameAsService *bool   `yaml:"DD_SPARK_APP_NAME_AS_SERVICE,omitempty"`
+	RuntimeMetricsEnabled         *bool   `yaml:"DD_RUNTIME_METRICS_ENABLED,omitempty"`
+	LogsInjection                 *bool   `yaml:"DD_LOGS_INJECTION,omitempty"`
+	APMTracingEnabled             *bool   `yaml:"DD_APM_TRACING_ENABLED,omitempty"`
+	ProfilingEnabled              *string `yaml:"DD_PROFILING_ENABLED,omitempty"`
+	DataStreamsEnabled            *bool   `yaml:"DD_DATA_STREAMS_ENABLED,omitempty"`
+	AppsecEnabled                 *bool   `yaml:"DD_APPSEC_ENABLED,omitempty"`
+	IastEnabled                   *bool   `yaml:"DD_IAST_ENABLED,omitempty"`
+	DataJobsEnabled               *bool   `yaml:"DD_DATA_JOBS_ENABLED,omitempty"`
+	AppsecScaEnabled              *bool   `yaml:"DD_APPSEC_SCA_ENABLED,omitempty"`
+}
+
 // mergeConfig merges the current config with the setup config.
 //
 // The values are merged as follows:
@@ -299,4 +325,9 @@ func isMap(i interface{}) bool {
 
 func isScalar(i interface{}) bool {
 	return !isList(i) && !isMap(i)
+}
+
+// BoolToPtr converts a bool to a pointer of a bool
+func BoolToPtr(b bool) *bool {
+	return &b
 }
