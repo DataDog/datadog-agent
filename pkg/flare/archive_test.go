@@ -370,6 +370,6 @@ func TestProcessAgentChecks(t *testing.T) {
 		remoteProvider.getChecksFromProcessAgent(mock, getProcessAPIAddressPort)
 
 		// if auth is not set, "no session token provided" would appear instead
-		mock.AssertFileContent("error collecting data for 'process_discovery_check_output.json': process_discovery check is not running or has not been scheduled yet", "process_discovery_check_output.json")
+		mock.AssertFileContent("error collecting data for 'process_discovery_check_output.json': status code: 404, body: process_discovery check is not running or has not been scheduled yet", "process_discovery_check_output.json")
 	})
 }
