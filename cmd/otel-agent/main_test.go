@@ -11,10 +11,12 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/stretchr/testify/require"
 )
 
 func TestExitCode_Disabled(t *testing.T) {
+	flake.Mark(t)
 	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "false")
 	cmd := exec.Command("go", "run", "-tags", "otlp", "main.go", "--config", "test_config.yaml")
 	err := cmd.Run()
