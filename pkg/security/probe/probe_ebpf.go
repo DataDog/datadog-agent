@@ -1328,6 +1328,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 				return
 			}
 			p.addToDNSResolver(dnsLayer)
+			event.Type = uint32(model.DNSEventType) // remap to regular DNS event type
 			event.DNS = model.DNSEvent{
 				ID: dnsLayer.ID,
 				Question: model.DNSQuestion{
@@ -1722,8 +1723,9 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 }
 
 func (p *EBPFProbe) updateEBPFCheckMapping() {
-	ddebpf.ClearNameMappings("cws")
+	ddebpf.ClearProgramIDMappings("cws")
 	ddebpf.AddNameMappings(p.Manager, "cws")
+	ddebpf.AddProbeFDMappings(p.Manager)
 }
 
 // GetDiscarders retrieve the discarders
@@ -2226,7 +2228,7 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		},
 		manager.ConstantEditor{
 			Name:  "dns_port",
-			Value: uint64(p.probe.Opts.DNSPort),
+			Value: uint64(utils.HostToNetworkShort(p.probe.Opts.DNSPort)),
 		},
 		manager.ConstantEditor{
 			Name:  "use_ring_buffer",
