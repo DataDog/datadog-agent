@@ -13,6 +13,10 @@ ARG BASE_IMAGE_UBUNTU_NAME
 ARG DD_GIT_COMMIT_SHA
 ENV DEBIAN_FRONTEND=noninteractive
 
+ENV PATH="/usr/local/go/bin:${PATH}"
+ENV GOPATH=/go
+
+
 # Set the working directory
 WORKDIR /workspace
 
@@ -39,16 +43,12 @@ RUN git clone --filter=blob:none https://github.com/DataDog/datadog-agent.git da
 WORKDIR /workspace/datadog-agent
 
 # Install Go based on architecture
-RUN GO_VERSION=$(cat .go-version) && \
+RUN mkdir -p $GOPATH && \
+    GO_VERSION=$(cat .go-version) && \
     ARCH=$(dpkg --print-architecture) && \
     curl -OL https://golang.org/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz && \
     tar -C /usr/local -xzf go${GO_VERSION}.linux-${ARCH}.tar.gz && \
     rm go${GO_VERSION}.linux-${ARCH}.tar.gz
-
-# Set up Go environment
-ENV PATH="/usr/local/go/bin:${PATH}"
-RUN mkdir /go
-ENV GOPATH=/go
 
 # Create and activate virtual environment, then install requirements
 RUN python3 -m venv venv && \
