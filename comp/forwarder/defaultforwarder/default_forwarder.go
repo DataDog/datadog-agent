@@ -134,9 +134,10 @@ func NewOptions(config config.Component, log log.Component, keysPerDomain map[st
 	}
 	if r, ok := resolvers[utils.GetInfraEndpoint(config)]; ok && vectorMetricsURL != "" {
 		log.Debugf("Configuring forwarder to send metrics to observability_pipelines_worker: %s", vectorMetricsURL)
+		apiKeys, _ := r.GetAPIKeysInfo()
 		resolver, err := pkgresolver.NewDomainResolverWithMetricToVector(
 			r.GetBaseDomain(),
-			r.GetAPIKeysInfo(),
+			apiKeys,
 			vectorMetricsURL,
 		)
 		if err != nil {

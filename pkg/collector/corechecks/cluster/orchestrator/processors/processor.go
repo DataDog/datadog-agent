@@ -8,11 +8,15 @@
 package processors
 
 import (
+	"reflect"
+	"time"
+
 	jsoniter "github.com/json-iterator/go"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
@@ -33,18 +37,20 @@ type ProcessorContext interface {
 	IsManifestProducer() bool
 	GetKind() string
 	GetAPIVersion() string
+	IsTerminatedResources() bool
 }
 
 // BaseProcessorContext is the base context for all processors
 type BaseProcessorContext struct {
-	Cfg              *config.OrchestratorConfig
-	NodeType         pkgorchestratormodel.NodeType
-	MsgGroupID       int32
-	ClusterID        string
-	ManifestProducer bool
-	Kind             string
-	APIVersion       string
-	ExtraTags        []string
+	Cfg                 *config.OrchestratorConfig
+	NodeType            pkgorchestratormodel.NodeType
+	MsgGroupID          int32
+	ClusterID           string
+	ManifestProducer    bool
+	Kind                string
+	APIVersion          string
+	ExtraTags           []string
+	TerminatedResources bool
 }
 
 // GetOrchestratorConfig returns the orchestrator config
@@ -82,6 +88,11 @@ func (c *BaseProcessorContext) GetAPIVersion() string {
 	return c.APIVersion
 }
 
+// IsTerminatedResources returns true if resources are terminated
+func (c *BaseProcessorContext) IsTerminatedResources() bool {
+	return c.TerminatedResources
+}
+
 // K8sProcessorContext holds k8s resource processing attributes
 type K8sProcessorContext struct {
 	BaseProcessorContext
@@ -96,7 +107,7 @@ type K8sProcessorContext struct {
 // ECSProcessorContext holds ECS resource processing attributes
 type ECSProcessorContext struct {
 	BaseProcessorContext
-	AWSAccountID int
+	AWSAccountID string
 	ClusterName  string
 	Region       string
 	SystemInfo   *model.SystemInfo
@@ -196,8 +207,12 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 	resourceList := p.h.ResourceList(ctx, list)
 	resourceMetadataModels := make([]interface{}, 0, len(resourceList))
 	resourceManifestModels := make([]interface{}, 0, len(resourceList))
+	now := time.Now()
 
 	for _, resource := range resourceList {
+		if ctx.IsTerminatedResources() {
+			resource = insertDeletionTimestampIfPossible(resource, now)
+		}
 		// Scrub before extraction.
 		p.h.ScrubBeforeExtraction(ctx, resource)
 
@@ -293,4 +308,48 @@ func ChunkMetadata(ctx ProcessorContext, p *Processor, resourceMetadataModels, r
 	}
 
 	return metadataMessages
+}
+
+func insertDeletionTimestampIfPossible(obj interface{}, ts time.Time) interface{} {
+	v := reflect.ValueOf(obj)
+	if v.Kind() != reflect.Ptr || v.IsNil() {
+		log.Debugf("object is not a pointer to a nil pointer, got type: %T", obj)
+		return obj
+	}
+
+	v = v.Elem()
+	if v.Kind() != reflect.Struct {
+		log.Debugf("obj must point to a struct, got type: %T", obj)
+		return obj
+	}
+
+	metaTs := metav1.NewTime(ts)
+
+	if _, ok := obj.(*unstructured.Unstructured); ok {
+		obj.(*unstructured.Unstructured).SetDeletionTimestamp(&metaTs)
+		return obj
+	}
+
+	// Look for metadata field
+	metadataField := v.FieldByName("ObjectMeta")
+	if !metadataField.IsValid() || metadataField.Kind() != reflect.Struct {
+		log.Debugf("obj does not have ObjectMeta field, got type: %T", obj)
+		return obj
+	}
+
+	// Access deletionTimestamp field within ObjectMeta
+	deletionTimestampField := metadataField.FieldByName("DeletionTimestamp")
+	if !deletionTimestampField.IsValid() || !deletionTimestampField.CanSet() {
+		log.Debugf("ObjectMeta does not have a settable DeletionTimestamp, got field: %T", obj)
+		return obj
+	}
+
+	// Do nothing if it's already set
+	if !deletionTimestampField.IsNil() {
+		return obj
+	}
+
+	// Set the deletionTimestamp
+	deletionTimestampField.Set(reflect.ValueOf(&metaTs))
+	return obj
 }

@@ -62,6 +62,11 @@ func (sm *OnDemandProbesManager) setHookPoints(hps []rules.OnDemandHookPoint) {
 }
 
 func (sm *OnDemandProbesManager) getHookNameFromID(id int) string {
+	if id == 0 {
+		seclog.Errorf("invalid on-demand hook ID: %d", id)
+	}
+	id-- // IDs start at 1
+
 	sm.RLock()
 	defer sm.RUnlock()
 
@@ -101,7 +106,7 @@ func (sm *OnDemandProbesManager) updateProbes() {
 		argsEditors := buildArgsEditors(hookPoint.Args)
 		argsEditors = append(argsEditors, manager.ConstantEditor{
 			Name:  "synth_id",
-			Value: uint64(hookID),
+			Value: uint64(hookID + 1),
 		})
 
 		editor := func(spec *ebpf.ProgramSpec) {
