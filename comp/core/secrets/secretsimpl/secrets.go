@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -311,14 +312,14 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 		if runtime.GOOS == "windows" {
 			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "secret-generic-connector.exe")
 		} else {
-			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
+			nonWindowsPath := path.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
+			permission, _ := filesystem.NewPermission()
+			err := permission.RestrictAccessToUser(nonWindowsPath)
+			if err != nil {
+				log.Warnf("Cannot give the user access to %s: %s", nonWindowsPath, err)
+			}
+			r.backendCommand = nonWindowsPath
 		}
-		r.backendConfig["backend_type"] = r.backendType
-		jsonifiedBackendConfig, err := json.Marshal(r.backendConfig)
-		if err != nil {
-			return nil, fmt.Errorf("could not Marshal backend config: %s", err)
-		}
-		r.backendArguments = append(r.backendArguments, "--config", string(jsonifiedBackendConfig))
 	}
 	if data == nil || r.backendCommand == "" {
 		return data, nil

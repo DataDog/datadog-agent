@@ -6,7 +6,6 @@
 package secretsimpl
 
 import (
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -1004,41 +1003,4 @@ func TestIsLikelyAPIOrAppKey(t *testing.T) {
 			assert.Equal(t, tc.expect, result)
 		})
 	}
-}
-
-func TestBackendTypeWithoutCommand(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
-	r := newEnabledSecretResolver(tel)
-
-	r.enabled = true
-	r.backendType = "aws.secrets"
-	r.backendConfig = map[string]interface{}{
-		"secret_id": "/datadog/secret/test",
-		"aws_session": map[string]interface{}{
-			"aws_region": "us-east-1",
-		},
-	}
-
-	r.fetchHookFunc = func([]string) (map[string]string, error) {
-		return map[string]string{
-			"pass1": "password1",
-			"pass2": "password2",
-		}, nil
-	}
-	_, err := r.Resolve(testConf, "test-origin")
-	require.NoError(t, err)
-
-	assert.Equal(t, "aws.secrets", r.backendConfig["backend_type"])
-	assert.Contains(t, r.backendArguments, "--config")
-	configIndex := slices.Index(r.backendArguments, "--config")
-	require.Equal(t, configIndex+1, len(r.backendArguments)-1)
-
-	var parsedConfig map[string]interface{}
-	err = json.Unmarshal([]byte(r.backendArguments[configIndex+1]), &parsedConfig)
-	require.NoError(t, err)
-	assert.Equal(t, "aws.secrets", parsedConfig["backend_type"])
-	assert.Equal(t, "/datadog/secret/test", parsedConfig["secret_id"])
-	awsSession, ok := parsedConfig["aws_session"].(map[string]interface{})
-	require.True(t, ok)
-	assert.Equal(t, "us-east-1", awsSession["aws_region"])
 }
