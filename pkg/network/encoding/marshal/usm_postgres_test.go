@@ -301,7 +301,7 @@ func (s *PostgresSuite) TestPostgresIDCollisionRegression() {
 	// addresses but different PIDs *won't* be associated with the Postgres stats
 	// object
 	streamer := NewProtoTestStreamer[*model.Connection]()
-	encoder.WritePostgresAggregations(in.Conns[1], model.NewConnectionBuilder(streamer))
+	encoder.EncodeConnection(in.Conns[1], model.NewConnectionBuilder(streamer))
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)
 	assert.Empty(conn.DataStreamsAggregations)
@@ -363,7 +363,7 @@ func (s *PostgresSuite) TestPostgresLocalhostScenario() {
 
 func getPostgresAggregations(t *testing.T, encoder *postgresEncoder, c network.ConnectionStats) *model.DatabaseAggregations {
 	streamer := NewProtoTestStreamer[*model.Connection]()
-	encoder.WritePostgresAggregations(c, model.NewConnectionBuilder(streamer))
+	encoder.EncodeConnection(c, model.NewConnectionBuilder(streamer))
 
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)
@@ -430,7 +430,7 @@ func commonBenchmarkPostgresEncoder(b *testing.B, numberOfPorts uint16) {
 		h = newPostgresEncoder(payload.Postgres)
 		streamer.Reset()
 		for _, conn := range payload.Conns {
-			h.WritePostgresAggregations(conn, a)
+			h.EncodeConnection(conn, a)
 		}
 		h.Close()
 	}
