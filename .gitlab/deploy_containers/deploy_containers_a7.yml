@@ -7,10 +7,6 @@
 #   In particular, blocks defined in the main .gitlab-ci.yml are unavailable.
 # - Dependencies / needs on jobs not defined in this file or the included files cannot be made.
 
-stages:
-  - deploy_containers
-  - deploy_mutable_image_tags
-
 include:
   - .gitlab/common/container_publish_job_templates.yml
   - .gitlab/deploy_containers/conditions.yml
