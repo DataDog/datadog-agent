@@ -7,7 +7,6 @@ package apm
 
 import (
 	"fmt"
-	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -18,6 +17,7 @@ import (
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
@@ -145,7 +145,6 @@ func testAutoVersionTraces(t *testing.T, c *assert.CollectT, intake *components.
 	assert.NoError(c, err)
 	assert.NotEmpty(c, traces)
 	t.Logf("Got %d apm traces", len(traces))
-	imageTagRe := regexp.MustCompile(`^v0\.0\.[[:digit:]]+$`)
 	for _, tr := range traces {
 		for _, tp := range tr.TracerPayloads {
 			t.Log("Tracer Payload Tags:", tp.Tags["_dd.tags.container"])
@@ -154,7 +153,7 @@ func testAutoVersionTraces(t *testing.T, c *assert.CollectT, intake *components.
 			imageTag, ok := ctags["image_tag"]
 			assert.True(t, ok, "expected to find image_tag in container tags")
 			t.Logf("Got image Tag: %v", imageTag)
-			assert.True(t, imageTagRe.MatchString(imageTag))
+			assert.Equal(t, apps.Version, imageTag)
 		}
 	}
 }
@@ -186,12 +185,11 @@ func testAutoVersionStats(t *testing.T, c *assert.CollectT, intake *components.F
 	assert.NoError(c, err)
 	assert.NotEmpty(c, stats)
 	t.Logf("Got %d apm stats", len(stats))
-	imageTagRe := regexp.MustCompile(`^v0\.0\.[[:digit:]]+$`)
 	for _, p := range stats {
 		for _, s := range p.StatsPayload.Stats {
 			t.Log("Client Payload:", spew.Sdump(s))
 			t.Logf("Got image Tag: %v", s.GetImageTag())
-			assert.True(t, imageTagRe.MatchString(s.GetImageTag()))
+			assert.Equal(t, apps.Version, s.GetImageTag())
 			t.Logf("Got git commit sha: %v", s.GetGitCommitSha())
 			assert.Equal(t, "abcd1234", s.GetGitCommitSha())
 		}

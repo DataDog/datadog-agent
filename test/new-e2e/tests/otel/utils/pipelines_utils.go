@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 )
 
 const (
@@ -678,7 +679,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite, ust bool, service s
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name:            name,
-						Image:           "ghcr.io/datadog/apps-calendar-go:v0.0.1@sha256:17a708a1229151fcc95257a62ad6ef809efdf80d971dc452feaafc04d1fc71d3",
+						Image:           "ghcr.io/datadog/apps-calendar-go:" + apps.Version,
 						ImagePullPolicy: "IfNotPresent",
 						Ports: []corev1.ContainerPort{{
 							Name:          "http",
