@@ -131,6 +131,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 		Hostname:             hostname,
 		HTTPProxy:            config.GetString("proxy.http"),
 		HTTPSProxy:           config.GetString("proxy.https"),
+		SkipTLSValidation:    config.GetBool("skip_tls_validation"),
 		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
 		IsCentos6:            env.DetectCentos6(),
 		IsFromDaemon:         true,
