@@ -218,21 +218,16 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 // It waits for service events to trigger template resolution and
 // checks the tags on existing services are up to date.
 func (ac *AutoConfig) serviceListening() {
-	ctx, cancel := context.WithCancel(context.Background())
-
 	for {
 		select {
 		case <-ac.listenerStop:
 			ac.healthListening.Deregister() //nolint:errcheck
-			cancel()
 			return
-		case healthDeadline := <-ac.healthListening.C:
-			cancel()
-			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
+		case <-ac.healthListening.C: // To be considered healthy
 		case svc := <-ac.newService:
 			ac.processNewService(svc)
 		case svc := <-ac.delService:
-			ac.processDelService(ctx, svc)
+			ac.processDelService(svc)
 		}
 	}
 }
@@ -679,8 +674,8 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache
-func (ac *AutoConfig) processDelService(ctx context.Context, svc listeners.Service) {
-	changes := ac.cfgMgr.processDelService(ctx, svc)
+func (ac *AutoConfig) processDelService(svc listeners.Service) {
+	changes := ac.cfgMgr.processDelService(svc)
 	ac.applyChanges(changes)
 }
 
