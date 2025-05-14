@@ -23,7 +23,7 @@ import (
 type remoteConfigClient interface {
 	Start()
 	Close()
-	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
+	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) func()
 	GetInstallerState() *pbgo.ClientUpdater
 	SetInstallerState(state *pbgo.ClientUpdater)
 }

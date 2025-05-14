@@ -527,7 +527,7 @@ type AgentConfig struct {
 type RemoteClient interface {
 	Close()
 	Start()
-	Subscribe(string, func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
+	Subscribe(string, func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) func()
 	UpdateApplyStatus(cfgPath string, status state.ApplyStatus)
 }
 
