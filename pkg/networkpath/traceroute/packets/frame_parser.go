@@ -20,8 +20,10 @@ import (
 // FrameParser parses traceroute responses using gopacket.
 type FrameParser struct {
 	IP4      layers.IPv4
+	IP6      layers.IPv6
 	TCP      layers.TCP
 	ICMP4    layers.ICMPv4
+	ICMP6    layers.ICMPv6
 	Payload  gopacket.Payload
 	Layers   []gopacket.LayerType
 	parserv4 *gopacket.DecodingLayerParser
@@ -38,8 +40,8 @@ const expectedLayerCount = 2
 func NewFrameParser() *FrameParser {
 	p := &FrameParser{}
 	p.parserv4 = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &p.IP4, &p.TCP, &p.ICMP4, &p.Payload)
-	// TODO: IPv6 is not implemented yet
-	p.parserv6 = nil
+	// TODO: IPv6 is not actually implemented yet
+	p.parserv6 = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv6, &p.IP6, &p.TCP, &p.ICMP6, &p.Payload)
 
 	return p
 }
@@ -50,8 +52,8 @@ func (p *FrameParser) Parse(buffer []byte) error {
 	if err != nil {
 		return err
 	}
-	// TODO: currently we don't parse/ignore ipv6
-	if parser == nil {
+	// TODO: currently we don't support ipv6
+	if parser == p.parserv6 {
 		return ignoredLayerErr
 	}
 	err = parser.DecodeLayers(buffer, &p.Layers)
@@ -212,8 +214,6 @@ func (p *FrameParser) getParser(buffer []byte) (*gopacket.DecodingLayerParser, e
 	case 4:
 		return p.parserv4, nil
 	case 6:
-		// this is nil for now
-		// TODO: implement ipv6
 		return p.parserv6, nil
 	default:
 		return nil, fmt.Errorf("unexpected IP version %d", version)
