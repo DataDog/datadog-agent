@@ -80,6 +80,6 @@ build do
     # Extract the tar.gz file
     target = "#{install_dir}/embedded/bin/secret-generic-connector"
     copy "#{project_dir}/datadog-secret-backend", target
-    FileUtils.chmod(0500, target)
+    block { File.chmod(0500, target) }
   end
 end
