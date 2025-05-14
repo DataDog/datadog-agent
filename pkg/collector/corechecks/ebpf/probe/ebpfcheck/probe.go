@@ -457,6 +457,7 @@ retry:
 			continue
 		}
 
+		progKey, progKeyExists := cookies[*key]
 		delete(cookies, *key)
 
 		name, err := ddebpf.GetProgNameFromProgID(key.Kprobe_id)
@@ -470,8 +471,7 @@ retry:
 			module = mod
 		}
 
-		progKey, ok := cookies[*key]
-		if !ok {
+		if !progKeyExists {
 			log.Errorf("unable to find type for program with kprobe id %d (%s)", key.Kprobe_id, name)
 			continue
 		}
