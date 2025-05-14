@@ -286,6 +286,7 @@ func parseSize(sizeString string) (float64, error) {
 	return size * largestFactor, nil
 }
 
+// TODO: error on invalid format (no matches)
 func parseUptimeString(uptime string) (float64, error) {
 	uptime = strings.TrimSuffix(uptime, ".") // Remove the trailing period
 	matches := versaUptimeRegex.FindAllStringSubmatch(uptime, -1)
@@ -317,5 +318,5 @@ func parseUptimeString(uptime string) (float64, error) {
 		}
 	}
 
-	return math.Round(float64(total.Milliseconds()) / 10), nil // In hundredths of a second, to match SNMP
+	return math.Round(float64(total) / float64(time.Millisecond) / 10), nil // In hundredths of a second, to match SNMP
 }
