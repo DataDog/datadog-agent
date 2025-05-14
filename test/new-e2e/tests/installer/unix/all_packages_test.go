@@ -219,9 +219,9 @@ func (s *packageBaseSuite) RunInstallScriptWithError(params ...string) error {
 		// This is temporary until the install script is updated to support calling the installer script
 		var scriptURLPrefix string
 		if pipelineID, ok := os.LookupEnv("E2E_PIPELINE_ID"); ok {
-			scriptURLPrefix = fmt.Sprintf("https://s3.amazonaws.com/installtesting.datad0g.com/pipeline-%s/scripts/", pipelineID)
+			scriptURLPrefix = fmt.Sprintf("https://installtesting.datad0g.com.s3.amazonaws.com/pipeline-%s/scripts/", pipelineID)
 		} else if commitHash, ok := os.LookupEnv("CI_COMMIT_SHA"); ok {
-			scriptURLPrefix = fmt.Sprintf("https://s3.amazonaws.com/installtesting.datad0g.com/%s/scripts/", commitHash)
+			scriptURLPrefix = fmt.Sprintf("https://installtesting.datad0g.com.s3.amazonaws.com/%s/scripts/", commitHash)
 		} else {
 			require.FailNowf(nil, "missing script identifier", "CI_COMMIT_SHA or CI_PIPELINE_ID must be set")
 		}

@@ -90,7 +90,7 @@ var testCatalog = catalog{
 		{
 			Package: string(datadogAgent),
 			Version: latestAgentImageVersion,
-			URL:     fmt.Sprintf("oci://s3.amazonaws.com/install.datad0g.com/agent-package:%s", latestAgentImageVersion),
+			URL:     fmt.Sprintf("oci://install.datad0g.com.s3.amazonaws.com/agent-package:%s", latestAgentImageVersion),
 		},
 		{
 			Package: string(datadogApmInject),
