@@ -51,9 +51,9 @@ func TestDownloadCommand(t *testing.T) {
 
 func newMockRSClient(t *testing.T) secagent.SecurityModuleClientWrapper {
 	m := mocks.NewSecurityModuleClientWrapper(t)
-	m.On("GetRuleSetReport").Return(&api.GetRuleSetReportResultMessage{
-		RuleSetReportMessage: &api.RuleSetReportMessage{
-			Policies: []*api.EventTypePolicy{
+	m.On("GetRuleSetReport").Return(&api.GetKernelFilterReportMessage{
+		KernelFilterReportMessage: &api.KernelFilterReportMessage{
+			ApproverReports: []*api.ApproverReport{
 				{
 					EventType: "exec",
 					Mode:      1,

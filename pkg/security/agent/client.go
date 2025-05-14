@@ -131,7 +131,7 @@ func (c *RuntimeSecurityClient) ReloadPolicies() (*api.ReloadPoliciesResultMessa
 	return response, nil
 }
 
-// GetRuleSetReport gets the currently loaded policies from the system probe
+// GetKernelFilterReport gets the currently kernel filters from the system probe
 func (c *RuntimeSecurityClient) GetKernelFilterReport() (*api.GetKernelFilterReportMessage, error) {
 	response, err := c.apiClient.GetKernelFilterReport(context.Background(), &api.GetKernelFilterReportParams{})
 	if err != nil {

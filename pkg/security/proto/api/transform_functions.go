@@ -45,7 +45,7 @@ func (p *KernelFilterReportMessage) FromProtoToKernelFilterReport() *kfilters.Ke
 	return wholeReport
 }
 
-// FromProtoToKFiltersApprovers transforms a proto to a kfilter approvers
+// FromProtoToApprovers transforms a proto to a kfilter approvers
 func (p *Approvers) FromProtoToApprovers() *rules.Approvers {
 	approvers := make(rules.Approvers)
 
@@ -71,7 +71,7 @@ func (p *Approvers) FromProtoToApprovers() *rules.Approvers {
 	return &approvers
 }
 
-// FromKFiltersToProtoRuleSetReport returns a pointer to a PolicyMessage
+// FromKernelFilterToProto returns a pointer to a PolicyMessage
 func FromKernelFilterToProto(kernelFilterReport *kfilters.KernelFilterReport) *KernelFilterReportMessage {
 	var reports []*ApproverReport
 
