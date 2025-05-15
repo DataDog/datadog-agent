@@ -193,7 +193,7 @@ func TestLogLevel(t *testing.T) {
 	rareSampler := NewMockrareSampler(ctrl)
 
 	pkglog.SetupLogger(pkglog.Default(), "debug")
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "Bearer fakeToken", r.Header.Get("Authorization"))
 		w.WriteHeader(200)
 	}))
