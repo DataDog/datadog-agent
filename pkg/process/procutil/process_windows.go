@@ -222,7 +222,6 @@ func (p *probe) ProcessesByPID(_ time.Time, collectStats bool) (map[int32]*Proce
 		}
 
 		err := fillProcessDetails(pid, proc)
-
 		if err != nil {
 			continue
 		}
@@ -266,7 +265,6 @@ func (p *probe) enumCounters(collectMeta bool, collectStats bool) error {
 	}
 
 	err = p.formatter.Enum(pdhutil.CounterAllProcessPID, p.counters[pdhutil.CounterAllProcessPID], pdhutil.PDH_FMT_LARGE, ignored, valueToUint64(p.mapPID))
-
 	if err != nil {
 		return err
 	}
@@ -505,13 +503,14 @@ func fillProcessDetails(pid int32, proc *Process) error {
 
 	// we cannot read the command line if the process is protected
 	if !isProtected {
-		processCmdParams, err := winutil.GetCommandParamsForProcess(procHandle, false)
+		processCmdParams, err := winutil.GetCommandParamsForProcess(procHandle, true)
 		if err != nil {
 			log.Debugf("Error retrieving full command line %v", err)
 		}
 
 		if processCmdParams != nil {
 			proc.Cmdline = ParseCmdLineArgs(processCmdParams.CmdLine)
+			proc.Exe = processCmdParams.ImagePath
 			if len(processCmdParams.CmdLine) > 0 && len(proc.Cmdline) == 0 {
 				log.Warnf("Failed to parse the cmdline:%s for pid:%d", processCmdParams.CmdLine, pid)
 			}

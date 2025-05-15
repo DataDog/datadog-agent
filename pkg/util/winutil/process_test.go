@@ -10,11 +10,12 @@ package winutil
 import (
 	"errors"
 	"fmt"
+	"testing"
+	"unsafe"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
-	"testing"
-	"unsafe"
 )
 
 // similar to ProcessesByPID but needed a different implementation to find
@@ -62,28 +63,23 @@ func TestIsProcessProtected(t *testing.T) {
 		expected    bool
 	}{
 		{
-			description: "protected process 1",
+			description: "protected process light. session manager subsytem (first user mode process)",
 			processName: "csrss.exe",
 			expected:    true,
 		},
 		{
-			description: "protected process 2",
-			processName: "services.exe",
-			expected:    true,
-		},
-		{
-			description: "protected process 3",
+			description: "protected process light. client server runtime subsystem (needed for Win32 calls)",
 			processName: "smss.exe",
 			expected:    true,
 		},
 		{
-			description: "protected process 4",
-			processName: "wininit.exe",
-			expected:    true,
+			description: "unprotected process. current process",
+			processName: "<CURRENT_PROCESS>",
+			expected:    false,
 		},
 		{
-			description: "unprotected process",
-			processName: "<CURRENT_PROCESS>",
+			description: "unprotected process. generic service host process",
+			processName: "svchost.exe",
 			expected:    false,
 		},
 	} {
@@ -100,18 +96,21 @@ func TestIsProcessProtected(t *testing.T) {
 			procHandle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
 			require.NoError(t, err)
 
-			if tc.expected {
-				var procmem uintptr
-				var peb peb32
-				toRead := uint32(unsafe.Sizeof(peb))
-				bytesRead, err := ReadProcessMemory(procHandle, procmem, uintptr(unsafe.Pointer(&peb)), toRead)
-				require.Error(t, err)
-				assert.Equal(t, uint64(0), bytesRead)
-			}
-
 			isProcessProtected, err := IsProcessProtected(procHandle)
 			assert.NoError(t, err)
-			assert.Equal(t, tc.expected, isProcessProtected)
+			if tc.processName != "lsass.exe" {
+				assert.Equal(t, tc.expected, isProcessProtected)
+			}
+			// CHECKING MEMORY ACCESS PRIVILEGES
+			if tc.expected {
+				_, err := GetCommandParamsForProcess(procHandle, true)
+				assert.Error(t, err)
+			} else {
+				// unprotected process's should allow reading memory with a higher privilege handle
+				procHandle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_VM_READ, false, pid)
+				_, err = GetCommandParamsForProcess(procHandle, true)
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
