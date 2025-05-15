@@ -377,10 +377,14 @@ static __always_inline bool get_topic_offset_from_fetch_request(const kafka_head
         }
     }
 
-    // replica_id => INT32
+    // replica_id => INT32 (doesn't exist in v15+)
     // max_wait_ms => INT32
     // min_bytes => INT32
-    *offset += 3 * sizeof(s32);
+    if (kafka_header->api_version >= 15) {
+        *offset += 2 * sizeof(s32);
+    } else {
+        *offset += 3 * sizeof(s32);
+    }
 
     if (api_version >= 3) {
         // max_bytes => INT32
