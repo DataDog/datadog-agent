@@ -6,7 +6,6 @@
 package autodiscoveryimpl
 
 import (
-	"context"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -247,7 +246,7 @@ func (suite *ConfigManagerSuite) TestNewTemplateBeforeService_ConfigRemovedFirst
 	assertConfigsMatch(suite.T(), changes.Schedule)
 	assertConfigsMatch(suite.T(), changes.Unschedule)
 
-	changes = suite.cm.processNewService(myService.ADIdentifiers, myService)
+	changes = suite.cm.processNewService(myService)
 	assertConfigsMatch(suite.T(), changes.Schedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 	assertConfigsMatch(suite.T(), changes.Unschedule)
 
@@ -255,7 +254,7 @@ func (suite *ConfigManagerSuite) TestNewTemplateBeforeService_ConfigRemovedFirst
 	assertConfigsMatch(suite.T(), changes.Schedule)
 	assertConfigsMatch(suite.T(), changes.Unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 
-	changes = suite.cm.processDelService(context.TODO(), myService)
+	changes = suite.cm.processDelService(myService)
 	assertConfigsMatch(suite.T(), changes.Schedule)
 	assertConfigsMatch(suite.T(), changes.Unschedule)
 }
@@ -268,11 +267,11 @@ func (suite *ConfigManagerSuite) TestNewTemplateBeforeService_ServiceRemovedFirs
 	assertConfigsMatch(suite.T(), changes.Schedule)
 	assertConfigsMatch(suite.T(), changes.Unschedule)
 
-	changes = suite.cm.processNewService(myService.ADIdentifiers, myService)
+	changes = suite.cm.processNewService(myService)
 	assertConfigsMatch(suite.T(), changes.Schedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 	assertConfigsMatch(suite.T(), changes.Unschedule)
 
-	changes = suite.cm.processDelService(context.TODO(), myService)
+	changes = suite.cm.processDelService(myService)
 	assertConfigsMatch(suite.T(), changes.Schedule)
 	assertConfigsMatch(suite.T(), changes.Unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 
@@ -285,7 +284,7 @@ func (suite *ConfigManagerSuite) TestNewTemplateBeforeService_ServiceRemovedFirs
 // is resolved and scheduled when such a template arrives; deleting the template
 // unschedules the resolved configs.
 func (suite *ConfigManagerSuite) TestNewServiceBeforeTemplate_ConfigRemovedFirst() {
-	changes := suite.cm.processNewService(myService.ADIdentifiers, myService)
+	changes := suite.cm.processNewService(myService)
 	assertConfigsMatch(suite.T(), changes.Schedule)
 	assertConfigsMatch(suite.T(), changes.Unschedule)
 
@@ -297,7 +296,7 @@ func (suite *ConfigManagerSuite) TestNewServiceBeforeTemplate_ConfigRemovedFirst
 	assertConfigsMatch(suite.T(), changes.Schedule)
 	assertConfigsMatch(suite.T(), changes.Unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 
-	changes = suite.cm.processDelService(context.TODO(), myService)
+	changes = suite.cm.processDelService(myService)
 	assertConfigsMatch(suite.T(), changes.Schedule)
 	assertConfigsMatch(suite.T(), changes.Unschedule)
 }
@@ -306,7 +305,7 @@ func (suite *ConfigManagerSuite) TestNewServiceBeforeTemplate_ConfigRemovedFirst
 // is resolved and scheduled when such a template arrives; deleting the service
 // unschedules the resolved configs.
 func (suite *ConfigManagerSuite) TestNewServiceBeforeTemplate_ServiceRemovedFirst() {
-	changes := suite.cm.processNewService(myService.ADIdentifiers, myService)
+	changes := suite.cm.processNewService(myService)
 	assertConfigsMatch(suite.T(), changes.Schedule)
 	assertConfigsMatch(suite.T(), changes.Unschedule)
 
@@ -314,7 +313,7 @@ func (suite *ConfigManagerSuite) TestNewServiceBeforeTemplate_ServiceRemovedFirs
 	assertConfigsMatch(suite.T(), changes.Schedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 	assertConfigsMatch(suite.T(), changes.Unschedule)
 
-	changes = suite.cm.processDelService(context.TODO(), myService)
+	changes = suite.cm.processDelService(myService)
 	assertConfigsMatch(suite.T(), changes.Schedule)
 	assertConfigsMatch(suite.T(), changes.Unschedule, matchAll(matchName("template"), matchLogsConfig("source: myhost\n")))
 
@@ -394,11 +393,11 @@ func (suite *ConfigManagerSuite) TestFuzz() {
 			case p < 20 && op < removeAfterOps: // add service
 				svc := makeService(r)
 				id := svc.GetServiceID()
-				adIDs, _ := svc.GetADIdentifiers()
+				adIDs := svc.GetADIdentifiers()
 				if _, found := services[id]; !found {
 					services[id] = svc
 					fmt.Printf("add service %s with AD idents [%s]\n", id, strings.Join(adIDs, ", "))
-					applyChanges(cm.processNewService(adIDs, svc))
+					applyChanges(cm.processNewService(svc))
 				}
 			case p < 40 && op < removeAfterOps: // add non-template config
 				cfg := makeNonTemplateConfig(r)
@@ -424,9 +423,9 @@ func (suite *ConfigManagerSuite) TestFuzz() {
 				for id, svc := range services {
 					if i == 0 {
 						delete(services, id)
-						adIDs, _ := svc.GetADIdentifiers()
+						adIDs := svc.GetADIdentifiers()
 						fmt.Printf("remove service %s with AD idents %s\n", id, strings.Join(adIDs, ", "))
-						applyChanges(cm.processDelService(context.TODO(), svc))
+						applyChanges(cm.processDelService(svc))
 						break
 					}
 					i--
@@ -497,13 +496,13 @@ func (suite *ReconcilingConfigManagerSuite) TestServiceTemplateFiltering() {
 	}
 
 	// adding service with no templates has no effect
-	changes := suite.cm.processNewService(myService.ADIdentifiers, myService)
+	changes := suite.cm.processNewService(myService)
 	assertConfigsMatch(suite.T(), changes.Schedule)
 	assertConfigsMatch(suite.T(), changes.Unschedule)
 	assertLoadedConfigsMatch(suite.T(), suite.cm)
 
 	// adding service with no templates has no effect
-	changes = suite.cm.processNewService(filterSvc.ADIdentifiers, filterSvc)
+	changes = suite.cm.processNewService(filterSvc)
 	assertConfigsMatch(suite.T(), changes.Schedule)
 	assertConfigsMatch(suite.T(), changes.Unschedule)
 	assertLoadedConfigsMatch(suite.T(), suite.cm)
@@ -530,7 +529,7 @@ func (suite *ReconcilingConfigManagerSuite) TestServiceTemplateFiltering() {
 	)
 
 	// removing a service removes only the scheduled configs
-	changes = suite.cm.processDelService(context.TODO(), filterSvc)
+	changes = suite.cm.processDelService(filterSvc)
 	assertConfigsMatch(suite.T(), changes.Schedule)
 	assertConfigsMatch(suite.T(), changes.Unschedule, matchAll(matchName("cfg2-keep"), matchSvc("filter")))
 	assertLoadedConfigsMatch(suite.T(), suite.cm,

@@ -12,10 +12,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
-	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
 
@@ -59,7 +56,7 @@ func (tb *TerminatedResourceBundle) Add(k8sCollector collectors.K8sCollector, ob
 		return
 	}
 
-	tb.terminatedResources[k8sCollector] = append(tb.terminatedResources[k8sCollector], insertDeletionTimestampIfPossible(resource))
+	tb.terminatedResources[k8sCollector] = append(tb.terminatedResources[k8sCollector], resource)
 }
 
 // Run sends all buffered terminated resources
@@ -149,48 +146,4 @@ func getResource(obj interface{}) (interface{}, error) {
 	}
 
 	return resource, nil
-}
-
-func insertDeletionTimestampIfPossible(obj interface{}) interface{} {
-	v := reflect.ValueOf(obj)
-	if v.Kind() != reflect.Ptr || v.IsNil() {
-		log.Debugf("object is not a pointer to a nil pointer, got type: %T", obj)
-		return obj
-	}
-
-	v = v.Elem()
-	if v.Kind() != reflect.Struct {
-		log.Debugf("obj must point to a struct, got type: %T", obj)
-		return obj
-	}
-
-	now := metav1.NewTime(time.Now())
-
-	if _, ok := obj.(*unstructured.Unstructured); ok {
-		obj.(*unstructured.Unstructured).SetDeletionTimestamp(&now)
-		return obj
-	}
-
-	// Look for metadata field
-	metadataField := v.FieldByName("ObjectMeta")
-	if !metadataField.IsValid() || metadataField.Kind() != reflect.Struct {
-		log.Debugf("obj does not have ObjectMeta field, got type: %T", obj)
-		return obj
-	}
-
-	// Access deletionTimestamp field within ObjectMeta
-	deletionTimestampField := metadataField.FieldByName("DeletionTimestamp")
-	if !deletionTimestampField.IsValid() || !deletionTimestampField.CanSet() {
-		log.Debugf("ObjectMeta does not have a settable DeletionTimestamp, got field: %T", obj)
-		return obj
-	}
-
-	// Do nothing if it's already set
-	if !deletionTimestampField.IsNil() {
-		return obj
-	}
-
-	// Set the deletionTimestamp to the current time
-	deletionTimestampField.Set(reflect.ValueOf(&now))
-	return obj
 }

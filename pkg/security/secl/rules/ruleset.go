@@ -693,8 +693,14 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 
 	result := false
 
+	resetEventEvalCtx := func() {
+		event.(*model.Event).RuleTags = nil
+	}
+	defer resetEventEvalCtx()
+
 	for _, rule := range bucket.rules {
 		utils.PprofDoWithoutContext(rule.GetPprofLabels(), func() {
+			event.(*model.Event).RuleTags = rule.PolicyRule.Def.ProductTags
 			if rule.GetEvaluator().Eval(ctx) {
 
 				if rs.logger.IsTracing() {
