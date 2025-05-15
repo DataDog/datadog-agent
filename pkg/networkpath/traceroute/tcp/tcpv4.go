@@ -60,8 +60,8 @@ func (t *TCPv4) Close() error {
 }
 
 // createRawTCPSyn creates a TCP packet with the specified parameters
-func (t *TCPv4) createRawTCPSyn(seqNum uint32, ttl int) (*ipv4.Header, []byte, error) {
-	ipHdr, packet, hdrlen, err := t.createRawTCPSynBuffer(seqNum, ttl)
+func (t *TCPv4) createRawTCPSyn(packetID uint16, seqNum uint32, ttl int) (*ipv4.Header, []byte, error) {
+	ipHdr, packet, hdrlen, err := t.createRawTCPSynBuffer(packetID, seqNum, ttl)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -69,14 +69,14 @@ func (t *TCPv4) createRawTCPSyn(seqNum uint32, ttl int) (*ipv4.Header, []byte, e
 	return ipHdr, packet[hdrlen:], nil
 }
 
-func (t *TCPv4) createRawTCPSynBuffer(seqNum uint32, ttl int) (*ipv4.Header, []byte, int, error) {
+func (t *TCPv4) createRawTCPSynBuffer(packetID uint16, seqNum uint32, ttl int) (*ipv4.Header, []byte, int, error) {
 	// if this function is modified in a way that changes the size,
 	// update the NewSerializeBufferExpectedSize call in NewTCPv4
 	ipLayer := &layers.IPv4{
 		Version:  4,
 		Length:   20,
 		TTL:      uint8(ttl),
-		Id:       uint16(41821),
+		Id:       packetID,
 		Protocol: 6,
 		DstIP:    t.Target,
 		SrcIP:    t.srcIP,
