@@ -24,7 +24,7 @@ const (
 	SecurityModule_GetConfig_FullMethodName             = "/api.SecurityModule/GetConfig"
 	SecurityModule_GetStatus_FullMethodName             = "/api.SecurityModule/GetStatus"
 	SecurityModule_RunSelfTest_FullMethodName           = "/api.SecurityModule/RunSelfTest"
-	SecurityModule_GetKernelFilterReport_FullMethodName = "/api.SecurityModule/GetKernelFilterReport"
+	SecurityModule_GetRuleSetReport_FullMethodName      = "/api.SecurityModule/GetRuleSetReport"
 	SecurityModule_ReloadPolicies_FullMethodName        = "/api.SecurityModule/ReloadPolicies"
 	SecurityModule_DumpNetworkNamespace_FullMethodName  = "/api.SecurityModule/DumpNetworkNamespace"
 	SecurityModule_DumpDiscarders_FullMethodName        = "/api.SecurityModule/DumpDiscarders"
@@ -46,7 +46,7 @@ type SecurityModuleClient interface {
 	GetConfig(ctx context.Context, in *GetConfigParams, opts ...grpc.CallOption) (*SecurityConfigMessage, error)
 	GetStatus(ctx context.Context, in *GetStatusParams, opts ...grpc.CallOption) (*Status, error)
 	RunSelfTest(ctx context.Context, in *RunSelfTestParams, opts ...grpc.CallOption) (*SecuritySelfTestResultMessage, error)
-	GetKernelFilterReport(ctx context.Context, in *GetKernelFilterReportParams, opts ...grpc.CallOption) (*GetKernelFilterReportMessage, error)
+	GetRuleSetReport(ctx context.Context, in *GetRuleSetReportParams, opts ...grpc.CallOption) (*GetRuleSetReportMessage, error)
 	ReloadPolicies(ctx context.Context, in *ReloadPoliciesParams, opts ...grpc.CallOption) (*ReloadPoliciesResultMessage, error)
 	DumpNetworkNamespace(ctx context.Context, in *DumpNetworkNamespaceParams, opts ...grpc.CallOption) (*DumpNetworkNamespaceMessage, error)
 	DumpDiscarders(ctx context.Context, in *DumpDiscardersParams, opts ...grpc.CallOption) (*DumpDiscardersMessage, error)
@@ -128,10 +128,10 @@ func (c *securityModuleClient) RunSelfTest(ctx context.Context, in *RunSelfTestP
 	return out, nil
 }
 
-func (c *securityModuleClient) GetKernelFilterReport(ctx context.Context, in *GetKernelFilterReportParams, opts ...grpc.CallOption) (*GetKernelFilterReportMessage, error) {
+func (c *securityModuleClient) GetRuleSetReport(ctx context.Context, in *GetRuleSetReportParams, opts ...grpc.CallOption) (*GetRuleSetReportMessage, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetKernelFilterReportMessage)
-	err := c.cc.Invoke(ctx, SecurityModule_GetKernelFilterReport_FullMethodName, in, out, cOpts...)
+	out := new(GetRuleSetReportMessage)
+	err := c.cc.Invoke(ctx, SecurityModule_GetRuleSetReport_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +256,7 @@ type SecurityModuleServer interface {
 	GetConfig(context.Context, *GetConfigParams) (*SecurityConfigMessage, error)
 	GetStatus(context.Context, *GetStatusParams) (*Status, error)
 	RunSelfTest(context.Context, *RunSelfTestParams) (*SecuritySelfTestResultMessage, error)
-	GetKernelFilterReport(context.Context, *GetKernelFilterReportParams) (*GetKernelFilterReportMessage, error)
+	GetRuleSetReport(context.Context, *GetRuleSetReportParams) (*GetRuleSetReportMessage, error)
 	ReloadPolicies(context.Context, *ReloadPoliciesParams) (*ReloadPoliciesResultMessage, error)
 	DumpNetworkNamespace(context.Context, *DumpNetworkNamespaceParams) (*DumpNetworkNamespaceMessage, error)
 	DumpDiscarders(context.Context, *DumpDiscardersParams) (*DumpDiscardersMessage, error)
@@ -294,8 +294,8 @@ func (UnimplementedSecurityModuleServer) GetStatus(context.Context, *GetStatusPa
 func (UnimplementedSecurityModuleServer) RunSelfTest(context.Context, *RunSelfTestParams) (*SecuritySelfTestResultMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RunSelfTest not implemented")
 }
-func (UnimplementedSecurityModuleServer) GetKernelFilterReport(context.Context, *GetKernelFilterReportParams) (*GetKernelFilterReportMessage, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetKernelFilterReport not implemented")
+func (UnimplementedSecurityModuleServer) GetRuleSetReport(context.Context, *GetRuleSetReportParams) (*GetRuleSetReportMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRuleSetReport not implemented")
 }
 func (UnimplementedSecurityModuleServer) ReloadPolicies(context.Context, *ReloadPoliciesParams) (*ReloadPoliciesResultMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReloadPolicies not implemented")
@@ -431,20 +431,20 @@ func _SecurityModule_RunSelfTest_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SecurityModule_GetKernelFilterReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetKernelFilterReportParams)
+func _SecurityModule_GetRuleSetReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRuleSetReportParams)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SecurityModuleServer).GetKernelFilterReport(ctx, in)
+		return srv.(SecurityModuleServer).GetRuleSetReport(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SecurityModule_GetKernelFilterReport_FullMethodName,
+		FullMethod: SecurityModule_GetRuleSetReport_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SecurityModuleServer).GetKernelFilterReport(ctx, req.(*GetKernelFilterReportParams))
+		return srv.(SecurityModuleServer).GetRuleSetReport(ctx, req.(*GetRuleSetReportParams))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -646,8 +646,8 @@ var SecurityModule_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SecurityModule_RunSelfTest_Handler,
 		},
 		{
-			MethodName: "GetKernelFilterReport",
-			Handler:    _SecurityModule_GetKernelFilterReport_Handler,
+			MethodName: "GetRuleSetReport",
+			Handler:    _SecurityModule_GetRuleSetReport_Handler,
 		},
 		{
 			MethodName: "ReloadPolicies",

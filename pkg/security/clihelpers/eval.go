@@ -300,7 +300,7 @@ func CheckPoliciesLocal(args CheckPoliciesLocalParams, writer io.Writer) error {
 		return err
 	}
 
-	report, err := kfilters.NewKernelFilterReport(cfg, ruleSet)
+	report, err := kfilters.NewFilterReport(cfg, ruleSet)
 	if err != nil {
 		return err
 	}

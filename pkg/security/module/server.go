@@ -513,7 +513,7 @@ func (a *APIServer) ReloadPolicies(_ context.Context, _ *api.ReloadPoliciesParam
 }
 
 // GetRuleSetReport reports the ruleset loaded
-func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetKernelFilterReportMessage) (*api.GetKernelFilterReportMessage, error) {
+func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportParams) (*api.GetRuleSetReportMessage, error) {
 	if a.cwsConsumer == nil || a.cwsConsumer.ruleEngine == nil {
 		return nil, errors.New("no rule engine")
 	}
@@ -530,13 +530,13 @@ func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetKernelFilterRe
 		PIDCacheSize:        a.probe.Config.Probe.PIDCacheSize,
 	}
 
-	report, err := kfilters.NewKernelFilterReport(cfg, ruleSet)
+	report, err := kfilters.NewFilterReport(cfg, ruleSet)
 	if err != nil {
 		return nil, err
 	}
 
-	return &api.GetKernelFilterReportMessage{
-		KernelFilterReportMessage: api.FromKernelFilterToProto(report),
+	return &api.GetRuleSetReportMessage{
+		RuleSetReportMessage: api.FromFilterReportToProtoRuleSetReportMessage(report),
 	}, nil
 }
 

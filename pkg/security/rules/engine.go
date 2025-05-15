@@ -355,11 +355,11 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	ruleIDs = append(ruleIDs, events.AllCustomRuleIDs()...)
 
 	// analyze the ruleset, push probe evaluation rule sets to the kernel and generate the policy report
-	kernelFilterReport, err := e.probe.ApplyRuleSet(rs)
+	filterReport, err := e.probe.ApplyRuleSet(rs)
 	if err != nil {
 		return err
 	}
-	seclog.Debugf("Kernel Filter Report: %s", kernelFilterReport)
+	seclog.Debugf("Filter Report: %s", filterReport)
 
 	e.currentRuleSet.Store(rs)
 	ruleIDs = append(ruleIDs, rs.ListRuleIDs()...)
@@ -381,7 +381,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	e.notifyAPIServer(ruleIDs, policies)
 
 	if sendLoadedReport {
-		monitor.ReportRuleSetLoaded(e.probe.GetAgentContainerContext(), e.eventSender, e.statsdClient, policies, kernelFilterReport)
+		monitor.ReportRuleSetLoaded(e.probe.GetAgentContainerContext(), e.eventSender, e.statsdClient, policies, filterReport)
 		e.policyMonitor.SetPolicies(policies)
 	}
 

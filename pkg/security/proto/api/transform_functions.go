@@ -14,11 +14,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-// FromProtoToKernelFilterReport transforms a proto to a kfilter rule set report
-func (p *KernelFilterReportMessage) FromProtoToKernelFilterReport() *kfilters.KernelFilterReport {
+// FromProtoToFilterReport transforms a proto to a kfilter filter report
+func (p *FilterReport) FromProtoToFilterReport() *kfilters.FilterReport {
 	approverReports := make(map[eval.EventType]*kfilters.ApproverReport)
 
-	toAcceptModeRules := func(r []*AcceptModeRuleMessage) []kfilters.AcceptModeRule {
+	toAcceptModeRules := func(r []*AcceptModeRule) []kfilters.AcceptModeRule {
 		acceptModeRules := make([]kfilters.AcceptModeRule, len(r))
 		for i, rule := range r {
 			acceptModeRules[i] = kfilters.AcceptModeRule{
@@ -28,7 +28,7 @@ func (p *KernelFilterReportMessage) FromProtoToKernelFilterReport() *kfilters.Ke
 		return acceptModeRules
 	}
 
-	for _, report := range p.GetApproverReports() {
+	for _, report := range p.GetApprovers() {
 		approversToPrint := *report.GetApprovers().FromProtoToApprovers()
 		if len(approversToPrint) == 0 {
 			approversToPrint = nil // This is here to ensure that the printed result is `"Approvers": null` and not `"Approvers": {}`
@@ -40,7 +40,7 @@ func (p *KernelFilterReportMessage) FromProtoToKernelFilterReport() *kfilters.Ke
 		}
 	}
 
-	wholeReport := &kfilters.KernelFilterReport{ApproverReports: approverReports}
+	wholeReport := &kfilters.FilterReport{ApproverReports: approverReports}
 
 	return wholeReport
 }
@@ -71,11 +71,11 @@ func (p *Approvers) FromProtoToApprovers() *rules.Approvers {
 	return &approvers
 }
 
-// FromKernelFilterToProto returns a pointer to a PolicyMessage
-func FromKernelFilterToProto(kernelFilterReport *kfilters.KernelFilterReport) *KernelFilterReportMessage {
+// FromFilterReportToProtoRuleSetReportMessage returns a pointer to a RuleSetReportMessage
+func FromFilterReportToProtoRuleSetReportMessage(filterReport *kfilters.FilterReport) *RuleSetReportMessage {
 	var reports []*ApproverReport
 
-	for key, report := range kernelFilterReport.ApproverReports {
+	for key, report := range filterReport.ApproverReports {
 		protoReport := &ApproverReport{
 			EventType:       key,
 			Mode:            uint32(report.Mode),
@@ -86,16 +86,18 @@ func FromKernelFilterToProto(kernelFilterReport *kfilters.KernelFilterReport) *K
 		reports = append(reports, protoReport)
 	}
 
-	return &KernelFilterReportMessage{
-		ApproverReports: reports,
+	return &RuleSetReportMessage{
+		Filters: &FilterReport{
+			Approvers: reports,
+		},
 	}
 }
 
 // FromAcceptModeRulesToProto transforms a kfilter to a proto accept mode rules
-func FromAcceptModeRulesToProto(acceptModeRules []kfilters.AcceptModeRule) []*AcceptModeRuleMessage {
-	protoAcceptModeRules := make([]*AcceptModeRuleMessage, len(acceptModeRules))
+func FromAcceptModeRulesToProto(acceptModeRules []kfilters.AcceptModeRule) []*AcceptModeRule {
+	protoAcceptModeRules := make([]*AcceptModeRule, len(acceptModeRules))
 	for i, rule := range acceptModeRules {
-		protoAcceptModeRules[i] = &AcceptModeRuleMessage{
+		protoAcceptModeRules[i] = &AcceptModeRule{
 			RuleID: rule.RuleID,
 		}
 	}

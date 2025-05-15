@@ -26,14 +26,14 @@ type ApproverReport struct {
 	AcceptModeRules []AcceptModeRule `json:"accept_mode_rules,omitempty"`
 }
 
-// KernelFilterReport describes the event types and their associated policy policies
-type KernelFilterReport struct {
+// FilterReport describes the event types and their associated policy policies
+type FilterReport struct {
 	ApproverReports map[string]*ApproverReport `json:"approvers"`
 }
 
-// MarshalJSON marshals the KernelFilterReport to JSON
-func (r *KernelFilterReport) MarshalJSON() ([]byte, error) {
-	reports := make(map[string]json.RawMessage)
+// MarshalJSON marshals the FilterReport to JSON
+func (r *FilterReport) MarshalJSON() ([]byte, error) {
+	approverReports := make(map[string]json.RawMessage)
 
 	for eventType, report := range r.ApproverReports {
 		if (report.Mode == PolicyModeNoFilter || report.Mode == PolicyModeAccept) && len(report.AcceptModeRules) == 0 {
@@ -43,20 +43,26 @@ func (r *KernelFilterReport) MarshalJSON() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		reports[eventType] = raw
+		approverReports[eventType] = raw
 	}
 
-	return json.Marshal(reports)
+	report := struct {
+		ApproverReports map[string]json.RawMessage `json:"approvers"`
+	}{
+		ApproverReports: approverReports,
+	}
+
+	return json.Marshal(report)
 }
 
-// String returns a JSON representation of the KernelFilterReport
-func (r *KernelFilterReport) String() string {
+// String returns a JSON representation of the FilterReport
+func (r *FilterReport) String() string {
 	content, _ := json.Marshal(r)
 	return string(content)
 }
 
-// NewKernelFilterReport returns filtering policy applied per event type
-func NewKernelFilterReport(config *config.Config, rs *rules.RuleSet) (*KernelFilterReport, error) {
+// NewFilterReport returns a new FilterReport
+func NewFilterReport(config *config.Config, rs *rules.RuleSet) (*FilterReport, error) {
 	approverReports := make(map[eval.EventType]*ApproverReport)
 
 	// We need to call the approver detection even when approvers aren't enabled as it may have impact on some rule flags and
@@ -97,5 +103,5 @@ func NewKernelFilterReport(config *config.Config, rs *rules.RuleSet) (*KernelFil
 		}
 	}
 
-	return &KernelFilterReport{ApproverReports: approverReports}, nil
+	return &FilterReport{ApproverReports: approverReports}, nil
 }

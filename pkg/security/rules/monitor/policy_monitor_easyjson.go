@@ -72,15 +72,15 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor(i
 				}
 				in.Delim(']')
 			}
-		case "kernel_filters":
+		case "filters":
 			if in.IsNull() {
 				in.Skip()
-				out.KernelFilters = nil
+				out.Filters = nil
 			} else {
-				if out.KernelFilters == nil {
-					out.KernelFilters = new(kfilters.KernelFilterReport)
+				if out.Filters == nil {
+					out.Filters = new(kfilters.FilterReport)
 				}
-				easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityProbeKfilters(in, out.KernelFilters)
+				easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityProbeKfilters(in, out.Filters)
 			}
 		case "date":
 			if data := in.Raw(); in.Ok() {
@@ -132,10 +132,10 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor(o
 			out.RawByte(']')
 		}
 	}
-	if in.KernelFilters != nil {
-		const prefix string = ",\"kernel_filters\":"
+	if in.Filters != nil {
+		const prefix string = ",\"filters\":"
 		out.RawString(prefix)
-		out.Raw((*in.KernelFilters).MarshalJSON())
+		out.Raw((*in.Filters).MarshalJSON())
 	}
 	{
 		const prefix string = ",\"date\":"
@@ -223,7 +223,7 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityEvents(out *jw
 	}
 	out.RawByte('}')
 }
-func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityProbeKfilters(in *jlexer.Lexer, out *kfilters.KernelFilterReport) {
+func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityProbeKfilters(in *jlexer.Lexer, out *kfilters.FilterReport) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -276,7 +276,7 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityProbeKfilters(
 		in.Consumed()
 	}
 }
-func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityProbeKfilters(out *jwriter.Writer, in kfilters.KernelFilterReport) {
+func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityProbeKfilters(out *jwriter.Writer, in kfilters.FilterReport) {
 	out.RawByte('{')
 	first := true
 	_ = first

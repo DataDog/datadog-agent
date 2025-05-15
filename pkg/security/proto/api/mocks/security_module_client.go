@@ -543,8 +543,8 @@ func (_c *SecurityModuleClient_GetEvents_Call) RunAndReturn(run func(context.Con
 	return _c
 }
 
-// GetKernelFilterReport provides a mock function with given fields: ctx, in, opts
-func (_m *SecurityModuleClient) GetKernelFilterReport(ctx context.Context, in *api.GetKernelFilterReportParams, opts ...grpc.CallOption) (*api.GetKernelFilterReportMessage, error) {
+// GetRuleSetReport provides a mock function with given fields: ctx, in, opts
+func (_m *SecurityModuleClient) GetRuleSetReport(ctx context.Context, in *api.GetRuleSetReportParams, opts ...grpc.CallOption) (*api.GetRuleSetReportMessage, error) {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
@@ -555,23 +555,23 @@ func (_m *SecurityModuleClient) GetKernelFilterReport(ctx context.Context, in *a
 	ret := _m.Called(_ca...)
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetKernelFilterReport")
+		panic("no return value specified for GetRuleSetReport")
 	}
 
-	var r0 *api.GetKernelFilterReportMessage
+	var r0 *api.GetRuleSetReportMessage
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *api.GetKernelFilterReportParams, ...grpc.CallOption) (*api.GetKernelFilterReportMessage, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *api.GetRuleSetReportParams, ...grpc.CallOption) (*api.GetRuleSetReportMessage, error)); ok {
 		return rf(ctx, in, opts...)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *api.GetKernelFilterReportParams, ...grpc.CallOption) *api.GetKernelFilterReportMessage); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *api.GetRuleSetReportParams, ...grpc.CallOption) *api.GetRuleSetReportMessage); ok {
 		r0 = rf(ctx, in, opts...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.GetKernelFilterReportMessage)
+			r0 = ret.Get(0).(*api.GetRuleSetReportMessage)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *api.GetKernelFilterReportParams, ...grpc.CallOption) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *api.GetRuleSetReportParams, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)
@@ -580,21 +580,21 @@ func (_m *SecurityModuleClient) GetKernelFilterReport(ctx context.Context, in *a
 	return r0, r1
 }
 
-// SecurityModuleClient_GetKernelFilterReport_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetKernelFilterReport'
-type SecurityModuleClient_GetKernelFilterReport_Call struct {
+// SecurityModuleClient_GetRuleSetReport_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetRuleSetReport'
+type SecurityModuleClient_GetRuleSetReport_Call struct {
 	*mock.Call
 }
 
-// GetKernelFilterReport is a helper method to define mock.On call
+// GetRuleSetReport is a helper method to define mock.On call
 //   - ctx context.Context
-//   - in *api.GetKernelFilterReportParams
+//   - in *api.GetRuleSetReportParams
 //   - opts ...grpc.CallOption
-func (_e *SecurityModuleClient_Expecter) GetKernelFilterReport(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleClient_GetKernelFilterReport_Call {
-	return &SecurityModuleClient_GetKernelFilterReport_Call{Call: _e.mock.On("GetKernelFilterReport",
+func (_e *SecurityModuleClient_Expecter) GetRuleSetReport(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleClient_GetRuleSetReport_Call {
+	return &SecurityModuleClient_GetRuleSetReport_Call{Call: _e.mock.On("GetRuleSetReport",
 		append([]interface{}{ctx, in}, opts...)...)}
 }
 
-func (_c *SecurityModuleClient_GetKernelFilterReport_Call) Run(run func(ctx context.Context, in *api.GetKernelFilterReportParams, opts ...grpc.CallOption)) *SecurityModuleClient_GetKernelFilterReport_Call {
+func (_c *SecurityModuleClient_GetRuleSetReport_Call) Run(run func(ctx context.Context, in *api.GetRuleSetReportParams, opts ...grpc.CallOption)) *SecurityModuleClient_GetRuleSetReport_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		variadicArgs := make([]grpc.CallOption, len(args)-2)
 		for i, a := range args[2:] {
@@ -602,17 +602,17 @@ func (_c *SecurityModuleClient_GetKernelFilterReport_Call) Run(run func(ctx cont
 				variadicArgs[i] = a.(grpc.CallOption)
 			}
 		}
-		run(args[0].(context.Context), args[1].(*api.GetKernelFilterReportParams), variadicArgs...)
+		run(args[0].(context.Context), args[1].(*api.GetRuleSetReportParams), variadicArgs...)
 	})
 	return _c
 }
 
-func (_c *SecurityModuleClient_GetKernelFilterReport_Call) Return(_a0 *api.GetKernelFilterReportMessage, _a1 error) *SecurityModuleClient_GetKernelFilterReport_Call {
+func (_c *SecurityModuleClient_GetRuleSetReport_Call) Return(_a0 *api.GetRuleSetReportMessage, _a1 error) *SecurityModuleClient_GetRuleSetReport_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *SecurityModuleClient_GetKernelFilterReport_Call) RunAndReturn(run func(context.Context, *api.GetKernelFilterReportParams, ...grpc.CallOption) (*api.GetKernelFilterReportMessage, error)) *SecurityModuleClient_GetKernelFilterReport_Call {
+func (_c *SecurityModuleClient_GetRuleSetReport_Call) RunAndReturn(run func(context.Context, *api.GetRuleSetReportParams, ...grpc.CallOption) (*api.GetRuleSetReportMessage, error)) *SecurityModuleClient_GetRuleSetReport_Call {
 	_c.Call.Return(run)
 	return _c
 }
