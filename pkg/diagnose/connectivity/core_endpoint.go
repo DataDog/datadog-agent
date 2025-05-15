@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -147,7 +148,7 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 
 				if endpointInfo.Method == "HEAD" {
 					logURL = endpointInfo.Endpoint.Route
-					statusCode, err = sendHTTPHEADRequestToEndpoint(logURL, clientWithOneRedirects())
+					statusCode, err = sendHTTPHEADRequestToEndpoint(logURL, clientWithOneRedirects(pkgconfigsetup.Datadog(), numberOfWorkers, log))
 				} else {
 					domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
 					httpTraces = []string{}
@@ -292,11 +293,15 @@ func noResponseHints(err error) string {
 	return ""
 }
 
-func clientWithOneRedirects() *http.Client {
+func clientWithOneRedirects(config config.Component, numberOfWorkers int, log log.Component) *http.Client {
 	return &http.Client{
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
+		Transport: forwarder.NewHTTPTransport(
+			config,
+			numberOfWorkers,
+			log),
 	}
 }
 

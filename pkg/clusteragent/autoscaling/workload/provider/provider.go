@@ -28,8 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
-const maxDatadogPodAutoscalerObjects int = 100
-
 // StartWorkloadAutoscaling starts the workload autoscaling controller
 func StartWorkloadAutoscaling(
 	ctx context.Context,
@@ -66,6 +64,7 @@ func StartWorkloadAutoscaling(
 		return nil, fmt.Errorf("Unable to start local telemetry for autoscaling: %w", err)
 	}
 
+	maxDatadogPodAutoscalerObjects := pkgconfigsetup.Datadog().GetInt("autoscaling.workload.limit")
 	limitHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects, store)
 
 	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap)

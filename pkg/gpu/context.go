@@ -16,10 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
-
-const nvidiaResourceName = "nvidia.com/gpu"
 
 // systemContext holds certain attributes about the system that are used by the GPU probe.
 type systemContext struct {
@@ -176,18 +175,30 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 
 	var filteredDevices []ddnvml.Device
 	numContainerGPUs := 0
-	for _, resource := range container.AllocatedResources {
+	for _, resource := range container.ResolvedAllocatedResources {
 		// Only consider NVIDIA GPUs
-		if resource.Name != nvidiaResourceName {
+		if !gpuutil.IsNvidiaKubernetesResource(resource.Name) {
 			continue
 		}
 
 		numContainerGPUs++
 
+	outer:
 		for _, device := range devices {
 			if resource.ID == device.GetDeviceInfo().UUID {
 				filteredDevices = append(filteredDevices, device)
 				break
+			}
+
+			// If the device has MIG children, check if any of them matches the resource ID
+			physicalDevice, ok := device.(*ddnvml.PhysicalDevice)
+			if ok {
+				for _, migChild := range physicalDevice.MIGChildren {
+					if resource.ID == migChild.UUID {
+						filteredDevices = append(filteredDevices, migChild)
+						break outer
+					}
+				}
 			}
 		}
 	}
@@ -216,7 +227,7 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 	// If the container has GPUs assigned to it but we couldn't match it to our
 	// devices, return the error for this case and show the allocated resources
 	// for debugging purposes.
-	return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v", containerID, container.AllocatedResources)
+	return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v", containerID, container.ResolvedAllocatedResources)
 }
 
 // getCurrentActiveGpuDevice returns the active GPU device for a given process and thread, based on the
@@ -235,7 +246,7 @@ func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerI
 		// filter on the devices that are available to the process, not on the
 		// devices available on the host system.
 		var err error // avoid shadowing visibleDevices, declare error before so we can use = instead of :=
-		visibleDevices, err = ctx.filterDevicesForContainer(ctx.deviceCache.All(), containerID)
+		visibleDevices, err = ctx.filterDevicesForContainer(ctx.deviceCache.AllPhysicalDevices(), containerID)
 		if err != nil {
 			return nil, fmt.Errorf("error filtering devices for container %s: %w", containerID, err)
 		}

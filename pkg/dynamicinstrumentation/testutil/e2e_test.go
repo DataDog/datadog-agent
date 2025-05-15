@@ -24,16 +24,18 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/kr/pretty"
+
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
-	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diconfig"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/stretchr/testify/require"
@@ -113,7 +115,7 @@ func runTestCase(t *testing.T, function string, expectedCaptureValue CapturedVal
 		},
 	}
 
-	GoDI, err := dynamicinstrumentation.RunDynamicInstrumentation(opts)
+	GoDI, err := dynamicinstrumentation.RunDynamicInstrumentation(ctx, consumerstestutil.NewTestProcessConsumer(t), opts)
 	require.NoError(t, err)
 	t.Cleanup(GoDI.Close)
 
