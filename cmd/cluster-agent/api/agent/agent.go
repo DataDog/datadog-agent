@@ -23,6 +23,8 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
+	autoscalingWorkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	localautoscalingworkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -51,6 +53,8 @@ func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery
 	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settings.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settings.SetValue).Methods("POST")
+	r.HandleFunc("/autoscaler-list", func(w http.ResponseWriter, r *http.Request) { getAutoscalerList(w, r) }).Methods("GET")
+	r.HandleFunc("/local-autoscaling-check", func(w http.ResponseWriter, r *http.Request) { getLocalAutoscalingWorkloadCheck(w, r) }).Methods("GET")
 	r.HandleFunc("/tagger-list", func(w http.ResponseWriter, r *http.Request) { getTaggerList(w, r, taggerComp) }).Methods("GET")
 	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
 		getWorkloadList(w, r, wmeta)
@@ -180,6 +184,22 @@ func getConfigCheck(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Com
 	w.Write(configCheckBytes)
 }
 
+func getAutoscalerList(w http.ResponseWriter, _ *http.Request) {
+	autoscalerList := autoscalingWorkload.Dump()
+	if autoscalerList == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	autoscalerListBytes, err := json.Marshal(*autoscalerList)
+	if err != nil {
+		log.Errorf("Unable to marshal autoscaler list response: %s", err)
+		httputils.SetJSONError(w, log.Errorf("Unable to marshal autoscaler list response: %s", err), 500)
+		return
+	}
+
+	w.Write(autoscalerListBytes)
+}
+
 //nolint:revive // TODO(CINT) Fix revive linter
 func getTaggerList(w http.ResponseWriter, _ *http.Request, taggerComp tagger.Component) {
 	response := taggerComp.List()
@@ -209,4 +229,19 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 	}
 
 	w.Write(jsonDump)
+}
+
+func getLocalAutoscalingWorkloadCheck(w http.ResponseWriter, r *http.Request) {
+	response := localautoscalingworkload.GetAutoscalingWorkloadCheck(r.Context())
+	if response == nil {
+		log.Debugf("No local autoscaling entities found")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		httputils.SetJSONError(w, log.Errorf("Unable to marshal autoscaling check response: %v", err), 500)
+		return
+	}
+	w.Write(jsonResponse)
 }
