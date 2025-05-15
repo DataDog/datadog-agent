@@ -36,6 +36,7 @@ func TestDump(t *testing.T) {
 	config.SetWithoutSource("autoscaling.workload.enabled", true)
 	testTime := time.Now()
 	f := newFixture(t, testTime)
+	InitDumper(f.store)
 
 	dpai := createFakePodAutoscaler(testTime)
 
