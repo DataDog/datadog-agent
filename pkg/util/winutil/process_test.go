@@ -95,6 +95,7 @@ func TestIsProcessProtected(t *testing.T) {
 
 			procHandle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
 			require.NoError(t, err)
+			defer windows.CloseHandle(procHandle)
 
 			isProcessProtected, err := IsProcessProtected(procHandle)
 			assert.NoError(t, err)
@@ -107,9 +108,10 @@ func TestIsProcessProtected(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				// unprotected process's should allow reading memory with a higher privilege handle
-				procHandle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_VM_READ, false, pid)
+				privilegedProcHandle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_VM_READ, false, pid)
 				assert.NoError(t, err)
-				_, err = GetCommandParamsForProcess(procHandle, true)
+				defer windows.CloseHandle(privilegedProcHandle)
+				_, err = GetCommandParamsForProcess(privilegedProcHandle, true)
 				assert.NoError(t, err)
 			}
 		})
