@@ -542,3 +542,274 @@ func (link *InternalSpanLink) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	}
 	return
 }
+
+// MarshalAttributesMap marshals a map of attributes into a byte stream
+func MarshalAttributesMap(bts []byte, attributes map[uint32]*AnyValue, strings *StringTable, serStrings *SerializedStrings) (o []byte, err error) {
+	o = msgp.AppendArrayHeader(bts, uint32(len(attributes)*3)) // 3 entries per key value (key, type of value, value)
+	for k, v := range attributes {
+		o = serStrings.AppendStreamingString(strings.Get(k), k, o)
+		o, err = v.MarshalMsg(o, strings, serStrings)
+		if err != nil {
+			err = msgp.WrapError(err, "Failed to marshal attribute value")
+			return
+		}
+	}
+	return
+}
+
+// MarshalMsg marshals an AnyValue into a byte stream
+func (val *AnyValue) MarshalMsg(bts []byte, strings *StringTable, serStrings *SerializedStrings) ([]byte, error) {
+	var err error
+	switch v := val.Value.(type) {
+	case *AnyValue_StringValueRef:
+		bts = msgp.AppendUint32(bts, 1) // write the type
+		bts = serStrings.AppendStreamingString(strings.Get(v.StringValueRef), v.StringValueRef, bts)
+	case *AnyValue_BoolValue:
+		bts = msgp.AppendUint32(bts, 2) // write the type
+		bts = msgp.AppendBool(bts, v.BoolValue)
+	case *AnyValue_DoubleValue:
+		bts = msgp.AppendUint32(bts, 3) // write the type
+		bts = msgp.AppendFloat64(bts, v.DoubleValue)
+	case *AnyValue_IntValue:
+		bts = msgp.AppendUint32(bts, 4) // write the type
+		bts = msgp.AppendInt64(bts, v.IntValue)
+	case *AnyValue_BytesValue:
+		bts = msgp.AppendUint32(bts, 5) // write the type
+		bts = msgp.AppendBytes(bts, v.BytesValue)
+	case *AnyValue_ArrayValue:
+		bts = msgp.AppendUint32(bts, 6) // write the type
+		bts = msgp.AppendArrayHeader(bts, uint32(len(v.ArrayValue.Values)*2))
+		for _, value := range v.ArrayValue.Values {
+			bts, err = value.MarshalMsg(bts, strings, serStrings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to marshal array element")
+				return bts, err
+			}
+		}
+	case *AnyValue_KeyValueList:
+		bts = msgp.AppendUint32(bts, 7)                                            // write the type
+		bts = msgp.AppendArrayHeader(bts, uint32(len(v.KeyValueList.KeyValues)*3)) // 3 entries per key value (key, type of value, value)
+		for _, value := range v.KeyValueList.KeyValues {
+			bts, err = value.MarshalMsg(bts, strings, serStrings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to marshal key value list element")
+				return bts, err
+			}
+		}
+	}
+	return bts, nil
+}
+
+// MarshalMsg marshals a KeyValue into a byte stream
+func (kv *KeyValue) MarshalMsg(bts []byte, strings *StringTable, serStrings *SerializedStrings) (o []byte, err error) {
+	o = serStrings.AppendStreamingString(strings.Get(kv.Key), kv.Key, bts)
+	o, err = kv.Value.MarshalMsg(o, strings, serStrings)
+	if err != nil {
+		err = msgp.WrapError(err, "Failed to marshal key value")
+		return
+	}
+	return
+}
+
+// MarshalMsg marshals a SpanLink into a byte stream
+func (link *InternalSpanLink) MarshalMsg(bts []byte, serStrings *SerializedStrings) (o []byte, err error) {
+	o = msgp.AppendMapHeader(bts, 5)
+	o = msgp.AppendUint32(o, 1) // traceID
+	o = msgp.AppendBytes(o, link.TraceID)
+	o = msgp.AppendUint32(o, 2) // spanID
+	o = msgp.AppendUint64(o, link.SpanID)
+	o = msgp.AppendUint32(o, 3) // attributes
+	o, err = MarshalAttributesMap(o, link.Attributes, link.Strings, serStrings)
+	if err != nil {
+		err = msgp.WrapError(err, "Failed to marshal attributes")
+		return
+	}
+	o = msgp.AppendUint32(o, 4) // tracestate
+	o = serStrings.AppendStreamingString(link.Strings.Get(link.TracestateRef), link.TracestateRef, o)
+	o = msgp.AppendUint32(o, 5) // flags
+	o = msgp.AppendUint32(o, link.FlagsRef)
+	return
+}
+
+// MarshalMsg marshals a SpanEvent into a byte stream
+func (evt *InternalSpanEvent) MarshalMsg(bts []byte, serStrings *SerializedStrings) (o []byte, err error) {
+	o = msgp.AppendMapHeader(bts, 3)
+	o = msgp.AppendUint32(o, 1) // time
+	o = msgp.AppendUint64(o, evt.Time)
+	o = msgp.AppendUint32(o, 2) // name
+	o = serStrings.AppendStreamingString(evt.Strings.Get(evt.NameRef), evt.NameRef, o)
+	o = msgp.AppendUint32(o, 3) // attributes
+	o, err = MarshalAttributesMap(o, evt.Attributes, evt.Strings, serStrings)
+	if err != nil {
+		err = msgp.WrapError(err, "Failed to marshal attributes")
+		return
+	}
+	return
+}
+
+// MarshalMsg marshals a Span into a byte stream
+func (span *InternalSpan) MarshalMsg(bts []byte, serStrings *SerializedStrings) (o []byte, err error) {
+	// Count non-default fields to determine map header size
+	numFields := 0
+	if span.ServiceRef != 0 {
+		numFields++
+	}
+	if span.NameRef != 0 {
+		numFields++
+	}
+	if span.ResourceRef != 0 {
+		numFields++
+	}
+	if span.SpanID != 0 {
+		numFields++
+	}
+	if span.ParentID != 0 {
+		numFields++
+	}
+	if span.Start != 0 {
+		numFields++
+	}
+	if span.Duration != 0 {
+		numFields++
+	}
+	if span.Error {
+		numFields++
+	}
+	if len(span.Attributes) > 0 {
+		numFields++
+	}
+	if span.TypeRef != 0 {
+		numFields++
+	}
+	if len(span.SpanLinks) > 0 {
+		numFields++
+	}
+	if len(span.SpanEvents) > 0 {
+		numFields++
+	}
+	if span.EnvRef != 0 {
+		numFields++
+	}
+	if span.VersionRef != 0 {
+		numFields++
+	}
+	if span.ComponentRef != 0 {
+		numFields++
+	}
+	if span.Kind != 0 {
+		numFields++
+	}
+	o = msgp.AppendMapHeader(bts, uint32(numFields))
+	if span.ServiceRef != 0 {
+		o = msgp.AppendUint32(o, 1) // service
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.ServiceRef), span.ServiceRef, o)
+	}
+	if span.NameRef != 0 {
+		o = msgp.AppendUint32(o, 2) // name
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.NameRef), span.NameRef, o)
+	}
+	if span.ResourceRef != 0 {
+		o = msgp.AppendUint32(o, 3) // resource
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.ResourceRef), span.ResourceRef, o)
+	}
+	if span.SpanID != 0 {
+		o = msgp.AppendUint32(o, 4) // spanID
+		o = msgp.AppendUint64(o, span.SpanID)
+	}
+	if span.ParentID != 0 {
+		o = msgp.AppendUint32(o, 5) // parentID
+		o = msgp.AppendUint64(o, span.ParentID)
+	}
+	if span.Start != 0 {
+		o = msgp.AppendUint32(o, 6) // start
+		o = msgp.AppendUint64(o, span.Start)
+	}
+	if span.Duration != 0 {
+		o = msgp.AppendUint32(o, 7) // duration
+		o = msgp.AppendUint64(o, span.Duration)
+	}
+	if span.Error {
+		o = msgp.AppendUint32(o, 8) // error
+		o = msgp.AppendBool(o, span.Error)
+	}
+	if len(span.Attributes) > 0 {
+		o = msgp.AppendUint32(o, 9) // attributes
+		o, err = MarshalAttributesMap(o, span.Attributes, span.Strings, serStrings)
+		if err != nil {
+			err = msgp.WrapError(err, "Failed to marshal attributes")
+			return
+		}
+	}
+	if span.TypeRef != 0 {
+		o = msgp.AppendUint32(o, 10) // type
+		o = msgp.AppendUint32(o, span.TypeRef)
+	}
+	if len(span.SpanLinks) > 0 {
+		o = msgp.AppendUint32(o, 11) // span links
+		o = msgp.AppendArrayHeader(o, uint32(len(span.SpanLinks)))
+		for _, link := range span.SpanLinks {
+			o, err = link.MarshalMsg(o, serStrings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to marshal span link")
+				return
+			}
+		}
+	}
+	if len(span.SpanEvents) > 0 {
+		o = msgp.AppendUint32(o, 12) // span events
+		o = msgp.AppendArrayHeader(o, uint32(len(span.SpanEvents)))
+		for _, event := range span.SpanEvents {
+			o, err = event.MarshalMsg(o, serStrings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to marshal span event")
+				return
+			}
+		}
+	}
+	if span.EnvRef != 0 {
+		o = msgp.AppendUint32(o, 13) // env
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.EnvRef), span.EnvRef, o)
+	}
+	if span.VersionRef != 0 {
+		o = msgp.AppendUint32(o, 14) // version
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.VersionRef), span.VersionRef, o)
+	}
+	if span.ComponentRef != 0 {
+		o = msgp.AppendUint32(o, 15) // component
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.ComponentRef), span.ComponentRef, o)
+	}
+	if span.Kind != 0 {
+		o = msgp.AppendUint32(o, 16) // kind
+		o = msgp.AppendUint32(o, uint32(span.Kind))
+	}
+	return
+}
+
+// SerializedStrings is a helper type that tracks what strings have been serialized and where
+// It is only good for one serialization
+type SerializedStrings struct {
+	strIndexes []uint32
+	curIndex   uint32
+}
+
+// NewSerializedStrings creates a new SerializedStrings object used to track what strings have been serialized
+// numStrings is the number of strings that will be serialized
+func NewSerializedStrings(numStrings uint32) *SerializedStrings {
+	return &SerializedStrings{strIndexes: make([]uint32, numStrings), curIndex: 1} // index starts at 1 as "" is reserved at 0
+}
+
+// AppendStreamingString writes str to b if it hasn't been written before, otherwise it writes the serialization index
+// strTableIndex is the location of str in the string table - this is used to track which strings have been written already
+func (s *SerializedStrings) AppendStreamingString(str string, strTableIndex uint32, b []byte) []byte {
+	if s.strIndexes[strTableIndex] == 0 && str != "" {
+		// String is not yet serialized, serialize it
+		b = msgp.AppendString(b, str)
+		s.strIndexes[strTableIndex] = s.curIndex
+		s.curIndex++
+	} else {
+		// String is already serialized, write the index
+		index := s.strIndexes[strTableIndex]
+		b = msgp.AppendUint32(b, index)
+	}
+	return b
+}

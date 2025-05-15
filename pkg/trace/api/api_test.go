@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -57,7 +58,8 @@ func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig()
 
 	rawTraceChan := make(chan *Payload, 5000)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rawTraceChanV1 := make(chan *PayloadV1, 5000)
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	return receiver
 }
@@ -768,6 +770,37 @@ func TestClientComputedStatsHeader(t *testing.T) {
 	t.Run("off", run(false))
 }
 
+func TestHandleTracesV1(t *testing.T) {
+	// prepare the receiver
+	conf := newTestReceiverConfig()
+	receiver := newTestReceiverFromConfig(conf)
+
+	// response recorder
+	handler := receiver.handleWithVersion(V10, receiver.handleTraces)
+
+	strings := idx.NewStringTable()
+	tp := idx.InternalTracerPayload{
+		Strings:         strings,
+		LanguageNameRef: strings.Add("python"),
+	}
+	bts, err := tp.MarshalMsg(nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/v1.0/traces", bytes.NewReader(bts))
+	req.Header.Set("Content-Type", "application/msgpack")
+
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Result().StatusCode)
+	select {
+	case p := <-receiver.outV1:
+		assert.Equal(t, "python", p.TracerPayload.LanguageName())
+	default:
+		t.Fatal("no trace sent for processing")
+	}
+}
+
 func TestHandleTraces(t *testing.T) {
 	// prepare the msgpack payload
 	bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
@@ -823,7 +856,7 @@ func TestHandleTraces(t *testing.T) {
 		dynConf := sampler.NewDynamicConfig()
 
 		rawTraceChan := make(chan *Payload)
-		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, nil, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 		receiver.recvsem = make(chan struct{}) //overwrite recvsem to ALWAYS block and ensure we look overwhelmed
 		// response recorder
 		handler := receiver.handleWithVersion(v04, receiver.handleTraces)
@@ -1049,7 +1082,7 @@ func BenchmarkWatchdog(b *testing.B) {
 	now := time.Now()
 	conf := newTestReceiverConfig()
 	conf.Endpoints[0].APIKey = "apikey_2"
-	r := NewHTTPReceiver(conf, nil, nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	r := NewHTTPReceiver(conf, nil, nil, nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	b.ResetTimer()
 	b.ReportAllocs()

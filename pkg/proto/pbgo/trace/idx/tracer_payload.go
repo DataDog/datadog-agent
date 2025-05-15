@@ -159,6 +159,96 @@ func unmarshalStringTable(bts []byte, strings *StringTable) (o []byte, err error
 	return
 }
 
+// MarshalMsg marshals a TracerPayload into a byte stream
+func (tp *InternalTracerPayload) MarshalMsg(bts []byte) (o []byte, err error) {
+	serStrings := NewSerializedStrings(uint32(tp.Strings.Len()))
+	// Count non-default fields to determine map header size
+	numFields := 0
+	if tp.ContainerIDRef != 0 {
+		numFields++
+	}
+	if tp.LanguageNameRef != 0 {
+		numFields++
+	}
+	if tp.LanguageVersionRef != 0 {
+		numFields++
+	}
+	if tp.TracerVersionRef != 0 {
+		numFields++
+	}
+	if tp.RuntimeIDRef != 0 {
+		numFields++
+	}
+	if tp.EnvRef != 0 {
+		numFields++
+	}
+	if tp.HostnameRef != 0 {
+		numFields++
+	}
+	if tp.AppVersionRef != 0 {
+		numFields++
+	}
+	if len(tp.Attributes) > 0 {
+		numFields++
+	}
+	if len(tp.Chunks) > 0 {
+		numFields++
+	}
+	o = msgp.AppendMapHeader(bts, uint32(numFields))
+	if tp.ContainerIDRef != 0 {
+		o = msgp.AppendUint32(o, 2) // containerID
+		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.ContainerIDRef), tp.ContainerIDRef, o)
+	}
+	if tp.LanguageNameRef != 0 {
+		o = msgp.AppendUint32(o, 3) // languageName
+		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.LanguageNameRef), tp.LanguageNameRef, o)
+	}
+	if tp.LanguageVersionRef != 0 {
+		o = msgp.AppendUint32(o, 4) // languageVersion
+		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.LanguageVersionRef), tp.LanguageVersionRef, o)
+	}
+	if tp.TracerVersionRef != 0 {
+		o = msgp.AppendUint32(o, 5) // tracerVersion
+		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.TracerVersionRef), tp.TracerVersionRef, o)
+	}
+	if tp.RuntimeIDRef != 0 {
+		o = msgp.AppendUint32(o, 6) // runtimeID
+		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.RuntimeIDRef), tp.RuntimeIDRef, o)
+	}
+	if tp.EnvRef != 0 {
+		o = msgp.AppendUint32(o, 7) // env
+		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.EnvRef), tp.EnvRef, o)
+	}
+	if tp.HostnameRef != 0 {
+		o = msgp.AppendUint32(o, 8) // hostname
+		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.HostnameRef), tp.HostnameRef, o)
+	}
+	if tp.AppVersionRef != 0 {
+		o = msgp.AppendUint32(o, 9) // appVersion
+		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.AppVersionRef), tp.AppVersionRef, o)
+	}
+	if len(tp.Attributes) > 0 {
+		o = msgp.AppendUint32(o, 10) // attributes
+		o, err = MarshalAttributesMap(o, tp.Attributes, tp.Strings, serStrings)
+		if err != nil {
+			err = msgp.WrapError(err, "Failed to marshal attributes")
+			return
+		}
+	}
+	if len(tp.Chunks) > 0 {
+		o = msgp.AppendUint32(o, 11) // chunks
+		o = msgp.AppendArrayHeader(o, uint32(len(tp.Chunks)))
+		for _, chunk := range tp.Chunks {
+			o, err = chunk.MarshalMsg(o, serStrings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to marshal trace chunk")
+				return
+			}
+		}
+	}
+	return
+}
+
 // UnmarshalTraceChunkList unmarshals a list of TraceChunks from a byte stream, updating the strings slice with new strings
 func UnmarshalTraceChunkList(bts []byte, strings *StringTable) (chunks []*InternalTraceChunk, o []byte, err error) {
 	var numChunks uint32
@@ -242,6 +332,74 @@ func (tc *InternalTraceChunk) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			fmt.Printf("Unknown trace chunk field number %d\n", fieldNum)
 			return
 		}
+	}
+	return
+}
+
+// MarshalMsg marshals a TraceChunk into a byte stream
+func (tc *InternalTraceChunk) MarshalMsg(bts []byte, serStrings *SerializedStrings) (o []byte, err error) {
+	// Count non-default fields to determine map header size
+	numFields := 0
+	if tc.Priority != 0 {
+		numFields++
+	}
+	if tc.OriginRef != 0 {
+		numFields++
+	}
+	if len(tc.Attributes) > 0 {
+		numFields++
+	}
+	if len(tc.Spans) > 0 {
+		numFields++
+	}
+	if tc.DroppedTrace {
+		numFields++
+	}
+	if len(tc.TraceID) > 0 {
+		numFields++
+	}
+	if tc.DecisionMakerRef != 0 {
+		numFields++
+	}
+	o = msgp.AppendMapHeader(bts, uint32(numFields))
+	if tc.Priority != 0 {
+		o = msgp.AppendUint32(o, 1) // priority
+		o = msgp.AppendInt32(o, tc.Priority)
+	}
+	if tc.OriginRef != 0 {
+		o = msgp.AppendUint32(o, 2) // origin
+		o = serStrings.AppendStreamingString(tc.Strings.Get(tc.OriginRef), tc.OriginRef, o)
+	}
+	if len(tc.Attributes) > 0 {
+		o = msgp.AppendUint32(o, 3) // attributes
+		o, err = MarshalAttributesMap(o, tc.Attributes, tc.Strings, serStrings)
+		if err != nil {
+			err = msgp.WrapError(err, "Failed to marshal attributes")
+			return
+		}
+	}
+	if len(tc.Spans) > 0 {
+		o = msgp.AppendUint32(o, 4) // spans
+		o = msgp.AppendArrayHeader(o, uint32(len(tc.Spans)))
+		for _, span := range tc.Spans {
+			o, err = span.MarshalMsg(o, serStrings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to marshal span")
+				return
+			}
+		}
+	}
+	if tc.DroppedTrace {
+		o = msgp.AppendUint32(o, 5) // droppedTrace
+		o = msgp.AppendBool(o, tc.DroppedTrace)
+	}
+	if len(tc.TraceID) > 0 {
+		o = msgp.AppendUint32(o, 6) // traceID
+		o = msgp.AppendBytes(o, tc.TraceID)
+	}
+	if tc.DecisionMakerRef != 0 {
+		o = msgp.AppendUint32(o, 7) // decisionMaker
+		o = serStrings.AppendStreamingString(tc.Strings.Get(tc.DecisionMakerRef), tc.DecisionMakerRef, o)
 	}
 	return
 }

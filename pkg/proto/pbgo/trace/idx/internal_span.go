@@ -71,6 +71,36 @@ type InternalTracerPayload struct {
 	Chunks []*InternalTraceChunk
 }
 
+func (tp *InternalTracerPayload) LanguageName() string {
+	return tp.Strings.Get(tp.LanguageNameRef)
+}
+
+func (tp *InternalTracerPayload) LanguageVersion() string {
+	return tp.Strings.Get(tp.LanguageVersionRef)
+}
+
+func (tp *InternalTracerPayload) TracerVersion() string {
+	return tp.Strings.Get(tp.TracerVersionRef)
+}
+
+func (tp *InternalTracerPayload) ContainerID() string {
+	return tp.Strings.Get(tp.ContainerIDRef)
+}
+
+// AddString deduplicates the provided string and returns the index to reference it in the string table
+func (tp *InternalTracerPayload) AddString(s string) uint32 {
+	return tp.Strings.Add(s)
+}
+
+func (tp *InternalTracerPayload) SetStringAttribute(key, value string) {
+	// TODO: How should we handle removing a tag? Can we just let the string dangle?
+	tp.Attributes[tp.Strings.Add(key)] = &AnyValue{
+		Value: &AnyValue_StringValueRef{
+			StringValueRef: tp.Strings.Add(value),
+		},
+	}
+}
+
 // InternalTraceChunk is a trace chunk structure that is optimized for trace-agent usage
 // Namely it stores Attributes as a map for fast key lookups and holds a pointer to the strings slice
 // so a trace chunk holds all local context necessary to understand all fields
@@ -123,6 +153,18 @@ type InternalSpan struct {
 	ComponentRef uint32
 	// the SpanKind of this span as defined in the OTEL Specification
 	Kind SpanKind
+}
+
+func (s *InternalSpan) Service() string {
+	return s.Strings.Get(s.ServiceRef)
+}
+
+func (s *InternalSpan) Name() string {
+	return s.Strings.Get(s.NameRef)
+}
+
+func (s *InternalSpan) Resource() string {
+	return s.Strings.Get(s.ResourceRef)
 }
 
 // InternalSpanLink is a span link structure that is optimized for trace-agent usage

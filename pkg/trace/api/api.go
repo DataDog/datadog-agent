@@ -29,6 +29,7 @@ import (
 	"go.uber.org/atomic"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -91,6 +92,7 @@ type HTTPReceiver struct {
 	Stats *info.ReceiverStats
 
 	out                 chan *Payload
+	outV1               chan *PayloadV1
 	conf                *config.AgentConfig
 	dynConf             *sampler.DynamicConfig
 	server              *http.Server
@@ -126,6 +128,7 @@ func NewHTTPReceiver(
 	conf *config.AgentConfig,
 	dynConf *sampler.DynamicConfig,
 	out chan *Payload,
+	outV1 chan *PayloadV1,
 	statsProcessor StatsProcessor,
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
@@ -148,6 +151,7 @@ func NewHTTPReceiver(
 		Stats: info.NewReceiverStats(),
 
 		out:                 out,
+		outV1:               outV1,
 		statsProcessor:      statsProcessor,
 		conf:                conf,
 		dynConf:             dynConf,
@@ -518,6 +522,24 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 	}
 }
 
+func decodeTracerPayloadV1(req *http.Request, cIDProvider IDProvider) (tp *idx.InternalTracerPayload, err error) {
+	buf := getBuffer()
+	defer putBuffer(buf)
+	if _, err = copyRequestBody(buf, req); err != nil {
+		return nil, err
+	}
+	var tracerPayload idx.InternalTracerPayload
+	_, err = tracerPayload.UnmarshalMsg(buf.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	if tracerPayload.ContainerIDRef == 0 {
+		cid := cIDProvider.GetContainerID(req.Context(), req.Header)
+		tracerPayload.ContainerIDRef = tracerPayload.AddString(cid)
+	}
+	return &tracerPayload, err
+}
+
 // replyOK replies to the given http.ResponseWriter w based on the endpoint version, with either status 200/OK
 // or with a list of rates by service. It returns the number of bytes written along with reporting if the operation
 // was successful.
@@ -572,7 +594,108 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 }
 
 // handleTraces knows how to handle a bunch of traces
+func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) {
+	tracen, err := traceCount(req)
+	if err == errInvalidHeaderTraceCountValue {
+		log.Errorf("Failed to count traces: %s", err)
+	}
+	defer req.Body.Close()
+	select {
+	// Wait for the semaphore to become available, allowing the handler to
+	// decode its payload.
+	// After the configured timeout, respond without ingesting the payload,
+	// and sending the configured status.
+	case r.recvsem <- struct{}{}:
+	case <-time.After(time.Duration(r.conf.DecoderTimeout) * time.Millisecond):
+		log.Debugf("trace-agent is overwhelmed, a payload has been rejected")
+		// this payload can not be accepted
+		io.Copy(io.Discard, req.Body) //nolint:errcheck
+		w.WriteHeader(http.StatusTooManyRequests)
+		r.replyOK(req, V10, w)
+		r.tagStats(V10, req.Header, "").PayloadRefused.Inc()
+		return
+	}
+	defer func() {
+		// Signal the semaphore that we are done decoding, so another handler
+		// routine can take a turn decoding a payload.
+		<-r.recvsem
+	}()
+
+	firstService := func(tp *idx.InternalTracerPayload) string {
+		if tp == nil || len(tp.Chunks) == 0 || len(tp.Chunks[0].Spans) == 0 {
+			return ""
+		}
+		return tp.Chunks[0].Spans[0].Service()
+	}
+
+	start := time.Now()
+	tp, err := decodeTracerPayloadV1(req, r.containerIDProvider)
+	ts := r.Stats.GetTagStats(info.Tags{
+		Lang:            tp.LanguageName(),
+		LangVersion:     tp.LanguageVersion(),
+		Interpreter:     req.Header.Get(header.LangInterpreter),
+		LangVendor:      req.Header.Get(header.LangInterpreterVendor),
+		TracerVersion:   tp.TracerVersion(),
+		EndpointVersion: string(V10),
+		Service:         firstService(tp),
+	})
+	defer func(err error) {
+		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
+		_ = r.statsd.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
+	}(err)
+	if err != nil {
+		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", V10)}, w, r.statsd)
+		switch err {
+		case apiutil.ErrLimitedReaderLimitReached:
+			ts.TracesDropped.PayloadTooLarge.Add(tracen)
+		case io.EOF, io.ErrUnexpectedEOF:
+			ts.TracesDropped.EOF.Add(tracen)
+		case msgp.ErrShortBytes:
+			ts.TracesDropped.MSGPShortBytes.Add(tracen)
+		default:
+			if err, ok := err.(net.Error); ok && err.Timeout() {
+				ts.TracesDropped.Timeout.Add(tracen)
+			} else {
+				ts.TracesDropped.DecodingError.Add(tracen)
+			}
+		}
+		log.Errorf("Cannot decode %s traces payload: %v", V10, err)
+		return
+	}
+	if n, ok := r.replyOK(req, V10, w); ok {
+		tags := append(ts.AsTags(), "endpoint:traces_"+string(V10))
+		_ = r.statsd.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), tags, 1)
+	}
+
+	ts.TracesReceived.Add(int64(len(tp.Chunks)))
+	ts.TracesBytes.Add(req.Body.(*apiutil.LimitedReader).Count)
+	ts.PayloadAccepted.Inc()
+
+	if ctags := getContainerTags(r.conf.ContainerTags, tp.ContainerID()); ctags != "" {
+		tp.SetStringAttribute(tagContainersTags, ctags)
+	}
+	ptags := getProcessTagsFromHeader(req.Header)
+	if ptags != "" {
+		tp.SetStringAttribute(tagProcessTags, ptags)
+	}
+
+	payload := &PayloadV1{
+		Source:                 ts,
+		TracerPayload:          tp,
+		ClientComputedTopLevel: isHeaderTrue(header.ComputedTopLevel, req.Header.Get(header.ComputedTopLevel)),
+		ClientComputedStats:    isHeaderTrue(header.ComputedStats, req.Header.Get(header.ComputedStats)),
+		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
+		ProcessTags:            ptags,
+	}
+	r.outV1 <- payload
+}
+
+// handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
+	if v == V10 {
+		r.handleTracesV1(w, req)
+		return
+	}
 	tracen, err := traceCount(req)
 	if err == errInvalidHeaderTraceCountValue {
 		log.Errorf("Failed to count traces: %s", err)

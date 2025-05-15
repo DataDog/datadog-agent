@@ -39,14 +39,14 @@ message TracerPayload {
 	// runtimeIDRef specifies the string table ref of the V4 UUID representation of a tracer session.
 	uint32 runtimeIDRef = 6;
 	// envRef specifies the string table ref of the `env` tag that set with the tracer.
-	uint32 envRef = 8;
+	uint32 envRef = 7;
 	// hostnameRef specifies the string table ref of the hostname of where the tracer is running.
-	uint32 hostnameRef = 9;
+	uint32 hostnameRef = 8;
 	// versionRef specifies the string table ref of the `version` tag that set with the tracer.
-	uint32 versionRef = 10;
+	uint32 versionRef = 9;
 	// a collection of key to value pairs common in all `chunks`
-	map<uint32, AnyValue> attributes = 11;
+	map<uint32, AnyValue> attributes = 10;
 	// chunks specifies list of containing trace chunks.
-	repeated TraceChunk chunks = 12;
+	repeated TraceChunk chunks = 11;
 
 }
