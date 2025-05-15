@@ -151,7 +151,48 @@ func (rs *RuleSet) GetOnDemandHookPoints() ([]OnDemandHookPoint, error) {
 		})
 	}
 
-	return hookPoints, nil
+	return sanitizeHookPoints(hookPoints)
+}
+
+func sanitizeHookPoints(hookPoints []OnDemandHookPoint) ([]OnDemandHookPoint, error) {
+	type pair struct {
+		name    string
+		syscall bool
+	}
+
+	mapping := make(map[pair]map[int]string)
+	for _, hook := range hookPoints {
+		key := pair{name: hook.Name, syscall: hook.IsSyscall}
+		if _, ok := mapping[key]; !ok {
+			mapping[key] = make(map[int]string)
+		}
+
+		for _, arg := range hook.Args {
+			if old, ok := mapping[key][arg.N]; ok && old != arg.Kind {
+				return nil, fmt.Errorf("conflicting argument %d for hook %s: %s != %s", arg.N, hook.Name, old, arg.Kind)
+			}
+			mapping[key][arg.N] = arg.Kind
+		}
+	}
+
+	var result []OnDemandHookPoint
+
+	for key, args := range mapping {
+		hp := OnDemandHookPoint{
+			Name:      key.name,
+			IsSyscall: key.syscall,
+			Args:      make([]HookPointArg, 0, len(args)),
+		}
+		for n, kind := range args {
+			hp.Args = append(hp.Args, HookPointArg{
+				N:    n,
+				Kind: kind,
+			})
+		}
+		result = append(result, hp)
+	}
+
+	return result, nil
 }
 
 // ListMacroIDs returns the list of MacroIDs from the ruleset
