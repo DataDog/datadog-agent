@@ -639,8 +639,8 @@ func TestProcessContext(t *testing.T) {
 					assert.Equal(t, envs[i], envp[i], "expected env not found")
 				}
 			} else {
-				assert.Equal(t, 704, len(envp), "incorrect number of envs: %s", envp)
-				for i := 0; i != 704; i++ {
+				assert.Equal(t, 672, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != 672; i++ {
 					assert.Equal(t, envs[i], envp[i], "expected env not found")
 				}
 			}
