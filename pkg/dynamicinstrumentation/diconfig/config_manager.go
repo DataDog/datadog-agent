@@ -12,6 +12,7 @@ package diconfig
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sync"
 
 	"github.com/cilium/ebpf/ringbuf"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/eventparser"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/proctracker"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -54,6 +56,7 @@ type configUpdateCallback func(*ditypes.ProcessInfo, *ditypes.Probe)
 // instrumenting tracked processes
 type ConfigManager interface {
 	GetProcInfos() ditypes.DIProcs
+	GetProcInfo(ditypes.PID) *ditypes.ProcessInfo
 	Stop()
 }
 
@@ -67,13 +70,13 @@ type RCConfigManager struct {
 }
 
 // NewRCConfigManager creates a new configuration manager which utilizes remote-config
-func NewRCConfigManager() (*RCConfigManager, error) {
+func NewRCConfigManager(pm process.Subscriber) (*RCConfigManager, error) {
 	log.Info("Creating new RC config manager")
 	cm := &RCConfigManager{
 		callback: applyConfigUpdate,
 	}
 
-	cm.procTracker = proctracker.NewProcessTracker(cm.updateProcesses)
+	cm.procTracker = proctracker.NewProcessTracker(pm, cm.updateProcesses)
 	err := cm.procTracker.Start()
 	if err != nil {
 		return nil, fmt.Errorf("could not start process tracker: %w", err)
@@ -86,7 +89,14 @@ func NewRCConfigManager() (*RCConfigManager, error) {
 func (cm *RCConfigManager) GetProcInfos() ditypes.DIProcs {
 	cm.RLock()
 	defer cm.RUnlock()
-	return cm.diProcs
+	return maps.Clone(cm.diProcs)
+}
+
+// GetProcInfo returns a copy of the state of the RCConfigManager
+func (cm *RCConfigManager) GetProcInfo(pid ditypes.PID) *ditypes.ProcessInfo {
+	cm.RLock()
+	defer cm.RUnlock()
+	return cm.diProcs[pid]
 }
 
 // Stop closes the config and proc trackers used by the RCConfigManager
@@ -191,19 +201,19 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 		}
 		configEventParams := configEvent.Argdata
 		if len(configEventParams) != 3 {
-			log.Errorf("error parsing configuration for PID: %d: not enough arguments", procInfo.PID)
+			log.Errorf("error parsing configuration for PID: %d: not enough arguments (got %d): %s", procInfo.PID, len(configEventParams), string(record.RawSample))
 			continue
 		}
 
 		runtimeID, err := uuid.ParseBytes([]byte(configEventParams[0].ValueStr))
 		if err != nil {
-			log.Errorf("Runtime ID \"%s\" is not a UUID: %v)", runtimeID, err)
+			log.Errorf("Runtime ID \"%s\" is not a UUID: %v)", configEventParams[0].ValueStr, err)
 			continue
 		}
 
 		configPath, err := ditypes.ParseConfigPath(string(configEventParams[1].ValueStr))
 		if err != nil {
-			log.Errorf("couldn't parse config path: %v", err)
+			log.Errorf("couldn't parse config path (%s): %v", string(configEventParams[1].ValueStr), err)
 			continue
 		}
 
@@ -249,7 +259,7 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 		if configPath.Hash != probe.InstrumentationInfo.ConfigurationHash {
 			err := AnalyzeBinary(procInfo)
 			if err != nil {
-				log.Errorf("couldn't inspect binary: %v\n", err)
+				log.Errorf("couldn't inspect binary (%s): %v\n", procInfo.BinaryPath, err)
 				cm.Unlock()
 				continue
 			}
@@ -262,7 +272,7 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 }
 
 func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
-	log.Tracef("Applying config update: %v\n", probe)
+	log.Debugf("Applying config update for: %s in %s (ID: %s)\n", probe.FuncName, probe.ServiceName, probe.ID)
 	for {
 		if err := tryGenerateAndAttach(procInfo, probe); err == nil {
 			return
@@ -276,7 +286,7 @@ func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
 func tryGenerateAndAttach(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error {
 	err := codegen.GenerateBPFParamsCode(procInfo, probe)
 	if err != nil {
-		log.Errorf("Couldn't generate BPF programs: %v", err)
+		log.Errorf("Couldn't generate BPF programs for %s: %v", probe.FuncName, err)
 		if !haveExhaustedReferenceDepthDecrementing(probe) {
 			return err
 		}
@@ -284,7 +294,7 @@ func tryGenerateAndAttach(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) e
 	}
 	err = ebpf.CompileBPFProgram(probe)
 	if err != nil {
-		log.Errorf("Couldn't compile BPF object: %v", err)
+		log.Errorf("Couldn't compile BPF object for function %s (ID: %s): %v", probe.FuncName, probe.ID, err)
 		if !haveExhaustedReferenceDepthDecrementing(probe) {
 			return err
 		}
@@ -292,7 +302,7 @@ func tryGenerateAndAttach(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) e
 	}
 	err = ebpf.AttachBPFUprobe(procInfo, probe)
 	if err != nil {
-		log.Errorf("Couldn't load and attach bpf programs: %v", err)
+		log.Errorf("Couldn't load and attach bpf programs for function %s (ID: %s): %v", probe.FuncName, probe.ID, err)
 		if !haveExhaustedReferenceDepthDecrementing(probe) {
 			return err
 		}

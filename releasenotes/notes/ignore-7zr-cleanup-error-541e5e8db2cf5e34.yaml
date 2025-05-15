@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    The Windows Agent MSI no longer fails if it is unable to delete temporary
+    files related to extracting the embedded Python distribution.

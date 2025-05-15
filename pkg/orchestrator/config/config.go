@@ -89,6 +89,7 @@ func (oc *OrchestratorConfig) Load() error {
 
 	if key := "api_key"; pkgconfigsetup.Datadog().IsSet(key) {
 		oc.OrchestratorEndpoints[0].APIKey = utils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString(key))
+		oc.OrchestratorEndpoints[0].ConfigSettingPath = "api_key"
 	}
 
 	if err := extractOrchestratorAdditionalEndpoints(URL, &oc.OrchestratorEndpoints); err != nil {
@@ -140,16 +141,17 @@ func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints 
 	return nil
 }
 
-func extractEndpoints(URL *url.URL, k string, endpoints *[]apicfg.Endpoint) error {
-	for endpointURL, apiKeys := range pkgconfigsetup.Datadog().GetStringMapStringSlice(k) {
+func extractEndpoints(URL *url.URL, configPath string, endpoints *[]apicfg.Endpoint) error {
+	for endpointURL, apiKeys := range pkgconfigsetup.Datadog().GetStringMapStringSlice(configPath) {
 		u, err := URL.Parse(endpointURL)
 		if err != nil {
 			return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
 		}
 		for _, k := range apiKeys {
 			*endpoints = append(*endpoints, apicfg.Endpoint{
-				APIKey:   utils.SanitizeAPIKey(k),
-				Endpoint: u,
+				APIKey:            utils.SanitizeAPIKey(k),
+				Endpoint:          u,
+				ConfigSettingPath: configPath,
 			})
 		}
 	}

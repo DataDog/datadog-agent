@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	httpsender "github.com/DataDog/datadog-agent/pkg/logs/sender/http"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -65,7 +66,9 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    10e6,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-		defaultInputChanSize: 500,
+		defaultInputChanSize:  500,
+		forceCompressionKind:  config.GzipCompressionKind,
+		forceCompressionLevel: config.GzipCompressionLevel,
 	},
 	{
 		eventType:              eventTypeDBMMetrics,
@@ -79,7 +82,9 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-		defaultInputChanSize: 500,
+		defaultInputChanSize:  500,
+		forceCompressionKind:  config.GzipCompressionKind,
+		forceCompressionLevel: config.GzipCompressionLevel,
 	},
 	{
 		eventType:   eventTypeDBMMetadata,
@@ -96,7 +101,9 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-		defaultInputChanSize: 500,
+		defaultInputChanSize:  500,
+		forceCompressionKind:  config.GzipCompressionKind,
+		forceCompressionLevel: config.GzipCompressionLevel,
 	},
 	{
 		eventType:              eventTypeDBMActivity,
@@ -110,7 +117,9 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-		defaultInputChanSize: 500,
+		defaultInputChanSize:  500,
+		forceCompressionKind:  config.GzipCompressionKind,
+		forceCompressionLevel: config.GzipCompressionLevel,
 	},
 	{
 		eventType:                     eventplatform.EventTypeNetworkDevicesMetadata,
@@ -149,7 +158,6 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		// Each NetFlow flow is about 500 bytes
 		// 10k BatchMaxSize is about 5Mo of content size
 		defaultBatchMaxSize: 10000,
-
 		// High input chan is needed to handle high number of flows being flushed by NetFlow Server every 10s
 		// Customers might need to set `network_devices.forwarder.input_chan_size` to higher value if flows are dropped
 		// due to input channel being full.
@@ -205,7 +213,10 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		// on every periodic refresh, we re-send all the SBOMs for all the
+		// container images in the workloadmeta store. This can be a lot of
+		// payloads at once, so we need a large input channel size to avoid dropping
+		defaultInputChanSize: 1000,
 	},
 	{
 		eventType:                     eventplatform.EventTypeServiceDiscovery,
@@ -371,6 +382,8 @@ type passthroughPipelineDesc struct {
 	defaultBatchMaxContentSize    int
 	defaultBatchMaxSize           int
 	defaultInputChanSize          int
+	forceCompressionKind          string
+	forceCompressionLevel         int
 }
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
@@ -383,15 +396,19 @@ func newHTTPPassthroughPipeline(
 	destinationsContext *client.DestinationsContext,
 	pipelineID int,
 ) (p *passthroughPipeline, err error) {
-
 	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig)
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(
+	compressionOptions := config.EndpointCompressionOptions{
+		CompressionKind:  desc.forceCompressionKind,
+		CompressionLevel: desc.forceCompressionLevel,
+	}
+	endpoints, err := config.BuildHTTPEndpointsWithCompressionOverride(
 		coreConfig,
 		configKeys,
 		desc.hostnameEndpointPrefix,
 		desc.intakeTrackType,
 		config.DefaultIntakeProtocol,
 		config.DefaultIntakeOrigin,
+		compressionOptions,
 	)
 	if err != nil {
 		return nil, err
@@ -415,19 +432,24 @@ func newHTTPPassthroughPipeline(
 
 	pipelineMonitor := metrics.NewNoopPipelineMonitor(strconv.Itoa(pipelineID))
 
-	reliable := []client.Destination{}
-	for i, endpoint := range endpoints.GetReliableEndpoints() {
-		destMeta := client.NewDestinationMetadata(desc.eventType, pipelineMonitor.ID(), "reliable", strconv.Itoa(i))
-		reliable = append(reliable, logshttp.NewDestination(endpoint, desc.contentType, destinationsContext, true, destMeta, pkgconfigsetup.Datadog(), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxConcurrentSend, pipelineMonitor))
-	}
-	additionals := []client.Destination{}
-	for i, endpoint := range endpoints.GetUnReliableEndpoints() {
-		destMeta := client.NewDestinationMetadata(desc.eventType, pipelineMonitor.ID(), "unreliable", strconv.Itoa(i))
-		additionals = append(additionals, logshttp.NewDestination(endpoint, desc.contentType, destinationsContext, false, destMeta, pkgconfigsetup.Datadog(), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxConcurrentSend, pipelineMonitor))
-	}
-	destinations := client.NewDestinations(reliable, additionals)
 	inputChan := make(chan *message.Message, endpoints.InputChanSize)
-	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
+
+	a := auditor.NewNullAuditor()
+	serverlessMeta := sender.NewServerlessMeta(false)
+	senderImpl := httpsender.NewHTTPSender(
+		coreConfig,
+		a,
+		10, // Buffer Size
+		serverlessMeta,
+		endpoints,
+		destinationsContext,
+		desc.eventType,
+		desc.contentType,
+		sender.DefaultQueuesCount,
+		sender.DefaultWorkersPerQueue,
+		endpoints.BatchMaxConcurrentSend,
+		endpoints.BatchMaxConcurrentSend,
+	)
 
 	var encoder compressioncommon.Compressor
 	encoder = compressor.NewCompressor("none", 0)
@@ -436,14 +458,14 @@ func newHTTPPassthroughPipeline(
 	}
 
 	var strategy sender.Strategy
+
 	if desc.contentType == logshttp.ProtobufContentType {
-		strategy = sender.NewStreamStrategy(inputChan, senderInput, encoder)
+		strategy = sender.NewStreamStrategy(inputChan, senderImpl.In(), encoder)
 	} else {
 		strategy = sender.NewBatchStrategy(inputChan,
-			senderInput,
+			senderImpl.In(),
 			make(chan struct{}),
-			false,
-			nil,
+			serverlessMeta,
 			sender.ArraySerializer,
 			endpoints.BatchWait,
 			endpoints.BatchMaxSize,
@@ -453,11 +475,18 @@ func newHTTPPassthroughPipeline(
 			pipelineMonitor)
 	}
 
-	a := auditor.NewNullAuditor()
-	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
-		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
+	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d, compression_kind=%s, compression_level=%d",
+		desc.eventType,
+		joinHosts(endpoints.GetReliableEndpoints()),
+		joinHosts(endpoints.GetUnReliableEndpoints()),
+		endpoints.BatchMaxConcurrentSend,
+		endpoints.BatchMaxContentSize,
+		endpoints.BatchMaxSize,
+		endpoints.InputChanSize,
+		endpoints.Main.CompressionKind,
+		endpoints.Main.CompressionLevel)
 	return &passthroughPipeline{
-		sender:                sender.NewSender(coreConfig, senderInput, a.Channel(), destinations, 10, nil, nil, pipelineMonitor),
+		sender:                senderImpl,
 		strategy:              strategy,
 		in:                    inputChan,
 		auditor:               a,

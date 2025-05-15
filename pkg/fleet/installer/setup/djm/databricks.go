@@ -7,6 +7,7 @@
 package djm
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
@@ -107,7 +108,7 @@ func SetupDatabricks(s *common.Setup) error {
 			Key:   "DD_TRACE_DEBUG",
 			Value: "true",
 		}
-		tracerEnvConfigEmr = append(tracerEnvConfigDatabricks, debugLogs)
+		tracerEnvConfigDatabricks = append(tracerEnvConfigDatabricks, debugLogs)
 	}
 	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigDatabricks
 
@@ -123,6 +124,9 @@ func SetupDatabricks(s *common.Setup) error {
 		setupDatabricksDriver(s)
 	default:
 		setupDatabricksWorker(s)
+	}
+	if s.Config.DatadogYAML.LogsEnabled {
+		loadLogProcessingRules(s)
 	}
 	return nil
 }
@@ -204,7 +208,11 @@ func setClearIfExists(s *common.Setup, envKey, tagKey string, normalize func(str
 
 func setHostTag(s *common.Setup, tagKey, value string) {
 	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, tagKey+":"+value)
-	s.Span.SetTag("host_tag_set."+tagKey, "true")
+	isTagPresent := "false"
+	if value != "" {
+		isTagPresent = "true"
+	}
+	s.Span.SetTag("host_tag_set."+tagKey, isTagPresent)
 }
 
 func setClearHostTag(s *common.Setup, tagKey, value string) {
@@ -220,6 +228,7 @@ func setupDatabricksDriver(s *common.Setup) {
 	if os.Getenv("DRIVER_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = driverLogs
+		s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" {
 		sparkIntegration.Instances = []any{
@@ -239,12 +248,14 @@ func setupDatabricksDriver(s *common.Setup) {
 func setupDatabricksWorker(s *common.Setup) {
 	setClearHostTag(s, "spark_node", "worker")
 
-	var sparkIntegration common.IntegrationConfig
 	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
+		var sparkIntegration common.IntegrationConfig
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = workerLogs
+		s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
+		s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 	}
-	s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
+
 }
 
 func addCustomHostTags(s *common.Setup) {
@@ -271,4 +282,29 @@ func addCustomHostTags(s *common.Setup) {
 	}
 	s.Span.SetTag("host_tag_set.dd_tags", len(tagsArray))
 	s.Span.SetTag("host_tag_set.dd_extra_tags", len(extraTagsArray))
+}
+
+func parseLogProcessingRules(input string) ([]common.LogProcessingRule, error) {
+	var rules []common.LogProcessingRule
+	// single quote are invalid for string in json
+	jsonInput := strings.ReplaceAll(input, `'`, `"`)
+	err := json.Unmarshal([]byte(jsonInput), &rules)
+	if err != nil {
+		return nil, err
+	}
+	return rules, nil
+}
+
+func loadLogProcessingRules(s *common.Setup) {
+	if rawRules := os.Getenv("DD_LOGS_CONFIG_PROCESSING_RULES"); rawRules != "" {
+		processingRules, err := parseLogProcessingRules(rawRules)
+		if err != nil {
+			log.Warnf("Failed to parse log processing rules: %v", err)
+			s.Out.WriteString(fmt.Sprintf("Invalid log processing rules: %v\n", err))
+		} else {
+			logsConfig := common.LogsConfig{ProcessingRules: processingRules}
+			s.Config.DatadogYAML.LogsConfig = logsConfig
+			s.Out.WriteString(fmt.Sprintf("Loaded %d log processing rule(s) from DD_LOGS_CONFIG_PROCESSING_RULES\n", len(processingRules)))
+		}
+	}
 }

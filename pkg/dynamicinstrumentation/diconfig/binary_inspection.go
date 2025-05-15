@@ -27,7 +27,7 @@ func inspectGoBinaries(configEvent ditypes.DIProcs) error {
 	for i := range configEvent {
 		err = AnalyzeBinary(configEvent[i])
 		if err != nil {
-			log.Info("inspection of PID %d (path=%s) failed: %w", configEvent[i].PID, configEvent[i].BinaryPath, err)
+			log.Infof("inspection of PID %d (path=%s) failed: %s", configEvent[i].PID, configEvent[i].BinaryPath, err)
 		} else {
 			inspectedAtLeastOneBinary = true
 		}
@@ -134,7 +134,10 @@ func collectFieldIDs(param *ditypes.Parameter) []bininspect.FieldIdentifier {
 					FieldName:  structField.Name,
 				})
 				if len(fieldIDs) >= ditypes.MaxFieldCount {
-					log.Info("field limit applied, not collecting further fields", len(fieldIDs), ditypes.MaxFieldCount)
+					log.Info("field limit applied to type %s, not collecting further fields",
+						current.Type,
+						len(fieldIDs),
+						ditypes.MaxFieldCount)
 					return fieldIDs
 				}
 			}

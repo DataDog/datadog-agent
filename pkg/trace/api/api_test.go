@@ -66,6 +66,7 @@ func newTestReceiverConfig() *config.AgentConfig {
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "test"
 	conf.DecoderTimeout = 10000
+	conf.ReceiverTimeout = 1
 	conf.ReceiverPort = 8326 // use non-default port to avoid conflict with a running agent
 
 	return conf
@@ -1083,7 +1084,7 @@ func TestExpvar(t *testing.T) {
 
 	c := newTestReceiverConfig()
 	c.DebugServerPort = 6789
-	info.InitInfo(c)
+	assert.NoError(t, info.InitInfo(c))
 
 	// Starting a TLS httptest server to retrieve tlsCert
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))

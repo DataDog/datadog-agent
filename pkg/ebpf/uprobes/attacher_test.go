@@ -49,6 +49,14 @@ func TestCanCreateAttacher(t *testing.T) {
 	require.NotNil(t, ua)
 }
 
+func TestInternalProcessesRegex(t *testing.T) {
+	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/system-probe"))
+	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/trace-agent"))
+	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/process-agent"))
+	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/security-agent"))
+	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/otel-agent"))
+}
+
 func TestAttachPidExcludesInternal(t *testing.T) {
 	exe := "datadog-agent/bin/system-probe"
 	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})
@@ -1080,4 +1088,134 @@ func methodHasBeenCalledWithPredicate(registry *MockFileRegistry, methodName str
 		}
 	}
 	return false
+}
+
+func TestSyncRetryAndReattach(t *testing.T) {
+	proc := FakeProcFSEntry{
+		Pid:     1,
+		Cmdline: "/bin/bash",
+		Command: "/bin/bash",
+		Exe:     "/bin/bash",
+	}
+	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
+	emptyProcFS := CreateFakeProcFS(t, []FakeProcFSEntry{})
+
+	config := AttacherConfig{
+		ProcRoot: procFS,
+		Rules: []*AttachRule{
+			{
+				Targets: AttachToExecutable,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}},
+				},
+			},
+		},
+		EnablePeriodicScanNewProcesses: true,
+		MaxPeriodicScansPerProcess:     2,
+	}
+
+	registry := &MockFileRegistry{}
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, nil, nil, nil, newMockProcessMonitor())
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	ua.fileRegistry = registry
+
+	// First attempt should fail, registry should report no processes
+	registry.On("Register", proc.Exe, proc.Pid, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("inspection failed")).Once()
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{}).Once()
+	err = ua.Sync(true, true)
+	require.NoError(t, err) // Sync itself doesn't return errors from individual attachments
+	require.Equal(t, 1, ua.scansPerPid[proc.Pid])
+	registry.AssertExpectations(t)
+
+	// Second attempt should succeed, registry should still report no processes
+	registry.On("Register", proc.Exe, proc.Pid, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{}).Once()
+	err = ua.Sync(true, true)
+	require.NoError(t, err)
+	require.Equal(t, 2, ua.scansPerPid[proc.Pid])
+	registry.AssertExpectations(t)
+
+	// Scan an empty procFS to simulate a process exit, the registry in this case does know about the process
+	// to simulate it has been attached correctly
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{proc.Pid: {}}).Once()
+	registry.On("Unregister", proc.Pid).Return(nil).Once()
+	ua.config.ProcRoot = emptyProcFS
+	err = ua.Sync(true, true)
+	require.NoError(t, err)
+	require.Empty(t, ua.scansPerPid)
+	registry.AssertExpectations(t)
+
+	// Should be able to re-attach to same PID, registry doesn't know about the process as it was detached before
+	ua.config.ProcRoot = procFS
+	registry.On("Register", proc.Exe, proc.Pid, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{}).Once()
+	err = ua.Sync(true, true)
+	require.NoError(t, err)
+	require.Equal(t, config.MaxPeriodicScansPerProcess, ua.scansPerPid[proc.Pid]) // attached correctly, so marked as already scanned to the max
+	registry.AssertExpectations(t)
+}
+
+func TestSyncNoAttach(t *testing.T) {
+	proc := FakeProcFSEntry{
+		Pid:     1,
+		Cmdline: "/bin/bash",
+		Command: "/bin/bash",
+		Exe:     "/bin/bash",
+	}
+	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
+	emptyProcFS := CreateFakeProcFS(t, []FakeProcFSEntry{})
+
+	config := AttacherConfig{
+		ProcRoot: procFS,
+		Rules: []*AttachRule{
+			{
+				Targets: AttachToExecutable,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}},
+				},
+			},
+		},
+		EnablePeriodicScanNewProcesses: true,
+		MaxPeriodicScansPerProcess:     2,
+	}
+
+	registry := &MockFileRegistry{}
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, nil, nil, nil, newMockProcessMonitor())
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	ua.fileRegistry = registry
+
+	// All attempts should fail
+	registry.On("Register", proc.Exe, proc.Pid, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("inspection failed")).Once()
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{}).Once()
+	err = ua.Sync(true, true)
+	require.NoError(t, err) // Sync itself doesn't return errors from individual attachments
+	require.Equal(t, 1, ua.scansPerPid[proc.Pid])
+	registry.AssertExpectations(t)
+
+	// Second attempt should still fail
+	registry.On("Register", proc.Exe, proc.Pid, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("inspection failed")).Once()
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{}).Once()
+	err = ua.Sync(true, true)
+	require.NoError(t, err)
+	require.Equal(t, 2, ua.scansPerPid[proc.Pid])
+	registry.AssertExpectations(t)
+
+	// Third attempt should not even get to the registry, so we don't expect any calls to the Register method
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{}).Once()
+	err = ua.Sync(true, true)
+	require.NoError(t, err)
+	require.Equal(t, 2, ua.scansPerPid[proc.Pid])
+	registry.AssertExpectations(t)
+
+	// Scan an empty procFS to simulate the process exiting, it should disapper from the scansPerPid map
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{}).Once()
+	ua.config.ProcRoot = emptyProcFS
+	err = ua.Sync(true, true)
+	require.NoError(t, err)
+	require.Empty(t, ua.scansPerPid)
+	registry.AssertExpectations(t)
 }

@@ -667,3 +667,56 @@ func TestClusterAgentSuite(t *testing.T) {
 
 	suite.Run(t, s)
 }
+
+func TestBuildFilterQuery(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     string
+		key      string
+		list     []string
+		expected string
+		wantErr  bool
+	}{
+		{
+			name:     "no parameters appended",
+			base:     "/api/v1/query",
+			key:      "param",
+			expected: "/api/v1/query",
+		},
+		{
+			name:     "one parameter appened",
+			base:     "/api/v1/query",
+			key:      "param",
+			list:     []string{"param1"},
+			expected: "/api/v1/query?param=param1",
+		},
+		{
+			name:     "multiple parameters appended",
+			base:     "/api/v1/query",
+			key:      "param",
+			list:     []string{"param1", "param2"},
+			expected: "/api/v1/query?param=param1&param=param2",
+		},
+		{
+			name:     "parameter key is encoded",
+			base:     "/api/v1/query",
+			key:      "param/name",
+			list:     []string{"param1"},
+			expected: "/api/v1/query?param%2Fname=param1",
+		},
+		{
+			name:     "parameter value is encoded",
+			base:     "/api/v1/query",
+			key:      "param",
+			list:     []string{"cluster.k8s.io/machine"},
+			expected: "/api/v1/query?param=cluster.k8s.io%2Fmachine",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual, _ := buildQueryList(tt.base, tt.key, tt.list)
+			require.Equal(t, tt.expected, actual)
+		})
+	}
+}

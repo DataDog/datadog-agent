@@ -129,20 +129,6 @@ func EnsureSymlink(source, target string) error {
 	return nil
 }
 
-// EnsureSymlinkIfNotExists ensures that the symlink is created; but only if it doesn't exist.
-func EnsureSymlinkIfNotExists(source, target string) error {
-	_, err := os.Stat(target)
-	if err == nil {
-		return nil // The symlink exists
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("error retrieving symlink: %w", err)
-	}
-	if err := os.Symlink(source, target); err != nil {
-		return fmt.Errorf("error creating symlink: %w", err)
-	}
-	return nil
-}
-
 func getUserAndGroup(username, group string) (uid, gid int, err error) {
 	rawUID, err := user.Lookup(username)
 	if err != nil {

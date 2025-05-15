@@ -57,6 +57,7 @@ const (
 	cudaSetDeviceCacheMap  bpfMapName = "cuda_set_device_cache"
 	cudaEventStreamMap     bpfMapName = "cuda_event_to_stream"
 	cudaEventQueryCacheMap bpfMapName = "cuda_event_query_cache"
+	cudaMemcpyCacheMap     bpfMapName = "cuda_memcpy_cache"
 )
 
 // probeFuncName stores the ebpf hook function name
@@ -77,6 +78,8 @@ const (
 	cudaEventSynchronizeProbe    probeFuncName = "uprobe__cudaEventSynchronize"
 	cudaEventSynchronizeRetProbe probeFuncName = "uretprobe__cudaEventSynchronize"
 	cudaEventDestroyProbe        probeFuncName = "uprobe__cudaEventDestroy"
+	cudaMemcpyProbe              probeFuncName = "uprobe__cudaMemcpy"
+	cudaMemcpyRetProbe           probeFuncName = "uretprobe__cudaMemcpy"
 )
 
 // ProbeDependencies holds the dependencies for the probe
@@ -90,15 +93,6 @@ type ProbeDependencies struct {
 	// WorkloadMeta used to retrieve data about workloads (containers, processes) running
 	// on the host
 	WorkloadMeta workloadmeta.Component
-}
-
-// NewProbeDependencies creates a new ProbeDependencies instance
-func NewProbeDependencies(telemetry telemetry.Component, processMonitor uprobes.ProcessMonitor, workloadMeta workloadmeta.Component) (ProbeDependencies, error) {
-	return ProbeDependencies{
-		Telemetry:      telemetry,
-		ProcessMonitor: processMonitor,
-		WorkloadMeta:   workloadMeta,
-	}, nil
 }
 
 // Probe represents the GPU monitoring probe
@@ -189,7 +183,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
 
-	p.streamHandlers = newStreamCollection(sysCtx, deps.Telemetry)
+	p.streamHandlers = newStreamCollection(sysCtx, deps.Telemetry, cfg)
 	p.consumer = newCudaEventConsumer(sysCtx, p.streamHandlers, p.eventHandler, p.cfg, deps.Telemetry)
 	p.statsGenerator = newStatsGenerator(sysCtx, p.streamHandlers, deps.Telemetry)
 
@@ -231,16 +225,21 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error getting current time: %w", err)
 	}
-	stats := p.statsGenerator.getStats(now)
+
+	stats, err := p.statsGenerator.getStats(now)
+	if err != nil {
+		return nil, err
+	}
+
 	p.telemetry.sentEntries.Add(float64(len(stats.Metrics)))
-	p.cleanupFinished()
+	p.cleanupFinished(now)
 
 	return stats, nil
 }
 
-func (p *Probe) cleanupFinished() {
+func (p *Probe) cleanupFinished(nowKtime int64) {
 	p.statsGenerator.cleanupFinishedAggregators()
-	p.streamHandlers.clean()
+	p.streamHandlers.clean(nowKtime)
 }
 
 func (p *Probe) initRCGPU(cfg *config.Config) error {
@@ -285,6 +284,7 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 			{Name: cudaSetDeviceCacheMap},
 			{Name: cudaEventStreamMap},
 			{Name: cudaEventQueryCacheMap},
+			{Name: cudaMemcpyCacheMap},
 		}}, "gpu", &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	if opts.MapSpecEditors == nil {
@@ -371,6 +371,8 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventSynchronizeProbe}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventSynchronizeRetProbe}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventDestroyProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaMemcpyProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaMemcpyRetProbe}},
 						},
 					},
 				},
@@ -381,7 +383,8 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 		SharedLibsLibset:               sharedlibraries.LibsetGPU,
 		ScanProcessesInterval:          cfg.ScanProcessesInterval,
 		EnablePeriodicScanNewProcesses: true,
-		EnableDetailedLogging:          true,
+		EnableDetailedLogging:          false,
+		ExcludeTargets:                 uprobes.ExcludeInternal | uprobes.ExcludeSelf,
 	}
 }
 

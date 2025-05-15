@@ -11,23 +11,19 @@ import (
 	"embed"
 	"encoding/base64"
 	"encoding/json"
-	"html/template"
 	"io"
 	"mime"
 	"net"
 	"net/http"
 	"os"
 	"path"
-
 	"path/filepath"
 	"strconv"
 	"time"
 
-	"go.uber.org/fx"
-
-	"github.com/gorilla/mux"
-
 	securejoin "github.com/cyphar/filepath-securejoin"
+	"github.com/gorilla/mux"
+	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -37,8 +33,8 @@ import (
 	guicomp "github.com/DataDog/datadog-agent/comp/core/gui"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	template "github.com/DataDog/datadog-agent/pkg/template/html"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"

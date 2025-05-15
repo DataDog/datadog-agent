@@ -26,6 +26,7 @@ type (
 		Target     net.IP
 		DstPort    uint16
 		Hops       []*Hop
+		Tags       []string
 	}
 
 	// Hop encapsulates information about a single

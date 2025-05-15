@@ -22,7 +22,6 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
-	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -595,25 +594,29 @@ func testCaptureWrappedCommands(t *testing.T, script string, commandWrapper []st
 	var err error
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		proc, err = process.NewProcess(int32(cmd.Process.Pid))
-		assert.NoError(collect, err)
+		require.NoError(collect, err)
+
+		// If we wrap the script with `sh -c`, we can have differences between a
+		// local run and a kmt run, as for kmt `sh` is symbolic link to bash,
+		// while locally it can be a symbolic link to dash.
+		//
+		// In the dash case, we will see 2 processes `sh -c script.py` and a
+		// sub-process `python3 script.py`, while in the bash case we will see
+		// only `python3 script.py` (after initially potentially seeing `sh -c
+		// script.py` before the process execs). We need to check for the
+		// command line arguments of the process to make sure we are looking at
+		// the right process.
+		cmdline, err := proc.Cmdline()
+		require.NoError(t, err)
+		if cmdline == strings.Join(commandLineArgs, " ") && len(commandWrapper) > 0 {
+			var children []*process.Process
+			children, err = proc.Children()
+			require.NoError(collect, err)
+			require.Len(collect, children, 1)
+			proc = children[0]
+		}
 	}, 10*time.Second, 100*time.Millisecond)
 
-	cmdline, err := proc.Cmdline()
-	require.NoError(t, err)
-	// If we wrap the script with `sh -c`, we can have differences between a local run and a kmt run, as for
-	// kmt `sh` is symbolic link to bash, while locally it can be a symbolic link to dash. In the dash case, we will
-	// see 2 processes `sh -c script.py` and a sub-process `python3 script.py`, while in the bash case we will see
-	// only `python3 script.py`. We need to check for the command line arguments of the process to make sure we
-	// are looking at the right process.
-	if cmdline == strings.Join(commandLineArgs, " ") && len(commandWrapper) > 0 {
-		var children []*process.Process
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
-			children, err = proc.Children()
-			assert.NoError(collect, err)
-			assert.Len(collect, children, 1)
-		}, 10*time.Second, 100*time.Millisecond)
-		proc = children[0]
-	}
 	t.Cleanup(func() { _ = proc.Kill() })
 
 	discovery := setupDiscoveryModule(t)
@@ -985,7 +988,7 @@ func TestDocker(t *testing.T) {
 	require.Equal(t, startEvent.LastHeartbeat, mockedTime.Unix())
 }
 
-func newDiscovery(t testing.TB, tp timeProvider) *discovery {
+func newDiscoveryNetwork(t testing.TB, tp timeProvider, getNetworkCollector networkCollectorFactory) *discovery {
 	mockWmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(context.Background()),
@@ -993,7 +996,11 @@ func newDiscovery(t testing.TB, tp timeProvider) *discovery {
 	))
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 
-	return newDiscoveryWithNetwork(mockWmeta, mockTagger, tp, func(_ *discoveryConfig) (networkCollector, error) {
+	return newDiscoveryWithNetwork(mockWmeta, mockTagger, tp, getNetworkCollector)
+}
+
+func newDiscovery(t testing.TB, tp timeProvider) *discovery {
+	return newDiscoveryNetwork(t, tp, func(_ *discoveryConfig) (networkCollector, error) {
 		return nil, nil
 	})
 }
@@ -1002,7 +1009,9 @@ func newDiscovery(t testing.TB, tp timeProvider) *discovery {
 func TestCache(t *testing.T) {
 	var err error
 
-	discovery := newDiscovery(t, realTime{})
+	discovery := newDiscoveryNetwork(t, realTime{}, newNetworkCollector)
+	// Reduce update time to make sure we exercise network stats code paths.
+	discovery.config.networkStatsPeriod = 1 * time.Millisecond
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
@@ -1063,6 +1072,14 @@ func TestCache(t *testing.T) {
 	discovery.Close()
 	require.Empty(t, discovery.cache)
 	require.Empty(t, discovery.noPortTries)
+	require.Empty(t, discovery.runningServices)
+
+	// Calling getServices after Close is weird but it can happen in practice
+	// due to the way system-probe shuts down, so make sure it doesn't panic.
+	_, err = discovery.getServices(defaultParams())
+	require.NoError(t, err)
+	_, err = discovery.getServices(defaultParams())
+	require.NoError(t, err)
 }
 
 func TestMaxPortCheck(t *testing.T) {
@@ -1252,91 +1269,6 @@ func TestTagsPriority(t *testing.T) {
 			require.Equalf(t, c.expectedServiceName, name, "got wrong service name from container tags")
 			require.Equalf(t, c.expectedTagName, tagName, "got wrong tag name for service naming")
 		})
-	}
-}
-
-func getSocketsOld(p *process.Process) ([]uint64, error) {
-	FDs, err := p.OpenFiles()
-	if err != nil {
-		return nil, err
-	}
-
-	// sockets have the following pattern "socket:[inode]"
-	var sockets []uint64
-	for _, fd := range FDs {
-		if strings.HasPrefix(fd.Path, prefix) {
-			inodeStr := strings.TrimPrefix(fd.Path[:len(fd.Path)-1], prefix)
-			sock, err := strconv.ParseUint(inodeStr, 10, 64)
-			if err != nil {
-				continue
-			}
-			sockets = append(sockets, sock)
-		}
-	}
-
-	return sockets, nil
-}
-
-const (
-	numberFDs = 100
-)
-
-func createFilesAndSockets(tb testing.TB) {
-	listeningSockets := make([]net.Listener, 0, numberFDs)
-	tb.Cleanup(func() {
-		for _, l := range listeningSockets {
-			l.Close()
-		}
-	})
-	for i := 0; i < numberFDs; i++ {
-		l, err := net.Listen("tcp", "localhost:0")
-		require.NoError(tb, err)
-		listeningSockets = append(listeningSockets, l)
-	}
-	regularFDs := make([]*os.File, 0, numberFDs)
-	tb.Cleanup(func() {
-		for _, f := range regularFDs {
-			f.Close()
-		}
-	})
-	for i := 0; i < numberFDs; i++ {
-		f, err := os.CreateTemp("", "")
-		require.NoError(tb, err)
-		regularFDs = append(regularFDs, f)
-	}
-}
-
-func TestGetSockets(t *testing.T) {
-	createFilesAndSockets(t)
-	p, err := process.NewProcess(int32(os.Getpid()))
-	require.NoError(t, err)
-
-	sockets, err := getSockets(p.Pid)
-	require.NoError(t, err)
-
-	sockets2, err := getSocketsOld(p)
-	require.NoError(t, err)
-
-	require.Equal(t, sockets, sockets2)
-}
-
-func BenchmarkGetSockets(b *testing.B) {
-	createFilesAndSockets(b)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		getSockets(int32(os.Getpid()))
-	}
-}
-
-func BenchmarkOldGetSockets(b *testing.B) {
-	createFilesAndSockets(b)
-	p, err := process.NewProcess(int32(os.Getpid()))
-	require.NoError(b, err)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		getSocketsOld(p)
 	}
 }
 

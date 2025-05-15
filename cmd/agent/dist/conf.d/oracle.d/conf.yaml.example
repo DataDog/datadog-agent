@@ -115,6 +115,32 @@ instances:
     #
     # reported_hostname: <REPORTED_HOSTNAME>
 
+    ## @param exclude_hostname - boolean - optional - default: false
+    ## Omit the hostname from tags and events. This is useful when the database host is not monitored by an agent.
+    #
+    # exclude_hostname: false
+
+    ## Controls how the database is identified. The default value is the resolved hostname for the instance,
+    ## which respects the `reported_hostname` option.
+    ##
+    ## This value will be used as-is for the display name of the instance but will be normalized
+    ## when applied as a tag. Please see https://docs.datadoghq.com/getting_started/tagging/ for
+    ## more details on Datadog tag normalization.
+    #
+    # database_identifier:
+
+        ## @param template - string - optional - default: $resolved_hostname
+        ## The template to use for the database identifier. The default value is `$resolved_hostname`.
+        ## You can use the following variables, prefixed by `$` in the template:
+        ## - resolved_hostname: The resolved hostname of the instance, which respects the `reported_hostname` option.
+        ## - server: The provided server of the instance.
+        ## - port: The port number of the instance.
+        ## - service_name: The provided service name of the instance.
+        ## - cbd_name: The resolved CBD name of the instance.
+        ## In addition, you can use any key from the `tags` section of the configuration.
+        #
+        # template: <DATABASE_IDENTIFIER_TEMPLATE>
+
     ## @param dbm - boolean - optional - default: false
     ## Set to `true` to enable Database Monitoring.
     #

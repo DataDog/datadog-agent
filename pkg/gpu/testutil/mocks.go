@@ -169,6 +169,68 @@ func GetBasicNvmlMock() *nvmlmock.Interface {
 	}
 }
 
+// GetBasicNvmlMockWithOptions returns a mock of the nvml.Interface with a single device with 10 cores,
+// allowing additional configuration through functional options.
+// It's ideal for tests that need custom NVML behavior beyond the defaults.
+func GetBasicNvmlMockWithOptions(options ...func(*nvmlmock.Interface)) *nvmlmock.Interface {
+	if len(GPUUUIDs) != len(GPUCores) {
+		// Make it really easy to spot errors if we change any of the arrays.
+		panic("GPUUUIDs and GPUCores must have the same length, please fix it")
+	}
+
+	mockNvml := &nvmlmock.Interface{
+		DeviceGetCountFunc: func() (int, nvml.Return) {
+			return len(GPUUUIDs), nvml.SUCCESS
+		},
+		DeviceGetHandleByIndexFunc: func(index int) (nvml.Device, nvml.Return) {
+			return GetDeviceMock(index), nvml.SUCCESS
+		},
+		DeviceGetCudaComputeCapabilityFunc: func(nvml.Device) (int, int, nvml.Return) {
+			return 7, 5, nvml.SUCCESS
+		},
+		DeviceGetIndexFunc: func(nvml.Device) (int, nvml.Return) {
+			return 0, nvml.SUCCESS
+		},
+		DeviceGetMigModeFunc: func(nvml.Device) (int, int, nvml.Return) {
+			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
+		},
+		DeviceGetComputeRunningProcessesFunc: func(nvml.Device) ([]nvml.ProcessInfo, nvml.Return) {
+			return DefaultProcessInfo, nvml.SUCCESS
+		},
+		DeviceGetMemoryInfoFunc: func(nvml.Device) (nvml.Memory, nvml.Return) {
+			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
+		},
+		SystemGetDriverVersionFunc: func() (string, nvml.Return) {
+			return DefaultNvidiaDriverVersion, nvml.SUCCESS
+		},
+	}
+
+	// Apply all provided options
+	for _, opt := range options {
+		opt(mockNvml)
+	}
+
+	return mockNvml
+}
+
+// WithSymbolsMock returns an option that configures the mock NVML interface with the given symbols available.
+// It takes a map of symbols that should be considered available in the mock.
+// Any symbol not in the map will return an error when looked up.
+func WithSymbolsMock(availableSymbols map[string]struct{}) func(*nvmlmock.Interface) {
+	return func(mockNvml *nvmlmock.Interface) {
+		mockNvml.ExtensionsFunc = func() nvml.ExtendedInterface {
+			return &nvmlmock.ExtendedInterface{
+				LookupSymbolFunc: func(symbol string) error {
+					if _, ok := availableSymbols[symbol]; ok {
+						return nil
+					}
+					return nvml.ERROR_NOT_FOUND
+				},
+			}
+		}
+	}
+}
+
 // GetWorkloadMetaMock returns a mock of the workloadmeta.Component.
 func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(

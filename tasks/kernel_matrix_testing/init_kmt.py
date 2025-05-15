@@ -114,6 +114,6 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images: str | No
     # build docker compile image
     info("[+] Starting compiler image")
     kmt_os.assert_user_in_docker_group(ctx)
-    info(f"[+] User '{os.getlogin()}' in group 'docker'")
+    info(f"[+] User '{getpass.getuser()}' in group 'docker'")
 
     get_compiler(ctx).start()

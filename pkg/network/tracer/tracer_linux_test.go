@@ -41,7 +41,7 @@ import (
 	"go4.org/intern"
 	"golang.org/x/sys/unix"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -695,9 +695,10 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 		m.EXPECT().IsAWS().Return(true)
 		network.Cloud = m
 
-		clouds := pkgconfigsetup.Datadog().Get("cloud_provider_metadata")
-		pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{})
-		defer pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", clouds)
+		mockConfig := configmock.New(t)
+		clouds := mockConfig.Get("cloud_provider_metadata")
+		mockConfig.SetWithoutSource("cloud_provider_metadata", []string{})
+		defer mockConfig.SetWithoutSource("cloud_provider_metadata", clouds)
 
 		tr := setupTracer(t, cfg)
 		require.Nil(t, tr.gwLookup)
@@ -1965,7 +1966,7 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 	tr := setupTracer(t, cfg)
 
 	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
-		t.Skip("skipped on Fargate")
+		t.Skip("skipped on fentry")
 	}
 
 	cmd := []string{"curl", "-k", "-o/dev/null", "example.com"}

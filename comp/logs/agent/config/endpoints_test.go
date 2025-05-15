@@ -149,7 +149,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 
 	endpoint = endpoints.Main
 	suite.True(endpoint.UseCompression)
-	suite.Equal(endpoint.CompressionLevel, 6)
+	suite.Equal(endpoint.CompressionLevel, ZstdCompressionLevel)
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndCompressionAndOverride() {
@@ -157,9 +157,11 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	var endpoint Endpoint
 	var err error
 
+	zstdCompressionLevel := 2
+
 	suite.config.SetWithoutSource("logs_config.use_http", true)
 	suite.config.SetWithoutSource("logs_config.use_compression", true)
-	suite.config.SetWithoutSource("logs_config.compression_level", 1)
+	suite.config.SetWithoutSource("logs_config.zstd_compression_level", zstdCompressionLevel)
 
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
@@ -167,7 +169,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 
 	endpoint = endpoints.Main
 	suite.True(endpoint.UseCompression)
-	suite.Equal(endpoint.CompressionLevel, 1)
+	suite.Equal(endpoint.CompressionLevel, zstdCompressionLevel)
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndOverride() {
@@ -828,6 +830,7 @@ func (suite *EndpointsTestSuite) TestloadHTTPAdditionalEndpoints() {
 			"is_reliable": false
 		}]`
 	suite.config.SetWithoutSource("logs_config.additional_endpoints", jsonString)
+	suite.config.SetWithoutSource("logs_config.compression_kind", "gzip") // has to set explicit compression kind to avoid fallback to defaults compression configs when additional endpoints are present
 
 	expected1 := Endpoint{
 		apiKey:                 atomic.NewString("apiKey2"),
@@ -878,6 +881,64 @@ func (suite *EndpointsTestSuite) TestloadHTTPAdditionalEndpoints() {
 	suite.Suite.Require().Len(endpoints, 2)
 	compareEndpoint(suite.T(), expected1, endpoints[0])
 	compareEndpoint(suite.T(), expected2, endpoints[1])
+}
+
+func (suite *EndpointsTestSuite) TestCompressionKindWithAdditionalEndpoints() {
+	tests := []struct {
+		name                string
+		additionalEndpoints string
+		compressionKind     string
+		expectedMain        EndpointCompressionOptions
+	}{
+		{
+			name:                "No additional endpoints - use default",
+			additionalEndpoints: "",
+			expectedMain: EndpointCompressionOptions{
+				CompressionKind:  ZstdCompressionKind,
+				CompressionLevel: ZstdCompressionLevel,
+			},
+		},
+		{
+			name:                "Additional endpoints without explicit compression - fallback to gzip",
+			additionalEndpoints: `[{"api_key":"foo","host":"bar"}]`,
+			expectedMain: EndpointCompressionOptions{
+				CompressionKind:  GzipCompressionKind,
+				CompressionLevel: GzipCompressionLevel,
+			},
+		},
+		{
+			name:                "Additional endpoints with explicit compression - use configured",
+			additionalEndpoints: `[{"api_key":"foo","host":"bar"}]`,
+			compressionKind:     "zstd",
+			expectedMain: EndpointCompressionOptions{
+				CompressionKind:  ZstdCompressionKind,
+				CompressionLevel: ZstdCompressionLevel,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		suite.Run(tt.name, func() {
+			logsConfig := defaultLogsConfigKeys(suite.config)
+
+			// Setup test config
+			if tt.additionalEndpoints != "" {
+				suite.config.SetWithoutSource("logs_config.additional_endpoints", tt.additionalEndpoints)
+			}
+			if tt.compressionKind != "" {
+				suite.config.SetWithoutSource("logs_config.compression_kind", tt.compressionKind)
+			}
+
+			endpoints, err := BuildHTTPEndpointsWithConfig(
+				suite.config,
+				logsConfig,
+				"", "", "", "",
+			)
+			suite.Nil(err)
+			suite.Equal(tt.expectedMain.CompressionKind, endpoints.Main.CompressionKind)
+			suite.Equal(tt.expectedMain.CompressionLevel, endpoints.Main.CompressionLevel)
+		})
+	}
 }
 
 func TestEndpointsTestSuite(t *testing.T) {

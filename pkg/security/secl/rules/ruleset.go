@@ -37,7 +37,7 @@ type Rule struct {
 // RuleSetListener describes the methods implemented by an object used to be
 // notified of events on a rule set.
 type RuleSetListener interface {
-	RuleMatch(rule *Rule, event eval.Event) bool
+	RuleMatch(ctx *eval.Context, rule *Rule, event eval.Event) bool
 	EventDiscarderFound(rs *RuleSet, event eval.Event, field eval.Field, eventType eval.EventType)
 }
 
@@ -58,7 +58,7 @@ type RuleSet struct {
 	globalVariables  *eval.Variables
 	scopedVariables  map[Scope]VariableProvider
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
-	fields []string
+	fields []eval.Field
 	logger log.Logger
 	pool   *eval.ContextPool
 
@@ -349,7 +349,6 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 	if _, exists := rs.rules[pRule.Def.ID]; exists {
 		return "", nil
 	}
-	pRule.UsedBy = append(pRule.UsedBy, pRule.Policy)
 
 	var tags []string
 	for k, v := range pRule.Def.Tags {
@@ -424,7 +423,7 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 		if action.Def.Set != nil {
 			if field := action.Def.Set.Field; field != "" {
 				if _, found := rs.fieldEvaluators[field]; !found {
-					evaluator, err := rs.model.GetEvaluator(field, "")
+					evaluator, err := rs.model.GetEvaluator(field, "", 0)
 					if err != nil {
 						return "", err
 					}
@@ -464,12 +463,12 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 }
 
 // NotifyRuleMatch notifies all the ruleset listeners that an event matched a rule
-func (rs *RuleSet) NotifyRuleMatch(rule *Rule, event eval.Event) {
+func (rs *RuleSet) NotifyRuleMatch(ctx *eval.Context, rule *Rule, event eval.Event) {
 	rs.listenersLock.RLock()
 	defer rs.listenersLock.RUnlock()
 
 	for _, listener := range rs.listeners {
-		if !listener.RuleMatch(rule, event) {
+		if !listener.RuleMatch(ctx, rule, event) {
 			break
 		}
 	}
@@ -710,9 +709,10 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 					rs.logger.Errorf("Error while executing 'log' actions: %s", err)
 				}
 
-				rs.NotifyRuleMatch(rule, event)
+				rs.NotifyRuleMatch(ctx, rule, event)
 				result = true
 			}
+			ctx.PerEvalReset()
 		})
 	}
 
@@ -881,11 +881,11 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 		for _, rule := range policy.GetAcceptedRules() {
 			if existingRule := rulesIndex[rule.Def.ID]; existingRule != nil {
 				existingRule.UsedBy = append(existingRule.UsedBy, rule.Policy)
-
 				if err := existingRule.MergeWith(rule); err != nil {
 					errs = multierror.Append(errs, err)
 				}
 			} else {
+				rule.UsedBy = append(rule.UsedBy, rule.Policy)
 				rulesIndex[rule.Def.ID] = rule
 				allRules = append(allRules, rule)
 			}
@@ -928,6 +928,17 @@ func (rs *RuleSet) newFakeEvent() eval.Event {
 	return model.NewFakeEvent()
 }
 
+// CleanupExpiredVariables cleans up all epxired variables in the ruleset
+func (rs *RuleSet) CleanupExpiredVariables() {
+	if rs.globalVariables != nil {
+		rs.globalVariables.CleanupExpiredVariables()
+	}
+
+	for _, variableProvider := range rs.scopedVariables {
+		variableProvider.CleanupExpiredVariables()
+	}
+}
+
 // NewRuleSet returns a new ruleset for the specified data model
 func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalOpts *eval.Opts) *RuleSet {
 	logger := log.OrNullLogger(opts.Logger)
@@ -953,4 +964,11 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		scopedVariables:  make(map[Scope]VariableProvider),
 		globalVariables:  eval.NewVariables(),
 	}
+}
+
+// NewFakeRuleSet returns a fake and empty ruleset
+func NewFakeRuleSet(rule *Rule) *RuleSet {
+	rs := NewRuleSet(nil, nil, &Opts{}, &eval.Opts{})
+	rs.rules[rule.Rule.ID] = rule
+	return rs
 }

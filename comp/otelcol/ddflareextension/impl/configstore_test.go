@@ -42,7 +42,7 @@ func addFactories(factories otelcol.Factories) {
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(nil, func(context.Context) (string, error) {
 		return "hostname", nil
 	})
-	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactoryForAgent(nil)
+	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactoryForAgent(nil, nil)
 	factories.Extensions[Type] = NewFactoryForAgent(nil, otelcol.ConfigProviderSettings{})
 }
 

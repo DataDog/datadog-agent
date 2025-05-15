@@ -108,7 +108,7 @@ func TestAgentExtension(t *testing.T) {
 	// create extension
 	ext, err := NewExtension(&Config{
 		ProfilerOptions: ProfilerOptions{
-			Period: 5,
+			Period: 1,
 		},
 	}, component.BuildInfo{}, testComponent{traceagent}, log.NewTemporaryLoggerWithoutInit(), nil)
 	assert.NoError(t, err)
@@ -150,7 +150,7 @@ func TestOSSExtension(t *testing.T) {
 			Key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		},
 		ProfilerOptions: ProfilerOptions{
-			Period: 5,
+			Period: 1,
 		},
 	}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit(), &fargateSourceProvider{})
 	assert.NoError(t, err)
@@ -209,7 +209,7 @@ func TestOSSExtensionFargate(t *testing.T) {
 			Key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		},
 		ProfilerOptions: ProfilerOptions{
-			Period: 5,
+			Period: 1,
 		},
 	}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit(), &fargateSourceProvider{})
 	assert.NoError(t, err)
@@ -268,7 +268,7 @@ func TestOSSExtensionHost(t *testing.T) {
 			Key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		},
 		ProfilerOptions: ProfilerOptions{
-			Period: 5,
+			Period: 1,
 		},
 	}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit(), &hostSourceProvider{})
 	assert.NoError(t, err)

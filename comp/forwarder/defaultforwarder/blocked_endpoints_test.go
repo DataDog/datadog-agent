@@ -16,7 +16,6 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 )
 
@@ -114,7 +113,7 @@ func TestRecoveryIntervalValid(t *testing.T) {
 
 	// Verify default
 	defaultValue := policy.RecoveryInterval
-	recoveryReset := pkgconfigsetup.Datadog().GetBool("forwarder_recovery_reset")
+	recoveryReset := mockConfig.GetBool("forwarder_recovery_reset")
 	assert.Equal(t, 2, defaultValue)
 	assert.Equal(t, false, recoveryReset)
 

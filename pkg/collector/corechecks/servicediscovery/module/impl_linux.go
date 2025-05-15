@@ -13,7 +13,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -261,10 +260,13 @@ func (s *discovery) Close() {
 	s.cleanCache(pidSet{})
 	if s.network != nil {
 		s.network.close()
+		s.network = nil
 	}
 	clear(s.cache)
 	clear(s.noPortTries)
 	clear(s.ignorePids)
+	clear(s.potentialServices)
+	clear(s.runningServices)
 }
 
 // handleStatusEndpoint is the handler for the /status endpoint.
@@ -326,7 +328,7 @@ func (s *discovery) handleStateEndpoint(w http.ResponseWriter, _ *http.Request) 
 	state.LastCPUTimeUpdate = s.lastCPUTimeUpdate.Unix()
 	state.LastNetworkStatsUpdate = s.lastNetworkStatsUpdate.Unix()
 
-	utils.WriteAsJSON(w, state)
+	utils.WriteAsJSON(w, state, utils.CompactOutput)
 }
 
 func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) {
@@ -335,17 +337,13 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 
 	services := make([]model.Service, 0)
 
-	procRoot := kernel.ProcFSRoot()
 	pids, err := process.Pids()
 	if err != nil {
-		utils.WriteAsJSON(w, "could not get PIDs")
+		utils.WriteAsJSON(w, "could not get PIDs", utils.CompactOutput)
 		return
 	}
 
-	context := parsingContext{
-		procRoot:  procRoot,
-		netNsInfo: make(map[uint32]*namespaceInfo),
-	}
+	context := newParsingContext()
 
 	containers := s.getContainersMap()
 	containerTagsCache := make(map[string][]string)
@@ -359,7 +357,7 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 		services = append(services, *service)
 	}
 
-	utils.WriteAsJSON(w, services)
+	utils.WriteAsJSON(w, services, utils.CompactOutput)
 }
 
 // handleCheck is the handler for the /check endpoint.
@@ -379,39 +377,7 @@ func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	utils.WriteAsJSON(w, services)
-}
-
-const prefix = "socket:["
-
-// getSockets get a list of socket inode numbers opened by a process
-func getSockets(pid int32) ([]uint64, error) {
-	statPath := kernel.HostProc(fmt.Sprintf("%d/fd", pid))
-	d, err := os.Open(statPath)
-	if err != nil {
-		return nil, err
-	}
-	defer d.Close()
-	fnames, err := d.Readdirnames(-1)
-	if err != nil {
-		return nil, err
-	}
-	var sockets []uint64
-	for _, fd := range fnames {
-		fullPath, err := os.Readlink(filepath.Join(statPath, fd))
-		if err != nil {
-			continue
-		}
-		if strings.HasPrefix(fullPath, prefix) {
-			sock, err := strconv.ParseUint(fullPath[len(prefix):len(fullPath)-1], 10, 64)
-			if err != nil {
-				continue
-			}
-			sockets = append(sockets, sock)
-		}
-	}
-
-	return sockets, nil
+	utils.WriteAsJSON(w, services, utils.CompactOutput)
 }
 
 // socketInfo stores information related to each socket.
@@ -543,14 +509,15 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 		log.Debugf("couldn't snapshot UDP sockets: %v", err)
 	}
 	tcpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/tcp6", pid)), tcpListen, noIgnore)
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		// The file won't exist if IPv6 is disabled.
 		log.Debugf("couldn't snapshot TCP6 sockets: %v", err)
 	}
 	udpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/udp6", pid)), udpListen,
 		func(port uint16) bool {
 			return network.IsPortInEphemeralRange(network.AFINET6, network.UDP, port) == network.EphemeralTrue
 		})
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		log.Debugf("couldn't snapshot UDP6 sockets: %v", err)
 	}
 
@@ -570,8 +537,17 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 // parsingContext holds temporary context not preserved between invocations of
 // the endpoint.
 type parsingContext struct {
-	procRoot  string
-	netNsInfo map[uint32]*namespaceInfo
+	procRoot       string
+	netNsInfo      map[uint32]*namespaceInfo
+	readlinkBuffer []byte
+}
+
+func newParsingContext() parsingContext {
+	return parsingContext{
+		procRoot:       kernel.ProcFSRoot(),
+		netNsInfo:      make(map[uint32]*namespaceInfo),
+		readlinkBuffer: make([]byte, readlinkBufferSize),
+	}
 }
 
 // addIgnoredPid store excluded pid.
@@ -664,7 +640,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 const maxNumberOfPorts = 50
 
 func (s *discovery) getPorts(context parsingContext, pid int32) ([]uint16, error) {
-	sockets, err := getSockets(pid)
+	sockets, err := getSockets(pid, context.readlinkBuffer)
 	if err != nil {
 		return nil, err
 	}
@@ -1123,16 +1099,12 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
-	procRoot := kernel.ProcFSRoot()
 	pids, err := process.Pids()
 	if err != nil {
 		return nil, err
 	}
 
-	context := parsingContext{
-		procRoot:  procRoot,
-		netNsInfo: make(map[uint32]*namespaceInfo),
-	}
+	context := newParsingContext()
 
 	response := &model.ServicesResponse{
 		StartedServices:   make([]model.Service, 0, len(s.potentialServices)),

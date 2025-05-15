@@ -12,7 +12,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
@@ -23,7 +22,7 @@ import (
 // Client defines the interface of our custom Docker client (e.g. DockerUtil)
 type Client interface {
 	RawClient() *client.Client
-	RawContainerList(ctx context.Context, options container.ListOptions) ([]types.Container, error)
+	RawContainerList(ctx context.Context, options container.ListOptions) ([]container.Summary, error)
 	ResolveImageName(ctx context.Context, image string) (string, error)
 	Images(ctx context.Context, includeIntermediate bool) ([]image.Summary, error)
 	GetPreferredImageName(imageID string, repoTags []string, repoDigests []string) string
