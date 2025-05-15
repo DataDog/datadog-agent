@@ -8,6 +8,7 @@ package tcp
 
 import (
 	"fmt"
+	"math/rand"
 	"net"
 	"time"
 
@@ -118,4 +119,26 @@ func (t *TCPv4) createRawTCPSynBuffer(packetID uint16, seqNum uint32, ttl int) (
 	}
 
 	return &ipHdr, packet, 20, nil
+}
+
+// initPacketIDAndSeqNum sets up the per-traceroute constant values.
+func (t *TCPv4) initPacketIDAndSeqNum() (uint16, uint32) {
+	if t.CompatibilityMode {
+		// in compatibility mode, the seqNum is held constant (to a random value)
+		return 0, rand.Uint32()
+	}
+
+	// in regular mode, the packetID is held constant (to 41821)
+	return 41821, 0
+}
+
+// nextPacketIDAndSeqNum performs per-packet randomization
+func (t *TCPv4) nextPacketIDAndSeqNum(packetID *uint16, seqNum *uint32) {
+	if t.CompatibilityMode {
+		// in compatibility mode, the packetID is randomized per-packet
+		*packetID = uint16(rand.Uint32())
+	} else {
+		// in regular mode, the seqNum is randomized per-packet
+		*seqNum = rand.Uint32()
+	}
 }

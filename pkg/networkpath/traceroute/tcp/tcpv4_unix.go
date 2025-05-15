@@ -11,7 +11,6 @@ package tcp
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"net"
 	"net/netip"
 	"syscall"
@@ -97,19 +96,9 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 	// hops should be of length # of hops
 	hops := make([]*common.Hop, 0, t.MaxTTL-t.MinTTL)
 
-	var packetID uint16
-	var seqNumber uint32
-	if t.CompatibilityMode {
-		seqNumber = rand.Uint32()
-	} else {
-		packetID = uint16(41821)
-	}
+	packetID, seqNumber := t.initPacketIDAndSeqNum()
 	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
-		if t.CompatibilityMode {
-			packetID = uint16(rand.Uint32())
-		} else {
-			seqNumber = rand.Uint32()
-		}
+		t.nextPacketIDAndSeqNum(&packetID, &seqNumber)
 		hop, err := t.sendAndReceive(rawIcmpConn, rawTCPConn, i, seqNumber, packetID, t.Timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to run traceroute: %w", err)
