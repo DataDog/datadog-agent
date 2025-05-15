@@ -679,10 +679,6 @@ func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) 
 	if ctags := getContainerTags(r.conf.ContainerTags, tp.ContainerID()); ctags != "" {
 		tp.SetStringAttribute(tagContainersTags, ctags)
 	}
-	ptags := getProcessTagsFromHeader(req.Header)
-	if ptags != "" {
-		tp.SetStringAttribute(tagProcessTags, ptags)
-	}
 
 	payload := &PayloadV1{
 		Source:                 ts,
@@ -690,7 +686,6 @@ func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) 
 		ClientComputedTopLevel: isHeaderTrue(header.ComputedTopLevel, req.Header.Get(header.ComputedTopLevel)),
 		ClientComputedStats:    isHeaderTrue(header.ComputedStats, req.Header.Get(header.ComputedStats)),
 		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
-		ProcessTags:            ptags,
 	}
 	r.outV1 <- payload
 }

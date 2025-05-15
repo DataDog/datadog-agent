@@ -77,7 +77,4 @@ type PayloadV1 struct {
 
 	// ClientDroppedP0s specifies the number of P0 traces chunks dropped by the client.
 	ClientDroppedP0s int64
-
-	// ProcessTags is a list of tags describing an instrumented process.
-	ProcessTags string
 }
