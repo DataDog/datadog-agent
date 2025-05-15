@@ -134,6 +134,12 @@ func TestStandardTypeToString(t *testing.T) {
 			expectedStr: "",
 			expectErr:   true,
 		},
+		{
+			name:        "zeros should be hexified",
+			value:       []byte{0x00, 0x00, 0x00},
+			expectedStr: "0x000000",
+			expectErr:   false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
