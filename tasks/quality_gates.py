@@ -208,7 +208,8 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
     # Create new branch
     branch_name = f"static_quality_gates/threshold_update_{os.environ['CI_COMMIT_SHORT_SHA']}"
     current_branch = github.repo.get_branch(os.environ["CI_COMMIT_BRANCH"])
-    github.repo.create_git_ref(ref=f'refs/heads/{branch_name}', sha=current_branch.commit.sha)
+    ctx.run(f"git checkout -b {branch_name}")
+    ctx.run(f"git push --set-upstream origin {branch_name}")
 
     # Push changes
     commit_message = "feat(gate): update static quality gates thresholds"
