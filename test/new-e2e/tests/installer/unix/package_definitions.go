@@ -94,6 +94,7 @@ func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architectu
 }
 
 func installScriptInstallerEnv(env map[string]string, packagesConfig []TestPackageConfig) {
+	env["DD_SKIP_TLS_VALIDATION"] = "true"
 	for _, pkg := range packagesConfig {
 		name := strings.ToUpper(strings.ReplaceAll(pkg.Name, "-", "_"))
 		image := strings.TrimPrefix(name, "DATADOG_") + "_PACKAGE"
