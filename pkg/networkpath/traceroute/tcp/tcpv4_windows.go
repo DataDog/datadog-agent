@@ -116,9 +116,8 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 
 	hops := make([]*common.Hop, 0, int(t.MaxTTL-t.MinTTL)+1)
 
-	packetID, seqNumber := t.initPacketIDAndSeqNum()
 	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
-		t.nextPacketIDAndSeqNum(&packetID, &seqNumber)
+		seqNumber, packetID := t.nextSeqNumAndPacketID()
 		hop, err := t.sendAndReceive(rs, i, seqNumber, packetID, t.Timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to run traceroute: %w", err)

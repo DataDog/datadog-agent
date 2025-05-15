@@ -33,12 +33,25 @@ type (
 		// CompatibilityMode is whether to try to imitate tcptraceroute as much as possible
 		CompatibilityMode bool
 		buffer            gopacket.SerializeBuffer
+		baseSeqNumber     uint32
+		basePacketID      uint16
 	}
 )
 
 // NewTCPv4 initializes a new TCPv4 traceroute instance
 func NewTCPv4(target net.IP, targetPort uint16, numPaths uint16, minTTL uint8, maxTTL uint8, delay time.Duration, timeout time.Duration, compatibilityMode bool) *TCPv4 {
 	buffer := gopacket.NewSerializeBufferExpectedSize(40, 0)
+
+	var baseSeqNumber uint32
+	var basePacketID uint16
+	if compatibilityMode {
+		// in compatibility mode, the seqNum is held constant (to a random value)
+		baseSeqNumber = rand.Uint32()
+	} else {
+		// in regular mode, the packetID is held constant (to 41821)
+		// TODO make this radom
+		basePacketID = 41821
+	}
 
 	return &TCPv4{
 		Target:            target,
@@ -50,6 +63,8 @@ func NewTCPv4(target net.IP, targetPort uint16, numPaths uint16, minTTL uint8, m
 		Timeout:           timeout,
 		CompatibilityMode: compatibilityMode,
 		buffer:            buffer,
+		baseSeqNumber:     baseSeqNumber,
+		basePacketID:      basePacketID,
 	}
 }
 
@@ -121,24 +136,15 @@ func (t *TCPv4) createRawTCPSynBuffer(packetID uint16, seqNum uint32, ttl int) (
 	return &ipHdr, packet, 20, nil
 }
 
-// initPacketIDAndSeqNum sets up the per-traceroute constant values.
-func (t *TCPv4) initPacketIDAndSeqNum() (uint16, uint32) {
-	if t.CompatibilityMode {
-		// in compatibility mode, the seqNum is held constant (to a random value)
-		return 0, rand.Uint32()
-	}
-
-	// in regular mode, the packetID is held constant (to 41821)
-	return 41821, 0
-}
-
-// nextPacketIDAndSeqNum performs per-packet randomization
-func (t *TCPv4) nextPacketIDAndSeqNum(packetID *uint16, seqNum *uint32) {
+// nextSeqNumAndPacketID performs per-packet randomization
+func (t *TCPv4) nextSeqNumAndPacketID() (uint32, uint16) {
 	if t.CompatibilityMode {
 		// in compatibility mode, the packetID is randomized per-packet
-		*packetID = uint16(rand.Uint32())
-	} else {
-		// in regular mode, the seqNum is randomized per-packet
-		*seqNum = rand.Uint32()
+		packetID := uint16(rand.Uint32())
+		return t.baseSeqNumber, packetID
 	}
+
+	// in regular mode, the seqNum is randomized per-packet
+	seqNumber := rand.Uint32()
+	return seqNumber, t.basePacketID
 }
