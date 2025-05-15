@@ -622,6 +622,10 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 					}
 				}
 
+				if action.Def.Set.Private {
+					mutable.SetPrivate(true)
+				}
+
 				if action.Def.Set.Append {
 					if err := mutable.Append(ctx, value); err != nil {
 						return fmt.Errorf("append is not supported for %s", reflect.TypeOf(value))
