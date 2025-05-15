@@ -241,7 +241,6 @@ var gnuTLSProbes = []manager.ProbesSelector{
 }
 
 const (
-	sslSockByCtxMap    = "ssl_sock_by_ctx"
 	sslCtxByPIDTGIDMap = "ssl_ctx_by_pid_tgid"
 )
 
@@ -249,9 +248,6 @@ var (
 	buildKitProcessName = []byte("buildkitd")
 
 	sharedLibrariesMaps = []*manager.Map{
-		{
-			Name: sslSockByCtxMap,
-		},
 		{
 			Name: "ssl_read_args",
 		},
@@ -500,10 +496,6 @@ func (o *sslProgram) Name() string {
 }
 
 func sharedLibrariesConfigureOptions(options *manager.Options, cfg *config.Config) {
-	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
-		MaxEntries: cfg.MaxTrackedConnections,
-		EditorFlag: manager.EditMaxEntries,
-	}
 	options.MapSpecEditors[sslCtxByPIDTGIDMap] = manager.MapSpecEditor{
 		MaxEntries: cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
@@ -516,6 +508,7 @@ func sharedLibrariesConfigureOptions(options *manager.Options, cfg *config.Confi
 // ConfigureOptions changes map attributes to the given options.
 func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 	sharedLibrariesConfigureOptions(options, o.cfg)
+
 	o.addProcessExitProbe(options)
 }
 
@@ -538,15 +531,6 @@ func (o *sslProgram) Stop() {
 // DumpMaps dumps the content of the map represented by mapName & currentMap, if it used by the eBPF program, to output.
 func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	switch mapName {
-	case sslSockByCtxMap: // maps/ssl_sock_by_ctx (BPF_MAP_TYPE_HASH), key uintptr // C.void *, value C.ssl_sock_t
-		io.WriteString(w, "Map: '"+mapName+"', key: 'uintptr // C.void *', value: 'C.ssl_sock_t'\n")
-		iter := currentMap.Iterate()
-		var key uintptr // C.void *
-		var value http.SslSock
-		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			spew.Fdump(w, key, value)
-		}
-
 	case "ssl_read_args": // maps/ssl_read_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_args_t
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_read_args_t'\n")
 		iter := currentMap.Iterate()
@@ -870,6 +854,10 @@ func (o *sslProgram) cleanupDeadPids(alivePIDs map[uint32]struct{}) {
 			log.Debugf("SSL map %q cleanup error: %v", mapName, err)
 		}
 	}
+
+	if err := deleteDeadPidsInSSLCtxMap(o.ebpfManager, alivePIDs); err != nil {
+		log.Debugf("SSL map %q cleanup error: %v", sslCtxByPIDTGIDMap, err)
+	}
 }
 
 // deleteDeadPidsInMap finds a map by name and deletes dead processes.
@@ -893,6 +881,36 @@ func deleteDeadPidsInMap(manager *manager.Manager, mapName string, alivePIDs map
 	}
 	for _, k := range keysToDelete {
 		_ = emap.Delete(unsafe.Pointer(&k))
+	}
+
+	return nil
+}
+
+func deleteDeadPidsInSSLCtxMap(manager *manager.Manager, alivePIDs map[uint32]struct{}) error {
+	sslCtxByPIDTGIDMapObj, _, err := manager.GetMap(sslCtxByPIDTGIDMap)
+	if err != nil {
+		return fmt.Errorf("dead process cleaner failed to get map: %q error: %w", sslCtxByPIDTGIDMap, err)
+	}
+
+	sslSockByCtxMapObj, _, err := manager.GetMap(sslSockByCtxMap)
+	if err != nil {
+		return fmt.Errorf("dead process cleaner failed to get map: %q error: %w", sslSockByCtxMap, err)
+	}
+
+	var keysToDelete []uint64
+	var key uint64
+	value := make([]byte, sslCtxByPIDTGIDMapObj.ValueSize())
+	iter := sslCtxByPIDTGIDMapObj.Iterate()
+
+	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+		pid := uint32(key >> 32)
+		if _, exists := alivePIDs[pid]; !exists {
+			_ = sslSockByCtxMapObj.Delete(unsafe.Pointer(&value))
+			keysToDelete = append(keysToDelete, key)
+		}
+	}
+	for _, k := range keysToDelete {
+		_ = sslCtxByPIDTGIDMapObj.Delete(unsafe.Pointer(&k))
 	}
 
 	return nil
