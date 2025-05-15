@@ -79,7 +79,7 @@ func (tp *parser) parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, e
 // MatchTCP parses a TCP packet from a header and packet bytes and compares the information
 // contained in the packet to what's expected and returns the source IP of the incoming packet
 // if it's successful or a MismatchError if the packet can be read but doesn't match
-func (tp *parser) MatchTCP(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, _packetID uint16) (net.IP, error) {
+func (tp *parser) MatchTCP(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, _ uint16) (net.IP, error) {
 	if header.Protocol != 6 { // TCP
 		return net.IP{}, errors.New("expected a TCP packet")
 	}
