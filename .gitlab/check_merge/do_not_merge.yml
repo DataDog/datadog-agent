@@ -8,20 +8,20 @@ do-not-merge:
   needs: []
   script:
       - |
-          if [ ! -z "$CI_IMAGE_BTF_GEN_SUFFIX" ] ||
-             [ ! -z "$CI_IMAGE_DEB_X64_SUFFIX" ] ||
-             [ ! -z "$CI_IMAGE_DEB_ARM64_SUFFIX" ] ||
-             [ ! -z "$CI_IMAGE_DEB_ARMHF_SUFFIX" ] ||
-             [ ! -z "$CI_IMAGE_DOCKER_X64_SUFFIX" ] ||
-             [ ! -z "$CI_IMAGE_DOCKER_ARM64_SUFFIX" ] ||
-             [ ! -z "$CI_IMAGE_LINUX_GITLAB_AGENT_DEPLOY_SUFFIX" ] ||
-             [ ! -z "$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX" ] ||
-             [ ! -z "$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX" ] ||
-             [ ! -z "$CI_IMAGE_LINUX_RPM_X64_SUFFIX" ] ||
-             [ ! -z "$CI_IMAGE_LINUX_RPM_ARM64_SUFFIX" ] ||
-             [ ! -z "$CI_IMAGE_LINUX_RPM_ARMHF_SUFFIX" ] ||
-             [ ! -z "$CI_IMAGE_LINUX_WIN_LTSC2022_X64_SUFFIX" ] ||
-             [ ! -z "$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX" ]; then
+          if [ -n "$CI_IMAGE_BTF_GEN_SUFFIX" ] ||
+             [ -n "$CI_IMAGE_DEB_X64_SUFFIX" ] ||
+             [ -n "$CI_IMAGE_DEB_ARM64_SUFFIX" ] ||
+             [ -n "$CI_IMAGE_DEB_ARMHF_SUFFIX" ] ||
+             [ -n "$CI_IMAGE_DOCKER_X64_SUFFIX" ] ||
+             [ -n "$CI_IMAGE_DOCKER_ARM64_SUFFIX" ] ||
+             [ -n "$CI_IMAGE_LINUX_GITLAB_AGENT_DEPLOY_SUFFIX" ] ||
+             [ -n "$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX" ] ||
+             [ -n "$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX" ] ||
+             [ -n "$CI_IMAGE_LINUX_RPM_X64_SUFFIX" ] ||
+             [ -n "$CI_IMAGE_LINUX_RPM_ARM64_SUFFIX" ] ||
+             [ -n "$CI_IMAGE_LINUX_RPM_ARMHF_SUFFIX" ] ||
+             [ -n "$CI_IMAGE_LINUX_WIN_LTSC2022_X64_SUFFIX" ] ||
+             [ -n "$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX" ]; then
             echo "Pull request uses non-empty BUILDIMAGES_SUFFIX variable"
             echo "This workflow fails so that the pull request cannot be merged"
             exit 1
