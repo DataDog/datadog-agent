@@ -26,7 +26,7 @@ import (
 
 func TestSendAndReceive(t *testing.T) {
 	dstIP := net.ParseIP("5.6.7.8")
-	tcpv4 := NewTCPv4(dstIP, 443, 1, 1, 30, 0, 0)
+	tcpv4 := NewTCPv4(dstIP, 443, 1, 1, 30, 0, 0, false)
 	tcpv4.srcIP = net.ParseIP("1.2.3.4")
 	tcpv4.srcPort = 12345
 	tts := []struct {

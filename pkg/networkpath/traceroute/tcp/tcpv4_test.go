@@ -29,7 +29,7 @@ func TestCreateRawTCPSyn(t *testing.T) {
 	seqNum := uint32(1000)
 	ttl := 64
 
-	tcp := NewTCPv4(dstIP, dstPort, 1, 1, 1, 0, 0)
+	tcp := NewTCPv4(dstIP, dstPort, 1, 1, 1, 0, 0, false)
 	tcp.srcIP = srcIP
 	tcp.srcPort = srcPort
 
@@ -67,7 +67,7 @@ func TestCreateRawTCPSynBuffer(t *testing.T) {
 	seqNum := uint32(1000)
 	ttl := 64
 
-	tcp := NewTCPv4(dstIP, dstPort, 1, 1, 1, 0, 0)
+	tcp := NewTCPv4(dstIP, dstPort, 1, 1, 1, 0, 0, false)
 	tcp.srcIP = srcIP
 	tcp.srcPort = srcPort
 

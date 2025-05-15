@@ -40,6 +40,9 @@ type (
 // TracerouteSequential runs a traceroute sequentially where a packet is
 // sent and we wait for a response before sending the next packet
 func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
+	if t.CompatibilityMode {
+		return nil, fmt.Errorf("TCP SYN compatibility mode is not yet supported")
+	}
 	// Get local address for the interface that connects to this
 	// host and store in in the probe
 	addr, conn, err := common.LocalAddrForHost(t.Target, t.DestPort)
