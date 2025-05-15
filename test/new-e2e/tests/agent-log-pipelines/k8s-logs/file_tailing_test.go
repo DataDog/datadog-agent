@@ -9,10 +9,9 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	kindfilelogger "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/kindfilelogging"
 	"testing"
 	"time"
-
-	kindfilelogger "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/kindfilelogging"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +29,7 @@ type k8sSuite struct {
 
 func TestK8sSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &k8sSuite{}, e2e.WithProvisioner(kindfilelogger.Provisioner()), e2e.WithDevMode())
+	e2e.Run(t, &k8sSuite{}, e2e.WithProvisioner(kindfilelogger.Provisioner()))
 }
 
 func (v *k8sSuite) TestSingleLogAndMetadata() {
