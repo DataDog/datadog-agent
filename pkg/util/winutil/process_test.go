@@ -99,9 +99,8 @@ func TestIsProcessProtected(t *testing.T) {
 
 			isProcessProtected, err := IsProcessProtected(procHandle)
 			assert.NoError(t, err)
-			if tc.processName != "lsass.exe" {
-				assert.Equal(t, tc.expected, isProcessProtected)
-			}
+			assert.Equal(t, tc.expected, isProcessProtected)
+
 			// CHECKING MEMORY ACCESS PRIVILEGES
 			if tc.expected {
 				_, err := GetCommandParamsForProcess(procHandle, true)
