@@ -7,6 +7,7 @@
 
 package flare
 
+// GetAutoscalerList is a noop function that returns nil, nil
 func GetAutoscalerList(string) (data []byte, err error) {
 	return nil, nil
 }
