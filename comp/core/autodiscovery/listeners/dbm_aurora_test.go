@@ -135,12 +135,13 @@ func TestDBMAuroraListener(t *testing.T) {
 			},
 			expectedServices: []*DBMAuroraService{
 				{
-					adIdentifier: dbmPostgresADIdentifier,
+					adIdentifier: dbmPostgresAuroraADIdentifier,
 					entityID:     "f7fee36c58e3da8a",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
 					region:       "us-east-1",
 					instance: &aws.Instance{
+						ID:         "",
 						Endpoint:   "my-endpoint",
 						Port:       5432,
 						IamEnabled: true,
@@ -190,12 +191,13 @@ func TestDBMAuroraListener(t *testing.T) {
 			},
 			expectedServices: []*DBMAuroraService{
 				{
-					adIdentifier: dbmPostgresADIdentifier,
+					adIdentifier: dbmPostgresAuroraADIdentifier,
 					entityID:     "f7fee36c58e3da8a",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
 					region:       "us-east-1",
 					instance: &aws.Instance{
+						ID:         "",
 						Endpoint:   "my-endpoint",
 						Port:       5432,
 						IamEnabled: true,
@@ -203,12 +205,13 @@ func TestDBMAuroraListener(t *testing.T) {
 					},
 				},
 				{
-					adIdentifier: dbmPostgresADIdentifier,
+					adIdentifier: dbmPostgresAuroraADIdentifier,
 					entityID:     "509dbfd2cc1ae2be",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
 					region:       "us-east-1",
 					instance: &aws.Instance{
+						ID:         "",
 						Endpoint:   "foo-endpoint",
 						Port:       5432,
 						IamEnabled: true,
@@ -216,12 +219,13 @@ func TestDBMAuroraListener(t *testing.T) {
 					},
 				},
 				{
-					adIdentifier: dbmPostgresADIdentifier,
+					adIdentifier: dbmPostgresAuroraADIdentifier,
 					entityID:     "cc92e57c9b7b7531",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
 					region:       "us-east-1",
 					instance: &aws.Instance{
+						ID:         "",
 						Endpoint:   "bar-endpoint",
 						Port:       5444,
 						IamEnabled: false,
@@ -289,12 +293,13 @@ func TestGetExtraAuroraConfig(t *testing.T) {
 	}{
 		{
 			service: &DBMAuroraService{
-				adIdentifier: dbmPostgresADIdentifier,
+				adIdentifier: dbmPostgresAuroraADIdentifier,
 				entityID:     "f7fee36c58e3da8a",
 				checkName:    "postgres",
 				clusterID:    "my-cluster-1",
 				region:       "us-east-1",
 				instance: &aws.Instance{
+					ID:         "",
 					Endpoint:   "my-endpoint",
 					Port:       5432,
 					IamEnabled: true,

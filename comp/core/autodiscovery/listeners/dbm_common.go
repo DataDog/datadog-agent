@@ -24,8 +24,8 @@ const (
 var engineToIntegrationType = map[string]string{
 	postgresqlEngine:       "postgres",
 	mysqlEngine:            "mysql",
-	auroraPostgresqlEngine: "aurora-postgres",
-	auroraMysqlEngine:      "aurora-mysql",
+	auroraPostgresqlEngine: "postgres",
+	auroraMysqlEngine:      "mysql",
 }
 
 var engineToADIdentifier = map[string]string{
