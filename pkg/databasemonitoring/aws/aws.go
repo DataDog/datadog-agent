@@ -8,6 +8,8 @@
 // Package aws contains database-monitoring specific aurora discovery logic
 package aws
 
+import "fmt"
+
 // Instance represents an Aurora or RDS instance
 type Instance struct {
 	Endpoint   string
@@ -16,4 +18,20 @@ type Instance struct {
 	Engine     string
 	DbName     string
 	DbmEnabled bool
+}
+
+// dbNameFromEngine returns the default database name for a given engine type
+func dbNameFromEngine(engine string) (string, error) {
+	switch engine {
+	case mysqlEngine:
+		fallthrough
+	case auroraMysqlEngine:
+		return "mysql", nil
+	case postgresqlEngine:
+		fallthrough
+	case auroraPostgresqlEngine:
+		return "postgres", nil
+	default:
+		return "", fmt.Errorf("unsupported engine type: %s", engine)
+	}
 }

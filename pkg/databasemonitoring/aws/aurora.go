@@ -117,18 +117,6 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 	return clusters, nil
 }
 
-// dbNameFromEngine returns the default database name for a given engine type
-func dbNameFromEngine(engine string) (string, error) {
-	switch engine {
-	case auroraMysqlEngine:
-		return "mysql", nil
-	case auroraPostgresqlEngine:
-		return "postgres", nil
-	default:
-		return "", fmt.Errorf("unsupported engine type: %s", engine)
-	}
-}
-
 // GetAuroraClustersFromTags returns a list of Aurora clusters to query from a list of tags
 // it is required to query for the cluster ids first because tags are not propagated to instances
 // that are brought up during an auto-scaling event. That means the only way to reliably filter for the list

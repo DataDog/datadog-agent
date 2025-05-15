@@ -5,7 +5,7 @@
 
 //go:build ec2
 
-// Package aws contains database-monitoring specific aurora discovery logic
+// Package aws contains database-monitoring specific RDS discovery logic
 package aws
 
 import (
@@ -42,7 +42,7 @@ func (c *Client) GetRdsInstancesFromTags(ctx context.Context, tags []string) ([]
 			},
 		})
 		if err != nil {
-			return nil, fmt.Errorf("error running GetAuroraClustersFromTags: %v", err)
+			return nil, fmt.Errorf("error running GetRdsInstancesFromTags: %v", err)
 		}
 		for _, db := range dbInstances.DBInstances {
 			if containsTags(db.TagList, tags) {

@@ -21,11 +21,11 @@ import (
 
 func TestGetRdsInstancesFromTags(t *testing.T) {
 	testCases := []struct {
-		name               string
-		configureClient    mockrdsServiceConfigurer
-		tags               []string
-		expectedClusterIDs []string
-		expectedErr        error
+		name              string
+		configureClient   mockrdsServiceConfigurer
+		tags              []string
+		expectedInstances []Instance
+		expectedErr       error
 	}{
 		{
 			name:            "no filter tags supplied",
@@ -36,298 +36,394 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 		{
 			name: "single tag filter returns error from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+							Values: []string{mysqlEngine, postgresqlEngine},
 						},
 					},
 				}).Return(nil, errors.New("big time error")).Times(1)
 			},
 			tags:        []string{"test:tag"},
-			expectedErr: errors.New("error running GetAuroraClustersFromTags: big time error"),
+			expectedErr: errors.New("error running GetRdsInstancesFromTags: big time error"),
 		},
 		{
 			name: "single tag filter returns no results from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+							Values: []string{mysqlEngine, postgresqlEngine},
 						},
 					},
-				}).Return(&rds.DescribeDBClustersOutput{}, nil).Times(1)
+				}).Return(&rds.DescribeDBInstancesOutput{}, nil).Times(1)
 			},
-			tags:               []string{"test:tag"},
-			expectedClusterIDs: []string{},
+			tags:              []string{"test:tag"},
+			expectedInstances: []Instance{},
 		},
 		{
 			name: "single tag filter returns single result from API with matching tag",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+							Values: []string{mysqlEngine, postgresqlEngine},
 						},
 					},
-				}).Return(&rds.DescribeDBClustersOutput{
-					DBClusters: []types.DBCluster{
+				}).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							DBClusterIdentifier: aws.String("test-cluster"),
-							TagList: []types.Tag{
-								{
-									Key:   aws.String("test"),
-									Value: aws.String("tag"),
-								},
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
 							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("postgresql"),
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 					},
 				}, nil).Times(1)
 			},
-			tags:               []string{"test:tag"},
-			expectedClusterIDs: []string{"test-cluster"},
+			tags: []string{"test:tag"},
+			expectedInstances: []Instance{{
+				Endpoint:   "test-endpoint",
+				Port:       5432,
+				IamEnabled: true,
+				Engine:     "postgresql",
+				DbmEnabled: false,
+				DbName:     "postgres",
+			}},
 		},
 		{
 			name: "single tag filter returns single result from API with non-matching tag",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+							Values: []string{mysqlEngine, postgresqlEngine},
 						},
 					},
-				}).Return(&rds.DescribeDBClustersOutput{
-					DBClusters: []types.DBCluster{
+				}).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							DBClusterIdentifier: aws.String("test-cluster"),
-							TagList: []types.Tag{
-								{
-									Key:   aws.String("test"),
-									Value: aws.String("tag"),
-								},
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
 							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("postgresql"),
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 					},
 				}, nil).Times(1)
 			},
-			tags:               []string{"test:tag2"},
-			expectedClusterIDs: []string{},
+			tags:              []string{"test:tag2"},
+			expectedInstances: []Instance{},
 		},
 		{
 			name: "single tag filter returns multiple results from API with matching tag",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+							Values: []string{mysqlEngine, postgresqlEngine},
 						},
 					},
-				}).Return(&rds.DescribeDBClustersOutput{
-					DBClusters: []types.DBCluster{
+				}).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							DBClusterIdentifier: aws.String("test-cluster"),
-							TagList: []types.Tag{
-								{
-									Key:   aws.String("test"),
-									Value: aws.String("tag"),
-								},
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
 							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("postgresql"),
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 						{
-							DBClusterIdentifier: aws.String("test-cluster-2"),
-							TagList: []types.Tag{
-								{
-									Key:   aws.String("test"),
-									Value: aws.String("tag"),
-								},
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint-2"),
+								Port:    aws.Int32(5432),
 							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("postgresql"),
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 					},
 				}, nil).Times(1)
 			},
-			tags:               []string{"test:tag"},
-			expectedClusterIDs: []string{"test-cluster", "test-cluster-2"},
+			tags: []string{"test:tag"},
+			expectedInstances: []Instance{
+				{
+					Endpoint:   "test-endpoint",
+					Port:       5432,
+					IamEnabled: true,
+					Engine:     "postgresql",
+					DbmEnabled: false,
+					DbName:     "postgres",
+				}, {
+					Endpoint:   "test-endpoint-2",
+					Port:       5432,
+					IamEnabled: true,
+					Engine:     "postgresql",
+					DbmEnabled: false,
+					DbName:     "postgres",
+				},
+			},
 		},
 		{
-			name: "single tag filter returns multiple results from API, one cluster doesn't match tag",
+			name: "single tag filter returns multiple results from API, one instance doesn't match tag",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+							Values: []string{mysqlEngine, postgresqlEngine},
 						},
 					},
-				}).Return(&rds.DescribeDBClustersOutput{
-					DBClusters: []types.DBCluster{
+				}).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							DBClusterIdentifier: aws.String("test-cluster"),
-							TagList: []types.Tag{
-								{
-									Key:   aws.String("test"),
-									Value: aws.String("tag"),
-								},
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
 							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("postgresql"),
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 						{
-							DBClusterIdentifier: aws.String("test-cluster-2"),
-							TagList: []types.Tag{
-								{
-									Key:   aws.String("test"),
-									Value: aws.String("tag2"),
-								},
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint-2"),
+								Port:    aws.Int32(5432),
 							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("postgresql"),
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag2")}},
 						},
 					},
 				}, nil).Times(1)
 			},
-			tags:               []string{"test:tag"},
-			expectedClusterIDs: []string{"test-cluster"},
+			tags: []string{"test:tag"},
+			expectedInstances: []Instance{
+				{
+					Endpoint:   "test-endpoint",
+					Port:       5432,
+					IamEnabled: true,
+					Engine:     "postgresql",
+					DbmEnabled: false,
+					DbName:     "postgres",
+				}},
 		},
 		{
-			name: "single tag filter returns multiple results from API, one cluster has no tags",
+			name: "single tag filter returns multiple results from API, one instance has no tags",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+							Values: []string{mysqlEngine, postgresqlEngine},
 						},
 					},
-				}).Return(&rds.DescribeDBClustersOutput{
-					DBClusters: []types.DBCluster{
+				}).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							DBClusterIdentifier: aws.String("test-cluster"),
-							TagList:             nil,
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("postgresql"),
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 						{
-							DBClusterIdentifier: aws.String("test-cluster-2"),
-							TagList: []types.Tag{
-								{
-									Key:   aws.String("test"),
-									Value: aws.String("tag"),
-								},
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint-2"),
+								Port:    aws.Int32(5432),
 							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("postgresql"),
+							TagList:                          []types.Tag{},
 						},
 					},
 				}, nil).Times(1)
 			},
-			tags:               []string{"test:tag"},
-			expectedClusterIDs: []string{"test-cluster-2"},
+			tags: []string{"test:tag"},
+			expectedInstances: []Instance{
+				{
+					Endpoint:   "test-endpoint",
+					Port:       5432,
+					IamEnabled: true,
+					Engine:     "postgresql",
+					DbmEnabled: false,
+					DbName:     "postgres",
+				}},
 		},
 		{
 			name: "multiple tag filter returns multiple results from API all matching",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+							Values: []string{mysqlEngine, postgresqlEngine},
 						},
 					},
-				}).Return(&rds.DescribeDBClustersOutput{
-					DBClusters: []types.DBCluster{
+				}).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							DBClusterIdentifier: aws.String("test-cluster"),
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("postgresql"),
 							TagList: []types.Tag{
-								{
-									Key:   aws.String("test"),
-									Value: aws.String("tag"),
-								},
-								{
-									Key:   aws.String("test2"),
-									Value: aws.String("tag2"),
-								},
+								{Key: aws.String("test"), Value: aws.String("tag")},
+								{Key: aws.String("test"), Value: aws.String("tag2")},
+								{Key: aws.String("test"), Value: aws.String("tag3")},
 							},
 						},
 						{
-							DBClusterIdentifier: aws.String("test-cluster-2"),
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint-2"),
+								Port:    aws.Int32(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("postgresql"),
 							TagList: []types.Tag{
-								{
-									Key:   aws.String("test"),
-									Value: aws.String("tag"),
-								},
-								{
-									Key:   aws.String("test2"),
-									Value: aws.String("tag2"),
-								},
-								{
-									Key:   aws.String("foo"),
-									Value: aws.String("bar"),
-								},
+								{Key: aws.String("test"), Value: aws.String("tag")},
+								{Key: aws.String("test"), Value: aws.String("tag2")},
+								{Key: aws.String("test"), Value: aws.String("tag4")},
 							},
 						},
 					},
 				}, nil).Times(1)
 			},
-			tags:               []string{"test:tag", "test2:tag2"},
-			expectedClusterIDs: []string{"test-cluster", "test-cluster-2"},
+			tags: []string{"test:tag", "test:tag2"},
+			expectedInstances: []Instance{
+				{
+					Endpoint:   "test-endpoint",
+					Port:       5432,
+					IamEnabled: true,
+					Engine:     "postgresql",
+					DbmEnabled: false,
+					DbName:     "postgres",
+				}, {
+					Endpoint:   "test-endpoint-2",
+					Port:       5432,
+					IamEnabled: true,
+					Engine:     "postgresql",
+					DbmEnabled: false,
+					DbName:     "postgres",
+				},
+			},
 		},
 		{
-			name: "multiple pages returns ids from all pages",
+			name: "multiple pages returns instances from all pages",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+							Values: []string{mysqlEngine, postgresqlEngine},
 						},
 					},
-				}).Return(&rds.DescribeDBClustersOutput{
+				}).Return(&rds.DescribeDBInstancesOutput{
 					Marker: aws.String("next"),
-					DBClusters: []types.DBCluster{
+					DBInstances: []types.DBInstance{
 						{
-							DBClusterIdentifier: aws.String("test-cluster"),
-							TagList: []types.Tag{
-								{
-									Key:   aws.String("test"),
-									Value: aws.String("tag"),
-								},
-								{
-									Key:   aws.String("test2"),
-									Value: aws.String("tag2"),
-								},
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
 							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("postgresql"),
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 					},
 				}, nil).Times(1)
-				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
 					Marker: aws.String("next"),
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+							Values: []string{mysqlEngine, postgresqlEngine},
 						},
 					},
-				}).Return(&rds.DescribeDBClustersOutput{
-					DBClusters: []types.DBCluster{
+				}).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							DBClusterIdentifier: aws.String("test-cluster-2"),
-							TagList: []types.Tag{
-								{
-									Key:   aws.String("test"),
-									Value: aws.String("tag"),
-								},
-								{
-									Key:   aws.String("test2"),
-									Value: aws.String("tag2"),
-								},
-								{
-									Key:   aws.String("foo"),
-									Value: aws.String("bar"),
-								},
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint-2"),
+								Port:    aws.Int32(5432),
 							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("postgresql"),
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 					},
 				}, nil).Times(1)
 			},
-			tags:               []string{"test:tag", "test2:tag2"},
-			expectedClusterIDs: []string{"test-cluster", "test-cluster-2"},
+			tags: []string{"test:tag"},
+			expectedInstances: []Instance{
+				{
+					Endpoint:   "test-endpoint",
+					Port:       5432,
+					IamEnabled: true,
+					Engine:     "postgresql",
+					DbmEnabled: false,
+					DbName:     "postgres",
+				}, {
+					Endpoint:   "test-endpoint-2",
+					Port:       5432,
+					IamEnabled: true,
+					Engine:     "postgresql",
+					DbmEnabled: false,
+					DbName:     "postgres",
+				},
+			},
 		},
 	}
 	for _, tt := range testCases {
@@ -337,13 +433,13 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			mockClient := NewMockrdsService(ctrl)
 			tt.configureClient(mockClient)
 			client := &Client{client: mockClient}
-			clusters, err := client.GetAuroraClustersFromTags(context.Background(), tt.tags)
+			clusters, err := client.GetRdsInstancesFromTags(context.Background(), tt.tags)
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 				return
 			}
 			assert.NoError(t, err)
-			assert.ElementsMatch(t, tt.expectedClusterIDs, clusters)
+			assert.ElementsMatch(t, tt.expectedInstances, clusters)
 		})
 	}
 }
