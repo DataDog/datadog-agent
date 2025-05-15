@@ -220,11 +220,16 @@ func preInstallDatadogAgent(ctx HookContext) error {
 	if err := agentServiceOCI.RemoveStable(ctx); err != nil {
 		log.Warnf("failed to remove stable unit: %s", err)
 	}
-	return packagemanager.RemovePackage(ctx, agentPackage)
+	return packagemanager.RemoveNativePackage(ctx, agentPackage)
 }
 
 // postInstallDatadogAgent performs post-installation steps for the agent
 func postInstallDatadogAgent(ctx HookContext) (err error) {
+	if ctx.PackageType == PackageTypeDEB || ctx.PackageType == PackageTypeRPM {
+		if err := packagemanager.RemoveInstallerPackage(ctx, agentPackage); err != nil {
+			log.Warnf("failed to remove installer agent package: %s", err)
+		}
+	}
 	if err := setupFilesystem(ctx); err != nil {
 		return err
 	}
