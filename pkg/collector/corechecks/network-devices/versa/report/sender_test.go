@@ -88,36 +88,116 @@ func TestParseUptimeString(t *testing.T) {
 		expectedSeconds int64
 		errMsg          string
 	}{
-		{"Valid uptime", "10 days 2 hours 3 minutes 4 seconds.", 0, 10, 2, 3, 4, ""},
-		{"Valid uptime with years", "5 years 278 days 16 hours 0 minutes 30 seconds.", 5, 278, 16, 0, 30, ""},
-		{"Invalid uptime", "5x years, invalid", 0, 0, 0, 0, 0, ""},
+		{
+			description:     "Valid uptime, upper case",
+			input:           "40 Years 299 Days 7 Hours 5 Minutes and 39 Seconds.",
+			expectedYears:   40,
+			expectedDays:    299,
+			expectedHours:   7,
+			expectedMinutes: 5,
+			expectedSeconds: 39,
+		},
+		{
+			description:     "Valid uptime",
+			input:           "10 days 2 hours 3 minutes 4 seconds.",
+			expectedDays:    10,
+			expectedHours:   2,
+			expectedMinutes: 3,
+			expectedSeconds: 4,
+		},
+		{
+			description:     "Valid uptime with years",
+			input:           "5 years 278 days 16 hours 0 minutes 30 seconds.",
+			expectedYears:   5,
+			expectedDays:    278,
+			expectedHours:   16,
+			expectedMinutes: 0,
+			expectedSeconds: 30,
+		},
+		{
+			// TODO: do I like this? it's more flexible, but the
+			// data coming from the API is likely wrong
+			description:  "Uptime missing years, valid days",
+			input:        " years 5 days",
+			expectedDays: 5,
+		},
+		{
+			description: "Invalid uptime, mixed letters/numbers",
+			input:       "5x years",
+			errMsg:      "invalid numeric value",
+		},
+		{
+			description: "Invalid uptime, spelled out",
+			input:       "five years",
+			errMsg:      "invalid numeric value",
+		},
+		{
+			description: "Invalid uptime, special characters",
+			input:       "5! years",
+			errMsg:      "invalid numeric value",
+		},
+		{
+			description: "Invalid uptime, expect integers",
+			input:       "5.5 years",
+			errMsg:      "invalid numeric value",
+		},
+		{
+			description: "Invalid uptime, negative number",
+			input:       "-5 years",
+			errMsg:      "invalid numeric value",
+		},
+		{
+			description: "Invalid uptime, empty value",
+			input:       " years",
+			errMsg:      "no valid time components found",
+		},
 	}
 
 	for _, test := range tests {
-		result, err := parseUptimeString(test.input)
-		if err != nil {
-			if test.errMsg == "" {
-				t.Errorf("Unexpected error parsing uptime %s: %v", test.input, err)
-			} else if !strings.Contains(err.Error(), test.errMsg) {
-				t.Errorf("Expected error message to contain %q, got %q", test.errMsg, err.Error())
+		t.Run(test.description, func(t *testing.T) {
+			result, err := parseUptimeString(test.input)
+			if err != nil {
+				if test.errMsg == "" {
+					t.Errorf("Unexpected error parsing uptime %s: %v", test.input, err)
+				} else if !strings.Contains(err.Error(), test.errMsg) {
+					t.Errorf("Expected error message to contain %q, got %q", test.errMsg, err.Error())
+				}
+				return
 			}
-			continue
-		}
 
-		result *= float64(time.Millisecond) * 10
-		resultDuration := time.Duration(result)
-		years := resultDuration / (365 * 24 * time.Hour)
-		resultDuration -= years * 365 * 24 * time.Hour
-		days := resultDuration / (24 * time.Hour)
-		resultDuration -= days * 24 * time.Hour
-		hours := resultDuration / time.Hour
-		resultDuration -= hours * time.Hour
-		minutes := resultDuration / time.Minute
-		resultDuration -= minutes * time.Minute
-		seconds := resultDuration / time.Second
-		resultDuration -= seconds * time.Second
-		if int64(years) != test.expectedYears || int64(days) != test.expectedDays || int64(hours) != test.expectedHours || int64(minutes) != test.expectedMinutes || int64(seconds) != test.expectedSeconds {
-			t.Errorf("Result mismatch, expected %s, got %d years %d days %d hours %d minutes %d seconds", test.input, years, days, hours, minutes, seconds)
-		}
+			if test.errMsg != "" {
+				t.Errorf("Expected error containing %q but got none", test.errMsg)
+				return
+			}
+
+			result *= float64(time.Millisecond) * 10
+			years, days, hours, minutes, seconds := extractDurationComponents(time.Duration(result))
+
+			if years != test.expectedYears ||
+				days != test.expectedDays ||
+				hours != test.expectedHours ||
+				minutes != test.expectedMinutes ||
+				seconds != test.expectedSeconds {
+				t.Errorf("Result mismatch for %q:\nExpected: %d years %d days %d hours %d minutes %d seconds\nGot: %d years %d days %d hours %d minutes %d seconds",
+					test.input,
+					test.expectedYears, test.expectedDays, test.expectedHours, test.expectedMinutes, test.expectedSeconds,
+					years, days, hours, minutes, seconds)
+			}
+		})
 	}
+}
+
+// extractDurationComponents converts a duration into its constituent parts.
+func extractDurationComponents(d time.Duration) (years, days, hours, minutes, seconds int64) {
+	years = int64(d / (365 * 24 * time.Hour))
+	d -= time.Duration(years) * 365 * 24 * time.Hour
+	days = int64(d / (24 * time.Hour))
+	d -= time.Duration(days) * 24 * time.Hour
+	hours = int64(d / time.Hour)
+	d -= time.Duration(hours) * time.Hour
+	minutes = int64(d / time.Minute)
+	d -= time.Duration(minutes) * time.Minute
+	seconds = int64(d / time.Second)
+
+	return years, days, hours, minutes, seconds
 }

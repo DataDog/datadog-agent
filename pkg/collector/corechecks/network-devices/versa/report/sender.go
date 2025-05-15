@@ -29,7 +29,7 @@ const (
 )
 
 var (
-	versaUptimeRegex = regexp.MustCompile(`(?i)(\d+)\s+(year?|days?|hours?|minutes?|seconds?)`)
+	versaUptimeRegex = regexp.MustCompile(`(?i)(\S+)\s+(year?|days?|hours?|minutes?|seconds?)`)
 )
 
 // Sender implements methods for sending Versa metrics and metadata
@@ -286,10 +286,13 @@ func parseSize(sizeString string) (float64, error) {
 	return size * largestFactor, nil
 }
 
-// TODO: error on invalid format (no matches)
 func parseUptimeString(uptime string) (float64, error) {
 	uptime = strings.TrimSuffix(uptime, ".") // Remove the trailing period
 	matches := versaUptimeRegex.FindAllStringSubmatch(uptime, -1)
+
+	if len(matches) == 0 {
+		return 0, fmt.Errorf("no valid time components found in uptime string: %s", uptime)
+	}
 
 	var total time.Duration
 	for _, match := range matches {
@@ -299,12 +302,21 @@ func parseUptimeString(uptime string) (float64, error) {
 		valueStr := match[1]
 		unit := strings.ToLower(match[2])
 
+		// Check if the value string contains any non-digit characters
+		for _, char := range valueStr {
+			if !strings.ContainsRune("0123456789", char) {
+				return 0, fmt.Errorf("invalid numeric value %q in uptime component: contains non-digit character", valueStr)
+			}
+		}
+
 		value, err := strconv.Atoi(valueStr)
 		if err != nil {
 			return 0, fmt.Errorf("invalid number %s: %v", valueStr, err)
 		}
 
 		switch unit {
+		// not clear if we will ever get years from the API, but if we do
+		// use 365 days as an estimate.
 		case "year", "years":
 			total += time.Duration(value) * 365 * 24 * time.Hour
 		case "day", "days":
