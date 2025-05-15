@@ -349,7 +349,11 @@ func (p *PodAutoscalerInternal) UnmarshalJSON(data []byte) error {
 	}
 
 	if err := json.Unmarshal(data, &temp); err != nil {
-		return err
+		// If the error is not related to unmarshaling into error type, return the error
+		if !(strings.Contains(err.Error(), "cannot unmarshal object into Go struct field") &&
+			strings.Contains(err.Error(), "of type error")) {
+			return err
+		}
 	}
 
 	// Copy the values to our PodAutoscalerInternal
