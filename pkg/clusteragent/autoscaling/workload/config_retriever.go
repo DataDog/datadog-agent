@@ -25,7 +25,7 @@ const (
 
 // RcClient is a subinterface of rcclient.Component to allow mocking
 type RcClient interface {
-	SubscribeIgnoreExpiration(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
+	SubscribeIgnoreExpiration(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) func()
 }
 
 // ConfigRetriever is responsible for retrieving remote objects (Autoscaling .Spec and values)
