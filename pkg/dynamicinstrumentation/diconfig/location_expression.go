@@ -9,10 +9,9 @@ package diconfig
 
 import (
 	"fmt"
+	"math/rand"
 	"reflect"
 	"strings"
-
-	"math/rand"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,7 +54,6 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 		for pathElementIndex := range pathElements {
 			var elementParam *ditypes.Parameter = getParamFromTriePaths(pathElements[pathElementIndex])
 			if elementParam == nil {
-				log.Infof("Path not found to target: %s", pathElements[pathElementIndex])
 				continue
 			}
 			// Check if this instrumentation target is directly assigned
@@ -106,6 +104,8 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 				// This is not directly assigned, expect the address for it on the stack
 				if elementParam.Kind == uint(reflect.Pointer) {
 					targetExpressions = append(targetExpressions,
+						ditypes.PrintStatement("%s", "Dereferencing pointer"),
+						ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)),
 						ditypes.DereferenceLocationExpression(uint(elementParam.TotalSize)),
 					)
 					_, ok := seenPointers[elementParam.ID]
@@ -117,6 +117,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					// Structs don't provide context on location, or have values themselves
 					// Just need to copy the address for each field
 					targetExpressions = append(targetExpressions,
+						ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)),
 						ditypes.CopyLocationExpression(),
 					)
 
@@ -261,6 +262,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					if elementParam.ParameterPieces[0] == nil {
 						continue
 					}
+					targetExpressions = append(targetExpressions, ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)))
 					GenerateLocationExpression(limitsInfo, elementParam.ParameterPieces[0])
 					expressionsToUseForEachArrayElement := collectAllLocationExpressions(elementParam.ParameterPieces[0], true)
 					for i := range elementParam.ParameterPieces {

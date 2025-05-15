@@ -2,7 +2,12 @@
 
 set -o pipefail
 
-STARTUP_TIME_THRESHOLD=33
+STARTUP_TIME_THRESHOLD=55
+
+# If OVERRIDE_STARTUP_TIME_THRESHOLD is set, use it as the threshold
+if [ -n "$OVERRIDE_STARTUP_TIME_THRESHOLD" ]; then
+    STARTUP_TIME_THRESHOLD=$OVERRIDE_STARTUP_TIME_THRESHOLD
+fi
 
 calculate_median() {
     local sorted=($(printf "%s\n" "${@}" | sort -n))

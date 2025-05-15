@@ -7,14 +7,12 @@ package statusimpl
 
 import (
 	"fmt"
-	htmlTemplate "html/template"
 	"io"
 	"maps"
 	"os"
 	"path"
 	"runtime"
 	"strings"
-	textTemplate "text/template"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -22,6 +20,8 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fips"
+	htmlTemplate "github.com/DataDog/datadog-agent/pkg/template/html"
+	textTemplate "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )

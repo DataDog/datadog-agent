@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 )
 
 type transport int
@@ -60,7 +61,7 @@ func tracegenUDSCommands(service string, peerTags string, enableClientSideStats 
 		" -e DD_GIT_COMMIT_SHA=abcd1234 " +
 		" -e TRACEGEN_ADDSPANTAGS=" + peerTags +
 		" -e DD_TRACE_STATS_COMPUTATION_ENABLED=" + strconv.FormatBool(enableClientSideStats) +
-		" ghcr.io/datadog/apps-tracegen:main"
+		" ghcr.io/datadog/apps-tracegen:" + apps.Version
 	rm := "docker rm -f " + service
 	return run, rm
 }
@@ -72,12 +73,12 @@ func tracegenTCPCommands(service string, peerTags string, enableClientSideStats 
 		" -e DD_GIT_COMMIT_SHA=abcd1234 " +
 		" -e TRACEGEN_ADDSPANTAGS=" + peerTags +
 		" -e DD_TRACE_STATS_COMPUTATION_ENABLED=" + strconv.FormatBool(enableClientSideStats) +
-		" ghcr.io/datadog/apps-tracegen:main"
+		" ghcr.io/datadog/apps-tracegen:" + apps.Version
 	rm := "docker rm -f " + service
 	return run, rm
 }
 
-func traceWithProcessTags(h *components.RemoteHost, processTags, service string) {
+func traceWithProcessTagsWithHeader(h *components.RemoteHost, processTags, service string) {
 	// TODO: once go tracer support process tags, use tracegen instead!
 	h.MustExecute(fmt.Sprintf(`curl -X POST http://localhost:8126/v0.4/traces \
 -H 'X-Datadog-Process-Tags: %s' \
@@ -88,4 +89,16 @@ func traceWithProcessTags(h *components.RemoteHost, processTags, service string)
 --data-binary @- <<EOF
 [[{"trace_id":1234567890123456789,"span_id":9876543210987654321,"parent_id":0,"name":"http.request","resource":"GET /api/users","service":"%s","type":"web","start":0,"duration":200000000,"meta":{"http.method":"GET","http.url":"/api/users","http.status_code":"200","env":"dev","version":"1.0.0"},"metrics":{"_sampling_priority_v1":1}}]]
 EOF`, processTags, service))
+}
+
+func traceWithProcessTags(h *components.RemoteHost, processTags, service string) {
+	// TODO: once go tracer support process tags, use tracegen instead!
+	h.MustExecute(fmt.Sprintf(`curl -X POST http://localhost:8126/v0.4/traces \
+-H 'X-Datadog-Trace-Count: 1' \
+-H 'Content-Type: application/json' \
+-H 'User-Agent: Go-http-client/1.1' \
+-H 'Datadog-Meta-Lang: go' \
+--data-binary @- <<EOF
+[[{"trace_id":1234567890123456789,"span_id":9876543210987654321,"parent_id":0,"name":"http.request","resource":"GET /api/users","service":"%s","type":"web","start":0,"duration":200000000,"meta":{"_dd.tags.process":"%s","http.method":"GET","http.url":"/api/users","http.status_code":"200","env":"dev","version":"1.0.0"},"metrics":{"_sampling_priority_v1":1}}]]
+EOF`, service, processTags))
 }

@@ -37,22 +37,47 @@ type Config struct {
 	// containerRegistry is the container registry to use for the autoinstrumentation logic
 	containerRegistry string
 
-	// precomputed mutators for the security and profiling products
-	securityClientLibraryPodMutators  []podMutator
-	profilingClientLibraryPodMutators []podMutator
+	// precomputed containerMutators for the security and profiling products
+	securityClientLibraryMutator  containerMutator
+	profilingClientLibraryMutator containerMutator
 
-	// initResources is the resource requirements for the init container
+	// containerFilter is a pre-computed filter function
+	// to be passed to the different mutators that dictates
+	// whether or not given pod containers should be mutated by
+	// this webhook.
+	//
+	// At the moment it is based on [[excludedContainerNames]].
+	// See [[excludedContainerNamesContainerFilter]].
+	//
+	// This should be used in conjunction with containerMutators
+	// via [[filteredContainerMutator]] and [[mutatePodContainers]]
+	// to make sure we aren't applying mutations to containers we
+	// should be skipping.
+	containerFilter containerFilter
+
+	// initResources is the resource requirements for the init containers.
 	initResources initResourceRequirementConfiguration
 
-	// initSecurityContext is the security context for the init container
+	// initSecurityContext is the security context for the init containers.
 	initSecurityContext *corev1.SecurityContext
 
-	// defaultResourceRequirements is the default resource requirements for the init container
+	// defaultResourceRequirements is the default resource requirements
+	// for the init containers.
 	defaultResourceRequirements initResourceRequirementConfiguration
 
-	// version is the version of the autoinstrumentation logic to use. We don't expose this option to the user, and V1
+	// version is the version of the autoinstrumentation logic to use.
+	// We don't expose this option to the user, and [[instrumentationV1]]
 	// is deprecated and slated for removal.
 	version version
+}
+
+var excludedContainerNames = map[string]bool{
+	"istio-proxy": true, // https://datadoghq.atlassian.net/browse/INPLAT-454
+}
+
+func excludedContainerNamesContainerFilter(c *corev1.Container) bool {
+	_, exclude := excludedContainerNames[c.Name]
+	return !exclude
 }
 
 // NewConfig creates a new Config from the datadog config. It returns an error if the configuration is invalid.
@@ -84,16 +109,17 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 
 	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
 	return &Config{
-		Webhook:                           NewWebhookConfig(datadogConfig),
-		LanguageDetection:                 NewLanguageDetectionConfig(datadogConfig),
-		Instrumentation:                   instrumentationConfig,
-		containerRegistry:                 containerRegistry,
-		initResources:                     initResources,
-		initSecurityContext:               initSecurityContext,
-		defaultResourceRequirements:       defaultResourceRequirements,
-		securityClientLibraryPodMutators:  securityClientLibraryConfigMutators(datadogConfig),
-		profilingClientLibraryPodMutators: profilingClientLibraryConfigMutators(datadogConfig),
-		version:                           version,
+		Webhook:                       NewWebhookConfig(datadogConfig),
+		LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
+		Instrumentation:               instrumentationConfig,
+		containerRegistry:             containerRegistry,
+		initResources:                 initResources,
+		initSecurityContext:           initSecurityContext,
+		defaultResourceRequirements:   defaultResourceRequirements,
+		securityClientLibraryMutator:  securityClientLibraryConfigMutators(datadogConfig),
+		profilingClientLibraryMutator: profilingClientLibraryConfigMutators(datadogConfig),
+		containerFilter:               excludedContainerNamesContainerFilter,
+		version:                       version,
 	}, nil
 }
 

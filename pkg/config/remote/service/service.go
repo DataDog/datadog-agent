@@ -31,7 +31,6 @@ import (
 	"go.etcd.io/bbolt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
@@ -186,6 +185,9 @@ type CoreAgentService struct {
 	agentVersion string
 
 	disableConfigPollLoop bool
+
+	// set the interval for which we will poll the org status
+	orgStatusRefreshInterval time.Duration
 }
 
 // uptaneClient provides functions to get TUF/uptane repo data.
@@ -247,6 +249,7 @@ type options struct {
 	maxBackoff                     time.Duration
 	clientTTL                      time.Duration
 	disableConfigPollLoop          bool
+	orgStatusRefreshInterval       time.Duration
 }
 
 var defaultOptions = options{
@@ -264,6 +267,7 @@ var defaultOptions = options{
 	maxBackoff:                     minimalMaxBackoffTime,
 	clientTTL:                      defaultClientsTTL,
 	disableConfigPollLoop:          false,
+	orgStatusRefreshInterval:       defaultRefreshInterval,
 }
 
 // Option is a service option
@@ -312,6 +316,21 @@ func WithRefreshInterval(interval time.Duration, cfgPath string) func(s *options
 	return func(s *options) {
 		s.refresh = interval
 		s.refreshIntervalOverrideAllowed = false
+	}
+}
+
+// WithOrgStatusRefreshInterval validates and sets the service org status refresh interval
+func WithOrgStatusRefreshInterval(interval time.Duration, cfgPath string) func(s *options) {
+	if interval < minimalRefreshInterval {
+		log.Warnf("%s is set to %v which is below the minimum of %v - using default org status refresh interval %v",
+			cfgPath, interval, minimalRefreshInterval, defaultRefreshInterval)
+		return func(s *options) {
+			s.orgStatusRefreshInterval = defaultRefreshInterval
+		}
+	}
+
+	return func(s *options) {
+		s.orgStatusRefreshInterval = interval
 	}
 }
 
@@ -485,11 +504,12 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 			capacity:       options.clientCacheBypassLimit,
 			allowance:      options.clientCacheBypassLimit,
 		},
-		telemetryReporter:     telemetryReporter,
-		agentVersion:          agentVersion,
-		stopOrgPoller:         make(chan struct{}),
-		stopConfigPoller:      make(chan struct{}),
-		disableConfigPollLoop: options.disableConfigPollLoop,
+		telemetryReporter:        telemetryReporter,
+		agentVersion:             agentVersion,
+		stopOrgPoller:            make(chan struct{}),
+		stopConfigPoller:         make(chan struct{}),
+		disableConfigPollLoop:    options.disableConfigPollLoop,
+		orgStatusRefreshInterval: options.orgStatusRefreshInterval,
 	}
 
 	cfg.OnUpdate(cas.apiKeyUpdateCallback())
@@ -511,7 +531,7 @@ func (s *CoreAgentService) Start() {
 		s.pollOrgStatus()
 		for {
 			select {
-			case <-s.clock.After(orgStatusPollInterval):
+			case <-s.clock.After(s.orgStatusRefreshInterval):
 				s.pollOrgStatus()
 			case <-s.stopOrgPoller:
 				log.Infof("[%s] Stopping Remote Config org status poller", s.rcType)
@@ -1175,30 +1195,23 @@ func (c *HTTPClient) GetCDNConfigUpdate(
 	ctx context.Context,
 	products []string,
 	currentTargetsVersion, currentRootVersion uint64,
-	cachedTargetFiles []*pbgo.TargetFileMeta,
 ) (*state.Update, error) {
 	var err error
-	span, ctx := tracer.StartSpanFromContext(ctx, "HTTPClient.GetCDNConfigUpdate")
-	defer span.Finish(tracer.WithError(err))
 	if !c.shouldUpdate() {
-		span.SetTag("use_cache", true)
-		return c.getUpdate(ctx, products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
+		return c.getUpdate(products, currentTargetsVersion, currentRootVersion)
 	}
 
 	err = c.update(ctx)
 	if err != nil {
-		span.SetTag("cache_update_error", true)
 		_ = log.Warn(fmt.Sprintf("Error updating CDN config repo: %v", err))
 	}
 
-	u, err := c.getUpdate(ctx, products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
+	u, err := c.getUpdate(products, currentTargetsVersion, currentRootVersion)
 	return u, err
 }
 
 func (c *HTTPClient) update(ctx context.Context) error {
 	var err error
-	span, ctx := tracer.StartSpanFromContext(ctx, "HTTPClient.update")
-	defer span.Finish(tracer.WithError(err))
 	c.Lock()
 	defer c.Unlock()
 
@@ -1221,19 +1234,11 @@ func (c *HTTPClient) shouldUpdate() bool {
 }
 
 func (c *HTTPClient) getUpdate(
-	ctx context.Context,
 	products []string,
 	currentTargetsVersion, currentRootVersion uint64,
-	cachedTargetFiles []*pbgo.TargetFileMeta,
 ) (*state.Update, error) {
 	c.Lock()
 	defer c.Unlock()
-	span, _ := tracer.StartSpanFromContext(ctx, "HTTPClient.getUpdate")
-	defer span.Finish()
-	span.SetTag("products", products)
-	span.SetTag("current_targets_version", currentTargetsVersion)
-	span.SetTag("current_root_version", currentRootVersion)
-	span.SetTag("cached_target_files", cachedTargetFiles)
 
 	tufVersions, err := c.uptane.TUFVersionState()
 	if err != nil {
@@ -1255,7 +1260,6 @@ func (c *HTTPClient) getUpdate(
 		productsMap[product] = struct{}{}
 	}
 	configs := make([]string, 0)
-	expiredConfigs := make([]string, 0)
 	for path, meta := range directorTargets {
 		pathMeta, err := rdata.ParseConfigPath(path)
 		if err != nil {
@@ -1269,14 +1273,11 @@ func (c *HTTPClient) getUpdate(
 			return nil, err
 		}
 		if configExpired(configMetadata.Expires) {
-			expiredConfigs = append(expiredConfigs, path)
 			continue
 		}
 
 		configs = append(configs, path)
 	}
-	span.SetTag("configs.returned", configs)
-	span.SetTag("configs.expired", expiredConfigs)
 
 	// Gather the files and map-ify them for the state data structure
 	targetFiles, err := c.getTargetFiles(c.uptane, configs)

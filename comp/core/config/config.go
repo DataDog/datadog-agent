@@ -94,7 +94,7 @@ func newConfig(deps dependencies) (*cfg, error) {
 			if warnings == nil {
 				warnings = &pkgconfigmodel.Warnings{}
 			}
-			warnings.Err = e
+			warnings.Errors = []error{e}
 			e = nil
 		}
 		return &cfg{Config: config, warnings: warnings}, e

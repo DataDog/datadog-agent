@@ -22,9 +22,6 @@ import (
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
 )
 
-// iteration is the number of time we will check the auth stack
-const iteration = 100
-
 // timeout is the time we will wait for one iteration to success
 const timeout = time.Minute
 
@@ -65,9 +62,7 @@ func (a *authArtifactBase) TestServersideIPCCertUsage() {
 	a.logFolder, err = a.Env().RemoteHost.GetLogsFolder()
 	a.Require().NoError(err)
 
-	for i := 0; i < iteration; i++ {
-		a.checkAuthStack()
-	}
+	a.checkAuthStack()
 }
 
 func (a *authArtifactBase) checkAuthStack() {

@@ -9,7 +9,7 @@ connectors:
       peer_tags: []
       peer_tags_aggregation: true
       resource_attributes_as_container_tags: []
-      span_name_as_resource_name: true
+      span_name_as_resource_name: false
       span_name_remappings: {}
       trace_buffer: 1000
 exporters:
@@ -54,11 +54,15 @@ exporters:
       multiplier: 1.5
       randomization_factor: 0.5
     sending_queue:
+      batch:
+      block_on_overflow: false
       blocking: false
       enabled: true
       num_consumers: 10
       queue_size: 1000
+      sizer: {}
       storage: null
+      wait_for_result: false
     timeout: 15s
     traces:
       compute_stats_by_span_kind: true
@@ -67,7 +71,7 @@ exporters:
       peer_service_aggregation: true
       peer_tags: []
       peer_tags_aggregation: true
-      span_name_as_resource_name: true
+      span_name_as_resource_name: false
       span_name_remappings: {}
       trace_buffer: 0
 extensions: {}

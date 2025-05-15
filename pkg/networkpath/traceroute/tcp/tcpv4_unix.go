@@ -118,6 +118,7 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 		Target:     t.Target,
 		DstPort:    t.DestPort,
 		Hops:       hops,
+		Tags:       []string{"tcp_method:syn"},
 	}, nil
 }
 
@@ -154,4 +155,10 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn rawConnWrapper, rawTCPConn rawConnWra
 		RTT:      rtt,
 		IsDest:   resp.IP.Equal(t.Target),
 	}, nil
+}
+
+// TracerouteSequentialSocket is not supported on unix
+func (t *TCPv4) TracerouteSequentialSocket() (*common.Results, error) {
+	// not implemented or supported on unix
+	return nil, fmt.Errorf("not implemented or supported on unix")
 }

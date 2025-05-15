@@ -26,7 +26,7 @@ func getAggregatedNamespaces() []string {
 	namespaces := []string{
 		config.Namespace,
 	}
-	for _, m := range modules.All {
+	for _, m := range modules.All() {
 		namespaces = append(namespaces, m.ConfigNamespaces...)
 	}
 	return namespaces

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
@@ -177,6 +178,75 @@ func TestGetJobAndRunIDs(t *testing.T) {
 			assert.Equal(t, tt.expectedJobID, jobID)
 			assert.Equal(t, tt.expectedRunID, runID)
 			assert.Equal(t, tt.expectedOk, ok)
+		})
+	}
+}
+
+func TestLoadLogProcessingRules(t *testing.T) {
+	tests := []struct {
+		name           string
+		envValue       string
+		expectedRules  []config.LogProcessingRule
+		expectErrorLog bool
+	}{
+		{
+			name:     "Valid rules",
+			envValue: `[{"type":"exclude_at_match","name":"exclude_health_check","pattern":"GET /health"}]`,
+			expectedRules: []config.LogProcessingRule{
+				{
+					Type:    "exclude_at_match",
+					Name:    "exclude_health_check",
+					Pattern: "GET /health",
+				},
+			},
+			expectErrorLog: false,
+		},
+		{
+			name:     "Valid rules with single quotes",
+			envValue: `[{'type':'exclude_at_match','name':'exclude_health_check','pattern':'GET /health'}]`,
+			expectedRules: []config.LogProcessingRule{
+				{
+					Type:    "exclude_at_match",
+					Name:    "exclude_health_check",
+					Pattern: "GET /health",
+				},
+			},
+			expectErrorLog: false,
+		},
+		{
+			name:           "Empty input",
+			envValue:       ``,
+			expectedRules:  nil,
+			expectErrorLog: false,
+		},
+		{
+			name:           "Invalid JSON",
+			envValue:       `[{"type":"exclude_at_match","name":"bad_rule",]`,
+			expectedRules:  nil,
+			expectErrorLog: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Clearenv()
+			require.NoError(t, os.Setenv("DD_LOGS_CONFIG_PROCESSING_RULES", tt.envValue))
+
+			output := &common.Output{}
+
+			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
+			s := &common.Setup{
+				Span: span,
+				Out:  output,
+				Config: config.Config{
+					DatadogYAML: config.DatadogConfig{},
+				},
+			}
+
+			loadLogProcessingRules(s)
+
+			assert.Equal(t, tt.expectedRules, s.Config.DatadogYAML.LogsConfig.ProcessingRules)
+
 		})
 	}
 }

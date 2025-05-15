@@ -23,8 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+func init() { registerModule(LanguageDetectionModule) }
+
 // LanguageDetectionModule is the language detection module factory
-var LanguageDetectionModule = module.Factory{
+var LanguageDetectionModule = &module.Factory{
 	Name:             config.LanguageDetectionModule,
 	ConfigNamespaces: []string{"language_detection"},
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {

@@ -11,7 +11,7 @@ import (
 )
 
 // Traceroute is a factory for NDMs Traceroute module
-var Traceroute = module.Factory{
+var Traceroute = &module.Factory{
 	Name:             config.TracerouteModule,
 	ConfigNamespaces: tracerouteConfigNamespaces,
 	Fn:               createTracerouteModule,

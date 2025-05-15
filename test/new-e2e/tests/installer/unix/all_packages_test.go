@@ -53,9 +53,11 @@ var (
 		{t: testInstaller},
 		{t: testAgent},
 		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
-		{t: testUpgradeScenario},
+		{t: testUpgradeScenario, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 	}
 )
+
+const latestPython2AnsibleVersion = "5.10.0"
 
 func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
@@ -206,6 +208,27 @@ func (s *packageBaseSuite) RunInstallScriptProdOci(params ...string) error {
 }
 
 func (s *packageBaseSuite) RunInstallScriptWithError(params ...string) error {
+	hasRemoteUpdates := false
+	for _, param := range params {
+		if param == "DD_REMOTE_UPDATES=true" {
+			hasRemoteUpdates = true
+			break
+		}
+	}
+	if hasRemoteUpdates {
+		// This is temporary until the install script is updated to support calling the installer script
+		var scriptURLPrefix string
+		if pipelineID, ok := os.LookupEnv("E2E_PIPELINE_ID"); ok {
+			scriptURLPrefix = fmt.Sprintf("https://installtesting.datad0g.com/pipeline-%s/scripts/", pipelineID)
+		} else if commitHash, ok := os.LookupEnv("CI_COMMIT_SHA"); ok {
+			scriptURLPrefix = fmt.Sprintf("https://installtesting.datad0g.com/%s/scripts/", commitHash)
+		} else {
+			require.FailNowf(nil, "missing script identifier", "CI_COMMIT_SHA or CI_PIPELINE_ID must be set")
+		}
+		_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L %sinstall.sh)" > /tmp/datadog-installer-stdout.log 2> /tmp/datadog-installer-stderr.log`, strings.Join(params, " "), scriptURLPrefix), client.WithEnvVariables(InstallInstallerScriptEnvWithPackages()))
+		return err
+	}
+
 	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(InstallScriptEnv(s.arch)))
 	return err
 }
@@ -223,8 +246,14 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		// Install ansible then install the agent
 		var ansiblePrefix string
 		for i := 0; i < 3; i++ {
+			var err error
 			ansiblePrefix = s.installAnsible(s.os)
-			_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+			if (s.os.Flavor == e2eos.AmazonLinux && s.os.Version == e2eos.AmazonLinux2.Version) ||
+				(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
+				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd:==%s", ansiblePrefix, latestPython2AnsibleVersion))
+			} else {
+				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+			}
 			if err == nil {
 				break
 			}
@@ -267,8 +296,12 @@ func (s *packageBaseSuite) Purge() {
 		s.Env().RemoteHost.Execute(fmt.Sprintf("sudo systemctl reset-failed %s", service))
 	}
 
-	s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer || sudo zypper remove -y datadog-installer")
-	s.Env().RemoteHost.MustExecute("sudo rm -rf /etc/datadog-agent")
+	// Unfortunately no guarantee that the datadog-installer symlink exists
+	s.Env().RemoteHost.Execute("sudo datadog-installer purge")
+	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-installer/stable/bin/installer/installer purge")
+	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-agent/stable/embedded/bin/installer purge")
+	s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer || sudo zypper remove -y datadog-installer")
+	s.Env().RemoteHost.Execute("sudo rm -rf /etc/datadog-agent")
 }
 
 // setupFakeIntake sets up the fake intake for the agent and trace agent.

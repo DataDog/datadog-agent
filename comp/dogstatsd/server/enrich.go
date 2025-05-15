@@ -28,9 +28,11 @@ var (
 // enrichConfig contains static parameters used in various enrichment
 // procedures for metrics, events and service checks.
 type enrichConfig struct {
+	// TODO(remy): this metric prefix / prefix blocklist
+	// is independent from the metric name blocklist, that's
+	// confusing and should be merged in the same implemnetation instead.
 	metricPrefix              string
 	metricPrefixBlacklist     []string
-	metricBlocklist           blocklist
 	defaultHostname           string
 	entityIDPrecedenceEnabled bool
 	serverlessMode            bool
@@ -39,7 +41,7 @@ type enrichConfig struct {
 // extractTagsMetadata returns tags (client tags + host tag) and information needed to query tagger (origins, cardinality).
 func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, localData origindetection.LocalData, externalData origindetection.ExternalData, cardinality string, conf enrichConfig) ([]string, string, taggertypes.OriginInfo, metrics.MetricSource) {
 	host := conf.defaultHostname
-	metricSource := metrics.MetricSourceDogstatsd
+	metricSource := GetDefaultMetricSource()
 
 	// Add Origin Detection metadata
 	origin := taggertypes.OriginInfo{
@@ -74,6 +76,21 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 	tags = tags[:n]
 
 	return tags, host, origin, metricSource
+}
+
+// serverlessSourceCustomToRuntime converts Serverless custom metric source to its corresponding runtime metric source
+func serverlessSourceCustomToRuntime(metricSource metrics.MetricSource) metrics.MetricSource {
+	switch metricSource {
+	case metrics.MetricSourceAwsLambdaCustom:
+		metricSource = metrics.MetricSourceAwsLambdaRuntime
+	case metrics.MetricSourceAzureAppServiceCustom:
+		metricSource = metrics.MetricSourceAzureAppServiceRuntime
+	case metrics.MetricSourceAzureContainerAppCustom:
+		metricSource = metrics.MetricSourceAzureContainerAppRuntime
+	case metrics.MetricSourceGoogleCloudRunCustom:
+		metricSource = metrics.MetricSourceGoogleCloudRunRuntime
+	}
+	return metricSource
 }
 
 func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
@@ -114,7 +131,7 @@ func tsToFloatForSamples(ts time.Time) float64 {
 	return float64(ts.Unix())
 }
 
-func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig) []metrics.MetricSample {
+func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, blocklist *blocklist) []metrics.MetricSample {
 	metricName := ddSample.name
 	tags, hostnameFromTags, extractedOrigin, metricSource := extractTagsMetadata(ddSample.tags, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
 
@@ -122,7 +139,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		metricName = conf.metricPrefix + metricName
 	}
 
-	if conf.metricBlocklist.test(metricName) {
+	if blocklist != nil && blocklist.test(metricName) {
 		return []metrics.MetricSample{}
 	}
 

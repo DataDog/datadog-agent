@@ -2,6 +2,61 @@
 Release Notes
 =============
 
+.. _Release Notes_7.65.1:
+
+7.65.1
+======
+
+.. _Release Notes_7.65.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-05-08
+Pinned to datadog-agent v7.65.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7651>`_.
+
+.. _Release Notes_7.65.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Customers relying on the deprecated v1 implementation of the auto instrumentation webhook will no longer be forced
+  to use the v2 implementation. This will provide additional time for customers to migrate from the v1 to the v2 implementation
+  and ensure the v2 implementation adequately supports all existing use cases.
+
+
+.. _Release Notes_7.65.0:
+
+7.65.0
+======
+
+.. _Release Notes_7.65.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-05-06
+Pinned to datadog-agent v7.65.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7650>`_.
+
+.. _Release Notes_7.65.0_New Features:
+
+New Features
+------------
+
+- [PREVIEW] Add support for mounting Datadog CSI volumes instead of hostpath
+  volumes in the admission controller config webhook for sharing DogStatsD
+  and APM UDS sockets with user applications. This requires the Datadog
+  CSI driver to be installed and running on the cluster.
+
+
+.. _Release Notes_7.65.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Collect terminated Kubernetes resources.
+
+
 .. _Release Notes_7.64.3:
 
 7.64.3

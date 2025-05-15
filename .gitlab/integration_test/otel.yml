@@ -4,7 +4,7 @@
 
 integration_tests_otel:
   stage: integration_test
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   needs: ["go_deps"]
   script:
@@ -19,14 +19,14 @@ integration_tests_otel:
 
 docker_image_build_otel:
   stage: integration_test
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   needs: ["go_deps","integration_tests_otel"]
   tags: ["docker-in-docker:amd64"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - mkdir -p /tmp/otel-ci
     - cp comp/otelcol/collector-contrib/impl/manifest.yaml /tmp/otel-ci/
-    - cp Dockerfiles/agent-ot/Dockerfile.agent-otel /tmp/otel-ci/
+    - cp Dockerfiles/agent-ddot/Dockerfile.agent-otel /tmp/otel-ci/
     - cp test/integration/docker/otel_agent_build_tests.py /tmp/otel-ci/
     - wget https://github.com/mikefarah/yq/releases/download/3.4.1/yq_linux_amd64 -O
       /usr/bin/yq && chmod +x /usr/bin/yq
@@ -43,4 +43,24 @@ docker_image_build_otel:
     - !reference [.except_mergequeue]
     - when: on_success
 
-# TODO(songy23): restore datadog_otel_components_ocb_build in next version upgrade
+datadog_otel_components_ocb_build:
+  stage: integration_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  tags: ["arch:amd64"]
+  needs: ["go_deps"]
+  artifacts:
+    paths:
+      - ocb-output.log
+      - otelcol-custom.log
+      - flare-info.log
+    when: always
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - echo "Building custom collector with datadog components"
+    - test/otel/testdata/ocb_build_script.sh
+    - echo "see artifacts for job logs"
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  timeout: 15 minutes

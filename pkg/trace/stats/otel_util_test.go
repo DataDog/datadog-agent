@@ -241,9 +241,8 @@ func TestProcessOTLPTraces(t *testing.T) {
 			conf.PeerTagsAggregation = tt.peerTagsAggr
 			conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 			conf.OTLPReceiver.SpanNameAsResourceName = tt.spanNameAsResourceName
-			if conf.OTLPReceiver.SpanNameAsResourceName || tt.enableOperationAndResourceNameV2 {
-				// Verify that while EnableOperationAndResourceNamesV2 is in alpha, SpanNameAsResourceName overrides it
-				conf.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
+			if !tt.enableOperationAndResourceNameV2 {
+				conf.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 			}
 			conf.OTLPReceiver.SpanNameRemappings = tt.spanNameRemappings
 			conf.Ignore["resource"] = tt.ignoreRes
@@ -325,6 +324,7 @@ func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 	conf.Hostname = agentHost
 	conf.DefaultEnv = agentEnv
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
+	conf.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 
 	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
 	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil)

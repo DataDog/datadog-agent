@@ -15,8 +15,8 @@ import (
 
 const (
 	databricksAgentVersion          = "7.63.3-1"
-	databricksApmInjectVersion      = "0.35.0"
-	databricksApmLibraryJavaVersion = "1.48.0"
+	databricksApmInjectVersion      = "0.36.0"
+	databricksApmLibraryJavaVersion = "1.49.0"
 )
 
 type installScriptDatabricksSuite struct {
@@ -59,5 +59,5 @@ func (s *installScriptDatabricksSuite) TestDatabricksDriverInstallScript() {
 
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 	state.AssertFileExists("/etc/datadog-agent/conf.d/spark.d/databricks.yaml", 0644, "dd-agent", "dd-agent")
-	state.AssertFileExists("/etc/datadog-agent/inject/tracer.yaml", 0644, "root", "root")
+	state.AssertFileExists("/etc/datadog-agent/application_monitoring.yaml", 0644, "dd-agent", "dd-agent")
 }

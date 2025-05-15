@@ -33,12 +33,14 @@ from tasks import (
     git,
     github_tasks,
     gitlab_helpers,
+    go,
     go_deps,
     installer,
     invoke_unit_tests,
     issue,
     kmt,
     linter,
+    macos,
     modules,
     msi,
     new_e2e_tests,
@@ -50,6 +52,7 @@ from tasks import (
     owners,
     package,
     pipeline,
+    pkg_template,
     pre_commit,
     process_agent,
     protobuf,
@@ -178,8 +181,10 @@ ns.add_collection(dogstatsd)
 ns.add_collection(ebpf)
 ns.add_collection(emacs)
 ns.add_collection(vim)
+ns.add_collection(macos)
 ns.add_collection(epforwarder)
 ns.add_collection(fips)
+ns.add_collection(go)
 ns.add_collection(go_deps)
 ns.add_collection(linter)
 ns.add_collection(msi)
@@ -225,6 +230,7 @@ ns.add_collection(winbuild)
 ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
 ns.add_collection(sbomgen)
+ns.add_collection(pkg_template)
 ns.configure(
     {
         "run": {

@@ -30,7 +30,5 @@ func getLeadershipStateNotifiChan() (<-chan struct{}, error) {
 	}
 
 	engine.StartLeaderElectionRun()
-
-	leadershipChangeNotif, _ := engine.Subscribe()
-	return leadershipChangeNotif, nil
+	return engine.UpdateLeaderInClusterChecks, nil
 }

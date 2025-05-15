@@ -15,7 +15,6 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -24,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/serverless/streamlogs"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -40,16 +38,23 @@ func (a *logAgent) SetupPipeline(
 	wmeta option.Option[workloadmeta.Component],
 	_ integrations.Component,
 ) {
-	health := health.RegisterLiveness("logs-agent")
-
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(streamlogs.Formatter{}, nil)
-
-	// setup the a null auditor, not tracking data in any registry
-	a.auditor = auditor.NewNullAuditor()
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewServerlessProvider(a.config.GetInt("logs_config.pipelines"), a.auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config, a.compression)
+	pipelineProvider := pipeline.NewProvider(
+		a.config.GetInt("logs_config.pipelines"),
+		a.auditor,
+		diagnosticMessageReceiver,
+		processingRules, a.endpoints,
+		destinationsCtx,
+		NewStatusProvider(),
+		a.hostname,
+		a.config,
+		a.compression,
+		true, // disable distributed sending for serverless
+		true, // serverless
+	)
 
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
 	lnchrs.AddLauncher(channel.NewLauncher())
@@ -70,7 +75,6 @@ func (a *logAgent) SetupPipeline(
 	a.destinationsCtx = destinationsCtx
 	a.pipelineProvider = pipelineProvider
 	a.launchers = lnchrs
-	a.health = health
 	a.diagnosticMessageReceiver = diagnosticMessageReceiver
 }
 

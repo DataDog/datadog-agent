@@ -22,6 +22,7 @@ TOOL_LIST = [
     'gotest.tools/gotestsum',
     'github.com/vektra/mockery/v2',
     'github.com/wadey/gocovmerge',
+    'github.com/uber-go/gopatch',
 ]
 
 TOOL_LIST_PROTO = [

@@ -431,6 +431,64 @@ func TestStatsWriterUpdateAPIKey(t *testing.T) {
 	srv.Close()
 }
 
+func TestStatsWriterInfo(t *testing.T) {
+	assert := assert.New(t)
+	// statsLastMinute updates depend on StatsWriter internal ticker, but are also triggered
+	// with sync mode. We will use sync writer to test the stats info updates.
+	sw, srv := testStatsSyncWriter()
+	go sw.Run()
+
+	time.Sleep(200 * time.Millisecond) // allow stats to be initialized
+
+	testSets := []*pb.StatsPayload{
+		{
+			AgentHostname: "1",
+			AgentEnv:      "1",
+			AgentVersion:  "agent-version",
+			Stats: []*pb.ClientStatsPayload{{
+				Hostname: testHostname,
+				Env:      testEnv,
+				Stats: []*pb.ClientStatsBucket{
+					testutil.RandomBucket(3),
+					testutil.RandomBucket(3),
+					testutil.RandomBucket(3),
+				},
+			}},
+		},
+		{
+			AgentHostname: "2",
+			AgentEnv:      "2",
+			AgentVersion:  "agent-version",
+			Stats: []*pb.ClientStatsPayload{{
+				Hostname: testHostname,
+				Env:      testEnv,
+				Stats: []*pb.ClientStatsBucket{
+					testutil.RandomBucket(3),
+					testutil.RandomBucket(3),
+					testutil.RandomBucket(3),
+				},
+			}},
+		},
+	}
+	sw.Write(testSets[0])
+	sw.Write(testSets[1])
+	err := sw.FlushSync()
+	assert.Nil(err)
+
+	assertPayload(assert, testSets, srv.Payloads())
+
+	assert.NotEmpty(sw.statsLastMinute.Bytes.Load())
+	assert.Empty(sw.statsLastMinute.Errors.Load())
+	assert.Empty(sw.statsLastMinute.Retries.Load())
+	assert.Equal(sw.statsLastMinute.Payloads.Load(), int64(2))
+	assert.Equal(sw.statsLastMinute.ClientPayloads.Load(), int64(2))
+	assert.Equal(sw.statsLastMinute.StatsBuckets.Load(), int64(6))
+	assert.Equal(sw.statsLastMinute.StatsEntries.Load(), int64(18))
+	assert.Equal(sw.statsLastMinute.Splits.Load(), int64(0))
+
+	sw.Stop()
+}
+
 func testStatsWriter() (*DatadogStatsWriter, *testServer) {
 	srv := newTestServer()
 	cfg := &config.AgentConfig{

@@ -217,7 +217,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	var tracerType = TracerTypeFentry
 	var closeTracerFn func()
 	m, closeTracerFn, err = fentry.LoadTracer(config, mgrOptions, connCloseEventHandler)
-	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
+	if err != nil && !errors.Is(err, fentry.ErrorDisabled) {
 		// failed to load fentry tracer
 		return nil, err
 	}
@@ -380,6 +380,8 @@ func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) 
 		t.closeConsumer.Stop()
 		return fmt.Errorf("could not start ebpf manager: %s", err)
 	}
+
+	ddebpf.AddProbeFDMappings(t.m.Manager)
 
 	return nil
 }

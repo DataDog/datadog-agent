@@ -34,6 +34,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -173,6 +174,7 @@ type AutoConfigTestSuite struct {
 
 // SetupSuite saves the original listener registry
 func (suite *AutoConfigTestSuite) SetupSuite() {
+	cfg := mock.New(suite.T())
 	pkglogsetup.SetupLogger(
 		pkglogsetup.LoggerName("test"),
 		"debug",
@@ -181,7 +183,7 @@ func (suite *AutoConfigTestSuite) SetupSuite() {
 		false,
 		true,
 		false,
-		pkgconfigsetup.Datadog(),
+		cfg,
 	)
 }
 
@@ -366,7 +368,6 @@ func TestAutoConfigTestSuite(t *testing.T) {
 
 func TestResolveTemplate(t *testing.T) {
 	deps := createDeps(t)
-	ctx := context.Background()
 
 	msch := scheduler.NewControllerAndStart()
 	sch := &MockScheduler{scheduled: make(map[string]integration.Config)}
@@ -390,23 +391,21 @@ func TestResolveTemplate(t *testing.T) {
 		ADIdentifiers: []string{"redis"},
 	}
 	// there are no template vars but it's ok
-	ac.processNewService(ctx, &service) // processNewService applies changes
+	ac.processNewService(&service) // processNewService applies changes
 	assert.Eventually(t, func() bool {
 		return sch.scheduledSize() == 1
 	}, 5*time.Second, 10*time.Millisecond)
 }
 
 func countLoadedConfigs(ac *AutoConfig) int {
-	count := -1 // -1 would indicate f was not called
-	ac.MapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
-		count = len(loadedConfigs)
-	})
-	return count
+	if ac == nil || ac.store == nil {
+		return 0
+	}
+	return len(ac.GetAllConfigs())
 }
 
 func TestRemoveTemplate(t *testing.T) {
 	deps := createDeps(t)
-	ctx := context.Background()
 
 	mockResolver := MockSecretResolver{t, nil}
 
@@ -423,7 +422,7 @@ func TestRemoveTemplate(t *testing.T) {
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 	}
-	ac.processNewService(ctx, &service)
+	ac.processNewService(&service)
 
 	// Add matching template
 	tpl := integration.Config{
@@ -446,7 +445,6 @@ func TestGetLoadedConfigNotInitialized(t *testing.T) {
 
 func TestDecryptConfig(t *testing.T) {
 	deps := createDeps(t)
-	ctx := context.Background()
 
 	mockResolver := MockSecretResolver{t, []mockSecretScenario{
 		{
@@ -464,7 +462,7 @@ func TestDecryptConfig(t *testing.T) {
 	}}
 
 	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
-	ac.processNewService(ctx, &dummyService{ID: "abcd", ADIdentifiers: []string{"redis"}})
+	ac.processNewService(&dummyService{ID: "abcd", ADIdentifiers: []string{"redis"}})
 
 	tpl := integration.Config{
 		Name:          "cpu",

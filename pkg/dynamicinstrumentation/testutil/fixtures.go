@@ -357,9 +357,9 @@ var structCaptures = fixtures{
 				"a": {
 					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.hasUnsupportedFields",
 					Fields: fieldMap{
-						"a": capturedValue("int", "1"),
-						"b": capturedValue("float32", ""),
-						"c": {
+						"b": capturedValue("int", "1"),
+						"c": &ditypes.CapturedValue{Type: "float32", Value: nil, NotCapturedReason: "unsupported"},
+						"d": {
 							Type: "[]uint8",
 							Elements: []ditypes.CapturedValue{
 								*capturedValue("uint8", "3"),
@@ -374,7 +374,7 @@ var structCaptures = fixtures{
 		},
 	},
 
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_pointer_method_receiver": []CapturedValueMapWithOptions{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.(*receiver).test_pointer_method_receiver": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{
 				"r": {
@@ -394,7 +394,7 @@ var structCaptures = fixtures{
 		},
 	},
 
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_method_receiver": []CapturedValueMapWithOptions{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.receiver.test_method_receiver": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{
 				"r": {
@@ -447,7 +447,7 @@ var structCaptures = fixtures{
 								*capturedValue("uint8", "4"),
 							},
 						},
-						"z": capturedValue("int", "5"),
+						"z": capturedValue("uint64", "5"),
 					},
 				},
 			},
@@ -575,7 +575,7 @@ var structCaptures = fixtures{
 								*capturedValue("uint64", "3"),
 							},
 						},
-						"b": capturedValue("int", "4"),
+						"b": capturedValue("uint8", "4"),
 						"c": {
 							Type: "[5]int64",
 							Elements: []ditypes.CapturedValue{
@@ -1085,6 +1085,96 @@ var interfaceCaptures = fixtures{
 	},
 }
 
+var linkedListCaptures = fixtures{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_linked_list": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"a": {
+					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.node",
+					Fields: fieldMap{
+						"val": capturedValue("int", "1"),
+						"b": {
+							Type: "*github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.node",
+							Fields: fieldMap{
+								"arg_0": {
+									Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.node",
+									Fields: fieldMap{
+										"val": capturedValue("int", "2"),
+										"b": {
+											Type: "*github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.node",
+											Fields: fieldMap{
+												"arg_0": {
+													Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.node",
+													Fields: fieldMap{
+														"val": capturedValue("int", "3"),
+														"b":   {Type: "*github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.node"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 4},
+		},
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"a": {
+					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.node",
+					Fields: fieldMap{
+						"val": capturedValue("int", "1"),
+						"b": {
+							Type: "*github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.node",
+							Fields: fieldMap{
+								"arg_0": {
+									Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.node",
+									Fields: fieldMap{
+										"val": capturedValue("int", "2"),
+										"b": {
+											Type:   "*github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.node",
+											Fields: fieldMap{},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 3},
+		},
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"a": {
+					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.node",
+					Fields: fieldMap{
+						"val": capturedValue("int", "1"),
+						"b": {
+							Type:   "*github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.node",
+							Fields: fieldMap{},
+						},
+					},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 2},
+		},
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"a": {
+					Type:              "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.node",
+					NotCapturedReason: "depth",
+					Fields:            fieldMap{},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 1},
+		},
+	},
+}
+
 // mergeMaps combines multiple fixture maps into a single map
 func mergeMaps(maps ...fixtures) fixtures {
 	result := make(fixtures)
@@ -1105,4 +1195,5 @@ var expectedCaptures = mergeMaps(
 	pointerCaptures,
 	captureDepthCaptures,
 	interfaceCaptures,
+	linkedListCaptures,
 )

@@ -2298,27 +2298,32 @@ func testHTTPLikeSketches(t *testing.T, tr *tracer.Tracer, client *nethttp.Clien
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 
-		requests := conns.HTTP
+		requests := conns.USMData.HTTP
 		if isHTTP2 {
-			requests = conns.HTTP2
+			requests = conns.USMData.HTTP2
 		}
 		if getRequestStats == nil || postRequestsStats == nil {
 			require.True(ct, len(requests) > 0, "no requests")
 		}
 
 		for key, stats := range requests {
-			if getRequestStats != nil && postRequestsStats != nil {
-				break
-			}
 			if key.Path.Content.Get() != parsedURL.Path {
 				continue
 			}
 			if key.Method.String() == "GET" {
-				getRequestStats = stats
+				if getRequestStats == nil {
+					getRequestStats = stats
+				} else {
+					getRequestStats.CombineWith(stats)
+				}
 				continue
 			}
 			if key.Method.String() == "POST" {
-				postRequestsStats = stats
+				if postRequestsStats == nil {
+					postRequestsStats = stats
+				} else {
+					postRequestsStats.CombineWith(stats)
+				}
 				continue
 			}
 		}
@@ -2433,7 +2438,7 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 
-		requests := conns.Kafka
+		requests := conns.USMData.Kafka
 		if fetchRequestStats == nil || produceRequestsStats == nil {
 			require.True(ct, len(requests) > 0, "no requests")
 		}
@@ -2492,7 +2497,7 @@ func testPostgresSketches(t *testing.T, tr *tracer.Tracer) {
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 
-		requests := conns.Postgres
+		requests := conns.USMData.Postgres
 		if insertRequestStats == nil || selectRequestsStats == nil {
 			require.True(ct, len(requests) > 0, "no requests")
 		}

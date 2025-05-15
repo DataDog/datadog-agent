@@ -16,9 +16,10 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
-	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/nvml/testutil"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -54,9 +55,9 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: containerID,
 		},
-		AllocatedResources: []workloadmeta.ContainerAllocatedResource{
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 			{
-				Name: nvidiaResourceName,
+				Name: string(gpuutil.GpuNvidiaGeneric),
 				ID:   gpuUUID,
 			},
 		},
@@ -71,7 +72,7 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: containerIDNoGpu,
 		},
-		AllocatedResources: nil,
+		ResolvedAllocatedResources: nil,
 	}
 
 	wmetaMock.Set(container)
@@ -157,10 +158,10 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 	for _, idx := range containerDeviceIndexes {
 		gpuUUID := testutil.GPUUUIDs[idx]
 		resource := workloadmeta.ContainerAllocatedResource{
-			Name: nvidiaResourceName,
+			Name: string(gpuutil.GpuNvidiaGeneric),
 			ID:   gpuUUID,
 		}
-		container.AllocatedResources = append(container.AllocatedResources, resource)
+		container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, resource)
 	}
 
 	wmetaMock.Set(container)

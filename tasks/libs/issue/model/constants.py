@@ -43,5 +43,4 @@ TEAMS = (
     'triage',
     'universal-service-monitoring',
     'windows-agent',
-    'windows-kernel-integrations',
 )

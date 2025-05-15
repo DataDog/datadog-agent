@@ -9,7 +9,6 @@ package sender
 import (
 	"bytes"
 	"io"
-	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -27,12 +26,11 @@ var (
 
 // batchStrategy contains all the logic to send logs in batch.
 type batchStrategy struct {
-	inputChan  chan *message.Message
-	outputChan chan *message.Payload
-	flushChan  chan struct{}
-	serverless bool
-	flushWg    *sync.WaitGroup
-	buffer     *MessageBuffer
+	inputChan      chan *message.Message
+	outputChan     chan *message.Payload
+	flushChan      chan struct{}
+	serverlessMeta ServerlessMeta
+	buffer         *MessageBuffer
 	// pipelineName provides a name for the strategy to differentiate it from other instances in other internal pipelines
 	pipelineName string
 	serializer   Serializer
@@ -50,8 +48,7 @@ type batchStrategy struct {
 func NewBatchStrategy(inputChan chan *message.Message,
 	outputChan chan *message.Payload,
 	flushChan chan struct{},
-	serverless bool,
-	flushWg *sync.WaitGroup,
+	serverlessMeta ServerlessMeta,
 	serializer Serializer,
 	batchWait time.Duration,
 	maxBatchSize int,
@@ -59,14 +56,13 @@ func NewBatchStrategy(inputChan chan *message.Message,
 	pipelineName string,
 	compression compression.Compressor,
 	pipelineMonitor metrics.PipelineMonitor) Strategy {
-	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverless, flushWg, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), compression, pipelineMonitor)
+	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverlessMeta, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), compression, pipelineMonitor)
 }
 
 func newBatchStrategyWithClock(inputChan chan *message.Message,
 	outputChan chan *message.Payload,
 	flushChan chan struct{},
-	serverless bool,
-	flushWg *sync.WaitGroup,
+	serverlessMeta ServerlessMeta,
 	serializer Serializer,
 	batchWait time.Duration,
 	maxBatchSize int,
@@ -80,8 +76,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 		inputChan:       inputChan,
 		outputChan:      outputChan,
 		flushChan:       flushChan,
-		serverless:      serverless,
-		flushWg:         flushWg,
+		serverlessMeta:  serverlessMeta,
 		buffer:          NewMessageBuffer(maxBatchSize, maxContentSize),
 		serializer:      serializer,
 		batchWait:       batchWait,
@@ -191,9 +186,12 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 	unencodedSize := wc.getWrittenBytes()
 	log.Debugf("Send messages for pipeline %s (msg_count:%d, content_size=%d, avg_msg_size=%.2f)", s.pipelineName, len(messages), unencodedSize, float64(unencodedSize)/float64(len(messages)))
 
-	if s.serverless {
+	if s.serverlessMeta.IsEnabled() {
 		// Increment the wait group so the flush doesn't finish until all payloads are sent to all destinations
-		s.flushWg.Add(1)
+		// The lock is needed to ensure that the wait group is not incremented while the flush is in progress
+		s.serverlessMeta.Lock()
+		s.serverlessMeta.WaitGroup().Add(1)
+		s.serverlessMeta.Unlock()
 	}
 
 	p := message.NewPayload(messages, encodedPayload.Bytes(), s.compression.ContentEncoding(), unencodedSize)

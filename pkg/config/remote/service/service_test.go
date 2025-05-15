@@ -12,9 +12,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	httpapi "github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	"testing"
 	"time"
+
+	httpapi "github.com/DataDog/datadog-agent/pkg/config/remote/api"
 
 	"github.com/DataDog/go-tuf/data"
 	"github.com/benbjohnson/clock"
@@ -1419,7 +1420,7 @@ func TestHTTPClientRecentUpdate(t *testing.T) {
 	defer client.Close()
 	client.lastUpdate = time.Now()
 
-	u, err := client.GetCDNConfigUpdate(context.TODO(), []string{"TESTING1"}, 0, 0, []*pbgo.TargetFileMeta{})
+	u, err := client.GetCDNConfigUpdate(context.TODO(), []string{"TESTING1"}, 0, 0)
 	require.NoError(t, err)
 	uptaneClient.AssertExpectations(t)
 	require.NotNil(t, u)
@@ -1471,7 +1472,7 @@ func TestHTTPClientUpdateSuccess(t *testing.T) {
 			defer client.Close()
 			client.lastUpdate = time.Now().Add(time.Second * -60)
 
-			u, err := client.GetCDNConfigUpdate(context.TODO(), []string{"TESTING1"}, 0, 0, []*pbgo.TargetFileMeta{})
+			u, err := client.GetCDNConfigUpdate(context.TODO(), []string{"TESTING1"}, 0, 0)
 			require.NoError(t, err)
 			uptaneClient.AssertExpectations(t)
 			require.NotNil(t, u)
@@ -1504,4 +1505,37 @@ func listsEqual(mustMatch []string) func(candidate []string) bool {
 
 		return true
 	}
+}
+
+func TestWithOrgStatusPollingIntervalNoConfigPassed(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("run_path", "/tmp")
+
+	baseRawURL := "https://localhost"
+	mockTelemetryReporter := newMockRcTelemetryReporter()
+	options := []Option{
+		WithAPIKey("abc"),
+	}
+	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
+	assert.NoError(t, err)
+	assert.Equal(t, service.orgStatusRefreshInterval, defaultRefreshInterval)
+	assert.NotNil(t, service)
+	service.Stop()
+}
+
+func TestWithOrgStatusPollingIntervalConfigPassed(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("run_path", "/tmp")
+
+	baseRawURL := "https://localhost"
+	mockTelemetryReporter := newMockRcTelemetryReporter()
+	options := []Option{
+		WithAPIKey("abc"),
+		WithOrgStatusRefreshInterval(54*time.Second, "test.org_status_refresh_interval"),
+	}
+	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
+	assert.NoError(t, err)
+	assert.Equal(t, service.orgStatusRefreshInterval, 54*time.Second)
+	assert.NotNil(t, service)
+	service.Stop()
 }

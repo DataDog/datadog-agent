@@ -39,7 +39,6 @@ def _run_calls_to_string(mock_calls):
         'CI_COMMIT_REF_NAME': '',
         'CI_PROJECT_DIR': '',
         'CI_PIPELINE_ID': '',
-        'RELEASE_VERSION': 'nightly',
         'S3_OMNIBUS_GIT_CACHE_BUCKET': 'omnibus-cache',
         'API_KEY_ORG2': 'api-key',
         'AGENT_API_KEY_ORG2': 'agent-api-key',
@@ -286,3 +285,81 @@ class TestRpathEdit(unittest.TestCase):
         )
         # We can't assert regex based temporary name in calls, hence we're checking that we get the correct total number of calls
         assert len(call_list) == 8
+
+
+class TestBuildRepackagedAgent(unittest.TestCase):
+    def test_package_parsing(self):
+        # Sample Packages file content
+        packages_content = """
+Package: datadog-agent
+Version: 1:7.67.0~devel.git.113.2750233.pipeline.63430585-1
+Architecture: amd64
+Filename: pool/d/da/datadog-agent_7.67.0~devel.git.113.2750233.pipeline.63430585-1_amd64.deb
+SHA256: abc123def456
+Description: Datadog Monitoring Agent
+ The Datadog Monitoring Agent is a lightweight process that monitors system
+ processes and services, and sends information back to your Datadog account.
+
+Package: datadog-iot-agent
+Version: 1:7.67.0~devel.git.113.2750233.pipeline.63430585-1
+Architecture: amd64
+Filename: pool/o/ot/other-package_1.0.0_amd64.deb
+SHA256: 789ghi
+Description: Datadog IoT Agent
+ The Datadog IoT Agent is a lightweight process that monitors system
+ processes and services, and sends information back to your Datadog account.
+
+Package: datadog-agent
+Version: 1:7.67.0~devel.git.113.2750233.pipeline.63448947-1
+Architecture: amd64
+Filename: pool/d/da/datadog-agent_7.67.0~devel.git.113.2750233.pipeline.63448947-1_amd64.deb
+SHA256: def456abc789
+Description: Datadog Monitoring Agent
+ This is the datadog-agent package with the highest pipeline ID
+
+Package: datadog-agent
+Version: 1:7.0.0~alpha.1-1
+Architecture: amd64
+Filename: pool/d/da/datadog-agent_7.0.0~alpha.1-1_amd64.deb
+SHA256: f8eb7c99c10c0362490f32c3bf3815193f5cf0778c2b074a208c838d09ef3181
+Description: Datadog Monitoring Agent
+ This package doesn't have a pipeline ID
+"""
+        mock_ctx = MockContextRaising(run={})
+        # Set up patterns for commands that are known to run
+        patterns = [
+            (r'bundle .*', Result()),
+            (r'git describe --tags .*', Result('7.67.0-beta.0-1-g4f19118')),
+            (r'git .*', Result()),
+            (r'aws s3 .*', Result()),
+            (r'dpkg --print-architecture', Result('amd64')),
+        ]
+        for pattern, result in patterns:
+            mock_ctx.set_result_for('run', re.compile(pattern), result)
+
+        with (
+            mock.patch('os.path.exists', return_value=False),
+            mock.patch('tasks.omnibus.omnibus_run_task') as mock_run_task,
+            mock.patch('requests.get') as mock_get,
+        ):
+            # Set up the mock response to return the packages content
+            mock_response = mock.MagicMock()
+            mock_response.__enter__.return_value.iter_lines.return_value = packages_content.splitlines()
+            mock_get.return_value = mock_response
+
+            omnibus.build_repackaged_agent(mock_ctx)
+
+            # Verify that the URL we requested matches the architecture we set
+            mock_get.assert_called_once_with(
+                'https://apt.datad0g.com/dists/nightly/7/binary-amd64/Packages', stream=True
+            )
+
+            # Verify omnibus_run_task was called with the correct environment variables
+            mock_run_task.assert_called_once()
+            _, kwargs = mock_run_task.call_args
+            env = kwargs['env']
+            self.assertEqual(
+                env['OMNIBUS_REPACKAGE_SOURCE_URL'],
+                'https://apt.datad0g.com/pool/d/da/datadog-agent_7.67.0~devel.git.113.2750233.pipeline.63448947-1_amd64.deb',
+            )
+            self.assertEqual(env['OMNIBUS_REPACKAGE_SOURCE_SHA256'], 'def456abc789')
