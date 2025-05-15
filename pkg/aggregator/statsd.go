@@ -130,7 +130,7 @@ func (s statsdDirect) Incr(name string, tags []string, rate float64) error {
 func (s statsdDirect) Set(name string, value string, tags []string, rate float64) error {
 	s.demux.AggregateSample(metrics.MetricSample{
 		Name:       name,
-		RawValue:   value,
+		RawValue:   []byte(value),
 		Mtype:      metrics.SetType,
 		Tags:       tags,
 		SampleRate: rate,

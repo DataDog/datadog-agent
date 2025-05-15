@@ -8,6 +8,7 @@ package server
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 	"unsafe"
@@ -221,7 +222,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		name:         p.interner.LoadOrStore(name),
 		value:        value,
 		values:       values,
-		setValue:     string(setValue),
+		rawValue:     slices.Clone(setValue),
 		metricType:   metricType,
 		sampleRate:   sampleRate,
 		tags:         tags,

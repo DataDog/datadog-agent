@@ -97,7 +97,7 @@ type MetricSampleContext interface {
 type MetricSample struct {
 	Name            string
 	Value           float64
-	RawValue        string
+	RawValue        []byte
 	Mtype           MetricType
 	Tags            []string
 	Host            string

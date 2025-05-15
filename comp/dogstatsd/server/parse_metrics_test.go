@@ -169,7 +169,7 @@ func TestParseSet(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", sample.name)
-	assert.Equal(t, "abc", sample.setValue)
+	assert.Equal(t, "abc", string(sample.rawValue))
 	assert.Equal(t, setType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
@@ -184,7 +184,7 @@ func TestParseSetMultiple(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", sample.name)
-	assert.Equal(t, "abc:def", sample.setValue)
+	assert.Equal(t, "abc:def", string(sample.rawValue))
 	assert.Equal(t, setType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
@@ -224,7 +224,7 @@ func TestParseSetUnicode(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", sample.name)
-	assert.Equal(t, "♬†øU†øU¥ºuT0♪", sample.setValue)
+	assert.Equal(t, "♬†øU†øU¥ºuT0♪", string(sample.rawValue))
 	assert.Equal(t, setType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)

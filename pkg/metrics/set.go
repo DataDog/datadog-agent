@@ -18,7 +18,7 @@ func NewSet() *Set {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func (s *Set) addSample(sample *MetricSample, _ float64) {
-	s.values[sample.RawValue] = true
+	s.values[string(sample.RawValue)] = true
 }
 
 func (s *Set) flush(timestamp float64) ([]*Serie, error) {

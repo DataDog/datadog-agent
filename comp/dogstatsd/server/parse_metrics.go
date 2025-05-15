@@ -42,8 +42,8 @@ type dogstatsdMetricSample struct {
 	value float64
 	// use for multiple value messages
 	values []float64
-	// use to store set's values
-	setValue   string
+	// use to store set and sketch values
+	rawValue   []byte
 	metricType metricType
 	sampleRate float64
 	tags       []string

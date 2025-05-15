@@ -271,7 +271,6 @@ func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics me
 			sample := &metrics.MetricSample{
 				Name:       "",
 				Value:      0.0,
-				RawValue:   "0.0",
 				Mtype:      metrics.CounterType,
 				Tags:       []string{},
 				Host:       "",
