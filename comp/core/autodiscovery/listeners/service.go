@@ -6,7 +6,6 @@
 package listeners
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 
@@ -75,17 +74,17 @@ func (s *service) GetServiceID() string {
 }
 
 // GetADIdentifiers returns the service's AD identifiers.
-func (s *service) GetADIdentifiers(_ context.Context) ([]string, error) {
-	return s.adIdentifiers, nil
+func (s *service) GetADIdentifiers() []string {
+	return s.adIdentifiers
 }
 
 // GetHosts returns the service's IPs for each host.
-func (s *service) GetHosts(_ context.Context) (map[string]string, error) {
+func (s *service) GetHosts() (map[string]string, error) {
 	return s.hosts, nil
 }
 
 // GetPorts returns the ports exposed by the service's containers.
-func (s *service) GetPorts(_ context.Context) ([]ContainerPort, error) {
+func (s *service) GetPorts() ([]ContainerPort, error) {
 	return s.ports, nil
 }
 
@@ -105,17 +104,17 @@ func (s *service) GetTagsWithCardinality(cardinality string) ([]string, error) {
 }
 
 // GetPid returns the process ID of the service.
-func (s *service) GetPid(_ context.Context) (int, error) {
+func (s *service) GetPid() (int, error) {
 	return s.pid, nil
 }
 
 // GetHostname returns the service's hostname.
-func (s *service) GetHostname(_ context.Context) (string, error) {
+func (s *service) GetHostname() (string, error) {
 	return s.hostname, nil
 }
 
 // IsReady returns whether the service is ready.
-func (s *service) IsReady(_ context.Context) bool {
+func (s *service) IsReady() bool {
 	return s.ready
 }
 

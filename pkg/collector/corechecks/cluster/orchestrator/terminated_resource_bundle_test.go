@@ -14,21 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
 	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
-
-func TestInsertDeletionTimestampIfPossible(t *testing.T) {
-	rs := &appsv1.ReplicaSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "rs",
-		},
-	}
-	obj := insertDeletionTimestampIfPossible(rs)
-	require.NotNil(t, obj.(*appsv1.ReplicaSet).DeletionTimestamp)
-}
 
 func TestToTypedSlice(t *testing.T) {
 	rs := &appsv1.ReplicaSet{
@@ -44,4 +35,52 @@ func TestToTypedSlice(t *testing.T) {
 
 func toInterface(i interface{}) interface{} {
 	return i
+}
+
+func TestGetResource(t *testing.T) {
+	tests := []struct {
+		name     string
+		resource interface{}
+		wantOk   bool
+	}{
+		{
+			name:     "nil resource",
+			resource: nil,
+			wantOk:   false,
+		},
+		{
+			name: "DeletedFinalStateUnknown with nil object",
+			resource: cache.DeletedFinalStateUnknown{
+				Obj: nil,
+			},
+			wantOk: false,
+		},
+		{
+			name: "DeletedFinalStateUnknown with ReplicaSet",
+			resource: cache.DeletedFinalStateUnknown{
+				Obj: &appsv1.ReplicaSet{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "rs",
+					},
+				},
+			},
+			wantOk: true,
+		},
+		{
+			name: "direct ReplicaSet",
+			resource: &appsv1.ReplicaSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "rs",
+				},
+			},
+			wantOk: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := getResource(tt.resource)
+			require.Equal(t, tt.wantOk, err == nil)
+		})
+	}
 }

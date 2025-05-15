@@ -35,6 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 	"go.uber.org/fx"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -48,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
@@ -397,6 +399,17 @@ func TestServiceName(t *testing.T) {
 	discovery := setupDiscoveryModule(t)
 	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
+	trMeta := tracermetadata.TracerMetadata{
+		SchemaVersion:  1,
+		RuntimeID:      "test-runtime-id",
+		TracerLanguage: "go",
+		ServiceName:    "test-service",
+	}
+	data, err := trMeta.MarshalMsg(nil)
+	require.NoError(t, err)
+
+	createTracerMemfd(t, data)
+
 	listener, err := net.Listen("tcp", "")
 	require.NoError(t, err)
 	f, err := listener.(*net.TCPListener).File()
@@ -420,10 +433,11 @@ func TestServiceName(t *testing.T) {
 	f.Close()
 
 	pid := cmd.Process.Pid
+	var startEvent *model.Service
 	// Eventually to give the processes time to start
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		resp := getServices(collect, discovery.url)
-		startEvent := findService(pid, resp.StartedServices)
+		startEvent = findService(pid, resp.StartedServices)
 		require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
 
 		// Non-ASCII character removed due to normalization.
@@ -435,6 +449,10 @@ func TestServiceName(t *testing.T) {
 		assert.Equal(collect, startEvent.ContainerID, "")
 		assert.Equal(collect, startEvent.LastHeartbeat, mockedTime.Unix())
 	}, 30*time.Second, 100*time.Millisecond)
+
+	// Verify tracer metadata
+	assert.Equal(t, []tracermetadata.TracerMetadata{trMeta}, startEvent.TracerMetadata)
+	assert.Equal(t, string(language.Go), startEvent.Language)
 }
 
 func TestServiceLifetime(t *testing.T) {
@@ -925,11 +943,12 @@ func TestDocker(t *testing.T) {
 	dir, _ := testutil.CurDir()
 	scanner, err := globalutils.NewScanner(regexp.MustCompile("Serving.*"), globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
-	dockerCfg := dockerutils.NewComposeConfig("foo-server",
-		dockerutils.DefaultTimeout,
-		dockerutils.DefaultRetries,
-		scanner,
-		dockerutils.EmptyEnv,
+
+	dockerCfg := dockerutils.NewComposeConfig(
+		dockerutils.NewBaseConfig(
+			"foo-server",
+			scanner,
+		),
 		filepath.Join(dir, "testdata", "docker-compose.yml"))
 	err = dockerutils.Run(t, dockerCfg)
 	require.NoError(t, err)
@@ -1386,6 +1405,51 @@ func getStateResponse(t *testing.T, url string) *state {
 	resp.Body.Close()
 
 	return &state
+}
+
+func createTracerMemfd(t *testing.T, data []byte) int {
+	t.Helper()
+	fd, err := unix.MemfdCreate("datadog-tracer-info-xxx", 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { unix.Close(fd) })
+	err = unix.Ftruncate(fd, int64(len(data)))
+	require.NoError(t, err)
+	mappedData, err := unix.Mmap(fd, 0, len(data), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	require.NoError(t, err)
+	copy(mappedData, data)
+	err = unix.Munmap(mappedData)
+	require.NoError(t, err)
+	return fd
+}
+
+func TestValidInvalidTracerMetadata(t *testing.T) {
+	discovery := newDiscovery(t, nil)
+	require.NotEmpty(t, discovery)
+	self := os.Getpid()
+
+	t.Run("valid metadata", func(t *testing.T) {
+		// Test with valid metadata from file
+		curDir, err := testutil.CurDir()
+		require.NoError(t, err)
+		testDataPath := filepath.Join(curDir, "testdata/tracer_cpp.data")
+		data, err := os.ReadFile(testDataPath)
+		require.NoError(t, err)
+
+		createTracerMemfd(t, data)
+
+		info, err := discovery.getServiceInfo(int32(self))
+		require.NoError(t, err)
+		require.Equal(t, language.CPlusPlus, info.language)
+		require.Equal(t, apm.Provided, info.apmInstrumentation)
+	})
+
+	t.Run("invalid metadata", func(t *testing.T) {
+		createTracerMemfd(t, []byte("invalid data"))
+
+		info, err := discovery.getServiceInfo(int32(self))
+		require.NoError(t, err)
+		require.Equal(t, apm.None, info.apmInstrumentation)
+	})
 }
 
 func TestStateEndpoint(t *testing.T) {
