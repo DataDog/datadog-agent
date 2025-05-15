@@ -317,7 +317,7 @@ const (
 	MetricSourceSilverstripeCMS
 	MetricSourceAnecdote
 	MetricSourceSonatypeNexus
-	MetricSourceAltrairPBSPro
+	MetricSourceAltairPBSPro
 	MetricSourceFalco
 	MetricSourceKrakenD
 	MetricSourceKuma
