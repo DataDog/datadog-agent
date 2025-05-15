@@ -84,6 +84,9 @@ func (rs *RuleSet) GetRules() map[eval.RuleID]*Rule {
 // GetOnDemandHookPoints gets the on-demand hook points
 func (rs *RuleSet) GetOnDemandHookPoints() ([]OnDemandHookPoint, error) {
 	onDemandBucket := rs.GetBucket(model.OnDemandEventType.String())
+	if onDemandBucket == nil {
+		return nil, nil
+	}
 
 	var hookPoints []OnDemandHookPoint
 
