@@ -5,7 +5,6 @@
 
 //go:build ec2
 
-// Package aws contains database-monitoring specific RDS discovery logic
 package aws
 
 import (
@@ -22,6 +21,7 @@ const (
 	mysqlEngine      = "mysql"
 )
 
+// GetRdsInstancesFromTags queries an AWS account for RDS instances with the specified tags
 func (c *Client) GetRdsInstancesFromTags(ctx context.Context, tags []string) ([]Instance, error) {
 	if len(tags) == 0 {
 		return nil, fmt.Errorf("at least one tag filter is required")

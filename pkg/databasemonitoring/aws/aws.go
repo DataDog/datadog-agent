@@ -5,7 +5,7 @@
 
 //go:build ec2
 
-// Package aws contains database-monitoring specific aurora discovery logic
+// Package aws contains database-monitoring specific RDS discovery logic
 package aws
 
 import "fmt"

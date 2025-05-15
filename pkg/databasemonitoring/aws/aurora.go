@@ -5,7 +5,6 @@
 
 //go:build ec2
 
-// Package aws contains database-monitoring specific aurora discovery logic
 package aws
 
 import (

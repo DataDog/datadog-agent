@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
+// Package aurora contains configuration for RDS autodiscovery
 package aurora
 
 import pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
