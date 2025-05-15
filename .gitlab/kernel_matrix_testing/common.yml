@@ -61,7 +61,7 @@
 .define_if_collect_complexity:
   # Collect only from specific platforms to avoid high memory usage
   # This list should match the dependencies of the notify_ebpf_complexity_changes job
-  - PLATFORMS_FOR_COMPLEXITY_COLLECTION="debian_10 ubuntu_18.04 centos_8 opensuse_15.3 suse_12.5 fedora_38"
+  - PLATFORMS_FOR_COMPLEXITY_COLLECTION="debian_10 ubuntu_18.04 opensuse_15.3 suse_12.5 fedora_38"
   - |
     if [ "${TEST_SET}" = "no_usm" ] && echo "${PLATFORMS_FOR_COMPLEXITY_COLLECTION}" | grep -qw "${TAG}" ; then
       export COLLECT_COMPLEXITY=yes
@@ -316,7 +316,6 @@ notify_ebpf_complexity_changes:
           - TAG:
               - debian_10
               - ubuntu_18.04
-              - centos_8
               - opensuse_15.3
               - suse_12.5
               - fedora_38
@@ -328,7 +327,6 @@ notify_ebpf_complexity_changes:
           - TAG:
               - debian_10
               - ubuntu_18.04
-              - centos_8
               - opensuse_15.3
               - suse_12.5
               - fedora_38
