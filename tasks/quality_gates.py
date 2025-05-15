@@ -25,7 +25,7 @@ GATE_CONFIG_PATH = "test/static/static_quality_gates.yml"
 
 body_pattern = """### {}
 
-||Quality gate|Variance|On disk size (MiB)|Variance|On wire size (MiB)|
+||Quality gate|Delta|On disk size (MiB)|Delta|On wire size (MiB)|
 |--|--|--|--|--|--|
 """
 
@@ -38,7 +38,7 @@ body_error_footer_pattern = """<details>
 
 
 def display_pr_comment(
-    ctx, final_state: bool, gate_states: list[dict[str, typing.Any]], metric_handler: GateMetricHandler
+    ctx, final_state: bool, gate_states: list[dict[str, typing.Any]], metric_handler: GateMetricHandler, ancestor: str
 ):
     """
     Display a comment on a PR with results from our static quality gates checks
@@ -46,9 +46,13 @@ def display_pr_comment(
     :param final_state: Boolean that represents the overall state of quality gates checks
     :param gate_states: State of each quality gate
     :param metric_handler: Precise metrics of each quality gate
+    :param ancestor: Ancestor used for relative size comparaison
     :return:
     """
     title = "Static quality checks"
+    ancestor_info = (
+        f"Comparison with [ancestor](https://github.com/DataDog/datadog-agent/commit/{ancestor}) {ancestor}\n"
+    )
     body_info = "<details>\n<summary>Successful checks</summary>\n\n" + body_pattern.format("Info")
     body_error = body_pattern.format("Error")
     body_error_footer = body_error_footer_pattern
@@ -87,7 +91,7 @@ def display_pr_comment(
 
     body_error_footer += "\n</details>\n\nStatic quality gates prevent the PR to merge! You can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
     body_info += "\n</details>\n"
-    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{body_error + body_error_footer if with_error else ''}\n\n{body_info if with_info else ''}"
+    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{body_error + body_error_footer if with_error else ''}\n\n{body_info if with_info else ''}"
 
     pr_commenter(ctx, title=title, body=body)
 
@@ -177,9 +181,8 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
     github = GithubAPI()
     if github.get_pr_for_branch(branch).totalCount > 0:
         ancestor = get_common_ancestor(ctx, "HEAD")
-        print(f"[DEBUG] {ancestor}")
         metric_handler.generate_relative_size(ctx, ancestor=ancestor)
-        display_pr_comment(ctx, final_state == "success", gate_states, metric_handler)
+        display_pr_comment(ctx, final_state == "success", gate_states, metric_handler, ancestor)
 
     # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
     if final_state != "success" and not nightly_run:

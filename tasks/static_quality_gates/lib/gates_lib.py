@@ -42,12 +42,6 @@ def byte_to_string(size, unit_power=None, with_unit=True):
         unit_power = int(math.log(size, 1024))
     p = math.pow(1024, unit_power)
     s = round(size / p, 2)
-    # If s is not exactly 0 but rounded like (0.0 or -0.0)
-    # Goal is to output +0 / -0 for very small changes and 0 for no changes at all
-    if id(s) != id(0) and s == 0:
-        s = 0
-        if not sign:
-            sign = "+"
     return f"{sign}{s}{' '+size_name[unit_power] if with_unit else ''}"
 
 

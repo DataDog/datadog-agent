@@ -96,7 +96,6 @@ def extract_dmg_archive(ctx, package_path, extract_dir):
 
 
 def extract_package(ctx, package_os, package_path, extract_dir):
-    print(f"[DEBUG] call extract_package(ctx, {package_os}, {package_path}, {extract_dir})")
     if package_os in (DEBIAN_OS, HEROKU_OS):
         return extract_deb_package(ctx, package_path, extract_dir)
     elif package_os in (CENTOS_OS, SUSE_OS):
