@@ -411,10 +411,6 @@ func (c *Client) GetLatestFlare() (flare.Flare, error) {
 
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {
 	body, err := c.get(fmt.Sprintf("fakeintake/payloads?endpoint=%s", endpoint))
-	if body != nil {
-		fmt.Println("BRIAN DEBUG", string(body))
-	}
-
 	if err != nil {
 		return nil, err
 	}

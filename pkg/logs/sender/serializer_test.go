@@ -18,7 +18,7 @@ func TestArraySerializer(t *testing.T) {
 	var messages []*message.Message
 	var payload []byte
 
-	serializer := ArraySerializer
+	serializer := NewArraySerializer()
 
 	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0)}
 	payload = serializeToBytes(t, serializer, messages)

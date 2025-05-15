@@ -11,11 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-var (
-	// ArraySerializer is a shared line serializer.
-	ArraySerializer Serializer = &arraySerializer{isFirstMessage: true}
-)
-
 // Serializer transforms a batch of messages into a payload.
 // It is the one rendering the messages (i.e. either directly using
 // raw []byte data from unstructured messages or turning structured
@@ -28,6 +23,11 @@ type Serializer interface {
 // arraySerializer transforms a message array into a array string payload.
 type arraySerializer struct {
 	isFirstMessage bool
+}
+
+// NewArraySerializer creates a new arraySerializer
+func NewArraySerializer() Serializer {
+	return &arraySerializer{isFirstMessage: true}
 }
 
 // Serialize transforms all messages into a array string

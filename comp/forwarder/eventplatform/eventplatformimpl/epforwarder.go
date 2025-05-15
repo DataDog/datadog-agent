@@ -466,7 +466,7 @@ func newHTTPPassthroughPipeline(
 			senderImpl.In(),
 			make(chan struct{}),
 			serverlessMeta,
-			sender.ArraySerializer,
+			sender.NewArraySerializer(),
 			endpoints.BatchWait,
 			endpoints.BatchMaxSize,
 			endpoints.BatchMaxContentSize,
