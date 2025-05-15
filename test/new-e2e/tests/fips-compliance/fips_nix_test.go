@@ -93,7 +93,7 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSEnabledNoOpenSSLConfig() {
 
 	status, err := v.Env().RemoteHost.Execute("sudo datadog-agent status")
 	require.NotNil(v.T(), err)
-	assert.Contains(v.T(), err.Error(), "can't enable FIPS mode for OpenSSL")
+	assert.Contains(v.T(), err.Error(), "FIPS mode requested (requirefips tag set) but not available in OpenSSL")
 	assert.NotContains(v.T(), status, "Status date")
 
 	v.Env().RemoteHost.MustExecute("sudo mv /opt/datadog-agent/embedded/ssl/openssl.cnf.tmp /opt/datadog-agent/embedded/ssl/openssl.cnf")
