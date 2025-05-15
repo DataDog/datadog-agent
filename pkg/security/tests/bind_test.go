@@ -76,7 +76,7 @@ func TestBindEvent(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "bind-af-inet-any-success-tcp-io-uring", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.Run(t, "bind-af-inet-any-success-tcp-io-uring", func(t *testing.T, _ wrapperType, _ func(cmd string, args []string, envs []string) *exec.Cmd) {
 		fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, unix.IPPROTO_TCP)
 		if err != nil {
 			t.Fatal(err)
@@ -123,7 +123,7 @@ func TestBindEvent(t *testing.T) {
 			}
 
 			return err
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "bind", event.GetType(), "wrong event type")
 			assert.Equal(t, uint16(unix.AF_INET), event.Bind.AddrFamily, "wrong address family")
 			assert.Equal(t, uint16(4242), event.Bind.Addr.Port, "wrong address port")
