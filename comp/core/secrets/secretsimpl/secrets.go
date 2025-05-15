@@ -227,8 +227,13 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	if r.responseMaxSize == 0 {
 		r.responseMaxSize = SecretBackendOutputMaxSizeDefault
 	}
+
 	r.refreshInterval = time.Duration(params.RefreshInterval) * time.Second
 	r.refreshIntervalScatter = params.RefreshIntervalScatter
+	if r.refreshInterval != 0 {
+		r.startRefreshRoutine()
+	}
+
 	r.commandAllowGroupExec = params.GroupExecPerm
 	r.removeTrailingLinebreak = params.RemoveLinebreak
 	if r.commandAllowGroupExec {
@@ -285,7 +290,6 @@ func (r *secretResolver) SubscribeToChanges(cb secrets.SecretChangeCallback) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	r.startRefreshRoutine()
 	r.subscriptions = append(r.subscriptions, cb)
 }
 
