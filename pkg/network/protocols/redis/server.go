@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
+//go:build linux_bpf && test
 
 // Package redis provides a Redis client to interact with a Redis server.
 package redis
