@@ -176,7 +176,7 @@ func (s *BaseSuite) createStableAgent() {
 		WithName(consts.AgentPackage),
 		// TODO: update to last stable when there is one
 		WithVersion(agentVersionPackage),
-		WithRegistry("install.datad0g.com"),
+		WithRegistry("install.datad0g.com.s3.amazonaws.com"),
 		WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")

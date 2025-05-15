@@ -95,7 +95,7 @@ var testCatalog = catalog{
 		{
 			Package: string(datadogApmInject),
 			Version: apmInjectVersion,
-			URL:     "oci://s3.amazonaws.com/install.datadoghq.com/apm-inject-package:latest",
+			URL:     "oci://dd-agent.s3.amazonaws.com/apm-inject-package:latest",
 		},
 	},
 }
@@ -196,7 +196,7 @@ func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
 			{
 				Package: "datadog-agent",
 				Version: currentVersion,
-				URL:     fmt.Sprintf("oci://s3.amazonaws.com/install.datadoghq.com/agent-package:%s", currentVersion),
+				URL:     fmt.Sprintf("oci://dd-agent.s3.amazonaws.com/agent-package:%s", currentVersion),
 			},
 		},
 	}
