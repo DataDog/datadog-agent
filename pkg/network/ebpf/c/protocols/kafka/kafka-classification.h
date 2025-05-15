@@ -102,6 +102,14 @@ static __always_inline bool is_supported_api_version_for_classification(s16 api_
             return false;
         }
         break;
+    case KAFKA_METADATA:
+        if (kafka_header->api_version < KAFKA_CLASSIFICATION_MIN_SUPPORTED_METADATA_REQUEST_API_VERSION) {
+            return false;
+        }
+        if (kafka_header->api_version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_METADATA_REQUEST_API_VERSION) {
+            return false;
+        }
+        break;
     default:
         // We are only interested in fetch and produce requests
         return false;
@@ -145,28 +153,26 @@ static __always_inline int parse_varint_u16(u16 *out, u16 in, u32 *bytes)
     return true;
 }
 
-static __always_inline bool skip_varint_number_of_topics(pktbuf_t pkt, u32 *offset) {
-    u8 bytes[2] = {};
+static __always_inline u16 get_varint_number_of_topics(pktbuf_t pkt, u32 *offset) {
+    u16 topic_count = 0;
 
     // Should be safe to assume that there is always more than one byte present,
     // since there will be the topic name etc after the number of topics.
-    if (*offset + sizeof(bytes) > pktbuf_data_end(pkt)) {
+    if (*offset + sizeof(topic_count) > pktbuf_data_end(pkt)) {
         return false;
     }
 
-    pktbuf_load_bytes(pkt, *offset, bytes, sizeof(bytes));
+    pktbuf_load_bytes(pkt, *offset, &topic_count, sizeof(topic_count));
+    *offset += 2;
 
-    *offset += 1;
-    if (isMSBSet(bytes[0])) {
-        *offset += 1;
+    return topic_count;
+}
 
-        if (isMSBSet(bytes[1])) {
-            // More than 16383 topics?
-            return false;
-        }
-    }
+static __always_inline bool skip_varint_number_of_topics(pktbuf_t pkt, u32 *offset) {
+    u16 topic_count = get_varint_number_of_topics(pkt, offset);
 
-    return true;
+    // More than 16383 topics?
+    return topic_count < 16383;
 }
 
 // Skips a varint of up to `max_bytes` (4).  The `skip_varint_number_of_topics`
@@ -243,7 +249,7 @@ static __always_inline s16 read_nullable_string_size(pktbuf_t pkt, bool flexible
 static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexible, u32 offset) {
     // Skipping number of entries for now
     if (flexible) {
-        if (!skip_varint_number_of_topics(pkt, &offset)) {
+        if (get_varint_number_of_topics(pkt, &offset) > NUM_TOPICS_MAX) {
             return false;
         }
     } else {
@@ -272,12 +278,11 @@ static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexibl
 // verifies if it is a valid UUID version 4
 static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible, u32 offset) {
     // The topic id is a UUID, which is 16 bytes long.
-    // It is in network byte order (big-endian)
     u8 topic_id[16] = {};
 
     // Skipping number of entries for now
     if (flexible) {
-        if (!skip_varint_number_of_topics(pkt, &offset)) {
+        if (get_varint_number_of_topics(pkt, &offset) > NUM_TOPICS_MAX) {
             return false;
         }
     } else {
@@ -403,6 +408,20 @@ static __always_inline bool get_topic_offset_from_fetch_request(const kafka_head
     return true;
 }
 
+// Getting the offset the topic name in the fetch request.
+static __always_inline bool get_topic_offset_from_metadata_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 *offset) {
+    u32 api_version = kafka_header->api_version;
+
+    // we only support v10+ but just to be safe
+    if (api_version >= 9) {
+        if (!skip_request_tagged_fields(pkt, offset)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 // Calls the relevant function, according to the api_key.
 static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 offset) {
     // Due to old-verifiers limitations, if the request is fetch or produce, we are calculating the offset of the topic
@@ -424,6 +443,12 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
         flexible = kafka_header->api_version >= 12;
         topic_id_instead_of_name = kafka_header->api_version >= 13;
         break;
+    case KAFKA_METADATA:
+        if (!get_topic_offset_from_metadata_request(kafka_header, pkt, &offset)) {
+            return false;
+        }
+        // TODO check boolean fields
+        return true;
     default:
         return false;
     }
