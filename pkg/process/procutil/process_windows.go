@@ -20,22 +20,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-var (
-	counterPaths = []string{
-		pdhutil.CounterAllProcessPID,
-		pdhutil.CounterAllProcessParentPID,
-		pdhutil.CounterAllProcessPctUserTime,
-		pdhutil.CounterAllProcessPctPrivilegedTime,
-		pdhutil.CounterAllProcessWorkingSet,
-		pdhutil.CounterAllProcessPoolPagedBytes,
-		pdhutil.CounterAllProcessThreadCount,
-		pdhutil.CounterAllProcessHandleCount,
-		pdhutil.CounterAllProcessIOReadOpsPerSec,
-		pdhutil.CounterAllProcessIOWriteOpsPerSec,
-		pdhutil.CounterAllProcessIOReadBytesPerSec,
-		pdhutil.CounterAllProcessIOWriteBytesPerSec,
-	}
-)
+var counterPaths = []string{
+	pdhutil.CounterAllProcessPID,
+	pdhutil.CounterAllProcessParentPID,
+	pdhutil.CounterAllProcessPctUserTime,
+	pdhutil.CounterAllProcessPctPrivilegedTime,
+	pdhutil.CounterAllProcessWorkingSet,
+	pdhutil.CounterAllProcessPoolPagedBytes,
+	pdhutil.CounterAllProcessThreadCount,
+	pdhutil.CounterAllProcessHandleCount,
+	pdhutil.CounterAllProcessIOReadOpsPerSec,
+	pdhutil.CounterAllProcessIOWriteOpsPerSec,
+	pdhutil.CounterAllProcessIOReadBytesPerSec,
+	pdhutil.CounterAllProcessIOWriteBytesPerSec,
+}
 
 // NewProcessProbe returns a Probe object
 func NewProcessProbe(...Option) Probe {
@@ -559,7 +557,7 @@ func OpenProcessHandle(pid int32) (windows.Handle, bool, error) {
 		log.Debugf("Couldn't open unprotected process with PROCESS_VM_READ access. Returning limited process info %v %v", pid, err)
 		return procHandle, isProtected, err
 	}
-	defer windows.Close(procHandle)
+	windows.Close(procHandle)
 	return procHandleMemoryAccess, isProtected, err
 }
 
