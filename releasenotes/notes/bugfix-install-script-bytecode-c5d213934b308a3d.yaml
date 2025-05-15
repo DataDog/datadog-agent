@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix the python-script used when installing the agent rpm from leaving behind bytecode.
+    Fix the Python script used when installing the Agent RPM from leaving behind bytecode.
