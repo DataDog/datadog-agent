@@ -1009,7 +1009,7 @@ func (s *tlsSuite) TestNativeTLSMapsCleanup() {
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
-	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+	usmMonitor := setupUSMTLSMonitor(t, cfg, reInitEventConsumer)
 
 	addressOfHTTPPythonServer := "127.0.0.1:8001"
 	cmd := testutil.HTTPPythonServer(t, addressOfHTTPPythonServer, testutil.Options{
