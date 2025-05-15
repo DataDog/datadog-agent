@@ -51,9 +51,10 @@ Your pull request must pass all CI tests before we will merge it. If you're seei
 
 ### Merge protection
 
-To protect our repository, we have enabled some checks. As an external contributor, you are required to sign our [Contributor License Agreement](https://cla.datadoghq.com/DataDog/datadog-agent) (CLA). You will receive a message once your PR is opened to sign the agreement.
+We have safety measures to protect our repository. As an external contributor, you are required to:
 
-We also require all commits to be signed before merging. To learn how to sign your commits, follow [this procedure from Github](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
+1. Sign our [Contributor License Agreement](https://cla.datadoghq.com/DataDog/datadog-agent) (CLA). You will receive a message once your PR is opened to sign the agreement.
+2. Provide signed commits before merging. To learn how to sign your commits, follow [this procedure from Github](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
 
 ### Keep it small, focused
 
