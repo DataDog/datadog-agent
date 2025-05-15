@@ -98,6 +98,9 @@ func (t *TCPv4) sendAndReceiveSocket(s winconn.ConnWrapper, ttl int, timeout tim
 // TracerouteSequential runs a traceroute sequentially where a packet is
 // sent and we wait for a response before sending the next packet
 func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
+	if t.CompatibilityMode {
+		return nil, fmt.Errorf("TCP SYN compatibility mode is not yet supported")
+	}
 	log.Debugf("Running traceroute to %+v", t)
 	// Get local address for the interface that connects to this
 	// host and store in in the probe

@@ -29,23 +29,26 @@ type (
 		MaxTTL   uint8
 		Delay    time.Duration // delay between sending packets (not applicable if we go the serial send/receive route)
 		Timeout  time.Duration // full timeout for all packets
-		buffer   gopacket.SerializeBuffer
+		// CompatibilityMode is whether to try to imitate tcptraceroute as much as possible
+		CompatibilityMode bool
+		buffer            gopacket.SerializeBuffer
 	}
 )
 
 // NewTCPv4 initializes a new TCPv4 traceroute instance
-func NewTCPv4(target net.IP, targetPort uint16, numPaths uint16, minTTL uint8, maxTTL uint8, delay time.Duration, timeout time.Duration) *TCPv4 {
+func NewTCPv4(target net.IP, targetPort uint16, numPaths uint16, minTTL uint8, maxTTL uint8, delay time.Duration, timeout time.Duration, compatibilityMode bool) *TCPv4 {
 	buffer := gopacket.NewSerializeBufferExpectedSize(40, 0)
 
 	return &TCPv4{
-		Target:   target,
-		DestPort: targetPort,
-		NumPaths: numPaths,
-		MinTTL:   minTTL,
-		MaxTTL:   maxTTL,
-		Delay:    delay,
-		Timeout:  timeout,
-		buffer:   buffer,
+		Target:            target,
+		DestPort:          targetPort,
+		NumPaths:          numPaths,
+		MinTTL:            minTTL,
+		MaxTTL:            maxTTL,
+		Delay:             delay,
+		Timeout:           timeout,
+		CompatibilityMode: compatibilityMode,
+		buffer:            buffer,
 	}
 }
 
