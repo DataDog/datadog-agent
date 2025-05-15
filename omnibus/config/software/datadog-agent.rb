@@ -9,20 +9,27 @@ require 'pathname'
 
 name 'datadog-agent'
 
-# creates required build directories
-dependency 'datadog-agent-prepare'
+# We don't want to build any dependencies in "repackaging mode" so all usual dependencies
+# need to go under this guard.
+unless do_repackage?
+  # creates required build directories
+  dependency 'datadog-agent-prepare'
 
-dependency "python3"
+  dependency "python3"
 
-dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
+  dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
 
-# Alternative memory allocator which has better support for memory allocated by cgo calls,
-# especially at higher thread counts.
-dependency "libjemalloc" if linux_target?
+  # Alternative memory allocator which has better support for memory allocated by cgo calls,
+  # especially at higher thread counts.
+  dependency "libjemalloc" if linux_target?
 
-dependency 'datadog-agent-dependencies'
+  dependency 'datadog-agent-dependencies'
+end
 
-source path: '..'
+source path: '..',
+       options: {
+         exclude: ["**/testdata/**/*"],
+       }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 always_build true
