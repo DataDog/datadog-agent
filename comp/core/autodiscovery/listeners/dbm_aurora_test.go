@@ -30,7 +30,7 @@ const defaultDbmTag = "datadoghq.com/dbm:true"
 func TestDBMAuroraListener(t *testing.T) {
 	testCases := []struct {
 		name                  string
-		config                aurora.AuroraConfig
+		config                aurora.Config
 		numDiscoveryIntervals int
 		rdsClientConfigurer   mockRDSClientConfigurer
 		expectedServices      []*DBMAuroraService
@@ -38,7 +38,7 @@ func TestDBMAuroraListener(t *testing.T) {
 	}{
 		{
 			name: "GetAuroraClustersFromTags context deadline exceeded produces no services",
-			config: aurora.AuroraConfig{
+			config: aurora.Config{
 				DiscoveryInterval: 1,
 				QueryTimeout:      1,
 				Region:            "us-east-1",
@@ -58,7 +58,7 @@ func TestDBMAuroraListener(t *testing.T) {
 		},
 		{
 			name: "GetAuroraClusterEndpoints context deadline exceeded produces no services",
-			config: aurora.AuroraConfig{
+			config: aurora.Config{
 				DiscoveryInterval: 1,
 				QueryTimeout:      1,
 				Region:            "us-east-1",
@@ -82,7 +82,7 @@ func TestDBMAuroraListener(t *testing.T) {
 		},
 		{
 			name: "GetAuroraClustersFromTags error produces no services",
-			config: aurora.AuroraConfig{
+			config: aurora.Config{
 				DiscoveryInterval: 1,
 				Region:            "us-east-1",
 				Tags:              []string{defaultClusterTag},
@@ -97,7 +97,7 @@ func TestDBMAuroraListener(t *testing.T) {
 		},
 		{
 			name: "GetAuroraClusterEndpoints error produces no services",
-			config: aurora.AuroraConfig{
+			config: aurora.Config{
 				DiscoveryInterval: 1,
 				Region:            "us-east-1",
 				Tags:              []string{defaultClusterTag},
@@ -115,7 +115,7 @@ func TestDBMAuroraListener(t *testing.T) {
 		},
 		{
 			name: "single endpoint discovered and created",
-			config: aurora.AuroraConfig{
+			config: aurora.Config{
 				DiscoveryInterval: 1,
 				Region:            "us-east-1",
 				Tags:              []string{defaultClusterTag},
@@ -159,7 +159,7 @@ func TestDBMAuroraListener(t *testing.T) {
 		},
 		{
 			name: "multiple endpoints discovered from single cluster and created",
-			config: aurora.AuroraConfig{
+			config: aurora.Config{
 				DiscoveryInterval: 1,
 				Region:            "us-east-1",
 				Tags:              []string{defaultClusterTag},

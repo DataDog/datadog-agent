@@ -36,7 +36,7 @@ type DBMAuroraListener struct {
 	delService   chan<- Service
 	stop         chan bool
 	services     map[string]Service
-	config       aurora.AuroraConfig
+	config       aurora.Config
 	awsRdsClient aws.RDSClient
 	// ticks is used primarily for testing purposes so
 	// the frequency the discovers loop iterates can be controlled
@@ -80,7 +80,7 @@ func NewDBMAuroraListener(ServiceListernerDeps) (ServiceListener, error) {
 	return newDBMAuroraListener(config, client, nil), nil
 }
 
-func newDBMAuroraListener(config aurora.AuroraConfig, awsClient aws.RDSClient, ticks <-chan time.Time) ServiceListener {
+func newDBMAuroraListener(config aurora.Config, awsClient aws.RDSClient, ticks <-chan time.Time) ServiceListener {
 	l := &DBMAuroraListener{
 		config:       config,
 		services:     make(map[string]Service),
