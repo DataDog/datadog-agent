@@ -8,16 +8,16 @@ package aurora
 import pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 const (
-	autoDiscoveryAuroraConfigKey = "database_monitoring.autodiscovery.aurora"
+	autoDiscoveryConfigKey = "database_monitoring.autodiscovery.aurora"
 )
 
 // AutodiscoveryConfig represents the auto-discovery configuration for database-monitoring
 type AutodiscoveryConfig struct {
-	AuroraConfig AuroraConfig
+	Config Config
 }
 
-// AuroraConfig represents the configuration for auto-discovering database clusters
-type AuroraConfig struct {
+// Config represents the configuration for auto-discovering database clusters
+type Config struct {
 	Enabled           bool
 	DiscoveryInterval int
 	QueryTimeout      int
@@ -26,15 +26,15 @@ type AuroraConfig struct {
 	Region            string // auto-discovered from instance metadata
 }
 
-// NewAuroraAutodiscoveryConfig parses configuration and returns a built AuroraConfig
-func NewAuroraAutodiscoveryConfig() (AuroraConfig, error) {
-	var discoveryConfigs AuroraConfig
+// NewAuroraAutodiscoveryConfig parses configuration and returns a built Config
+func NewAuroraAutodiscoveryConfig() (Config, error) {
+	var discoveryConfigs Config
 	// defaults for all values are set in the config package
-	discoveryConfigs.Enabled = pkgconfigsetup.Datadog().GetBool(autoDiscoveryAuroraConfigKey + ".enabled")
-	discoveryConfigs.QueryTimeout = pkgconfigsetup.Datadog().GetInt(autoDiscoveryAuroraConfigKey + ".query_timeout")
-	discoveryConfigs.DiscoveryInterval = pkgconfigsetup.Datadog().GetInt(autoDiscoveryAuroraConfigKey + ".discovery_interval")
-	discoveryConfigs.Tags = pkgconfigsetup.Datadog().GetStringSlice(autoDiscoveryAuroraConfigKey + ".tags")
-	discoveryConfigs.DbmTag = pkgconfigsetup.Datadog().GetString(autoDiscoveryAuroraConfigKey + ".dbm_tag")
-	discoveryConfigs.Region = pkgconfigsetup.Datadog().GetString(autoDiscoveryAuroraConfigKey + ".region")
+	discoveryConfigs.Enabled = pkgconfigsetup.Datadog().GetBool(autoDiscoveryConfigKey + ".enabled")
+	discoveryConfigs.QueryTimeout = pkgconfigsetup.Datadog().GetInt(autoDiscoveryConfigKey + ".query_timeout")
+	discoveryConfigs.DiscoveryInterval = pkgconfigsetup.Datadog().GetInt(autoDiscoveryConfigKey + ".discovery_interval")
+	discoveryConfigs.Tags = pkgconfigsetup.Datadog().GetStringSlice(autoDiscoveryConfigKey + ".tags")
+	discoveryConfigs.DbmTag = pkgconfigsetup.Datadog().GetString(autoDiscoveryConfigKey + ".dbm_tag")
+	discoveryConfigs.Region = pkgconfigsetup.Datadog().GetString(autoDiscoveryConfigKey + ".region")
 	return discoveryConfigs, nil
 }
