@@ -147,7 +147,7 @@ func TestConnectEvent(t *testing.T) {
 			assert.Equal(t, uint16(4242), event.Connect.Addr.Port, "wrong address port")
 			assert.Equal(t, string("0.0.0.0/32"), event.Connect.Addr.IPNet.String(), "wrong address")
 			assert.Equal(t, uint16(unix.IPPROTO_TCP), event.Connect.Protocol, "wrong protocol")
-			assert.Equal(t, int64(0), event.Connect.Retval, "wrong retval")
+			assert.Contains(t, []int64{0, -int64(syscall.EAGAIN)}, event.Connect.Retval, "wrong retval")
 			test.validateConnectSchema(t, event)
 		})
 	})

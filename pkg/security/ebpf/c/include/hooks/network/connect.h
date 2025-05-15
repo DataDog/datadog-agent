@@ -31,7 +31,8 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         return 0;
     }
 
-    if (IS_UNHANDLED_ERROR(retval) && retval != -EINPROGRESS) {
+    // EAGAIN may be returned on Fedora 37 (kernel 6.0.7-301.fc37.x86_64)
+    if (IS_UNHANDLED_ERROR(retval) && retval != -EINPROGRESS && retval != -EAGAIN) {
         return 0;
     }
 
