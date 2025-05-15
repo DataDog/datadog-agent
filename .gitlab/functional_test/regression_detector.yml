@@ -4,7 +4,7 @@ single-machine-performance-regression_detector:
   rules:
     - !reference [.on_dev_branches]
     - when: on_success
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64"]
   needs:
     - job: single_machine_performance-full-amd64-a7
