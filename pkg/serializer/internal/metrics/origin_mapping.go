@@ -1087,7 +1087,7 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 474
 	case metrics.MetricSourceWlan:
 		return 475
-	case metrics.MetricSourceAltrairPBSPro:
+	case metrics.MetricSourceAltairPBSPro:
 		return 476
 	case metrics.MetricSourceFalco:
 		return 477

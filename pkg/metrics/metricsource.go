@@ -967,7 +967,7 @@ func (ms MetricSource) String() string {
 	case MetricSourceInfiniband:
 		return "infiniband"
 	case MetricSourceAltairPBSPro:
-		return "altrair_pbs_pro"
+		return "altair_pbs_pro"
 	case MetricSourceFalco:
 		return "falco"
 	case MetricSourceKrakenD:
@@ -1650,7 +1650,7 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceQuarkus
 	case "velero":
 		return MetricSourceVelero
-	case "altrair_pbs_pro":
+	case "altair_pbs_pro":
 		return MetricSourceAltairPBSPro
 	case "falco":
 		return MetricSourceFalco
