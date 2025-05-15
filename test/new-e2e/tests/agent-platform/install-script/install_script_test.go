@@ -41,7 +41,8 @@ var (
 
 type installScriptSuite struct {
 	e2e.BaseSuite[environments.Host]
-	cwsSupported bool
+	cwsSupported   bool
+	testingKeysURL string
 }
 
 func TestInstallScript(t *testing.T) {
@@ -89,6 +90,13 @@ func TestInstallScript(t *testing.T) {
 			tt.Logf("Testing %s", osVers)
 			osDesc := platforms.BuildOSDescriptor(*platform, *architecture, osVers)
 			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
+
+			suite := &installScriptSuite{cwsSupported: cwsSupported}
+			if strings.HasPrefix(osVers, "ubuntu") || strings.HasPrefix(osVers, "debian") {
+				// will be set as TESTING_KEYS_URL in the install script
+				// the used in places like https://github.com/DataDog/agent-linux-install-script/blob/8f5c0b4f5b60847ee7989aa2c35052382f282d5d/install_script.sh.template#L1229
+				suite.testingKeysURL = "apttesting.datad0g.com/test-keys"
+			}
 
 			e2e.Run(tt,
 				&installScriptSuite{cwsSupported: cwsSupported},
@@ -148,7 +156,16 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 	unixHelper := helpers.NewUnix()
 	client := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
-	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(flavor), installparams.WithMajorVersion(*majorVersion))
+	installOptions := []installparams.Option{
+		installparams.WithArch(*architecture),
+		installparams.WithFlavor(flavor),
+		installparams.WithMajorVersion(*majorVersion),
+	}
+
+	if is.testingKeysURL != "" {
+		installOptions = append(installOptions, installparams.WithTestingKeysURL(is.testingKeysURL))
+	}
+	install.Unix(is.T(), client, installOptions...)
 
 	common.CheckInstallation(is.T(), client)
 	common.CheckSigningKeys(is.T(), client)
