@@ -76,6 +76,7 @@ func WithTestingKeysURL(url string) Option {
 }
 
 // WithFlavor specify the flavor to use when installing the agent
+func WithFlavor(flavor string) Option {
 	return func(p *Params) {
 		p.Flavor = flavor
 	}
