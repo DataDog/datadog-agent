@@ -21,7 +21,7 @@ Bug Fixes
 ---------
 
 - Customers relying on the deprecated v1 implementation of the auto instrumentation webhook will no longer be forced
-  to use the v2 implementation. This will provide additional time for customers to migrate to the v1 implementation
+  to use the v2 implementation. This will provide additional time for customers to migrate from the v1 to the v2 implementation
   and ensure the v2 implementation adequately supports all existing use cases.
 
 

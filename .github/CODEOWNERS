@@ -557,6 +557,7 @@
 /pkg/proto/pbgo/core/remoteconfig.pb.go       @DataDog/remote-config
 /pkg/proto/pbgo/core/remoteconfig_gen.go      @DataDog/remote-config
 /pkg/proto/pbgo/core/remoteconfig_gen_test.go @DataDog/remote-config
+/pkg/proto/pbgo/core/workloadmeta.pb.go       @DataDog/container-platform
 /pkg/proto/pbgo/mocks/core              @DataDog/agent-runtimes
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/Networks

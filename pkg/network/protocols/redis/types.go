@@ -15,11 +15,13 @@ import "C"
 
 type ConnTuple = C.conn_tuple_t
 
-type commandType = C.redis_command_t
+type CommandType C.redis_command_t
 
 var (
-	getCommand = commandType(C.REDIS_GET)
-	setCommand = commandType(C.REDIS_SET)
+	UnknownCommand = CommandType(C.REDIS_UNKNOWN)
+	GetCommand     = CommandType(C.REDIS_GET)
+	SetCommand     = CommandType(C.REDIS_SET)
+	maxCommand     = CommandType(C.__MAX_REDIS_COMMAND)
 )
 
 type EbpfEvent C.redis_event_t

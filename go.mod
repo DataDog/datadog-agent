@@ -474,6 +474,7 @@ require (
 	github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e
 	github.com/kraken-hpc/go-fork v0.1.1
 	github.com/mattn/go-sqlite3 v1.14.24
+	github.com/safchain/ethtool v0.5.10
 	github.com/shirou/gopsutil/v4 v4.25.3
 	go.opentelemetry.io/collector/component/componenttest v0.125.0
 	modernc.org/sqlite v1.36.2 // indirect
@@ -554,7 +555,7 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.149
+	github.com/DataDog/agent-payload/v5 v5.0.150
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.1
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.64.1
