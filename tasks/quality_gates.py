@@ -51,7 +51,7 @@ def display_pr_comment(
     """
     title = "Static quality checks"
     ancestor_info = (
-        f"Comparison with [ancestor](https://github.com/DataDog/datadog-agent/commit/{ancestor}) {ancestor}\n"
+        f"Comparison made with [ancestor](https://github.com/DataDog/datadog-agent/commit/{ancestor}) {ancestor}\n"
     )
     body_info = "<details>\n<summary>Successful checks</summary>\n\n" + body_pattern.format("Info")
     body_error = body_pattern.format("Error")

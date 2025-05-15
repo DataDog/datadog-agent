@@ -150,8 +150,6 @@ def compute_package_size_metrics(
 
         package_compressed_size = file_size(path=package_path)
         package_uncompressed_size = directory_size(path=extract_dir)
-        print(f"[DEBUG] call file_size({package_path}) -> {package_compressed_size}")
-        print(f"[DEBUG] call directory_size({extract_dir} -> {package_uncompressed_size})")
 
         timestamp = int(datetime.utcnow().timestamp())
         common_tags = [

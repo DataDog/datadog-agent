@@ -42,6 +42,10 @@ def byte_to_string(size, unit_power=None, with_unit=True):
         unit_power = int(math.log(size, 1024))
     p = math.pow(1024, unit_power)
     s = round(size / p, 2)
+    # If s is not exactly 0 but rounded like (0.0 or -0.0)
+    # Goal is to output +0 / -0 for very small changes and 0 for no changes at all
+    if id(s) != id(0) and s == 0:
+        s = 0
     return f"{sign}{s}{' '+size_name[unit_power] if with_unit else ''}"
 
 
@@ -161,17 +165,20 @@ class GateMetricHandler:
 
     def generate_relative_size(self, ctx, filename="static_gate_report.json", ancestor=None):
         if ancestor:
+            # Fetch the ancestor's static quality gates report json file
             out = ctx.run(
                 f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/{ancestor}/{filename} {filename}",
                 hide=True,
                 warn=True,
             )
             if out.exited == 0:
+                # Load the report inside of a GateMetricHandler specific to the ancestor
                 ancestor_metric_handler = GateMetricHandler(ancestor, self.bucket_branch, filename)
                 for gate in self.metrics:
                     ancestor_gate = ancestor_metric_handler.metrics.get(gate)
                     if not ancestor_gate:
                         continue
+                    # Compute the difference between the wire and disk size of common gates between the ancestor and the current pipeline
                     for metric_key in ["current_on_wire_size", "current_on_disk_size"]:
                         if self.metrics[gate].get(metric_key) and ancestor_gate.get(metric_key):
                             relative_metric_size = ancestor_gate[metric_key] - self.metrics[gate][metric_key]
