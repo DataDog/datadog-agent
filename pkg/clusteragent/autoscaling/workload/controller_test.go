@@ -45,7 +45,6 @@ const testMaxAutoscalerObjects int = 2
 
 func newFixture(t *testing.T, testTime time.Time) *fixture {
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
-	InitDumper(store)
 
 	clock := clock.NewFakeClock(testTime)
 	recorder := record.NewFakeRecorder(100)
