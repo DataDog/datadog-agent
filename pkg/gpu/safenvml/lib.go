@@ -145,7 +145,7 @@ func (s *safeNvml) DeviceGetHandleByIndex(idx int) (SafeDevice, error) {
 	if err := NewNvmlAPIErrorOrNil("DeviceGetHandleByIndex", ret); err != nil {
 		return nil, err
 	}
-	return NewDevice(dev)
+	return NewPhysicalDevice(dev)
 }
 
 // populateCapabilities verifies nvml API symbols exist in the native library (libnvidia-ml.so).

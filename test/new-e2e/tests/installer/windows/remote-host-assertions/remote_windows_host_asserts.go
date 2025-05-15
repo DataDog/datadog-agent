@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -103,11 +104,16 @@ func (r *RemoteWindowsHostAssertions) NoFileExists(path string, msgAndArgs ...in
 // service running.
 func (r *RemoteWindowsHostAssertions) HasARunningDatadogAgentService() *RemoteWindowsBinaryAssertions {
 	r.suite.T().Helper()
-	r.FileExists(defaultAgentBinPath)
+
+	installPath, err := windowsagent.GetInstallPathFromRegistry(r.remoteHost)
+	r.require.NoError(err)
+	binPath := installPath + `\bin\agent.exe`
+	r.FileExists(binPath)
+
 	r.HasAService("datadogagent").WithStatus("Running")
 	return &RemoteWindowsBinaryAssertions{
 		RemoteWindowsHostAssertions: r,
-		binaryPath:                  defaultAgentBinPath,
+		binaryPath:                  binPath,
 	}
 }
 
@@ -215,8 +221,9 @@ func (r *RemoteWindowsHostAssertions) HasARunningDatadogInstallerService() *Remo
 func (r *RemoteWindowsHostAssertions) HasDatadogInstaller() *RemoteWindowsInstallerAssertions {
 	r.suite.T().Helper()
 
-	// TODO: custom install path
-	bin := r.HasBinary(consts.BinaryPath)
+	installPath, err := windowsagent.GetInstallPathFromRegistry(r.remoteHost)
+	r.require.NoError(err)
+	bin := r.HasBinary(installPath + `\bin\` + consts.BinaryName)
 	return &RemoteWindowsInstallerAssertions{
 		RemoteWindowsBinaryAssertions: bin,
 	}
