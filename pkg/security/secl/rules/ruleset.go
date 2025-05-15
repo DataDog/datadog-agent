@@ -12,6 +12,7 @@ import (
 	"net"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -83,8 +84,76 @@ func (rs *RuleSet) GetRules() map[eval.RuleID]*Rule {
 }
 
 // GetOnDemandHookPoints gets the on-demand hook points
-func (rs *RuleSet) GetOnDemandHookPoints() []OnDemandHookPoint {
-	return rs.OnDemandHookPoints
+func (rs *RuleSet) GetOnDemandHookPoints() ([]OnDemandHookPoint, error) {
+	onDemandBucket := rs.GetBucket(model.OnDemandEventType.String())
+
+	var hookPoints []OnDemandHookPoint
+
+	for _, rule := range onDemandBucket.rules {
+		hooks := rule.GetFieldValues("ondemand.name")
+		if len(hooks) != 1 {
+			return nil, fmt.Errorf("invalid number of hooks for rule %s: %d", rule.ID, len(hooks))
+		}
+		hook := hooks[0]
+		if hook.Type != eval.ScalarValueType {
+			return nil, fmt.Errorf("invalid hook type for rule %s: %s, expected scalar", rule.ID, hook.Type)
+		}
+		hookName, ok := hook.Value.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid hook value for rule %s: %s, expected string", rule.ID, hook.Value)
+		}
+		isSyscall := false
+
+		probeType, probeName, found := strings.Cut(hookName, ":")
+		if found {
+			if probeType == "syscall" {
+				isSyscall = true
+				hookName = probeName
+			} else {
+				return nil, fmt.Errorf("invalid hook type for rule %s: %s, expected syscall or nothing", rule.ID, probeType)
+			}
+		}
+
+		var args []HookPointArg
+		for _, field := range rule.GetFields() {
+			if !strings.HasPrefix(field, "ondemand.arg") {
+				continue
+			}
+
+			_, argPart, found := strings.Cut(field, ".")
+			if !found {
+				return nil, fmt.Errorf("invalid hook argument field %s", field)
+			}
+
+			argN, kind, found := strings.Cut(argPart, ".")
+			if !found {
+				return nil, fmt.Errorf("invalid hook argument field %s", field)
+			}
+
+			switch kind {
+			case "str":
+				kind = "null-terminated-string"
+			}
+
+			n, err := strconv.Atoi(strings.TrimPrefix(argN, "arg"))
+			if err != nil {
+				return nil, fmt.Errorf("invalid hook argument field %s: %w", field, err)
+			}
+
+			args = append(args, HookPointArg{
+				N:    n,
+				Kind: kind,
+			})
+		}
+
+		hookPoints = append(hookPoints, OnDemandHookPoint{
+			Name:      hookName,
+			IsSyscall: isSyscall,
+			Args:      args,
+		})
+	}
+
+	return hookPoints, nil
 }
 
 // ListMacroIDs returns the list of MacroIDs from the ruleset

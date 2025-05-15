@@ -101,7 +101,7 @@ func TestOnDemandChdir(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_chdir",
-			Expression: `ondemand.name == "chdir" && process.file.name == "testsuite"`,
+			Expression: `ondemand.name == "syscall:chdir" && ondemand.arg1.str != "" && process.file.name == "testsuite"`,
 		},
 	}
 
