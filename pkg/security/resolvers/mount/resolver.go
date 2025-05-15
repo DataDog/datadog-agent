@@ -191,7 +191,6 @@ func (mr *Resolver) syncCache(mountID uint32, pids []uint32) error {
 const openQueuePreAllocSize = 32 // should be enough to handle most of in queue mounts waiting to be deleted
 
 func (mr *Resolver) delete(mount *model.Mount) {
-	mr.mountLog.Add(fmt.Sprintf("delete: %+v", *mount))
 	now := time.Now()
 
 	mr.deleteOne(mount, now)
@@ -217,7 +216,6 @@ func (mr *Resolver) AddToMountLog(s string) {
 }
 
 func (mr *Resolver) deleteOne(curr *model.Mount, now time.Time) {
-	mr.mountLog.Add(fmt.Sprintf("deleteOne: %+v", *curr))
 	mr.mounts.Remove(curr.MountID)
 	mr.pidToMounts.RemoveKey2(curr.MountID)
 
@@ -306,7 +304,7 @@ func (mr *Resolver) insert(m *model.Mount, pid uint32) {
 			newPath = m.MountPointStr
 		}
 
-		conflict := fmt.Sprintf("Duplicate mount. id=%d. current=%+v - previous=%+v", m.MountID, *m, *prev)
+		conflict := fmt.Sprintf("dupe. pid=%d. id=%d. current=%+v - previous=%+v", pid, m.MountID, *m, *prev)
 		mr.mountLog.Add(conflict)
 
 		// put the prev entry and the all the children in the redemption list
