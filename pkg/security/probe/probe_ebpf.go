@@ -12,7 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"net"
 	"net/netip"
 	"os"
@@ -1328,7 +1327,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 			var dnsLayer = new(layers.DNS)
 			if err := dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
-				seclog.Errorf("failed to decode DNS response: %s", err)
+				seclog.Warnf("failed to decode DNS response: %s", err)
 				return
 			}
 			p.addToDNSResolver(dnsLayer)
@@ -2407,9 +2406,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		return nil, err
 	}
 
-	onDemandRate := rate.Limit(math.Inf(1))
+	onDemandRate := rate.Inf
+	onDemandBurst := 0 // if rate is infinite, burst is not used
 	if config.RuntimeSecurity.OnDemandRateLimiterEnabled {
 		onDemandRate = MaxOnDemandEventsPerSecond
+		onDemandBurst = MaxOnDemandEventsPerSecond
 	}
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
@@ -2427,7 +2428,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		ctx:                  ctx,
 		cancelFnc:            cancelFnc,
 		newTCNetDevices:      make(chan model.NetDevice, 16),
-		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, 1),
+		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, onDemandBurst),
 		playSnapShotState:    atomic.NewBool(false),
 	}
 
