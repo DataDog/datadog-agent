@@ -544,8 +544,8 @@ func (s *SNMPService) GetServiceID() string {
 }
 
 // GetADIdentifiers returns a set of AD identifiers
-func (s *SNMPService) GetADIdentifiers() ([]string, error) {
-	return []string{s.adIdentifier}, nil
+func (s *SNMPService) GetADIdentifiers() []string {
+	return []string{s.adIdentifier}
 }
 
 // GetHosts returns the device IP

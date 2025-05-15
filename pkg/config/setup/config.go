@@ -317,6 +317,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Otherwise, the old version of disk check will be used (maintaining backward compatibility).
 	config.BindEnvAndSetDefault("use_diskv2_check", false)
 
+	// If true, then new version of network v2 check will be used.
+	// Otherwise, the old version of network check will be used (maintaining backward compatibility).
+	config.BindEnvAndSetDefault("use_networkv2_check", false)
+
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
 	// compatibility with Agent5 behavior/win
@@ -1126,7 +1130,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("integration_profiling", false)
 	config.BindEnvAndSetDefault("integration_check_status_enabled", false)
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
-	config.BindEnvAndSetDefault("enable_cluster_agent_metadata_collection", false)
+	config.BindEnvAndSetDefault("enable_cluster_agent_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_gohai", true)
 	config.BindEnvAndSetDefault("enable_signing_metadata_collection", true)
 	config.BindEnvAndSetDefault("metadata_provider_stop_timeout", 30*time.Second)
@@ -1185,6 +1189,7 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	// Autoscaling product
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
+	config.BindEnvAndSetDefault("autoscaling.workload.limit", 100)
 	config.BindEnv("autoscaling.failover.metrics")
 }
 

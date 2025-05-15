@@ -59,8 +59,7 @@ func TestProcessEndpoints(t *testing.T) {
 
 	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.1", eps[0].GetServiceID())
 
-	adID, err := eps[0].GetADIdentifiers()
-	assert.NoError(t, err)
+	adID := eps[0].GetADIdentifiers()
 	assert.Equal(t, []string{"kube_endpoint_uid://default/myservice/10.0.0.1"}, adID)
 
 	hosts, err := eps[0].GetHosts()
@@ -77,7 +76,7 @@ func TestProcessEndpoints(t *testing.T) {
 
 	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.2", eps[1].GetServiceID())
 
-	adID, err = eps[1].GetADIdentifiers()
+	adID = eps[1].GetADIdentifiers()
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_endpoint_uid://default/myservice/10.0.0.2"}, adID)
 

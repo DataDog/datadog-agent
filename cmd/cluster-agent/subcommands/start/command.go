@@ -377,6 +377,9 @@ func start(log log.Component,
 		pkglog.Errorf("Failed to generate or retrieve the cluster ID, err: %v", err)
 	}
 	if clusterName == "" {
+		if config.GetBool("autoscaling.workload.enabled") {
+			return fmt.Errorf("Failed to start: autoscaling is enabled but no cluster name detected, exiting")
+		}
 		pkglog.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
 	}
 	pkglog.Infof("Cluster ID: %s, Cluster Name: %s", clusterID, clusterName)

@@ -6,6 +6,7 @@
 package fipscompliance
 
 import (
+	"bytes"
 	_ "embed"
 	"fmt"
 	"os"
@@ -17,6 +18,7 @@ import (
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/DataDog/test-infra-definitions/common/utils"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 
@@ -67,7 +69,7 @@ func (s *fipsServerWinSuite) SetupSuite() {
 	s.generateTestTraffic = s.generateTraffic
 
 	// Write docker-compose.yaml to disk
-	_, err := dockerHost.WriteFile(composeFilePath, dockerFipsServerCompose)
+	_, err := dockerHost.WriteFile(composeFilePath, bytes.ReplaceAll(dockerFipsServerCompose, []byte("{APPS_VERSION}"), []byte(apps.Version)))
 	require.NoError(s.T(), err)
 
 	// Enable FIPS mode for OS

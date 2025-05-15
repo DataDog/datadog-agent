@@ -111,23 +111,22 @@ if [ "$SIGN" = true ]; then
 
     # Send package for notarization; retrieve REQUEST_UUID
     echo "Sending notarization request."
-
-    # Apply timeout / retry
-    for attempt in $(seq 1 $NOTARIZATION_ATTEMPTS); do
-    RESULT=$(timeout "$NOTARIZATION_TIMEOUT" xcrun notarytool submit --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait) || EXIT_CODE=$?
-    echo "Results: $RESULT"
-    SUBMISSION_ID=$(echo "$RESULT" | awk '$1 == "id:"{print $2; exit}')
-    echo "Submission ID: $SUBMISSION_ID"
-    echo "Submission logs:"
-    xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID"
-    if [ -n "$EXIT_CODE" ]; then
-        echo "Notarization attempt #$attempt/$NOTARIZATION_ATTEMPTS failed, retrying in $NOTARIZATION_WAIT_TIME"
-        sleep "$NOTARIZATION_WAIT_TIME"
-    else
-        echo "Successfully notarized the package"
-        break
-    fi
-    done
+    export NOTARIZATION_TIMEOUT
+    export LATEST_DMG
+    # shellcheck disable=SC2016
+    ./tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" bash -c '
+        EXIT_CODE=0
+        RESULT=$(xcrun notarytool submit --timeout "$NOTARIZATION_TIMEOUT" --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait || EXIT_CODE=$?)
+        echo "Results: $RESULT"
+        SUBMISSION_ID="$(echo "$RESULT" | awk "\$1 == \"id:\"{print \$2; exit}")"
+        echo "Submission ID: $SUBMISSION_ID"
+        # Wait for logs to be available
+        sleep 1
+        echo "Submission logs:"
+        # Always show logs even if notarization fails to have more context
+        xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID"
+        exit "$EXIT_CODE"
+    '
     echo -e "\e[0Ksection_end:`date +%s`:notarization\r\e[0K"
 fi
 

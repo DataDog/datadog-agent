@@ -14,40 +14,25 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	emrInjectorVersion   = "0.35.0-1"
-	emrJavaTracerVersion = "1.48.0-1"
+	emrInjectorVersion   = "0.36.0-1"
+	emrJavaTracerVersion = "1.49.0-1"
 	emrAgentVersion      = "7.63.3-1"
 	hadoopLogFolder      = "/var/log/hadoop-yarn/containers/"
 )
 
 var (
-	emrInfoPath        = "/mnt/var/lib/info"
-	tracerEnvConfigEmr = []common.InjectTracerConfigEnvVar{
-		{
-			Key:   "DD_DATA_JOBS_ENABLED",
-			Value: "true",
-		},
-		{
-			Key:   "DD_INTEGRATIONS_ENABLED",
-			Value: "false",
-		},
-		{
-			Key:   "DD_DATA_JOBS_COMMAND_PATTERN",
-			Value: ".*org.apache.spark.deploy.*",
-		},
-		{
-			Key:   "DD_SPARK_APP_NAME_AS_SERVICE",
-			Value: "true",
-		},
-		{
-			Key:   "DD_INJECT_FORCE",
-			Value: "true",
-		},
+	emrInfoPath     = "/mnt/var/lib/info"
+	tracerConfigEmr = config.APMConfigurationDefault{
+		DataJobsEnabled:               config.BoolToPtr(true),
+		IntegrationsEnabled:           config.BoolToPtr(false),
+		DataJobsCommandPattern:        ".*org.apache.spark.deploy.*",
+		DataJobsSparkAppNameAsService: config.BoolToPtr(true),
 	}
 )
 
@@ -88,21 +73,15 @@ func SetupEmr(s *common.Setup) error {
 
 	if os.Getenv("DD_DATA_STREAMS_ENABLED") == "true" {
 		s.Out.WriteString("Propagating variable DD_DATA_STREAMS_ENABLED=true to tracer configuration\n")
-		DSMEnabled := common.InjectTracerConfigEnvVar{
-			Key:   "DD_DATA_STREAMS_ENABLED",
-			Value: "true",
-		}
-		tracerEnvConfigEmr = append(tracerEnvConfigEmr, DSMEnabled)
+		tracerConfigEmr.DataStreamsEnabled = config.BoolToPtr(true)
 	}
 	if os.Getenv("DD_TRACE_DEBUG") == "true" {
 		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
-		debugLogs := common.InjectTracerConfigEnvVar{
-			Key:   "DD_TRACE_DEBUG",
-			Value: "true",
-		}
-		tracerEnvConfigEmr = append(tracerEnvConfigEmr, debugLogs)
+		tracerConfigEmr.TraceDebug = config.BoolToPtr(false)
 	}
-	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigEmr
+	s.Config.ApplicationMonitoringYAML = &config.ApplicationMonitoringConfig{
+		Default: tracerConfigEmr,
+	}
 	// Ensure tags are always attached with the metrics
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
 	isMaster, clusterName, err := setupCommonEmrHostTags(s)
@@ -159,15 +138,15 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 }
 
 func setupResourceManager(s *common.Setup, clusterName string) {
-	var sparkIntegration common.IntegrationConfig
-	var yarnIntegration common.IntegrationConfig
+	var sparkIntegration config.IntegrationConfig
+	var yarnIntegration config.IntegrationConfig
 	hostname, err := os.Hostname()
 	if err != nil {
 		log.Infof("Failed to get hostname, defaulting to localhost: %v", err)
 		hostname = "localhost"
 	}
 	sparkIntegration.Instances = []any{
-		common.IntegrationConfigInstanceSpark{
+		config.IntegrationConfigInstanceSpark{
 			SparkURL:         "http://" + hostname + ":8088",
 			SparkClusterMode: "spark_yarn_mode",
 			ClusterName:      clusterName,
@@ -175,7 +154,7 @@ func setupResourceManager(s *common.Setup, clusterName string) {
 		},
 	}
 	yarnIntegration.Instances = []any{
-		common.IntegrationConfigInstanceYarn{
+		config.IntegrationConfigInstanceYarn{
 			ResourceManagerURI: "http://" + hostname + ":8088",
 			ClusterName:        clusterName,
 		},
@@ -215,13 +194,13 @@ func enableEmrLogs(s *common.Setup) {
 	s.DdAgentAdditionalGroups = append(s.DdAgentAdditionalGroups, "yarn")
 	// Load the existing integration config and add logs section to it
 	sparkIntegration := s.Config.IntegrationConfigs["spark.d/conf.yaml"]
-	emrLogs := []common.IntegrationConfigLogs{
+	emrLogs := []config.IntegrationConfigLogs{
 		{
 			Type:    "file",
 			Path:    hadoopLogFolder + "*/*/stdout",
 			Source:  "hadoop-yarn",
 			Service: "emr-logs",
-			LogProcessingRules: []common.LogProcessingRule{
+			LogProcessingRules: []config.LogProcessingRule{
 				{Type: "multi_line", Name: "logger_dataframe_show", Pattern: "(^\\+[-+]+\\n(\\|.*\\n)+\\+[-+]+$)|^(ERROR|INFO|DEBUG|WARN|CRITICAL|NOTSET|Traceback)"},
 			},
 		},

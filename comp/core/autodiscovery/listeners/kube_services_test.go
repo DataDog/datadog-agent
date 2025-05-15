@@ -49,8 +49,7 @@ func TestProcessService(t *testing.T) {
 	svc := processService(ksvc)
 	assert.Equal(t, "kube_service://default/myservice", svc.GetServiceID())
 
-	adID, err := svc.GetADIdentifiers()
-	assert.NoError(t, err)
+	adID := svc.GetADIdentifiers()
 	assert.Equal(t, []string{"kube_service://default/myservice"}, adID)
 
 	hosts, err := svc.GetHosts()

@@ -14,19 +14,19 @@ import (
 func initializeUSMEncoders(conns *network.Connections) []usmEncoder {
 	encoders := make([]usmEncoder, 0)
 
-	if encoder := newHTTPEncoder(conns.HTTP); encoder != nil {
+	if encoder := newHTTPEncoder(conns.USMData.HTTP); encoder != nil {
 		encoders = append(encoders, encoder)
 	}
-	if encoder := newHTTP2Encoder(conns.HTTP2); encoder != nil {
+	if encoder := newHTTP2Encoder(conns.USMData.HTTP2); encoder != nil {
 		encoders = append(encoders, encoder)
 	}
-	if encoder := newRedisEncoder(conns.Redis); encoder != nil {
+	if encoder := newRedisEncoder(conns.USMData.Redis); encoder != nil {
 		encoders = append(encoders, encoder)
 	}
-	if encoder := newKafkaEncoder(conns.Kafka); encoder != nil {
+	if encoder := newKafkaEncoder(conns.USMData.Kafka); encoder != nil {
 		encoders = append(encoders, encoder)
 	}
-	if encoder := newPostgresEncoder(conns.Postgres); encoder != nil {
+	if encoder := newPostgresEncoder(conns.USMData.Postgres); encoder != nil {
 		encoders = append(encoders, encoder)
 	}
 
