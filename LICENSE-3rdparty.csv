@@ -1996,6 +1996,7 @@ core,github.com/rs/zerolog/internal/json,MIT,Copyright (c) 2017 Olivier Poitrey
 core,github.com/rs/zerolog/log,MIT,Copyright (c) 2017 Olivier Poitrey
 core,github.com/rust-secure-code/go-rustaudit,MIT,Copyright (c) Microsoft Corporation
 core,github.com/ryanuber/go-glob,MIT,Copyright (c) 2014 Ryan Uber
+core,github.com/safchain/ethtool,Apache-2.0,Copyright (c) 2015 The Ethtool Authors
 core,github.com/samber/lo,MIT,Copyright (c) 2022-2025 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
 core,github.com/samber/lo/internal/constraints,MIT,Copyright (c) 2022-2025 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
 core,github.com/samber/lo/internal/rand,MIT,Copyright (c) 2022-2025 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)

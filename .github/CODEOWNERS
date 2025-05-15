@@ -252,10 +252,10 @@
 /dev/                                   @DataDog/agent-devx
 /devenv/                                @DataDog/agent-devx
 
-/Dockerfiles/                            @DataDog/container-integrations
-/Dockerfiles/agent/entrypoint.d.windows/ @DataDog/container-integrations @DataDog/windows-agent
-/Dockerfiles/agent/entrypoint.ps1        @DataDog/container-integrations @DataDog/windows-agent
-/Dockerfiles/agent/windows/              @DataDog/container-integrations @DataDog/windows-agent
+/Dockerfiles/                            @DataDog/agent-delivery
+/Dockerfiles/agent/entrypoint.d.windows/ @DataDog/agent-delivery @DataDog/windows-agent
+/Dockerfiles/agent/entrypoint.ps1        @DataDog/agent-delivery @DataDog/windows-agent
+/Dockerfiles/agent/windows/              @DataDog/agent-delivery @DataDog/windows-agent
 /Dockerfiles/agent-ddot                  @DataDog/opentelemetry-agent
 /Dockerfiles/agent/bouncycastle-fips     @DataDog/agent-metric-pipelines
 
@@ -557,6 +557,7 @@
 /pkg/proto/pbgo/core/remoteconfig.pb.go       @DataDog/remote-config
 /pkg/proto/pbgo/core/remoteconfig_gen.go      @DataDog/remote-config
 /pkg/proto/pbgo/core/remoteconfig_gen_test.go @DataDog/remote-config
+/pkg/proto/pbgo/core/workloadmeta.pb.go       @DataDog/container-platform
 /pkg/proto/pbgo/mocks/core              @DataDog/agent-runtimes
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/Networks
