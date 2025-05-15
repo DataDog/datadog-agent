@@ -347,7 +347,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceAnecdote,
 		metrics.MetricSourceSonatypeNexus,
 		metrics.MetricSourceSilverstripeCMS,
-		metrics.MetricSourceAltrairPBSPro,
+		metrics.MetricSourceAltairPBSPro,
 		metrics.MetricSourceFalco,
 		metrics.MetricSourceKrakenD,
 		metrics.MetricSourceKuma,
