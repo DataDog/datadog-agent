@@ -268,44 +268,6 @@ static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexibl
     CHECK_STRING_VALID_TOPIC_NAME(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, topic_name);
 }
 
-// Reads the first topic id (can be multiple) from the given offset,
-// verifies if it is a valid UUID version 4
-static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible, u32 offset) {
-    // The topic id is a UUID, which is 16 bytes long.
-    // It is in network byte order (big-endian)
-    u8 topic_id[16] = {};
-
-    // Skipping number of entries for now
-    if (flexible) {
-        if (!skip_varint_number_of_topics(pkt, &offset)) {
-            return false;
-        }
-    } else {
-        offset += sizeof(s32);
-    }
-
-    if (offset + sizeof(topic_id) > pktbuf_data_end(pkt)) {
-        return false;
-    }
-
-    pktbuf_load_bytes(pkt, offset, topic_id, sizeof(topic_id));
-    offset += sizeof(topic_id);
-
-    // The UUID version (13th digit)
-    if (topic_id[6] >> 4 != 0x4) {
-        // The UUID version is not 4
-        return false;
-    }
-
-    // The UUID variant (17th digit) may be 0x8, 0x9, 0xA or 0xB
-    if ((topic_id[8] >> 4) != 0x8 && (topic_id[8] >> 4) != 0x9 && (topic_id[8] >> 4) != 0xA && (topic_id[8] >> 4) != 0xB) {
-        // The UUID variant is not 2 or 6
-        return false;
-    }
-
-    return true;
-}
-
 // Flexible API version can have an arbitrary number of tagged fields.  We don't
 // need to handle these but we do need to skip them to get at the normal fields
 // which we are interested in.  However, we would need to parse the list of fields
@@ -405,7 +367,6 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
     // name in the request, and then validate the topic. We have to have shared call for validate_first_topic_name
     // as the function is huge, rather than call validate_first_topic_name for each api_key.
     bool flexible = false;
-    bool topic_id_instead_of_name = false;
     switch (kafka_header->api_key) {
     case KAFKA_PRODUCE:
         if (!get_topic_offset_from_produce_request(kafka_header, pkt, &offset, NULL)) {
@@ -418,16 +379,10 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
             return false;
         }
         flexible = kafka_header->api_version >= 12;
-        topic_id_instead_of_name = kafka_header->api_version >= 13;
         break;
     default:
         return false;
     }
-
-    if (topic_id_instead_of_name) {
-        return validate_first_topic_id(pkt, flexible, offset);
-    }
-
     return validate_first_topic_name(pkt, flexible, offset);
 }
 
