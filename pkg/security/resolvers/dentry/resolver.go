@@ -14,10 +14,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/debugging"
 	"math/rand"
 	"os"
 	"strings"
-	"sync"
 	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -36,29 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/cache"
 )
-
-type AtomicString struct {
-	mu sync.Mutex
-	s  string
-}
-
-func (a *AtomicString) Add(str string) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.s += str
-}
-
-func (a *AtomicString) Get() string {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.s
-}
-
-func (a *AtomicString) Clear() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.s = ""
-}
 
 type counterEntry struct {
 	resolutionType string
@@ -95,7 +72,7 @@ type Resolver struct {
 	hitsCounters map[counterEntry]*atomic.Int64
 	missCounters map[counterEntry]*atomic.Int64
 
-	debugLog AtomicString
+	debugLog *debugging.AtomicString
 }
 
 // ErrEntryNotFound is thrown when a path key was not found in the cache
@@ -841,7 +818,7 @@ func (dr *Resolver) ToJSON() ([]byte, error) {
 		}
 	})
 
-	dump.Trace = dr.debugLog.Get()
+	dump.Trace = ""
 	return json.Marshal(dump)
 }
 
@@ -856,7 +833,7 @@ func (dr *Resolver) Close() error {
 }
 
 // NewResolver returns a new dentry resolver
-func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *erpc.ERPC) (*Resolver, error) {
+func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *erpc.ERPC, debugLog *debugging.AtomicString) (*Resolver, error) {
 	hitsCounters := make(map[counterEntry]*atomic.Int64)
 	missCounters := make(map[counterEntry]*atomic.Int64)
 	for _, resolution := range metrics.AllResolutionsTags {
@@ -895,5 +872,6 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *
 		missCounters:  missCounters,
 		numCPU:        numCPU,
 		challenge:     rand.Uint32(),
+		debugLog:      debugLog,
 	}, nil
 }

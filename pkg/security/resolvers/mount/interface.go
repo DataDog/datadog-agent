@@ -27,4 +27,5 @@ type ResolverInterface interface {
 	SendStats() error
 	ToJSON() ([]byte, error)
 	ResetDebugLog()
+	AddToMountLog(s string)
 }

@@ -74,3 +74,6 @@ func (mr *NoOpResolver) ToJSON() ([]byte, error) {
 
 func (mr *NoOpResolver) ResetDebugLog() {
 }
+
+func (mr *NoOpResolver) AddToMountLog(s string) {
+}

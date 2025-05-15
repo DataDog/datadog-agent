@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cmodel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/debugging"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -33,29 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
-
-type AtomicString struct {
-	mu sync.Mutex
-	s  string
-}
-
-func (a *AtomicString) Add(str string) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.s += str
-}
-
-func (a *AtomicString) Get() string {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.s
-}
-
-func (a *AtomicString) Clear() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.s = ""
-}
 
 const (
 	numAllowedMountIDsToResolvePerPeriod = 5
@@ -121,8 +99,8 @@ type Resolver struct {
 	minMountID      uint32 // used to find the first userspace visible mount ID
 	redemption      *simplelru.LRU[uint32, *redemptionEntry]
 	fallbackLimiter *utils.Limiter[uint64]
-	debugLog        AtomicString
-	conflictLog     AtomicString
+	debugLog        *debugging.AtomicString
+	mountLog        *debugging.RollingLog
 
 	// stats
 	cacheHitsStats *atomic.Int64
@@ -213,6 +191,7 @@ func (mr *Resolver) syncCache(mountID uint32, pids []uint32) error {
 const openQueuePreAllocSize = 32 // should be enough to handle most of in queue mounts waiting to be deleted
 
 func (mr *Resolver) delete(mount *model.Mount) {
+	mr.mountLog.Add(fmt.Sprintf("delete: %+v", *mount))
 	now := time.Now()
 
 	mr.deleteOne(mount, now)
@@ -233,7 +212,12 @@ func (mr *Resolver) delete(mount *model.Mount) {
 	}
 }
 
+func (mr *Resolver) AddToMountLog(s string) {
+	mr.mountLog.Add(s)
+}
+
 func (mr *Resolver) deleteOne(curr *model.Mount, now time.Time) {
+	mr.mountLog.Add(fmt.Sprintf("deleteOne: %+v", *curr))
 	mr.mounts.Remove(curr.MountID)
 	mr.pidToMounts.RemoveKey2(curr.MountID)
 
@@ -322,14 +306,8 @@ func (mr *Resolver) insert(m *model.Mount, pid uint32) {
 			newPath = m.MountPointStr
 		}
 
-		conflict := fmt.Sprintf("DUPLICATE MOUNTID DETECTED: ID=%d\n", m.MountID)
-		conflict += fmt.Sprintf("  Previous mount: Path=%s, MountPoint=%s, Origin=%d\n",
-			prevPath, prev.MountPointStr, prev.Origin)
-		conflict += fmt.Sprintf("  New mount: Path=%s, MountPoint=%s, Origin=%d\n",
-			newPath, m.MountPointStr, m.Origin)
-
-		fmt.Print(conflict)
-		mr.conflictLog.Add(conflict)
+		conflict := fmt.Sprintf("Duplicate mount. id=%d. current=%+v - previous=%+v", m.MountID, *m, *prev)
+		mr.mountLog.Add(conflict)
 
 		// put the prev entry and the all the children in the redemption list
 		mr.delete(prev)
@@ -368,9 +346,11 @@ func (mr *Resolver) getFromRedemption(mountID uint32) *model.Mount {
 	return entry.mount
 }
 
+// func (mr *Resolver) lookupByMountID(mountID uint32, pid uint32) *model.Mount {
 func (mr *Resolver) lookupByMountID(mountID uint32) *model.Mount {
 	mr.debugLog.Add(fmt.Sprintf("lookupByMountID() [In] mountID = %d\n", mountID))
 
+	//if mount, ok := mr.pidToMounts.Get(mountID, pid); mount != nil && ok {
 	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
 		mr.debugLog.Add(fmt.Sprintf("lookupByMountID() [Out] mountID = %d found in mounts cache\n", mountID))
 		return mount
@@ -411,6 +391,7 @@ func (mr *Resolver) lookupByDevice(device uint32, pid uint32) *model.Mount {
 func (mr *Resolver) lookupMount(mountID uint32, device uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin) {
 	mr.debugLog.Add(fmt.Sprintf("lookupMount() [In] mountID = %d, device = %d, pid = %d\n", mountID, device, pid))
 
+	//mount := mr.lookupByMountID(mountID, pid)
 	mount := mr.lookupByMountID(mountID)
 	if mount != nil {
 		mr.debugLog.Add(fmt.Sprintf("lookupMount() [Out] found by mountID = %d\n", mountID))
@@ -634,11 +615,18 @@ func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, cont
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
+	//if mount, ok := mr.pidToMounts.Get(pid, mountID); mount != nil && ok {
+	//	mr.procHitsStats.Inc()
+	//	mr.debugLog.Add(fmt.Sprintf("resolveMount() with pid [Out] procfs hit, mountID = %d. \n", mountID))
+	//	return mount, model.MountSourceMountID, mount.Origin, nil
+	//}
+
 	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
 		mr.procHitsStats.Inc()
-		mr.debugLog.Add(fmt.Sprintf("resolveMount() [Out] procfs hit, mountID = %d\n", mountID))
+		mr.debugLog.Add(fmt.Sprintf("resolveMount() Global [Out] procfs hit, mountID = %d. \n", mountID))
 		return mount, model.MountSourceMountID, mount.Origin, nil
 	}
+
 	mr.procMissStats.Inc()
 	mr.debugLog.Add(fmt.Sprintf("resolveMount() [Out] procfs miss\n"))
 
@@ -732,7 +720,7 @@ func (mr *Resolver) ToJSON() ([]byte, error) {
 	}
 
 	dump.Trace = mr.debugLog.Get()
-	dump.Conflicts = mr.conflictLog.Get()
+	dump.Conflicts = mr.mountLog.Get()
 	return json.Marshal(dump)
 }
 
@@ -745,7 +733,7 @@ const (
 )
 
 // NewResolver instantiates a new mount resolver
-func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Resolver, opts ResolverOpts) (*Resolver, error) {
+func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Resolver, opts ResolverOpts, debugLog *debugging.AtomicString) (*Resolver, error) {
 	mounts, err := simplelru.NewLRU[uint32, *model.Mount](mountsLimit, nil)
 	if err != nil {
 		return nil, err
@@ -767,6 +755,8 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		procHitsStats:   atomic.NewInt64(0),
 		cacheMissStats:  atomic.NewInt64(0),
 		procMissStats:   atomic.NewInt64(0),
+		debugLog:        debugLog,
+		mountLog:        debugging.NewRollingLog(1024 * 1024 * 10),
 	}
 
 	redemption, err := simplelru.NewLRU(1024, func(_ uint32, entry *redemptionEntry) {
