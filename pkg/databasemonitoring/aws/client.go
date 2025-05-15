@@ -38,7 +38,7 @@ type Client struct {
 }
 
 // NewRDSClient creates a new AWS client for querying RDS
-func NewClient(region string) (*Client, string, error) {
+func NewRDSClient(region string) (*Client, string, error) {
 	if region == "" {
 		identity, err := ec2.GetInstanceIdentity(context.Background())
 		if err != nil {
