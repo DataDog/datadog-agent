@@ -65,8 +65,6 @@ type RuleSet struct {
 
 	// event collector, used for tests
 	eventCollector EventCollector
-
-	OnDemandHookPoints []OnDemandHookPoint
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -965,8 +963,6 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 				allRules = append(allRules, rule)
 			}
 		}
-
-		rs.OnDemandHookPoints = append(rs.OnDemandHookPoints, policy.onDemandHookPoints...)
 	}
 
 	if err := rs.AddMacros(parsingContext, allMacros); err.ErrorOrNil() != nil {

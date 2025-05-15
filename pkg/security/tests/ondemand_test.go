@@ -24,22 +24,6 @@ import (
 func TestOnDemandOpen(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	onDemands := []rules.OnDemandHookPoint{
-		{
-			Name: "do_sys_openat2",
-			Args: []rules.HookPointArg{
-				{
-					N:    1,
-					Kind: "uint",
-				},
-				{
-					N:    2,
-					Kind: "null-terminated-string",
-				},
-			},
-		},
-	}
-
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_open",
@@ -47,7 +31,7 @@ func TestOnDemandOpen(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModuleWithOnDemandProbes(t, onDemands, nil, ruleDefs, withStaticOpts(testOpts{disableOnDemandRateLimiter: true}))
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{disableOnDemandRateLimiter: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,19 +69,6 @@ func TestOnDemandOpen(t *testing.T) {
 func TestOnDemandChdir(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	onDemands := []rules.OnDemandHookPoint{
-		{
-			Name:      "chdir",
-			IsSyscall: true,
-			Args: []rules.HookPointArg{
-				{
-					N:    1,
-					Kind: "null-terminated-string",
-				},
-			},
-		},
-	}
-
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_chdir",
@@ -105,7 +76,7 @@ func TestOnDemandChdir(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModuleWithOnDemandProbes(t, onDemands, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,22 +105,6 @@ func TestOnDemandChdir(t *testing.T) {
 func TestOnDemandMprotect(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	onDemands := []rules.OnDemandHookPoint{
-		{
-			Name: "security_file_mprotect",
-			Args: []rules.HookPointArg{
-				{
-					N:    2,
-					Kind: "uint",
-				},
-				{
-					N:    3,
-					Kind: "uint",
-				},
-			},
-		},
-	}
-
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_mprotect",
@@ -157,7 +112,7 @@ func TestOnDemandMprotect(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModuleWithOnDemandProbes(t, onDemands, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
