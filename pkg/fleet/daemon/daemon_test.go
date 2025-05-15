@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -143,16 +144,20 @@ func (m *testPackageManager) Close() error {
 	return args.Error(0)
 }
 
+type listener struct {
+	fn func(map[string]state.RawConfig, func(string, state.ApplyStatus))
+}
+
 type testRemoteConfigClient struct {
 	sync.Mutex
 	t         *testing.T
-	listeners map[string][]func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))
+	listeners map[string][]*listener
 }
 
 func newTestRemoteConfigClient(t *testing.T) *testRemoteConfigClient {
 	return &testRemoteConfigClient{
 		t:         t,
-		listeners: make(map[string][]func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))),
+		listeners: make(map[string][]*listener),
 	}
 }
 
@@ -162,10 +167,18 @@ func (c *testRemoteConfigClient) Start() {
 func (c *testRemoteConfigClient) Close() {
 }
 
-func (c *testRemoteConfigClient) Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
+func (c *testRemoteConfigClient) Subscribe(product string, fn func(map[string]state.RawConfig, func(string, state.ApplyStatus))) func() {
 	c.Lock()
 	defer c.Unlock()
-	c.listeners[product] = append(c.listeners[product], fn)
+	l := &listener{fn: fn}
+	c.listeners[product] = append(c.listeners[product], l)
+	return func() {
+		c.Lock()
+		defer c.Unlock()
+		c.listeners[product] = slices.DeleteFunc(c.listeners[product], func(item *listener) bool {
+			return item == l
+		})
+	}
 }
 
 func (c *testRemoteConfigClient) SetInstallerState(_ *pbgo.ClientUpdater) {
@@ -183,7 +196,7 @@ func (c *testRemoteConfigClient) SubmitCatalog(catalog catalog) {
 		panic(err)
 	}
 	for _, l := range c.listeners[state.ProductUpdaterCatalogDD] {
-		l(map[string]state.RawConfig{
+		l.fn(map[string]state.RawConfig{
 			"catalog": {
 				Config: rawCatalog,
 			},
@@ -209,7 +222,7 @@ func (c *testRemoteConfigClient) SubmitRequest(request remoteAPIRequest) {
 		panic(err)
 	}
 	for _, l := range c.listeners[state.ProductUpdaterTask] {
-		l(map[string]state.RawConfig{
+		l.fn(map[string]state.RawConfig{
 			"request": {
 				Config: rawTask,
 			},
