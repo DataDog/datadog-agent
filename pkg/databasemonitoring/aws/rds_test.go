@@ -1,0 +1,349 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
+//go:build ec2
+
+package aws
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/rds/types"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestGetRdsInstancesFromTags(t *testing.T) {
+	testCases := []struct {
+		name               string
+		configureClient    mockrdsServiceConfigurer
+		tags               []string
+		expectedClusterIDs []string
+		expectedErr        error
+	}{
+		{
+			name:            "no filter tags supplied",
+			configureClient: func(_ *MockrdsService) {},
+			tags:            []string{},
+			expectedErr:     errors.New("at least one tag filter is required"),
+		},
+		{
+			name: "single tag filter returns error from API",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(nil, errors.New("big time error")).Times(1)
+			},
+			tags:        []string{"test:tag"},
+			expectedErr: errors.New("error running GetAuroraClustersFromTags: big time error"),
+		},
+		{
+			name: "single tag filter returns no results from API",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(&rds.DescribeDBClustersOutput{}, nil).Times(1)
+			},
+			tags:               []string{"test:tag"},
+			expectedClusterIDs: []string{},
+		},
+		{
+			name: "single tag filter returns single result from API with matching tag",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(&rds.DescribeDBClustersOutput{
+					DBClusters: []types.DBCluster{
+						{
+							DBClusterIdentifier: aws.String("test-cluster"),
+							TagList: []types.Tag{
+								{
+									Key:   aws.String("test"),
+									Value: aws.String("tag"),
+								},
+							},
+						},
+					},
+				}, nil).Times(1)
+			},
+			tags:               []string{"test:tag"},
+			expectedClusterIDs: []string{"test-cluster"},
+		},
+		{
+			name: "single tag filter returns single result from API with non-matching tag",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(&rds.DescribeDBClustersOutput{
+					DBClusters: []types.DBCluster{
+						{
+							DBClusterIdentifier: aws.String("test-cluster"),
+							TagList: []types.Tag{
+								{
+									Key:   aws.String("test"),
+									Value: aws.String("tag"),
+								},
+							},
+						},
+					},
+				}, nil).Times(1)
+			},
+			tags:               []string{"test:tag2"},
+			expectedClusterIDs: []string{},
+		},
+		{
+			name: "single tag filter returns multiple results from API with matching tag",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(&rds.DescribeDBClustersOutput{
+					DBClusters: []types.DBCluster{
+						{
+							DBClusterIdentifier: aws.String("test-cluster"),
+							TagList: []types.Tag{
+								{
+									Key:   aws.String("test"),
+									Value: aws.String("tag"),
+								},
+							},
+						},
+						{
+							DBClusterIdentifier: aws.String("test-cluster-2"),
+							TagList: []types.Tag{
+								{
+									Key:   aws.String("test"),
+									Value: aws.String("tag"),
+								},
+							},
+						},
+					},
+				}, nil).Times(1)
+			},
+			tags:               []string{"test:tag"},
+			expectedClusterIDs: []string{"test-cluster", "test-cluster-2"},
+		},
+		{
+			name: "single tag filter returns multiple results from API, one cluster doesn't match tag",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(&rds.DescribeDBClustersOutput{
+					DBClusters: []types.DBCluster{
+						{
+							DBClusterIdentifier: aws.String("test-cluster"),
+							TagList: []types.Tag{
+								{
+									Key:   aws.String("test"),
+									Value: aws.String("tag"),
+								},
+							},
+						},
+						{
+							DBClusterIdentifier: aws.String("test-cluster-2"),
+							TagList: []types.Tag{
+								{
+									Key:   aws.String("test"),
+									Value: aws.String("tag2"),
+								},
+							},
+						},
+					},
+				}, nil).Times(1)
+			},
+			tags:               []string{"test:tag"},
+			expectedClusterIDs: []string{"test-cluster"},
+		},
+		{
+			name: "single tag filter returns multiple results from API, one cluster has no tags",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(&rds.DescribeDBClustersOutput{
+					DBClusters: []types.DBCluster{
+						{
+							DBClusterIdentifier: aws.String("test-cluster"),
+							TagList:             nil,
+						},
+						{
+							DBClusterIdentifier: aws.String("test-cluster-2"),
+							TagList: []types.Tag{
+								{
+									Key:   aws.String("test"),
+									Value: aws.String("tag"),
+								},
+							},
+						},
+					},
+				}, nil).Times(1)
+			},
+			tags:               []string{"test:tag"},
+			expectedClusterIDs: []string{"test-cluster-2"},
+		},
+		{
+			name: "multiple tag filter returns multiple results from API all matching",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(&rds.DescribeDBClustersOutput{
+					DBClusters: []types.DBCluster{
+						{
+							DBClusterIdentifier: aws.String("test-cluster"),
+							TagList: []types.Tag{
+								{
+									Key:   aws.String("test"),
+									Value: aws.String("tag"),
+								},
+								{
+									Key:   aws.String("test2"),
+									Value: aws.String("tag2"),
+								},
+							},
+						},
+						{
+							DBClusterIdentifier: aws.String("test-cluster-2"),
+							TagList: []types.Tag{
+								{
+									Key:   aws.String("test"),
+									Value: aws.String("tag"),
+								},
+								{
+									Key:   aws.String("test2"),
+									Value: aws.String("tag2"),
+								},
+								{
+									Key:   aws.String("foo"),
+									Value: aws.String("bar"),
+								},
+							},
+						},
+					},
+				}, nil).Times(1)
+			},
+			tags:               []string{"test:tag", "test2:tag2"},
+			expectedClusterIDs: []string{"test-cluster", "test-cluster-2"},
+		},
+		{
+			name: "multiple pages returns ids from all pages",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(&rds.DescribeDBClustersOutput{
+					Marker: aws.String("next"),
+					DBClusters: []types.DBCluster{
+						{
+							DBClusterIdentifier: aws.String("test-cluster"),
+							TagList: []types.Tag{
+								{
+									Key:   aws.String("test"),
+									Value: aws.String("tag"),
+								},
+								{
+									Key:   aws.String("test2"),
+									Value: aws.String("tag2"),
+								},
+							},
+						},
+					},
+				}, nil).Times(1)
+				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+					Marker: aws.String("next"),
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(&rds.DescribeDBClustersOutput{
+					DBClusters: []types.DBCluster{
+						{
+							DBClusterIdentifier: aws.String("test-cluster-2"),
+							TagList: []types.Tag{
+								{
+									Key:   aws.String("test"),
+									Value: aws.String("tag"),
+								},
+								{
+									Key:   aws.String("test2"),
+									Value: aws.String("tag2"),
+								},
+								{
+									Key:   aws.String("foo"),
+									Value: aws.String("bar"),
+								},
+							},
+						},
+					},
+				}, nil).Times(1)
+			},
+			tags:               []string{"test:tag", "test2:tag2"},
+			expectedClusterIDs: []string{"test-cluster", "test-cluster-2"},
+		},
+	}
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			mockClient := NewMockrdsService(ctrl)
+			tt.configureClient(mockClient)
+			client := &Client{client: mockClient}
+			clusters, err := client.GetAuroraClustersFromTags(context.Background(), tt.tags)
+			if tt.expectedErr != nil {
+				assert.EqualError(t, err, tt.expectedErr.Error())
+				return
+			}
+			assert.NoError(t, err)
+			assert.ElementsMatch(t, tt.expectedClusterIDs, clusters)
+		})
+	}
+}

@@ -5,7 +5,7 @@
 
 //go:build ec2
 
-package aurora
+package aws
 
 import (
 	"context"
@@ -18,10 +18,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
-
-type mockrdsServiceConfigurer func(k *MockrdsService)
-
-const defaultDbmTag = "datadoghq.com/dbm:true"
 
 func TestGetAuroraClusterEndpoints(t *testing.T) {
 	testCases := []struct {
@@ -930,16 +926,5 @@ func TestGetAuroraClustersFromTags(t *testing.T) {
 			assert.NoError(t, err)
 			assert.ElementsMatch(t, tt.expectedClusterIDs, clusters)
 		})
-	}
-}
-
-func createDescribeDBInstancesRequest(clusterIDs []string) *rds.DescribeDBInstancesInput {
-	return &rds.DescribeDBInstancesInput{
-		Filters: []types.Filter{
-			{
-				Name:   aws.String("db-cluster-id"),
-				Values: clusterIDs,
-			},
-		},
 	}
 }

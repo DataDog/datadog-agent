@@ -5,8 +5,8 @@
 
 //go:build ec2
 
-// Package aurora contains database-monitoring specific aurora discovery logic
-package aurora
+// Package aws contains database-monitoring specific aurora discovery logic
+package aws
 
 import (
 	"context"
@@ -24,16 +24,6 @@ import (
 // AuroraCluster represents an Aurora cluster
 type AuroraCluster struct {
 	Instances []*Instance
-}
-
-// Instance represents an Aurora instance
-type Instance struct {
-	Endpoint   string
-	Port       int32
-	IamEnabled bool
-	Engine     string
-	DbName     string
-	DbmEnabled bool
 }
 
 const (

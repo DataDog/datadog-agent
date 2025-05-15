@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aurora"
+	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,7 +37,7 @@ type DBMAuroraListener struct {
 	stop         chan bool
 	services     map[string]Service
 	config       aurora.AuroraConfig
-	awsRdsClient aurora.RDSClient
+	awsRdsClient aws.RDSClient
 	// ticks is used primarily for testing purposes so
 	// the frequency the discovers loop iterates can be controlled
 	ticks  <-chan time.Time
@@ -62,7 +63,7 @@ type DBMAuroraService struct {
 	checkName    string
 	clusterID    string
 	region       string
-	instance     *aurora.Instance
+	instance     *aws.Instance
 }
 
 // NewDBMAuroraListener returns a new DBMAuroraListener
@@ -71,7 +72,7 @@ func NewDBMAuroraListener(ServiceListernerDeps) (ServiceListener, error) {
 	if err != nil {
 		return nil, err
 	}
-	client, region, err := aurora.NewRDSClient(config.Region)
+	client, region, err := aws.NewRDSClient(config.Region)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +80,7 @@ func NewDBMAuroraListener(ServiceListernerDeps) (ServiceListener, error) {
 	return newDBMAuroraListener(config, client, nil), nil
 }
 
-func newDBMAuroraListener(config aurora.AuroraConfig, awsClient aurora.RDSClient, ticks <-chan time.Time) ServiceListener {
+func newDBMAuroraListener(config aurora.AuroraConfig, awsClient aws.RDSClient, ticks <-chan time.Time) ServiceListener {
 	l := &DBMAuroraListener{
 		config:       config,
 		services:     make(map[string]Service),
@@ -155,7 +156,7 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 	l.deleteServices(deletedServices)
 }
 
-func (l *DBMAuroraListener) createService(entityID, clusterID string, instance *aurora.Instance) {
+func (l *DBMAuroraListener) createService(entityID, clusterID string, instance *aws.Instance) {
 	if _, present := l.services[entityID]; present {
 		return
 	}
