@@ -80,7 +80,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 								Address: aws.String("test-endpoint"),
 								Port:    aws.Int32(5432),
 							},
-							DBClusterIdentifier:              aws.String("test-cluster"),
+							DBInstanceIdentifier:             aws.String("test-instance"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
@@ -92,6 +92,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			},
 			tags: []string{"test:tag"},
 			expectedInstances: []Instance{{
+				Id:         "test-instance",
 				Endpoint:   "test-endpoint",
 				Port:       5432,
 				IamEnabled: true,
@@ -117,7 +118,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 								Address: aws.String("test-endpoint"),
 								Port:    aws.Int32(5432),
 							},
-							DBClusterIdentifier:              aws.String("test-cluster"),
+							DBInstanceIdentifier:             aws.String("test-instance"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
@@ -147,7 +148,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 								Address: aws.String("test-endpoint"),
 								Port:    aws.Int32(5432),
 							},
-							DBClusterIdentifier:              aws.String("test-cluster"),
+							DBInstanceIdentifier:             aws.String("test-instance"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
@@ -159,7 +160,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 								Address: aws.String("test-endpoint-2"),
 								Port:    aws.Int32(5432),
 							},
-							DBClusterIdentifier:              aws.String("test-cluster"),
+							DBInstanceIdentifier:             aws.String("test-instance-2"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
@@ -172,6 +173,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			tags: []string{"test:tag"},
 			expectedInstances: []Instance{
 				{
+					Id:         "test-instance",
 					Endpoint:   "test-endpoint",
 					Port:       5432,
 					IamEnabled: true,
@@ -179,6 +181,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					DbmEnabled: false,
 					DbName:     "postgres",
 				}, {
+					Id:         "test-instance-2",
 					Endpoint:   "test-endpoint-2",
 					Port:       5432,
 					IamEnabled: true,
@@ -205,7 +208,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 								Address: aws.String("test-endpoint"),
 								Port:    aws.Int32(5432),
 							},
-							DBClusterIdentifier:              aws.String("test-cluster"),
+							DBInstanceIdentifier:             aws.String("test-instance"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
@@ -217,7 +220,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 								Address: aws.String("test-endpoint-2"),
 								Port:    aws.Int32(5432),
 							},
-							DBClusterIdentifier:              aws.String("test-cluster"),
+							DBInstanceIdentifier:             aws.String("test-instance"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
@@ -230,6 +233,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			tags: []string{"test:tag"},
 			expectedInstances: []Instance{
 				{
+					Id:         "test-instance",
 					Endpoint:   "test-endpoint",
 					Port:       5432,
 					IamEnabled: true,
@@ -255,7 +259,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 								Address: aws.String("test-endpoint"),
 								Port:    aws.Int32(5432),
 							},
-							DBClusterIdentifier:              aws.String("test-cluster"),
+							DBInstanceIdentifier:             aws.String("test-instance"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
@@ -267,7 +271,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 								Address: aws.String("test-endpoint-2"),
 								Port:    aws.Int32(5432),
 							},
-							DBClusterIdentifier:              aws.String("test-cluster"),
+							DBInstanceIdentifier:             aws.String("test-instance"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
@@ -280,6 +284,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			tags: []string{"test:tag"},
 			expectedInstances: []Instance{
 				{
+					Id:         "test-instance",
 					Endpoint:   "test-endpoint",
 					Port:       5432,
 					IamEnabled: true,
@@ -305,7 +310,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 								Address: aws.String("test-endpoint"),
 								Port:    aws.Int32(5432),
 							},
-							DBClusterIdentifier:              aws.String("test-cluster"),
+							DBInstanceIdentifier:             aws.String("test-instance"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
@@ -321,7 +326,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 								Address: aws.String("test-endpoint-2"),
 								Port:    aws.Int32(5432),
 							},
-							DBClusterIdentifier:              aws.String("test-cluster"),
+							DBInstanceIdentifier:             aws.String("test-instance-2"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
@@ -330,6 +335,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 								{Key: aws.String("test"), Value: aws.String("tag")},
 								{Key: aws.String("test"), Value: aws.String("tag2")},
 								{Key: aws.String("test"), Value: aws.String("tag4")},
+								{Key: aws.String("datadoghq.com/dbm"), Value: aws.String("true")},
 							},
 						},
 					},
@@ -338,6 +344,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			tags: []string{"test:tag", "test:tag2"},
 			expectedInstances: []Instance{
 				{
+					Id:         "test-instance",
 					Endpoint:   "test-endpoint",
 					Port:       5432,
 					IamEnabled: true,
@@ -345,11 +352,12 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					DbmEnabled: false,
 					DbName:     "postgres",
 				}, {
+					Id:         "test-instance-2",
 					Endpoint:   "test-endpoint-2",
 					Port:       5432,
 					IamEnabled: true,
 					Engine:     "postgresql",
-					DbmEnabled: false,
+					DbmEnabled: true,
 					DbName:     "postgres",
 				},
 			},
@@ -372,7 +380,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 								Address: aws.String("test-endpoint"),
 								Port:    aws.Int32(5432),
 							},
-							DBClusterIdentifier:              aws.String("test-cluster"),
+							DBInstanceIdentifier:             aws.String("test-instance"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
@@ -396,7 +404,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 								Address: aws.String("test-endpoint-2"),
 								Port:    aws.Int32(5432),
 							},
-							DBClusterIdentifier:              aws.String("test-cluster"),
+							DBInstanceIdentifier:             aws.String("test-instance-2"),
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
@@ -409,6 +417,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			tags: []string{"test:tag"},
 			expectedInstances: []Instance{
 				{
+					Id:         "test-instance",
 					Endpoint:   "test-endpoint",
 					Port:       5432,
 					IamEnabled: true,
@@ -416,6 +425,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					DbmEnabled: false,
 					DbName:     "postgres",
 				}, {
+					Id:         "test-instance-2",
 					Endpoint:   "test-endpoint-2",
 					Port:       5432,
 					IamEnabled: true,
@@ -433,7 +443,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			mockClient := NewMockrdsService(ctrl)
 			tt.configureClient(mockClient)
 			client := &Client{client: mockClient}
-			clusters, err := client.GetRdsInstancesFromTags(context.Background(), tt.tags)
+			clusters, err := client.GetRdsInstancesFromTags(context.Background(), tt.tags, defaultDbmTag)
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 				return

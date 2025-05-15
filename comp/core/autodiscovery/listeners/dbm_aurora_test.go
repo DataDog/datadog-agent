@@ -10,7 +10,6 @@ package listeners
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -22,17 +21,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type mockRDSClientConfigurer func(k *aws.MockRDSClient)
-
-const defaultClusterTag = "datadoghq.com/scrape:true"
-const defaultDbmTag = "datadoghq.com/dbm:true"
-
 func TestDBMAuroraListener(t *testing.T) {
 	testCases := []struct {
 		name                  string
 		config                aurora.Config
 		numDiscoveryIntervals int
-		rdsClientConfigurer   mockRDSClientConfigurer
+		rdsClientConfigurer   mockRdsClientConfigurer
 		expectedServices      []*DBMAuroraService
 		expectedDelServices   []*DBMAuroraService
 	}{
@@ -42,12 +36,12 @@ func TestDBMAuroraListener(t *testing.T) {
 				DiscoveryInterval: 1,
 				QueryTimeout:      1,
 				Region:            "us-east-1",
-				Tags:              []string{defaultClusterTag},
+				Tags:              []string{defaultADTag},
 				DbmTag:            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 0,
-			rdsClientConfigurer: func(k *aws.MockRDSClient) {
-				k.EXPECT().GetAuroraClustersFromTags(contextWithTimeout(1*time.Second), []string{defaultClusterTag}).DoAndReturn(
+			rdsClientConfigurer: func(k *aws.MockRdsClient) {
+				k.EXPECT().GetAuroraClustersFromTags(contextWithTimeout(1*time.Second), []string{defaultADTag}).DoAndReturn(
 					func(ctx context.Context, _ []string) ([]string, error) {
 						<-ctx.Done()
 						return nil, ctx.Err()
@@ -62,13 +56,13 @@ func TestDBMAuroraListener(t *testing.T) {
 				DiscoveryInterval: 1,
 				QueryTimeout:      1,
 				Region:            "us-east-1",
-				Tags:              []string{defaultClusterTag},
+				Tags:              []string{defaultADTag},
 				DbmTag:            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 0,
-			rdsClientConfigurer: func(k *aws.MockRDSClient) {
+			rdsClientConfigurer: func(k *aws.MockRdsClient) {
 				gomock.InOrder(
-					k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultClusterTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes(),
+					k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes(),
 					k.EXPECT().GetAuroraClusterEndpoints(contextWithTimeout(1*time.Second), []string{"my-cluster-1"}, defaultDbmTag).DoAndReturn(
 						func(ctx context.Context, _ []string, _ string) (map[string]*aws.AuroraCluster, error) {
 							<-ctx.Done()
@@ -85,12 +79,12 @@ func TestDBMAuroraListener(t *testing.T) {
 			config: aurora.Config{
 				DiscoveryInterval: 1,
 				Region:            "us-east-1",
-				Tags:              []string{defaultClusterTag},
+				Tags:              []string{defaultADTag},
 				DbmTag:            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 0,
-			rdsClientConfigurer: func(k *aws.MockRDSClient) {
-				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultClusterTag}).Return(nil, errors.New("big bad error")).AnyTimes()
+			rdsClientConfigurer: func(k *aws.MockRdsClient) {
+				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return(nil, errors.New("big bad error")).AnyTimes()
 			},
 			expectedServices:    []*DBMAuroraService{},
 			expectedDelServices: []*DBMAuroraService{},
@@ -100,13 +94,13 @@ func TestDBMAuroraListener(t *testing.T) {
 			config: aurora.Config{
 				DiscoveryInterval: 1,
 				Region:            "us-east-1",
-				Tags:              []string{defaultClusterTag},
+				Tags:              []string{defaultADTag},
 				DbmTag:            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 0,
-			rdsClientConfigurer: func(k *aws.MockRDSClient) {
+			rdsClientConfigurer: func(k *aws.MockRdsClient) {
 				gomock.InOrder(
-					k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultClusterTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes(),
+					k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes(),
 					k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{"my-cluster-1"}, defaultDbmTag).Return(nil, errors.New("big bad error")).AnyTimes(),
 				)
 			},
@@ -118,12 +112,12 @@ func TestDBMAuroraListener(t *testing.T) {
 			config: aurora.Config{
 				DiscoveryInterval: 1,
 				Region:            "us-east-1",
-				Tags:              []string{defaultClusterTag},
+				Tags:              []string{defaultADTag},
 				DbmTag:            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 1,
-			rdsClientConfigurer: func(k *aws.MockRDSClient) {
-				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultClusterTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes()
+			rdsClientConfigurer: func(k *aws.MockRdsClient) {
+				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes()
 				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{"my-cluster-1"}, defaultDbmTag).Return(
 					map[string]*aws.AuroraCluster{
 						"my-cluster-1": {
@@ -162,12 +156,12 @@ func TestDBMAuroraListener(t *testing.T) {
 			config: aurora.Config{
 				DiscoveryInterval: 1,
 				Region:            "us-east-1",
-				Tags:              []string{defaultClusterTag},
+				Tags:              []string{defaultADTag},
 				DbmTag:            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 1,
-			rdsClientConfigurer: func(k *aws.MockRDSClient) {
-				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultClusterTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes()
+			rdsClientConfigurer: func(k *aws.MockRdsClient) {
+				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes()
 				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{"my-cluster-1"}, defaultDbmTag).Return(
 					map[string]*aws.AuroraCluster{
 						"my-cluster-1": {
@@ -246,7 +240,7 @@ func TestDBMAuroraListener(t *testing.T) {
 			defer ctrl.Finish()
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("autodiscover_aurora_clusters", tc.config)
-			mockAWSClient := aws.NewMockRDSClient(ctrl)
+			mockAWSClient := aws.NewMockRdsClient(ctrl)
 			tc.rdsClientConfigurer(mockAWSClient)
 			ticks := make(chan time.Time, 1)
 			l := newDBMAuroraListener(tc.config, mockAWSClient, ticks)
@@ -288,7 +282,7 @@ func TestDBMAuroraListener(t *testing.T) {
 	}
 }
 
-func TestGetExtraConfig(t *testing.T) {
+func TestGetExtraAuroraConfig(t *testing.T) {
 	testCases := []struct {
 		service       *DBMAuroraService
 		expectedExtra map[string]string
@@ -326,32 +320,4 @@ func TestGetExtraConfig(t *testing.T) {
 			assert.Equal(t, value, v)
 		}
 	}
-}
-
-func contextWithTimeout(t time.Duration) gomock.Matcher {
-	return contextWithTimeoutMatcher{
-		timeout: t,
-	}
-}
-
-type contextWithTimeoutMatcher struct {
-	timeout time.Duration
-}
-
-func (m contextWithTimeoutMatcher) Matches(x interface{}) bool {
-	ctx, ok := x.(context.Context)
-	if !ok {
-		return false
-	}
-	deadline, ok := ctx.Deadline()
-	if !ok {
-		return false
-	}
-
-	delta := time.Until(deadline) - m.timeout
-	return delta < time.Millisecond*50
-}
-
-func (m contextWithTimeoutMatcher) String() string {
-	return fmt.Sprintf("have a deadline from a timeout of %d milliseconds", m.timeout.Milliseconds())
 }

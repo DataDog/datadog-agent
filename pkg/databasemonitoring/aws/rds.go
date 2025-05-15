@@ -22,7 +22,7 @@ const (
 )
 
 // GetRdsInstancesFromTags queries an AWS account for RDS instances with the specified tags
-func (c *Client) GetRdsInstancesFromTags(ctx context.Context, tags []string) ([]Instance, error) {
+func (c *Client) GetRdsInstancesFromTags(ctx context.Context, tags []string, dbmTag string) ([]Instance, error) {
 	if len(tags) == 0 {
 		return nil, fmt.Errorf("at least one tag filter is required")
 	}
@@ -48,6 +48,7 @@ func (c *Client) GetRdsInstancesFromTags(ctx context.Context, tags []string) ([]
 			if containsTags(db.TagList, tags) {
 				// Add to list of instances for the cluster
 				instance := Instance{
+					Id:       *db.DBInstanceIdentifier,
 					Endpoint: *db.Endpoint.Address,
 				}
 				// Set if IAM is configured for the endpoint
@@ -75,6 +76,19 @@ func (c *Client) GetRdsInstancesFromTags(ctx context.Context, tags []string) ([]
 						// This should never happen, as engine is a required field in the API
 						// but we should handle it.
 						return nil, fmt.Errorf("engine is nil for instance %s", *db.DBInstanceIdentifier)
+					}
+				}
+				for _, tag := range db.TagList {
+					tagString := ""
+					if tag.Key != nil {
+						tagString += *tag.Key
+					}
+					if tag.Value != nil {
+						tagString += ":" + *tag.Value
+					}
+					if tagString == dbmTag {
+						instance.DbmEnabled = true
+						break
 					}
 				}
 				instances = append(instances, instance)
