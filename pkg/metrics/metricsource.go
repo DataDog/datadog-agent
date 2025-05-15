@@ -317,6 +317,14 @@ const (
 	MetricSourceSilverstripeCMS
 	MetricSourceAnecdote
 	MetricSourceSonatypeNexus
+	MetricSourceAltrairPBSPro
+	MetricSourceFalco
+	MetricSourceKrakenD
+	MetricSourceKuma
+	MetricSourceLiteLLM
+	MetricSourceLustre
+	MetricSourceProxmox
+	MetricSourceResilience4j
 
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
@@ -958,6 +966,22 @@ func (ms MetricSource) String() string {
 		return "celery"
 	case MetricSourceInfiniband:
 		return "infiniband"
+	case MetricSourceAltrairPBSPro:
+		return "altrair_pbs_pro"
+	case MetricSourceFalco:
+		return "falco"
+	case MetricSourceKrakenD:
+		return "krakend"
+	case MetricSourceKuma:
+		return "kuma"
+	case MetricSourceLiteLLM:
+		return "lite_llm"
+	case MetricSourceLustre:
+		return "lustre"
+	case MetricSourceProxmox:
+		return "proxmox"
+	case MetricSourceResilience4j:
+		return "resilience4j"
 	case MetricSourceOpenTelemetryCollectorUnknown:
 		return "opentelemetry_collector_unknown"
 	case MetricSourceOpenTelemetryCollectorDockerstatsReceiver:
@@ -1626,6 +1650,22 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceQuarkus
 	case "velero":
 		return MetricSourceVelero
+	case "altrair_pbs_pro":
+		return MetricSourceAltrairPBSPro
+	case "falco":
+		return MetricSourceFalco
+	case "krakend":
+		return MetricSourceKrakenD
+	case "kuma":
+		return MetricSourceKuma
+	case "lite_llm":
+		return MetricSourceLiteLLM
+	case "lustre":
+		return MetricSourceLustre
+	case "proxmox":
+		return MetricSourceProxmox
+	case "resilience4j":
+		return MetricSourceResilience4j
 	case "opentelemetry_collector_unknown":
 		return MetricSourceOpenTelemetryCollectorUnknown
 	case "opentelemetry_collector_dockerstatsreceiver":
