@@ -25,6 +25,7 @@ type SketchSeries struct {
 	ContextKey ckey.ContextKey      `json:"-"`
 	NoIndex    bool                 `json:"-"` // This is only used by api V2
 	Source     MetricSource         `json:"-"` // This is only used by api V2
+	RawPnt     []byte               `json:"-"` // This is only used by api V2
 }
 
 // String returns the JSON representation of a SketchSeries as a string

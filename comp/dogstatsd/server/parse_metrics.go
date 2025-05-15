@@ -21,6 +21,7 @@ const (
 	histogramType
 	setType
 	timingType
+	sketchType
 )
 
 var (
@@ -30,6 +31,7 @@ var (
 	distributionSymbol = []byte("d")
 	setSymbol          = []byte("s")
 	timingSymbol       = []byte("ms")
+	sketchSymbol       = []byte("S")
 
 	tagsFieldPrefix       = []byte("#")
 	sampleRateFieldPrefix = []byte("@")
@@ -93,6 +95,8 @@ func parseMetricSampleMetricType(rawMetricType []byte) (metricType, error) {
 		return setType, nil
 	case bytes.Equal(rawMetricType, timingSymbol):
 		return timingType, nil
+	case bytes.Equal(rawMetricType, sketchSymbol):
+		return sketchType, nil
 	}
 	return 0, fmt.Errorf("invalid metric type: %q", rawMetricType)
 }

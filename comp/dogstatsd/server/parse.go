@@ -7,6 +7,7 @@ package server
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"slices"
 	"strconv"
@@ -151,12 +152,18 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 
 	// read metric values
 
-	var setValue []byte
 	var values []float64
 	var value float64
-	if metricType == setType {
-		setValue = rawValue // special case for the set type, we obviously don't support multiple values for this type
-	} else {
+	var byteValue []byte
+	switch metricType {
+	case setType:
+		byteValue = slices.Clone(rawValue) // special case for the set type, we obviously don't support multiple values for this type
+	case sketchType:
+		byteValue, err = decodeBase64(rawValue)
+		if err != nil {
+			return dogstatsdMetricSample{}, err
+		}
+	default:
 		// In case the list contains only one value, dogstatsd 1.0
 		// protocol, we directly parse it as a float64. This avoids
 		// pulling a slice from the float64List and greatly improve
@@ -222,7 +229,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		name:         p.interner.LoadOrStore(name),
 		value:        value,
 		values:       values,
-		rawValue:     slices.Clone(setValue),
+		rawValue:     byteValue,
 		metricType:   metricType,
 		sampleRate:   sampleRate,
 		tags:         tags,
@@ -314,4 +321,15 @@ func parseInt64(rawInt []byte) (int64, error) {
 
 func parseInt(rawInt []byte) (int, error) {
 	return strconv.Atoi(*(*string)(unsafe.Pointer(&rawInt)))
+}
+
+// This alphabet is less likely to be eaten by the secret scrubber when logged.
+func decodeBase64(src []byte) ([]byte, error) {
+	encoding := base64.RawStdEncoding
+	dst := make([]byte, encoding.DecodedLen(len(src)))
+	_, err := encoding.Decode(dst, src)
+	if err != nil {
+		return nil, err
+	}
+	return dst, nil
 }

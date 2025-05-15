@@ -107,6 +107,8 @@ func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
 		return metrics.SetType
 	case timingType:
 		return metrics.HistogramType
+	case sketchType:
+		return metrics.SketchType
 	}
 	return metrics.GaugeType
 }

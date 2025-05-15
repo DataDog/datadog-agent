@@ -24,6 +24,7 @@ const (
 	HistorateType
 	SetType
 	DistributionType
+	SketchType
 	GaugeWithTimestampType
 	CountWithTimestampType
 
@@ -62,6 +63,8 @@ func (m MetricType) String() string {
 		return "Set"
 	case DistributionType:
 		return "Distribution"
+	case SketchType:
+		return "Sketch"
 	case GaugeWithTimestampType:
 		return "GaugeWithTimestamp"
 	case CountWithTimestampType:

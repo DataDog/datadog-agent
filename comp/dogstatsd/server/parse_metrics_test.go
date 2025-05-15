@@ -563,6 +563,27 @@ func TestParseManyPipes(t *testing.T) {
 		assert.Equal(t, "environment:dev", sample.tags[0])
 		assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
 	})
+
+	t.Run("sketch data with timestamp", func(t *testing.T) {
+		cfg := map[string]any{}
+		cfg["dogstatsd_no_aggregation_pipeline"] = true
+
+		sample, err := parseMetricSample(t, cfg, []byte("my.prefix.mysketch:CKnvksEGEAIZAAAAAABAbUAhAAAAAABwekApAAAAAACIdEAxAAAAAACIhEA6BLQagBtCAgEB|S|T1747236777|#baz,foo:bar"))
+		require.NoError(t, err)
+
+		assert.Equal(t, "my.prefix.mysketch", sample.name)
+		assert.Equal(t, 0.0, sample.value)
+		assert.Nil(t, sample.values)
+		assert.Equal(t, sketchType, sample.metricType)
+		assert.Equal(t, time.Unix(1747236777, 0), sample.ts)
+		assert.Equal(t, sample.tags, []string{"baz", "foo:bar"})
+		assert.Equal(t, []byte{
+			0x8, 0xa9, 0xef, 0x92, 0xc1, 0x6, 0x10, 0x2, 0x19, 0x0, 0x0, 0x0, 0x0, 0x0, 0x40, 0x6d,
+			0x40, 0x21, 0x0, 0x0, 0x0, 0x0, 0x0, 0x70, 0x7a, 0x40, 0x29, 0x0, 0x0, 0x0, 0x0, 0x0,
+			0x88, 0x74, 0x40, 0x31, 0x0, 0x0, 0x0, 0x0, 0x0, 0x88, 0x84, 0x40, 0x3a, 0x4, 0xb4, 0x1a,
+			0x80, 0x1b, 0x42, 0x2, 0x1, 0x1,
+		}, sample.rawValue)
+	})
 }
 
 func TestParseContainerID(t *testing.T) {
