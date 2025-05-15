@@ -573,6 +573,7 @@ new-e2e-installer-windows:
       # agent-package
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeMSI$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackageWithAltDir$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackageAfterRollback$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestDowngradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestStopExperiment$"
@@ -581,6 +582,8 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestStopWithoutExperiment$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenServiceDies$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenTimeout$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentMSIRollbackMaintainsCustomUserAndAltDir$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenServiceDiesMaintainsCustomUserAndAltDir$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRunAgentMSIAfterExperiment$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeWithAgentUser$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeMSI$"
