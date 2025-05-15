@@ -16,8 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// TimeNow useful for mocking
-var TimeNow = time.Now
+var (
+	// TimeNow useful for mocking
+	TimeNow = time.Now
+)
 
 // DeviceUserTagResourcePrefix contains the REDAPL table to store device user tags
 const DeviceUserTagResourcePrefix = "dd.internal.resource:ndm_device_user_tags"
@@ -33,7 +35,7 @@ func GetDeviceMetadataFromAppliances(namespace string, devices []client.Applianc
 
 // GetDeviceMetadataFromDirector process devices API payloads to build metadata
 func GetDeviceMetadataFromDirector(namespace string, director *client.DirectorStatus) (devicemetadata.DeviceMetadata, error) {
-	ipAddress, err := getDirectorIPAddress(director)
+	ipAddress, err := director.IPAddress()
 	if err != nil {
 		return devicemetadata.DeviceMetadata{}, err
 	}
@@ -64,7 +66,7 @@ func GetApplianceDevicesTags(namespace string, devices []client.Appliance) map[s
 
 // GetDirectorDeviceTags process devices API payloads to build device tags
 func GetDirectorDeviceTags(namespace string, director *client.DirectorStatus) (map[string][]string, error) {
-	ipAddress, err := getDirectorIPAddress(director)
+	ipAddress, err := director.IPAddress()
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +194,7 @@ func computeUptime(device client.Appliance) (float64, error) {
 	// TODO: should we be using lastUpdatedTime instead of startTime?
 	parsedTime, err := time.Parse("Mon Jan 2 15:04:05 2006", device.StartTime)
 	if err != nil {
-		return 0, fmt.Errorf("Error parsing device uptime: %w", err)
+		return 0, fmt.Errorf("error parsing device uptime: %w", err)
 	}
 	deviceUptime := parsedTime.UnixMilli()
 
@@ -201,13 +203,4 @@ func computeUptime(device client.Appliance) (float64, error) {
 
 func buildDeviceID(namespace string, deviceID string) string {
 	return fmt.Sprintf("%s:%s", namespace, deviceID)
-}
-
-func getDirectorIPAddress(director *client.DirectorStatus) (string, error) {
-	if len(director.HAConfig.MyVnfManagementIPs) == 0 {
-		return "", fmt.Errorf("no IP address found for director %s", director.HAConfig.ClusterID)
-	}
-	// TODO: what if there are multiple IP addresses?
-	// for now, just use the first one
-	return director.HAConfig.MyVnfManagementIPs[0], nil
 }
