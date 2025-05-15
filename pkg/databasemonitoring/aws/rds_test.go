@@ -92,7 +92,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			},
 			tags: []string{"test:tag"},
 			expectedInstances: []Instance{{
-				Id:         "test-instance",
+				ID:         "test-instance",
 				Endpoint:   "test-endpoint",
 				Port:       5432,
 				IamEnabled: true,
@@ -173,7 +173,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			tags: []string{"test:tag"},
 			expectedInstances: []Instance{
 				{
-					Id:         "test-instance",
+					ID:         "test-instance",
 					Endpoint:   "test-endpoint",
 					Port:       5432,
 					IamEnabled: true,
@@ -181,7 +181,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					DbmEnabled: false,
 					DbName:     "postgres",
 				}, {
-					Id:         "test-instance-2",
+					ID:         "test-instance-2",
 					Endpoint:   "test-endpoint-2",
 					Port:       5432,
 					IamEnabled: true,
@@ -233,7 +233,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			tags: []string{"test:tag"},
 			expectedInstances: []Instance{
 				{
-					Id:         "test-instance",
+					ID:         "test-instance",
 					Endpoint:   "test-endpoint",
 					Port:       5432,
 					IamEnabled: true,
@@ -284,7 +284,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			tags: []string{"test:tag"},
 			expectedInstances: []Instance{
 				{
-					Id:         "test-instance",
+					ID:         "test-instance",
 					Endpoint:   "test-endpoint",
 					Port:       5432,
 					IamEnabled: true,
@@ -344,7 +344,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			tags: []string{"test:tag", "test:tag2"},
 			expectedInstances: []Instance{
 				{
-					Id:         "test-instance",
+					ID:         "test-instance",
 					Endpoint:   "test-endpoint",
 					Port:       5432,
 					IamEnabled: true,
@@ -352,7 +352,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					DbmEnabled: false,
 					DbName:     "postgres",
 				}, {
-					Id:         "test-instance-2",
+					ID:         "test-instance-2",
 					Endpoint:   "test-endpoint-2",
 					Port:       5432,
 					IamEnabled: true,
@@ -417,7 +417,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			tags: []string{"test:tag"},
 			expectedInstances: []Instance{
 				{
-					Id:         "test-instance",
+					ID:         "test-instance",
 					Endpoint:   "test-endpoint",
 					Port:       5432,
 					IamEnabled: true,
@@ -425,7 +425,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					DbmEnabled: false,
 					DbName:     "postgres",
 				}, {
-					Id:         "test-instance-2",
+					ID:         "test-instance-2",
 					Endpoint:   "test-endpoint-2",
 					Port:       5432,
 					IamEnabled: true,

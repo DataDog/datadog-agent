@@ -48,7 +48,7 @@ func (c *Client) GetRdsInstancesFromTags(ctx context.Context, tags []string, dbm
 			if containsTags(db.TagList, tags) {
 				// Add to list of instances for the cluster
 				instance := Instance{
-					Id:       *db.DBInstanceIdentifier,
+					ID:       *db.DBInstanceIdentifier,
 					Endpoint: *db.Endpoint.Address,
 				}
 				// Set if IAM is configured for the endpoint

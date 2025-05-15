@@ -119,7 +119,7 @@ func (l *DBMRdsListener) discoverRdsInstances() {
 	}
 	discoveredServices := make(map[string]struct{})
 	for _, instance := range instances {
-		entityID := instance.Digest(engineToIntegrationType[instance.Engine], instance.Id)
+		entityID := instance.Digest(engineToIntegrationType[instance.Engine], instance.ID)
 		discoveredServices[entityID] = struct{}{}
 		l.createService(entityID, instance)
 	}
@@ -237,7 +237,7 @@ func (d *DBMRdsService) GetExtraConfig(key string) (string, error) {
 	case "managed_authentication_enabled":
 		return strconv.FormatBool(d.instance.IamEnabled), nil
 	case "dbinstanceidentifier":
-		return d.instance.Id, nil
+		return d.instance.ID, nil
 	case "dbname":
 		return d.instance.DbName, nil
 	}

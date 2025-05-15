@@ -78,7 +78,7 @@ func TestDBMRdsListener(t *testing.T) {
 				k.EXPECT().GetRdsInstancesFromTags(gomock.Any(), []string{defaultADTag}, defaultDbmTag).Return(
 					[]aws.Instance{
 						{
-							Id:         "my-instance-1",
+							ID:         "my-instance-1",
 							Endpoint:   "my-endpoint",
 							Port:       5432,
 							IamEnabled: true,
@@ -94,7 +94,7 @@ func TestDBMRdsListener(t *testing.T) {
 					checkName:    "postgres",
 					region:       "us-east-1",
 					instance: &aws.Instance{
-						Id:         "my-instance-1",
+						ID:         "my-instance-1",
 						Endpoint:   "my-endpoint",
 						Port:       5432,
 						IamEnabled: true,
@@ -248,7 +248,7 @@ func TestGetExtraRdsConfig(t *testing.T) {
 				checkName:    "postgres",
 				region:       "us-east-1",
 				instance: &aws.Instance{
-					Id:         "my-instance-1",
+					ID:         "my-instance-1",
 					Endpoint:   "my-endpoint",
 					Port:       5432,
 					IamEnabled: true,
