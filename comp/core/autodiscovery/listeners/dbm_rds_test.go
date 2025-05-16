@@ -82,7 +82,7 @@ func TestDBMRdsListener(t *testing.T) {
 							Endpoint:   "my-endpoint",
 							Port:       5432,
 							IamEnabled: true,
-							Engine:     "postgresql",
+							Engine:     "postgres",
 							DbmEnabled: true,
 						},
 					}, nil).AnyTimes()
@@ -90,7 +90,7 @@ func TestDBMRdsListener(t *testing.T) {
 			expectedServices: []*DBMRdsService{
 				{
 					adIdentifier: dbmPostgresADIdentifier,
-					entityID:     "5381990b87ee3362",
+					entityID:     "36740c31448ee889",
 					checkName:    "postgres",
 					region:       "us-east-1",
 					instance: &aws.Instance{
@@ -98,7 +98,7 @@ func TestDBMRdsListener(t *testing.T) {
 						Endpoint:   "my-endpoint",
 						Port:       5432,
 						IamEnabled: true,
-						Engine:     "postgresql",
+						Engine:     "postgres",
 						DbmEnabled: true,
 					},
 				},
@@ -122,7 +122,7 @@ func TestDBMRdsListener(t *testing.T) {
 							Endpoint:   "my-endpoint",
 							Port:       5432,
 							IamEnabled: true,
-							Engine:     "postgresql",
+							Engine:     "postgres",
 							DbmEnabled: true,
 						},
 						{
@@ -130,7 +130,7 @@ func TestDBMRdsListener(t *testing.T) {
 							Endpoint:   "my-endpoint-2",
 							Port:       5432,
 							IamEnabled: true,
-							Engine:     "postgresql",
+							Engine:     "postgres",
 							DbmEnabled: true,
 						},
 					}, nil).AnyTimes()
@@ -138,7 +138,7 @@ func TestDBMRdsListener(t *testing.T) {
 			expectedServices: []*DBMRdsService{
 				{
 					adIdentifier: dbmPostgresADIdentifier,
-					entityID:     "5381990b87ee3362",
+					entityID:     "36740c31448ee889",
 					checkName:    "postgres",
 					region:       "us-east-1",
 					instance: &aws.Instance{
@@ -146,13 +146,13 @@ func TestDBMRdsListener(t *testing.T) {
 						Endpoint:   "my-endpoint",
 						Port:       5432,
 						IamEnabled: true,
-						Engine:     "postgresql",
+						Engine:     "postgres",
 						DbmEnabled: true,
 					},
 				},
 				{
 					adIdentifier: dbmPostgresADIdentifier,
-					entityID:     "918bb3e33b1a531e",
+					entityID:     "1c8d0531614580ed",
 					checkName:    "postgres",
 					region:       "us-east-1",
 					instance: &aws.Instance{
@@ -160,7 +160,7 @@ func TestDBMRdsListener(t *testing.T) {
 						Endpoint:   "my-endpoint-2",
 						Port:       5432,
 						IamEnabled: true,
-						Engine:     "postgresql",
+						Engine:     "postgres",
 						DbmEnabled: true,
 					},
 				},
@@ -234,7 +234,7 @@ func TestGetExtraRdsConfig(t *testing.T) {
 					Endpoint:   "my-endpoint",
 					Port:       5432,
 					IamEnabled: true,
-					Engine:     "postgresql",
+					Engine:     "postgres",
 					DbName:     "app",
 					DbmEnabled: true,
 				},
