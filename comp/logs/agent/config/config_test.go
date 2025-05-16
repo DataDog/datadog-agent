@@ -583,7 +583,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
-		Host:                   "default-intake.logs.mydomain.com.",
+		Host:                   "default-intake.logs.mydomain.com",
 		Port:                   0,
 		useSSL:                 true,
 		UseCompression:         true,

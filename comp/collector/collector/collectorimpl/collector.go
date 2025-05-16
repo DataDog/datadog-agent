@@ -332,21 +332,6 @@ func (c *collectorImpl) GetChecks() []check.Check {
 	return chks
 }
 
-// GetAllInstanceIDs returns the ID's of all instances of a check
-func (c *collectorImpl) GetAllInstanceIDs(checkName string) []checkid.ID {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	instances := []checkid.ID{}
-	for id, check := range c.checks {
-		if check.String() == checkName {
-			instances = append(instances, id)
-		}
-	}
-
-	return instances
-}
-
 // ReloadAllCheckInstances completely restarts a check with a new configuration and returns a list of killed check IDs
 func (c *collectorImpl) ReloadAllCheckInstances(name string, newInstances []check.Check) ([]checkid.ID, error) {
 	if !c.started() {
@@ -354,7 +339,7 @@ func (c *collectorImpl) ReloadAllCheckInstances(name string, newInstances []chec
 	}
 
 	// Stop all the old instances
-	killed := c.GetAllInstanceIDs(name)
+	killed := c.getAllInstanceIDs(name)
 	for _, id := range killed {
 		e := c.StopCheck(id)
 		if e != nil {
@@ -370,4 +355,19 @@ func (c *collectorImpl) ReloadAllCheckInstances(name string, newInstances []chec
 		}
 	}
 	return killed, nil
+}
+
+// getAllInstanceIDs returns the ID's of all instances of a check
+func (c *collectorImpl) getAllInstanceIDs(checkName string) []checkid.ID {
+	c.m.RLock()
+	defer c.m.RUnlock()
+
+	instances := []checkid.ID{}
+	for id, check := range c.checks {
+		if check.String() == checkName {
+			instances = append(instances, id)
+		}
+	}
+
+	return instances
 }
