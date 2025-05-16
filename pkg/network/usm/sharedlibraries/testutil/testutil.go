@@ -48,8 +48,6 @@ func OpenFromProcess(t *testing.T, programExecutable string, paths ...string) (*
 	log.Infof("exec prog=%s, paths=%v | PID = %d", programExecutable, paths, cmd.Process.Pid)
 
 	t.Cleanup(func() {
-		patternScanner.PrintLogs(t)
-
 		if cmd.Process == nil {
 			return
 		}

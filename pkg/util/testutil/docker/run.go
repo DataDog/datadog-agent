@@ -86,7 +86,8 @@ func run(t testing.TB, cfg LifecycleConfig) (context.Context, error) {
 	//register cleanup function to kill the instances upon finishing the test
 	t.Cleanup(func() {
 		if t.Failed() {
-			// Get the logs of the container
+			// Get the logs of the container. PatternScanner only prints the log up
+			// until the pattern is found.
 			logs, _ := exec.Command("docker", "logs", cfg.Name()).Output()
 			t.Logf("outputting container logs for %s\n%s", cfg.Name(), logs)
 		}
