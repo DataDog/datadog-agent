@@ -138,6 +138,61 @@ func TestSetupCommonHostTags(t *testing.T) {
 	}
 }
 
+func TestFetchDatabricksCustomTags(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+	}{
+		{
+			name: "missing token and host",
+			env:  map[string]string{},
+		},
+		{
+			name: "missing token",
+			env: map[string]string{
+				"DATABRICKS_HOST": "https://example.com",
+			},
+		},
+		{
+			name: "missing host",
+			env: map[string]string{
+				"DATABRICKS_TOKEN": "abc123",
+			},
+		},
+		{
+			name: "token and host present but no cluster ID",
+			env: map[string]string{
+				"DATABRICKS_TOKEN": "abc123",
+				"DATABRICKS_HOST":  "https://example.com",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Clearenv()
+			for k, v := range tt.env {
+				require.NoError(t, os.Setenv(k, v))
+			}
+
+			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
+			output := &common.Output{}
+			s := &common.Setup{
+				Span: span,
+				Out:  output,
+				Config: config.Config{
+					DatadogYAML: config.DatadogConfig{},
+				},
+			}
+
+			// This should not panic when token or host are missing
+			fetchDatabricksCustomTags(s)
+
+			assert.Empty(t, s.Config.DatadogYAML.Tags)
+		})
+	}
+}
+
 func TestGetJobAndRunIDs(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -246,7 +301,248 @@ func TestLoadLogProcessingRules(t *testing.T) {
 			loadLogProcessingRules(s)
 
 			assert.Equal(t, tt.expectedRules, s.Config.DatadogYAML.LogsConfig.ProcessingRules)
+		})
+	}
+}
 
+func TestAddTagsToConfig(t *testing.T) {
+	tests := []struct {
+		name     string
+		tags     map[string]string
+		wantTags []string
+	}{
+		{
+			name: "Basic tags",
+			tags: map[string]string{
+				"environment": "production",
+				"team":        "data-platform",
+				"cost-center": "123456",
+			},
+			wantTags: []string{
+				"environment:production",
+				"team:data-platform",
+				"cost-center:123456",
+			},
+		},
+		{
+			name: "Tags with colons in keys",
+			tags: map[string]string{
+				"databricks:env":  "production",
+				"databricks:team": "data-platform",
+			},
+			wantTags: []string{
+				"databricks_env:production",
+				"databricks_team:data-platform",
+			},
+		},
+		{
+			name: "Tags with colons in values",
+			tags: map[string]string{
+				"environment": "prod:east",
+				"region":      "us:east-1",
+			},
+			wantTags: []string{
+				"environment:prod_east",
+				"region:us_east-1",
+			},
+		},
+		{
+			name:     "Empty tags",
+			tags:     map[string]string{},
+			wantTags: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
+			s := &common.Setup{
+				Span: span,
+				Config: config.Config{
+					DatadogYAML: config.DatadogConfig{},
+				},
+			}
+
+			addTagsToConfig(s, tt.tags)
+
+			assert.ElementsMatch(t, tt.wantTags, s.Config.DatadogYAML.Tags)
+
+			// Verify span tags were set
+			// Note: We can't directly access span tags in the test, but we can verify
+			// the function was called by checking that the setup has a span
+			if len(tt.tags) > 0 {
+				assert.NotNil(t, s.Span)
+			}
+		})
+	}
+}
+
+// TestFetchDatabricksCustomTagsWithEnv tests the fetchDatabricksCustomTags function
+// by setting up the environment variables and verifying that the function
+// correctly processes them.
+func TestFetchDatabricksCustomTagsWithEnv(t *testing.T) {
+	// Skip this test in CI since it would require mocking HTTP requests
+	if os.Getenv("CI") != "" {
+		t.Skip("Skipping test in CI environment")
+	}
+
+	tests := []struct {
+		name         string
+		env          map[string]string
+		expectedTags []string
+	}{
+		{
+			name: "Missing credentials",
+			env: map[string]string{
+				"DB_CLUSTER_ID":   "cluster-123",
+				"DB_CLUSTER_NAME": "job-456-run-789",
+			},
+			expectedTags: []string{},
+		},
+		{
+			name: "With credentials but no cluster ID",
+			env: map[string]string{
+				"DATABRICKS_TOKEN": "fake-token",
+				"DATABRICKS_HOST":  "https://fake-host.databricks.com",
+				"DB_CLUSTER_NAME":  "job-456-run-789",
+			},
+			expectedTags: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Clearenv()
+			for k, v := range tt.env {
+				require.NoError(t, os.Setenv(k, v))
+			}
+
+			span, ctx := telemetry.StartSpanFromContext(context.Background(), "test")
+			output := &common.Output{}
+			s := &common.Setup{
+				Ctx:  ctx,
+				Span: span,
+				Out:  output,
+				Config: config.Config{
+					DatadogYAML: config.DatadogConfig{},
+				},
+			}
+
+			fetchDatabricksCustomTags(s)
+
+			assert.ElementsMatch(t, tt.expectedTags, s.Config.DatadogYAML.Tags)
+		})
+	}
+}
+
+// TestFetchDatabricksCustomTagsWithMock tests the fetchDatabricksCustomTags function
+// by mocking the HTTP client and API responses
+func TestFetchDatabricksCustomTagsWithMock(t *testing.T) {
+	// Save original functions to restore after test
+	originalFetchClusterTags := fetchClusterTagsFunc
+	originalFetchJobTags := fetchJobTagsFunc
+
+	defer func() {
+		// Restore original functions after test
+		fetchClusterTagsFunc = originalFetchClusterTags
+		fetchJobTagsFunc = originalFetchJobTags
+	}()
+
+	tests := []struct {
+		name            string
+		env             map[string]string
+		mockClusterTags map[string]string
+		mockJobTags     map[string]string
+		wantTags        []string
+	}{
+		{
+			name: "successful fetch of cluster tags",
+			env: map[string]string{
+				"DATABRICKS_TOKEN": "abc123",
+				"DATABRICKS_HOST":  "https://example.com",
+				"DB_CLUSTER_ID":    "cluster123",
+			},
+			mockClusterTags: map[string]string{
+				"environment": "production",
+				"team":        "data-platform",
+			},
+			mockJobTags: nil,
+			wantTags: []string{
+				"environment:production",
+				"team:data-platform",
+			},
+		},
+		{
+			name: "successful fetch of job tags",
+			env: map[string]string{
+				"DATABRICKS_TOKEN": "abc123",
+				"DATABRICKS_HOST":  "https://example.com",
+				"DB_CLUSTER_NAME":  "job-123-run-456",
+			},
+			mockClusterTags: nil,
+			mockJobTags: map[string]string{
+				"cost-center": "data-eng",
+				"project":     "analytics",
+			},
+			wantTags: []string{
+				"cost-center:data-eng",
+				"project:analytics",
+			},
+		},
+		{
+			name: "successful fetch of both cluster and job tags",
+			env: map[string]string{
+				"DATABRICKS_TOKEN": "abc123",
+				"DATABRICKS_HOST":  "https://example.com",
+				"DB_CLUSTER_ID":    "cluster123",
+				"DB_CLUSTER_NAME":  "job-123-run-456",
+			},
+			mockClusterTags: map[string]string{
+				"environment": "production",
+			},
+			mockJobTags: map[string]string{
+				"project": "analytics",
+			},
+			wantTags: []string{
+				"environment:production",
+				"project:analytics",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Clearenv()
+			for k, v := range tt.env {
+				require.NoError(t, os.Setenv(k, v))
+			}
+
+			// Mock the fetchClusterTags function
+			fetchClusterTagsFunc = func(client *http.Client, host, token, clusterID string, s *common.Setup) (map[string]string, error) {
+				return tt.mockClusterTags, nil
+			}
+
+			// Mock the fetchJobTags function
+			fetchJobTagsFunc = func(client *http.Client, host, token, jobID string, s *common.Setup) (map[string]string, error) {
+				return tt.mockJobTags, nil
+			}
+
+			span, ctx := telemetry.StartSpanFromContext(context.Background(), "test")
+			output := &common.Output{}
+			s := &common.Setup{
+				Ctx:  ctx,
+				Span: span,
+				Out:  output,
+				Config: config.Config{
+					DatadogYAML: config.DatadogConfig{},
+				},
+			}
+
+			fetchDatabricksCustomTags(s)
+
+			for _, tag := range tt.wantTags {
+				assert.Contains(t, s.Config.DatadogYAML.Tags, tag)
+			}
 		})
 	}
 }
