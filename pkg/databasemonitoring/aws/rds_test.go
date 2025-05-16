@@ -40,7 +40,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{mysqlEngine, postgresqlEngine},
+							Values: []string{mysqlEngine, postgresEngine},
 						},
 					},
 				}).Return(nil, errors.New("big time error")).Times(1)
@@ -55,7 +55,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{mysqlEngine, postgresqlEngine},
+							Values: []string{mysqlEngine, postgresEngine},
 						},
 					},
 				}).Return(&rds.DescribeDBInstancesOutput{}, nil).Times(1)
@@ -70,7 +70,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{mysqlEngine, postgresqlEngine},
+							Values: []string{mysqlEngine, postgresEngine},
 						},
 					},
 				}).Return(&rds.DescribeDBInstancesOutput{
@@ -84,7 +84,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
-							Engine:                           aws.String("postgresql"),
+							Engine:                           aws.String("postgres"),
 							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 					},
@@ -96,7 +96,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 				Endpoint:   "test-endpoint",
 				Port:       5432,
 				IamEnabled: true,
-				Engine:     "postgresql",
+				Engine:     "postgres",
 				DbmEnabled: false,
 				DbName:     "postgres",
 			}},
@@ -108,7 +108,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{mysqlEngine, postgresqlEngine},
+							Values: []string{mysqlEngine, postgresEngine},
 						},
 					},
 				}).Return(&rds.DescribeDBInstancesOutput{
@@ -122,7 +122,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
-							Engine:                           aws.String("postgresql"),
+							Engine:                           aws.String("postgres"),
 							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 					},
@@ -138,7 +138,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{mysqlEngine, postgresqlEngine},
+							Values: []string{mysqlEngine, postgresEngine},
 						},
 					},
 				}).Return(&rds.DescribeDBInstancesOutput{
@@ -152,7 +152,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
-							Engine:                           aws.String("postgresql"),
+							Engine:                           aws.String("postgres"),
 							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 						{
@@ -164,7 +164,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
-							Engine:                           aws.String("postgresql"),
+							Engine:                           aws.String("postgres"),
 							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 					},
@@ -177,7 +177,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					Endpoint:   "test-endpoint",
 					Port:       5432,
 					IamEnabled: true,
-					Engine:     "postgresql",
+					Engine:     "postgres",
 					DbmEnabled: false,
 					DbName:     "postgres",
 				}, {
@@ -185,7 +185,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					Endpoint:   "test-endpoint-2",
 					Port:       5432,
 					IamEnabled: true,
-					Engine:     "postgresql",
+					Engine:     "postgres",
 					DbmEnabled: false,
 					DbName:     "postgres",
 				},
@@ -198,7 +198,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{mysqlEngine, postgresqlEngine},
+							Values: []string{mysqlEngine, postgresEngine},
 						},
 					},
 				}).Return(&rds.DescribeDBInstancesOutput{
@@ -212,7 +212,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
-							Engine:                           aws.String("postgresql"),
+							Engine:                           aws.String("postgres"),
 							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 						{
@@ -224,7 +224,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
-							Engine:                           aws.String("postgresql"),
+							Engine:                           aws.String("postgres"),
 							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag2")}},
 						},
 					},
@@ -237,7 +237,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					Endpoint:   "test-endpoint",
 					Port:       5432,
 					IamEnabled: true,
-					Engine:     "postgresql",
+					Engine:     "postgres",
 					DbmEnabled: false,
 					DbName:     "postgres",
 				}},
@@ -249,7 +249,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{mysqlEngine, postgresqlEngine},
+							Values: []string{mysqlEngine, postgresEngine},
 						},
 					},
 				}).Return(&rds.DescribeDBInstancesOutput{
@@ -263,7 +263,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
-							Engine:                           aws.String("postgresql"),
+							Engine:                           aws.String("postgres"),
 							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 						{
@@ -275,7 +275,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
-							Engine:                           aws.String("postgresql"),
+							Engine:                           aws.String("postgres"),
 							TagList:                          []types.Tag{},
 						},
 					},
@@ -288,7 +288,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					Endpoint:   "test-endpoint",
 					Port:       5432,
 					IamEnabled: true,
-					Engine:     "postgresql",
+					Engine:     "postgres",
 					DbmEnabled: false,
 					DbName:     "postgres",
 				}},
@@ -300,7 +300,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{mysqlEngine, postgresqlEngine},
+							Values: []string{mysqlEngine, postgresEngine},
 						},
 					},
 				}).Return(&rds.DescribeDBInstancesOutput{
@@ -314,7 +314,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
-							Engine:                           aws.String("postgresql"),
+							Engine:                           aws.String("postgres"),
 							TagList: []types.Tag{
 								{Key: aws.String("test"), Value: aws.String("tag")},
 								{Key: aws.String("test"), Value: aws.String("tag2")},
@@ -330,7 +330,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
-							Engine:                           aws.String("postgresql"),
+							Engine:                           aws.String("postgres"),
 							TagList: []types.Tag{
 								{Key: aws.String("test"), Value: aws.String("tag")},
 								{Key: aws.String("test"), Value: aws.String("tag2")},
@@ -348,7 +348,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					Endpoint:   "test-endpoint",
 					Port:       5432,
 					IamEnabled: true,
-					Engine:     "postgresql",
+					Engine:     "postgres",
 					DbmEnabled: false,
 					DbName:     "postgres",
 				}, {
@@ -356,7 +356,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					Endpoint:   "test-endpoint-2",
 					Port:       5432,
 					IamEnabled: true,
-					Engine:     "postgresql",
+					Engine:     "postgres",
 					DbmEnabled: true,
 					DbName:     "postgres",
 				},
@@ -369,7 +369,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{mysqlEngine, postgresqlEngine},
+							Values: []string{mysqlEngine, postgresEngine},
 						},
 					},
 				}).Return(&rds.DescribeDBInstancesOutput{
@@ -384,7 +384,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
-							Engine:                           aws.String("postgresql"),
+							Engine:                           aws.String("postgres"),
 							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 					},
@@ -394,7 +394,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
-							Values: []string{mysqlEngine, postgresqlEngine},
+							Values: []string{mysqlEngine, postgresEngine},
 						},
 					},
 				}).Return(&rds.DescribeDBInstancesOutput{
@@ -408,7 +408,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
-							Engine:                           aws.String("postgresql"),
+							Engine:                           aws.String("postgres"),
 							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 					},
@@ -421,7 +421,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					Endpoint:   "test-endpoint",
 					Port:       5432,
 					IamEnabled: true,
-					Engine:     "postgresql",
+					Engine:     "postgres",
 					DbmEnabled: false,
 					DbName:     "postgres",
 				}, {
@@ -429,7 +429,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 					Endpoint:   "test-endpoint-2",
 					Port:       5432,
 					IamEnabled: true,
-					Engine:     "postgresql",
+					Engine:     "postgres",
 					DbmEnabled: false,
 					DbName:     "postgres",
 				},

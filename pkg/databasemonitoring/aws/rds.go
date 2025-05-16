@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	postgresqlEngine = "postgresql"
-	mysqlEngine      = "mysql"
+	postgresEngine = "postgres"
+	mysqlEngine    = "mysql"
 )
 
 // GetRdsInstancesFromTags queries an AWS account for RDS instances with the specified tags
@@ -36,7 +36,7 @@ func (c *Client) GetRdsInstancesFromTags(ctx context.Context, tags []string, dbm
 				{
 					Name: aws.String("engine"),
 					Values: []string{
-						mysqlEngine, postgresqlEngine,
+						mysqlEngine, postgresEngine,
 					},
 				},
 			},

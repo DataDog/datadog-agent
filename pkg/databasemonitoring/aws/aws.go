@@ -28,7 +28,7 @@ func dbNameFromEngine(engine string) (string, error) {
 		fallthrough
 	case auroraMysqlEngine:
 		return "mysql", nil
-	case postgresqlEngine:
+	case postgresEngine:
 		fallthrough
 	case auroraPostgresqlEngine:
 		return "postgres", nil
