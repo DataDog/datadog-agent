@@ -93,7 +93,7 @@ func makeMapStats() MapStats {
 
 // UnmarshalBinary parses a map entry and populates the current EventStreamMapStats instance
 func (s *MapStats) UnmarshalBinary(data []byte) error {
-	if len(data) < 24 {
+	if len(data) < 32 {
 		return model.ErrNotEnoughData
 	}
 	s.Bytes = atomic.NewUint64(binary.NativeEndian.Uint64(data[0:8]))
@@ -418,6 +418,7 @@ func (pbm *Monitor) GetEventStats(eventType model.EventType, perfMap string, cpu
 				kernelStats.Count.Add(pbm.getKernelEventCount(eventType, perfMap, i))
 				kernelStats.Bytes.Add(pbm.getKernelEventBytes(eventType, perfMap, i))
 				kernelStats.Lost.Add(pbm.getKernelLostCount(eventType, perfMap, i))
+				kernelStats.Discarded.Add(pbm.getKernelDiscardedCount(eventType, perfMap, i))
 			}
 		case cpu >= 0 && pbm.numCPU > cpu:
 			eventStats.Count.Add(pbm.getEventCount(eventType, perfMap, cpu))
