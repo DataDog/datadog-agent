@@ -8,6 +8,6 @@
 ---
 enhancements:
   - |
-    In datadogexporter for OTLP metrics, the `instrumentation_scope_metadata_as_tags` option is now enabled by default. This means scope attributes are now added as tags to metrics.
+    In OTLP metrics ingestion, the `instrumentation_scope_metadata_as_tags` option is now enabled by default. This means scope attributes are now added as tags to metrics.
     If you have too many unique values for instrumentation scope attributes, this may cause cardinality issues.
     To mitigate this, you can disable the behavior by setting `datadog.metrics.instrumentation_scope_metadata_as_tags` to `false`.
