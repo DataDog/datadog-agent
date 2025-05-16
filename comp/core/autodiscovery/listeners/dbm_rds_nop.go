@@ -8,4 +8,4 @@
 package listeners
 
 // NewDBMRDSListener returns a ServiceListener interface
-var NewDBMRDSListener ServiceListenerFactory
+var NewDBMRdsListener ServiceListenerFactory
