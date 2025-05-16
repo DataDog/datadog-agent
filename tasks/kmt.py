@@ -1295,9 +1295,9 @@ def get_kmt_or_alien_stack(ctx, stack, vms, alien_vms):
         return stack
 
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    assert stacks.stack_exists(stack), (
+        f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    )
     return stack
 
 
@@ -1381,9 +1381,9 @@ def build(
 @task
 def clean(ctx: Context, stack: str | None = None, container=False, image=False):
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    assert stacks.stack_exists(stack), (
+        f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    )
 
     ctx.run("rm -rf ./test/new-e2e/tests/sysprobe-functional/artifacts/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
@@ -1976,9 +1976,9 @@ def selftest(ctx: Context, allow_infra_changes=False, filter: str | None = None)
 @task
 def show_last_test_results(ctx: Context, stack: str | None = None):
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    assert stacks.stack_exists(stack), (
+        f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    )
     assert tabulate is not None, "tabulate module is not installed, please install it to continue"
 
     paths = KMTPaths(stack, Arch.local())
@@ -2284,6 +2284,7 @@ def install_ddagent(
         "dest_path": "The path to save the complexity data to",
         "keep_compressed_archives": "Keep the compressed archives after extracting the data. Useful for testing, as it replicates the exact state of the artifacts in CI",
         "download_all_jobs": "Download the complexity data for all jobs instead of just the ones that are marked as dependencies for the notify_ebpf_complexity_changes_job. This will make the download take far longer.",
+        "gitlab_config_file": "Path to the fully parsed/resolved Gitlab CI configuration file. If not provided, we will try to resolve the current one using the API",
     }
 )
 def download_complexity_data(
@@ -2292,6 +2293,7 @@ def download_complexity_data(
     dest_path: str | Path,
     keep_compressed_archives: bool = False,
     download_all_jobs: bool = False,
+    gitlab_config_file: str | None = None,
 ):
     gitlab = get_gitlab_repo()
     dest_path = Path(dest_path)
@@ -2299,8 +2301,17 @@ def download_complexity_data(
 
     if not download_all_jobs:
         print("Parsing .gitlab-ci.yml file to understand the dependencies for notify_ebpf_complexity_changes")
-        gitlab_ci_file = os.fspath(Path(__file__).parent.parent / ".gitlab-ci.yml")
-        gitlab_config = get_gitlab_ci_configuration(ctx, gitlab_ci_file, job="notify_ebpf_complexity_changes")
+
+        if gitlab_config_file is None:
+            gitlab_ci_file = os.fspath(Path(__file__).parent.parent / ".gitlab-ci.yml")
+            gitlab_config = get_gitlab_ci_configuration(ctx, gitlab_ci_file, job="notify_ebpf_complexity_changes")
+        else:
+            with open(gitlab_config_file) as f:
+                parsed_file = yaml.safe_load(f)
+
+            if ".gitlab-ci.yml" not in parsed_file:
+                raise Exit(f"Could not find .gitlab-ci.yml in {gitlab_config_file}")
+            gitlab_config = parsed_file[".gitlab-ci.yml"]
 
         deps = get_gitlab_job_dependencies(gitlab_config, "notify_ebpf_complexity_changes")
         print(f"Dependencies for notify_ebpf_complexity_changes: {deps}")
