@@ -37,8 +37,6 @@ overrides:
   "github.com/GoogleCloudPlatform/grpc-gcp-go": Apache-2.0
   # https://github.com/bhmj/xpression/blob/master/LICENCE
   "github.com/bhmj/xpression": MIT
-  # https://github.com/google/go-tpm/blob/main/LICENSE
-  "github.com/google/go-tpm": Apache-2.0
 
 exceptions:
   - "golang.org/x/mobile/..."
