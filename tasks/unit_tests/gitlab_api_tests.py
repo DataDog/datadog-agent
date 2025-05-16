@@ -488,18 +488,12 @@ class TestGitlabConfigurationIsModified(unittest.TestCase):
 class TestFilterVariables(unittest.TestCase):
     def test_no_images(self):
         variables = {
-            'DATADOG_AGENT_BUILDIMAGES_SUFFIX': '',
-            'DATADOG_AGENT_BUILDIMAGES': 'haddock',
-            'DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX': '',
-            'DATADOG_AGENT_SYSPROBE_BUILDIMAGES': 'v46542806-c7a4a6be',
             'CI_IMAGE_AGENT': 'tintin',
             'CI_IMAGE_AGENT_SUFFIX': '',
             'OTHER_VARIABLE_SUFFIX': '',
             'OTHER_VARIABLE': 'lampion',
         }
-        self.assertEqual(
-            list(find_buildimages(variables)), ['DATADOG_AGENT_BUILDIMAGES', 'DATADOG_AGENT_SYSPROBE_BUILDIMAGES']
-        )
+        self.assertEqual(list(find_buildimages(variables)), [])
 
     def test_one_image(self):
         variables = {
