@@ -18,6 +18,7 @@ import (
 type Serializer interface {
 	Serialize(message *message.Message, writer io.Writer) error
 	Finish(writer io.Writer) error
+	Reset()
 }
 
 // arraySerializer transforms a message array into a array string payload.
@@ -52,6 +53,11 @@ func (s *arraySerializer) Serialize(message *message.Message, writer io.Writer) 
 // Finish writes the closing bracket for JSON array
 func (s *arraySerializer) Finish(writer io.Writer) error {
 	_, err := writer.Write([]byte{']'})
-	s.isFirstMessage = true
+	s.Reset()
 	return err
+}
+
+// Reset resets the serializer to its initial state
+func (s *arraySerializer) Reset() {
+	s.isFirstMessage = true
 }

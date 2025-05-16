@@ -95,6 +95,8 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 }
 
 func (s *batchStrategy) MakeCompressor() {
+	s.buffer.Clear()
+	s.serializer.Reset()
 	var encodedPayload bytes.Buffer
 	compressor := s.compression.NewStreamCompressor(&encodedPayload)
 	if compressor == nil {
@@ -145,7 +147,7 @@ func (s *batchStrategy) Start() {
 	}()
 }
 
-func (s *batchStrategy) addMessage(m *message.Message) bool {
+func (s *batchStrategy) addMessage(m *message.Message) (bool, error) {
 	s.utilization.Start()
 	defer s.utilization.Stop()
 
@@ -153,28 +155,40 @@ func (s *batchStrategy) addMessage(m *message.Message) bool {
 		err := s.serializer.Serialize(m, s.writeCounter)
 		if err != nil {
 			log.Warnf("Failed to serialize message in pipeline=%s reason=serialize-error err=%s", s.pipelineName, err)
-			return false
+			return false, err
 		}
-		return s.buffer.AddMessage(m)
+		return s.buffer.AddMessage(m), nil
 	}
-	return false
+	return false, nil
 }
 
 func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *message.Payload) {
 	if m.Origin != nil {
 		m.Origin.LogSource.LatencyStats.Add(m.GetLatency())
 	}
-	added := s.addMessage(m)
+	added, err := s.addMessage(m)
+	if err != nil {
+		log.Warn("Encoding failed - dropping payload", err)
+		s.MakeCompressor()
+		return
+	}
 	if !added || s.buffer.IsFull() {
 		s.flushBuffer(outputChan)
 	}
 	if !added {
 		// it's possible that the m could not be added because the buffer was full
 		// so we need to retry once again
-		if !s.addMessage(m) {
+		added, err = s.addMessage(m)
+		if err != nil {
+			log.Warn("Encoding failed - dropping payload", err)
+			s.MakeCompressor()
+			return
+		}
+		if !added {
 			log.Warnf("Dropped message in pipeline=%s reason=too-large ContentLength=%d ContentSizeLimit=%d", s.pipelineName, len(m.GetContent()), s.buffer.ContentSizeLimit())
 			tlmDroppedTooLarge.Inc(s.pipelineName)
 		}
+
 	}
 }
 
@@ -188,7 +202,6 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	s.utilization.Start()
 	if err := s.serializer.Finish(s.writeCounter); err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
-		s.buffer.Clear()
 		s.MakeCompressor()
 		s.utilization.Stop()
 		return

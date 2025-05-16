@@ -6,6 +6,9 @@
 package sender
 
 import (
+	"errors"
+	"io"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,6 +20,58 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
+
+type MockSerializer struct {
+	arraySerializer    Serializer
+	mu                 sync.Mutex
+	failOnNthSerialize int
+	serializeCallCount int
+	failOnNthFinish    int
+	finishCallCount    int
+}
+
+// NewMockSerializer creates a new MockSerializer
+func NewMockSerializer(failOnNthSerialize int, failOnNthFinish int) *MockSerializer {
+	return &MockSerializer{
+		arraySerializer:    NewArraySerializer(),
+		failOnNthSerialize: failOnNthSerialize,
+		failOnNthFinish:    failOnNthFinish,
+		serializeCallCount: 0,
+		finishCallCount:    0,
+	}
+}
+
+// Serialize transforms all messages into a array string allowing failures.
+func (s *MockSerializer) Serialize(message *message.Message, writer io.Writer) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.serializeCallCount++
+	if s.failOnNthSerialize > 0 && s.serializeCallCount == s.failOnNthSerialize {
+		return errors.New("mock Nth Serialize failure")
+	}
+
+	return s.arraySerializer.Serialize(message, writer)
+}
+
+// Finish writes the closing bracket for JSON array allowing failures.
+func (s *MockSerializer) Finish(writer io.Writer) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.finishCallCount++
+
+	if s.failOnNthFinish > 0 && s.finishCallCount == s.failOnNthFinish {
+		return errors.New("mock Nth Finish failure")
+	}
+
+	return s.arraySerializer.Finish(writer)
+}
+
+// Reset resets the serializer to its initial state
+func (s *MockSerializer) Reset() {
+	s.arraySerializer.Reset()
+}
 
 func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	input := make(chan *message.Message)
@@ -220,4 +275,82 @@ func TestBatchStrategyFlushChannel(t *testing.T) {
 		assert.Fail(t, "input should be closed")
 	}
 
+}
+
+func TestBatchStrategyDiscardsPayloadWhenSerializerFails(t *testing.T) {
+	input := make(chan *message.Message)
+	output := make(chan *message.Payload, 1) // Ensure output is buffered if test sends multiple payloads before asserting
+	flushChan := make(chan struct{})
+	// Fail on the 2nd call to Serialize, never fail Finish.
+	serializer := NewMockSerializer(2, 0)
+	s := NewBatchStrategy(input, output, flushChan, NewMockServerlessMeta(false), serializer, 100*time.Millisecond, 2, 2, "test", compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""))
+	s.Start()
+
+	message1 := message.NewMessage([]byte("a"), nil, "", 0)
+	input <- message1 // 1st Serialize call, should succeed.
+
+	// This message's serialization is intended to fail.
+	message2 := message.NewMessage([]byte("b"), nil, "", 0)
+	input <- message2 // 2nd Serialize call, should fail.
+
+	message3 := message.NewMessage([]byte("c"), nil, "", 0)
+	input <- message3
+
+	message4 := message.NewMessage([]byte("d"), nil, "", 0)
+	input <- message4
+
+	expectedPayload := &message.Payload{
+		MessageMetas:  []*message.MessageMetadata{&message3.MessageMetadata, &message4.MessageMetadata},
+		Encoded:       []byte(`[c,d]`),
+		Encoding:      "identity",
+		UnencodedSize: 5,
+	}
+
+	actualPayload := <-output
+	assert.Equal(t, expectedPayload, actualPayload)
+
+	s.Stop()
+
+	if _, isOpen := <-input; isOpen {
+		assert.Fail(t, "input should be closed")
+	}
+}
+
+func TestBatchStrategyDiscardsPayloadWhenSerializerFailsOnFinish(t *testing.T) {
+	input := make(chan *message.Message)
+	output := make(chan *message.Payload, 1) // Ensure output is buffered if test sends multiple payloads before asserting
+	flushChan := make(chan struct{})
+	// Fail on the 1st call to Finish, never fail Serialize.
+	serializer := NewMockSerializer(0, 1)
+	s := NewBatchStrategy(input, output, flushChan, NewMockServerlessMeta(false), serializer, 100*time.Millisecond, 2, 2, "test", compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""))
+	s.Start()
+
+	message1 := message.NewMessage([]byte("a"), nil, "", 0)
+	input <- message1 // 1st Serialize call, should succeed.
+
+	message2 := message.NewMessage([]byte("b"), nil, "", 0)
+	input <- message2 // 2nd Serialize call, should fail.
+	// 1st Finish call, should fail.
+
+	message3 := message.NewMessage([]byte("c"), nil, "", 0)
+	input <- message3
+
+	message4 := message.NewMessage([]byte("d"), nil, "", 0)
+	input <- message4
+
+	expectedPayload := &message.Payload{
+		MessageMetas:  []*message.MessageMetadata{&message3.MessageMetadata, &message4.MessageMetadata},
+		Encoded:       []byte(`[c,d]`),
+		Encoding:      "identity",
+		UnencodedSize: 5,
+	}
+
+	actualPayload := <-output
+	assert.Equal(t, expectedPayload, actualPayload)
+
+	s.Stop()
+
+	if _, isOpen := <-input; isOpen {
+		assert.Fail(t, "input should be closed")
+	}
 }

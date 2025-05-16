@@ -22,10 +22,12 @@ func TestArraySerializer(t *testing.T) {
 
 	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0)}
 	payload = serializeToBytes(t, serializer, messages)
+	serializer.Reset()
 	assert.Equal(t, []byte("[a]"), payload)
 
 	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0), message.NewMessage([]byte("b"), nil, "", 0)}
 	payload = serializeToBytes(t, serializer, messages)
+	serializer.Reset()
 	assert.Equal(t, []byte("[a,b]"), payload)
 }
 
