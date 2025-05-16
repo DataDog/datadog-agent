@@ -52,7 +52,8 @@ def pull(ctx):
         raise Exit('No worktree environment found.')
 
     ctx.run(
-        f"git -C '{WORKTREE_DIRECTORY}' pull --set-upstream origin \"$(git rev-parse --abbrev-ref HEAD)\"", hide=True
+        f"git -C '{WORKTREE_DIRECTORY}' pull --set-upstream origin \"$(git -C '{WORKTREE_DIRECTORY}' rev-parse --abbrev-ref HEAD)\"",
+        hide=True,
     )
 
 
