@@ -99,7 +99,7 @@ func TestInstallScript(t *testing.T) {
 			}
 
 			e2e.Run(tt,
-				&installScriptSuite{cwsSupported: cwsSupported},
+				suite,
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
