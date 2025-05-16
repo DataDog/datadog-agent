@@ -256,35 +256,25 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 // preRemoveDatadogAgent performs pre-removal steps for the agent
 // All the steps are allowed to fail
 func preRemoveDatadogAgent(ctx HookContext) error {
-	switch ctx.PackageType {
-	case PackageTypeDEB, PackageTypeRPM:
-		if err := agentService.Stop(ctx); err != nil {
-			log.Warnf("failed to stop agent service: %s", err)
-		}
-		if err := agentService.Disable(ctx); err != nil {
-			log.Warnf("failed to disable agent service: %s", err)
-		}
-	case PackageTypeOCI:
-		err := agentServiceOCI.StopExperiment(ctx)
-		if err != nil {
-			log.Warnf("failed to stop experiment unit: %s", err)
-		}
-		err = agentServiceOCI.RemoveExperiment(ctx)
-		if err != nil {
-			log.Warnf("failed to remove experiment unit: %s", err)
-		}
-		err = agentServiceOCI.StopStable(ctx)
-		if err != nil {
-			log.Warnf("failed to stop stable unit: %s", err)
-		}
-		err = agentServiceOCI.DisableStable(ctx)
-		if err != nil {
-			log.Warnf("failed to disable stable unit: %s", err)
-		}
-		err = agentServiceOCI.RemoveStable(ctx)
-		if err != nil {
-			log.Warnf("failed to remove stable unit: %s", err)
-		}
+	err := agentServiceOCI.StopExperiment(ctx)
+	if err != nil {
+		log.Warnf("failed to stop experiment unit: %s", err)
+	}
+	err = agentServiceOCI.RemoveExperiment(ctx)
+	if err != nil {
+		log.Warnf("failed to remove experiment unit: %s", err)
+	}
+	err = agentServiceOCI.StopStable(ctx)
+	if err != nil {
+		log.Warnf("failed to stop stable unit: %s", err)
+	}
+	err = agentServiceOCI.DisableStable(ctx)
+	if err != nil {
+		log.Warnf("failed to disable stable unit: %s", err)
+	}
+	err = agentServiceOCI.RemoveStable(ctx)
+	if err != nil {
+		log.Warnf("failed to remove stable unit: %s", err)
 	}
 
 	if ctx.Upgrade {
@@ -423,36 +413,6 @@ func (s *datadogAgentService) Enable(ctx HookContext) error {
 	return fmt.Errorf("unsupported service manager type: %s", serviceManagerType)
 }
 
-// Disable disables the agent service
-func (s *datadogAgentService) Disable(ctx HookContext) error {
-	serviceManagerType := service.GetServiceManagerType()
-	if serviceManagerType == service.SysvinitType && ctx.PackageType != PackageTypeDEB {
-		return fmt.Errorf("sysvinit is only supported on Debian")
-	}
-	switch serviceManagerType {
-	case service.SystemdType:
-		for _, unit := range s.SystemdUnits {
-			err := systemd.DisableUnit(ctx, unit)
-			if err != nil {
-				return fmt.Errorf("failed to disable %s: %v", unit, err)
-			}
-		}
-		return nil
-	case service.UpstartType:
-		// Nothing to do, this is defined directly in the upstart job file
-		return nil
-	case service.SysvinitType:
-		for _, service := range s.SysvinitServices {
-			err := sysvinit.Remove(ctx, service)
-			if err != nil {
-				return fmt.Errorf("failed to remove %s: %v", service, err)
-			}
-		}
-		return nil
-	}
-	return fmt.Errorf("unsupported service manager type: %s", serviceManagerType)
-}
-
 // Restart restarts the agent service. It will only attempt to restart if the config exists.
 func (s *datadogAgentService) Restart(ctx HookContext) error {
 	_, err := os.Stat("/etc/datadog-agent/datadog.yaml")
@@ -474,41 +434,6 @@ func (s *datadogAgentService) Restart(ctx HookContext) error {
 		return sysvinit.Restart(ctx, s.SysvinitMainService)
 	case service.SystemdType:
 		return systemd.RestartUnit(ctx, s.SystemdMainUnit)
-	}
-	return fmt.Errorf("unsupported service manager type: %s", serviceManagerType)
-}
-
-// Stop stops the agent service
-func (s *datadogAgentService) Stop(ctx HookContext) error {
-	serviceManagerType := service.GetServiceManagerType()
-	if serviceManagerType == service.SysvinitType && ctx.PackageType != PackageTypeDEB {
-		return fmt.Errorf("sysvinit is only supported on Debian")
-	}
-	switch serviceManagerType {
-	case service.SystemdType:
-		for _, unit := range s.SystemdUnits {
-			err := systemd.StopUnit(ctx, unit)
-			if err != nil {
-				return fmt.Errorf("failed to stop %s: %v", unit, err)
-			}
-		}
-		return nil
-	case service.UpstartType:
-		for _, service := range s.UpstartServices {
-			err := upstart.Stop(ctx, service)
-			if err != nil {
-				return fmt.Errorf("failed to stop %s: %v", service, err)
-			}
-		}
-		return nil
-	case service.SysvinitType:
-		for _, service := range s.SysvinitServices {
-			err := sysvinit.Stop(ctx, service)
-			if err != nil {
-				return fmt.Errorf("failed to stop %s: %v", service, err)
-			}
-		}
-		return nil
 	}
 	return fmt.Errorf("unsupported service manager type: %s", serviceManagerType)
 }
