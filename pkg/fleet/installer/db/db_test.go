@@ -15,7 +15,7 @@ import (
 )
 
 func newTestDB(t *testing.T) *PackagesDB {
-	db, err := New(filepath.Join(t.TempDir(), "test.db"))
+	db, err := New(filepath.Join(t.TempDir(), "test.db"), WithReadOnly(false))
 	assert.NoError(t, err)
 	return db
 }
@@ -105,12 +105,12 @@ func TestHasPackage(t *testing.T) {
 
 func TestTimeout(t *testing.T) {
 	dbFile := filepath.Join(t.TempDir(), "test.db")
-	dbLock, err := New(dbFile)
+	dbLock, err := New(dbFile, WithReadOnly(false))
 	assert.NoError(t, err)
 	defer dbLock.Close()
 
 	before := time.Now()
-	_, err = New(dbFile, WithTimeout(time.Second))
+	_, err = New(dbFile, WithReadOnly(false), WithTimeout(time.Second))
 	assert.ErrorIs(t, err, bbolterr.ErrTimeout)
 	assert.GreaterOrEqual(t, time.Since(before), time.Second-100*time.Millisecond) // bbolt timeout can be shorter by up to 50ms
 }

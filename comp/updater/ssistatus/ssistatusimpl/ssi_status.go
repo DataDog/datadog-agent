@@ -57,8 +57,11 @@ func (c *ssiStatusComponent) Start(_ context.Context) error {
 		for {
 			select {
 			case <-ticker.C:
+				ctx := context.Background()
+				ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+				defer cancel()
 				// APM host-based auto injection (SSI)
-				autoInstrumentationEnabled, err := ssi.IsAutoInstrumentationEnabled()
+				autoInstrumentationEnabled, err := ssi.IsAutoInstrumentationEnabled(ctx)
 				if err != nil {
 					c.log.Warnf("could not check if APM auto-instrumentation is enabled: %s", err)
 				}

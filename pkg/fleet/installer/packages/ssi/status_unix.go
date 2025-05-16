@@ -9,15 +9,14 @@ package ssi
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	iexec "github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 )
 
 // GetInstrumentationStatus contains the status of the APM auto-instrumentation.
@@ -57,26 +56,21 @@ func GetInstrumentationStatus() (status APMInstrumentationStatus, err error) {
 }
 
 // isInjectorPkgInstalled checks if the APM injector package is installed on the host.
-func isInjectorPkgInstalled() (bool, error) {
-	packagesDB, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(10*time.Second), db.WithReadOnly(true))
+func isInjectorPkgInstalled(ctx context.Context) (bool, error) {
+	installerPath, err := exec.LookPath("datadog-installer")
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false, nil // Database does not exist, so installer is not installed; thus no SSI
+		if errors.Is(err, exec.ErrNotFound) {
+			return false, nil // Installer is not installed; thus no SSI
 		}
-		return false, fmt.Errorf("could not access datadog packages db: %w", err)
+		return false, fmt.Errorf("could not check if datadog-installer is installed: %w", err)
 	}
-	defer packagesDB.Close()
-
-	hasPackage, err := packagesDB.HasPackage("datadog-apm-inject")
-	if err != nil {
-		return false, fmt.Errorf("could not list packages: %w", err)
-	}
-	return hasPackage, nil
+	installerExec := iexec.NewInstallerExec(&env.Env{}, installerPath)
+	return installerExec.IsInstalled(ctx, "datadog-apm-inject")
 }
 
 // IsAutoInstrumentationEnabled checks if the APM auto-instrumentation is enabled on the host. This is scoped to Linux hosts and will return false in Kubernetes.
-func IsAutoInstrumentationEnabled() (bool, error) {
-	injectorInstalled, err := isInjectorPkgInstalled()
+func IsAutoInstrumentationEnabled(ctx context.Context) (bool, error) {
+	injectorInstalled, err := isInjectorPkgInstalled(ctx)
 	if err != nil {
 		return false, fmt.Errorf("could not check if injector package is installed: %w", err)
 	}
