@@ -13,7 +13,7 @@ set -e
 
 # Run the upgrade prerm. See pkg/fleet/installer/packages/datadog_agent_linux.go
 if [ "$*" = "2" ] && [ -f "${INSTALL_DIR}/embedded/bin/installer" ]; then
-    ${INSTALL_DIR}/embedded/bin/installer prerm --upgrade datadog-agent rpm
+    ${INSTALL_DIR}/embedded/bin/installer prerm --upgrade datadog-agent rpm || true
 fi
 
 # Uninstall the agent if it was installed by the installer
