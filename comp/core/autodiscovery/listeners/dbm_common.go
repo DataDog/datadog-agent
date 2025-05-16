@@ -10,8 +10,10 @@ package listeners
 const (
 	dbmPostgresADIdentifier = "_dbm_postgres"
 	dbmMySQLADIdentifier    = "_dbm_mysql"
-	postgresqlEngine        = "postgresql"
-	mysqlEngine             = "mysql"
+	// For reasons passing understanding, the engine name is postgres for
+	// instances but aurora-postgresql for clusters
+	postgresqlEngine = "postgres"
+	mysqlEngine      = "mysql"
 )
 
 const (
