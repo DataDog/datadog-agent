@@ -100,6 +100,17 @@ func (h *VerticalPodAutoscalerHandlers) ResourceVersion(ctx processors.Processor
 	return resource.(*v1.VerticalPodAutoscaler).ResourceVersion
 }
 
+// GetMetadataTags returns the tags in the metadata model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *VerticalPodAutoscalerHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
+	m, ok := resourceMetadataModel.(*model.VerticalPodAutoscaler)
+	if !ok {
+		return nil
+	}
+	return m.Tags
+}
+
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
 //
