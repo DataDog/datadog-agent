@@ -10,8 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/user"
-	"runtime"
 	"time"
 
 	"go.etcd.io/bbolt"
@@ -55,26 +53,15 @@ func WithTimeout(timeout time.Duration) Option {
 }
 
 // WithReadOnly sets the database to read-only mode
-func WithReadOnly(readOnly bool) Option {
+func WithReadOnly() Option {
 	return func(o *options) {
-		o.readOnly = readOnly
+		o.readOnly = true
 	}
 }
 
 // New creates a new PackagesDB
 func New(dbPath string, opts ...Option) (*PackagesDB, error) {
 	o := options{}
-
-	// On Linux, if we're not root, we can only open the database in read-only mode (unless forced).
-	if runtime.GOOS == "linux" {
-		currentUser, err := user.Current()
-		if err != nil {
-			return nil, fmt.Errorf("could not get current user: %w", err)
-		}
-		if currentUser.Uid != "0" {
-			o.readOnly = true
-		}
-	}
 
 	for _, opt := range opts {
 		opt(&o)

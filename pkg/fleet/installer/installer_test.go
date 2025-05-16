@@ -43,7 +43,7 @@ type testPackageManager struct {
 func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *testPackageManager {
 	packages := repository.NewRepositories(rootPath, nil)
 	configs := repository.NewRepositories(t.TempDir(), nil)
-	db, err := db.New(filepath.Join(rootPath, "packages.db"), db.WithReadOnly(false))
+	db, err := db.New(filepath.Join(rootPath, "packages.db"))
 	assert.NoError(t, err)
 	hooks := &testHooks{}
 	return &testPackageManager{
