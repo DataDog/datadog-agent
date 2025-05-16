@@ -2056,7 +2056,11 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	}
 
 	if p.config.RuntimeSecurity.OnDemandEnabled {
-		p.onDemandManager.setHookPoints(rs.GetOnDemandHookPoints())
+		hookPoints, err := rs.GetOnDemandHookPoints()
+		if err != nil {
+			seclog.Errorf("failed to get on-demand hook points from ruleset: %v", err)
+		}
+		p.onDemandManager.setHookPoints(hookPoints)
 	}
 
 	if err := p.updateProbes(eventTypes, needRawSyscalls); err != nil {
