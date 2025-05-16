@@ -68,7 +68,7 @@ instances: [{}]
 func (v *LinuxFIPSComplianceSuite) TestFIPSDefaultConfig() {
 	_, err := v.Env().RemoteHost.Execute("sudo GOFIPS=0 datadog-agent status")
 	require.NotNil(v.T(), err)
-	assert.Contains(v.T(), err.Error(), "the 'requirefips' build tag is enabled, but it conflicts with the detected env variable GOFIPS=0 which would disable FIPS mode")
+	assert.Contains(v.T(), err.Error(), "the 'requirefips' build tag is enabled, but it conflicts with the detected environment variable GOFIPS=0 which would disable FIPS mode")
 
 	status := v.Env().RemoteHost.MustExecute("sudo datadog-agent status")
 	assert.NotContains(v.T(), status, "FIPS mode requested (requirefips tag set) but not available in OpenSSL")
