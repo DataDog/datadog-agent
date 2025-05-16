@@ -33,8 +33,7 @@ var (
 //    ProcessDebugPort = 7,
 //    ProcessWow64Information = 26,
 //    ProcessImageFileName = 27,
-//    ProcessBreakOnTermination = 29,
-//    ProcessProtectionInformation = 61
+//    ProcessBreakOnTermination = 29
 //} PROCESSINFOCLASS;
 
 // PROCESSINFOCLASS is the Go representation of the above enum
@@ -51,8 +50,6 @@ const (
 	ProcessImageFileName = PROCESSINFOCLASS(27)
 	// ProcessBreakOnTermination included for completeness
 	ProcessBreakOnTermination = PROCESSINFOCLASS(29)
-	// ProcessProtectionInformation returns the type of protected process/signer.
-	ProcessProtectionInformation = PROCESSINFOCLASS(61)
 )
 
 // IsWow64Process determines if the specified process is running under WOW64
@@ -83,39 +80,9 @@ func NtQueryInformationProcess(h windows.Handle, class PROCESSINFOCLASS, target,
 		uintptr(0))
 	if r != 0 {
 		err = windows.GetLastError()
-		return err
+		return
 	}
-	return nil
-}
-
-// IsProcessProtected checks if the process has any level of protection and returns true if any protection is present
-// more info https://learn.microsoft.com/en-us/windows/win32/procthread/zwqueryinformationprocess
-// NOTE: in user mode, NtQueryInformationProcess and ZwQueryInformationProcess behave the same
-// more info https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-nt-and-zw-versions-of-the-native-system-services-routines
-func IsProcessProtected(h windows.Handle) (bool, error) {
-	var processProtection uint8
-	// returns 1 byte of protection information when passed in with param 61
-	err := NtQueryInformationProcess(h, ProcessProtectionInformation, uintptr(unsafe.Pointer(&processProtection)), unsafe.Sizeof(processProtection))
-	if err != nil {
-		return false, err
-	}
-	/*
-		The first 3 bits contain the type of protected process:
-
-		typedef enum _PS_PROTECTED_TYPE {
-			PsProtectedTypeNone = 0,
-			PsProtectedTypeProtectedLight = 1,
-			PsProtectedTypeProtected = 2
-		} PS_PROTECTED_TYPE, *PPS_PROTECTED_TYPE;
-
-		if the protection type is anything other than 0, then we cannot open the process with PROCESS_VM_READ
-	*/
-
-	if processProtection&0b111 != 0 {
-		return true, nil
-	}
-
-	return false, nil
+	return
 }
 
 // ReadProcessMemory wraps the Windows kernel.dll function of the same name
