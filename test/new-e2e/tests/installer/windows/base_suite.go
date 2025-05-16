@@ -289,11 +289,10 @@ func (s *BaseSuite) MustStartExperimentPreviousVersion() {
 	s.Require().NoError(err)
 
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(consts.BinaryPath).
+		HasDatadogInstaller().
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, agentVersion)
-		}).
-		DirExists(consts.GetExperimentDirFor(consts.AgentPackage))
+		})
 }
 
 // StartExperimentCurrentVersion starts an experiment of current agent version
@@ -323,11 +322,10 @@ func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 
 	// sanity check: make sure we did indeed install the current version
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(consts.BinaryPath).
+		HasDatadogInstaller().
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, agentVersion)
-		}).
-		DirExists(consts.GetExperimentDirFor(consts.AgentPackage))
+		})
 }
 
 // AssertSuccessfulAgentStartExperiment that experiment started successfully

@@ -45,7 +45,8 @@ if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
     fi
 
     if [ -n "$PRE_PYTHON_FILE" ]; then
-        ${INSTALL_DIR}/embedded/bin/python "${PRE_PYTHON_FILE}" "${INSTALL_DIR}" || true
+        # -B prevents writing a cache of the bytecode since this is only run once
+        ${INSTALL_DIR}/embedded/bin/python -B "${PRE_PYTHON_FILE}" "${INSTALL_DIR}" || true
     else
         echo "[ WARNING ]\tPRE_PYTHON_FILE is not set"
     fi

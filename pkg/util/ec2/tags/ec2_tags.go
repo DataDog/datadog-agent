@@ -31,8 +31,7 @@ var (
 	tagsCacheKey = cache.BuildAgentKey("ec2", "GetTags")
 	infoCacheKey = cache.BuildAgentKey("ec2", "GetInstanceInfo")
 
-	// This is used in ec2_tags.go which is behind the 'ec2' build flag
-	imdsTags = "/tags/instance" //nolint:unused
+	imdsTags = "/tags/instance"
 )
 
 func isTagExcluded(tag string) bool {

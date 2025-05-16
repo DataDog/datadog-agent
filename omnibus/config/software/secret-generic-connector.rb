@@ -16,7 +16,7 @@
 require './lib/ostools.rb'
 
 name "secret-generic-connector"
-default_version "0.2.0"
+default_version "0.2.1"
 
 # Define URLs for each platform
 secret_generic_urls = {
@@ -38,16 +38,16 @@ secret_generic_urls = {
 # Note: These should be updated for each version
 secret_generic_sha256 = {
   "linux" => {
-    "amd64" => "d4213e92b7810c44bd7e0a39338c0fb4f9302dda65d0dba673558ba7d6a007bc",
-    "arm64" => "eb91cc9db52bd22be3b4ea75c6d94226c648158c2c0b77b60fd0d606e716a328"
+    "amd64" => "362060f2518545328c72156a67da45f88ad7dcd53cd6188f4c22413a5792da29",
+    "arm64" => "16922fa06dfdd98f7a2203b5a97adb8b82360fdc303b22b457ce910c0d58a483"
   },
   "windows" => {
-    "amd64" => "32c51115d1c46a225bca27c355a968eacf239870d31cc96888e61a9f939f738f",
-    "arm64" => "60aeb056907ddc95c0e21df04b8732b3b240dd532d6ac31d2b617899810db55d"
+    "amd64" => "0290920f74bf4bd0f2567fc5e5525ea01325272492096174129d7ba44461410c",
+    "arm64" => "d3a6cf58b5a35661fd2199938182b337650b951ac9a74fde7cebf7a04d55a3e0"
   },
   "darwin" => {
-    "amd64" => "c03fed7465989aae1c210bf6464eb2b06fd523f7af8a4e840735e3e8a116c4fd",
-    "arm64" => "8ec77da90910db5f355078a5f1df9bcbebbfb7618c1d23af2460abb4b3e47b4d"
+    "amd64" => "d219c3b765119fddef4afd294cbda8f05e0dcb3c854665c369d9888f1efd83bf",
+    "arm64" => "4c44a0a1d24d13680c6ec14c4dcdf5e863df25dd2f63ff54299aaef16c9b4812"
   },
 }
 
@@ -75,9 +75,11 @@ build do
 
   if windows?
     # Extract the zip file
-    copy "#{project_dir}/datadog-secret-backend.exe", "#{install_dir}/embedded/bin/secret-generic-connector.exe"
+    copy "#{project_dir}/datadog-secret-backend.exe", "#{install_dir}/bin/secret-generic-connector.exe"
   else
     # Extract the tar.gz file
-    copy "#{project_dir}/datadog-secret-backend", "#{install_dir}/embedded/bin/secret-generic-connector"
+    target = "#{install_dir}/embedded/bin/secret-generic-connector"
+    copy "#{project_dir}/datadog-secret-backend", target
+    block { File.chmod(0500, target) }
   end
 end

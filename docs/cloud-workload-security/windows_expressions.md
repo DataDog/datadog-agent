@@ -71,6 +71,7 @@ List of the available variables:
 | [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
 | [`event.origin`](#event-origin-doc) | Origin of the event |
 | [`event.os`](#event-os-doc) | Operating system of the event |
+| [`event.rule.tags`](#event-rule-tags-doc) | Tags associated with the rule that's used to evaluate the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`process.ancestors.cmdline`](#common-process-cmdline-doc) | Command line of the process |
@@ -618,6 +619,13 @@ Definition: Origin of the event
 Type: string
 
 Definition: Operating system of the event
+
+
+
+### `event.rule.tags` {#event-rule-tags-doc}
+Type: string
+
+Definition: Tags associated with the rule that's used to evaluate the event
 
 
 
