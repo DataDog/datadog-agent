@@ -21,4 +21,4 @@ jobs:
 
       - name: Create RC PR
         run: |
-          dda inv -- -e release.celian
+          dda inv -- -e release.celian -r 7.67.x
