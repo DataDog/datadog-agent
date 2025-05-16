@@ -222,6 +222,7 @@
 /cmd/agent/installer.go                 @DataDog/fleet
 /cmd/agent/install*.sh                  @DataDog/container-ecosystems @DataDog/agent-delivery
 /cmd/cluster-agent/                     @DataDog/container-platform
+/cmd/cluster-agent/subcommands/autoscalerlist   @DataDog/container-autoscaling @DataDog/container-integrations
 /cmd/cluster-agent-cloudfoundry/        @DataDog/agent-integrations
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/agent-integrations
 /cmd/cws-instrumentation/               @DataDog/agent-security
@@ -252,10 +253,10 @@
 /dev/                                   @DataDog/agent-devx
 /devenv/                                @DataDog/agent-devx
 
-/Dockerfiles/                            @DataDog/container-integrations
-/Dockerfiles/agent/entrypoint.d.windows/ @DataDog/container-integrations @DataDog/windows-agent
-/Dockerfiles/agent/entrypoint.ps1        @DataDog/container-integrations @DataDog/windows-agent
-/Dockerfiles/agent/windows/              @DataDog/container-integrations @DataDog/windows-agent
+/Dockerfiles/                            @DataDog/agent-delivery
+/Dockerfiles/agent/entrypoint.d.windows/ @DataDog/agent-delivery @DataDog/windows-agent
+/Dockerfiles/agent/entrypoint.ps1        @DataDog/agent-delivery @DataDog/windows-agent
+/Dockerfiles/agent/windows/              @DataDog/agent-delivery @DataDog/windows-agent
 /Dockerfiles/agent-ddot                  @DataDog/opentelemetry-agent
 /Dockerfiles/agent/bouncycastle-fips     @DataDog/agent-metric-pipelines
 
@@ -369,6 +370,7 @@
 /pkg/cli/subcommands/check              @DataDog/agent-runtimes @DataDog/agent-integrations
 /pkg/cli/subcommands/version            @DataDog/agent-runtimes
 /pkg/cli/subcommands/clusterchecks      @DataDog/container-platform
+/pkg/cli/subcommands/autoscalerlist     @DataDog/container-autoscaling @DataDog/container-integrations
 /pkg/discovery/                         @DataDog/agent-discovery
 /pkg/errors/                            @DataDog/agent-runtimes
 /pkg/fips                               @DataDog/agent-runtimes
@@ -465,6 +467,7 @@
 /pkg/diagnose/ports/*windows*.go        @DataDog/windows-agent
 /pkg/eventmonitor/                      @DataDog/ebpf-platform @DataDog/agent-security
 /pkg/dynamicinstrumentation/            @DataDog/debugger-go
+/pkg/dyninst/                           @DataDog/debugger-go
 /pkg/flare/                             @DataDog/agent-configuration
 /pkg/flare/clusteragent/manifests.go    @DataDog/container-ecosystems @DataDog/agent-configuration
 /pkg/flare/*_win.go                     @Datadog/windows-agent @DataDog/agent-configuration

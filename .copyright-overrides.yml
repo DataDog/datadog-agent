@@ -402,6 +402,4 @@ github.com/bhmj/xpression: Copyright 2021-2022 Michael Gurov (github.com/bhmj)
 
 github.com/bboreham/go-loser: bboreham <bjboreham@gmail.com>
 cel.dev/expr: TristonianJones <tswadell@google.com>
-
-# https://github.com/google/go-tpm/blob/main/LICENSE
-github.com/google/go-tpm: Copyright 2014 Google LLC. All Rights Reserved.
+github.com/google/go-tpm: Copyright (c) 2014, Google LLC All rights reserved.
