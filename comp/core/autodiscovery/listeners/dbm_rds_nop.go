@@ -7,5 +7,5 @@
 
 package listeners
 
-// NewDBMRDSListener returns a ServiceListener interface
+// NewDBMRdsListener returns a ServiceListener interface
 var NewDBMRdsListener ServiceListenerFactory
