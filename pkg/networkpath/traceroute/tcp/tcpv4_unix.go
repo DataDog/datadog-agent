@@ -11,7 +11,6 @@ package tcp
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"net"
 	"net/netip"
 	"syscall"
@@ -40,9 +39,6 @@ type (
 // TracerouteSequential runs a traceroute sequentially where a packet is
 // sent and we wait for a response before sending the next packet
 func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
-	if t.CompatibilityMode {
-		return nil, fmt.Errorf("TCP SYN compatibility mode is not yet supported")
-	}
 	// Get local address for the interface that connects to this
 	// host and store in in the probe
 	addr, conn, err := common.LocalAddrForHost(t.Target, t.DestPort)
@@ -101,8 +97,8 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 	hops := make([]*common.Hop, 0, t.MaxTTL-t.MinTTL)
 
 	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
-		seqNumber := rand.Uint32()
-		hop, err := t.sendAndReceive(rawIcmpConn, rawTCPConn, i, seqNumber, t.Timeout)
+		seqNumber, packetID := t.nextSeqNumAndPacketID()
+		hop, err := t.sendAndReceive(rawIcmpConn, rawTCPConn, i, seqNumber, packetID, t.Timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to run traceroute: %w", err)
 		}
@@ -121,12 +117,12 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 		Target:     t.Target,
 		DstPort:    t.DestPort,
 		Hops:       hops,
-		Tags:       []string{"tcp_method:syn"},
+		Tags:       []string{"tcp_method:syn", fmt.Sprintf("compatibility_mode:%t", t.CompatibilityMode)},
 	}, nil
 }
 
-func (t *TCPv4) sendAndReceive(rawIcmpConn rawConnWrapper, rawTCPConn rawConnWrapper, ttl int, seqNum uint32, timeout time.Duration) (*common.Hop, error) {
-	tcpHeader, tcpPacket, err := t.createRawTCPSyn(seqNum, ttl)
+func (t *TCPv4) sendAndReceive(rawIcmpConn rawConnWrapper, rawTCPConn rawConnWrapper, ttl int, seqNum uint32, packetID uint16, timeout time.Duration) (*common.Hop, error) {
+	tcpHeader, tcpPacket, err := t.createRawTCPSyn(packetID, seqNum, ttl)
 	if err != nil {
 		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
 		return nil, err
@@ -139,7 +135,7 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn rawConnWrapper, rawTCPConn rawConnWra
 	}
 
 	start := time.Now()
-	resp := listenPacketsFunc(rawIcmpConn, rawTCPConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
+	resp := listenPacketsFunc(rawIcmpConn, rawTCPConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, packetID)
 	if resp.Err != nil {
 		log.Errorf("failed to listen for packets: %s", resp.Err.Error())
 		return nil, resp.Err
