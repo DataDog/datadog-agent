@@ -25,10 +25,17 @@ var (
 	errAppendNotSupported = errors.New("append is not supported")
 )
 
+// Properties contains options that can be set on variables
+type Properties struct {
+	Private bool // When a variable is marked as private, it will not be included in the serialized event
+	// Add other option fields here as needed
+}
+
 // SECLVariable describes a SECL variable value
 type SECLVariable interface {
 	GetEvaluator() interface{}
-	IsPrivate() bool // When a variable is marked as private, it will not be included in the serialized event
+	GetProperties() Properties
+	SetProperties(props Properties)
 }
 
 // Variable is the interface implemented by variables
@@ -46,13 +53,14 @@ type ScopedVariable interface {
 type MutableVariable interface {
 	Set(ctx *Context, value interface{}) error
 	Append(ctx *Context, value interface{}) error
-	SetPrivate(private bool)
+	GetProperties() Properties
+	SetProperties(props Properties)
 }
 
 // settableVariable describes a SECL variable
 type settableVariable struct {
 	setFnc func(ctx *Context, value interface{}) error
-	private bool
+	props  Properties
 }
 
 type expirableVariable interface {
@@ -78,14 +86,14 @@ func (v *settableVariable) IsMutable() bool {
 	return v.setFnc != nil
 }
 
-// IsPrivate returns whether the variable is private
-func (v *settableVariable) IsPrivate() bool {
-	return v.private
+// GetProperties returns the variable properties
+func (v *settableVariable) GetProperties() Properties {
+	return v.props
 }
 
-// SetPrivate sets whether the variable is private
-func (v *settableVariable) SetPrivate(private bool) {
-	v.private = private
+// SetProperties sets the variable properties
+func (v *settableVariable) SetProperties(props Properties) {
+	v.props = props
 }
 
 // ScopedIntVariable describes a scoped integer variable
@@ -109,17 +117,14 @@ func (i *ScopedIntVariable) GetValue(ctx *Context) (interface{}, bool) {
 	return i.intFnc(ctx)
 }
 
-// IsPrivate returns whether the variable is private
-func (i *ScopedIntVariable) IsPrivate() bool {
-	return i.settableVariable.IsPrivate()
-}
-
 // NewScopedIntVariable returns a new integer variable
 func NewScopedIntVariable(intFnc func(ctx *Context) (int, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedIntVariable {
 	return &ScopedIntVariable{
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			private: false,
+			props: Properties{
+				Private: false,
+			},
 		},
 		intFnc: intFnc,
 	}
@@ -147,18 +152,15 @@ func (s *ScopedStringVariable) GetValue(ctx *Context) (interface{}, bool) {
 	return s.strFnc(ctx)
 }
 
-// IsPrivate returns whether the variable is private
-func (s *ScopedStringVariable) IsPrivate() bool {
-	return s.settableVariable.IsPrivate()
-}
-
 // NewScopedStringVariable returns a new scoped string variable
 func NewScopedStringVariable(strFnc func(ctx *Context) (string, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedStringVariable {
 	return &ScopedStringVariable{
 		strFnc: strFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			private: false,
+			props: Properties{
+				Private: false,
+			},
 		},
 	}
 }
@@ -184,18 +186,15 @@ func (b *ScopedBoolVariable) GetValue(ctx *Context) (interface{}, bool) {
 	return b.boolFnc(ctx)
 }
 
-// IsPrivate returns whether the variable is private
-func (b *ScopedBoolVariable) IsPrivate() bool {
-	return b.settableVariable.IsPrivate()
-}
-
 // NewScopedBoolVariable returns a new boolean variable
 func NewScopedBoolVariable(boolFnc func(ctx *Context) (bool, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedBoolVariable {
 	return &ScopedBoolVariable{
 		boolFnc: boolFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			private: false,
+			props: Properties{
+				Private: false,
+			},
 		},
 	}
 }
@@ -221,18 +220,15 @@ func (i *ScopedIPVariable) GetValue(ctx *Context) (interface{}, bool) {
 	return i.ipFnc(ctx)
 }
 
-// IsPrivate returns whether the variable is private
-func (i *ScopedIPVariable) IsPrivate() bool {
-	return i.settableVariable.IsPrivate()
-}
-
 // NewScopedIPVariable returns a new scoped IP variable
 func NewScopedIPVariable(ipFnc func(ctx *Context) (net.IPNet, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedIPVariable {
 	return &ScopedIPVariable{
 		ipFnc: ipFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			private: false,
+			props: Properties{
+				Private: false,
+			},
 		},
 	}
 }
@@ -258,11 +254,6 @@ func (s *ScopedStringArrayVariable) GetValue(ctx *Context) (interface{}, bool) {
 	return s.strFnc(ctx)
 }
 
-// IsPrivate returns whether the variable is private
-func (s *ScopedStringArrayVariable) IsPrivate() bool {
-	return s.settableVariable.IsPrivate()
-}
-
 // Set the array values
 func (s *ScopedStringArrayVariable) Set(ctx *Context, value interface{}) error {
 	if s, ok := value.(string); ok {
@@ -286,7 +277,9 @@ func NewScopedStringArrayVariable(strFnc func(ctx *Context) ([]string, bool), se
 		strFnc: strFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			private: false,
+			props: Properties{
+				Private: false,
+			},
 		},
 	}
 }
@@ -312,11 +305,6 @@ func (v *ScopedIntArrayVariable) GetValue(ctx *Context) (interface{}, bool) {
 	return v.intFnc(ctx)
 }
 
-// IsPrivate returns whether the variable is private
-func (v *ScopedIntArrayVariable) IsPrivate() bool {
-	return v.settableVariable.IsPrivate()
-}
-
 // Set the array values
 func (v *ScopedIntArrayVariable) Set(ctx *Context, value interface{}) error {
 	if i, ok := value.(int); ok {
@@ -340,7 +328,9 @@ func NewScopedIntArrayVariable(intFnc func(ctx *Context) ([]int, bool), setFnc f
 		intFnc: intFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			private: false,
+			props: Properties{
+				Private: false,
+			},
 		},
 	}
 }
@@ -366,11 +356,6 @@ func (i *ScopedIPArrayVariable) GetValue(ctx *Context) (interface{}, bool) {
 	return i.ipFnc(ctx)
 }
 
-// IsPrivate returns whether the variable is private
-func (i *ScopedIPArrayVariable) IsPrivate() bool {
-	return i.settableVariable.IsPrivate()
-}
-
 // Set the array values
 func (i *ScopedIPArrayVariable) Set(ctx *Context, value interface{}) error {
 	if ip, ok := value.(net.IPNet); ok {
@@ -394,7 +379,9 @@ func NewScopedIPArrayVariable(ipFnc func(ctx *Context) ([]net.IPNet, bool), setF
 		ipFnc: ipFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			private: false,
+			props: Properties{
+				Private: false,
+			},
 		},
 	}
 }
@@ -419,7 +406,7 @@ type IntVariable struct {
 	isSet bool
 	Value int
 	variableWithTTL
-	private bool
+	props Properties
 }
 
 // GetValue returns the variable value
@@ -462,14 +449,14 @@ func (m *IntVariable) GetEvaluator() interface{} {
 	}
 }
 
-// IsPrivate returns whether the variable is private
-func (m *IntVariable) IsPrivate() bool {
-	return m.private
+// GetProperties returns the variable properties
+func (m *IntVariable) GetProperties() Properties {
+	return m.props
 }
 
-// SetPrivate sets whether the variable is private
-func (m *IntVariable) SetPrivate(private bool) {
-	m.private = private
+// SetProperties sets the variable properties
+func (m *IntVariable) SetProperties(props Properties) {
+	m.props = props
 }
 
 // BoolVariable describes a mutable boolean variable
@@ -477,7 +464,7 @@ type BoolVariable struct {
 	isSet bool
 	Value bool
 	variableWithTTL
-	private bool
+	props Properties
 }
 
 // GetEvaluator returns the variable SECL evaluator
@@ -490,14 +477,14 @@ func (m *BoolVariable) GetEvaluator() interface{} {
 	}
 }
 
-// IsPrivate returns whether the variable is private
-func (m *BoolVariable) IsPrivate() bool {
-	return m.private
+// GetProperties returns the variable properties
+func (m *BoolVariable) GetProperties() Properties {
+	return m.props
 }
 
-// SetPrivate sets whether the variable is private
-func (m *BoolVariable) SetPrivate(private bool) {
-	m.private = private
+// SetProperties sets the variable properties
+func (m *BoolVariable) SetProperties(props Properties) {
+	m.props = props
 }
 
 // NewIntVariable returns a new mutable integer variable
@@ -507,7 +494,9 @@ func NewIntVariable(value int, ttl time.Duration) *IntVariable {
 		variableWithTTL: variableWithTTL{
 			ttl: ttl,
 		},
-		private: false,
+		props: Properties{
+			Private: false,
+		},
 	}
 }
 
@@ -540,7 +529,9 @@ func NewBoolVariable(value bool, ttl time.Duration) *BoolVariable {
 		variableWithTTL: variableWithTTL{
 			ttl: ttl,
 		},
-		private: false,
+		props: Properties{
+			Private: false,
+		},
 	}
 }
 
@@ -549,7 +540,7 @@ type StringVariable struct {
 	Value string
 	isSet bool
 	variableWithTTL
-	private bool
+	props Properties
 }
 
 // GetEvaluator returns the variable SECL evaluator
@@ -563,14 +554,14 @@ func (m *StringVariable) GetEvaluator() interface{} {
 	}
 }
 
-// IsPrivate returns whether the variable is private
-func (m *StringVariable) IsPrivate() bool {
-	return m.private
+// GetProperties returns the variable properties
+func (m *StringVariable) GetProperties() Properties {
+	return m.props
 }
 
-// SetPrivate sets whether the variable is private
-func (m *StringVariable) SetPrivate(private bool) {
-	m.private = private
+// SetProperties sets the variable properties
+func (m *StringVariable) SetProperties(props Properties) {
+	m.props = props
 }
 
 // GetValue returns the variable value
@@ -610,7 +601,9 @@ func NewStringVariable(value string, ttl time.Duration) *StringVariable {
 		variableWithTTL: variableWithTTL{
 			ttl: ttl,
 		},
-		private: false,
+		props: Properties{
+			Private: false,
+		},
 	}
 }
 
@@ -619,7 +612,7 @@ type IPVariable struct {
 	Value net.IPNet
 	isSet bool
 	variableWithTTL
-	private bool
+	props Properties
 }
 
 // GetValue returns the variable value
@@ -654,14 +647,14 @@ func (m *IPVariable) GetEvaluator() interface{} {
 	}
 }
 
-// IsPrivate returns whether the variable is private
-func (m *IPVariable) IsPrivate() bool {
-	return m.private
+// GetProperties returns the variable properties
+func (m *IPVariable) GetProperties() Properties {
+	return m.props
 }
 
-// SetPrivate sets whether the variable is private
-func (m *IPVariable) SetPrivate(private bool) {
-	m.private = private
+// SetProperties sets the variable properties
+func (m *IPVariable) SetProperties(props Properties) {
+	m.props = props
 }
 
 // NewIPVariable returns a new mutable IP variable
@@ -671,7 +664,9 @@ func NewIPVariable(value net.IPNet, ttl time.Duration) *IPVariable {
 		variableWithTTL: variableWithTTL{
 			ttl: ttl,
 		},
-		private: false,
+		props: Properties{
+			Private: false,
+		},
 	}
 }
 
@@ -679,7 +674,7 @@ func NewIPVariable(value net.IPNet, ttl time.Duration) *IPVariable {
 type StringArrayVariable struct {
 	isSet bool
 	LRU   *ttlcache.Cache[string, bool]
-	private bool
+	props Properties
 }
 
 // GetValue returns the variable value
@@ -732,14 +727,14 @@ func (m *StringArrayVariable) GetEvaluator() interface{} {
 	}
 }
 
-// IsPrivate returns whether the variable is private
-func (m *StringArrayVariable) IsPrivate() bool {
-	return m.private
+// GetProperties returns the variable properties
+func (m *StringArrayVariable) GetProperties() Properties {
+	return m.props
 }
 
-// SetPrivate sets whether the variable is private
-func (m *StringArrayVariable) SetPrivate(private bool) {
-	m.private = private
+// SetProperties sets the variable properties
+func (m *StringArrayVariable) SetProperties(props Properties) {
+	m.props = props
 }
 
 // CleanupExpired cleans up expired values from the variable
@@ -759,7 +754,9 @@ func NewStringArrayVariable(value []string, size int, ttl time.Duration) *String
 
 	v := &StringArrayVariable{
 		LRU: lru,
-		private: false,
+		props: Properties{
+			Private: false,
+		},
 	}
 	_ = v.set(nil, value)
 	return v
@@ -769,7 +766,7 @@ func NewStringArrayVariable(value []string, size int, ttl time.Duration) *String
 type IntArrayVariable struct {
 	isSet bool
 	LRU   *ttlcache.Cache[int, bool]
-	private bool
+	props Properties
 }
 
 // GetValue returns the variable value
@@ -824,14 +821,14 @@ func (m *IntArrayVariable) GetEvaluator() interface{} {
 	}
 }
 
-// IsPrivate returns whether the variable is private
-func (m *IntArrayVariable) IsPrivate() bool {
-	return m.private
+// GetProperties returns the variable properties
+func (m *IntArrayVariable) GetProperties() Properties {
+	return m.props
 }
 
-// SetPrivate sets whether the variable is private
-func (m *IntArrayVariable) SetPrivate(private bool) {
-	m.private = private
+// SetProperties sets the variable properties
+func (m *IntArrayVariable) SetProperties(props Properties) {
+	m.props = props
 }
 
 // CleanupExpired cleans up expired values from the variable
@@ -851,7 +848,9 @@ func NewIntArrayVariable(value []int, size int, ttl time.Duration) *IntArrayVari
 
 	v := &IntArrayVariable{
 		LRU: lru,
-		private: false,
+		props: Properties{
+			Private: false,
+		},
 	}
 	_ = v.set(nil, value)
 	return v
@@ -861,7 +860,7 @@ func NewIntArrayVariable(value []int, size int, ttl time.Duration) *IntArrayVari
 type IPArrayVariable struct {
 	LRU   *ttlcache.Cache[string, bool]
 	isSet bool
-	private bool
+	props Properties
 }
 
 // GetValue returns the variable value
@@ -930,14 +929,14 @@ func (m *IPArrayVariable) GetEvaluator() interface{} {
 	}
 }
 
-// IsPrivate returns whether the variable is private
-func (m *IPArrayVariable) IsPrivate() bool {
-	return m.private
+// GetProperties returns the variable properties
+func (m *IPArrayVariable) GetProperties() Properties {
+	return m.props
 }
 
-// SetPrivate sets whether the variable is private
-func (m *IPArrayVariable) SetPrivate(private bool) {
-	m.private = private
+// SetProperties sets the variable properties
+func (m *IPArrayVariable) SetProperties(props Properties) {
+	m.props = props
 }
 
 // CleanupExpired cleans up expired values from the variable
@@ -957,7 +956,9 @@ func NewIPArrayVariable(value []net.IPNet, size int, ttl time.Duration) *IPArray
 
 	v := &IPArrayVariable{
 		LRU: lru,
-		private: false,
+		props: Properties{
+			Private: false,
+		},
 	}
 	_ = v.set(nil, value)
 	return v

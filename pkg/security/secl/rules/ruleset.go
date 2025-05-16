@@ -623,7 +623,9 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 				}
 
 				if action.Def.Set.Private {
-					mutable.SetPrivate(true)
+					props := mutable.GetProperties()
+					props.Private = true
+					mutable.SetProperties(props)
 				}
 
 				if action.Def.Set.Append {
