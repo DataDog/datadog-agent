@@ -19,9 +19,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ErrReceiveProbeNoPkt is returned when ReceiveProbe() didn't find anything new.
+// ReceiveProbeNoPktError is returned when ReceiveProbe() didn't find anything new.
 // This is normal if the RTT is long
-var ErrReceiveProbeNoPkt = errors.New("ReceiveProbe() doesn't have new packets")
+type ReceiveProbeNoPktError struct {
+	Err error
+}
+
+func (e *ReceiveProbeNoPktError) Error() string {
+	return fmt.Sprintf("ReceiveProbe() didn't find any new packets: %s", e.Err)
+}
+func (e *ReceiveProbeNoPktError) Unwrap() error {
+	return e.Err
+}
 
 // BadPacketError is a non-fatal error that occurs when a packet is malformed.
 type BadPacketError struct {
@@ -30,6 +39,9 @@ type BadPacketError struct {
 
 func (e *BadPacketError) Error() string {
 	return fmt.Sprintf("Failed to parse packet: %s", e.Err)
+}
+func (e *BadPacketError) Unwrap() error {
+	return e.Err
 }
 
 // ProbeResponse is the response of a single probe in a traceroute
@@ -46,8 +58,7 @@ type ProbeResponse struct {
 
 // TracerouteDriverInfo is metadata about a TracerouteDriver
 type TracerouteDriverInfo struct {
-	// whether this driver uses a separate socket to read ICMP, and implements ReceiveICMPProbe
-	UsesReceiveICMPProbe bool
+	SupportsParallel bool
 }
 
 // TracerouteDriver is an implementation of traceroute send+receive of packets
@@ -56,10 +67,8 @@ type TracerouteDriver interface {
 	GetDriverInfo() TracerouteDriverInfo
 	// SendProbe sends a traceroute packet with a specific TTL
 	SendProbe(ttl uint8) error
-	// ReceiveProbe polls to get a traceroute response with a timeout
+	// ReceiveProbe polls to get a traceroute response with a timeout.
 	ReceiveProbe(timeout time.Duration) (*ProbeResponse, error)
-	// ReceiveICMPProbe is identical to ReceiveProbe, just running in another goroutine
-	ReceiveICMPProbe(timeout time.Duration) (*ProbeResponse, error)
 }
 
 // TracerouteParallelParams are the parameters for TracerouteParallel
@@ -99,6 +108,9 @@ func TracerouteParallel(ctx context.Context, t TracerouteDriver, p TraceroutePar
 		return nil, fmt.Errorf("min TTL must be at least 1")
 	}
 	info := t.GetDriverInfo()
+	if !info.SupportsParallel {
+		return nil, fmt.Errorf("tried to call TracerouteParallel on a TracerouteDriver that doesn't support parallel")
+	}
 
 	results := make([]*ProbeResponse, int(p.MaxTTL)+1)
 	resultsMu := sync.Mutex{}
@@ -148,42 +160,39 @@ func TracerouteParallel(ctx context.Context, t TracerouteDriver, p TraceroutePar
 		return nil
 	})
 
-	handleProbeFunc := func(funcName string, probeFunc func(timeout time.Duration) (*ProbeResponse, error)) {
-		g.Go(func() error {
-			for {
-				// leave if we got cancelled, SendProbe() failed, etc
-				select {
-				// doesn't use writerCtx because even if we writerCancel(), we want to keep reading
-				case <-groupCtx.Done():
-					return nil
-				default:
-				}
-
-				probe, err := probeFunc(p.PollFrequency)
-				if CheckParallelRetryable(funcName, err) {
-					continue
-				} else if err != nil {
-					return err
-				}
-				if probe == nil {
-					return fmt.Errorf("%s() returned nil without an error (this indicates a bug in the TracerouteDriver)", funcName)
-				}
-				if probe.TTL < p.MinTTL || probe.TTL > p.MaxTTL {
-					return fmt.Errorf("%s() received an invalid TTL (expected TTL in [%d, %d]): %d", funcName, p.MinTTL, p.MaxTTL, probe.TTL)
-				}
-
-				writeProbe(probe)
-				// no need to send more probes if we found the destination
-				if probe.IsDest {
-					writerCancel()
-				}
+	g.Go(func() error {
+		for {
+			// leave if we got cancelled, SendProbe() failed, etc
+			select {
+			// doesn't use writerCtx because even if we writerCancel(), we want to keep reading
+			case <-groupCtx.Done():
+				return nil
+			default:
 			}
-		})
-	}
-	handleProbeFunc("ReceiveProbe", t.ReceiveProbe)
-	if info.UsesReceiveICMPProbe {
-		handleProbeFunc("ReceiveICMPProbe", t.ReceiveICMPProbe)
-	}
+
+			probe, err := t.ReceiveProbe(p.PollFrequency)
+			if CheckParallelRetryable("ReceiveProbe", err) {
+				continue
+			} else if err != nil {
+				return err
+			}
+			if probe == nil {
+				return fmt.Errorf("ReceiveProbe() returned nil without an error (this indicates a bug in the TracerouteDriver)")
+			}
+			if probe.TTL == 0 {
+				return fmt.Errorf("ReceiveProbe() got TTL 0 which is only allowed for TracerouteSerial (this indicates a bug in the TracerouteDriver)")
+			}
+			if probe.TTL < p.MinTTL || probe.TTL > p.MaxTTL {
+				return fmt.Errorf("ReceiveProbe() received an invalid TTL: expected TTL in [%d, %d], got %d", p.MinTTL, p.MaxTTL, probe.TTL)
+			}
+
+			writeProbe(probe)
+			// no need to send more probes if we found the destination
+			if probe.IsDest {
+				writerCancel()
+			}
+		}
+	})
 
 	// check for an error from the goroutines
 	err := g.Wait()
@@ -229,8 +238,9 @@ var badPktLimit = log.NewLogLimit(10, 5*time.Minute)
 
 // CheckParallelRetryable returns whether ReceiveProbe failed due to a real error or just an irrelevant packet
 func CheckParallelRetryable(funcName string, err error) bool {
+	noPktErr := &ReceiveProbeNoPktError{}
 	badPktErr := &BadPacketError{}
-	if errors.Is(err, ErrReceiveProbeNoPkt) {
+	if errors.As(err, &noPktErr) {
 		return true
 	} else if errors.As(err, &badPktErr) {
 		if badPktLimit.ShouldLog() {

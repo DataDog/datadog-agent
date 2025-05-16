@@ -35,15 +35,6 @@ const (
 	inodeMetric = "system.fs.inodes.%s"
 )
 
-var (
-	// DiskPartitions returns a list of mounted disk partitions using gopsutil.
-	DiskPartitions = gopsutil_disk.Partitions
-	// DiskUsage returns disk usage statistics for the given path using gopsutil.
-	DiskUsage = gopsutil_disk.Usage
-	// DiskIOCounters returns disk I/O statistics for the specified devices using gopsutil.
-	DiskIOCounters = gopsutil_disk.IOCounters
-)
-
 // diskInstanceConfig represents an instance configuration.
 type diskInitConfig struct {
 	DeviceGlobalExclude       []string `yaml:"device_global_exclude"`
@@ -120,7 +111,11 @@ func compileRegExp(expr string, ignoreCase bool) (*regexp.Regexp, error) {
 // Check represents the Disk check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	clock               clock.Clock
+	clock          clock.Clock
+	diskPartitions func(bool) ([]gopsutil_disk.PartitionStat, error)
+	diskUsage      func(string) (*gopsutil_disk.UsageStat, error)
+	diskIOCounters func(...string) (map[string]gopsutil_disk.IOCountersStat, error)
+
 	initConfig          diskInitConfig
 	instanceConfig      diskInstanceConfig
 	includedDevices     []regexp.Regexp
@@ -390,7 +385,7 @@ func (c *Check) configureIncludeMountPoint() error {
 }
 
 func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
-	partitions, err := DiskPartitions(c.instanceConfig.IncludeAllDevices)
+	partitions, err := c.diskPartitions(c.instanceConfig.IncludeAllDevices)
 	if err != nil {
 		log.Warnf("Unable to get disk partitions: %s", err)
 		return err
@@ -425,7 +420,7 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 }
 
 func (c *Check) collectDiskMetrics(sender sender.Sender) error {
-	iomap, err := DiskIOCounters()
+	iomap, err := c.diskIOCounters()
 	if err != nil {
 		log.Warnf("Unable to get disk iocounters: %s", err)
 		return err
@@ -472,13 +467,11 @@ func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.Usage
 	// Start the disk usage call in a separate goroutine.
 	go func() {
 		// UsageWithContext in gopsutil ignores the context for now (PR opened: https://github.com/shirou/gopsutil/pull/1837)
-		usage, err := DiskUsage(mountpoint)
+		usage, err := c.diskUsage(mountpoint)
 		// Use select to avoid writing to resultCh if timeout already occurred.
 		select {
 		case resultCh <- usageResult{usage, err}:
 		case <-timeoutCh:
-			// timeout occurred — avoid writing to resultCh
-			return
 		}
 	}()
 	// Use select to wait for either the disk usage result or a timeout.
@@ -651,21 +644,13 @@ func Factory() option.Option[func() check.Check] {
 	return option.New(newCheck)
 }
 
-// FactoryWithClock creates a new check factory with the clock dependency injection
-func FactoryWithClock(clock clock.Clock) option.Option[func() check.Check] {
-	return option.New(func() check.Check {
-		return newCheckWithClock(clock)
-	})
-}
-
 func newCheck() check.Check {
-	return newCheckWithClock(clock.New())
-}
-
-func newCheckWithClock(clock clock.Clock) check.Check {
 	return &Check{
-		CheckBase: core.NewCheckBase(CheckName),
-		clock:     clock,
+		CheckBase:      core.NewCheckBase(CheckName),
+		clock:          clock.New(),
+		diskPartitions: gopsutil_disk.Partitions,
+		diskUsage:      gopsutil_disk.Usage,
+		diskIOCounters: gopsutil_disk.IOCounters,
 		initConfig: diskInitConfig{
 			DeviceGlobalExclude:       []string{},
 			DeviceGlobalBlacklist:     []string{},

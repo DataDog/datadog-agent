@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux && linux_bpf
+
 package marshal
 
 import (
@@ -39,7 +41,6 @@ type RedisSuite struct {
 }
 
 func TestRedisStats(t *testing.T) {
-	skipIfNotLinux(t)
 	suite.Run(t, &RedisSuite{})
 }
 
@@ -62,17 +63,19 @@ func (s *RedisSuite) TestFormatRedisStats() {
 				redisDefaultConnection,
 			},
 		},
-		Redis: map[redis.Key]*redis.RequestStats{
-			dummyKey: {ErrorToStats: map[bool]*redis.RequestStat{
-				false: {
-					FirstLatencySample: 1,
-					Count:              2,
-				},
-				true: {
-					FirstLatencySample: 1,
-					Count:              2,
-				},
-			}},
+		USMData: network.USMProtocolsData{
+			Redis: map[redis.Key]*redis.RequestStats{
+				dummyKey: {ErrorToStats: map[bool]*redis.RequestStat{
+					false: {
+						FirstLatencySample: 1,
+						Count:              2,
+					},
+					true: {
+						FirstLatencySample: 1,
+						Count:              2,
+					},
+				}},
+			},
 		},
 	}
 
@@ -86,12 +89,12 @@ func (s *RedisSuite) TestFormatRedisStats() {
 						Truncated: dummyKey.Truncated,
 						ErrorToStats: map[int32]*model.RedisStatsEntry{
 							0: {
-								FirstLatencySample: in.Redis[dummyKey].ErrorToStats[false].FirstLatencySample,
-								Count:              uint32(in.Redis[dummyKey].ErrorToStats[false].Count),
+								FirstLatencySample: in.USMData.Redis[dummyKey].ErrorToStats[false].FirstLatencySample,
+								Count:              uint32(in.USMData.Redis[dummyKey].ErrorToStats[false].Count),
 							},
 							1: {
-								FirstLatencySample: in.Redis[dummyKey].ErrorToStats[false].FirstLatencySample,
-								Count:              uint32(in.Redis[dummyKey].ErrorToStats[false].Count),
+								FirstLatencySample: in.USMData.Redis[dummyKey].ErrorToStats[false].FirstLatencySample,
+								Count:              uint32(in.USMData.Redis[dummyKey].ErrorToStats[false].Count),
 							},
 						},
 					},
@@ -100,7 +103,7 @@ func (s *RedisSuite) TestFormatRedisStats() {
 		},
 	}
 
-	encoder := newRedisEncoder(in.Redis)
+	encoder := newRedisEncoder(in.USMData.Redis)
 	t.Cleanup(encoder.Close)
 
 	aggregations := getRedisAggregations(t, encoder, in.Conns[0])
@@ -143,14 +146,16 @@ func (s *RedisSuite) TestRedisIDCollisionRegression() {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		Redis: map[redis.Key]*redis.RequestStats{
-			redisKey: {
-				ErrorToStats: map[bool]*redis.RequestStat{false: {Count: 10}},
+		USMData: network.USMProtocolsData{
+			Redis: map[redis.Key]*redis.RequestStats{
+				redisKey: {
+					ErrorToStats: map[bool]*redis.RequestStat{false: {Count: 10}},
+				},
 			},
 		},
 	}
 
-	encoder := newRedisEncoder(in.Redis)
+	encoder := newRedisEncoder(in.USMData.Redis)
 	t.Cleanup(encoder.Close)
 	aggregations := getRedisAggregations(t, encoder, in.Conns[0])
 	assert.NotNil(aggregations)
@@ -160,7 +165,7 @@ func (s *RedisSuite) TestRedisIDCollisionRegression() {
 	// addresses but different PIDs *won't* be associated with the Redis stats
 	// object
 	streamer := NewProtoTestStreamer[*model.Connection]()
-	encoder.WriteRedisAggregations(in.Conns[1], model.NewConnectionBuilder(streamer))
+	encoder.EncodeConnection(in.Conns[1], model.NewConnectionBuilder(streamer))
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)
 	assert.Empty(conn.DataStreamsAggregations)
@@ -200,14 +205,16 @@ func (s *RedisSuite) TestRedisLocalhostScenario() {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		Redis: map[redis.Key]*redis.RequestStats{
-			redisKey: {
-				ErrorToStats: map[bool]*redis.RequestStat{false: {Count: 10}},
+		USMData: network.USMProtocolsData{
+			Redis: map[redis.Key]*redis.RequestStats{
+				redisKey: {
+					ErrorToStats: map[bool]*redis.RequestStat{false: {Count: 10}},
+				},
 			},
 		},
 	}
 
-	encoder := newRedisEncoder(in.Redis)
+	encoder := newRedisEncoder(in.USMData.Redis)
 	t.Cleanup(encoder.Close)
 
 	// assert that both ends (client:server, server:client) of the connection
@@ -221,7 +228,7 @@ func (s *RedisSuite) TestRedisLocalhostScenario() {
 
 func getRedisAggregations(t *testing.T, encoder *redisEncoder, c network.ConnectionStats) *model.DatabaseAggregations {
 	streamer := NewProtoTestStreamer[*model.Connection]()
-	encoder.WriteRedisAggregations(c, model.NewConnectionBuilder(streamer))
+	encoder.EncodeConnection(c, model.NewConnectionBuilder(streamer))
 
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)
@@ -240,7 +247,9 @@ func generateBenchMarkPayloadRedis(sourcePortsMax, destPortsMax uint16) network.
 		BufferedData: network.BufferedData{
 			Conns: make([]network.ConnectionStats, sourcePortsMax*destPortsMax),
 		},
-		Redis: make(map[redis.Key]*redis.RequestStats),
+		USMData: network.USMProtocolsData{
+			Redis: make(map[redis.Key]*redis.RequestStats),
+		},
 	}
 
 	for sport := uint16(0); sport < sourcePortsMax; sport++ {
@@ -260,7 +269,7 @@ func generateBenchMarkPayloadRedis(sourcePortsMax, destPortsMax uint16) network.
 				}
 			}
 
-			payload.Redis[redis.NewKey(
+			payload.USMData.Redis[redis.NewKey(
 				localhost,
 				localhost,
 				sport+1,
@@ -283,10 +292,10 @@ func commonBenchmarkRedisEncoder(b *testing.B, numberOfPorts uint16) {
 	b.ReportAllocs()
 	var h *redisEncoder
 	for i := 0; i < b.N; i++ {
-		h = newRedisEncoder(payload.Redis)
+		h = newRedisEncoder(payload.USMData.Redis)
 		streamer.Reset()
 		for _, conn := range payload.Conns {
-			h.WriteRedisAggregations(conn, a)
+			h.EncodeConnection(conn, a)
 		}
 		h.Close()
 	}
