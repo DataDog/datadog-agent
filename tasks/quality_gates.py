@@ -311,7 +311,7 @@ def exception_threshold_bump(ctx):
                     )
                 )
                 print(repr(e))
-                return
+                raise Exit(code=1)
         ctx.run(f"unzip gate_archive.zip -d {extract_dir}", hide=True)
         static_gate_report_path = f"{extract_dir}/static_gate_report.json"
         if os.path.isfile(static_gate_report_path):
