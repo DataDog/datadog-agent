@@ -2330,13 +2330,23 @@ def flare(ctx: Context, dest_folder: Path | str | None = None, keep_uncompressed
 @task
 def retry_test_job_dependencies(ctx: Context, pipeline_id: int, job_id: int, only_if_job_is_retry: bool = False):
     """Retries the setup_env job and the dependency upload jobs for the given test job."""
-    gitlab = get_gitlab_repo()
+
     kmt_pipeline = KMTPipeline(pipeline_id)
     info(f"[+] Retrieving jobs for pipeline {pipeline_id}")
     kmt_pipeline.retrieve_jobs()
+
+    _retry_test_job_dependencies(kmt_pipeline, job_id, only_if_job_is_retry)
+
+
+def _retry_test_job_dependencies(
+    kmt_pipeline: KMTPipeline, job_id: int, only_if_job_is_retry: bool = False, wait_for_jobs: bool = True
+):
+    """Internal function to retry the setup_env job and the dependency upload jobs for the given test job, with an
+    already parsed pipeline.
+    """
     job = kmt_pipeline.get_job(job_id)
     if job is None:
-        raise Exit(f"Job {job_id} not found in pipeline {pipeline_id}")
+        raise Exit(f"Job {job_id} not found in pipeline {kmt_pipeline.pipeline_id}")
 
     if not isinstance(job, KMTTestRunJob):
         raise Exit(f"Job {job_id} is not a KMTTestRunJob")
@@ -2364,7 +2374,7 @@ def retry_test_job_dependencies(ctx: Context, pipeline_id: int, job_id: int, onl
             retry_only_failed = True
         else:
             # Retry the cleanup job to ensure instances are cleaned up
-            should_retry_cleanup = True
+            jobs_to_retry.append(job.cleanup_job)
             if job.cleanup_job.status.has_finished():
                 info("[+] Cleanup job has finished, we will retry all jobs")
             else:
@@ -2372,32 +2382,90 @@ def retry_test_job_dependencies(ctx: Context, pipeline_id: int, job_id: int, onl
                 job.cleanup_job.cancel()
 
     jobs_to_wait_for: list[int] = []
-    for job in jobs_to_retry:
-        if retry_only_failed and job.status != GitlabJobStatus.FAILED:
-            info(f"[+] Skipping job {job.name} as it has not failed")
+    for to_retry in jobs_to_retry:
+        if retry_only_failed and to_retry.status != GitlabJobStatus.FAILED:
+            info(f"[+] Skipping job {to_retry.name} as it has not failed")
+            continue
+        elif to_retry.is_retried:
+            info(f"[+] Skipping job {to_retry.name} as it has already been retried")
             continue
 
-        if job.status.is_running() or job.status.will_run_automatically():
-            info(f"[+] Job {job.name} is already running or will be scheduled soon, will wait for it to finish")
-            jobs_to_wait_for.append(job.id)
+        if to_retry.status.is_running() or to_retry.status.will_run_automatically():
+            info(f"[+] Job {to_retry.name} is already running or will be scheduled soon, will wait for it to finish")
+            jobs_to_wait_for.append(to_retry.id)
         else:
-            info(f"[+] Retrying job {job.name}")
-            jobs_to_wait_for.append(job.retry())
+            info(f"[+] Retrying job {to_retry.name}")
+            jobs_to_wait_for.append(to_retry.retry())
 
     if should_retry_cleanup:
         info("[+] Retrying cleanup job")
         job.cleanup_job.retry()
 
-    # Wait until all the jobs have finished
-    while len(jobs_to_wait_for) > 0:
-        unfinished_jobs = []
-        for job_id in jobs_to_wait_for:
-            job = gitlab.jobs.get(job_id)
-            if job.status != GitlabJobStatus.SUCCESS:
-                unfinished_jobs.append(job_id)
+    if wait_for_jobs:
+        # Wait until all the jobs have finished
+        gitlab = get_gitlab_repo()
+        while len(jobs_to_wait_for) > 0:
+            unfinished_jobs = []
+            for job_id in jobs_to_wait_for:
+                job = gitlab.jobs.get(job_id)
+                if job.status != GitlabJobStatus.SUCCESS:
+                    unfinished_jobs.append(job_id)
 
-        jobs_to_wait_for = unfinished_jobs
-        info(f"[...] Waiting for {len(jobs_to_wait_for)} jobs to finish: {', '.join(map(str, jobs_to_wait_for))}")
-        time.sleep(10)
+            jobs_to_wait_for = unfinished_jobs
+            info(f"[...] Waiting for {len(jobs_to_wait_for)} jobs to finish: {', '.join(map(str, jobs_to_wait_for))}")
+            time.sleep(10)
 
-    info("[+] All jobs have finished")
+        info("[+] All jobs have finished")
+    else:
+        info(f"[+] Jobs {', '.join(map(str, jobs_to_wait_for))} have been scheduled")
+
+
+@task(help={"component": "The component to retry. If not provided, all components will be retried."})
+def retry_failed_pipeline(ctx: Context, pipeline_id: int, component: str | None = None):
+    """Retries all failed KMT tests in the given pipeline"""
+    kmt_pipeline = KMTPipeline(pipeline_id)
+    kmt_pipeline.retrieve_jobs()
+
+    jobs_to_retry: list[KMTTestRunJob] = []
+    failed_jobs = [j for j in kmt_pipeline.test_jobs if j.status == GitlabJobStatus.FAILED and not j.is_retried]
+    if len(failed_jobs) == 0:
+        info(f"[+] No failed tests found in pipeline {pipeline_id}. Checking dependency failures")
+
+        # Skipped tests can be skipped because of failed setup/dependency upload jobs, so check
+        # those too
+        skipped_tests = [j for j in kmt_pipeline.test_jobs if j.status == GitlabJobStatus.SKIPPED]
+        for test in skipped_tests:
+            if test.has_failed_dependencies:
+                jobs_to_retry.append(test)
+    else:
+        jobs_to_retry = failed_jobs
+
+    if component is not None:
+        jobs_to_retry = [j for j in jobs_to_retry if j.component == component]
+
+    if len(jobs_to_retry) == 0:
+        info(f"[+] No tests to retry in pipeline {pipeline_id}")
+        return
+
+    info(f"[+] Found the following candidates to retry in pipeline {pipeline_id}:")
+    for job in jobs_to_retry:
+        info(f"[+] {job.name} (status: {job.status})")
+
+    info(
+        f"[+] We will retry {len(jobs_to_retry)} jobs in pipeline {pipeline_id} (https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id})"
+    )
+    warn("[!] Retrying KMT tests means re-creating some metal instances. This is not free and will take a while.")
+    warn(
+        "[!] KMT jobs already re-try failed tests internally. Please only retry failed test jobs if you think this was an infra issue. Don't retry to try and fix flaky tests."
+    )
+    if ask("Do you still want to retry the failed tests? [y/N] ").lower() != "y":
+        info("[-] Aborting")
+        return
+
+    for test in jobs_to_retry:
+        info(f"[+] Retrying dependencies for {test.name}")
+        _retry_test_job_dependencies(kmt_pipeline, test.id, wait_for_jobs=False)
+
+        info(f"[+] Retrying test {test.name}")
+        job_id = test.retry()
+        info(f"[+] Job {job_id} has been scheduled: https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/{job_id}")

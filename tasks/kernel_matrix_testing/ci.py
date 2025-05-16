@@ -43,7 +43,7 @@ class KMTJob:
 
     @property
     def id(self) -> int:
-        return self.job.id
+        return int(self.job.id)
 
     @property
     def pipeline_id(self) -> int:
@@ -245,6 +245,15 @@ class KMTTestRunJob(KMTJob):
         tar = tarfile.open(fileobj=bytearr)
         return get_test_results_from_tarfile(tar)
 
+    @property
+    def has_failed_dependencies(self) -> bool:
+        if self.setup_job is None:
+            return False
+
+        return self.setup_job.status == GitlabJobStatus.FAILED or any(
+            j.status == GitlabJobStatus.FAILED for j in self.setup_job.dependency_upload_jobs
+        )
+
 
 class KMTCleanupJob(KMTJob):
     """Represent a kmt_cleanup_* job, with properties that allow extracting data from
@@ -298,14 +307,26 @@ class KMTPipeline:
             if name.startswith("kmt_setup_env"):
                 kmt_job = KMTSetupEnvJob(job, gitlab)
                 self.setup_jobs.append(kmt_job)
-                setup_jobs_map[(kmt_job.arch, kmt_job.component)] = kmt_job
+
+                key = (kmt_job.arch, kmt_job.component)
+                if key not in setup_jobs_map:
+                    setup_jobs_map[key] = kmt_job
+                elif setup_jobs_map[key].id < kmt_job.id:
+                    # Keep only the latest setup job for a given arch/component
+                    setup_jobs_map[key] = kmt_job
             elif name.startswith("kmt_run_"):
                 kmt_job = KMTTestRunJob(job, gitlab)
                 self.test_jobs.append(kmt_job)
-            elif name.startswith("kmt_") and "cleanup" in name:
+            elif name.startswith("kmt_") and "cleanup" in name and 'manual' not in name:
                 kmt_job = KMTCleanupJob(job, gitlab)
                 self.cleanup_jobs.append(kmt_job)
-                cleanup_jobs_map[(kmt_job.arch, kmt_job.component)] = kmt_job
+
+                key = (kmt_job.arch, kmt_job.component)
+                if key not in cleanup_jobs_map:
+                    cleanup_jobs_map[key] = kmt_job
+                elif cleanup_jobs_map[key].id < kmt_job.id:
+                    # Keep only the latest cleanup job for a given arch/component
+                    cleanup_jobs_map[key] = kmt_job
             elif job.stage == "kernel_matrix_testing_prepare" and "upload" in name:
                 kmt_job = KMTDependencyUploadJob(job, gitlab)
                 self.dependency_upload_jobs.append(kmt_job)
@@ -314,7 +335,7 @@ class KMTPipeline:
                 name_to_job[name].append(kmt_job)
                 self.id_to_job[kmt_job.id] = kmt_job
 
-        for name, jobs in name_to_job.items():
+        for jobs in name_to_job.values():
             if len(jobs) <= 1:
                 continue
 
