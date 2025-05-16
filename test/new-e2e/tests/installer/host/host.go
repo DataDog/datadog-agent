@@ -235,6 +235,14 @@ func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 	}
 }
 
+// AssertPackageNotInstalledByInstaller checks if a package is not installed by the installer on the host.
+func (h *Host) AssertPackageNotInstalledByInstaller(pkgs ...string) {
+	for _, pkg := range pkgs {
+		_, err := h.remote.ReadDir(fmt.Sprintf("/opt/datadog-packages/%s/stable/", pkg))
+		require.Error(h.t(), err, "package %s installed by the installer", pkg)
+	}
+}
+
 // AgentRuntimeConfig returns the runtime agent config on the host.
 func (h *Host) AgentRuntimeConfig() (string, error) {
 	return h.remote.Execute("sudo -u dd-agent datadog-agent config")
