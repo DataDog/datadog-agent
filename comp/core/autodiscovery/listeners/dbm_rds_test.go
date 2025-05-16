@@ -105,86 +105,68 @@ func TestDBMRdsListener(t *testing.T) {
 			},
 			expectedDelServices: []*DBMRdsService{},
 		},
-		// {
-		// 	name: "multiple endpoints discovered from single cluster and created",
-		// 	config: rds.Config{
-		// 		DiscoveryInterval: 1,
-		// 		Region:            "us-east-1",
-		// 		Tags:              []string{defaultADTag},
-		// 		DbmTag:            defaultDbmTag,
-		// 	},
-		// 	numDiscoveryIntervals: 1,
-		// 	rdsClientConfigurer: func(k *aws.MockRdsClient) {
-		// 		k.EXPECT().GetRdsInstancesFromTags(gomock.Any(), []string{defaultADTag}).Return( nil).AnyTimes()
-		// 		k.EXPECT().GetRdsInstances(gomock.Any(),  defaultDbmTag).Return(
-		// 			[]aws.Instance
-		// 				"my-cluster-1": {
-		// 					Instances: []*aws.Instance{
-		// 						{
-		// 							Endpoint:   "my-endpoint",
-		// 							Port:       5432,
-		// 							IamEnabled: true,
-		// 							Engine:     "postgresql",
-		// 						},
-		// 						{
-		// 							Endpoint:   "foo-endpoint",
-		// 							Port:       5432,
-		// 							IamEnabled: true,
-		// 							Engine:     "postgresql",
-		// 						},
-		// 						{
-		// 							Endpoint:   "bar-endpoint",
-		// 							Port:       5444,
-		// 							IamEnabled: false,
-		// 							Engine:     "postgresql",
-		// 						},
-		// 					},
-		// 				},
-		// 			}, nil).AnyTimes()
-		// 	},
-		// 	expectedServices: []*DBMRdsService{
-		// 		{
-		// 			adIdentifier: dbmPostgresADIdentifier,
-		// 			entityID:     "f7fee36c58e3da8a",
-		// 			checkName:    "postgres",
-		// 			clusterID:    "my-cluster-1",
-		// 			region:       "us-east-1",
-		// 			instance: &aws.Instance{
-		// 				Endpoint:   "my-endpoint",
-		// 				Port:       5432,
-		// 				IamEnabled: true,
-		// 				Engine:     "postgresql",
-		// 			},
-		// 		},
-		// 		{
-		// 			adIdentifier: dbmPostgresADIdentifier,
-		// 			entityID:     "509dbfd2cc1ae2be",
-		// 			checkName:    "postgres",
-		// 			clusterID:    "my-cluster-1",
-		// 			region:       "us-east-1",
-		// 			instance: &aws.Instance{
-		// 				Endpoint:   "foo-endpoint",
-		// 				Port:       5432,
-		// 				IamEnabled: true,
-		// 				Engine:     "postgresql",
-		// 			},
-		// 		},
-		// 		{
-		// 			adIdentifier: dbmPostgresADIdentifier,
-		// 			entityID:     "cc92e57c9b7b7531",
-		// 			checkName:    "postgres",
-		// 			clusterID:    "my-cluster-1",
-		// 			region:       "us-east-1",
-		// 			instance: &aws.Instance{
-		// 				Endpoint:   "bar-endpoint",
-		// 				Port:       5444,
-		// 				IamEnabled: false,
-		// 				Engine:     "postgresql",
-		// 			},
-		// 		},
-		// 	},
-		// 	expectedDelServices: []*DBMRdsService{},
-		// },
+		{
+			name: "multiple instances discovered and created",
+			config: rds.Config{
+				DiscoveryInterval: 1,
+				Region:            "us-east-1",
+				Tags:              []string{defaultADTag},
+				DbmTag:            defaultDbmTag,
+			},
+			numDiscoveryIntervals: 1,
+			rdsClientConfigurer: func(k *aws.MockRdsClient) {
+				k.EXPECT().GetRdsInstancesFromTags(gomock.Any(), []string{defaultADTag}, defaultDbmTag).Return(
+					[]aws.Instance{
+						{
+							ID:         "my-instance-1",
+							Endpoint:   "my-endpoint",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "postgresql",
+							DbmEnabled: true,
+						},
+						{
+							ID:         "my-instance-2",
+							Endpoint:   "my-endpoint-2",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "postgresql",
+							DbmEnabled: true,
+						},
+					}, nil).AnyTimes()
+			},
+			expectedServices: []*DBMRdsService{
+				{
+					adIdentifier: dbmPostgresADIdentifier,
+					entityID:     "5381990b87ee3362",
+					checkName:    "postgres",
+					region:       "us-east-1",
+					instance: &aws.Instance{
+						ID:         "my-instance-1",
+						Endpoint:   "my-endpoint",
+						Port:       5432,
+						IamEnabled: true,
+						Engine:     "postgresql",
+						DbmEnabled: true,
+					},
+				},
+				{
+					adIdentifier: dbmPostgresADIdentifier,
+					entityID:     "918bb3e33b1a531e",
+					checkName:    "postgres",
+					region:       "us-east-1",
+					instance: &aws.Instance{
+						ID:         "my-instance-2",
+						Endpoint:   "my-endpoint-2",
+						Port:       5432,
+						IamEnabled: true,
+						Engine:     "postgresql",
+						DbmEnabled: true,
+					},
+				},
+			},
+			expectedDelServices: []*DBMRdsService{},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
