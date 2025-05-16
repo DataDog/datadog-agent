@@ -10,8 +10,8 @@
   tags: ["arch:amd64"]
   script:
     # Constant variables
-    - export RELEASE_STAGING="true"
     - export DYNAMIC_BUILD_RENDER_RULES="agent-build-only"
+    - export LABEL_BASED_REPLICATION_TARGET="prod"
     # Job specific variables
     - export RELEASE_TAG="${CI_COMMIT_REF_SLUG}${RELEASE_TAG_SUFFIX}"
     - export TMPL_SRC_IMAGE="v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TMPL_SRC_IMAGE_SUFFIX}"
@@ -27,7 +27,7 @@
         TMPL_SRC_REPO="${TMPL_SRC_REPO}-nightly"
       fi
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
-    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable TMPL_ADP_VERSION --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable TMPL_ADP_VERSION --variable LABEL_BASED_REPLICATION_TARGET --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
   retry: 2
 
 # -- binary specific variables --
@@ -40,7 +40,6 @@
   IMAGE_VERSION: tmpl-v6
   IMAGE_NAME: datadog-cluster-agent
   TMPL_SRC_REPO: ci/datadog-agent/cluster-agent
-  RELEASE_PROD: "true"
 
 .ot_standalone_variables: &ot_standalone_variables
   IMAGE_VERSION: tmpl-v1
