@@ -29,6 +29,11 @@ if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/
     fi
 fi
 
+# Uninstall the agent if it was installed by the installer
+if command -v datadog-installer >/dev/null 2>&1 && datadog-installer is-installed datadog-agent; then
+    datadog-installer remove datadog-agent || printf "[ WARNING ]\tFailed to remove datadog-agent installed by the installer\n"
+fi
+
 # RPM Agents < 5.18.0 expect the preinst script of the _new_ package to stop the agent service on upgrade (which is defined with an init.d script on Agent 5)
 # So let's stop the Agent 5 service here until we don't want to support upgrades from Agents < 5.18.0 anymore
 if [ -f "/etc/init.d/datadog-agent" ]; then
@@ -64,7 +69,7 @@ if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
     # List all files in the embedded dir of the datadog-agent install dir
     PREV_DIR=$(pwd)
     cd $INSTALL_DIR
-    find . -depth -path './embedded/lib/python*/site-packages/datadog_*' > $INSTALL_DIR/embedded/.all-integrations.txt
+    find . -depth -path './embedded/lib/python*/site-packages/datadog_*' >$INSTALL_DIR/embedded/.all-integrations.txt
 
     # List all files in the embedded dir of the datadog-agent install dir
     # which were not installed by the package and rm them.
