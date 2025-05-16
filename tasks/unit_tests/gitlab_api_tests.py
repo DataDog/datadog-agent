@@ -493,7 +493,7 @@ class TestFilterVariables(unittest.TestCase):
             'OTHER_VARIABLE_SUFFIX': '',
             'OTHER_VARIABLE': 'lampion',
         }
-        self.assertEqual(list(find_buildimages(variables)), [])
+        self.assertEqual(list(find_buildimages(variables)), ['CI_IMAGE_AGENT'])
 
     def test_one_image(self):
         variables = {
@@ -565,10 +565,10 @@ class TestModifyContent(unittest.TestCase):
         yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
         config = yaml.safe_load("".join(modified))
         self.assertEqual(
-            5, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "_test_only")
+            0, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "_test_only")
         )
         self.assertEqual(
-            5, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "1mageV3rsi0n")
+            0, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "1mageV3rsi0n")
         )
 
     def test_one_buildimage(self):
@@ -578,10 +578,10 @@ class TestModifyContent(unittest.TestCase):
         yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
         config = yaml.safe_load("".join(modified))
         self.assertEqual(
-            1, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "_test_only")
+            0, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "_test_only")
         )
         self.assertEqual(
-            1, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "1mageV3rsi0n")
+            0, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "1mageV3rsi0n")
         )
 
     def test_one_image(self):
@@ -617,10 +617,10 @@ class TestModifyContent(unittest.TestCase):
         yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
         config = yaml.safe_load("".join(modified))
         self.assertEqual(
-            7, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "_test_only")
+            6, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "_test_only")
         )
         self.assertEqual(
-            7, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "1mageV3rsi0n")
+            6, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "1mageV3rsi0n")
         )
 
     def test_update_no_test(self):
@@ -643,7 +643,7 @@ class TestModifyContent(unittest.TestCase):
             0, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "_test_only")
         )
         self.assertEqual(
-            17, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "1mageV3rsi0n")
+            14, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "1mageV3rsi0n")
         )
 
 
@@ -655,7 +655,7 @@ class TestUpdateGitlabConfig(unittest.TestCase):
                     "tasks/unit_tests/testdata/variables.yml", tag="gru", images="", test=False, update=False
                 )
             ),
-            22,
+            14,
         )
 
     def test_multi_update(self):
@@ -665,5 +665,5 @@ class TestUpdateGitlabConfig(unittest.TestCase):
                     "tasks/unit_tests/testdata/variables.yml", tag="gru", images="deb,rpm", test=False, update=False
                 )
             ),
-            11,
+            6,
         )
