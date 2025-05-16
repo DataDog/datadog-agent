@@ -67,7 +67,7 @@ def init_env(ctx, branch: str | None = None, commit: str | None = None):
                             f'{color_message("Warning", Color.ORANGE)}: Git branch not found in the local worktree folder, fetching repository',
                             file=sys.stderr,
                         )
-                        ctx.run(f"git -C '{WORKTREE_DIRECTORY}' fetch", hide=True)
+                        ctx.run(f"git -C '{WORKTREE_DIRECTORY}' fetch --set-upstream origin", hide=True)
 
         if not os.environ.get("AGENT_WORKTREE_NO_PULL"):
             ctx.run(f"git -C '{WORKTREE_DIRECTORY}' pull --set-upstream origin '{branch}'", hide=True)
