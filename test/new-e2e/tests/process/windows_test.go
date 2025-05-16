@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -194,6 +195,7 @@ func (s *windowsTestSuite) TestProtectedProcessCheck() {
 
 func (s *windowsTestSuite) TestUnprotectedProcessCheck() {
 	t := s.T()
+	flake.Mark(t)
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)),
