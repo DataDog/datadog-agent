@@ -9,10 +9,13 @@ import tarfile
 import urllib.parse
 import xml.etree.ElementTree as ET
 from collections import defaultdict
+from collections.abc import Iterable
 from typing import TYPE_CHECKING, overload
 
+import gitlab
 from gitlab.v4.objects import Project, ProjectJob, ProjectPipelineJob
 
+from tasks.kernel_matrix_testing.tool import info
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.pipeline.tools import GitlabJobStatus
 
@@ -30,6 +33,8 @@ class KMTJob:
         self.job = job
         self.is_retried = False  # set to True if this job has been later retried
         self.is_retry_job = False  # set to True if this job is a retry of a previous job
+        self.kmt_pipeline: KMTPipeline | None = None
+        self.kmt_subpipeline: KMTSubPipeline | None = None
 
     @property
     def job_api_object(self) -> ProjectJob:
@@ -254,9 +259,21 @@ class KMTTestRunJob(KMTJob):
             j.status == GitlabJobStatus.FAILED for j in self.setup_job.dependency_upload_jobs
         )
 
+    def get_dependencies_to_retry(self) -> set[KMTJob]:
+        deps: set[KMTJob] = set()
+
+        if self.setup_job is not None:
+            deps.add(self.setup_job)
+            deps.update(self.setup_job.dependency_upload_jobs)
+
+        if self.cleanup_job is not None:
+            deps.add(self.cleanup_job)
+
+        return deps
+
 
 class KMTCleanupJob(KMTJob):
-    """Represent a kmt_cleanup_* job, with properties that allow extracting data from
+    """Represents a kmt_cleanup_* job, with properties that allow extracting data from
     the job name and output artifacts
     """
 
@@ -266,7 +283,7 @@ class KMTCleanupJob(KMTJob):
 
 
 class KMTDependencyUploadJob(KMTJob):
-    """Represent a job that upload dependencies to KMT hosts"""
+    """Represents a job that upload dependencies to KMT hosts"""
 
     def __init__(self, job: ProjectJob, gitlab: Project | None = None):
         super().__init__(job, gitlab)
@@ -275,15 +292,40 @@ class KMTDependencyUploadJob(KMTJob):
 
 
 class KMTPipeline:
-    """Represent a Kernel Matrix Testing pipeline, allowing to retrieve the jobs"""
+    """MAnages all the KMT jobs for a given Gitlab CI pipeline"""
 
     def __init__(self, pipeline_id: int | str):
         self.pipeline_id = pipeline_id
-        self.setup_jobs: list[KMTSetupEnvJob] = []
-        self.test_jobs: list[KMTTestRunJob] = []
-        self.cleanup_jobs: list[KMTCleanupJob] = []
-        self.dependency_upload_jobs: list[KMTDependencyUploadJob] = []
+
         self.id_to_job: dict[int, KMTJob] = {}
+        self.subpipelines: dict[tuple[Component, KMTArchName], KMTSubPipeline] = {}
+        self.gitlab = get_gitlab_repo()
+
+    @property
+    def test_jobs(self) -> Iterable[KMTTestRunJob]:
+        for subpipeline in self.subpipelines.values():
+            yield from subpipeline.test_jobs
+
+    @property
+    def setup_jobs(self) -> Iterable[KMTSetupEnvJob]:
+        for subpipeline in self.subpipelines.values():
+            yield from subpipeline.setup_jobs
+
+    @property
+    def cleanup_jobs(self) -> Iterable[KMTCleanupJob]:
+        for subpipeline in self.subpipelines.values():
+            yield from subpipeline.cleanup_jobs
+
+    @property
+    def dependency_upload_jobs(self) -> Iterable[KMTDependencyUploadJob]:
+        for subpipeline in self.subpipelines.values():
+            yield from subpipeline.dependency_upload_jobs
+
+    def _get_subpipeline(self, component: Component, arch: KMTArchName) -> KMTSubPipeline:
+        key = (component, arch)
+        if key not in self.subpipelines:
+            self.subpipelines[key] = KMTSubPipeline(self.gitlab, self, component, arch)
+        return self.subpipelines[key]
 
     def retrieve_jobs(self) -> None:
         """Gets all KMT jobs for a given pipeline, separated between setup jobs and test run jobs.
@@ -293,47 +335,30 @@ class KMTPipeline:
         gitlab = get_gitlab_repo()
         jobs = gitlab.pipelines.get(self.pipeline_id, lazy=True).jobs.list(per_page=100, all=True, include_retried=True)
 
-        # map of (arch, component) -> job
-        setup_jobs_map: dict[tuple[str, str], KMTSetupEnvJob] = {}
-        cleanup_jobs_map: dict[tuple[str, str], KMTCleanupJob] = {}
-
         # keep track of jobs by name, to be able to link retried jobs
         name_to_job: dict[str, list[KMTJob]] = defaultdict(list)
 
         for job in jobs:
             name = job.name
-            kmt_job: KMTJob | None = None
 
             if name.startswith("kmt_setup_env"):
-                kmt_job = KMTSetupEnvJob(job, gitlab)
-                self.setup_jobs.append(kmt_job)
-
-                key = (kmt_job.arch, kmt_job.component)
-                if key not in setup_jobs_map:
-                    setup_jobs_map[key] = kmt_job
-                elif setup_jobs_map[key].id < kmt_job.id:
-                    # Keep only the latest setup job for a given arch/component
-                    setup_jobs_map[key] = kmt_job
+                kmt_job = KMTSetupEnvJob(job, self.gitlab)
             elif name.startswith("kmt_run_"):
-                kmt_job = KMTTestRunJob(job, gitlab)
-                self.test_jobs.append(kmt_job)
+                kmt_job = KMTTestRunJob(job, self.gitlab)
             elif name.startswith("kmt_") and "cleanup" in name and 'manual' not in name:
-                kmt_job = KMTCleanupJob(job, gitlab)
-                self.cleanup_jobs.append(kmt_job)
-
-                key = (kmt_job.arch, kmt_job.component)
-                if key not in cleanup_jobs_map:
-                    cleanup_jobs_map[key] = kmt_job
-                elif cleanup_jobs_map[key].id < kmt_job.id:
-                    # Keep only the latest cleanup job for a given arch/component
-                    cleanup_jobs_map[key] = kmt_job
+                kmt_job = KMTCleanupJob(job, self.gitlab)
             elif job.stage == "kernel_matrix_testing_prepare" and "upload" in name:
-                kmt_job = KMTDependencyUploadJob(job, gitlab)
-                self.dependency_upload_jobs.append(kmt_job)
+                kmt_job = KMTDependencyUploadJob(job, self.gitlab)
+            else:
+                continue  # Not a KMT job
 
-            if kmt_job is not None:
-                name_to_job[name].append(kmt_job)
-                self.id_to_job[kmt_job.id] = kmt_job
+            subpipeline = self._get_subpipeline(kmt_job.component, kmt_job.arch)
+            subpipeline._add_job(kmt_job)
+            kmt_job.kmt_subpipeline = subpipeline
+            kmt_job.kmt_pipeline = self
+
+            name_to_job[name].append(kmt_job)
+            self.id_to_job[kmt_job.id] = kmt_job
 
         for jobs in name_to_job.values():
             if len(jobs) <= 1:
@@ -346,28 +371,136 @@ class KMTPipeline:
             for job in jobs_by_time[1:]:  # All the jobs but the first have been retried
                 job.is_retry_job = True
 
-        # link test jobs
-        for job in self.test_jobs:
-            setup_job = setup_jobs_map.get((job.arch, job.component))
-            cleanup_job = cleanup_jobs_map.get((job.arch, job.component))
-            job.setup_job = setup_job
-            job.cleanup_job = cleanup_job
-            setup_job.associated_test_jobs.append(job)
-
-        # link setup jobs
-        for setup_job in self.setup_jobs:
-            cleanup_job = cleanup_jobs_map.get((setup_job.arch, setup_job.component))
-            setup_job.cleanup_job = cleanup_job
-            cleanup_job.setup_job = setup_job
-
-        # link dependency upload jobs
-        for dependency_upload_job in self.dependency_upload_jobs:
-            setup_job = setup_jobs_map.get((dependency_upload_job.arch, dependency_upload_job.component))
-            dependency_upload_job.setup_job = setup_job
-            setup_job.dependency_upload_jobs.append(dependency_upload_job)
+        for subpipeline in self.subpipelines.values():
+            subpipeline._link_related_jobs()
 
     def get_job(self, job_id: int | str) -> KMTJob | None:
         return self.id_to_job.get(int(job_id))
+
+
+class KMTSubPipeline:
+    """KMTSubpipeline is a collection of jobs that are part of a specific component and architecture"""
+
+    def __init__(self, gitlab: Project, pipeline: KMTPipeline, component: Component, arch: KMTArchName):
+        self.gitlab = gitlab
+        self.pipeline = pipeline
+        self.component = component
+        self.arch = arch
+
+        self.setup_jobs: list[KMTSetupEnvJob] = []
+        self.test_jobs: list[KMTTestRunJob] = []
+        self.cleanup_jobs: list[KMTCleanupJob] = []
+        self.dependency_upload_jobs: list[KMTDependencyUploadJob] = []
+        self.id_to_job: dict[int, KMTJob] = {}
+
+    @property
+    def name(self) -> str:
+        return f"{self.component}-{self.arch}"
+
+    @property
+    def last_cleanup_job(self) -> KMTCleanupJob | None:
+        if len(self.cleanup_jobs) == 0:
+            return None
+        return self.cleanup_jobs[-1]
+
+    @property
+    def last_setup_job(self) -> KMTSetupEnvJob | None:
+        if len(self.setup_jobs) == 0:
+            return None
+        return self.setup_jobs[-1]
+
+    def __hash__(self) -> int:
+        return hash((self.component, self.arch))
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, KMTSubPipeline):
+            return False
+        return self.component == other.component and self.arch == other.arch
+
+    def _add_job(self, job: KMTJob) -> None:
+        if isinstance(job, KMTSetupEnvJob):
+            self.setup_jobs.append(job)
+        elif isinstance(job, KMTTestRunJob):
+            self.test_jobs.append(job)
+        elif isinstance(job, KMTCleanupJob):
+            self.cleanup_jobs.append(job)
+        elif isinstance(job, KMTDependencyUploadJob):
+            self.dependency_upload_jobs.append(job)
+
+        self.id_to_job[job.id] = job
+
+    def _link_related_jobs(self) -> None:
+        """
+        Link all the related jobs in this pipeline, ensuring that test jobs are linked to the
+        latest setup and cleanup jobs and viceversa
+        """
+        # Sort all jobs by ID so that they're sorted by "age"
+        self.setup_jobs = sorted(self.setup_jobs, key=lambda x: x.id)
+        self.test_jobs = sorted(self.test_jobs, key=lambda x: x.id)
+        self.cleanup_jobs = sorted(self.cleanup_jobs, key=lambda x: x.id)
+        self.dependency_upload_jobs = sorted(self.dependency_upload_jobs, key=lambda x: x.id)
+
+        # Link the test jobs to the setup and cleanup jobs, using always the
+        # latest one to ensure we know the last state of the job
+        for job in self.test_jobs:
+            job.setup_job = self.last_setup_job
+            job.cleanup_job = self.last_cleanup_job
+
+            if self.last_setup_job is not None:
+                self.last_setup_job.associated_test_jobs.append(job)
+
+        for setup_job in self.setup_jobs:
+            setup_job.cleanup_job = self.last_cleanup_job
+
+        for dependency_upload_job in self.dependency_upload_jobs:
+            dependency_upload_job.setup_job = self.last_setup_job
+
+            for setup_job in self.setup_jobs:
+                setup_job.dependency_upload_jobs.append(dependency_upload_job)
+
+    def get_job(self, job_id: int | str) -> KMTJob | None:
+        return self.id_to_job.get(int(job_id))
+
+    def retry_setup_and_dependency_upload(self) -> list[int]:
+        """Retry the setup and dependency upload jobs, and return the list of newly scheduled jobs"""
+        jobs_to_retry: list[KMTJob] = []
+
+        # Order is important, we want to retry dependency uploads before
+        # we retry the cancel job
+        jobs_to_retry.extend(self.setup_jobs)
+        jobs_to_retry.extend(self.dependency_upload_jobs)
+
+        retry_only_failed = False
+        if self.last_cleanup_job is not None:
+            if self.last_cleanup_job.status == GitlabJobStatus.CREATED:
+                info(
+                    f"[+] Cleanup job {self.last_cleanup_job.name} has not run, which means that instances are still running. We will only retry failed dependency jobs"
+                )
+                retry_only_failed = True
+            else:
+                jobs_to_retry.append(self.last_cleanup_job)
+                if self.last_cleanup_job.status.is_running():
+                    info(f"[+] Cleanup job {self.last_cleanup_job.name} is running, will cancel it and retry")
+                    self.last_cleanup_job.cancel()
+
+        retried_jobs: list[int] = []
+        for job in jobs_to_retry:
+            if job.is_retried:
+                continue
+
+            if retry_only_failed and job.status != GitlabJobStatus.FAILED:
+                info(f"[+] Skipping job {job.name} as it has not failed")
+                continue
+
+            try:
+                info(f"[+] Retrying job {job.name}")
+                retried_id = job.retry()
+            except gitlab.exceptions.GitlabJobRetryError as e:
+                info(f"[-] Failed to retry job {job.name}: {e}")
+                continue
+            retried_jobs.append(int(retried_id))
+
+        return retried_jobs
 
 
 def get_kmt_dashboard_links() -> None | list:
