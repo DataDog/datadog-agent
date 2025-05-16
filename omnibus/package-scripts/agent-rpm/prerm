@@ -12,7 +12,7 @@ INSTALL_DIR=/opt/datadog-agent
 # Run the uninstall prerm. See pkg/fleet/installer/packages/datadog_agent_linux.go
 # Note: the upgrade prerm is handled in the preinst script of the new package on rpm.
 if [ "$*" = "0" ]; then
-    ${INSTALL_DIR}/embedded/bin/installer prerm datadog-agent rpm
+    ${INSTALL_DIR}/embedded/bin/installer prerm datadog-agent rpm || true
 fi
 
 exit 0
