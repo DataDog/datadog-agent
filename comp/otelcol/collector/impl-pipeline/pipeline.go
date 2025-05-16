@@ -149,6 +149,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		tagger:         reqs.Tagger,
 		client:         client,
 		ctx:            context.Background(),
+		hostname:       reqs.Hostname,
 	}
 
 	reqs.Lc.Append(compdef.Hook{
