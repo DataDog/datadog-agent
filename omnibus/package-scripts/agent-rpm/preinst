@@ -8,9 +8,9 @@ INSTALL_DIR=/opt/datadog-agent
 
 set -e
 
-# Run the upgrade preinst. See pkg/fleet/installer/packages/datadog_agent_linux.go
+# Run the upgrade prerm. See pkg/fleet/installer/packages/datadog_agent_linux.go
 if [ "$*" = "2" ] && [ -f "${INSTALL_DIR}/embedded/bin/installer" ]; then
-    ${INSTALL_DIR}/embedded/bin/installer preinst --upgrade datadog-agent rpm
+    ${INSTALL_DIR}/embedded/bin/installer prerm --upgrade datadog-agent rpm
 fi
 
 # RPM Agents < 5.18.0 expect the preinst script of the _new_ package to stop the agent service on upgrade (which is defined with an init.d script on Agent 5)
