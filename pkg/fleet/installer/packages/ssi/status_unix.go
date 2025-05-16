@@ -80,9 +80,9 @@ func IsAutoInstrumentationEnabled() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("could not check if injector package is installed: %w", err)
 	}
-	injectionStatus, err := GetInstrumentationStatus()
+	instrumentationStatus, err := GetInstrumentationStatus()
 	if err != nil {
 		return false, fmt.Errorf("could not get APM injection status: %w", err)
 	}
-	return injectorInstalled && (injectionStatus.HostInstrumented || (injectionStatus.DockerInstrumented && injectionStatus.DockerInstalled)), nil
+	return injectorInstalled && (instrumentationStatus.HostInstrumented || (instrumentationStatus.DockerInstrumented && instrumentationStatus.DockerInstalled)), nil
 }
