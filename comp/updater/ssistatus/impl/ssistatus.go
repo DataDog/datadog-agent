@@ -1,46 +1,47 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
-// Package ssistatusimpl implements the ssistatus component.
+// Package ssistatusimpl implements the ssistatus component interface
 package ssistatusimpl
 
 import (
 	"context"
 	"time"
 
-	"go.uber.org/fx"
-
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/updater/ssistatus"
+	ssistatus "github.com/DataDog/datadog-agent/comp/updater/ssistatus/def"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module is the fx module for the updater.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newSSIStatusComponent),
-	)
-}
-
-// dependencies contains the dependencies to build the updater.
-type dependencies struct {
-	fx.In
+// Requires defines the dependencies for the ssistatus component
+type Requires struct {
+	Lifecycle compdef.Lifecycle
 
 	Log            log.Component
 	InventoryAgent inventoryagent.Component
 }
 
-func newSSIStatusComponent(lc fx.Lifecycle, dependencies dependencies) (ssistatus.Component, error) {
+// Provides defines the output of the ssistatus component
+type Provides struct {
+	Comp ssistatus.Component
+}
+
+// NewComponent creates a new ssistatus component
+func NewComponent(reqs Requires) (Provides, error) {
 	ssiStatus := &ssiStatusComponent{
-		inventoryAgent: dependencies.InventoryAgent,
-		log:            dependencies.Log,
+		inventoryAgent: reqs.InventoryAgent,
+		log:            reqs.Log,
 	}
-	lc.Append(fx.Hook{OnStart: ssiStatus.Start, OnStop: ssiStatus.Stop})
-	return ssiStatus, nil
+	reqs.Lifecycle.Append(compdef.Hook{OnStart: ssiStatus.Start, OnStop: ssiStatus.Stop})
+
+	provides := Provides{
+		Comp: ssiStatus,
+	}
+	return provides, nil
 }
 
 type ssiStatusComponent struct {
