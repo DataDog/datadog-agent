@@ -27,3 +27,8 @@ func Restart(ctx context.Context, name string) error {
 	}
 	return fmt.Errorf("failed to restart %s: %w || %w", name, errStart, errRestart)
 }
+
+// Stop stops an upstart service using initctl
+func Stop(ctx context.Context, name string) error {
+	return telemetry.CommandContext(ctx, "initctl", "stop", name).Run()
+}
