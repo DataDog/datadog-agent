@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"runtime"
 	"time"
 
 	"go.etcd.io/bbolt"
@@ -64,13 +65,15 @@ func WithReadOnly(readOnly bool) Option {
 func New(dbPath string, opts ...Option) (*PackagesDB, error) {
 	o := options{}
 
-	// If we're not root, we can only open the database in read-only mode; unless forced.
-	currentUser, err := user.Current()
-	if err != nil {
-		return nil, fmt.Errorf("could not get current user: %w", err)
-	}
-	if currentUser.Uid != "0" {
-		o.readOnly = true
+	// On Linux, if we're not root, we can only open the database in read-only mode (unless forced).
+	if runtime.GOOS == "linux" {
+		currentUser, err := user.Current()
+		if err != nil {
+			return nil, fmt.Errorf("could not get current user: %w", err)
+		}
+		if currentUser.Uid != "0" {
+			o.readOnly = true
+		}
 	}
 
 	for _, opt := range opts {
