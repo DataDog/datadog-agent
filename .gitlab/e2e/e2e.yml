@@ -846,7 +846,6 @@ new-e2e-gpu:
       - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu2204'
       - EXTRA_PARAMS: '--run TestGPUK8sSuiteUbuntu2204'
       - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu1804Driver510'
-      - EXTRA_PARAMS: '--run TestGPUK8sSuiteUbuntu1804Driver510'
       - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu1804Driver430' # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
 
 generate-flakes-finder-pipeline:

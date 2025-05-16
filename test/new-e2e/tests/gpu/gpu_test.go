@@ -170,11 +170,8 @@ func TestGPUK8sSuiteUbuntu2204(t *testing.T) {
 	runGpuK8sSuite(t, gpuSystemUbuntu2204)
 }
 
-// TestGPUK8sSuiteUbuntu1804Driver510 runs tests for the Kubernetes interface
-// on Ubuntu 18.04 with an older driver version
-func TestGPUK8sSuiteUbuntu1804Driver510(t *testing.T) {
-	runGpuK8sSuite(t, gpuSystemUbuntu1804Driver510)
-}
+// Note: The Kind cluster cannot be setup on Ubuntu 18.04, so we don't test for k8s setup
+// on that system.
 
 func runGpuK8sSuite(t *testing.T, gpuSystem systemName) {
 	// incident-33572. Pulumi seems to sometimes fail to create the stack with an error
