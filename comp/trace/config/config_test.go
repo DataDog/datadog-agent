@@ -206,7 +206,7 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 
 		assert.True(t, cfg.TelemetryConfig.Enabled)
 		assert.Len(t, cfg.TelemetryConfig.Endpoints, 1)
-		assert.Equal(t, "https://instrumentation-telemetry-intake.new_site.example.com.", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.new_site.example.com", cfg.TelemetryConfig.Endpoints[0].Host)
 	})
 
 	t.Run("additional-hosts", func(t *testing.T) {
@@ -835,7 +835,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg := config.Object()
 
 		assert.NotNil(t, cfg)
-		assert.Equal(t, apiEndpointPrefix+"my-site.com.", cfg.Endpoints[0].Host)
+		assert.Equal(t, apiEndpointPrefix+"my-site.com", cfg.Endpoints[0].Host)
 	})
 
 	env = "DD_APM_ENABLED"

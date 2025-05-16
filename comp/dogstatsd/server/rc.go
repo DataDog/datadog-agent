@@ -55,6 +55,14 @@ func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, a
 			s.log.Errorf("can't unmarshal received blocklist config: %v", err)
 			continue
 		}
+
+		// from here, the configuration is usable
+		applyStateCallback(configPath, state.ApplyStatus{
+			State: state.ApplyStateAcknowledged,
+		})
+
+		// this one has no metric in its list, strange but
+		// not an error
 		if len(config.BlockedMetrics.ByName.Metrics) == 0 {
 			s.log.Debug("received a blocklist configuration with no metrics")
 			continue
@@ -78,12 +86,5 @@ func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, a
 	} else {
 		// special case: if the metric names list is empty, fallback to local
 		s.restoreBlocklistFromLocalConfig()
-	}
-
-	// ack the processing of the updates to RC
-	for configPath := range updates {
-		applyStateCallback(configPath, state.ApplyStatus{
-			State: state.ApplyStateAcknowledged,
-		})
 	}
 }
