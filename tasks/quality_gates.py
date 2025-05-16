@@ -341,3 +341,4 @@ def exception_threshold_bump(ctx):
                     "red",
                 )
             )
+            raise Exit(code=1)
