@@ -177,8 +177,8 @@ func (d *DBMRdsService) GetTaggerEntity() string {
 }
 
 // GetADIdentifiers return the single AD identifier for a static config service
-func (d *DBMRdsService) GetADIdentifiers() ([]string, error) {
-	return []string{d.adIdentifier}, nil
+func (d *DBMRdsService) GetADIdentifiers() []string {
+	return []string{d.adIdentifier}
 }
 
 // GetHosts returns the host for the rds endpoint
