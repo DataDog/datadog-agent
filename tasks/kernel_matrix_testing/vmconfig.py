@@ -561,7 +561,7 @@ def url_to_fspath(url: str) -> str:
     filename = os.path.basename(source.path)
     filename = xz_suffix_removed(os.path.basename(source.path))
 
-    return f"file://{os.path.join(get_kmt_os().rootfs_dir,filename)}"
+    return f"file://{os.path.join(get_kmt_os().rootfs_dir, filename)}"
 
 
 def image_source_to_path(vmset: VMSetDict):
