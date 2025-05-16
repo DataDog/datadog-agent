@@ -109,10 +109,14 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 		"version": secrets.PayloadVersion,
 		"secrets": secretsHandle,
 	}
-	payload["type"] = r.backendType
+	if r.backendType != "" {
+		payload["type"] = r.backendType
+	}
 	// the backend config map can't be directly added to the payload, because there could be a
 	// "secrets" key in the backend config map, which would override the secrets key in the payload
-	payload["config"] = r.backendConfig
+	if len(r.backendConfig) > 0 {
+		payload["config"] = r.backendConfig
+	}
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("could not serialize secrets IDs to fetch password: %s", err)

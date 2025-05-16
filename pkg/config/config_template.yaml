@@ -884,8 +884,8 @@ api_key:
 #   <KEY_1>: <VALUE_1>
 #   <KEY_2>: <VALUE_2>
 #   <KEY_3>:
-#     - <KEY_3_1>: <VALUE_3_1>
-#     - <KEY_3_2>: <VALUE_3_2>
+#     <KEY_3_1>: <VALUE_3_1>
+#     <KEY_3_2>: <VALUE_3_2>
 
 ## @param secret_backend_command - string - optional
 ## @env DD_SECRET_BACKEND_COMMAND - string - optional
