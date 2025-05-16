@@ -103,6 +103,38 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	}
 }
 
+func TestBatchStrategyOverflowsOnTooLargeMessage(t *testing.T) {
+	input := make(chan *message.Message)
+	output := make(chan *message.Payload)
+	flushChan := make(chan struct{})
+
+	s := NewBatchStrategy(input, output, flushChan, NewMockServerlessMeta(false), NewArraySerializer(), 100*time.Millisecond, 2, 2, "test", compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""))
+	s.Start()
+
+	message1 := message.NewMessage([]byte("a"), nil, "", 0)
+	input <- message1
+
+	// message2 will overflow the first payload causing message1 to flush, but then also fail to be added to the buffer
+	// because it's too big on it's own. message2 is dropped.
+	message2 := message.NewMessage([]byte("bbbbbb"), nil, "", 0)
+	input <- message2
+
+	expectedPayload := &message.Payload{
+		MessageMetas:  []*message.MessageMetadata{&message1.MessageMetadata},
+		Encoded:       []byte(`[a]`),
+		Encoding:      "identity",
+		UnencodedSize: 3,
+	}
+
+	// expect payload to be sent because buffer is full
+	assert.Equal(t, expectedPayload, <-output)
+	s.Stop()
+
+	if _, isOpen := <-input; isOpen {
+		assert.Fail(t, "input should be closed")
+	}
+}
+
 func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)

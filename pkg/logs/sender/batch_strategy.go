@@ -151,13 +151,12 @@ func (s *batchStrategy) addMessage(m *message.Message) (bool, error) {
 	s.utilization.Start()
 	defer s.utilization.Stop()
 
-	if s.buffer.CanAddMessage(m) {
+	if s.buffer.AddMessage(m) {
 		err := s.serializer.Serialize(m, s.writeCounter)
 		if err != nil {
-			log.Warnf("Failed to serialize message in pipeline=%s reason=serialize-error err=%s", s.pipelineName, err)
 			return false, err
 		}
-		return s.buffer.AddMessage(m), nil
+		return true, nil
 	}
 	return false, nil
 }
