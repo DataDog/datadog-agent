@@ -70,7 +70,6 @@ def init_env(ctx, branch: str | None = None, commit: str | None = None):
                         ctx.run(f"git -C '{WORKTREE_DIRECTORY}' fetch", hide=True)
 
         if not os.environ.get("AGENT_WORKTREE_NO_PULL"):
-            # ctx.run(f"git -C '{WORKTREE_DIRECTORY}' pull", hide=True)
             ctx.run(f"git -C '{WORKTREE_DIRECTORY}' pull --set-upstream origin '{branch}'", hide=True)
 
     if commit:

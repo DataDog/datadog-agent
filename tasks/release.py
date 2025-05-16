@@ -1380,11 +1380,3 @@ def check_previous_agent6_rc(ctx):
     if err_msg:
         post_message(ctx, "agent-ci-on-call", err_msg)
         raise Exit(message=err_msg, code=1)
-
-
-@task
-def celian(ctx, release_branch):
-    major_version = get_version_major(release_branch)
-
-    with agent_context(ctx, release_branch):
-        print('Running within context', major_version)
