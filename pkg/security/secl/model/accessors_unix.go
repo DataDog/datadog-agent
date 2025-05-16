@@ -5671,6 +5671,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ondemand.name":
 		return &eval.StringEvaluator{
+			OpOverrides: OnDemandNameOverrides,
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)

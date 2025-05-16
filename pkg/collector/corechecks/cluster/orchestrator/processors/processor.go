@@ -266,6 +266,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 			Version:         "v1",
 			ContentType:     "json",
 			Tags:            p.h.ResourceTaggerTags(ctx, resource),
+			IsTerminated:    ctx.IsTerminatedResources(),
 		})
 	}
 
