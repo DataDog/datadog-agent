@@ -377,6 +377,12 @@ func copyAny(target reflect.Value, input nodetreemodel.Node, currPath []string, 
 		if leaf, ok := input.(nodetreemodel.LeafNode); ok {
 			return copyLeaf(target, leaf, fs)
 		}
+		if inner, ok := input.(nodetreemodel.InnerNode); ok {
+			// An empty inner node is treated like a nil value, nothing to copy
+			if len(inner.ChildrenKeys()) == 0 {
+				return nil
+			}
+		}
 		return fmt.Errorf("at %v: scalar required, but input is not a leaf: %v of %T", currPath, input, input)
 	} else if target.Kind() == reflect.Map {
 		return copyMap(target, input, currPath, fs)

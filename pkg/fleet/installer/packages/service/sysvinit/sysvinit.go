@@ -19,7 +19,17 @@ func Install(ctx context.Context, name string) error {
 	return telemetry.CommandContext(ctx, "update-rc.d", name, "defaults").Run()
 }
 
+// Remove removes a sys-v init script using update-rc.d
+func Remove(ctx context.Context, name string) error {
+	return telemetry.CommandContext(ctx, "update-rc.d", "-f", name, "remove").Run()
+}
+
 // Restart restarts a sys-v init script using service
 func Restart(ctx context.Context, name string) error {
 	return telemetry.CommandContext(ctx, "service", name, "restart").Run()
+}
+
+// Stop stops a sys-v init script using service
+func Stop(ctx context.Context, name string) error {
+	return telemetry.CommandContext(ctx, "service", name, "stop").Run()
 }
