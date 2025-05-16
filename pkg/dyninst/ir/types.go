@@ -20,7 +20,11 @@ type Type interface {
 	// GetName returns the name of the type.
 	GetName() string
 	// GetByteSize returns the size of the type in bytes.
-	GetByteSize() int
+	//
+	// Note that while it is possible to have a type that is larger than 2^32
+	// bytes, the current implementation of the IR will not be able to
+	// represent it.
+	GetByteSize() uint64
 	// GetGoRuntimeType returns the runtime type of the type, if it is associated
 	// with a Go type.
 	GetGoRuntimeType() (uint32, bool)
@@ -71,6 +75,7 @@ var (
 	_ Type = (*GoChannelType)(nil)
 	_ Type = (*GoEmptyInterfaceType)(nil)
 	_ Type = (*GoInterfaceType)(nil)
+	_ Type = (*GoSubroutineType)(nil)
 
 	_ Type = (*EventRootType)(nil)
 )
@@ -86,8 +91,8 @@ func (t *TypeCommon) GetName() string {
 }
 
 // GetByteSize returns the size of the type in bytes.
-func (t *TypeCommon) GetByteSize() int {
-	return t.Size
+func (t *TypeCommon) GetByteSize() uint64 {
+	return t.ByteSize
 }
 
 // TypeCommon has common fields for all types.
@@ -96,8 +101,8 @@ type TypeCommon struct {
 	ID TypeID
 	// Name is the name of the type.
 	Name string
-	// Size is the size of the type in bytes.
-	Size int
+	// ByteSize is the size of the type in bytes.
+	ByteSize uint64
 }
 
 // BaseType is a basic type in the target program.
@@ -139,7 +144,7 @@ type Field struct {
 	// Offset in the parent structure.
 	Offset uint32
 	// Type is the type of the field.
-	Type TypeID
+	Type Type
 }
 
 // ArrayType is an array type in the target program.
@@ -207,9 +212,7 @@ func (GoSliceDataType) irType() {}
 // GoChannelType is a synthetic type that represents a channel.
 type GoChannelType struct {
 	TypeCommon
-	syntheticType
-
-	// TODO: fill in the details
+	GoTypeAttributes
 }
 
 func (GoChannelType) irType() {}
@@ -286,6 +289,15 @@ type GoSwissMapGroupsType struct {
 
 func (GoSwissMapGroupsType) irType() {}
 
+// GoSubroutineType is a type that represents a function type in the target
+// program.
+type GoSubroutineType struct {
+	TypeCommon
+	GoTypeAttributes
+}
+
+func (GoSubroutineType) irType() {}
+
 type syntheticType struct{}
 
 func (syntheticType) GetGoRuntimeType() (uint32, bool) {
@@ -306,7 +318,7 @@ type EventRootType struct {
 	PresenseBitsetSize int
 	// Expressions is the list of expressions that are used to evaluate the
 	// value of the event.
-	Expressions []RootExpression
+	Expressions []*RootExpression
 }
 
 func (EventRootType) irType() {}

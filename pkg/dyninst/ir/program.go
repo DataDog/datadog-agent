@@ -7,7 +7,7 @@
 
 package ir
 
-import "github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+import "github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr"
 
 // ProgramID is a ID corresponding to an instance of a Program.  It is used to
 // identify messages from this program as they are communicated over the ring
@@ -34,7 +34,7 @@ type Program struct {
 	// Subprograms are a list of subprograms that will be probed.
 	Subprograms []*Subprogram
 	// Types are the types that are used in the program.
-	Types []Type
+	Types map[TypeID]Type
 	// MaxTypeID is the maximum type ID that has been assigned.
 	MaxTypeID TypeID
 }
@@ -52,7 +52,7 @@ type Subprogram struct {
 	// inlined instances of the subprogram. These are sorted by start PC.
 	InlinePCRanges [][]PCRange
 	// Variables are the variables that are used in the subprogram.
-	Variables []Variable
+	Variables []*Variable
 	// Lines are the lines of the subprogram.
 	Lines []SubprogramLine
 }
@@ -78,6 +78,8 @@ type Variable struct {
 	Locations []Location
 	// IsParameter is true if the variable is a parameter.
 	IsParameter bool
+	// IsReturn is true if this variable is a return value.
+	IsReturn bool
 }
 
 // Location is the location of a parameter or variable in the subprogram.
@@ -85,16 +87,11 @@ type Location struct {
 	// PCRange is the range of PC values that will be probed.
 	Range PCRange
 	// The locations of the pieces of the parameter or variable.
-	Location []bininspect.ParameterPiece
+	Location []locexpr.LocationPiece
 }
 
 // PCRange is the range of PC values that will be probed.
-type PCRange struct {
-	// Start is the start PC value of the range.
-	Start uint64
-	// End is the end PC value of the range.
-	End uint64
-}
+type PCRange = [2]uint64
 
 // Probe represents a probe from the config as it applies to the program.
 type Probe struct {
@@ -109,7 +106,7 @@ type Probe struct {
 	// The subprogram to which the probe is attached.
 	Subprogram *Subprogram
 	// The events that trigger the probe.
-	Events []Event
+	Events []*Event
 	// Whether the probe should capture a snapshot of the state of the program.
 	Snapshot bool
 	// TODO: Add template support:
