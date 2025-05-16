@@ -12,9 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -31,7 +30,8 @@ func (crd *CRDHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext
 	cm := common.ExtractModelManifests(ctx, resourceManifests, groupSize)
 	return &model.CollectorManifestCRD{
 		Manifest: cm,
-		Tags:     pctx.ExtraTags,
+		// CRDs are manifests, CollectorTags should be added to the inner Manifests, not the outer (embedded) CollectorManifests
+		Tags: pctx.Cfg.ExtraTags,
 	}
 }
 

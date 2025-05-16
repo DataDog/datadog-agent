@@ -10,6 +10,7 @@ package k8s
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
@@ -59,7 +60,8 @@ func (h *StatefulSetHandlers) BuildMessageBody(ctx processors.ProcessorContext, 
 		GroupId:      pctx.MsgGroupID,
 		GroupSize:    int32(groupSize),
 		StatefulSets: models,
-		Tags:         pctx.ExtraTags}
+		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.CollectorTags),
+	}
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.

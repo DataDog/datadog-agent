@@ -50,7 +50,8 @@ func (cr *CRHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext, 
 
 	return &model.CollectorManifestCR{
 		Manifest: cm,
-		Tags:     pctx.ExtraTags,
+		// CRs are manifests, CollectorTags should be added to the inner Manifests, not the outer (embedded) CollectorManifests
+		Tags: pctx.Cfg.ExtraTags,
 	}
 }
 

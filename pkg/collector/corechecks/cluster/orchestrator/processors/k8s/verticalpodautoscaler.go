@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 )
 
@@ -58,7 +59,7 @@ func (h *VerticalPodAutoscalerHandlers) BuildMessageBody(ctx processors.Processo
 		GroupId:                pctx.MsgGroupID,
 		GroupSize:              int32(groupSize),
 		VerticalPodAutoscalers: models,
-		Tags:                   pctx.ExtraTags,
+		Tags:                   util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.CollectorTags),
 	}
 }
 
