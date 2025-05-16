@@ -70,11 +70,12 @@ def init_env(ctx, branch: str | None = None, commit: str | None = None):
                         ctx.run(f"git -C '{WORKTREE_DIRECTORY}' fetch", hide=True)
 
         if not os.environ.get("AGENT_WORKTREE_NO_PULL"):
-            ctx.run(f"git -C '{WORKTREE_DIRECTORY}' pull", hide=True)
+            # ctx.run(f"git -C '{WORKTREE_DIRECTORY}' pull", hide=True)
+            ctx.run(f"git -C '{WORKTREE_DIRECTORY}' pull --set-upstream origin", hide=True)
 
     if commit:
         if not os.environ.get("AGENT_WORKTREE_NO_PULL"):
-            ctx.run(f"git -C '{WORKTREE_DIRECTORY}' fetch", hide=True)
+            ctx.run(f"git -C '{WORKTREE_DIRECTORY}' fetch --set-upstream origin", hide=True)
 
         ctx.run(f"git -C '{WORKTREE_DIRECTORY}' checkout '{commit}'", hide=True)
 
@@ -105,9 +106,9 @@ def enter_env(ctx, branch: str | None, skip_checkout=False, commit: str | None =
     os.chdir(WORKTREE_DIRECTORY)
     if skip_checkout and branch:
         current_branch = get_current_branch(ctx)
-        assert (
-            current_branch == branch
-        ), f"skip_checkout is True but the current branch ({current_branch}) is not {branch}. You should check out the branch before using this command, this can be safely done with `dda inv worktree.checkout {branch}`."
+        assert current_branch == branch, (
+            f"skip_checkout is True but the current branch ({current_branch}) is not {branch}. You should check out the branch before using this command, this can be safely done with `dda inv worktree.checkout {branch}`."
+        )
 
 
 def exit_env():
