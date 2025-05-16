@@ -1318,7 +1318,7 @@ type ECSTask struct {
 	Version               string                   `protobuf:"bytes,9,opt,name=version,proto3" json:"version,omitempty"`
 	LaunchType            ECSLaunchType            `protobuf:"varint,10,opt,name=launchType,proto3,enum=datadog.workloadmeta.ECSLaunchType" json:"launchType,omitempty"`
 	Containers            []*OrchestratorContainer `protobuf:"bytes,11,rep,name=containers,proto3" json:"containers,omitempty"`
-	AwsAccountID          int64                    `protobuf:"varint,12,opt,name=awsAccountID,proto3" json:"awsAccountID,omitempty"`
+	AwsAccountID          string                   `protobuf:"bytes,12,opt,name=awsAccountID,proto3" json:"awsAccountID,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -1430,11 +1430,11 @@ func (x *ECSTask) GetContainers() []*OrchestratorContainer {
 	return nil
 }
 
-func (x *ECSTask) GetAwsAccountID() int64 {
+func (x *ECSTask) GetAwsAccountID() string {
 	if x != nil {
 		return x.AwsAccountID
 	}
-	return 0
+	return ""
 }
 
 type WorkloadmetaEvent struct {
@@ -1677,7 +1677,7 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\n" +
 	"containers\x18\v \x03(\v2+.datadog.workloadmeta.OrchestratorContainerR\n" +
 	"containers\x12\"\n" +
-	"\fawsAccountID\x18\f \x01(\x03R\fawsAccountID\x1a7\n" +
+	"\fawsAccountID\x18\f \x01(\tR\fawsAccountID\x1a7\n" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aH\n" +

@@ -93,7 +93,12 @@ properties:
             resources:
             - componentstatuses
             - deployments
+            - limitranges
             - namespaces
+            - persistentvolumeclaims
+            - persistentvolumes
+            - replicationcontrollers
+            - resourcequotas
             verbs:
             - get
             - list
@@ -115,17 +120,6 @@ properties:
             - list
             - patch
             - update
-            - watch
-          - apiGroups:
-            - ""
-            resources:
-            - limitranges
-            - persistentvolumeclaims
-            - persistentvolumes
-            - replicationcontrollers
-            - resourcequotas
-            verbs:
-            - list
             - watch
           - apiGroups:
             - ""
@@ -221,12 +215,8 @@ properties:
             verbs:
             - create
             - get
-          - apiGroups:
-            - authorization.k8s.io
-            resources:
-            - pods/exec
-            verbs:
-            - create
+            - list
+            - watch
           - apiGroups:
             - authorization.k8s.io
             resources:
@@ -279,6 +269,7 @@ properties:
             resources:
             - certificatesigningrequests
             verbs:
+            - get
             - list
             - watch
           - apiGroups:
@@ -313,6 +304,8 @@ properties:
             - datadogagents
             - datadogagents/finalizers
             - datadogdashboards
+            - datadoggenericresources
+            - datadoggenericresources/finalizers
             - datadogmonitors
             - datadogmonitors/finalizers
             - datadogslos
@@ -332,6 +325,7 @@ properties:
             - datadogagentprofiles/status
             - datadogagents/status
             - datadogdashboards/status
+            - datadoggenericresources/status
             - datadogmonitors/status
             - datadogslos/status
             verbs:
@@ -352,6 +346,7 @@ properties:
             verbs:
             - create
             - delete
+            - get
             - list
             - watch
           - apiGroups:
@@ -365,11 +360,6 @@ properties:
             - datadoghq.com
             resources:
             - extendeddaemonsetreplicasets
-            verbs:
-            - get
-          - apiGroups:
-            - datadoghq.com
-            resources:
             - watermarkpodautoscalers
             verbs:
             - get
@@ -435,8 +425,12 @@ properties:
             - storageclasses
             - volumeattachments
             verbs:
+            - get
             - list
             - watch
+          - apiGroups: [""]
+            resources: ["pods/exec"]
+            verbs: ["create"]
 required:
 - name
 - namespace

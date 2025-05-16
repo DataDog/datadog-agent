@@ -982,7 +982,7 @@ type ECSTask struct {
 	ContainerInstanceTags   MapTags
 	ClusterName             string
 	ContainerInstanceARN    string
-	AWSAccountID            int
+	AWSAccountID            string
 	Region                  string
 	AvailabilityZone        string
 	Family                  string
@@ -1372,6 +1372,18 @@ const (
 	GPUCOUNT
 )
 
+// GPUDeviceType is an enum to identify the type of the GPU device.
+type GPUDeviceType int
+
+const (
+	// GPUDeviceTypePhysical represents a physical GPU device.
+	GPUDeviceTypePhysical GPUDeviceType = iota
+	// GPUDeviceTypeMIG represents a MIG device.
+	GPUDeviceTypeMIG
+	// GPUDeviceTypeUnknown represents an unknown device type.
+	GPUDeviceTypeUnknown
+)
+
 // GPU represents a GPU resource.
 type GPU struct {
 	EntityID
@@ -1417,29 +1429,8 @@ type GPU struct {
 	// MemoryBusWidth is the width of the memory bus in bits.
 	MemoryBusWidth uint32
 
-	// MigEnabled is true if the GPU supports MIG (Multi-Instance GPU) and it is enabled.
-	MigEnabled bool
-	// MigDevices is a list of MIG devices that are part of the GPU.
-	MigDevices []*MigDevice
-}
-
-// MigDevice contains information about a MIG device, including the GPU instance ID, device info, attributes, and profile. Nvidia MIG allows a single physical GPU to be partitioned into multiple isolated GPU instances so that multiple workloads can run on the same GPU.
-type MigDevice struct {
-	// GPUInstanceID is the ID of the GPU instance. This is a unique identifier inside the parent GPU device.
-	GPUInstanceID int
-	// UUID is the device id retrieved from nvml in the format "MIG-XXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXX"
-	UUID string
-	Name string
-	// GPUInstanceSliceCount and MemorySizeInGb are retrieved from the profile
-	// mig 1g.10gb profile will have GPUInstanceSliceCount = 1 and MemorySizeMB = 10000
-	GPUInstanceSliceCount uint32
-	MemorySizeMB          uint64
-	// ResourceName is the resource of the profile used, e.g. "1g.10gb", "2g.20gb", etc.
-	ResourceName string
-}
-
-func (m *MigDevice) String() string {
-	return fmt.Sprintf("GPU Instance ID: %d, UUID: %s, Resource: %s", m.GPUInstanceID, m.UUID, m.ResourceName)
+	// DeviceType identifies if this is a physical or virtual device (e.g. MIG)
+	DeviceType GPUDeviceType
 }
 
 var _ Entity = &GPU{}
@@ -1492,12 +1483,10 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Memory Bus Width:", g.MemoryBusWidth)
 	_, _ = fmt.Fprintln(&sb, "Max SM Clock Rate:", g.MaxClockRates[GPUSM])
 	_, _ = fmt.Fprintln(&sb, "Max Memory Clock Rate:", g.MaxClockRates[GPUMemory])
-	if g.MigEnabled {
-		_, _ = fmt.Fprintln(&sb, "----------- MIG Device -----------")
-		_, _ = fmt.Fprintln(&sb, "MIG Enabled: true")
-		for _, migDevice := range g.MigDevices {
-			_, _ = fmt.Fprintln(&sb, migDevice.String())
-		}
+
+	// Do not show "physical" device type as it's the default and redundant information
+	if g.DeviceType == GPUDeviceTypeMIG {
+		_, _ = fmt.Fprintln(&sb, "Device Type: MIG")
 	}
 
 	return sb.String()

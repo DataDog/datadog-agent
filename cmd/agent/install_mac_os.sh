@@ -13,6 +13,8 @@ log_dir=/opt/datadog-agent/logs
 run_dir=/opt/datadog-agent/run
 service_name="com.datadoghq.agent"
 systemwide_servicefile_name="/Library/LaunchDaemons/${service_name}.plist"
+sysprobe_service_name=com.datadoghq.sysprobe
+sysprobe_servicefile_name="/Library/LaunchDaemons/${sysprobe_service_name}.plist"
 
 if [ -n "$DD_REPO_URL" ]; then
     dmg_base_url=$DD_REPO_URL
@@ -382,6 +384,17 @@ if [ "$systemdaemon_install" != false ] && [ -f "$systemwide_servicefile_name" ]
         $sudo_cmd launchctl unload -wF $systemwide_servicefile_name || true
     fi
 fi
+
+# Shut down and remove system probe service if present
+if [ -f "$sysprobe_servicefile_name" ]; then
+    printf "\033[34m\n    - Stopping System Probe daemon ...\n\033[0m"
+    $sudo_cmd launchctl stop $sysprobe_service_name || true
+    if $sudo_cmd launchctl print system/$sysprobe_service_name 2>/dev/null >/dev/null; then
+        $sudo_cmd launchctl unload -wF $sysprobe_servicefile_name || true
+    fi
+    $sudo_cmd rm -f "${sysprobe_servicefile_name}"
+fi
+
 printf "\033[34m\n    - Unpacking and copying files (this usually takes about a minute) ...\n\033[0m"
 cd / && $sudo_cmd /usr/sbin/installer -pkg "`find "/Volumes/datadog_agent" -name \*.pkg 2>/dev/null`" -target / >/dev/null
 printf "\033[34m\n    - Unmounting the DMG installer ...\n\033[0m"
@@ -453,6 +466,16 @@ else
     $sudo_cmd chown -R "$systemdaemon_user_group" "$etc_dir" "$log_dir" "$run_dir"
     $sudo_cmd launchctl load -w "$systemwide_servicefile_name"
     $sudo_cmd launchctl kickstart "system/$service_name"
+fi
+
+# Set up and start the system-probe service if this version includes support for it
+sysprobe_plist_example_file="${etc_dir}/${sysprobe_service_name}.plist.example"
+if [ -f "$sysprobe_plist_example_file" ]; then
+    printf "\033[34m\n* Setting up system-probe ($sysprobe_service_name) as a systemwide LaunchDaemon ...\n\n\033[0m"
+    $sudo_cmd mv "$sysprobe_plist_example_file" "$sysprobe_servicefile_name"
+    $sudo_cmd chown "0:0" "$sysprobe_servicefile_name"
+    $sudo_cmd launchctl load -w "$sysprobe_servicefile_name"
+    $sudo_cmd launchctl kickstart "system/$sysprobe_service_name"
 fi
 
 # Agent works, echo some instructions and exit
