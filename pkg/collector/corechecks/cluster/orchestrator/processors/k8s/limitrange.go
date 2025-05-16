@@ -100,6 +100,17 @@ func (h *LimitRangeHandlers) ResourceVersion(ctx processors.ProcessorContext, re
 	return resource.(*corev1.LimitRange).ResourceVersion
 }
 
+// GetMetadataTags returns the tags in the metadata model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *LimitRangeHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
+	m, ok := resourceMetadataModel.(*model.LimitRange)
+	if !ok {
+		return nil
+	}
+	return m.Tags
+}
+
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
 //

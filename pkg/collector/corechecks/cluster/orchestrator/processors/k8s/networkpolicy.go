@@ -100,6 +100,17 @@ func (h *NetworkPolicyHandlers) ResourceVersion(ctx processors.ProcessorContext,
 	return resource.(*netv1.NetworkPolicy).ResourceVersion
 }
 
+// GetMetadataTags returns the tags in the metadata model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *NetworkPolicyHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
+	m, ok := resourceMetadataModel.(*model.NetworkPolicy)
+	if !ok {
+		return nil
+	}
+	return m.Tags
+}
+
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
 //

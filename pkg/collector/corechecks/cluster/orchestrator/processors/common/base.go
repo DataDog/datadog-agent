@@ -35,7 +35,7 @@ func (BaseHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext, re
 }
 
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (BaseHandlers) ResourceTaggerTags(ctx processors.ProcessorContext, resource interface{}) []string {
+func (BaseHandlers) GetMetadataTags(ctx processors.ProcessorContext, resource interface{}) []string {
 	return nil
 }
 
