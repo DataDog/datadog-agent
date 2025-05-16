@@ -75,6 +75,21 @@ var (
 		{Path: "embedded/share/system-probe/java", Owner: "root", Group: "root", Recursive: true},
 	}
 
+	// agentPackageUninstallPaths are the paths that are deleted during an uninstall
+	agentPackageUninstallPaths = file.Paths{
+		"embedded/ssl/fipsmodule.cnf",
+		"run",
+		".pre_python_installed_packages.txt",
+		".post_python_installed_packages.txt",
+		".diff_python_installed_packages.txt",
+	}
+
+	// agentConfigUninstallPaths are the files that are deleted during an uninstall
+	agentConfigUninstallPaths = file.Paths{
+		"install_info",
+		"install.json",
+	}
+
 	// agentService are the services that are part of the agent deb/rpm package
 	agentService = datadogAgentService{
 		SystemdMainUnit:     "datadog-agent.service",
@@ -95,8 +110,8 @@ var (
 	}
 )
 
-// setupFilesystem sets up the filesystem for the agent installation
-func setupFilesystem(ctx HookContext) (err error) {
+// installFilesystem sets up the filesystem for the agent installation
+func installFilesystem(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("setup_filesystem")
 	defer func() {
 		span.Finish(err)
@@ -149,29 +164,37 @@ func setupFilesystem(ctx HookContext) (err error) {
 	return nil
 }
 
-// removeFilesystem cleans the filesystem
-// All operations are allowed to fail
-func removeFilesystem(ctx HookContext) {
+// uninstallFilesystem cleans the filesystem by removing various temporary files, symlinks and installation metadata
+func uninstallFilesystem(ctx HookContext) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "remove_filesystem")
 	defer func() {
-		span.Finish(nil)
+		span.Finish(err)
 	}()
 
-	// Remove run dir
-	os.RemoveAll(filepath.Join(ctx.PackagePath, "run"))
-	// Remove FIPS module
-	os.Remove(filepath.Join(ctx.PackagePath, "embedded", "ssl", "fipsmodule.cnf"))
-	// Remove any file related to reinstalling non-core integrations (see python-scripts/packages.py for the names)
-	os.Remove(filepath.Join(ctx.PackagePath, ".pre_python_installed_packages.txt"))
-	os.Remove(filepath.Join(ctx.PackagePath, ".post_python_installed_packages.txt"))
-	os.Remove(filepath.Join(ctx.PackagePath, ".diff_python_installed_packages.txt"))
-	// Remove install info
-	installinfo.RemoveInstallInfo()
-	// Remove symlinks
-	os.Remove(agentSymlink)
-	if target, err := os.Readlink(installerSymlink); err == nil && strings.HasPrefix(target, ctx.PackagePath) {
-		os.Remove(installerSymlink)
+	err = agentPackageUninstallPaths.EnsureAbsent(ctx.PackagePath)
+	if err != nil {
+		return fmt.Errorf("failed to remove package paths: %w", err)
 	}
+	err = agentConfigUninstallPaths.EnsureAbsent("/etc/datadog-agent")
+	if err != nil {
+		return fmt.Errorf("failed to remove config paths: %w", err)
+	}
+	err = file.EnsureSymlinkAbsent(agentSymlink)
+	if err != nil {
+		return fmt.Errorf("failed to remove agent symlink: %w", err)
+	}
+
+	installerTarget, err := os.Readlink(installerSymlink)
+	if err != nil {
+		return fmt.Errorf("failed to read installer symlink: %w", err)
+	}
+	if strings.HasPrefix(installerTarget, ctx.PackagePath) {
+		err = file.EnsureSymlinkAbsent(installerSymlink)
+		if err != nil {
+			return fmt.Errorf("failed to remove installer symlink: %w", err)
+		}
+	}
+	return nil
 }
 
 // installerCopy copies the current executable to the installer path
@@ -225,7 +248,7 @@ func preInstallDatadogAgent(ctx HookContext) error {
 
 // postInstallDatadogAgent performs post-installation steps for the agent
 func postInstallDatadogAgent(ctx HookContext) (err error) {
-	if err := setupFilesystem(ctx); err != nil {
+	if err := installFilesystem(ctx); err != nil {
 		return err
 	}
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
@@ -286,24 +309,28 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 			log.Warnf("failed to remove stable unit: %s", err)
 		}
 	}
-
-	if ctx.Upgrade {
+	switch ctx.Upgrade {
+	case false:
+		if err := integrations.RemoveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
+			log.Warnf("failed to remove custom integrations: %s\n", err.Error())
+		}
+		if err := integrations.RemoveCompiledFiles(ctx.PackagePath); err != nil {
+			log.Warnf("failed to remove compiled files: %s", err)
+		}
+		if err := uninstallFilesystem(ctx); err != nil {
+			log.Warnf("failed to uninstall filesystem: %s", err)
+		}
+	case true:
 		if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 			log.Warnf("failed to save custom integrations: %s", err)
 		}
+		if err := integrations.RemoveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
+			log.Warnf("failed to remove custom integrations: %s\n", err.Error())
+		}
+		if err := integrations.RemoveCompiledFiles(ctx.PackagePath); err != nil {
+			log.Warnf("failed to remove compiled files: %s", err)
+		}
 	}
-	if err := integrations.RemoveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
-		log.Warnf("failed to remove custom integrations: %s\n", err.Error())
-	}
-
-	// Delete all the .pyc files. This MUST be done after using pip or any python, because executing python might generate .pyc files
-	integrations.RemoveCompiledFiles(ctx.PackagePath)
-
-	if !ctx.Upgrade {
-		// Remove files not tracked by the package manager
-		removeFilesystem(ctx)
-	}
-
 	return nil
 }
 
@@ -323,7 +350,7 @@ func preStartExperimentDatadogAgent(ctx HookContext) error {
 // postStartExperimentDatadogAgent performs post-start steps for the experiment.
 // It must be executed by the experiment unit before starting the experiment & after PreStartExperiment.
 func postStartExperimentDatadogAgent(ctx HookContext) error {
-	if err := setupFilesystem(ctx); err != nil {
+	if err := installFilesystem(ctx); err != nil {
 		return err
 	}
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
@@ -370,7 +397,7 @@ func prePromoteExperimentDatadogAgent(ctx HookContext) error {
 // postPromoteExperimentDatadogAgent performs post-promote steps for the experiment.
 // It must be executed by the experiment unit (now the new stable) before promoting the experiment & after PrePromoteExperiment.
 func postPromoteExperimentDatadogAgent(ctx HookContext) error {
-	if err := setupFilesystem(ctx); err != nil {
+	if err := installFilesystem(ctx); err != nil {
 		return err
 	}
 	detachedCtx := context.WithoutCancel(ctx.Context)
