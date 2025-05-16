@@ -32,7 +32,8 @@ func TestRTContainerCheckIsEnabled(t *testing.T) {
 		enabled          bool
 	}{
 		{
-			name:             "config not set which defaults container collection being enabled",
+			// the container collection is enabled by default in containerized environments
+			name:             "empty config - container collection is enabled",
 			configs:          nil,
 			containerizedEnv: true,
 			enabled:          true,
