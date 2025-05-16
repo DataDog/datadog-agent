@@ -38,7 +38,7 @@ func preInstallAPMInjector(ctx HookContext) (err error) {
 	// Remove DEB/RPM packages if they exist
 
 	for _, pkg := range apmDebRPMPackages {
-		if err := packagemanager.RemovePackage(ctx, pkg); err != nil {
+		if err := packagemanager.RemoveNativePackage(ctx, pkg); err != nil {
 			return err
 		}
 	}

@@ -33,10 +33,37 @@ func rpmInstalled() (bool, error) {
 	return err == nil, nil
 }
 
-// RemovePackage removes a package installed via deb/rpm package manager
+func installerInstalled() (bool, error) {
+	_, err := exec.LookPath("datadog-installer")
+	if err != nil && !errors.Is(err, exec.ErrNotFound) {
+		return false, err
+	}
+	return err == nil, nil
+}
+
+// RemoveInstallerPackage removes a package installed via the installer
+func RemoveInstallerPackage(ctx context.Context, pkg string) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "RemoveInstallerPackage")
+	defer func() { span.Finish(err) }()
+
+	installerInstalled, err := installerInstalled()
+	if err != nil {
+		return err
+	}
+	if !installerInstalled {
+		return nil
+	}
+	out, err := exec.Command("datadog-installer", "remove", pkg).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to remove installer package %s (%w): %s", pkg, err, out)
+	}
+	return nil
+}
+
+// RemoveNativePackage removes a package installed via deb/rpm package manager
 // It doesn't remove dependencies or purge as we want to keep existing configuration files
 // and reinstall the package using the installer.
-func RemovePackage(ctx context.Context, pkg string) (err error) {
+func RemoveNativePackage(ctx context.Context, pkg string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "RemovePackage")
 	defer func() { span.Finish(err) }()
 
