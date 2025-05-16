@@ -3,7 +3,7 @@ serverless_cold_start_performance-deb_x64:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["docker-in-docker:amd64"]
   needs: ["go_deps", "build_serverless-deb_x64"]
   before_script:
