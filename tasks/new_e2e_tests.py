@@ -124,7 +124,7 @@ def run(
         parsed_params[parts[0]] = parts[1]
 
     if local_package:
-        parsed_params["ddagent:localPackage"] = local_package
+        parsed_params["ddagent:localPackage"] = Path(local_package).absolute().as_posix()
 
     if agent_image:
         parsed_params["ddagent:fullImagePath"] = agent_image
