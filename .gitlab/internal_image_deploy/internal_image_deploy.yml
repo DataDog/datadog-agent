@@ -13,7 +13,7 @@
     - export RELEASE_STAGING="true"
     - export DYNAMIC_BUILD_RENDER_RULES="agent-build-only"
     # Job specific variables
-    - export RELEASE_TAG="${CI_COMMIT_REF_SLUG}${RELEASE_TAG_SUFFIX}"
+    - export RELEASE_TAG="${CI_COMMIT_REF_NAME}${RELEASE_TAG_SUFFIX}"
     - export TMPL_SRC_IMAGE="v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TMPL_SRC_IMAGE_SUFFIX}"
     # BUILD_TAG is always RELEASE_TAG
     - export BUILD_TAG="${RELEASE_TAG}"
