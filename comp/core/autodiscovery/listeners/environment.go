@@ -87,8 +87,8 @@ func (s *EnvironmentService) GetServiceID() string {
 }
 
 // GetADIdentifiers return the single AD identifier for an environment service
-func (s *EnvironmentService) GetADIdentifiers() ([]string, error) {
-	return []string{s.adIdentifier}, nil
+func (s *EnvironmentService) GetADIdentifiers() []string {
+	return []string{s.adIdentifier}
 }
 
 // GetHosts is not supported

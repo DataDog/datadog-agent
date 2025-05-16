@@ -213,8 +213,8 @@ func (s *CloudFoundryService) GetServiceID() string {
 }
 
 // GetADIdentifiers returns a set of AD identifiers for a container.
-func (s *CloudFoundryService) GetADIdentifiers() ([]string, error) {
-	return []string{s.adIdentifier.String()}, nil
+func (s *CloudFoundryService) GetADIdentifiers() []string {
+	return []string{s.adIdentifier.String()}
 }
 
 // GetHosts returns the container's hosts

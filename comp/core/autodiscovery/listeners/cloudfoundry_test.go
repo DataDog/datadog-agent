@@ -441,8 +441,7 @@ func TestCloudFoundryListener(t *testing.T) {
 
 		for range tc.expNew {
 			s := (<-newSvc).(*CloudFoundryService)
-			adID, err := s.GetADIdentifiers()
-			assert.Nil(t, err)
+			adID := s.GetADIdentifiers()
 			// we make the comparison easy by leaving out the ADIdentifier structs out
 			oldID := s.adIdentifier
 			s.adIdentifier = cloudfoundry.ADIdentifier{}
@@ -451,8 +450,7 @@ func TestCloudFoundryListener(t *testing.T) {
 		}
 		for range tc.expDel {
 			s := (<-delSvc).(*CloudFoundryService)
-			adID, err := s.GetADIdentifiers()
-			assert.Nil(t, err)
+			adID := s.GetADIdentifiers()
 			s.adIdentifier = cloudfoundry.ADIdentifier{}
 			assert.Equal(t, tc.expDel[adID[0]], s)
 		}

@@ -14,6 +14,7 @@ from invoke.exceptions import Exit
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import GOARCH_MAPPING, GOOS_MAPPING
+from tasks.go import version as dot_go_version
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import check_uncommitted_changes, get_commit_sha, get_current_branch
@@ -145,7 +146,12 @@ def go_deps(
                             build = details.get("build", binary)
                             build_tags = get_default_build_tags(build=build, platform=platform, flavor=flavor)
                             # need to explicitly enable CGO to also include CGO-only deps when checking different platforms
-                            env = {"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1"}
+                            env = {
+                                "GOOS": goos,
+                                "GOARCH": goarch,
+                                "CGO_ENABLED": "1",
+                                "GOTOOLCHAIN": f"go{dot_go_version(ctx)}",
+                            }
                             ctx.run(f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}", env=env)
         finally:
             ctx.run(f"git checkout -q {current_branch}")

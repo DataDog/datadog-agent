@@ -173,7 +173,7 @@ func (procs DIProcs) CloseUprobe(pid PID, probeID ProbeID) {
 	}
 	err := proc.CloseUprobeLink(probeID)
 	if err != nil {
-		log.Infof("could not close uprobe: %s", err)
+		log.Errorf("could not close uprobe: %s", err)
 	}
 }
 
@@ -421,7 +421,7 @@ func (pi *ProcessInfo) DeleteProbe(probeID ProbeID) {
 	}
 	err := pi.CloseUprobeLink(probeID)
 	if err != nil {
-		log.Infof("could not close uprobe link: %s", err)
+		log.Errorf("could not close uprobe link: %s", err)
 	}
 	if pi.ProbesByID != nil {
 		pi.ProbesByID.Delete(probeID)

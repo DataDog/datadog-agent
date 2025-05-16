@@ -8,7 +8,7 @@ This document provides some basic guidelines for contributing to this repository
 
   * If you think you've found an issue, please search the [Agent Troubleshooting][agent-troubleshooting] section to see if it's known.
   * If you’re still unsure about the issue, you may reach out to the [Datadog support](https://docs.datadoghq.com/help/) team with [a flare](https://docs.datadoghq.com/agent/troubleshooting/send_a_flare/) from your Agent.
-  * Finally, you can open a Github issue.
+  * Finally, you can open a Github issue. Add as much information as possible to help us triage the issue.
 
 ## Pull Requests
 
@@ -29,6 +29,10 @@ In order to ease/speed up our review, here are some items you can check/improve 
 
     - [X] Open your PR against the `main` branch.
 
+    - [X] Sign the Contributor Licence Agreement.
+
+    - [X] Sign your commits.
+
     - [X] Provide adequate QA/testing plan information.
 
 === "Reviewer Checklist"
@@ -44,6 +48,13 @@ In order to ease/speed up our review, here are some items you can check/improve 
     Adding GitHub labels is only possible for contributors with write access.
 
 Your pull request must pass all CI tests before we will merge it. If you're seeing an error and don't think it's your fault, it may not be! [Join us on Slack](https://chat.datadoghq.com) or [send us an email](mailto:support@datadoghq.com), and together we'll get it sorted out.
+
+### Merge protection
+
+We have safety measures to protect our repository. As an external contributor, you are required to:
+
+1. Sign our [Contributor License Agreement](https://cla.datadoghq.com/DataDog/datadog-agent) (CLA). You will receive a message once your PR is opened to sign the agreement.
+2. Provide signed commits before merging. To learn how to sign your commits, follow [this procedure from Github](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
 
 ### Keep it small, focused
 

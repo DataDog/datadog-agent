@@ -129,12 +129,12 @@ func TestGetAPIEndpointsSite(t *testing.T) {
 			name:                   "dd_url only",
 			ddURL:                  "https://process.datadoghq.eu",
 			expectedHostname:       "process.datadoghq.eu",
-			expectedEventsHostname: "process-events.datadoghq.com",
+			expectedEventsHostname: "process-events.datadoghq.com.",
 		},
 		{
 			name:                   "events_dd_url only",
 			eventsDDURL:            "https://process-events.datadoghq.eu",
-			expectedHostname:       "process.datadoghq.com",
+			expectedHostname:       "process.datadoghq.com.",
 			expectedEventsHostname: "process-events.datadoghq.eu",
 		},
 		{
