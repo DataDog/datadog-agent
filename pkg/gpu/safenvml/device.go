@@ -7,7 +7,12 @@
 
 package safenvml
 
-import "github.com/NVIDIA/go-nvml/pkg/nvml"
+import (
+	"errors"
+	"fmt"
+
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+)
 
 // SafeDevice represents a safe wrapper around NVML device operations.
 // It ensures that operations are only performed when the corresponding
@@ -78,22 +83,56 @@ type SafeDevice interface {
 	GetUtilizationRates() (nvml.Utilization, error)
 }
 
-// Device represents a GPU device with some properties already computed.
-// It embeds SafeDevice for safe API access and contains cached properties.
-type Device struct {
-	SafeDevice
-
-	// Cached fields for quick access
+// DeviceInfo holds common cached properties for a GPU device
+type DeviceInfo struct {
 	SMVersion uint32
 	UUID      string
 	Name      string
 	CoreCount int
-	Index     int
-	Memory    uint64
+
+	// Index of the device in the host. For MIG devices, this is the index of the MIG device in the parent device.
+	Index int
+
+	// Memory size of the device in bytes
+	Memory uint64
 }
 
-// NewDevice creates a new Device from the nvml.Device and caches some properties
-func NewDevice(dev nvml.Device) (*Device, error) {
+// Device represents a GPU device, implementing SafeDevice and providing common device info
+type Device interface {
+	SafeDevice
+
+	// GetDeviceInfo returns the common device info for a GPU device
+	GetDeviceInfo() *DeviceInfo
+}
+
+// PhysicalDevice represents a physical GPU device
+type PhysicalDevice struct {
+	SafeDevice
+	DeviceInfo
+
+	// HasMIGFeatureEnabled is true if the device has the MIG feature enabled. Note that a device might
+	// have the MIG feature enabled but no MIG devices created yet.
+	HasMIGFeatureEnabled bool
+
+	// MIGChildren is a list of MIG devices that are children of this physical device
+	MIGChildren []*MIGDevice
+}
+
+var _ Device = &PhysicalDevice{}
+
+// MIGDevice represents a MIG device, implementing Device and providing common device info
+type MIGDevice struct {
+	SafeDevice
+	DeviceInfo
+
+	// Parent is the physical device that this MIG device belongs to
+	Parent *PhysicalDevice
+}
+
+var _ Device = &MIGDevice{}
+
+// NewPhysicalDevice creates a new Device from the nvml.Device and caches some properties.
+func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 	lib, err := GetSafeNvmlLib()
 	if err != nil {
 		return nil, err
@@ -106,46 +145,136 @@ func NewDevice(dev nvml.Device) (*Device, error) {
 	}
 
 	// Create the device with embedded safe device
-	device := &Device{
+	device := &PhysicalDevice{
 		SafeDevice: safeDev,
 	}
 
-	// Now use safe methods to populate the cached fields
-	major, minor, err := safeDev.GetCudaComputeCapability()
+	if err := device.fillBasicDataFromNVML(safeDev); err != nil {
+		return nil, fmt.Errorf("error filling basic data from NVML: %w", err)
+	}
+
+	major, minor, err := device.SafeDevice.GetCudaComputeCapability()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting CUDA compute capability: %w", err)
 	}
 	device.SMVersion = uint32(major*10 + minor)
 
-	uuid, err := safeDev.GetUUID()
-	if err != nil {
-		return nil, err
-	}
-	device.UUID = uuid
+	migEnabled, _, err := safeDev.GetMigMode()
+	if err == nil && migEnabled == nvml.DEVICE_MIG_ENABLE {
+		device.HasMIGFeatureEnabled = true
 
-	cores, err := safeDev.GetNumGpuCores()
-	if err != nil {
-		return nil, err
-	}
-	device.CoreCount = cores
+		if err := device.fillMigChildren(); err != nil {
+			// Return an error if we can't get the MIG children. We need them in order to
+			// get values for the physical device, such as memory and core count, so if
+			// something failed then the device data is not usable.
+			return nil, err
+		}
 
-	name, err := safeDev.GetName()
-	if err != nil {
-		return nil, err
-	}
-	device.Name = name
+		// If the device is MIG enabled, we need to sum the memory and core count of all its children
+		// because the corresponding APIs we use below return "UNKNOWN_ERROR"
+		for _, migChild := range device.MIGChildren {
+			device.Memory += migChild.Memory
+			device.CoreCount += migChild.CoreCount
+		}
+	} else {
+		cores, err := device.SafeDevice.GetNumGpuCores()
+		if err != nil {
+			return nil, err
+		}
+		device.CoreCount = int(cores)
 
-	index, err := safeDev.GetIndex()
-	if err != nil {
-		return nil, err
+		memInfo, err := device.SafeDevice.GetMemoryInfo()
+		if err != nil {
+			return nil, err
+		}
+		device.Memory = memInfo.Total
 	}
-	device.Index = index
-
-	memInfo, err := safeDev.GetMemoryInfo()
-	if err != nil {
-		return nil, err
-	}
-	device.Memory = memInfo.Total
 
 	return device, nil
+}
+
+func (d *PhysicalDevice) fillMigChildren() error {
+	// note that this returns the number of MIG devices that are supported by the device,
+	// not the number of MIG devices that are currently enabled.
+	migDeviceCount, err := d.SafeDevice.GetMaxMigDeviceCount()
+	if err != nil {
+		return fmt.Errorf("error getting MIG device count: %s", err)
+	}
+
+	d.MIGChildren = make([]*MIGDevice, 0, migDeviceCount)
+	for i := 0; i < migDeviceCount; i++ {
+		migChild, err := d.GetMigDeviceHandleByIndex(i)
+		var nvmlErr *NvmlAPIError
+		if errors.As(err, &nvmlErr) && nvmlErr.NvmlErrorCode == nvml.ERROR_NOT_FOUND {
+			continue // No MIG device at this index, ignore the error
+		} else if err != nil {
+			return fmt.Errorf("error getting MIG device handle by index %d: %w", i, err)
+		}
+
+		migChildDevice, err := NewMIGDevice(migChild)
+		if err != nil {
+			return fmt.Errorf("error creating MIG device %d: %w", i, err)
+		}
+
+		// The SM version of a MIG device is the same as the parent device, and the API doesn't work
+		// for MIG devices.
+		migChildDevice.SMVersion = d.SMVersion
+		migChildDevice.Parent = d
+
+		d.MIGChildren = append(d.MIGChildren, migChildDevice)
+	}
+
+	return nil
+}
+
+// GetDeviceInfo returns the common device info for a GPU device
+func (d *PhysicalDevice) GetDeviceInfo() *DeviceInfo {
+	return &d.DeviceInfo
+}
+
+// NewMIGDevice creates a new Device from the nvml.Device and caches some properties.
+func NewMIGDevice(dev SafeDevice) (*MIGDevice, error) {
+	device := &MIGDevice{
+		SafeDevice: dev,
+	}
+
+	if err := device.fillBasicDataFromNVML(dev); err != nil {
+		return nil, err
+	}
+
+	attr, err := dev.GetAttributes()
+	if err != nil {
+		return nil, fmt.Errorf("error getting MIG device attributes: %w", err)
+	}
+
+	device.Memory = attr.MemorySizeMB * 1024 * 1024
+	device.CoreCount = int(attr.MultiprocessorCount)
+
+	return device, nil
+}
+
+// GetDeviceInfo returns the common device info for a GPU device
+func (d *MIGDevice) GetDeviceInfo() *DeviceInfo {
+	return &d.DeviceInfo
+}
+
+// fillBasicDataFromNVML fills the basic data (common for MIG and non-MIG) for a device from the nvml.Device object
+func (d *DeviceInfo) fillBasicDataFromNVML(dev SafeDevice) error {
+	var err error
+	d.UUID, err = dev.GetUUID()
+	if err != nil {
+		return err
+	}
+
+	d.Name, err = dev.GetName()
+	if err != nil {
+		return err
+	}
+
+	d.Index, err = dev.GetIndex()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

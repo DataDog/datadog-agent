@@ -227,8 +227,13 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	if r.responseMaxSize == 0 {
 		r.responseMaxSize = SecretBackendOutputMaxSizeDefault
 	}
+
 	r.refreshInterval = time.Duration(params.RefreshInterval) * time.Second
 	r.refreshIntervalScatter = params.RefreshIntervalScatter
+	if r.refreshInterval != 0 {
+		r.startRefreshRoutine()
+	}
+
 	r.commandAllowGroupExec = params.GroupExecPerm
 	r.removeTrailingLinebreak = params.RemoveLinebreak
 	if r.commandAllowGroupExec {
@@ -256,7 +261,7 @@ func (r *secretResolver) startRefreshRoutine() {
 	}
 
 	if r.refreshIntervalScatter {
-		r.scatterDuration = time.Duration(rand.Int63n(int64(r.refreshInterval)))
+		r.scatterDuration = time.Duration(rand.Int63n(int64(r.refreshInterval))) / time.Second * time.Second
 		log.Infof("first secret refresh will happen in %s", r.scatterDuration)
 	} else {
 		r.scatterDuration = r.refreshInterval
@@ -285,7 +290,6 @@ func (r *secretResolver) SubscribeToChanges(cb secrets.SecretChangeCallback) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	r.startRefreshRoutine()
 	r.subscriptions = append(r.subscriptions, cb)
 }
 
@@ -695,8 +699,11 @@ func (r *secretResolver) GetDebugInfo(w io.Writer) {
 		fmt.Fprintf(w, "error rendering secret info: %s\n", err)
 	}
 
-	if r.refreshIntervalScatter {
+	fmt.Fprintf(w, "\n")
+	if r.refreshInterval > 0 {
 		fmt.Fprintf(w, "'secret_refresh interval' is enabled: the first refresh will happen %s after startup and then every %s\n", r.scatterDuration, r.refreshInterval)
+	} else {
+		fmt.Fprintf(w, "'secret_refresh interval' is disabled\n")
 	}
 
 }

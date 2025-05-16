@@ -12,7 +12,6 @@ import (
 	"math"
 	"slices"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	gocmp "github.com/google/go-cmp/cmp"
@@ -27,14 +26,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
-type baseCheckSuite struct {
+type diskCheckSuite struct {
 	e2e.BaseSuite[environments.Host]
 	descriptor            e2eos.Descriptor
 	metricCompareFraction float64
 	metricCompareDecimals int
 }
 
-func (v *baseCheckSuite) getSuiteOptions() []e2e.SuiteOption {
+func (v *diskCheckSuite) getSuiteOptions() []e2e.SuiteOption {
 	suiteOptions := []e2e.SuiteOption{}
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
@@ -45,7 +44,7 @@ func (v *baseCheckSuite) getSuiteOptions() []e2e.SuiteOption {
 	return suiteOptions
 }
 
-func (v *baseCheckSuite) TestCheckDisk() {
+func (v *diskCheckSuite) TestCheckDisk() {
 	testCases := []struct {
 		name        string
 		checkConfig string
@@ -118,8 +117,10 @@ func metricPayloadCompare(a, b check.Metric) int {
 	)
 }
 
-func (v *baseCheckSuite) runDiskCheck(agentConfig string, checkConfig string, useNewVersion bool) []check.Metric {
+func (v *diskCheckSuite) runDiskCheck(agentConfig string, checkConfig string, useNewVersion bool) []check.Metric {
 	v.T().Helper()
+
+	host := v.Env().RemoteHost
 
 	diskCheckVersion := "old"
 	if useNewVersion {
@@ -130,14 +131,31 @@ func (v *baseCheckSuite) runDiskCheck(agentConfig string, checkConfig string, us
 	diskCheckVersionTag := fmt.Sprintf("disk_check_version:%s", diskCheckVersion)
 	checkConfig += fmt.Sprintf("\n    tags:\n      - %s", diskCheckVersionTag)
 
-	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
-		awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig),
-			agentparams.WithIntegration("disk.d", checkConfig))),
-	)
+	tmpFolder, err := host.GetTmpFolder()
+	require.NoError(v.T(), err)
+
+	confFolder, err := host.GetAgentConfigFolder()
+	require.NoError(v.T(), err)
+
+	// update agent configuration without restarting it, so that we can run both versions of the check
+	// quickly one after the other, to minimize flakes in metric values
+	extraConfigFilePath := host.JoinPath(tmpFolder, "datadog.yaml")
+	_, err = host.WriteFile(extraConfigFilePath, []byte(agentConfig))
+	require.NoError(v.T(), err)
+	// we need to write to a temp file and then copy due to permission issues
+	tmpCheckConfigFile := host.JoinPath(tmpFolder, "check_config.yaml")
+	_, err = host.WriteFile(tmpCheckConfigFile, []byte(checkConfig))
+	require.NoError(v.T(), err)
+
+	configFile := host.JoinPath(confFolder, "conf.d", "disk.d", "conf.yaml")
+	if v.descriptor.Family() == e2eos.WindowsFamily {
+		host.MustExecute(fmt.Sprintf("copy %s %s", tmpCheckConfigFile, configFile))
+	} else {
+		host.MustExecute(fmt.Sprintf("sudo -u dd-agent cp %s %s", tmpCheckConfigFile, configFile))
+	}
 
 	// run the check
-	output := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"disk", "--json"}))
+	output := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"disk", "--json", "--extracfgpath", extraConfigFilePath}))
 	data := check.ParseJSONOutput(v.T(), []byte(output))
 
 	require.Len(v.T(), data, 1)

@@ -8,6 +8,7 @@ package tcp
 
 import (
 	"fmt"
+	"math/rand"
 	"net"
 	"time"
 
@@ -29,23 +30,41 @@ type (
 		MaxTTL   uint8
 		Delay    time.Duration // delay between sending packets (not applicable if we go the serial send/receive route)
 		Timeout  time.Duration // full timeout for all packets
-		buffer   gopacket.SerializeBuffer
+		// CompatibilityMode is whether to try to imitate tcptraceroute as much as possible
+		CompatibilityMode bool
+		buffer            gopacket.SerializeBuffer
+		baseSeqNumber     uint32
+		basePacketID      uint16
 	}
 )
 
 // NewTCPv4 initializes a new TCPv4 traceroute instance
-func NewTCPv4(target net.IP, targetPort uint16, numPaths uint16, minTTL uint8, maxTTL uint8, delay time.Duration, timeout time.Duration) *TCPv4 {
+func NewTCPv4(target net.IP, targetPort uint16, numPaths uint16, minTTL uint8, maxTTL uint8, delay time.Duration, timeout time.Duration, compatibilityMode bool) *TCPv4 {
 	buffer := gopacket.NewSerializeBufferExpectedSize(40, 0)
 
+	var baseSeqNumber uint32
+	var basePacketID uint16
+	if compatibilityMode {
+		// in compatibility mode, the seqNum is held constant (to a random value)
+		baseSeqNumber = rand.Uint32()
+	} else {
+		// in regular mode, the packetID is held constant (to 41821)
+		// TODO make this radom
+		basePacketID = 41821
+	}
+
 	return &TCPv4{
-		Target:   target,
-		DestPort: targetPort,
-		NumPaths: numPaths,
-		MinTTL:   minTTL,
-		MaxTTL:   maxTTL,
-		Delay:    delay,
-		Timeout:  timeout,
-		buffer:   buffer,
+		Target:            target,
+		DestPort:          targetPort,
+		NumPaths:          numPaths,
+		MinTTL:            minTTL,
+		MaxTTL:            maxTTL,
+		Delay:             delay,
+		Timeout:           timeout,
+		CompatibilityMode: compatibilityMode,
+		buffer:            buffer,
+		baseSeqNumber:     baseSeqNumber,
+		basePacketID:      basePacketID,
 	}
 }
 
@@ -57,8 +76,8 @@ func (t *TCPv4) Close() error {
 }
 
 // createRawTCPSyn creates a TCP packet with the specified parameters
-func (t *TCPv4) createRawTCPSyn(seqNum uint32, ttl int) (*ipv4.Header, []byte, error) {
-	ipHdr, packet, hdrlen, err := t.createRawTCPSynBuffer(seqNum, ttl)
+func (t *TCPv4) createRawTCPSyn(packetID uint16, seqNum uint32, ttl int) (*ipv4.Header, []byte, error) {
+	ipHdr, packet, hdrlen, err := t.createRawTCPSynBuffer(packetID, seqNum, ttl)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -66,14 +85,14 @@ func (t *TCPv4) createRawTCPSyn(seqNum uint32, ttl int) (*ipv4.Header, []byte, e
 	return ipHdr, packet[hdrlen:], nil
 }
 
-func (t *TCPv4) createRawTCPSynBuffer(seqNum uint32, ttl int) (*ipv4.Header, []byte, int, error) {
+func (t *TCPv4) createRawTCPSynBuffer(packetID uint16, seqNum uint32, ttl int) (*ipv4.Header, []byte, int, error) {
 	// if this function is modified in a way that changes the size,
 	// update the NewSerializeBufferExpectedSize call in NewTCPv4
 	ipLayer := &layers.IPv4{
 		Version:  4,
 		Length:   20,
 		TTL:      uint8(ttl),
-		Id:       uint16(41821),
+		Id:       packetID,
 		Protocol: 6,
 		DstIP:    t.Target,
 		SrcIP:    t.srcIP,
@@ -115,4 +134,17 @@ func (t *TCPv4) createRawTCPSynBuffer(seqNum uint32, ttl int) (*ipv4.Header, []b
 	}
 
 	return &ipHdr, packet, 20, nil
+}
+
+// nextSeqNumAndPacketID performs per-packet randomization
+func (t *TCPv4) nextSeqNumAndPacketID() (uint32, uint16) {
+	if t.CompatibilityMode {
+		// in compatibility mode, the packetID is randomized per-packet
+		packetID := uint16(rand.Uint32())
+		return t.baseSeqNumber, packetID
+	}
+
+	// in regular mode, the seqNum is randomized per-packet
+	seqNumber := rand.Uint32()
+	return seqNumber, t.basePacketID
 }

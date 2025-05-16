@@ -12,7 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"net"
 	"net/netip"
 	"os"
@@ -240,6 +239,10 @@ func (p *EBPFProbe) selectFentryMode() {
 	if !p.kernelVersion.HaveFentrySupport() {
 		p.useFentry = false
 		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
+		return
+	} else if p.kernelVersion.Code != 0 && p.kernelVersion.Code >= kernel.Kernel6_11 {
+		p.useFentry = false
+		seclog.Errorf("fentry disabled on kernels >= 6.11, falling back to kprobe mode")
 		return
 	}
 
@@ -1324,11 +1327,23 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 			var dnsLayer = new(layers.DNS)
 			if err := dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
-				seclog.Errorf("failed to decode DNS response: %s", err)
+				seclog.Warnf("failed to decode DNS response: %s", err)
 				return
 			}
 			p.addToDNSResolver(dnsLayer)
-			event.DNS.UnmarshalDNSResponse(dnsLayer, uint16(len(data[offset:])))
+			event.Type = uint32(model.DNSEventType) // remap to regular DNS event type
+			event.DNS = model.DNSEvent{
+				ID: dnsLayer.ID,
+				Question: model.DNSQuestion{
+					Name:  string(dnsLayer.Questions[0].Name),
+					Class: uint16(dnsLayer.Questions[0].Class),
+					Type:  uint16(dnsLayer.Questions[0].Type),
+					Size:  uint16(len(data[offset:])),
+				},
+				Response: &model.DNSResponse{
+					ResponseCode: uint8(dnsLayer.ResponseCode),
+				},
+			}
 		}
 
 	case model.IMDSEventType:
@@ -1711,8 +1726,9 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 }
 
 func (p *EBPFProbe) updateEBPFCheckMapping() {
-	ddebpf.ClearNameMappings("cws")
+	ddebpf.ClearProgramIDMappings("cws")
 	ddebpf.AddNameMappings(p.Manager, "cws")
+	ddebpf.AddProbeFDMappings(p.Manager)
 }
 
 // GetDiscarders retrieve the discarders
@@ -2040,7 +2056,11 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	}
 
 	if p.config.RuntimeSecurity.OnDemandEnabled {
-		p.onDemandManager.setHookPoints(rs.GetOnDemandHookPoints())
+		hookPoints, err := rs.GetOnDemandHookPoints()
+		if err != nil {
+			seclog.Errorf("failed to get on-demand hook points from ruleset: %v", err)
+		}
+		p.onDemandManager.setHookPoints(hookPoints)
 	}
 
 	if err := p.updateProbes(eventTypes, needRawSyscalls); err != nil {
@@ -2191,7 +2211,7 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		},
 		manager.ConstantEditor{
 			Name:  "is_sk_storage_supported",
-			Value: utils.BoolTouint64(p.useFentry && p.kernelVersion.HasSKStorageInTracingPrograms() && p.config.Probe.NetworkFlowMonitorSKStorageEnabled),
+			Value: utils.BoolTouint64(p.isSKStorageSupported()),
 		},
 		manager.ConstantEditor{
 			Name:  "is_network_flow_monitor_enabled",
@@ -2215,7 +2235,7 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		},
 		manager.ConstantEditor{
 			Name:  "dns_port",
-			Value: uint64(p.probe.Opts.DNSPort),
+			Value: uint64(utils.HostToNetworkShort(p.probe.Opts.DNSPort)),
 		},
 		manager.ConstantEditor{
 			Name:  "use_ring_buffer",
@@ -2265,6 +2285,19 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 	}
 }
 
+func (p *EBPFProbe) isSKStorageSupported() bool {
+	if !p.config.Probe.NetworkFlowMonitorSKStorageEnabled {
+		return false
+	}
+
+	// BPF_SK_STORAGE is not supported for kprobes
+	if !p.useFentry {
+		return false
+	}
+
+	return p.kernelVersion.HasSKStorageInTracingPrograms()
+}
+
 // initManagerOptionsMaps initializes the eBPF manager map spec editors and map reader startup
 func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 	opts := probes.MapSpecEditorOpts{
@@ -2275,7 +2308,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		PathResolutionEnabled:     p.probe.Opts.PathResolutionEnabled,
 		SecurityProfileMaxCount:   p.config.RuntimeSecurity.SecurityProfileMaxCount,
 		NetworkFlowMonitorEnabled: p.config.Probe.NetworkFlowMonitorEnabled,
-		NetworkSkStorageEnabled:   p.config.Probe.NetworkFlowMonitorSKStorageEnabled,
+		NetworkSkStorageEnabled:   p.isSKStorageSupported(),
 		SpanTrackMaxCount:         1,
 	}
 
@@ -2377,9 +2410,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		return nil, err
 	}
 
-	onDemandRate := rate.Limit(math.Inf(1))
+	onDemandRate := rate.Inf
+	onDemandBurst := 0 // if rate is infinite, burst is not used
 	if config.RuntimeSecurity.OnDemandRateLimiterEnabled {
 		onDemandRate = MaxOnDemandEventsPerSecond
+		onDemandBurst = MaxOnDemandEventsPerSecond
 	}
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
@@ -2397,7 +2432,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		ctx:                  ctx,
 		cancelFnc:            cancelFnc,
 		newTCNetDevices:      make(chan model.NetDevice, 16),
-		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, 1),
+		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, onDemandBurst),
 		playSnapShotState:    atomic.NewBool(false),
 	}
 

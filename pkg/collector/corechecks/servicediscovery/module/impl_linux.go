@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -71,6 +72,7 @@ type serviceInfo struct {
 	containerServiceNameSource string
 	ddServiceName              string
 	ddServiceInjected          bool
+	tracerMetadata             []tracermetadata.TracerMetadata
 	ports                      []uint16
 	checkedContainerData       bool
 	language                   language.Language
@@ -106,6 +108,7 @@ func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Servi
 	out.ContainerServiceNameSource = i.containerServiceNameSource
 	out.DDService = i.ddServiceName
 	out.DDServiceInjected = i.ddServiceInjected
+	out.TracerMetadata = i.tracerMetadata
 	out.Ports = i.ports
 	out.APMInstrumentation = string(i.apmInstrumentation)
 	out.Language = string(i.language)
@@ -593,11 +596,18 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 		return nil, err
 	}
 
-	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
-	lang := language.FindInArgs(exe, cmdline)
-	if lang == "" {
-		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
+	var tracerMetadataArr []tracermetadata.TracerMetadata
+	var firstMetadata *tracermetadata.TracerMetadata
+
+	tracerMetadata, err := tracermetadata.GetTracerMetadata(int(pid), kernel.ProcFSRoot())
+	if err == nil {
+		// Currently we only get the first tracer metadata
+		tracerMetadataArr = append(tracerMetadataArr, tracerMetadata)
+		firstMetadata = &tracerMetadata
 	}
+
+	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
+	lang := language.Detect(exe, cmdline, proc.Pid, s.privilegedDetector, firstMetadata)
 	env, err := getTargetEnvs(proc)
 	if err != nil {
 		return nil, err
@@ -612,7 +622,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 	ctx.ContextMap = contextMap
 
 	nameMeta := detector.GetServiceName(lang, ctx)
-	apmInstrumentation := apm.Detect(lang, ctx)
+	apmInstrumentation := apm.Detect(lang, ctx, firstMetadata)
 
 	name := nameMeta.DDService
 	if name == "" {
@@ -627,6 +637,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 		generatedNameSource:      string(nameMeta.Source),
 		additionalGeneratedNames: nameMeta.AdditionalNames,
 		ddServiceName:            nameMeta.DDService,
+		tracerMetadata:           tracerMetadataArr,
 		language:                 lang,
 		apmInstrumentation:       apmInstrumentation,
 		ddServiceInjected:        nameMeta.DDServiceInjected,
