@@ -26,7 +26,7 @@ var mux sync.Mutex
 
 // BuildSampleService builds the external program which is used for testing
 // Go dynamic instrumentation
-func BuildSampleService(t *testing.T) string {
+func BuildSampleService(t testing.TB) string {
 	mux.Lock()
 	defer mux.Unlock()
 
@@ -50,6 +50,7 @@ func BuildGoBinaryWrapper(curDir, binaryDir string) (string, error) {
 	}
 
 	c := exec.Command("go", "build", "-C", sampleServiceSource, "-o", sampleServiceBinaryPath)
+	c.Env = append(os.Environ(), "CGO_ENABLED=0")
 	out, err := c.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("could not build sample service test binary: %s\noutput: %s", err, string(out))
