@@ -73,7 +73,7 @@ func patchBaseProfileWithDatadogInclude(filename string) error {
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
+	if err = scanner.Err(); err != nil {
 		return err
 	}
 
@@ -97,7 +97,7 @@ func setupAppArmor(ctx context.Context) (err error) {
 	}
 
 	// make sure base profile exists before we continue
-	if _, err := os.Stat(appArmorBaseProfile); errors.Is(err, os.ErrNotExist) {
+	if _, err = os.Stat(appArmorBaseProfile); errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
 

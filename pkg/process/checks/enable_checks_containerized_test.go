@@ -10,8 +10,11 @@ package checks
 import (
 	"testing"
 
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -163,4 +166,27 @@ func createDeps(t *testing.T) deps {
 			return &statsd.NoOpClient{}
 		}),
 	)
+}
+
+func assertContainsCheck(t *testing.T, checks []string, name string) {
+	t.Helper()
+	assert.Contains(t, checks, name)
+}
+
+func assertNotContainsCheck(t *testing.T, checks []string, name string) {
+	t.Helper()
+	assert.NotContains(t, checks, name)
+}
+
+func getEnabledChecks(t *testing.T, cfg, sysprobeYamlConfig pkgconfigmodel.ReaderWriter, wmeta workloadmeta.Component, gpuSubscriber gpusubscriber.Component, npCollector npcollector.Component, statsd statsd.ClientInterface) []string {
+	sysprobeConfigStruct, err := sysconfig.New("", "")
+	require.NoError(t, err)
+
+	var enabledChecks []string
+	for _, check := range All(cfg, sysprobeYamlConfig, sysprobeConfigStruct, wmeta, gpuSubscriber, npCollector, statsd) {
+		if check.IsEnabled() {
+			enabledChecks = append(enabledChecks, check.Name())
+		}
+	}
+	return enabledChecks
 }

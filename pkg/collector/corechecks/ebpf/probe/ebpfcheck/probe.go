@@ -457,6 +457,7 @@ retry:
 			continue
 		}
 
+		progKey, progKeyExists := cookies[*key]
 		delete(cookies, *key)
 
 		name, err := ddebpf.GetProgNameFromProgID(key.Kprobe_id)
@@ -464,14 +465,13 @@ retry:
 			log.Errorf("unable to get program name for kprobe id %d: %v", key.Kprobe_id, err)
 			continue
 		}
-		module, err := ddebpf.GetModuleFromProgID(key.Kprobe_id)
-		if err != nil {
-			log.Errorf("unable to get module name for kprobe id %d: %v", key.Kprobe_id, err)
-			continue
+
+		module := "unknown"
+		if mod, err := ddebpf.GetModuleFromProgID(key.Kprobe_id); err == nil {
+			module = mod
 		}
 
-		progKey, ok := cookies[*key]
-		if !ok {
+		if !progKeyExists {
 			log.Errorf("unable to find type for program with kprobe id %d (%s)", key.Kprobe_id, name)
 			continue
 		}

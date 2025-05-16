@@ -65,6 +65,39 @@ func postinstCommand() *cobra.Command {
 	}
 }
 
+func prermCommand() *cobra.Command {
+	upgrade := false
+	c := &cobra.Command{
+		Hidden:  true,
+		Use:     "prerm <package> <type:deb|rpm>",
+		Short:   "Run pre-remove scripts for a package",
+		GroupID: "installer",
+		Args:    cobra.MinimumNArgs(2),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i := newCmd("prerm")
+			defer i.stop(err)
+			pkg := args[0]
+			rawPackageType := args[1]
+			packageType, err := parsePackageType(rawPackageType)
+			if err != nil {
+				return err
+			}
+			hookContext := packages.HookContext{
+				Context:     i.ctx,
+				Hook:        "preRemove",
+				Package:     pkg,
+				PackagePath: "/opt/datadog-agent",
+				PackageType: packageType,
+				Upgrade:     upgrade,
+				WindowsArgs: nil,
+			}
+			return packages.RunHook(hookContext)
+		},
+	}
+	c.Flags().BoolVar(&upgrade, "upgrade", false, "Run the pre-remove script for an upgrade")
+	return c
+}
+
 func parsePackageType(rawPackageType string) (packages.PackageType, error) {
 	switch rawPackageType {
 	case string(packages.PackageTypeDEB):

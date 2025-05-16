@@ -182,7 +182,7 @@ var sackFallbackLimit = log.NewLogLimit(10, 5*time.Minute)
 
 type tracerouteImpl func() (*common.Results, error)
 
-func performTCPFallback(tcpMethod payload.TCPMethod, doSyn, doSack tracerouteImpl) (*common.Results, error) {
+func performTCPFallback(tcpMethod payload.TCPMethod, doSyn, doSack, doSynSocket tracerouteImpl) (*common.Results, error) {
 	if tcpMethod == "" {
 		tcpMethod = payload.TCPDefaultMethod
 	}
@@ -191,6 +191,8 @@ func performTCPFallback(tcpMethod payload.TCPMethod, doSyn, doSack tracerouteImp
 		return doSyn()
 	case payload.TCPConfigSACK:
 		return doSack()
+	case payload.TCPConfigSYNSocket:
+		return doSynSocket()
 	case payload.TCPConfigPreferSACK:
 		results, err := doSack()
 		var sackNotSupportedErr *sack.NotSupportedError
@@ -216,7 +218,7 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 	}
 
 	doSyn := func() (*common.Results, error) {
-		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout)
+		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout, cfg.TCPSynCompatibilityMode)
 		return tr.TracerouteSequential()
 	}
 	doSack := func() (*common.Results, error) {
@@ -226,8 +228,12 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 		}
 		return sack.RunSackTraceroute(context.TODO(), params)
 	}
+	doSynSocket := func() (*common.Results, error) {
+		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout, cfg.TCPSynCompatibilityMode)
+		return tr.TracerouteSequentialSocket()
+	}
 
-	results, err := performTCPFallback(cfg.TCPMethod, doSyn, doSack)
+	results, err := performTCPFallback(cfg.TCPMethod, doSyn, doSack, doSynSocket)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}

@@ -263,16 +263,18 @@ func TestSerialization(t *testing.T) {
 		DNS: map[util.Address][]dns.Hostname{
 			util.AddressFromString("172.217.12.145"): {dns.ToHostname("golang.org")},
 		},
-		HTTP: map[http.Key]*http.RequestStats{
-			http.NewKey(
-				util.AddressFromString("20.1.1.1"),
-				util.AddressFromString("20.1.1.1"),
-				40000,
-				80,
-				[]byte("/testpath"),
-				true,
-				http.MethodGet,
-			): httpReqStats,
+		USMData: network.USMProtocolsData{
+			HTTP: map[http.Key]*http.RequestStats{
+				http.NewKey(
+					util.AddressFromString("20.1.1.1"),
+					util.AddressFromString("20.1.1.1"),
+					40000,
+					80,
+					[]byte("/testpath"),
+					true,
+					http.MethodGet,
+				): httpReqStats,
+			},
 		},
 	}
 
@@ -293,7 +295,7 @@ func TestSerialization(t *testing.T) {
 		 * getExpectedConnections()
 		 */
 		in.BufferedData.Conns[0].IPTranslation = nil
-		in.HTTP = map[http.Key]*http.RequestStats{
+		in.USMData.HTTP = map[http.Key]*http.RequestStats{
 			http.NewKey(
 				util.AddressFromString("10.1.1.1"),
 				util.AddressFromString("10.2.2.2"),
@@ -511,16 +513,18 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				}},
 			},
 		},
-		HTTP: map[http.Key]*http.RequestStats{
-			http.NewKey(
-				localhost,
-				localhost,
-				clientPort,
-				serverPort,
-				[]byte("/testpath"),
-				true,
-				http.MethodGet,
-			): httpReqStats,
+		USMData: network.USMProtocolsData{
+			HTTP: map[http.Key]*http.RequestStats{
+				http.NewKey(
+					localhost,
+					localhost,
+					clientPort,
+					serverPort,
+					[]byte("/testpath"),
+					true,
+					http.MethodGet,
+				): httpReqStats,
+			},
 		},
 	}
 	if runtime.GOOS == "windows" {
@@ -540,7 +544,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 			http.MethodGet,
 		)
 
-		in.HTTP[httpKeyWin] = httpReqStats
+		in.USMData.HTTP[httpKeyWin] = httpReqStats
 	}
 
 	httpOut := &model.HTTPAggregations{
@@ -668,7 +672,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 				Content:  http.Interner.GetString(fmt.Sprintf("/path-%d", i)),
 				FullPath: true,
 			}
-			in.HTTP = map[http.Key]*http.RequestStats{httpKey: {}}
+			in.USMData.HTTP = map[http.Key]*http.RequestStats{httpKey: {}}
 			out := encodeAndDecodeHTTP(in)
 
 			require.NotNil(t, out)
@@ -676,7 +680,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 			require.Equal(t, httpKey.Path.Content.Get(), out.EndpointAggregations[0].Path)
 		} else {
 			// No HTTP data in this payload, so we should never get HTTP data back after the serialization
-			in.HTTP = nil
+			in.USMData.HTTP = nil
 			out := encodeAndDecodeHTTP(in)
 			require.Nil(t, out, "expected a nil object, but got garbage")
 		}

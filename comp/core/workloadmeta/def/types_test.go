@@ -102,7 +102,7 @@ Availability Zone:
 Family: family-1
 Version: revision-1
 Launch Type:
-AWS Account ID: 0
+AWS Account ID:
 Desired Status:
 Known Status:
 VPC ID:
