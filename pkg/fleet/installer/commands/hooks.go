@@ -13,6 +13,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func isPrermSupportedCommand() *cobra.Command {
+	return &cobra.Command{
+		Hidden: true,
+		Use:    "is-prerm-supported",
+		Short:  "Check if prerm is supported",
+		Run: func(_ *cobra.Command, _ []string) {
+			fmt.Println("true")
+		},
+	}
+}
+
 func hooksCommand() *cobra.Command {
 	return &cobra.Command{
 		Hidden:             true,
