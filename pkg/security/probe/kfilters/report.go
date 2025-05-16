@@ -28,12 +28,12 @@ type ApproverReport struct {
 
 // FilterReport describes the event types and their associated policy policies
 type FilterReport struct {
-	ApproverReports map[string]*ApproverReport `json:"approvers"`
+	ApproverReports map[eval.EventType]*ApproverReport `json:"approvers"`
 }
 
 // MarshalJSON marshals the FilterReport to JSON
 func (r *FilterReport) MarshalJSON() ([]byte, error) {
-	approverReports := make(map[string]json.RawMessage)
+	approverReports := make(map[eval.EventType]json.RawMessage)
 
 	for eventType, report := range r.ApproverReports {
 		if (report.Mode == PolicyModeNoFilter || report.Mode == PolicyModeAccept) && len(report.AcceptModeRules) == 0 {
@@ -47,7 +47,7 @@ func (r *FilterReport) MarshalJSON() ([]byte, error) {
 	}
 
 	report := struct {
-		ApproverReports map[string]json.RawMessage `json:"approvers"`
+		ApproverReports map[eval.EventType]json.RawMessage `json:"approvers"`
 	}{
 		ApproverReports: approverReports,
 	}
