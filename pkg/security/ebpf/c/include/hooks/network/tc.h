@@ -73,7 +73,7 @@ int classifier_raw_packet_ingress(struct __sk_buff *skb) {
     resolve_pid(pkt);
 
     // do not handle packet without process context
-    if (pkt->pid < 0) {
+    if (pkt->pid <= 0 && !pkt->tcp.syn) {
         return ACT_OK;
     }
 
@@ -99,7 +99,7 @@ int classifier_raw_packet_egress(struct __sk_buff *skb) {
     resolve_pid(pkt);
 
     // do not handle packet without process context
-    if (pkt->pid < 0) {
+    if (pkt->pid <= 0 && !pkt->tcp.syn) {
         return ACT_OK;
     }
 
