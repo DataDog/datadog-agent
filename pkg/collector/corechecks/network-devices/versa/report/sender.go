@@ -123,6 +123,29 @@ func (s *Sender) SendUptimeMetrics(uptimes map[string]float64) {
 	}
 }
 
+// SendSLAMetrics sends SLA metrics retrieved from Versa Analytics
+func (s *Sender) SendSLAMetrics(slaMetrics []client.SLAMetrics, deviceNameToIDMap map[string]string) {
+	for _, slaMetricsResponse := range slaMetrics {
+		var tags = []string{
+			fmt.Sprintf("local_site:%s", slaMetricsResponse.LocalSite),
+			fmt.Sprintf("remote_site:%s", slaMetricsResponse.RemoteSite),
+			fmt.Sprintf("local_access_circuit:%s", slaMetricsResponse.LocalAccessCircuit),
+			fmt.Sprintf("remote_access_circuit:%s", slaMetricsResponse.RemoteAccessCircuit),
+			fmt.Sprintf("forwarding_class:%s", slaMetricsResponse.ForwardingClass),
+		}
+		if deviceID, ok := deviceNameToIDMap[slaMetricsResponse.LocalSite]; ok {
+			tags = s.GetDeviceTags(defaultIPTag, slaMetricsResponse.LocalSite)
+			tags = append(tags, fmt.Sprintf("%s:%s", defaultIPTag, deviceID))
+		}
+		s.Gauge(versaMetricPrefix+"sla.delay", slaMetricsResponse.Delay, "", tags)
+		s.Gauge(versaMetricPrefix+"sla.fwd_delay_var", slaMetricsResponse.FwdDelayVar, "", tags)
+		s.Gauge(versaMetricPrefix+"sla.rev_delay_var", slaMetricsResponse.RevDelayVar, "", tags)
+		s.Gauge(versaMetricPrefix+"sla.fwd_loss_ratio", slaMetricsResponse.FwdLossRatio, "", tags)
+		s.Gauge(versaMetricPrefix+"sla.rev_loss_ratio", slaMetricsResponse.RevLossRatio, "", tags)
+		s.Gauge(versaMetricPrefix+"sla.pdu_loss_ratio", slaMetricsResponse.PDULossRatio, "", tags)
+	}
+}
+
 // parseTimestamp parses a timestamp string in the Versa formats and returns the unix timestamp in milliseconds
 // If the timestamp is invalid, it returns the current time in milliseconds
 func parseTimestamp(timestamp string) (float64, error) {
