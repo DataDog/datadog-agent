@@ -35,7 +35,7 @@ const (
 	// We don't want to require users to know enough about our underlying architecture to understand what this value is meant
 	// to do, so it's currently housed in a constant rather than a config entry. Users who wish to influence min/max
 	// SenderConcurrency via config options should utilize the endpoint's BatchMaxConcurrentSend override instead.
-	maxConcurrencyPerPipeline = 10
+	maxConcurrencyPerPipeline = 5
 
 	// componentName is the name used for destination telemetry
 	componentName = "logs"
