@@ -252,7 +252,7 @@ func TestConvertParseSet(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
-	assert.Equal(t, "abc:def", parsed.RawValue)
+	assert.Equal(t, "abc:def", string(parsed.RawValue))
 	assert.Equal(t, metrics.SetType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
 	assert.Equal(t, "default-hostname", parsed.Host)
@@ -272,7 +272,7 @@ func TestConvertParseSetUnicode(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
-	assert.Equal(t, "♬†øU†øU¥ºuT0♪", parsed.RawValue)
+	assert.Equal(t, "♬†øU†øU¥ºuT0♪", string(parsed.RawValue))
 	assert.Equal(t, metrics.SetType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
 	assert.Equal(t, "default-hostname", parsed.Host)

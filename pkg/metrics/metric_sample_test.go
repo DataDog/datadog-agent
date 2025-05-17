@@ -17,7 +17,7 @@ func TestMetricSampleCopy(t *testing.T) {
 	src.Host = "foo"
 	src.Mtype = HistogramType
 	src.Name = "metric.name"
-	src.RawValue = "0.1"
+	src.RawValue = nil
 	src.SampleRate = 1
 	src.Tags = []string{"a:b", "c:d"}
 	src.Timestamp = 1234
