@@ -83,8 +83,6 @@ func (s *dummyService) IsReady() bool {
 }
 
 // HasFilter returns false
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (s *dummyService) HasFilter(_ containers.FilterType) bool {
 	return false
 }

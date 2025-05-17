@@ -5,7 +5,6 @@
 //
 //go:build clusterchecks
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 package providers
 
 import (
@@ -52,16 +51,12 @@ func (cf CloudFoundryConfigProvider) String() string {
 }
 
 // IsUpToDate returns true if the last collection time was later than last BBS Cache refresh time
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (cf CloudFoundryConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
+func (cf CloudFoundryConfigProvider) IsUpToDate(_ context.Context) (bool, error) {
 	return cf.lastCollected.After(cf.bbsCache.LastUpdated()), nil
 }
 
 // Collect collects AD config templates from all relevant BBS API information
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (cf CloudFoundryConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
+func (cf CloudFoundryConfigProvider) Collect(_ context.Context) ([]integration.Config, error) {
 	log.Debug("Collecting configs via the CloudFoundryProvider")
 	cf.lastCollected = time.Now()
 	allActualLRPs, desiredLRPs := cf.bbsCache.GetAllLRPs()
