@@ -621,31 +621,36 @@ func (rs *RuleSet) GetBucket(eventType eval.EventType) *RuleBucket {
 }
 
 // GetApprovers returns all approvers
-func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) (map[eval.EventType]Approvers, error) {
+func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) (map[eval.EventType]Approvers, map[eval.EventType]*Rule, error) {
 	approvers := make(map[eval.EventType]Approvers)
+	rules := make(map[eval.EventType]*Rule)
+
 	for _, eventType := range rs.GetEventTypes() {
 		caps, exists := fieldCaps[eventType]
 		if !exists {
 			continue
 		}
 
-		eventTypeApprovers, err := rs.GetEventTypeApprovers(eventType, caps)
+		eventTypeApprovers, rule, err := rs.GetEventTypeApprovers(eventType, caps)
 		if err != nil || len(eventTypeApprovers) == 0 {
+			// report the first rule avoiding to generate an approver
+			rules[eventType] = rule
 			continue
 		}
 		approvers[eventType] = eventTypeApprovers
 	}
 
-	return approvers, nil
+	return approvers, rules, nil
 }
 
 // GetEventTypeApprovers returns approvers for the given event type and the fields
-func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, error) {
+func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, *Rule, error) {
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
-		return nil, ErrNoEventTypeBucket{EventType: eventType}
+		return nil, nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
+	// all the rules needs to be of the same type
 	return getApprovers(bucket.rules, rs.newFakeEvent(), fieldCaps)
 }
 
