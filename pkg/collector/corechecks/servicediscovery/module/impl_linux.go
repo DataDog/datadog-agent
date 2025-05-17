@@ -64,7 +64,6 @@ var _ module.Module = &discovery{}
 // serviceInfo holds process data that should be cached between calls to the
 // endpoint.
 type serviceInfo struct {
-	name                       string
 	generatedName              string
 	generatedNameSource        string
 	additionalGeneratedNames   []string
@@ -100,7 +99,6 @@ func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Servi
 	}
 
 	out.PID = int(pid)
-	out.Name = i.name
 	out.GeneratedName = i.generatedName
 	out.GeneratedNameSource = i.generatedNameSource
 	out.AdditionalGeneratedNames = i.additionalGeneratedNames
@@ -624,15 +622,9 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 	nameMeta := detector.GetServiceName(lang, ctx)
 	apmInstrumentation := apm.Detect(lang, ctx, firstMetadata)
 
-	name := nameMeta.DDService
-	if name == "" {
-		name = nameMeta.Name
-	}
-
 	cmdline, _ = s.scrubber.ScrubCommand(cmdline)
 
 	return &serviceInfo{
-		name:                     name,
 		generatedName:            nameMeta.Name,
 		generatedNameSource:      string(nameMeta.Source),
 		additionalGeneratedNames: nameMeta.AdditionalNames,
@@ -757,7 +749,11 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		s.cache[pid] = info
 	}
 
-	if s.shouldIgnoreService(info.name) {
+	preferredName := info.ddServiceName
+	if preferredName == "" {
+		preferredName = info.generatedName
+	}
+	if s.shouldIgnoreService(preferredName) {
 		s.addIgnoredPid(pid)
 		return nil
 	}
@@ -1172,7 +1168,6 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 
 		// This is a new potential service
 		s.potentialServices.add(pid)
-		log.Debugf("[pid: %d] adding process to potential: %s", pid, service.Name)
 	}
 
 	s.updateCacheInfo(response, now)
