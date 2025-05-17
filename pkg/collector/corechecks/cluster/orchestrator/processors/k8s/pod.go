@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -132,7 +133,7 @@ func (h *PodHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 		GroupSize:    int32(groupSize),
 		HostName:     pctx.HostName,
 		Pods:         models,
-		Tags:         pctx.ExtraTags,
+		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.CollectorTags),
 		Info:         pctx.SystemInfo,
 		IsTerminated: ctx.IsTerminatedResources(),
 	}

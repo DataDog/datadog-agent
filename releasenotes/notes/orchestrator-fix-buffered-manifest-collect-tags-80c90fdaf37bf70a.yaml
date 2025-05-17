@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fix a bug that resulted in some Orhecreator K8S Manifests losing the configured "extraTags".

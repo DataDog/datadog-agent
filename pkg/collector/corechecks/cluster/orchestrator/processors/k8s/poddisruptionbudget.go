@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 
 	policyv1 "k8s.io/api/policy/v1"
@@ -54,7 +55,7 @@ func (h *PodDisruptionBudgetHandlers) BuildMessageBody(ctx processors.ProcessorC
 		GroupId:              pctx.MsgGroupID,
 		GroupSize:            int32(groupSize),
 		PodDisruptionBudgets: models,
-		Tags:                 pctx.ExtraTags,
+		Tags:                 util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.CollectorTags),
 	}
 }
 

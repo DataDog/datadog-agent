@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
@@ -49,7 +50,7 @@ type BaseProcessorContext struct {
 	ManifestProducer    bool
 	Kind                string
 	APIVersion          string
-	ExtraTags           []string
+	CollectorTags       []string
 	TerminatedResources bool
 }
 
@@ -204,6 +205,8 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 	// Make sure to recover if a panic occurs.
 	defer RecoverOnPanic()
 
+	pctx := ctx.(*BaseProcessorContext)
+
 	resourceList := p.h.ResourceList(ctx, list)
 	resourceMetadataModels := make([]interface{}, 0, len(resourceList))
 	resourceManifestModels := make([]interface{}, 0, len(resourceList))
@@ -265,8 +268,9 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 			Content:         yaml,
 			Version:         "v1",
 			ContentType:     "json",
-			Tags:            p.h.ResourceTaggerTags(ctx, resource),
-			IsTerminated:    ctx.IsTerminatedResources(),
+			// include collector tags as buffered Manifests share types, and only ExtraTags should be included in CollectorManifests
+			Tags:         util.ImmutableTagsJoin(pctx.CollectorTags, p.h.ResourceTaggerTags(ctx, resource)),
+			IsTerminated: ctx.IsTerminatedResources(),
 		})
 	}
 

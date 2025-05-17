@@ -12,6 +12,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
@@ -60,7 +61,7 @@ func (h *NamespaceHandlers) BuildMessageBody(ctx processors.ProcessorContext, re
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Namespaces:  models,
-		Tags:        pctx.ExtraTags,
+		Tags:        util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.CollectorTags),
 	}
 }
 
