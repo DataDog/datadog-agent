@@ -109,7 +109,12 @@ func populateConfig(config config.Component) map[string]string {
 	conf["confd_path"] = config.GetString("confd_path")
 	conf["additional_checksd"] = config.GetString("additional_checksd")
 
-	conf["fips_enabled"] = config.GetString("fips.enabled")
+	conf["fips_proxy_enabled"] = "false"
+	// We should not print the FIPS Proxy status if the agent is a FIPS agent
+	isFipsAgent, _ := fips.Enabled()
+	if config.GetBool("fips.enabled") && !isFipsAgent {
+		conf["fips_proxy_enabled"] = "true"
+	}
 	conf["fips_local_address"] = config.GetString("fips.local_address")
 	conf["fips_port_range_start"] = config.GetString("fips.port_range_start")
 
