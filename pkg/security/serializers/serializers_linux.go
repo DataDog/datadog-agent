@@ -681,6 +681,7 @@ type EventSerializer struct {
 	*RawPacketSerializer          `json:"packet,omitempty"`
 	*NetworkFlowMonitorSerializer `json:"network_flow_monitor,omitempty"`
 	*SysCtlEventSerializer        `json:"sysctl,omitempty"`
+	*DebugSerializer              `json:"debug,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -1123,6 +1124,12 @@ func newSysCtlEventSerializer(sce *model.SysCtlEvent, _ *model.Event) *SysCtlEve
 	}
 }
 
+func newDebugSerializer(e *model.Event) *DebugSerializer {
+	return &DebugSerializer{
+		DebugString: e.Debug,
+	}
+}
+
 func serializeOutcome(retval int64) string {
 	switch {
 	case retval < 0:
@@ -1548,6 +1555,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Exec.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
 			ctx.Exec = args
 		})
+		s.DebugSerializer = newDebugSerializer(event)
 	case model.RawPacketEventType:
 		s.RawPacketSerializer = newRawPacketEventSerializer(&event.RawPacket, event)
 	case model.NetworkFlowMonitorEventType:
