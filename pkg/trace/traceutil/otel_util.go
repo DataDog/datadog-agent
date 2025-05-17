@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv117 "go.opentelemetry.io/collector/semconv/v1.17.0"
 	semconv126 "go.opentelemetry.io/collector/semconv/v1.26.0"
+	semconv127 "go.opentelemetry.io/collector/semconv/v1.27.0"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -114,6 +115,9 @@ var dbTypes = map[string]string{
 	semconv.AttributeDBSystemDynamoDB:  spanTypeDB,
 	semconv.AttributeDBSystemGeode:     spanTypeDB,
 }
+
+// DefaultOTLPServiceName is the default service name for OTel spans when no service name is found in the resource attributes.
+const DefaultOTLPServiceName = "otlpresourcenoservicename"
 
 // checkDBType checks if the dbType is a known db type and returns the corresponding span.Type
 func checkDBType(dbType string) string {
@@ -274,7 +278,7 @@ func GetOTelService(res pcommon.Resource, normalize bool) string {
 	// No need to normalize with NormalizeTagValue since we will do NormalizeService later
 	svc := GetOTelAttrVal(res.Attributes(), false, semconv.AttributeServiceName)
 	if svc == "" {
-		svc = "otlpresourcenoservicename"
+		svc = DefaultOTLPServiceName
 	}
 	if normalize {
 		newsvc, err := normalizeutil.NormalizeService(svc, "")
@@ -604,8 +608,7 @@ func GetOTelContainerTags(rattrs pcommon.Map, tagKeys []string) []string {
 
 // GetOTelEnv returns the environment based on OTel resource attributes.
 func GetOTelEnv(res pcommon.Resource) string {
-	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
-	return GetOTelAttrVal(res.Attributes(), true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
+	return GetOTelAttrVal(res.Attributes(), true, semconv127.AttributeDeploymentEnvironmentName, semconv.AttributeDeploymentEnvironment)
 }
 
 // OTelTraceIDToUint64 converts an OTel trace ID to an uint64
