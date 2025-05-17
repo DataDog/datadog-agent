@@ -301,6 +301,7 @@ def build(
                             ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
                         )
 
+    print('dummy change to test the cache')
     with timed(quiet=True) as durations['Omnibus']:
         omni_flavor = env.get('AGENT_FLAVOR')
         print(f'We are building omnibus with flavor: {omni_flavor}')
