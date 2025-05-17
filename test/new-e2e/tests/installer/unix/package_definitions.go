@@ -65,8 +65,8 @@ func WithAlias(alias string) PackageOption {
 
 // PackagesConfig is the list of known packages configuration for testing
 var PackagesConfig = []TestPackageConfig{
-	{Name: "datadog-installer", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com"},
-	{Name: "datadog-agent", Alias: "agent-package", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com"},
+	{Name: "datadog-installer", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com.s3.amazonaws.com"},
+	{Name: "datadog-agent", Alias: "agent-package", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com.s3.amazonaws.com"},
 	{Name: "datadog-apm-inject", Version: "latest"},
 	{Name: "datadog-apm-library-java", Version: "latest"},
 	{Name: "datadog-apm-library-ruby", Version: "latest"},
@@ -80,18 +80,21 @@ func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architectu
 	if apiKey == "" {
 		apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
 	}
+
 	env["DD_API_KEY"] = apiKey
 	env["DD_SITE"] = "datadoghq.com"
+	env["DD_SKIP_TLS_VALIDATION"] = "true"
 	// Install Script env variables
 	env["DD_INSTALLER"] = "true"
 	env["TESTING_KEYS_URL"] = "keys.datadoghq.com"
-	env["TESTING_APT_URL"] = "apttesting.datad0g.com"
+	env["TESTING_APT_URL"] = "s3.amazonaws.com/apttesting.datad0g.com"
 	env["TESTING_APT_REPO_VERSION"] = fmt.Sprintf("pipeline-%s-a7-%s 7", os.Getenv("E2E_PIPELINE_ID"), arch)
-	env["TESTING_YUM_URL"] = "yumtesting.datad0g.com"
+	env["TESTING_YUM_URL"] = "s3.amazonaws.com/yumtesting.datad0g.com"
 	env["TESTING_YUM_VERSION_PATH"] = fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("E2E_PIPELINE_ID"))
 }
 
 func installScriptInstallerEnv(env map[string]string, packagesConfig []TestPackageConfig) {
+	env["DD_SKIP_TLS_VALIDATION"] = "true"
 	for _, pkg := range packagesConfig {
 		name := strings.ToUpper(strings.ReplaceAll(pkg.Name, "-", "_"))
 		image := strings.TrimPrefix(name, "DATADOG_") + "_PACKAGE"

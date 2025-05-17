@@ -12,9 +12,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 )
 
 //go:embed fixtures/*
@@ -116,7 +117,7 @@ func (h *Host) RemoveBrokenDockerConfig() {
 func (h *Host) SetupFakeAgentExp() FakeAgent {
 	// Install an experiment to create the experiment units
 	latestAgentImageVersion := "7.66.0-devel.git.534.4e40dec.pipeline.62473533-1" // TODO use latest prod image when 7.65 is out
-	h.Run(fmt.Sprintf(`sudo datadog-installer install-experiment "oci://install.datad0g.com/agent-package:%s"`, latestAgentImageVersion))
+	h.Run(fmt.Sprintf(`sudo datadog-installer install-experiment "oci://install.datad0g.com.s3.amazonaws.com/agent-package:%s"`, latestAgentImageVersion))
 	h.Run("sudo systemctl stop datadog-agent-exp.service")
 	h.Run("sudo systemctl start datadog-agent.service")
 
