@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/etcd"
+	csidriver "github.com/DataDog/test-infra-definitions/components/datadog/csi-driver"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
@@ -115,6 +116,11 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		Kubeconfig:            kindCluster.KubeConfig,
 	})
 	if err != nil {
+		return err
+	}
+
+	// Deploy the datadog CSI driver
+	if err := csidriver.NewDatadogCSIDriver(&awsEnv, kubeProvider); err != nil {
 		return err
 	}
 
