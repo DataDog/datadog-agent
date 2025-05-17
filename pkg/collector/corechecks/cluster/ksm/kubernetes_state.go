@@ -687,14 +687,16 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 				// Some metrics can be aggregated and consumed as-is or by a transformer.
 				// So, let’s continue the processing.
 			}
+
 			if transform, found := k.metricTransformers[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
-					hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
+					hostname, tagList := k.hostnameAndTags(m.Labels, m.Tags, labelJoiner, lMapperOverride)
 					transform(sender, metricFamily.Name, m, hostname, tagList, now)
 				}
 				continue
 			}
+
 			metricPrefix := ksmMetricPrefix
 			if strings.HasPrefix(metricFamily.Name, "kube_customresource_") {
 				metricPrefix = metricPrefix[:len(metricPrefix)-1] + "_"
@@ -702,14 +704,16 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
-					hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
+					hostname, tagList := k.hostnameAndTags(m.Labels, m.Tags, labelJoiner, lMapperOverride)
 					sender.Gauge(metricPrefix+ddname, m.Val, hostname, tagList)
 				}
 				continue
 			}
+
 			if _, found := k.metricAggregators[metricFamily.Name]; found {
 				continue
 			}
+
 			if k.metadataMetricsRegex.MatchString(metricFamily.Name) {
 				// metadata metrics are only used by the check for label joins
 				// they shouldn't be forwarded to Datadog
@@ -720,6 +724,7 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			log.Tracef("KSM metric '%s' is unknown for the check, ignoring it", metricFamily.Name)
 		}
 	}
+
 	for _, aggregator := range k.metricAggregators {
 		aggregator.flush(sender, k, labelJoiner)
 	}
@@ -728,13 +733,13 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 // hostnameAndTags returns the tags and the hostname for a metric based on the metric labels and the check configuration.
 //
 // This function must always return a "fresh" slice of tags, that will not be accessed after return.
-func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJoiner, lMapperOverride map[string]string) (string, []string) {
+func (k *KSMCheck) hostnameAndTags(labels, tags map[string]string, labelJoiner *labelJoiner, lMapperOverride map[string]string) (string, []string) {
 	hostname := ""
 
 	labelsToAdd := labelJoiner.getLabelsToAdd(labels)
 
 	// generate a dedicated tags slice
-	tagList := make([]string, 0, len(labels)+len(labelsToAdd))
+	tagList := make([]string, 0, len(labels)+len(labelsToAdd)+len(tags))
 
 	ownerKind, ownerName := "", ""
 	for key, value := range labels {
@@ -778,6 +783,10 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 
 	if owners := ownerTags(ownerKind, ownerName); len(owners) != 0 {
 		tagList = append(tagList, owners...)
+	}
+
+	for key, value := range tags {
+		tagList = append(tagList, fmt.Sprintf("%s:%s", key, value))
 	}
 
 	return hostname, tagList
@@ -1069,7 +1078,7 @@ func mergeLabelsOrAnnotationAsTags(extra, instanceMap map[string]map[string]stri
 	}
 
 	for resource, mapping := range extra {
-		var singularName = resource
+		singularName := resource
 		var err error
 		if shouldTransformResource {
 			// modify the resource name to the singular form of the resource

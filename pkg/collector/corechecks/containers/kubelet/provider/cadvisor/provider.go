@@ -5,9 +5,8 @@
 
 //go:build kubelet
 
-/*
-Package cadvisor exposes a metric provider to handle metrics exposed by the /metrics/cadvisor kubelet endpoint
-*/
+// Package cadvisor exposes a metric provider to handle metrics exposed by
+// the /metrics/cadvisor kubelet endpoint.
 package cadvisor
 
 import (

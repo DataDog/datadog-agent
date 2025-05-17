@@ -63,10 +63,12 @@ func storeGenerators(cfg config.Reader) []storeGenerator {
 	var generators []storeGenerator
 
 	if shouldHavePodStore(cfg) {
+		log.Debug("adding podStore")
 		generators = append(generators, newPodStore)
 	}
 
 	if shouldHaveDeploymentStore(cfg) {
+		log.Debug("adding deploymentStore")
 		generators = append(generators, newDeploymentStore)
 	}
 

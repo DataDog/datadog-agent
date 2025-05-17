@@ -17,8 +17,12 @@ import (
 
 	"go.uber.org/fx"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
+	"github.com/DataDog/datadog-agent/pkg/apm/instrumentation"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -161,7 +165,7 @@ func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 		PodSecurityContext := extractPodSecurityContext(&pod.Spec)
 		RuntimeClassName := extractPodRuntimeClassName(&pod.Spec)
 
-		entity := &workloadmeta.KubernetesPod{
+		entity := withInstrumentationTags(&workloadmeta.KubernetesPod{
 			EntityID: podID,
 			EntityMeta: workloadmeta.EntityMeta{
 				Name:        podMeta.Name,
@@ -181,7 +185,7 @@ func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 			GPUVendorList:              GPUVendors,
 			RuntimeClass:               RuntimeClassName,
 			SecurityContext:            PodSecurityContext,
-		}
+		})
 
 		events = append(events, initContainerEvents...)
 		events = append(events, containerEvents...)
@@ -514,4 +518,29 @@ func parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
 	}
 
 	return events
+}
+
+func withInstrumentationTags(pod *workloadmeta.KubernetesPod) *workloadmeta.KubernetesPod {
+	tags, err := instrumentation.ExtractTagsFromPodMeta(metav1.ObjectMeta{
+		Namespace:   pod.Namespace,
+		Name:        pod.Name,
+		Annotations: pod.Annotations,
+		Labels:      pod.Labels,
+		UID:         k8stypes.UID(pod.ID),
+	})
+	if err != nil {
+		log.Warnf("error extracting tags: %v", err)
+		return pod
+	}
+
+	if tags == nil {
+		return pod
+	}
+
+	pod.EvaluatedInstrumentationWorkloadTarget = &workloadmeta.InstrumentationWorkloadTarget{
+		Service: tags.Service,
+		Env:     tags.Env,
+		Version: tags.Version,
+	}
+	return pod
 }

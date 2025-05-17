@@ -10,6 +10,7 @@ package transformers
 
 import (
 	"fmt"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
@@ -46,6 +47,7 @@ func RetrieveUnifiedServiceTags(labels map[string]string) []string {
 			tags = append(tags, fmt.Sprintf("%s:%s", labelToTagKeys[labelKey], tagValue))
 		}
 	}
+
 	return tags
 }
 
