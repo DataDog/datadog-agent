@@ -46,16 +46,17 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			os.Exit(1)
 		}
 		senders[i] = newSender(&senderConfig{
-			client:       cfg.NewHTTPClient(),
-			maxConns:     int(maxConns),
-			maxQueued:    qsize,
-			maxRetries:   cfg.MaxSenderRetries,
-			url:          url,
-			apiKey:       endpoint.APIKey,
-			recorder:     r,
-			userAgent:    fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
-			isMRF:        endpoint.IsMRF,
-			isMRFEnabled: cfg.IsMRFEnabled,
+			client:            cfg.NewHTTPClient(),
+			maxConns:          int(maxConns),
+			maxQueued:         qsize,
+			maxRetries:        cfg.MaxSenderRetries,
+			url:               url,
+			apiKey:            endpoint.APIKey,
+			recorder:          r,
+			userAgent:         fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
+			isMRF:             endpoint.IsMRF,
+			isMRFEnabled:      cfg.IsMRFEnabled,
+			isPrimaryEndpoint: i == 0, // the first endpoint is the primary one
 		}, statsd)
 	}
 	return senders
@@ -160,6 +161,8 @@ type senderConfig struct {
 	isMRF bool
 	// IsMRFEnabled determines whether Multi-Region Failover is enabled.
 	isMRFEnabled func() bool
+	// isPrimaryEndpoint determines whether this is the primary endpoint for the agent.
+	isPrimaryEndpoint bool
 }
 
 // sender is responsible for sending payloads to a given URL. It uses a size-limited
@@ -379,6 +382,11 @@ func (s *sender) isEnabled() bool {
 	return false
 }
 
+// isPrimarySender returns true if this sender is the primary sender for the agent.
+func (s *sender) isPrimarySender() bool {
+	return s.cfg.isPrimaryEndpoint
+}
+
 // retriableError is an error returned by the server which may be retried at a later time.
 type retriableError struct{ err error }
 
@@ -386,13 +394,18 @@ type retriableError struct{ err error }
 func (e retriableError) Error() string { return e.err.Error() }
 
 const (
-	headerAPIKey    = "DD-Api-Key"
-	headerUserAgent = "User-Agent"
+	headerAPIKey          = "DD-Api-Key"
+	headerUserAgent       = "User-Agent"
+	headerPrimaryEndpoint = "DD-Primary-Endpoint"
 )
 
 func (s *sender) do(req *http.Request) error {
 	req.Header.Set(headerAPIKey, s.cfg.apiKey)
 	req.Header.Set(headerUserAgent, s.cfg.userAgent)
+	if s.isPrimarySender() {
+		req.Header.Set(headerPrimaryEndpoint, "true")
+	}
+
 	resp, err := s.cfg.client.Do(req)
 	if err != nil {
 		// request errors include timeouts or name resolution errors and
