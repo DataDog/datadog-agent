@@ -7,6 +7,7 @@
 package file
 
 import (
+	"context"
 	"regexp"
 	"slices"
 	"time"
@@ -55,6 +56,10 @@ type Launcher struct {
 	scanPeriod             time.Duration
 	flarecontroller        *flareController.FlareController
 	tagger                 tagger.Component
+	filesChan              chan []*tailer.File
+	addedSourceTailers     []*tailer.File
+	ctx                    context.Context
+	cancel                 context.CancelFunc
 }
 
 // NewLauncher returns a new launcher.
@@ -71,6 +76,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		wildcardStrategy = fileprovider.WildcardUseFileName
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Launcher{
 		tailingLimit:           tailingLimit,
 		fileProvider:           fileprovider.NewFileProvider(tailingLimit, wildcardStrategy),
@@ -83,6 +89,8 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		scanPeriod:             scanPeriod,
 		flarecontroller:        flarecontroller,
 		tagger:                 tagger,
+		ctx:                    ctx,
+		cancel:                 cancel,
 	}
 }
 
@@ -109,7 +117,6 @@ func (s *Launcher) run() {
 		scanTicker.Stop()
 		close(s.done)
 	}()
-
 	for {
 		select {
 		case source := <-s.addedSources:
@@ -117,10 +124,22 @@ func (s *Launcher) run() {
 		case source := <-s.removedSources:
 			s.removeSource(source)
 		case <-scanTicker.C:
+
+			activeSourcesCopy := make([]*sources.LogSource, len(s.activeSources))
+			copy(activeSourcesCopy, s.activeSources)
+
+			scanTicker.Stop()
+			go func() {
+				s.filesChan <- s.fileProvider.FilesToTail(s.ctx, s.validatePodContainerID, activeSourcesCopy)
+			}()
+		case files := <-s.filesChan:
 			s.cleanUpRotatedTailers()
-			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
-			s.scan()
+
+			s.resolveActiveTailers(files)
+			scanTicker.Reset(s.scanPeriod)
 		case <-s.stop:
+			// Cancel the context passed to fileProvider.FilesToTail
+			s.cancel()
 			// no more file should be tailed
 			s.cleanup()
 			return
@@ -144,21 +163,27 @@ func (s *Launcher) cleanup() {
 	stopper.Stop()
 }
 
-// scan checks all the files we're expected to tail, compares them to the currently tailed files,
+// resolveActiveTailers checks all the files we're expected to tail, compares them to the currently tailed files,
 // and triggers the required updates.
 // For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
 // The Scanner needs to stop that previous tailer, and start a new one for the new file.
-func (s *Launcher) scan() {
-	files := s.fileProvider.FilesToTail(s.validatePodContainerID, s.activeSources)
+func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
+	tailersFilesCopy := make([]*tailer.File, len(files))
+	copy(tailersFilesCopy, files)
+
+	// Union so scan doesn't remove files added by addSource but not yet found by FilesToTail
+	tailersFilesCopy = append(tailersFilesCopy, s.addedSourceTailers...)
+	s.addedSourceTailers = s.addedSourceTailers[:0]
+
 	filesTailed := make(map[string]bool)
 	var allFiles []string
 
-	log.Debugf("Scan - got %d files from FilesToTail and currently tailing %d files\n", len(files), s.tailers.Count())
+	log.Debugf("Scan - got %d files from FilesToTail and currently tailing %d files\n", len(tailersFilesCopy), s.tailers.Count())
 
 	// Pass 1 - Compare 'files' to our current set of tailed files. If any no longer need to be tailed,
 	// stop the tailers.
 	// Defer creation of new tailers until second pass.
-	for _, file := range files {
+	for _, file := range tailersFilesCopy {
 		allFiles = append(allFiles, file.Path)
 		// We're using generated key here: in case this file has been found while
 		// scanning files for container, the key will use the format:
@@ -213,7 +238,7 @@ func (s *Launcher) scan() {
 	tailersLen := s.tailers.Count()
 	log.Debugf("After stopping tailers, there are %d tailers running.\n", tailersLen)
 
-	for _, file := range files {
+	for _, file := range tailersFilesCopy {
 		scanKey := file.GetScanKey()
 		isTailed := s.tailers.Contains(scanKey)
 		if !isTailed && tailersLen < s.tailingLimit {
@@ -277,6 +302,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		log.Warnf("Could not collect files: %v", err)
 		return
 	}
+
 	for _, file := range files {
 		if s.tailers.Count() >= s.tailingLimit {
 			return
@@ -300,7 +326,10 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			source.Config.TailingMode = mode.String()
 		}
 
-		s.startNewTailer(file, mode)
+		newTailerStarted := s.startNewTailer(file, mode)
+		if newTailerStarted {
+			s.addedSourceTailers = append(s.addedSourceTailers, file)
+		}
 	}
 }
 
