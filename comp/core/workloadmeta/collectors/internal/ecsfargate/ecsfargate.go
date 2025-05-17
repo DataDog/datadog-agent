@@ -10,8 +10,6 @@ package ecsfargate
 
 import (
 	"context"
-	"strings"
-
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -120,17 +118,6 @@ func (c *collector) GetID() string {
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
-}
-
-// parseClusterName returns the short name of a cluster. it detects if the name
-// is an ARN and converts it if that's the case.
-func parseClusterName(value string) string {
-	if strings.Contains(value, "/") {
-		parts := strings.Split(value, "/")
-		return parts[len(parts)-1]
-	}
-
-	return value
 }
 
 func parseStatus(status string) workloadmeta.ContainerStatus {

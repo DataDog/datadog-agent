@@ -10,6 +10,7 @@ package ecsfargate
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"strings"
 	"time"
 
@@ -52,7 +53,7 @@ func (c *collector) parseV2Task(task *v2.Task) []workloadmeta.CollectorEvent {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: taskID,
 		},
-		ClusterName:  parseClusterName(task.ClusterName),
+		ClusterName:  ecs.ParseClusterName(task.ClusterName),
 		Region:       taskRegion,
 		AWSAccountID: taskAccountID,
 		Family:       task.Family,
