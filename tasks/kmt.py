@@ -1056,6 +1056,7 @@ def kmt_sysprobe_prepare(
                 "prefetch_file",
                 "fake_server",
                 "sample_service",
+                "standalone_attacher",
             ]:
                 src_file_path = os.path.join(pkg, f"{gobin}.go")
                 if os.path.isdir(pkg) and os.path.isfile(src_file_path):
@@ -1068,7 +1069,7 @@ def kmt_sysprobe_prepare(
                         variables={
                             "go": go_path,
                             "chdir": "true",
-                            "tags": "-tags=\"test\"",
+                            "tags": "-tags=\"test,linux_bpf\"",
                             "ldflags": "-ldflags=\"-extldflags '-static'\"",
                             "env": env_str,
                         },
