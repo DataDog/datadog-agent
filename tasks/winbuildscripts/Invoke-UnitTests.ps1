@@ -44,6 +44,17 @@ param(
 
 . "$PSScriptRoot\common.ps1"
 
+# NuGet info
+Write-Host "1.3"
+curl.exe -v --tls-max 1.3 -o nul https://api.nuget.org/v3/index.json
+
+Write-Host "1.2"
+curl.exe -v --tls-max 1.2 -o nul https://api.nuget.org/v3/index.json
+
+# Clear NuGet cache
+Write-Host "Nuget cache"
+dotnet nuget locals all --clear
+
 Invoke-BuildScript `
     -BuildOutOfSource $BuildOutOfSource `
     -InstallDeps $InstallDeps `
@@ -97,6 +108,10 @@ Invoke-BuildScript `
     $err = $LASTEXITCODE
     Write-Host Test result is $err
     if($err -ne 0){
+        Write-Host "Dotnet restore"
+        dotnet restore --verbosity
+
+
         Write-Host -ForegroundColor Red "Windows installer unit test failed $err"
         exit $err
     }
@@ -106,6 +121,9 @@ Invoke-BuildScript `
     $err = $LASTEXITCODE
     Write-Host rtloader test result is $err
     if($err -ne 0){
+        Write-Host "Dotnet restore"
+        dotnet restore --verbosity
+
         Write-Host -ForegroundColor Red "rtloader test failed $err"
         exit $err
     }
@@ -114,6 +132,9 @@ Invoke-BuildScript `
     & dda inv -- -e agent.build
     $err = $LASTEXITCODE
     if($err -ne 0){
+        Write-Host "Dotnet restore"
+        dotnet restore --verbosity
+
         Write-Host -ForegroundColor Red "Agent build failed $err"
         exit $err
     }
@@ -123,6 +144,9 @@ Invoke-BuildScript `
     $err = $LASTEXITCODE
     Write-Host Python-script test result is $err
     if($err -ne 0){
+        Write-Host "Dotnet restore"
+        dotnet restore --verbosity
+
         Write-Host -ForegroundColor Red "Python-script test failed $err"
         exit $err
     }
@@ -142,6 +166,9 @@ Invoke-BuildScript `
         $TEST_WASHER_FLAG `
         $Env:EXTRA_OPTS
     $err = $LASTEXITCODE
+
+    Write-Host "Dotnet restore"
+    dotnet restore --verbosity
 
     if ($UploadCoverage) {
         # 1. Upload coverage reports to Codecov

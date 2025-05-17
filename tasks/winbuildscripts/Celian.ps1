@@ -45,16 +45,24 @@ param(
 
 . "$PSScriptRoot\common.ps1"
 
-# NuGet info
-Write-Host "1.3"
-curl.exe -v --tls-max 1.3 -o nul https://api.nuget.org/v3/index.json
+# # Nuget sources
+# Write-Host "Nuget sources"
+# nuget sources list
 
-Write-Host "1.2"
-curl.exe -v --tls-max 1.2 -o nul https://api.nuget.org/v3/index.json
+# # NuGet info
+# Write-Host "1.3"
+# curl.exe -v --tls-max 1.3 -o nul https://api.nuget.org/v3/index.json
+
+# Write-Host "1.2"
+# curl.exe -v --tls-max 1.2 -o nul https://api.nuget.org/v3/index.json
 
 # Clear NuGet cache
 Write-Host "Nuget cache"
 dotnet nuget locals all --clear
+
+# Restore
+Write-Host "Nuget restore"
+dotnet restore ./tools/windows/DatadogAgentInstaller/AgentCustomActions/AgentCustomActions.csproj --verbosity diagnostic
 
 Invoke-BuildScript `
     -BuildOutOfSource $BuildOutOfSource `
