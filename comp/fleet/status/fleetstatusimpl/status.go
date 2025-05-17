@@ -1,0 +1,95 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package fleetstatusimpl //nolint:revive // TODO(Fleet) Fix revive linter
+
+import (
+	"embed"
+	"io"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
+)
+
+//go:embed status_templates
+var templatesFS embed.FS
+
+type dependencies struct {
+	fx.In
+
+	Config config.Component
+}
+
+type provides struct {
+	fx.Out
+
+	StatusProvider status.InformationProvider
+}
+
+// Module defines the fx options for the status component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newStatus))
+}
+
+type statusProvider struct {
+	Config config.Component
+}
+
+func newStatus(deps dependencies) provides {
+	return provides{
+		StatusProvider: status.NewInformationProvider(statusProvider{
+			Config: deps.Config,
+		}),
+	}
+}
+
+func (sp statusProvider) getStatusInfo() map[string]interface{} {
+	stats := make(map[string]interface{})
+
+	sp.populateStatus(stats)
+
+	return stats
+}
+
+// Name returns the name
+func (sp statusProvider) Name() string {
+	return "Fleet Automation"
+}
+
+// Section return the section
+func (sp statusProvider) Section() string {
+	return "Fleet Automation"
+}
+
+// JSON populates the status map
+func (sp statusProvider) JSON(_ bool, stats map[string]interface{}) error {
+	sp.populateStatus(stats)
+
+	return nil
+}
+
+// Text renders the text output
+func (sp statusProvider) Text(_ bool, buffer io.Writer) error {
+	return status.RenderText(templatesFS, "fleetstatus.tmpl", buffer, sp.getStatusInfo())
+}
+
+// HTML renders the html output
+func (sp statusProvider) HTML(_ bool, buffer io.Writer) error {
+	return status.RenderHTML(templatesFS, "fleetstatusHTML.tmpl", buffer, sp.getStatusInfo())
+}
+
+func (sp statusProvider) populateStatus(stats map[string]interface{}) {
+	status := make(map[string]interface{})
+
+	status["remoteManagementEnabled"] = isRemoteManagementEnabled(sp.Config)
+	stats["fleetAutomationStatus"] = status
+}
+
+func isRemoteManagementEnabled(conf config.Component) bool {
+	return conf.GetBool("remote_updates")
+}
