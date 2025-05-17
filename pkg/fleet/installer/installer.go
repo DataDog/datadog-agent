@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -93,7 +94,23 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
-	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
+
+	options := []db.Option{
+		db.WithTimeout(10 * time.Second),
+	}
+
+	// On Linux, if we're not root, we can only open the database in read-only mode.
+	if runtime.GOOS == "linux" {
+		currentUser, err := user.Current()
+		if err != nil {
+			return nil, fmt.Errorf("could not get current user: %w", err)
+		}
+		if currentUser.Uid != "0" {
+			options = append(options, db.WithReadOnly())
+		}
+	}
+
+	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), options...)
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
