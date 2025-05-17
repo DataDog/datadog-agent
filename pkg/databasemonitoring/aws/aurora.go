@@ -5,7 +5,6 @@
 
 //go:build ec2
 
-// Package aws contains database-monitoring specific aurora discovery logic
 package aws
 
 import (
@@ -24,16 +23,6 @@ import (
 // AuroraCluster represents an Aurora cluster
 type AuroraCluster struct {
 	Instances []*Instance
-}
-
-// Instance represents an Aurora instance
-type Instance struct {
-	Endpoint   string
-	Port       int32
-	IamEnabled bool
-	Engine     string
-	DbName     string
-	DbmEnabled bool
 }
 
 const (
@@ -125,18 +114,6 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 		return nil, fmt.Errorf("no endpoints found for aurora clusters with id(s): %s", strings.Join(dbClusterIdentifiers, ", "))
 	}
 	return clusters, nil
-}
-
-// dbNameFromEngine returns the default database name for a given engine type
-func dbNameFromEngine(engine string) (string, error) {
-	switch engine {
-	case auroraMysqlEngine:
-		return "mysql", nil
-	case auroraPostgresqlEngine:
-		return "postgres", nil
-	default:
-		return "", fmt.Errorf("unsupported engine type: %s", engine)
-	}
 }
 
 // GetAuroraClustersFromTags returns a list of Aurora clusters to query from a list of tags
