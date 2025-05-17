@@ -27,6 +27,7 @@ import (
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -707,4 +708,68 @@ func TestSenderGaugeWithTimestampValidation(t *testing.T) {
 	err = s.sender.GaugeWithTimestamp("my.gauge_with_timestamp", 42, "my-hostname", nil, -10000)
 	assert.Error(t, err)
 	assert.Len(t, s.itemChan, 0)
+}
+
+func setupTestSender(t *testing.T, disallowList []string) (*checkSender, chan senderItem) {
+	// Save the current configuration state
+	originalConfig := pkgconfigsetup.Datadog().AllSettings()
+
+	// Mock the configuration to include the hostTagDisallowList
+	pkgconfigsetup.Datadog().SetWithoutSource("host_tag_disallow_list", disallowList)
+
+	// Ensure the configuration is reset after the test
+	t.Cleanup(func() {
+		for key, value := range originalConfig {
+			pkgconfigsetup.Datadog().SetWithoutSource(key, value)
+		}
+	})
+
+	// Create a bidirectional channel for itemsOut
+	itemsOut := make(chan senderItem, 10)
+
+	// Initialize and return the sender
+	s := newCheckSender(
+		checkID1,
+		"default-host",
+		itemsOut,
+		make(chan servicecheck.ServiceCheck, 10),
+		make(chan event.Event, 10),
+		nil,
+		nil,
+		nil,
+	)
+
+	return s, itemsOut
+}
+
+// A helper function to test what host value was set on the metric
+func assertHostValueOnMetric(t *testing.T, s *checkSender, itemsOut chan senderItem, metricName string, metricType metrics.MetricType, customHostValue string, expectedHostValue string) {
+	s.sendMetricSample(metricName, 42, customHostValue, nil, metricType, false, false, 0)
+	metricSample := (<-itemsOut).(*senderMetricSample)
+	assert.Equal(t, expectedHostValue, metricSample.metricSample.Host)
+}
+
+func TestHostRemoval(t *testing.T) {
+	s, itemsOut := setupTestSender(t, []string{"request.latency", "db.query.time"})
+
+	// Distribution Metrics in the list should get "default-host"
+	assertHostValueOnMetric(t, s, itemsOut, "request.latency", metrics.DistributionType, "custom-host-1", "default-host")
+	assertHostValueOnMetric(t, s, itemsOut, "db.query.time", metrics.DistributionType, "custom-host-2", "default-host")
+
+	// Distribution Metrics not in the list should get the custom host value
+	assertHostValueOnMetric(t, s, itemsOut, "api.response.time", metrics.DistributionType, "custom-host-3", "custom-host-3")
+
+	// Non-Distribution Metrics should get the custom host value
+	assertHostValueOnMetric(t, s, itemsOut, "http.requests.count", metrics.GaugeType, "custom-host-1", "custom-host-1")
+}
+
+func TestHostRemovalEmptyList(t *testing.T) {
+	// Provide empty disallow list
+	s, itemsOut := setupTestSender(t, []string{})
+
+	// Distribution Metrics should get the custom host value
+	assertHostValueOnMetric(t, s, itemsOut, "request.latency", metrics.DistributionType, "custom-host-1", "custom-host-1")
+
+	// Non-Distribution Metrics should get the custom host value
+	assertHostValueOnMetric(t, s, itemsOut, "http.requests.count", metrics.GaugeType, "custom-host-1", "custom-host-1")
 }
