@@ -75,9 +75,15 @@ func (pt *ProcessTracker) Stop() {
 }
 
 func (pt *ProcessTracker) handleProcessStart(pid uint32) {
+	go pt.HandleProcessStartSync(pid)
+}
+
+// inspects the binary executable of the incoming pid on the same goroutine
+// used by Go DI testing infra
+func (pt *ProcessTracker) HandleProcessStartSync(pid uint32) {
 	exePath := kernel.HostProc(strconv.Itoa(int(pid)), "exe")
 	log.Tracef("Handling process start for %d %s", pid, exePath)
-	go pt.inspectBinary(exePath, pid)
+	pt.inspectBinary(exePath, pid)
 }
 
 func (pt *ProcessTracker) handleProcessStop(pid uint32) {
