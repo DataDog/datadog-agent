@@ -84,7 +84,7 @@ var (
 func SetupDatabricks(s *common.Setup) error {
 	s.Packages.InstallInstaller()
 	s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
-	s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
+	//s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, databricksJavaTracerVersion)
 
 	s.Out.WriteString("Applying specific Data Jobs Monitoring config\n")
@@ -248,7 +248,6 @@ func setupDatabricksWorker(s *common.Setup) {
 		s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
 		s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 	}
-
 }
 
 func addCustomHostTags(s *common.Setup) {
