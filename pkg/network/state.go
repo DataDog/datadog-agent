@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go4.org/intern"
@@ -113,6 +114,9 @@ type State interface {
 
 	// DumpState returns a map with the current network state for a client ID
 	DumpState(clientID string) map[string]interface{}
+
+	// IsClosedConnectionsNearCapacity returns true if the closed connections buffer for the given client is close to capacity.
+	IsClosedConnectionsNearCapacity(clientID string) bool
 }
 
 // Delta represents a delta of network data compared to the last call to State.
@@ -228,6 +232,9 @@ type client struct {
 	lastFetch time.Time
 	closed    *closedConnections
 	stats     map[StatCookie]StatCounters
+
+	// Flag for handling closed connection capacity pressure for this client
+	closedConnectionsNearCapacity atomic.Bool
 	// maps by dns key the domain (string) to stats structure
 	dnsStats        dns.StatsByKeyByNameByType
 	usmDelta        USMProtocolsData
@@ -243,6 +250,8 @@ func (c *client) Reset() {
 	c.closed.conns = c.closed.conns[:0]
 	c.closed.byCookie = make(map[StatCookie]int)
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
+	// Reset the capacity flag when client state is reset
+	c.closedConnectionsNearCapacity.Store(false)
 	c.usmDelta.Reset()
 }
 
@@ -561,7 +570,7 @@ func (ns *networkState) StoreClosedConnection(closed *ConnectionStats) {
 
 // storeClosedConnection stores the given connection for every client
 func (ns *networkState) storeClosedConnection(c *ConnectionStats) {
-	for _, client := range ns.clients {
+	for clientID, client := range ns.clients {
 		if i, ok := client.closed.byCookie[c.Cookie]; ok {
 			if ns.mergeConnectionStats(&client.closed.conns[i], c) {
 				stateTelemetry.statsCookieCollisions.Inc()
@@ -569,7 +578,16 @@ func (ns *networkState) storeClosedConnection(c *ConnectionStats) {
 			}
 			continue
 		}
+
 		client.closed.insert(c, ns.maxClosedConns)
+
+		// Check if the buffer is at least 90% full
+		if uint32(len(client.closed.conns)) >= (ns.maxClosedConns*9)/10 {
+			if !client.closedConnectionsNearCapacity.Load() { // Check client-specific flag
+				log.Warnf("Closed connections buffer for client %s is nearing capacity (%d/%d). Setting flag.", clientID, len(client.closed.conns), ns.maxClosedConns)
+				client.closedConnectionsNearCapacity.Store(true) // Set client-specific flag
+			}
+		}
 	}
 }
 
@@ -833,6 +851,7 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 				"total_tcp_closed":      uint64(s.TCPClosed),
 			}
 		}
+		data["near_capacity_flag"] = client.closedConnectionsNearCapacity.Load()
 	}
 	return data
 }
@@ -1289,5 +1308,16 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 	a.ProtocolStack.MergeWith(b.ProtocolStack)
 	a.TLSTags.MergeWith(b.TLSTags)
 
+	return false
+}
+
+// IsClosedConnectionsNearCapacity checks the atomic flag for a specific client.
+func (ns *networkState) IsClosedConnectionsNearCapacity(clientID string) bool {
+	ns.Lock()
+	defer ns.Unlock()
+	if client, ok := ns.clients[clientID]; ok {
+		return client.closedConnectionsNearCapacity.Load()
+	}
+	log.Warnf("IsClosedConnectionsNearCapacity called for non-existent client ID: %s", clientID)
 	return false
 }
