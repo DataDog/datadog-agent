@@ -671,6 +671,12 @@ func (s *baseStartStopSuite) assertServiceState(expected string, serviceName str
 			s.T().Logf("waiting for %s to be %s, status %s", serviceName, expected, status)
 		}
 	}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
+
+	// if a driver service failed to get to the expected state, capture a kernel dump for debugging.
+	if s.T().Failed() && slices.Contains(s.getInstalledKernelServices(), serviceName) {
+		s.T().Logf("capturing live kernel dump due to %s not in %s state\n", serviceName, expected)
+		s.captureLiveKernelDump(host, s.SessionOutputDir())
+	}
 }
 
 func (s *baseStartStopSuite) stopAllServices() {
@@ -775,4 +781,56 @@ func (s *baseStartStopSuite) sendHostMemoryMetrics(host *components.RemoteHost) 
 	} else {
 		s.T().Logf("posted memory metrics")
 	}
+}
+
+// captureLiveKernelDump sends a command to the host to create a live kernel dump and downloads it.
+func (s *baseStartStopSuite) captureLiveKernelDump(host *components.RemoteHost, dumpDir string) {
+	tempDumpDir := `C:\Windows\Temp`
+	sourceDumpDir := filepath.Join(tempDumpDir, `localhost`)
+
+	// The live kernel dump will be placed under subdirectory named "localhost."
+	// Make sure the subdirectory where the dump will be generated is empty.
+	if exists, _ := host.FileExists(sourceDumpDir); exists {
+		err := host.RemoveAll(sourceDumpDir)
+		if err != nil {
+			s.T().Logf("failed to cleanup %s: %s\n", sourceDumpDir, err)
+			return
+		}
+	}
+
+	// This Powershell command is originally tailored for storage cluster environments.
+	getSubsystemCmd := `$ss = Get-CimInstance -ClassName MSFT_StorageSubSystem -Namespace Root\Microsoft\Windows\Storage`
+	createLiveDumpCmd := fmt.Sprintf(`Invoke-CimMethod -InputObject $ss -MethodName "GetDiagnosticInfo" -Arguments @{DestinationPath="%s"; IncludeLiveDump=$true}`, tempDumpDir)
+	dumpCmd := fmt.Sprintf("%s;%s", getSubsystemCmd, createLiveDumpCmd)
+
+	s.T().Logf("creating live kernel dump under %s\n", tempDumpDir)
+	out, err := host.Execute(dumpCmd)
+	out = strings.TrimSpace(out)
+	if out != "" {
+		s.T().Logf("PowerShell live kernel dump output:\n%s", out)
+	}
+
+	if err != nil {
+		s.T().Logf("remote execute error: %s\n", err)
+		return
+	}
+
+	// Check if the dump is present.
+	sourceDumpFile := filepath.Join(sourceDumpDir, `LiveDump.dmp`)
+	if exists, _ := host.FileExists(sourceDumpFile); !exists {
+		s.T().Logf("live kernel dump not found at %s: %s\n", sourceDumpFile, err)
+		return
+	}
+
+	// Download the dump file.
+	destDumpFile := filepath.Join(dumpDir, `LiveDump.dmp`)
+	err = host.GetFile(sourceDumpFile, destDumpFile)
+	if err != nil {
+		s.T().Logf("failed to download live kernel dump to %s: %s\n", destDumpFile, err)
+	} else {
+		s.T().Logf("live kernel dump downloaded to %s\n", destDumpFile)
+	}
+
+	// Cleanup the "localhost" subdirectory.
+	host.RemoveAll(sourceDumpDir)
 }
