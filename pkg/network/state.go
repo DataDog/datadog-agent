@@ -267,6 +267,7 @@ type networkState struct {
 	// Network state configuration
 	clientExpiry                time.Duration
 	maxClosedConns              uint32
+	closedConnectionsBufferThresholdRatio float64
 	maxClientStats              int
 	maxDNSStats                 int
 	maxHTTPStats                int
@@ -280,11 +281,12 @@ type networkState struct {
 }
 
 // NewState creates a new network state
-func NewState(_ telemetryComponent.Component, clientExpiry time.Duration, maxClosedConns uint32, maxClientStats, maxDNSStats, maxHTTPStats, maxKafkaStats, maxPostgresStats, maxRedisStats int, enableConnectionRollup bool, processEventConsumerEnabled bool) State {
+func NewState(_ telemetryComponent.Component, clientExpiry time.Duration, maxClosedConns uint32, closedConnectionsBufferThresholdRatio float64, maxClientStats, maxDNSStats, maxHTTPStats, maxKafkaStats, maxPostgresStats, maxRedisStats int, enableConnectionRollup bool, processEventConsumerEnabled bool) State {
 	ns := &networkState{
 		clients:                     map[string]*client{},
 		clientExpiry:                clientExpiry,
 		maxClosedConns:              maxClosedConns,
+		closedConnectionsBufferThresholdRatio: closedConnectionsBufferThresholdRatio,
 		maxClientStats:              maxClientStats,
 		maxDNSStats:                 maxDNSStats,
 		maxHTTPStats:                maxHTTPStats,
@@ -581,10 +583,11 @@ func (ns *networkState) storeClosedConnection(c *ConnectionStats) {
 
 		client.closed.insert(c, ns.maxClosedConns)
 
-		// Check if the buffer is at least 90% full
-		if uint32(len(client.closed.conns)) >= (ns.maxClosedConns*9)/10 {
+		// Check if the buffer is near capacity using the configured threshold
+		if ns.maxClosedConns > 0 && ns.closedConnectionsBufferThresholdRatio > 0 && \
+			float64(len(client.closed.conns)) >= float64(ns.maxClosedConns)*ns.closedConnectionsBufferThresholdRatio {
 			if !client.closedConnectionsNearCapacity.Load() { // Check client-specific flag
-				log.Warnf("Closed connections buffer for client %s is nearing capacity (%d/%d). Setting flag.", clientID, len(client.closed.conns), ns.maxClosedConns)
+				log.Warnf("Closed connections buffer for client %s is nearing capacity (%d/%d, threshold: %.2f%%). Setting flag.", clientID, len(client.closed.conns), ns.maxClosedConns, ns.closedConnectionsBufferThresholdRatio*100)
 				client.closedConnectionsNearCapacity.Store(true) // Set client-specific flag
 			}
 		}

@@ -87,6 +87,7 @@ func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.Cl
 		telemetry,
 		config.ClientStateExpiry,
 		config.MaxClosedConnectionsBuffered,
+		config.ClosedConnectionsBufferThresholdRatio,
 		config.MaxConnectionsStateBuffered,
 		config.MaxDNSStatsBuffered,
 		config.MaxHTTPStatsBuffered,

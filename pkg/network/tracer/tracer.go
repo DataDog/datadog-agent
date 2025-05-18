@@ -225,6 +225,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		telemetryComponent,
 		cfg.ClientStateExpiry,
 		cfg.MaxClosedConnectionsBuffered,
+		cfg.ClosedConnectionsBufferThresholdRatio,
 		cfg.MaxConnectionsStateBuffered,
 		cfg.MaxDNSStatsBuffered,
 		cfg.MaxHTTPStatsBuffered,
