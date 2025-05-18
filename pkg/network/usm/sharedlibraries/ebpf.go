@@ -648,3 +648,12 @@ func getAssetName(module string, debug bool) string {
 
 	return fmt.Sprintf("%s.o", module)
 }
+
+// ToBytes converts the libpath to a byte array containing the path
+func ToBytes(l *LibPath) []byte {
+	return l.Buf[:l.Len]
+}
+
+func (l *LibPath) String() string {
+	return string(ToBytes(l))
+}

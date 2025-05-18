@@ -38,15 +38,6 @@ func ToLibPath(data []byte) LibPath {
 	return *(*LibPath)(unsafe.Pointer(&data[0]))
 }
 
-// ToBytes converts the libpath to a byte array containing the path
-func ToBytes(l *LibPath) []byte {
-	return l.Buf[:l.Len]
-}
-
-func (l *LibPath) String() string {
-	return string(ToBytes(l))
-}
-
 // Rule is a rule to match against a shared library path
 type Rule struct {
 	Re           *regexp.Regexp
