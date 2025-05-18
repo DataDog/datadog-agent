@@ -9,10 +9,13 @@
 #define KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION 12
 #define KAFKA_CLASSIFICATION_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION 1
 
-// We classify APIVersions requests so the connection will be detected as kafka so we can decode Metadata requests
-// APIVersions are the first request in a kafka connection and Metadata right after
-#define KAFKA_CLASSIFICATION_MIN_SUPPORTED_APIVERSIONS_REQUEST_API_VERSION 3
-#define KAFKA_CLASSIFICATION_MAX_SUPPORTED_APIVERSIONS_REQUEST_API_VERSION 4
+// Range for supported versions of the API versions request used to classify kafka connections
+// as early as possible (api versions request is the first request that is sent).
+// It is used so we can decode the metadata request that is sent right after.
+#define KAFKA_CLASSIFICATION_MIN_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION 3
+#define KAFKA_CLASSIFICATION_MAX_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION 4
+
+// Used to get the topic id to name mapping at the start of kafka connections
 #define KAFKA_DECODING_MIN_SUPPORTED_METADATA_REQUEST_API_VERSION 10
 #define KAFKA_DECODING_MAX_SUPPORTED_METADATA_REQUEST_API_VERSION 13
 

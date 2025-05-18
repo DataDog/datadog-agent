@@ -121,6 +121,7 @@ static __always_inline protocol_t classify_queue_protocols(struct __sk_buff *skb
         return PROTOCOL_AMQP;
     }
     if (is_kafka(skb, skb_info, buf, size)) {
+        log_debug("GUY KAFKA");
         return PROTOCOL_KAFKA;
     }
 

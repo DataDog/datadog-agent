@@ -88,8 +88,9 @@ const (
 	rawTrafficPort = "9093"
 	redisPort      = "6379"
 
-	fetchAPIKey   = 1
-	produceAPIKey = 0
+	apiVersionsAPIKey = 18
+	fetchAPIKey       = 1
+	produceAPIKey     = 0
 )
 
 func httpSupported() bool {
@@ -186,6 +187,7 @@ func (s *USMSuite) TestProtocolClassification() {
 	cfg.EnablePostgresMonitoring = true
 	cfg.EnableGoTLSSupport = gotlstestutil.GoTLSSupported(t, cfg)
 	cfg.BypassEnabled = true
+	cfg.BPFDebug = true // TODO remove
 	tr, err := tracer.NewTracer(cfg, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)

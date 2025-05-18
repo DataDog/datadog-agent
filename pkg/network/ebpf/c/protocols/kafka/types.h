@@ -6,7 +6,8 @@
 typedef enum {
     KAFKA_PRODUCE = 0,
     KAFKA_FETCH,
-    KAFKA_METADATA = 3
+    KAFKA_METADATA = 3,
+    KAFKA_API_VERSIONS = 18
 } __attribute__ ((packed)) kafka_operation_t;
 
 typedef struct {

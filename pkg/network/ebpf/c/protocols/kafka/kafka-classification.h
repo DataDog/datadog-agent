@@ -44,6 +44,8 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
     CHECK_STRING_COMPOSED_OF_ASCII(max_buffer_size, real_size, buffer, true)
 
 
+PKTBUF_READ_INTO_BUFFER(client_id, CLIENT_ID_SIZE_TO_VALIDATE, BLK_SIZE)
+
 // Reads the client id (up to CLIENT_ID_SIZE_TO_VALIDATE bytes from the given offset), and verifies if it is valid,
 // namely, composed only from characters from [a-zA-Z0-9._-].
 static __always_inline bool is_valid_client_id(pktbuf_t pkt, u32 offset, u16 real_client_id_size) {
@@ -55,7 +57,7 @@ static __always_inline bool is_valid_client_id(pktbuf_t pkt, u32 offset, u16 rea
         return false;
     }
     bpf_memset(client_id, 0, CLIENT_ID_SIZE_TO_VALIDATE);
-    pktbuf_load_bytes_with_telemetry(pkt, offset, (char *)client_id, CLIENT_ID_SIZE_TO_VALIDATE);
+    pktbuf_read_into_buffer_client_id(client_id, pkt, offset);
 
     // Returns true if client_id is composed out of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
     CHECK_STRING_VALID_CLIENT_ID(CLIENT_ID_SIZE_TO_VALIDATE, real_client_id_size, client_id);
@@ -102,11 +104,11 @@ static __always_inline bool is_supported_api_version_for_classification(s16 api_
             return false;
         }
         break;
-    case KAFKA_METADATA:
-        if (kafka_header->api_version < KAFKA_CLASSIFICATION_MIN_SUPPORTED_METADATA_REQUEST_API_VERSION) {
+    case KAFKA_API_VERSIONS:
+        if (api_version < KAFKA_CLASSIFICATION_MIN_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION) {
             return false;
         }
-        if (kafka_header->api_version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_METADATA_REQUEST_API_VERSION) {
+        if (api_version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION) {
             return false;
         }
         break;
@@ -408,20 +410,6 @@ static __always_inline bool get_topic_offset_from_fetch_request(const kafka_head
     return true;
 }
 
-// Getting the offset the topic name in the fetch request.
-static __always_inline bool get_topic_offset_from_metadata_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 *offset) {
-    u32 api_version = kafka_header->api_version;
-
-    // we only support v10+ but just to be safe
-    if (api_version >= 9) {
-        if (!skip_request_tagged_fields(pkt, offset)) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
 // Calls the relevant function, according to the api_key.
 static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 offset) {
     // Due to old-verifiers limitations, if the request is fetch or produce, we are calculating the offset of the topic
@@ -443,11 +431,13 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
         flexible = kafka_header->api_version >= 12;
         topic_id_instead_of_name = kafka_header->api_version >= 13;
         break;
-    case KAFKA_METADATA:
-        if (!get_topic_offset_from_metadata_request(kafka_header, pkt, &offset)) {
+    case KAFKA_API_VERSIONS:
+        // we only support flexible versions
+        if (!skip_request_tagged_fields(pkt, &offset)) {
             return false;
         }
-        // TODO check boolean fields
+
+        // TODO check "client software name" and "client software version"
         return true;
     default:
         return false;
@@ -492,7 +482,6 @@ static __always_inline bool __is_kafka(pktbuf_t pkt, const char* buf, __u32 buf_
     } else if (kafka_header.client_id_size < -1) {
         return false;
     }
-
     return is_kafka_request(&kafka_header, pkt, offset);
 }
 

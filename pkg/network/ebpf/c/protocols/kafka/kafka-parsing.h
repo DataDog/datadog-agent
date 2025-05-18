@@ -1784,8 +1784,11 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         topic_id_instead_of_name = kafka_header.api_version >= 13;
         break;
     case KAFKA_METADATA:
-        if (!get_topic_offset_from_metadata_request(&kafka_header, pkt, &offset)) {
-            return false;
+        // we only support v10+ but just to be safe
+        if (kafka_header.api_version >= 9) {
+            if (!skip_request_tagged_fields(pkt, &offset)) {
+                return false;
+            }
         }
         skip_parse_topic = true;
         break;
@@ -1985,6 +1988,18 @@ static __always_inline void update_classified_fetch_api_version_hits_telemetry(k
     __sync_fetch_and_add(&kafka_tel->classified_fetch_api_version_hits[bucket_idx], 1);
 }
 
+// Getting the offset the topic name in the fetch request.
+static __always_inline bool get_topic_offset_from_metadata_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 *offset) {
+    u32 api_version = kafka_header->api_version;
 
+    // we only support v10+ but just to be safe
+    if (api_version >= 9) {
+        if (!skip_request_tagged_fields(pkt, offset)) {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 #endif

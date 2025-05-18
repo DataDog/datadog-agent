@@ -4,14 +4,16 @@
 package kafka
 
 const (
-	TopicNameBuckets                                   = 0xa
-	TopicNameMaxSize                                   = 0x50
-	ClassificationMaxSupportedProduceRequestApiVersion = 0xc
-	ClassificationMinSupportedProduceRequestApiVersion = 0x1
-	DecodingMaxSupportedProduceRequestApiVersion       = 0xc
-	ClassificationMaxSupportedFetchRequestApiVersion   = 0x11
-	ClassificationMinSupportedFetchRequestApiVersion   = 0x0
-	DecodingMaxSupportedFetchRequestApiVersion         = 0x11
+	TopicNameBuckets                                       = 0xa
+	TopicNameMaxSize                                       = 0x50
+	ClassificationMaxSupportedProduceRequestApiVersion     = 0xc
+	ClassificationMinSupportedProduceRequestApiVersion     = 0x1
+	DecodingMaxSupportedProduceRequestApiVersion           = 0xc
+	ClassificationMaxSupportedFetchRequestApiVersion       = 0x11
+	ClassificationMinSupportedFetchRequestApiVersion       = 0x0
+	DecodingMaxSupportedFetchRequestApiVersion             = 0x11
+	ClassificationMinSupportedAPIVersionsRequestApiVersion = 0x3
+	ClassificationMaxSupportedAPIVersionsRequestApiVersion = 0x4
 )
 
 type ConnTuple struct {
@@ -72,5 +74,5 @@ type RawKernelTelemetry struct {
 	Topic_name_size_buckets             [10]uint64
 	Produce_no_required_acks            uint64
 	Classified_produce_api_version_hits [13]uint64
-	Classified_fetch_api_version_hits   [13]uint64
+	Classified_fetch_api_version_hits   [18]uint64
 }
