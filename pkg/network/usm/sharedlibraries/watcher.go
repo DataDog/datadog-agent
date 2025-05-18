@@ -15,7 +15,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
@@ -32,11 +31,6 @@ var (
 	// this value to speed up test execution.
 	scanTerminatedProcessesInterval = 30 * time.Second
 )
-
-// ToLibPath casts the perf event data to the LibPath structure
-func ToLibPath(data []byte) LibPath {
-	return *(*LibPath)(unsafe.Pointer(&data[0]))
-}
 
 // Rule is a rule to match against a shared library path
 type Rule struct {

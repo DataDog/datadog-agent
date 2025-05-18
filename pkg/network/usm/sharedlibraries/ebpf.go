@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
@@ -364,10 +365,15 @@ func (l *libsetHandler) eventLoop(wg *sync.WaitGroup) {
 	}
 }
 
+// toLibPath casts the perf event data to the LibPath structure
+func toLibPath(data []byte) LibPath {
+	return *(*LibPath)(unsafe.Pointer(&data[0]))
+}
+
 func (l *libsetHandler) handleEvent(event *ddebpf.DataEvent) {
 	defer event.Done()
 
-	libpath := ToLibPath(event.Data)
+	libpath := toLibPath(event.Data)
 
 	l.callbacksMutex.RLock()
 	defer l.callbacksMutex.RUnlock()
