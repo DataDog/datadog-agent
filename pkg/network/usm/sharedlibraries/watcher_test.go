@@ -690,23 +690,6 @@ func (s *SharedLibrarySuite) TestValidPathExistsInTheMemory() {
 	}
 }
 
-func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier) {
-	fullPath := filepath.Join(t.TempDir(), name)
-
-	f, err := os.Create(fullPath)
-	f.WriteString("foobar")
-	require.NoError(t, err)
-	f.Close()
-	t.Cleanup(func() {
-		os.RemoveAll(fullPath)
-	})
-
-	pathID, err := utils.NewPathIdentifier(fullPath)
-	require.NoError(t, err)
-
-	return fullPath, pathID
-}
-
 func BenchmarkScanSOWatcherNew(b *testing.B) {
 	w, _ := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 		Rule{
