@@ -2420,8 +2420,7 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 	record1 := &kgo.Record{Topic: topicName1, Value: []byte("Hello Kafka!")}
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
-	require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr(), "record had a produce error while synchronously producing")
-	require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr(), "record had a produce error while synchronously producing")
+	require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record1).FirstErr(), "record had a produce error while synchronously producing")
 
 	record2 := &kgo.Record{Topic: topicName2, Value: []byte("Hello Kafka!")}
 	ctxTimeout, cancel = context.WithTimeout(context.Background(), time.Second*5)
@@ -2433,18 +2432,18 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 	require.Empty(t, fetches.Errors())
 	require.Len(t, fetches.Records(), 1)
 
-	var fetchRequestStats, produceRequestsStats *kafka.RequestStats
+	var fetchRequestStats, produceTopic1RequestsStats, produceTopic2RequestsStats *kafka.RequestStats
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 
 		requests := conns.USMData.Kafka
-		if fetchRequestStats == nil || produceRequestsStats == nil {
+		if fetchRequestStats == nil || produceTopic1RequestsStats == nil || produceTopic2RequestsStats == nil {
 			require.True(ct, len(requests) > 0, "no requests")
 		}
 
 		for key, stats := range requests {
-			if fetchRequestStats != nil && produceRequestsStats != nil {
+			if fetchRequestStats != nil && produceTopic1RequestsStats != nil && produceTopic2RequestsStats == nil {
 				break
 			}
 
@@ -2453,7 +2452,12 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 				continue
 			}
 			if key.TopicName.Get() == topicName1 && key.RequestAPIKey == kafka.ProduceAPIKey {
-				produceRequestsStats = stats
+				produceTopic1RequestsStats = stats
+				continue
+			}
+
+			if key.TopicName.Get() == topicName2 && key.RequestAPIKey == kafka.ProduceAPIKey {
+				produceTopic2RequestsStats = stats
 				continue
 			}
 		}
@@ -2465,13 +2469,20 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 		require.Nil(ct, fetchRequestStats.ErrorCodeToStat[0].Latencies)
 		require.NotZero(ct, fetchRequestStats.ErrorCodeToStat[0].FirstLatencySample)
 
-		require.NotNil(ct, produceRequestsStats)
-		require.Len(ct, produceRequestsStats.ErrorCodeToStat, 1)
-		require.NotNil(ct, produceRequestsStats.ErrorCodeToStat[0])
-		require.Equal(ct, 2, produceRequestsStats.ErrorCodeToStat[0].Count)
-		require.NotNil(ct, produceRequestsStats.ErrorCodeToStat[0].Latencies)
-		require.NotZero(ct, produceRequestsStats.ErrorCodeToStat[0].FirstLatencySample)
-		require.Equal(ct, float64(2), produceRequestsStats.ErrorCodeToStat[0].Latencies.GetCount())
+		require.NotNil(ct, produceTopic1RequestsStats)
+		require.Len(ct, produceTopic1RequestsStats.ErrorCodeToStat, 1)
+		require.NotNil(ct, produceTopic1RequestsStats.ErrorCodeToStat[0])
+		require.Equal(ct, 2, produceTopic1RequestsStats.ErrorCodeToStat[0].Count)
+		require.NotNil(ct, produceTopic1RequestsStats.ErrorCodeToStat[0].Latencies)
+		require.Zero(ct, produceTopic1RequestsStats.ErrorCodeToStat[0].FirstLatencySample) // Since we reported 2 records in the same event, we don't have FirstLatencySample.
+		require.Equal(ct, float64(2), produceTopic1RequestsStats.ErrorCodeToStat[0].Latencies.GetCount())
+
+		require.NotNil(ct, produceTopic2RequestsStats)
+		require.Len(ct, produceTopic2RequestsStats.ErrorCodeToStat, 1)
+		require.NotNil(ct, produceTopic2RequestsStats.ErrorCodeToStat[0])
+		require.Equal(ct, 1, produceTopic2RequestsStats.ErrorCodeToStat[0].Count)
+		require.Nil(ct, produceTopic2RequestsStats.ErrorCodeToStat[0].Latencies)
+		require.NotZero(ct, produceTopic2RequestsStats.ErrorCodeToStat[0].FirstLatencySample) // Since we reported 2 records in the same event, we don't have FirstLatencySample.
 	}, 10*time.Second, 1*time.Second)
 }
 

@@ -136,7 +136,7 @@ func (r *RequestStats) AddRequest(errorCode int32, count int, staticTags uint64,
 	stats.Count += count
 	stats.StaticTags |= staticTags
 
-	if stats.FirstLatencySample == 0 {
+	if stats.Count == 1 {
 		stats.FirstLatencySample = latency
 		return
 	}
@@ -147,9 +147,14 @@ func (r *RequestStats) AddRequest(errorCode int32, count int, staticTags uint64,
 			return
 		}
 
-		// Add the deferred latency sample
-		if err := stats.Latencies.AddWithCount(stats.FirstLatencySample, float64(originalCount)); err != nil {
-			log.Debugf("could not add request latency to ddsketch: %v", err)
+		// The kafka kernel decoder can capture multiple requests in a single packet, so
+		// in case of a case of a new event with multiple requests, we might not have a FirstLatencySample
+		// In such a case, we need to skip adding the latency sample to the sketch
+		if originalCount == 1 {
+			// Add the deferred latency sample
+			if err := stats.Latencies.Add(stats.FirstLatencySample); err != nil {
+				log.Debugf("could not add request latency to ddsketch: %v", err)
+			}
 		}
 	}
 	if err := stats.Latencies.AddWithCount(latency, float64(count)); err != nil {
