@@ -33,8 +33,8 @@ var engineToIntegrationType = map[string]string{
 var engineToRdsADIdentifier = map[string]string{
 	postgresqlEngine:       dbmPostgresADIdentifier,
 	mysqlEngine:            dbmMySQLADIdentifier,
-	auroraPostgresqlEngine: dbmPostgresAuroraADIdentifier,
-	auroraMysqlEngine:      dbmMySQLAuroaADIdentifier,
+	auroraPostgresqlEngine: dbmPostgresADIdentifier,
+	auroraMysqlEngine:      dbmMySQLADIdentifier,
 }
 
 var engineToAuroraADIdentifier = map[string]string{
