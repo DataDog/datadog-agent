@@ -247,14 +247,76 @@ var TopologyMetadataConfig = profiledefinition.MetadataConfig{
 	},
 }
 
+var VPNMetadataConfig = profiledefinition.MetadataConfig{
+	"cisco_ipsec_tunnel": {
+		Fields: map[string]profiledefinition.MetadataField{
+			"local_outside_ip": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.4",
+					Name: "cipSecTunLocalAddr",
+				},
+			},
+			"remote_outside_ip": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.5",
+					Name: "cipSecTunRemoteAddr",
+				},
+			},
+		},
+	},
+	"cisco_ipsec_endpoint": {
+		Fields: map[string]profiledefinition.MetadataField{
+			"local_inside_ip_type": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.171.1.3.3.1.3",
+					Name: "cipSecEndPtLocalType",
+				},
+			},
+			"local_inside_ip1": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.171.1.3.3.1.4",
+					Name: "cipSecEndPtLocalAddr1",
+				},
+			},
+			"local_inside_ip2": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.171.1.3.3.1.5",
+					Name: "cipSecEndPtLocalAddr2",
+				},
+			},
+			"remote_inside_ip_type": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.171.1.3.3.1.9",
+					Name: "cipSecEndPtRemoteType",
+				},
+			},
+			"remote_inside_ip1": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.171.1.3.3.1.10",
+					Name: "cipSecEndPtRemoteAddr1",
+				},
+			},
+			"remote_inside_ip2": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.171.1.3.3.1.11",
+					Name: "cipSecEndPtRemoteAddr2",
+				},
+			},
+		},
+	},
+}
+
 // updateMetadataDefinitionWithDefaults will add metadata config for resources
 // that does not have metadata definitions
-func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.MetadataConfig, collectTopology bool) profiledefinition.MetadataConfig {
+func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.MetadataConfig, collectTopology bool, collectVPN bool) profiledefinition.MetadataConfig {
 	newConfig := make(profiledefinition.MetadataConfig)
 	mergeMetadata(newConfig, metadataConfig)
 	mergeMetadata(newConfig, LegacyMetadataConfig)
 	if collectTopology {
 		mergeMetadata(newConfig, TopologyMetadataConfig)
+	}
+	if collectVPN {
+		mergeMetadata(newConfig, VPNMetadataConfig)
 	}
 	return newConfig
 }

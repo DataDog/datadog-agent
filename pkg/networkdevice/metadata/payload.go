@@ -43,6 +43,7 @@ type NetworkDevicesMetadata struct {
 	Interfaces       []InterfaceMetadata      `json:"interfaces,omitempty"`
 	IPAddresses      []IPAddressMetadata      `json:"ip_addresses,omitempty"`
 	Links            []TopologyLinkMetadata   `json:"links,omitempty"`
+	VPNTunnels       []VPNTunnelMetadata      `json:"vpn_tunnels,omitempty"`
 	NetflowExporters []NetflowExporter        `json:"netflow_exporters,omitempty"`
 	Diagnoses        []DiagnosisMetadata      `json:"diagnoses,omitempty"`
 	DeviceOIDs       []DeviceOID              `json:"device_oids,omitempty"`
@@ -169,6 +170,15 @@ type TopologyLinkMetadata struct {
 	Integration string            `json:"integration,omitempty"`
 	Local       *TopologyLinkSide `json:"local"`
 	Remote      *TopologyLinkSide `json:"remote"`
+}
+
+type VPNTunnelMetadata struct {
+	DeviceID          string   `json:"device_id"`
+	LocalOutsideIP    string   `json:"local_outside_ip"`
+	RemoteOutsideIP   string   `json:"remote_outside_ip"`
+	Protocol          string   `json:"protocol"`
+	LocalInsideCIDRs  []string `json:"local_inside_cidrs"`
+	RemoteInsideCIDRs []string `json:"remote_inside_cidrs"`
 }
 
 // NetflowExporter contains netflow exporters info

@@ -7,6 +7,7 @@ package report
 
 import (
 	json "encoding/json"
+	"fmt"
 	"net"
 	"sort"
 	"strconv"
@@ -34,6 +35,8 @@ const topologyLinkSourceTypeLLDP = "lldp"
 const topologyLinkSourceTypeCDP = "cdp"
 const ciscoNetworkProtocolIPv4 = "1"
 const ciscoNetworkProtocolIPv6 = "20"
+const ciscoVPNEndpointSingleType = "1"
+const ciscoVPNEndpointSubnetType = "3"
 
 var supportedDeviceTypes = map[string]bool{
 	"access_point":  true,
@@ -66,6 +69,8 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
 	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
+	vpnTunnels := buildVPNTunnelsMetadata(config.DeviceID, metadataStore)
+	fmt.Println(vpnTunnels)
 
 	metadataPayloads := devicemetadata.BatchPayloads(integrations.SNMP, config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, topologyLinks, nil, diagnoses)
 
@@ -595,4 +600,93 @@ func formatID(idType string, store *metadata.Store, field string, strIndex strin
 		remoteDeviceID = store.GetColumnAsString(field, strIndex)
 	}
 	return remoteDeviceID
+}
+
+func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemetadata.VPNTunnelMetadata {
+	if store == nil {
+		// it's expected that the value store is nil if we can't reach the device
+		// in that case, we just return a nil slice.
+		return nil
+	}
+	tunnelIndexes := store.GetColumnIndexes("cisco_ipsec_tunnel.local_outside_ip")
+	if len(tunnelIndexes) == 0 {
+		log.Debugf("Unable to build VPN tunnels metadata: no cisco_ipsec_tunnel.local_outside_ip found")
+		return nil
+	}
+
+	vpnTunnelByIndex := make(map[string]*devicemetadata.VPNTunnelMetadata)
+	for _, strIndex := range tunnelIndexes {
+		indexElems := strings.Split(strIndex, ".")
+
+		// The cipSecTunnelEntry index is composed of 1 element: cipSecTunIndex
+		if len(indexElems) != 1 {
+			log.Debugf("Expected 1 index element, but got %d, index=`%s`", len(indexElems), strIndex)
+			continue
+		}
+
+		vpnTunnelByIndex[strIndex] = &devicemetadata.VPNTunnelMetadata{
+			DeviceID:        deviceID,
+			LocalOutsideIP:  store.GetColumnAsString("cisco_ipsec_tunnel.local_outside_ip", strIndex),
+			RemoteOutsideIP: store.GetColumnAsString("cisco_ipsec_tunnel.remote_outside_ip", strIndex),
+		}
+		fmt.Println("VPN Tunnel Metadata:")
+		fmt.Println(*vpnTunnelByIndex[strIndex])
+	}
+
+	endpointIndexes := store.GetColumnIndexes("cisco_ipsec_endpoint.local_inside_ip_type")
+	for _, strIndex := range endpointIndexes {
+		indexElems := strings.Split(strIndex, ".")
+
+		// The cipSecEndPtEntry index is composed of those 2 elements separate by `.`: cipSecTunIndex, cipSecEndPtIndex
+		if len(indexElems) != 2 {
+			log.Debugf("Expected 2 index elements, but got %d, index=`%s`", len(indexElems), strIndex)
+			continue
+		}
+
+		tunnelIndex := indexElems[0]
+		vpnTunnel, exists := vpnTunnelByIndex[tunnelIndex]
+		if !exists {
+			continue
+		}
+
+		localAddrType := store.GetColumnAsString("cisco_ipsec_endpoint.local_inside_ip_type", strIndex)
+		localAddr1 := store.GetColumnAsString("cisco_ipsec_endpoint.local_inside_ip1", strIndex)
+		localAddr2 := store.GetColumnAsString("cisco_ipsec_endpoint.local_inside_ip2", strIndex)
+		localAddr := handleVPNEndpointAddr(localAddrType, localAddr1, localAddr2)
+		if localAddr == "" {
+			continue
+		}
+
+		remoteAddrType := store.GetColumnAsString("cisco_ipsec_endpoint.remote_inside_ip_type", strIndex)
+		remoteAddr1 := store.GetColumnAsString("cisco_ipsec_endpoint.remote_inside_ip1", strIndex)
+		remoteAddr2 := store.GetColumnAsString("cisco_ipsec_endpoint.remote_inside_ip2", strIndex)
+		remoteAddr := handleVPNEndpointAddr(remoteAddrType, remoteAddr1, remoteAddr2)
+		if remoteAddr == "" {
+			continue
+		}
+
+		fmt.Println("LOCAL/REMOTE Addrs:")
+		fmt.Println(localAddr)
+		fmt.Println(remoteAddr)
+
+		vpnTunnel.LocalInsideCIDRs = append(vpnTunnel.LocalInsideCIDRs, localAddr)
+		vpnTunnel.RemoteInsideCIDRs = append(vpnTunnel.RemoteInsideCIDRs, remoteAddr)
+	}
+
+	var vpnTunnels []devicemetadata.VPNTunnelMetadata
+	for _, vpnTunnel := range vpnTunnelByIndex {
+		vpnTunnels = append(vpnTunnels, *vpnTunnel)
+	}
+	return vpnTunnels
+}
+
+func handleVPNEndpointAddr(addrType string, addr1 string, addr2 string) string {
+	switch addrType {
+	case ciscoVPNEndpointSingleType:
+		return addr1 + "/32"
+	case ciscoVPNEndpointSubnetType:
+		return addr1 + "/" + addr2
+	}
+
+	return ""
 }

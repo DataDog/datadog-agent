@@ -629,6 +629,8 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 		return strconv.FormatBool(s.config.CollectDeviceMetadata), nil
 	case "collect_topology":
 		return strconv.FormatBool(s.config.CollectTopology), nil
+	case "collect_vpn":
+		return strconv.FormatBool(s.config.CollectVPN), nil
 	case "use_device_id_as_hostname":
 		return strconv.FormatBool(s.config.UseDeviceIDAsHostname), nil
 	case "tags":
