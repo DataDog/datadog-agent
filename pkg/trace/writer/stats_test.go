@@ -13,7 +13,9 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -101,6 +103,74 @@ func TestStatsWriter(t *testing.T) {
 		sw.Write(testSets[1])
 		sw.Stop()
 		assertPayload(assert, testSets, srv.Payloads())
+	})
+
+	t.Run("race", func(_ *testing.T) {
+		sw, _ := testStatsWriter()
+		// Don't start the writer as we're going to call send ourselves to test for a race
+		stopChan := make(chan struct{})
+		wg := sync.WaitGroup{}
+		numRoutines := 5
+		for range numRoutines {
+			wg.Add(1)
+			go func() {
+				testSets := []*pb.StatsPayload{
+					{
+						AgentHostname: "1",
+						AgentEnv:      "1",
+						AgentVersion:  "agent-version",
+						Stats: []*pb.ClientStatsPayload{{
+							Hostname: testHostname,
+							Env:      testEnv,
+							Stats: []*pb.ClientStatsBucket{
+								testutil.RandomBucket(3),
+								testutil.RandomBucket(3),
+								testutil.RandomBucket(3),
+							},
+						}},
+					},
+					{
+						AgentHostname: "2",
+						AgentEnv:      "2",
+						AgentVersion:  "agent-version",
+						Stats: []*pb.ClientStatsPayload{{
+							Hostname: testHostname,
+							Env:      testEnv,
+							Stats: []*pb.ClientStatsBucket{
+								testutil.RandomBucket(3),
+								testutil.RandomBucket(3),
+								testutil.RandomBucket(3),
+							},
+						}},
+					},
+				}
+				defer wg.Done()
+				for {
+					select {
+					case <-stopChan:
+						return
+					default:
+						sw.Write(testSets[0])
+						sw.Write(testSets[1])
+					}
+				}
+			}()
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stopChan:
+					return
+				default:
+					sw.sendPayloads() // send really fast to try and trigger race
+				}
+			}
+		}()
+		time.Sleep(time.Second)
+		close(stopChan)
+		wg.Wait()
 	})
 
 	t.Run("buildPayloads", func(t *testing.T) {
@@ -359,6 +429,64 @@ func TestStatsWriterUpdateAPIKey(t *testing.T) {
 	assert.Equal("foo", sw.senders[0].cfg.apiKey)
 	assert.Equal(url, sw.senders[0].cfg.url)
 	srv.Close()
+}
+
+func TestStatsWriterInfo(t *testing.T) {
+	assert := assert.New(t)
+	// statsLastMinute updates depend on StatsWriter internal ticker, but are also triggered
+	// with sync mode. We will use sync writer to test the stats info updates.
+	sw, srv := testStatsSyncWriter()
+	go sw.Run()
+
+	time.Sleep(200 * time.Millisecond) // allow stats to be initialized
+
+	testSets := []*pb.StatsPayload{
+		{
+			AgentHostname: "1",
+			AgentEnv:      "1",
+			AgentVersion:  "agent-version",
+			Stats: []*pb.ClientStatsPayload{{
+				Hostname: testHostname,
+				Env:      testEnv,
+				Stats: []*pb.ClientStatsBucket{
+					testutil.RandomBucket(3),
+					testutil.RandomBucket(3),
+					testutil.RandomBucket(3),
+				},
+			}},
+		},
+		{
+			AgentHostname: "2",
+			AgentEnv:      "2",
+			AgentVersion:  "agent-version",
+			Stats: []*pb.ClientStatsPayload{{
+				Hostname: testHostname,
+				Env:      testEnv,
+				Stats: []*pb.ClientStatsBucket{
+					testutil.RandomBucket(3),
+					testutil.RandomBucket(3),
+					testutil.RandomBucket(3),
+				},
+			}},
+		},
+	}
+	sw.Write(testSets[0])
+	sw.Write(testSets[1])
+	err := sw.FlushSync()
+	assert.Nil(err)
+
+	assertPayload(assert, testSets, srv.Payloads())
+
+	assert.NotEmpty(sw.statsLastMinute.Bytes.Load())
+	assert.Empty(sw.statsLastMinute.Errors.Load())
+	assert.Empty(sw.statsLastMinute.Retries.Load())
+	assert.Equal(sw.statsLastMinute.Payloads.Load(), int64(2))
+	assert.Equal(sw.statsLastMinute.ClientPayloads.Load(), int64(2))
+	assert.Equal(sw.statsLastMinute.StatsBuckets.Load(), int64(6))
+	assert.Equal(sw.statsLastMinute.StatsEntries.Load(), int64(18))
+	assert.Equal(sw.statsLastMinute.Splits.Load(), int64(0))
+
+	sw.Stop()
 }
 
 func testStatsWriter() (*DatadogStatsWriter, *testServer) {

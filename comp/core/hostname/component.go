@@ -8,7 +8,7 @@ package hostname
 
 import "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // Component is the component type.
 type Component = hostnameinterface.Component

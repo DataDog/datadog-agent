@@ -7,12 +7,9 @@
 package converterimpl
 
 import (
-	"regexp"
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
-
-	"github.com/DataDog/datadog-agent/comp/core/config"
 )
 
 var ddAutoconfiguredSuffix = "dd-autoconfigured"
@@ -42,9 +39,6 @@ func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 	// prometheus receiver
 	addPrometheusReceiver(conf, prometheusReceiver)
 
-	// datadog connector
-	changeDefaultConfigsForDatadogConnector(conf)
-
 	// add datadog agent sourced config
 	addCoreAgentConfig(conf, c.coreConfig)
 }
@@ -63,7 +57,15 @@ func addComponentToConfig(conf *confmap.Conf, comp component) {
 	if present {
 		componentsMap, ok := components.(map[string]any)
 		if !ok {
-			return
+			if components == nil {
+				// components map is nil. It is defined but section is empty.
+				// need to create map manually
+
+				componentsMap = make(map[string]any)
+				stringMapConf[comp.Type] = componentsMap
+			} else {
+				return
+			}
 		}
 		componentsMap[comp.EnhancedName] = comp.Config
 	} else {
@@ -113,80 +115,5 @@ func addComponentToPipeline(conf *confmap.Conf, comp component, pipelineName str
 		pipelineMap[comp.Type] = pipelineOfTypeSlice
 	}
 
-	*conf = *confmap.NewFromStringMap(stringMapConf)
-}
-
-// addCoreAgentConfig enhances the configuration with information about the core agent.
-// For example, if api key is not found in otel config, it can be retrieved from core
-// agent config instead.
-func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
-	if coreCfg == nil {
-		return
-	}
-	stringMapConf := conf.ToStringMap()
-	exporters, ok := stringMapConf["exporters"]
-	if !ok {
-		return
-	}
-	exporterMap, ok := exporters.(map[string]any)
-	if !ok {
-		return
-	}
-	reg, err := regexp.Compile(secretRegex)
-	if err != nil {
-		return
-	}
-	for exporter := range exporterMap {
-		if componentName(exporter) == "datadog" {
-			datadog, ok := exporterMap[exporter]
-			if !ok {
-				return
-			}
-			datadogMap, ok := datadog.(map[string]any)
-			if !ok {
-				// datadog section is there, but there is nothing in it. We
-				// need to add it so we can add to it.
-				exporterMap[exporter] = make(map[string]any)
-				datadogMap = exporterMap[exporter].(map[string]any)
-			}
-			api, ok := datadogMap["api"]
-			// ok can be true if api section is there but contains nothing (api == nil).
-			// In which case, we need to add it so we can add to it.
-			if !ok || api == nil {
-				datadogMap["api"] = make(map[string]any, 2)
-				api = datadogMap["api"]
-			}
-			apiMap, ok := api.(map[string]any)
-			if !ok {
-				return
-			}
-
-			// api::site
-			apiSite := apiMap["site"]
-			if (apiSite == nil || apiSite == "") && coreCfg.Get("site") != nil {
-				apiMap["site"] = coreCfg.Get("site")
-			}
-
-			// api::key
-			var match bool
-			apiKey, ok := apiMap["key"]
-			if ok {
-				var key string
-				if keyString, okString := apiKey.(string); okString {
-					key = keyString
-				}
-				if ok && key != "" {
-					match = reg.Match([]byte(key))
-					if !match {
-						continue
-					}
-				}
-			}
-			// TODO: add logic to either fail or log message if api key not found
-			if (apiKey == nil || apiKey == "" || match) && coreCfg.Get("api_key") != nil {
-				apiMap["key"] = coreCfg.Get("api_key")
-			}
-		}
-	}
 	*conf = *confmap.NewFromStringMap(stringMapConf)
 }

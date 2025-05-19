@@ -9,64 +9,39 @@ jobs:
   update-and-generate:
     runs-on: ubuntu-latest
     permissions:
+      contents: write
       pull-requests: write
     steps:
-      - name: Set date
-        id: date
-        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
-
       - name: Checkout repository
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
 
-      - name: Set up Python
-        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+      - name: Set up Go
+        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
         with:
-          python-version: '3.12.6'
+          go-version-file: .go-version
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
 
-      - name: Run update task
-        env: 
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: inv -e collector.update
-
-      - name: Run generate task
+      - name: Run Collector Update Script
+        id: collector-update
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: inv -e collector.generate
-
-      - name: Check for changes
-        id: check_changes
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          if git diff-index --quiet HEAD; then
-            echo "No changes detected"
-            echo "changes_detected=false" >> $GITHUB_OUTPUT
-          else
-            echo "Changes detected"
-            echo "changes_detected=true" >> $GITHUB_OUTPUT
-          fi
+          dda inv -- -e install-tools
+          dda inv -- -e collector.update
+          echo "OCB_VERSION=$OCB_VERSION" >> $GITHUB_OUTPUT
+          dda inv -- -e collector.generate
+          dda inv -- -e generate-licenses
 
-      - name: Commit changes
-        if: steps.check_changes.outputs.changes_detected == 'true'
-        run: |
-          git switch -c update-otel-collector-dependencies-${{ steps.date.outputs.date }}
-          git commit -m "Update OTel Collector dependencies and generate OTel Agent"
-          git push -u origin update-otel-collector-dependencies-${{ steps.date.outputs.date }}
-
-      - name: Install GitHub CLI
-        if: steps.check_changes.outputs.changes_detected == 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install gh
-
-      - name: Create draft pull request
-        if: steps.check_changes.outputs.changes_detected == 'true'
-        run: |
-          gh auth login --with-token <<< ${{ secrets.GITHUB_TOKEN }}
-          gh pr create --title "Update OTel collector dependencies" --body "This PR updates the OTel Collector dependencies to the latest version. Please ensure that all tests pass before marking ready for review." --base main --head update-otel-collector-dependencies-${{ steps.date.outputs.date }} --draft
+      - uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        name: Create pull request
+        with:
+          commit-message: Update OTel Collector dependencies to ${{ steps.collector-update.outputs.OCB_VERSION}} and generate OTel Agent
+          branch: update-otel-collector-dependencies-${{ steps.collector-update.outputs.OCB_VERSION}}
+          sign-commits: true
+          title: Update OTel Collector dependencies to v${{ steps.collector-update.outputs.OCB_VERSION}}
+          body: This PR updates the dependencies of the OTel Collector to v{OCB_VERSION} and generates the OTel Agent code.
+          draft: true

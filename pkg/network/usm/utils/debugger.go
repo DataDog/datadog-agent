@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"sync"
 
-	otherutils "github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	otherutils "github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 )
 
 // Attacher is the interface that represents a PID attacher/detacher.
@@ -31,6 +31,7 @@ type Attacher interface {
 type TracedProgram struct {
 	ProgramType string
 	FilePath    string
+	PathID      PathIdentifier
 	PIDs        []uint32
 }
 
@@ -44,14 +45,15 @@ type BlockedProcess struct {
 type PathIdentifierWithSamplePath struct {
 	PathIdentifier
 	SamplePath string
+	Reason     string
 }
 
 // GetTracedProgramsEndpoint returns a callback for the given module name, that
 // generates a summary of all active uprobe-based programs along with their file paths and PIDs.
 // This is used for debugging purposes only.
 func GetTracedProgramsEndpoint(moduleName string) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, _ *http.Request) {
-		otherutils.WriteAsJSON(w, debugger.GetTracedPrograms(moduleName))
+	return func(w http.ResponseWriter, req *http.Request) {
+		otherutils.WriteAsJSON(w, debugger.GetTracedPrograms(moduleName), otherutils.GetPrettyPrintFromQueryParams(req))
 	}
 }
 
@@ -60,8 +62,8 @@ func GetTracedProgramsEndpoint(moduleName string) func(http.ResponseWriter, *htt
 // registry along with their device and inode numbers, and sample path.
 // This is used for debugging purposes only.
 func GetBlockedPathIDEndpoint(moduleName string) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, _ *http.Request) {
-		otherutils.WriteAsJSON(w, debugger.GetAllBlockedPathIDs(moduleName))
+	return func(w http.ResponseWriter, req *http.Request) {
+		otherutils.WriteAsJSON(w, debugger.GetAllBlockedPathIDs(moduleName), otherutils.GetPrettyPrintFromQueryParams(req))
 	}
 }
 
@@ -131,6 +133,7 @@ func (d *tlsDebugger) GetTracedPrograms(moduleName string) []TracedProgram {
 
 			program.ProgramType = programType
 			program.FilePath = registration.sampleFilePath
+			program.PathID = pathID
 		}
 		registry.m.Unlock()
 
@@ -211,11 +214,12 @@ func (d *tlsDebugger) GetBlockedPathIDsWithSamplePath(moduleName, programType st
 
 		blockedIDsWithSampleFile := make([]PathIdentifierWithSamplePath, 0, len(registry.blocklistByID.Keys()))
 		for _, pathIdentifier := range registry.blocklistByID.Keys() {
-			samplePath, ok := registry.blocklistByID.Get(pathIdentifier)
+			entry, ok := registry.blocklistByID.Get(pathIdentifier)
 			if ok {
 				blockedIDsWithSampleFile = append(blockedIDsWithSampleFile, PathIdentifierWithSamplePath{
 					PathIdentifier: pathIdentifier,
-					SamplePath:     samplePath})
+					SamplePath:     entry.Path,
+					Reason:         entry.Reason})
 			}
 		}
 

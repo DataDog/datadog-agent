@@ -1,6 +1,4 @@
-import io
 import subprocess
-from collections import defaultdict
 from enum import Enum
 
 from gitlab.v4.objects import ProjectJob
@@ -88,9 +86,6 @@ class FailedJobs:
         else:
             self.mandatory_job_failures.append(job)
 
-    def all_non_infra_failures(self):
-        return self.mandatory_job_failures + self.optional_job_failures
-
     def all_mandatory_failures(self):
         return self.mandatory_job_failures + self.mandatory_infra_job_failures
 
@@ -103,71 +98,10 @@ class FailedJobs:
         )
 
 
-class SlackMessage:
-    JOBS_SECTION_HEADER = "Failed jobs:"
-    INFRA_SECTION_HEADER = "Infrastructure failures:"
-    TEST_SECTION_HEADER = "Failed tests:"
-    MAX_JOBS_PER_TEST = 2
+class PermissionCheck(Enum):
+    """
+    Enum to have a choice of permissions as argument to the check-permissions task.
+    """
 
-    def __init__(self, base: str = "", jobs: FailedJobs = None):
-        jobs = jobs if jobs else FailedJobs()
-        self.base_message = base
-        self.failed_jobs = jobs
-        self.failed_tests = defaultdict(list)
-        self.coda = ""
-
-    def add_test_failure(self, test, job):
-        self.failed_tests[test.key].append(job)
-
-    def __render_jobs_section(self, header: str, jobs: list, buffer: io.StringIO):
-        if not jobs:
-            return
-
-        print(header, file=buffer)
-
-        jobs_per_stage = defaultdict(list)
-        for job in jobs:
-            jobs_per_stage[job.stage].append(job)
-
-        for stage, jobs in jobs_per_stage.items():
-            jobs_info = []
-            for job in jobs:
-                num_retries = len(job.retry_summary) - 1
-                job_info = f"<{job.web_url}|{job.name}>"
-                if num_retries > 0:
-                    job_info += f" ({num_retries} retries)"
-
-                jobs_info.append(job_info)
-
-            print(
-                f"- {', '.join(jobs_info)} (`{stage}` stage)",
-                file=buffer,
-            )
-
-    def __render_tests_section(self, buffer):
-        print(self.TEST_SECTION_HEADER, file=buffer)
-        for (test_name, test_package), jobs in self.failed_tests.items():
-            job_list = ", ".join(f"<{job.web_url}|{job.name}>" for job in jobs[: self.MAX_JOBS_PER_TEST])
-            if len(jobs) > self.MAX_JOBS_PER_TEST:
-                job_list += f" and {len(jobs) - self.MAX_JOBS_PER_TEST} more"
-            print(f"- `{test_name}` from package `{test_package}` (in {job_list})", file=buffer)
-
-    def __str__(self):
-        buffer = io.StringIO()
-        if self.base_message:
-            print(self.base_message, file=buffer)
-        self.__render_jobs_section(
-            self.JOBS_SECTION_HEADER,
-            self.failed_jobs.mandatory_job_failures,
-            buffer,
-        )
-        self.__render_jobs_section(
-            self.INFRA_SECTION_HEADER,
-            self.failed_jobs.mandatory_infra_job_failures,
-            buffer,
-        )
-        if self.failed_tests:
-            self.__render_tests_section(buffer)
-        if self.coda:
-            print(self.coda, file=buffer)
-        return buffer.getvalue()
+    REPO = 'repo'
+    TEAM = 'team'

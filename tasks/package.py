@@ -1,78 +1,77 @@
 import os
+import tempfile
 from datetime import datetime
 
-from invoke import task
+from invoke.context import Context
 from invoke.exceptions import Exit
+from invoke.tasks import task
 
-from tasks.libs.common.color import color_message
-from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.diff import diff as _diff
+from tasks.libs.common.download import download as _download
+from tasks.libs.common.git import get_default_branch
+from tasks.libs.package.extract import extract_deb, extract_rpm
 from tasks.libs.package.size import (
     PACKAGE_SIZE_TEMPLATE,
-    _get_deb_uncompressed_size,
-    _get_rpm_uncompressed_size,
     compare,
     compute_package_size_metrics,
 )
-from tasks.libs.package.utils import get_package_path, list_packages, retrieve_package_sizes, upload_package_sizes
+from tasks.libs.package.url import get_deb_package_url, get_rpm_package_url
+from tasks.libs.package.utils import (
+    PackageSize,
+    display_message,
+    get_ancestor,
+    get_package_name,
+    list_packages,
+    retrieve_package_sizes,
+    upload_package_sizes,
+)
+from tasks.libs.pipeline.utils import get_pipeline_id
 
 
 @task
 def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False):
     package_sizes = retrieve_package_sizes(ctx, filename, distant=not dry_run)
-    if get_current_branch(ctx) == get_default_branch():
+    on_main = os.environ['CI_COMMIT_REF_NAME'] == get_default_branch()
+    ancestor = get_ancestor(ctx, package_sizes, on_main)
+    if on_main:
         # Initialize to default values
-        ancestor = get_common_ancestor(ctx, get_default_branch())
         if ancestor in package_sizes:
             # The test already ran on this commit
             return
-        package_sizes[ancestor] = PACKAGE_SIZE_TEMPLATE
+        package_sizes[ancestor] = PACKAGE_SIZE_TEMPLATE.copy()
         package_sizes[ancestor]['timestamp'] = int(datetime.now().timestamp())
     # Check size of packages
-    for package_info in list_packages(PACKAGE_SIZE_TEMPLATE):
-        compare(ctx, package_sizes, *package_info)
-    if get_current_branch(ctx) == get_default_branch():
-        upload_package_sizes(ctx, package_sizes, filename, distant=not dry_run)
-
-
-@task
-def compare_size(ctx, new_package, stable_package, package_type, last_stable, threshold):
-    mb = 1000000
-
-    if package_type.endswith('deb'):
-        new_package_size = _get_deb_uncompressed_size(ctx, get_package_path(new_package))
-        stable_package_size = _get_deb_uncompressed_size(ctx, get_package_path(stable_package))
-    else:
-        new_package_size = _get_rpm_uncompressed_size(ctx, get_package_path(new_package))
-        stable_package_size = _get_rpm_uncompressed_size(ctx, get_package_path(stable_package))
-
-    threshold = int(threshold)
-
-    diff = new_package_size - stable_package_size
-
-    # For printing purposes
-    new_package_size_mb = new_package_size / mb
-    stable_package_size_mb = stable_package_size / mb
-    threshold_mb = threshold / mb
-    diff_mb = diff / mb
-
-    if diff > threshold:
-        print(
-            color_message(
-                f"""{package_type} size increase is too large:
-  New package size is {new_package_size_mb:.2f}MB
-  Stable package ({last_stable}) size is {stable_package_size_mb:.2f}MB
-  Diff is {diff_mb:.2f}MB > {threshold_mb:.2f}MB (max allowed diff)""",
-                "red",
-            )
-        )
-        raise Exit(code=1)
-
     print(
-        f"""{package_type} size increase is OK:
-  New package size is {new_package_size_mb:.2f}MB
-  Stable package ({last_stable}) size is {stable_package_size_mb:.2f}MB
-  Diff is {diff_mb:.2f}MB (max allowed diff: {threshold_mb:.2f}MB)"""
+        color_message(f"Checking package sizes from {os.environ['CI_COMMIT_REF_NAME']} against {ancestor}", Color.BLUE)
     )
+    size_table = []
+    for package_info in list_packages(PACKAGE_SIZE_TEMPLATE):
+        pkg_size = PackageSize(*package_info)
+        size_table.append(compare(ctx, package_sizes, ancestor, pkg_size))
+
+    if on_main:
+        upload_package_sizes(ctx, package_sizes, filename, distant=not dry_run)
+    else:
+        size_table.sort(key=lambda x: (-x.diff, x.flavor, x.arch_name()))
+        size_message = "".join(f"{pkg_size.markdown()}\n" for pkg_size in size_table if pkg_size.diff >= 0)
+        reduction_size_message = "".join(f"{pkg_size.markdown()}\n" for pkg_size in size_table if pkg_size.diff < 0)
+        if "❌" in size_message:
+            decision = "❌ Failed"
+        elif "⚠️" in size_message:
+            decision = "⚠️ Warning"
+        else:
+            decision = "✅ Passed"
+        # Try to display the message on the PR when a PR exists
+        if os.environ.get("CI_COMMIT_BRANCH"):
+            try:
+                display_message(ctx, ancestor, size_message, reduction_size_message, decision)
+            # PR commenter asserts on the numbers of PR's, this will raise if there's no PR
+            except AssertionError as exc:
+                print(f"Got `{exc}` while trying to comment on PR, we'll assume that this is not a PR.")
+        if "Failed" in decision:
+            raise Exit(code=0)
 
 
 @task
@@ -129,3 +128,108 @@ def send_size(
         print(color_message("Sending metrics to Datadog", "blue"))
         send_metrics(series=series)
         print(color_message("Done", "green"))
+
+
+@task(
+    help={
+        "binary": "The binary of the package, either agent or dogstatsd",
+        "type": "The type of package, only deb is supported for now",
+        "flavor": "The flavor of the package, either empty, heroku, iot or fips",
+        "arch": "The package architecture, either amd64 or arm64",
+        "pull_request_id": "Compare the package from the pull request's head to its merge-base.",
+        "base_ref": "The base ref to compare the package from.",
+        "base_pipeline": "The base pipeline id to compare the package from.",
+        "target_ref": "The target ref to compare the package to.",
+        "target_pipeline": "The target pipeline id to compare the package to.",
+    }
+)
+def diff(
+    ctx: Context,
+    binary: str = "agent",
+    _type: str = "deb",
+    flavor: str = "",
+    arch: str = "amd64",
+    pull_request_id: str | None = None,
+    base_ref: str | None = None,
+    base_pipeline: str | None = None,
+    target_ref: str | None = None,
+    target_pipeline: str | None = None,
+):
+    """
+    Diff the content of the given package.
+
+    Exactly one of --base-ref, --base-pipeline, or --pull-request-id must be provided.
+    Exactly one of --target-ref, --target-pipeline, or --pull-request-id must be provided.
+    """
+
+    repo = get_gitlab_repo("DataDog/datadog-agent")
+    base_pipeline_id = get_pipeline_id(ctx, repo, base_ref, base_pipeline, pull_request_id, base=True)
+    target_pipeline_id = get_pipeline_id(ctx, repo, target_ref, target_pipeline, pull_request_id, base=False)
+    print(f"Comparing package from pipeline {base_pipeline_id} with pipeline {target_pipeline_id}")
+
+    tmpdir = tempfile.mkdtemp()
+    print(f"Artifacts will be downloaded to {tmpdir}")
+
+    base_extract_dir = os.path.join(tmpdir, "base")
+    download(ctx, base_pipeline_id, binary, _type, flavor, arch, tmpdir, extract_dir=base_extract_dir)
+    target_extract_dir = os.path.join(tmpdir, "target")
+    download(ctx, target_pipeline_id, binary, _type, flavor, arch, tmpdir, extract_dir=target_extract_dir)
+
+    _diff(base_extract_dir, target_extract_dir)
+
+
+@task(
+    help={
+        "pipeline": "The pipeline id to download the package from",
+        "binary": "The binary of the package, either agent or dogstatsd",
+        "type": "The type of package, only deb is supported for now",
+        "flavor": "The flavor of the package, either empty, heroku, iot or fips",
+        "arch": "The package architecture, either amd64 or arm64",
+        "path": "The path to download the package to",
+        "extract": "Whether to extract the package",
+        "extract_dir": "The directory to extract the package to",
+    }
+)
+def download(
+    ctx: Context,
+    pipeline: str | int,
+    binary: str = "agent",
+    _type: str = "deb",
+    flavor: str = "",
+    arch: str = "amd64",
+    path: str | None = None,
+    extract: bool = True,
+    extract_dir: str | None = None,
+):
+    """
+    Download the package from the given pipeline.
+    """
+
+    assert binary in ("agent", "dogstatsd"), "Unknown binary"
+    assert flavor in ("", "heroku", "iot", "fips"), "Unknown flavor"
+    assert arch in ("amd64", "arm64"), "Unknown architecture"
+
+    if path is None:
+        path = os.getcwd()
+
+    if extract_dir is None:
+        extract_dir = path
+    else:
+        # If extract_dir is provided, always extract
+        extract = True
+
+    match _type:
+        case "deb":
+            _get_package_url = get_deb_package_url
+            _extract = extract_deb
+        case "rpm":
+            _get_package_url = get_rpm_package_url
+            _extract = extract_rpm
+        case _:
+            raise Exit(code=1, message=f"Unknown package type: {_type}")
+
+    package_name = get_package_name(binary, flavor)
+    download_path = _download(_get_package_url(ctx, int(pipeline), package_name, arch), path)
+
+    if extract:
+        _extract(ctx, download_path, extract_dir)

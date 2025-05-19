@@ -5,8 +5,8 @@
 
 //go:build otlp
 
-// Package collectorimpl implements the collector component
-package collectorimpl
+// Package pipelineimpl implements the collector component
+package pipelineimpl
 
 import (
 	"encoding/json"
@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	extensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,7 +39,7 @@ func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 
 	// add raw response to flare, and unmarshal it
 	fb.AddFile("otel/otel-response.json", responseBytes)
-	var responseInfo extension.Response
+	var responseInfo extensiontypes.Response
 	if err := json.Unmarshal(responseBytes, &responseInfo); err != nil {
 		msg := fmt.Sprintf("could not read sources from otel-agent response: %s, error: %v", responseBytes, err)
 		log.Error(msg)
@@ -127,9 +127,11 @@ func (c *collectorImpl) requestOtelConfigInfo(endpointURL string) ([]byte, error
 		return []byte(overrideConfigResponse), nil
 	}
 
+	authToken := c.ipc.GetAuthToken()
+
 	options := apiutil.ReqOptions{
 		Ctx:       c.ctx,
-		Authtoken: c.authToken.Get(),
+		Authtoken: authToken,
 	}
 
 	data, err := apiutil.DoGetWithOptions(c.client, endpointURL, &options)

@@ -14,15 +14,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -177,7 +176,7 @@ func (pm *ProcessMonitor) handleProcessExec(pid uint32) {
 			continue
 		default:
 			pm.tel.processExecChannelIsFull.Add(1)
-			if log.ShouldLog(seelog.DebugLvl) && pm.oversizedLogLimit.ShouldLog() {
+			if log.ShouldLog(log.DebugLvl) && pm.oversizedLogLimit.ShouldLog() {
 				log.Debug("can't send exec callback to callbackRunner, channel is full")
 			}
 		}
@@ -197,7 +196,7 @@ func (pm *ProcessMonitor) handleProcessExit(pid uint32) {
 			continue
 		default:
 			pm.tel.processExitChannelIsFull.Add(1)
-			if log.ShouldLog(seelog.DebugLvl) && pm.oversizedLogLimit.ShouldLog() {
+			if log.ShouldLog(log.DebugLvl) && pm.oversizedLogLimit.ShouldLog() {
 				log.Debug("can't send exit callback to callbackRunner, channel is full")
 			}
 		}
@@ -210,7 +209,7 @@ func (pm *ProcessMonitor) initNetlinkProcessEventMonitor() error {
 	pm.netlinkErrorsChannel = make(chan error, 10)
 	pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorEventQueueSize)
 
-	if err := kernel.WithRootNS(kernel.ProcFSRoot(), func() error {
+	if err := netns.WithRootNS(kernel.ProcFSRoot(), func() error {
 		return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
 	}); err != nil {
 		return fmt.Errorf("couldn't initialize process monitor: %s", err)
@@ -221,7 +220,10 @@ func (pm *ProcessMonitor) initNetlinkProcessEventMonitor() error {
 
 // initCallbackRunner runs multiple workers that run tasks sent over a queue.
 func (pm *ProcessMonitor) initCallbackRunner() {
-	cpuNum := runtime.NumVCPU()
+	cpuNum, err := kernel.PossibleCPUs()
+	if err != nil {
+		cpuNum = runtime.NumVCPU()
+	}
 	pm.callbackRunner = make(chan func(), pendingCallbacksQueueSize)
 	pm.callbackRunnerStopChannel = make(chan struct{})
 	pm.callbackRunnersWG.Add(cpuNum)
@@ -381,7 +383,7 @@ func (pm *ProcessMonitor) Initialize(useEventStream bool) error {
 
 			go pm.mainEventLoop()
 
-			if err := kernel.WithRootNS(kernel.ProcFSRoot(), func() error {
+			if err := netns.WithRootNS(kernel.ProcFSRoot(), func() error {
 				return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
 			}); err != nil {
 				initErr = fmt.Errorf("couldn't initialize process monitor: %w", err)
@@ -487,76 +489,20 @@ func (pm *ProcessMonitor) Stop() {
 	pm.processExitCallbacksMutex.Unlock()
 }
 
-// Event defines the event used by the process monitor
-type Event struct {
-	Type model.EventType
-	Pid  uint32
-}
-
-// EventConsumer defines an event consumer to handle event monitor events in the
-// process monitor
-type EventConsumer struct{}
-
-// NewProcessMonitorEventConsumer returns a new process monitor event consumer
-func NewProcessMonitorEventConsumer(em *eventmonitor.EventMonitor) (*EventConsumer, error) {
-	consumer := &EventConsumer{}
-	err := em.AddEventConsumerHandler(consumer)
-	return consumer, err
-}
-
-// ChanSize returns the channel size used by this consumer
-func (ec *EventConsumer) ChanSize() int {
-	return 500
-}
-
-// ID returns the ID of this consumer
-func (ec *EventConsumer) ID() string {
-	return "PROCESS_MONITOR"
-}
-
-// Start the consumer
-func (ec *EventConsumer) Start() error {
-	return nil
-}
-
-// Stop the consumer
-func (ec *EventConsumer) Stop() {
-}
-
-// EventTypes returns the event types handled by this consumer
-func (ec *EventConsumer) EventTypes() []model.EventType {
-	return []model.EventType{
-		model.ExecEventType,
-		model.ExitEventType,
-	}
-}
-
-// HandleEvent handles events received from the event monitor
-func (ec *EventConsumer) HandleEvent(event any) {
-	sevent, ok := event.(*Event)
-	if !ok {
-		return
-	}
-
-	processMonitor.tel.events.Add(1)
-	switch sevent.Type {
-	case model.ExecEventType:
+// InitializeEventConsumer initializes the event consumer with the event handling.
+func InitializeEventConsumer(consumer *consumers.ProcessConsumer) {
+	consumer.SubscribeExec(func(pid uint32) {
+		processMonitor.tel.events.Add(1)
 		processMonitor.tel.exec.Add(1)
 		if processMonitor.hasExecCallbacks.Load() {
-			processMonitor.handleProcessExec(sevent.Pid)
+			processMonitor.handleProcessExec(pid)
 		}
-	case model.ExitEventType:
+	})
+	consumer.SubscribeExit(func(pid uint32) {
+		processMonitor.tel.events.Add(1)
 		processMonitor.tel.exit.Add(1)
 		if processMonitor.hasExitCallbacks.Load() {
-			processMonitor.handleProcessExit(sevent.Pid)
+			processMonitor.handleProcessExit(pid)
 		}
-	}
-}
-
-// Copy should copy the given event or return nil to discard it
-func (ec *EventConsumer) Copy(event *model.Event) any {
-	return &Event{
-		Type: event.GetEventType(),
-		Pid:  event.GetProcessPid(),
-	}
+	})
 }

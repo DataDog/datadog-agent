@@ -12,9 +12,8 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	stdLog "log"
@@ -23,27 +22,32 @@ import (
 	"strings"
 	"time"
 
-	languagedetection "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1/languagedetection"
-
-	"github.com/cihub/seelog"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
 	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1/languagedetection"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v2/series"
+	"github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
+	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
@@ -54,19 +58,23 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component) error {
+func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, ipc ipc.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component, telemetry telemetry.Component) error {
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
 
 	// IPC REST API server
-	agent.SetupHandlers(router, w, ac, statusComponent, settings, taggerComp)
+	agent.SetupHandlers(router, w, ac, statusComponent, settings, taggerComp, diagnoseComponent, dcametadataComp)
 
 	// API V1 Metadata APIs
 	v1.InstallMetadataEndpoints(apiRouter, w)
 
 	// API V1 Language Detection APIs
 	languagedetection.InstallLanguageDetectionEndpoints(ctx, apiRouter, w, cfg)
+
+	// API V2 Series APIs
+	v2ApiRouter := router.PathPrefix("/api/v2").Subrouter()
+	series.InstallNodeMetricsEndpoints(ctx, v2ApiRouter, cfg)
 
 	// Validate token for every request
 	router.Use(validateToken)
@@ -79,44 +87,23 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 		// no way we can recover from this error
 		return fmt.Errorf("unable to create the api server: %v", err)
 	}
-	// Internal token
-	util.CreateAndSetAuthToken(pkgconfigsetup.Datadog()) //nolint:errcheck
 
 	// DCA client token
 	util.InitDCAAuthToken(pkgconfigsetup.Datadog()) //nolint:errcheck
 
-	// create cert
-	hosts := []string{"127.0.0.1", "localhost"}
-	_, rootCertPEM, rootKey, err := security.GenerateRootCert(hosts, 2048)
-	if err != nil {
-		return fmt.Errorf("unable to start TLS server")
-	}
+	tlsConfig := ipc.GetTLSServerConfig()
 
-	// PEM encode the private key
-	rootKeyPEM := pem.EncodeToMemory(&pem.Block{
-		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
-	})
-
-	// Create a TLS cert using the private key and certificate
-	rootTLSCert, err := tls.X509KeyPair(rootCertPEM, rootKeyPEM)
-	if err != nil {
-		return fmt.Errorf("invalid key pair: %v", err)
-	}
-
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{rootTLSCert},
-		MinVersion:   tls.VersionTLS13,
-	}
+	tlsConfig.MinVersion = tls.VersionTLS13
 
 	if pkgconfigsetup.Datadog().GetBool("cluster_agent.allow_legacy_tls") {
 		tlsConfig.MinVersion = tls.VersionTLS10
 	}
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := pkglogsetup.NewTLSHandshakeErrorWriter(4, seelog.WarnLvl)
+	logWriter, _ := pkglogsetup.NewTLSHandshakeErrorWriter(4, log.WarnLvl)
 
 	authInterceptor := grpcutil.AuthInterceptor(func(token string) (interface{}, error) {
-		if token != util.GetDCAAuthToken() {
+		if subtle.ConstantTimeCompare([]byte(token), []byte(util.GetDCAAuthToken())) == 0 {
 			return struct{}{}, errors.New("Invalid session token")
 		}
 
@@ -135,17 +122,24 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	// event size should be small enough to fit within the grpc max message size
 	maxEventSize := maxMessageSize / 2
 	pb.RegisterAgentSecureServer(grpcSrv, &serverSecure{
-		taggerServer: taggerserver.NewServer(taggerComp, maxEventSize),
+		taggerServer: taggerserver.NewServer(taggerComp, telemetry, maxEventSize, cfg.GetInt("remote_tagger.max_concurrent_sync")),
 	})
 
 	timeout := pkgconfigsetup.Datadog().GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second
-	srv := grpcutil.NewMuxedGRPCServer(
+	errorLog := stdLog.New(logWriter, "Error from the agent http API server: ", 0) // log errors to seelog
+	srv := helpers.NewMuxedGRPCServer(
 		listener.Addr().String(),
 		tlsConfig,
 		grpcSrv,
-		grpcutil.TimeoutHandlerFunc(router, timeout),
+		// Use a recovery handler to log panics if they happen.
+		// The client will receive a 500 error.
+		handlers.RecoveryHandler(
+			handlers.PrintRecoveryStack(true),
+			handlers.RecoveryLogger(errorLog),
+		)(router),
+		timeout,
 	)
-	srv.ErrorLog = stdLog.New(logWriter, "Error from the agent http API server: ", 0) // log errors to seelog
+	srv.ErrorLog = errorLog
 
 	tlsListener := tls.NewListener(listener, srv.TLSConfig)
 
@@ -191,6 +185,7 @@ func isExternalPath(path string) bool {
 	return strings.HasPrefix(path, "/api/v1/metadata/") && len(strings.Split(path, "/")) == 7 || // support for agents < 6.5.0
 		path == "/version" ||
 		path == "/api/v1/languagedetection" ||
+		path == "/api/v2/series" ||
 		strings.HasPrefix(path, "/api/v1/annotations/node/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/cf/apps") && len(strings.Split(path, "/")) == 5 ||
 		strings.HasPrefix(path, "/api/v1/cf/apps/") && len(strings.Split(path, "/")) == 6 ||

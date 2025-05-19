@@ -7,7 +7,6 @@
 package host
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os/user"
@@ -15,21 +14,19 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // Host is a remote host environment.
 type Host struct {
-	t              *testing.T
+	t              func() *testing.T
 	remote         *components.RemoteHost
 	os             e2eos.Descriptor
 	arch           e2eos.Architecture
@@ -38,10 +35,10 @@ type Host struct {
 }
 
 // Option is an option to configure a Host.
-type Option func(*testing.T, *Host)
+type Option func(func() *testing.T, *Host)
 
 // New creates a new Host.
-func New(t *testing.T, remote *components.RemoteHost, os e2eos.Descriptor, arch e2eos.Architecture, opts ...Option) *Host {
+func New(t func() *testing.T, remote *components.RemoteHost, os e2eos.Descriptor, arch e2eos.Architecture, opts ...Option) *Host {
 	host := &Host{
 		t:      t,
 		remote: remote,
@@ -60,7 +57,7 @@ func New(t *testing.T, remote *components.RemoteHost, os e2eos.Descriptor, arch 
 	} else if _, err := host.remote.Execute("command -v yum"); err == nil {
 		host.pkgManager = "yum"
 	} else {
-		t.Fatal("no package manager found")
+		t().Fatal("no package manager found")
 	}
 	return host
 }
@@ -73,13 +70,31 @@ func (h *Host) GetPkgManager() string {
 func (h *Host) setSystemdVersion() {
 	strVersion := strings.TrimSpace(h.remote.MustExecute("systemctl --version | head -n1 | awk '{print $2}'"))
 	version, err := strconv.Atoi(strVersion)
-	require.NoError(h.t, err)
+	require.NoError(h.t(), err)
 	h.systemdVersion = version
 }
 
 // InstallDocker installs Docker on the host if it is not already installed.
 func (h *Host) InstallDocker() {
-	defer func() { h.remote.MustExecute("sudo systemctl start docker") }()
+	defer func() {
+		// This defer will basically restart docker from a clean state, to avoid any issues in between tests.
+		// It will:
+		// - 1. Stop docker (if it's running)
+		// - 2. Reset failed status
+		// - 3. Remove the network directory to avoid network collision
+		// - 4. Start docker again
+		_, _ = h.remote.Execute("sudo systemctl stop docker")
+		_, err := h.remote.Execute("sudo systemctl reset-failed docker")
+		if err != nil {
+			h.t().Logf("warn: failed to reset-failed for docker.d: %v", err)
+		}
+		_, err = h.remote.Execute("sudo rm -rf /var/lib/docker/network")
+		if err != nil {
+			h.t().Logf("warn: failed to remove /var/lib/docker/network: %v", err)
+		}
+		_, err = h.remote.Execute("sudo systemctl start docker")
+		require.NoErrorf(h.t(), err, "failed to start Docker, logs: %s", h.remote.MustExecute("sudo journalctl -xeu docker"))
+	}()
 	if _, err := h.remote.Execute("command -v docker"); err == nil {
 		return
 	}
@@ -100,7 +115,7 @@ func (h *Host) GetDockerRuntimePath(runtime string) string {
 
 	var cmd string
 	switch h.os.Flavor {
-	case e2eos.AmazonLinux:
+	case e2eos.AmazonLinux, e2eos.Suse:
 		cmd = "sudo docker system info --format '{{ (index .Runtimes \"%s\").Path }}'"
 	default:
 		cmd = "sudo docker system info --format '{{ (index .Runtimes \"%s\").Runtime.Path }}'"
@@ -141,19 +156,32 @@ func (h *Host) DeletePath(path string) {
 }
 
 // WaitForUnitActive waits for a systemd unit to be active
-func (h *Host) WaitForUnitActive(units ...string) {
+func (h *Host) WaitForUnitActive(t *testing.T, units ...string) {
 	for _, unit := range units {
-		_, err := h.remote.Execute(fmt.Sprintf("timeout=60; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
-		require.NoError(h.t, err, "unit %s did not become active. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
+		assert.Eventually(t, func() bool {
+			_, err := h.remote.Execute(fmt.Sprintf("systemctl is-active --quiet %s", unit))
+
+			return err == nil
+		}, time.Second*90, time.Second*2, "unit %s did not become active. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
 	}
 }
 
 // WaitForUnitActivating waits for a systemd unit to be activating
-func (h *Host) WaitForUnitActivating(units ...string) {
+func (h *Host) WaitForUnitActivating(t *testing.T, units ...string) {
 	for _, unit := range units {
-		_, err := h.remote.Execute(fmt.Sprintf("timeout=60; unit=%s; while ! grep -q \"Active: activating\" <(sudo systemctl status $unit) && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
-		require.NoError(h.t, err, "unit %s did not become activating. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
-
+		assert.Eventually(t, func() bool {
+			_, err := h.remote.Execute(fmt.Sprintf("grep -q \"Active: activating\" <(sudo systemctl status %s)", unit))
+			return err == nil
+		},
+			time.Second*90,
+			time.Second*2,
+			"unit %s did not become activating. installer logs:\n%s\n\ninstaller exp logs:\n%sunit %s logs:\n%s",
+			unit,
+			h.remote.MustExecute("sudo journalctl -xeu datadog-installer"),
+			h.remote.MustExecute("sudo journalctl -xeu datadog-installer-exp"),
+			unit,
+			h.remote.MustExecute("sudo journalctl -xeu "+unit),
+		)
 	}
 }
 
@@ -166,7 +194,7 @@ func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
 
 	for _, path := range filePaths {
 		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; file=%s; while [ ! %s -f $file ] && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", path, sudo))
-		require.NoError(h.t, err, "file %s did not exist", path)
+		require.NoError(h.t(), err, "file %s did not exist", path)
 	}
 }
 
@@ -174,8 +202,8 @@ func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
 // This is because of a race condition where the trace agent is not ready to receive traces and we send them
 // meaning that the traces are lost
 func (h *Host) WaitForTraceAgentSocketReady() {
-	_, err := h.remote.Execute("timeout=30; while ! grep -q 'Listening for traces at unix://' <(journalctl _PID=`systemctl show -p MainPID datadog-agent-trace | cut -d\"=\" -f2`); do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]")
-	require.NoError(h.t, err, "trace agent did not become ready")
+	_, err := h.remote.Execute("timeout=30; while ! grep -q 'Listening for traces at unix://' <(sudo journalctl _PID=`systemctl show -p MainPID datadog-agent-trace | cut -d\"=\" -f2`); do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]")
+	require.NoError(h.t(), err, "trace agent did not become ready")
 }
 
 // BootstrapperVersion returns the version of the bootstrapper on the host.
@@ -197,15 +225,21 @@ func (h *Host) AgentStableVersion() string {
 // AssertPackageInstalledByInstaller checks if a package is installed by the installer on the host.
 func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 	for _, pkg := range pkgs {
-		_, err := h.remote.Execute("sudo datadog-installer is-installed " + pkg)
+		_, err := h.remote.ReadDir(fmt.Sprintf("/opt/datadog-packages/%s/stable/", pkg))
 		require.NoErrorf(
-			h.t,
+			h.t(),
 			err,
-			"package %s not installed by the installer. install logs: \n%s\n%s",
+			"package %s not installed by the installer (err)",
 			pkg,
-			h.remote.MustExecute("cat /tmp/datadog-installer-stdout.log"),
-			h.remote.MustExecute("cat /tmp/datadog-installer-stderr.log"),
 		)
+	}
+}
+
+// AssertPackageNotInstalledByInstaller checks if a package is not installed by the installer on the host.
+func (h *Host) AssertPackageNotInstalledByInstaller(pkgs ...string) {
+	for _, pkg := range pkgs {
+		_, err := h.remote.ReadDir(fmt.Sprintf("/opt/datadog-packages/%s/stable/", pkg))
+		require.Error(h.t(), err, "package %s installed by the installer", pkg)
 	}
 }
 
@@ -231,7 +265,7 @@ func (h *Host) AssertPackagePrefix(pkg string, semver string) {
 			return
 		}
 	}
-	h.t.Errorf("Semver compatible version %v not found among list of installed package %v", semver, list)
+	h.t().Errorf("Semver compatible version %v not found among list of installed package %v", semver, list)
 }
 
 // AssertPackageInstalledByPackageManager checks if a package is installed by the package manager on the host.
@@ -243,7 +277,7 @@ func (h *Host) AssertPackageInstalledByPackageManager(pkgs ...string) {
 		case "yum", "zypper":
 			h.remote.MustExecute("rpm -q " + pkg)
 		default:
-			h.t.Fatal("unsupported package manager")
+			h.t().Fatal("unsupported package manager")
 		}
 	}
 }
@@ -259,7 +293,7 @@ func (h *Host) AssertPackageNotInstalledByPackageManager(pkgs ...string) {
 		case "yum", "zypper":
 			h.remote.MustExecute("! rpm -q " + pkg)
 		default:
-			h.t.Fatal("unsupported package manager")
+			h.t().Fatal("unsupported package manager")
 		}
 	}
 }
@@ -267,7 +301,7 @@ func (h *Host) AssertPackageNotInstalledByPackageManager(pkgs ...string) {
 // State returns the state of the host.
 func (h *Host) State() State {
 	return State{
-		t:      h.t,
+		t:      h.t(),
 		Users:  h.users(),
 		Groups: h.groups(),
 		FS:     h.fs(),
@@ -284,7 +318,7 @@ func (h *Host) users() []user.User {
 			continue
 		}
 		parts := strings.Split(line, ":")
-		assert.Len(h.t, parts, 7)
+		assert.Len(h.t(), parts, 7)
 		users = append(users, user.User{
 			Username: parts[0],
 			Uid:      parts[2],
@@ -308,7 +342,7 @@ func (h *Host) groups() []user.Group {
 			continue
 		}
 		parts := strings.Split(line, ":")
-		assert.Len(h.t, parts, 4)
+		assert.Len(h.t(), parts, 4)
 		groups = append(groups, user.Group{
 			Name: parts[0],
 			Gid:  parts[2],
@@ -342,7 +376,7 @@ func (h *Host) fs() map[string]FileInfo {
 			continue
 		}
 		parts := strings.Split(line, "\\|//")
-		assert.Len(h.t, parts, 9)
+		assert.Len(h.t(), parts, 9)
 
 		path := parts[0]
 		size, _ := strconv.ParseInt(parts[1], 10, 64)
@@ -456,7 +490,7 @@ func (h *Host) SetupProxy() {
 
 	// Check proxy works
 	_, err := h.remote.Execute("curl https://google.com")
-	require.Error(h.t, err)
+	require.Error(h.t(), err)
 }
 
 // RemoveProxy removes the Squid Proxy & iptables/nftables rules
@@ -473,7 +507,7 @@ func (h *Host) RemoveProxy() {
 
 	// Check proxy removed
 	_, err := h.remote.Execute("curl https://google.com")
-	require.NoError(h.t, err)
+	require.NoError(h.t(), err)
 }
 
 // LoadState is the load state of a systemd unit.
@@ -712,8 +746,8 @@ func (s *State) AssertUnitsRunning(names ...string) {
 // AssertUnitsNotLoaded asserts that a systemd unit is not loaded.
 func (s *State) AssertUnitsNotLoaded(names ...string) {
 	for _, name := range names {
-		_, ok := s.Units[name]
-		assert.True(s.t, !ok, "unit %v is loaded", name)
+		unit, ok := s.Units[name]
+		assert.True(s.t, !ok || (ok && unit.LoadState != Loaded), "unit %v is loaded", name)
 	}
 }
 
@@ -733,139 +767,4 @@ func (s *State) AssertUnitsDead(names ...string) {
 		assert.True(s.t, ok, "unit %v is not running", name)
 		assert.Equal(s.t, Dead, unit.SubState, "unit %v is not running", name)
 	}
-}
-
-// LocalCDN is a local CDN for testing.
-type LocalCDN struct {
-	host *Host
-	// DirPath is the path to the local CDN directory.
-	DirPath string
-	lock    sync.Mutex
-}
-
-type orderConfig struct {
-	Order            []string          `json:"order"`
-	ScopeExpressions []scopeExpression `json:"scope_expressions"`
-}
-type scopeExpression struct {
-	Expression string `json:"expression"`
-	PolicyID   string `json:"config_id"`
-}
-
-// NewLocalCDN creates a new local CDN.
-func NewLocalCDN(host *Host) *LocalCDN {
-	localCDNPath := fmt.Sprintf("/tmp/local_cdn/%s", uuid.New().String())
-	host.remote.MustExecute(fmt.Sprintf("mkdir -p %s", localCDNPath))
-
-	// Create order file
-	orderPath := filepath.Join(localCDNPath, "configuration_order")
-	orderContent := orderConfig{
-		Order:            []string{},
-		ScopeExpressions: []scopeExpression{},
-	}
-	orderBytes, err := json.Marshal(orderContent)
-	require.NoError(host.t, err)
-
-	_, err = host.remote.WriteFile(orderPath, orderBytes)
-	require.NoError(host.t, err)
-
-	return &LocalCDN{
-		host:    host,
-		DirPath: localCDNPath,
-		lock:    sync.Mutex{},
-	}
-}
-
-// AddLayer adds a layer to the local CDN. It'll be last in order.
-func (c *LocalCDN) AddLayer(name string, content string) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	layerPath := filepath.Join(c.DirPath, name)
-
-	jsonContent := fmt.Sprintf(`{"name": "%s", %s}`, name, content)
-
-	_, err := c.host.remote.WriteFile(layerPath, []byte(jsonContent))
-	require.NoError(c.host.t, err)
-
-	// Add at the end of the order file
-	orderPath := filepath.Join(c.DirPath, "configuration_order")
-	orderContent := orderConfig{}
-	orderBytes, err := c.host.remote.ReadFile(orderPath)
-	require.NoError(c.host.t, err)
-	err = json.Unmarshal(orderBytes, &orderContent)
-	require.NoError(c.host.t, err)
-	orderContent.Order = append(orderContent.Order, name)
-	orderContent.ScopeExpressions = append(orderContent.ScopeExpressions, scopeExpression{
-		Expression: "true",
-		PolicyID:   name,
-	})
-	orderBytes, err = json.Marshal(orderContent)
-	require.NoError(c.host.t, err)
-	_, err = c.host.remote.WriteFile(orderPath, orderBytes)
-	require.NoError(c.host.t, err)
-
-	return nil
-}
-
-// UpdateLayer updates a layer in the local CDN.
-func (c *LocalCDN) UpdateLayer(name string, content string) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	layerPath := filepath.Join(c.DirPath, name)
-
-	jsonContent := fmt.Sprintf(`{"name": "%s","config": {%s}}`, name, content)
-
-	_, err := c.host.remote.WriteFile(layerPath, []byte(jsonContent))
-	require.NoError(c.host.t, err)
-
-	return nil
-}
-
-// RemoveLayer removes a layer from the local CDN.
-func (c *LocalCDN) RemoveLayer(name string) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	layerPath := filepath.Join(c.DirPath, name)
-	err := c.host.remote.Remove(layerPath)
-	require.NoError(c.host.t, err)
-
-	// Remove from order file
-	orderPath := filepath.Join(c.DirPath, "configuration_order")
-	orderContent := orderConfig{}
-	orderBytes, err := c.host.remote.ReadFile(orderPath)
-	require.NoError(c.host.t, err)
-	err = json.Unmarshal(orderBytes, &orderContent)
-	require.NoError(c.host.t, err)
-	newOrder := []string{}
-	for _, layer := range orderContent.Order {
-		if layer != name {
-			newOrder = append(newOrder, layer)
-		}
-	}
-	orderContent.Order = newOrder
-	orderBytes, err = json.Marshal(orderContent)
-	require.NoError(c.host.t, err)
-	_, err = c.host.remote.WriteFile(orderPath, orderBytes)
-	require.NoError(c.host.t, err)
-	return nil
-}
-
-// Reorder reorders the layers in the local CDN.
-func (c *LocalCDN) Reorder(orderedLayerNames []string) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	orderPath := filepath.Join(c.DirPath, "configuration_order")
-	orderContent := orderConfig{
-		Order: orderedLayerNames,
-	}
-	orderBytes, err := json.Marshal(orderContent)
-	require.NoError(c.host.t, err)
-	_, err = c.host.remote.WriteFile(orderPath, orderBytes)
-	require.NoError(c.host.t, err)
-
-	return nil
 }

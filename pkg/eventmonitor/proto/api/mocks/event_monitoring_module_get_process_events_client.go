@@ -17,6 +17,14 @@ type EventMonitoringModule_GetProcessEventsClient struct {
 	mock.Mock
 }
 
+type EventMonitoringModule_GetProcessEventsClient_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *EventMonitoringModule_GetProcessEventsClient) EXPECT() *EventMonitoringModule_GetProcessEventsClient_Expecter {
+	return &EventMonitoringModule_GetProcessEventsClient_Expecter{mock: &_m.Mock}
+}
+
 // CloseSend provides a mock function with no fields
 func (_m *EventMonitoringModule_GetProcessEventsClient) CloseSend() error {
 	ret := _m.Called()
@@ -33,6 +41,33 @@ func (_m *EventMonitoringModule_GetProcessEventsClient) CloseSend() error {
 	}
 
 	return r0
+}
+
+// EventMonitoringModule_GetProcessEventsClient_CloseSend_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CloseSend'
+type EventMonitoringModule_GetProcessEventsClient_CloseSend_Call struct {
+	*mock.Call
+}
+
+// CloseSend is a helper method to define mock.On call
+func (_e *EventMonitoringModule_GetProcessEventsClient_Expecter) CloseSend() *EventMonitoringModule_GetProcessEventsClient_CloseSend_Call {
+	return &EventMonitoringModule_GetProcessEventsClient_CloseSend_Call{Call: _e.mock.On("CloseSend")}
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_CloseSend_Call) Run(run func()) *EventMonitoringModule_GetProcessEventsClient_CloseSend_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_CloseSend_Call) Return(_a0 error) *EventMonitoringModule_GetProcessEventsClient_CloseSend_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_CloseSend_Call) RunAndReturn(run func() error) *EventMonitoringModule_GetProcessEventsClient_CloseSend_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Context provides a mock function with no fields
@@ -53,6 +88,33 @@ func (_m *EventMonitoringModule_GetProcessEventsClient) Context() context.Contex
 	}
 
 	return r0
+}
+
+// EventMonitoringModule_GetProcessEventsClient_Context_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Context'
+type EventMonitoringModule_GetProcessEventsClient_Context_Call struct {
+	*mock.Call
+}
+
+// Context is a helper method to define mock.On call
+func (_e *EventMonitoringModule_GetProcessEventsClient_Expecter) Context() *EventMonitoringModule_GetProcessEventsClient_Context_Call {
+	return &EventMonitoringModule_GetProcessEventsClient_Context_Call{Call: _e.mock.On("Context")}
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_Context_Call) Run(run func()) *EventMonitoringModule_GetProcessEventsClient_Context_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_Context_Call) Return(_a0 context.Context) *EventMonitoringModule_GetProcessEventsClient_Context_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_Context_Call) RunAndReturn(run func() context.Context) *EventMonitoringModule_GetProcessEventsClient_Context_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Header provides a mock function with no fields
@@ -85,6 +147,33 @@ func (_m *EventMonitoringModule_GetProcessEventsClient) Header() (metadata.MD, e
 	return r0, r1
 }
 
+// EventMonitoringModule_GetProcessEventsClient_Header_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Header'
+type EventMonitoringModule_GetProcessEventsClient_Header_Call struct {
+	*mock.Call
+}
+
+// Header is a helper method to define mock.On call
+func (_e *EventMonitoringModule_GetProcessEventsClient_Expecter) Header() *EventMonitoringModule_GetProcessEventsClient_Header_Call {
+	return &EventMonitoringModule_GetProcessEventsClient_Header_Call{Call: _e.mock.On("Header")}
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_Header_Call) Run(run func()) *EventMonitoringModule_GetProcessEventsClient_Header_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_Header_Call) Return(_a0 metadata.MD, _a1 error) *EventMonitoringModule_GetProcessEventsClient_Header_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_Header_Call) RunAndReturn(run func() (metadata.MD, error)) *EventMonitoringModule_GetProcessEventsClient_Header_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Recv provides a mock function with no fields
 func (_m *EventMonitoringModule_GetProcessEventsClient) Recv() (*api.ProcessEventMessage, error) {
 	ret := _m.Called()
@@ -115,8 +204,35 @@ func (_m *EventMonitoringModule_GetProcessEventsClient) Recv() (*api.ProcessEven
 	return r0, r1
 }
 
+// EventMonitoringModule_GetProcessEventsClient_Recv_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Recv'
+type EventMonitoringModule_GetProcessEventsClient_Recv_Call struct {
+	*mock.Call
+}
+
+// Recv is a helper method to define mock.On call
+func (_e *EventMonitoringModule_GetProcessEventsClient_Expecter) Recv() *EventMonitoringModule_GetProcessEventsClient_Recv_Call {
+	return &EventMonitoringModule_GetProcessEventsClient_Recv_Call{Call: _e.mock.On("Recv")}
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_Recv_Call) Run(run func()) *EventMonitoringModule_GetProcessEventsClient_Recv_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_Recv_Call) Return(_a0 *api.ProcessEventMessage, _a1 error) *EventMonitoringModule_GetProcessEventsClient_Recv_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_Recv_Call) RunAndReturn(run func() (*api.ProcessEventMessage, error)) *EventMonitoringModule_GetProcessEventsClient_Recv_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RecvMsg provides a mock function with given fields: m
-func (_m *EventMonitoringModule_GetProcessEventsClient) RecvMsg(m interface{}) error {
+func (_m *EventMonitoringModule_GetProcessEventsClient) RecvMsg(m any) error {
 	ret := _m.Called(m)
 
 	if len(ret) == 0 {
@@ -124,7 +240,7 @@ func (_m *EventMonitoringModule_GetProcessEventsClient) RecvMsg(m interface{}) e
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(interface{}) error); ok {
+	if rf, ok := ret.Get(0).(func(any) error); ok {
 		r0 = rf(m)
 	} else {
 		r0 = ret.Error(0)
@@ -133,8 +249,36 @@ func (_m *EventMonitoringModule_GetProcessEventsClient) RecvMsg(m interface{}) e
 	return r0
 }
 
+// EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RecvMsg'
+type EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call struct {
+	*mock.Call
+}
+
+// RecvMsg is a helper method to define mock.On call
+//   - m any
+func (_e *EventMonitoringModule_GetProcessEventsClient_Expecter) RecvMsg(m interface{}) *EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call {
+	return &EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call{Call: _e.mock.On("RecvMsg", m)}
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call) Run(run func(m any)) *EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(any))
+	})
+	return _c
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call) Return(_a0 error) *EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call) RunAndReturn(run func(any) error) *EventMonitoringModule_GetProcessEventsClient_RecvMsg_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SendMsg provides a mock function with given fields: m
-func (_m *EventMonitoringModule_GetProcessEventsClient) SendMsg(m interface{}) error {
+func (_m *EventMonitoringModule_GetProcessEventsClient) SendMsg(m any) error {
 	ret := _m.Called(m)
 
 	if len(ret) == 0 {
@@ -142,13 +286,41 @@ func (_m *EventMonitoringModule_GetProcessEventsClient) SendMsg(m interface{}) e
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(interface{}) error); ok {
+	if rf, ok := ret.Get(0).(func(any) error); ok {
 		r0 = rf(m)
 	} else {
 		r0 = ret.Error(0)
 	}
 
 	return r0
+}
+
+// EventMonitoringModule_GetProcessEventsClient_SendMsg_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SendMsg'
+type EventMonitoringModule_GetProcessEventsClient_SendMsg_Call struct {
+	*mock.Call
+}
+
+// SendMsg is a helper method to define mock.On call
+//   - m any
+func (_e *EventMonitoringModule_GetProcessEventsClient_Expecter) SendMsg(m interface{}) *EventMonitoringModule_GetProcessEventsClient_SendMsg_Call {
+	return &EventMonitoringModule_GetProcessEventsClient_SendMsg_Call{Call: _e.mock.On("SendMsg", m)}
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_SendMsg_Call) Run(run func(m any)) *EventMonitoringModule_GetProcessEventsClient_SendMsg_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(any))
+	})
+	return _c
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_SendMsg_Call) Return(_a0 error) *EventMonitoringModule_GetProcessEventsClient_SendMsg_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_SendMsg_Call) RunAndReturn(run func(any) error) *EventMonitoringModule_GetProcessEventsClient_SendMsg_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Trailer provides a mock function with no fields
@@ -169,6 +341,33 @@ func (_m *EventMonitoringModule_GetProcessEventsClient) Trailer() metadata.MD {
 	}
 
 	return r0
+}
+
+// EventMonitoringModule_GetProcessEventsClient_Trailer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Trailer'
+type EventMonitoringModule_GetProcessEventsClient_Trailer_Call struct {
+	*mock.Call
+}
+
+// Trailer is a helper method to define mock.On call
+func (_e *EventMonitoringModule_GetProcessEventsClient_Expecter) Trailer() *EventMonitoringModule_GetProcessEventsClient_Trailer_Call {
+	return &EventMonitoringModule_GetProcessEventsClient_Trailer_Call{Call: _e.mock.On("Trailer")}
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_Trailer_Call) Run(run func()) *EventMonitoringModule_GetProcessEventsClient_Trailer_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_Trailer_Call) Return(_a0 metadata.MD) *EventMonitoringModule_GetProcessEventsClient_Trailer_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *EventMonitoringModule_GetProcessEventsClient_Trailer_Call) RunAndReturn(run func() metadata.MD) *EventMonitoringModule_GetProcessEventsClient_Trailer_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewEventMonitoringModule_GetProcessEventsClient creates a new instance of EventMonitoringModule_GetProcessEventsClient. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

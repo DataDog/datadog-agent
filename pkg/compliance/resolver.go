@@ -19,20 +19,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/distribution/reference"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-go/v5/statsd"
 
 	docker "github.com/docker/docker/client"
 
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 
 	yamlv2 "gopkg.in/yaml.v2"
 	yamlv3 "gopkg.in/yaml.v3"
@@ -40,7 +42,6 @@ import (
 	kubemetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeunstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kubeschema "k8s.io/apimachinery/pkg/runtime/schema"
-	kubediscovery "k8s.io/client-go/discovery"
 	kubedynamic "k8s.io/client-go/dynamic"
 )
 
@@ -49,10 +50,17 @@ import (
 const inputsResolveTimeout = 5 * time.Second
 
 // DockerProvider is a function returning a Docker client.
-type DockerProvider func(context.Context) (docker.CommonAPIClient, error)
+type DockerProvider func(context.Context) (docker.APIClient, error)
+
+// KubernetesGroupsAndResourcesProvider is a function that returns the Kubernetes groups and services
+// Note: this is the same as the ServerGroupsAndResources function defined in
+// k8s.io/client-go/discovery. It is redefined here to avoid a direct dependency
+// on k8s.io/client-go/discovery which substantially increases the size of the
+// security agent binary.
+type KubernetesGroupsAndResourcesProvider func() ([]*kubemetav1.APIGroup, []*kubemetav1.APIResourceList, error)
 
 // KubernetesProvider is a function returning a Kubernetes client.
-type KubernetesProvider func(context.Context) (kubedynamic.Interface, kubediscovery.DiscoveryInterface, error)
+type KubernetesProvider func(context.Context) (kubedynamic.Interface, KubernetesGroupsAndResourcesProvider, error)
 
 // LinuxAuditProvider is a function returning a Linux Audit client.
 type LinuxAuditProvider func(context.Context) (LinuxAuditClient, error)
@@ -65,7 +73,7 @@ type LinuxAuditClient interface {
 }
 
 // DefaultDockerProvider returns the default Docker client.
-func DefaultDockerProvider(ctx context.Context) (docker.CommonAPIClient, error) {
+func DefaultDockerProvider(ctx context.Context) (docker.APIClient, error) {
 	return newDockerClient(ctx)
 }
 
@@ -114,10 +122,10 @@ type defaultResolver struct {
 	kubeClusterIDCache string
 	kubeResourcesCache *[]*kubemetav1.APIResourceList
 
-	dockerCl          docker.CommonAPIClient
-	kubernetesCl      kubedynamic.Interface
-	kubernetesDiscoCl kubediscovery.DiscoveryInterface
-	linuxAuditCl      LinuxAuditClient
+	dockerCl                        docker.APIClient
+	kubernetesCl                    kubedynamic.Interface
+	kubernetesGroupAndResourcesFunc KubernetesGroupsAndResourcesProvider
+	linuxAuditCl                    LinuxAuditClient
 }
 
 type fileMeta struct {
@@ -141,7 +149,7 @@ func NewResolver(ctx context.Context, opts ResolverOptions) Resolver {
 		r.dockerCl, _ = opts.DockerProvider(ctx)
 	}
 	if opts.KubernetesProvider != nil {
-		r.kubernetesCl, r.kubernetesDiscoCl, _ = opts.KubernetesProvider(ctx)
+		r.kubernetesCl, r.kubernetesGroupAndResourcesFunc, _ = opts.KubernetesProvider(ctx)
 	}
 	if opts.LinuxAuditProvider != nil {
 		r.linuxAuditCl, _ = opts.LinuxAuditProvider(ctx)
@@ -159,7 +167,7 @@ func (r *defaultResolver) Close() {
 		r.linuxAuditCl = nil
 	}
 	r.kubernetesCl = nil
-	r.kubernetesDiscoCl = nil
+	r.kubernetesGroupAndResourcesFunc = nil
 
 	r.procsCache = nil
 	r.filesCache = nil
@@ -556,6 +564,14 @@ func (r *defaultResolver) resolveAudit(_ context.Context, spec InputSpecAudit) (
 	return resolved, nil
 }
 
+func parseImageRepo(name string) string {
+	ref, err := reference.ParseNormalizedNamed(name)
+	if err == nil {
+		return reference.Path(ref)
+	}
+	return ""
+}
+
 func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocker) (interface{}, error) {
 	cl := r.dockerCl
 	if cl == nil {
@@ -570,14 +586,16 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 			return nil, err
 		}
 		for _, im := range list {
-			image, _, err := cl.ImageInspectWithRaw(ctx, im.ID)
+			image, err := cl.ImageInspect(ctx, im.ID)
 			if err != nil {
 				return nil, err
 			}
+			imageRepo := parseImageRepo(image.Config.Image)
 			resolved = append(resolved, map[string]interface{}{
-				"id":      image.ID,
-				"tags":    image.RepoTags,
-				"inspect": image,
+				"id":         image.ID,
+				"tags":       image.RepoTags,
+				"image_repo": imageRepo,
+				"inspect":    image,
 			})
 		}
 	case "container":
@@ -590,11 +608,13 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 			if err != nil {
 				return nil, err
 			}
+			imageRepo := parseImageRepo(container.Config.Image)
 			resolved = append(resolved, map[string]interface{}{
-				"id":      container.ID,
-				"name":    container.Name,
-				"image":   container.Image,
-				"inspect": container,
+				"id":         container.ID,
+				"name":       container.Name,
+				"image":      container.Image,
+				"image_repo": imageRepo,
+				"inspect":    container,
 			})
 		}
 	case "network":
@@ -741,12 +761,12 @@ func (r *defaultResolver) resolveKubeApiserver(ctx context.Context, spec InputSp
 }
 
 func (r *defaultResolver) checkKubeServerResourceSupport(resourceSchema kubeschema.GroupVersionResource) (bool, error) {
-	if r.kubernetesDiscoCl == nil {
+	if r.kubernetesGroupAndResourcesFunc == nil {
 		return true, nil
 	}
 
 	if r.kubeResourcesCache == nil {
-		_, resources, err := r.kubernetesDiscoCl.ServerGroupsAndResources()
+		_, resources, err := r.kubernetesGroupAndResourcesFunc()
 		if err != nil {
 			return false, fmt.Errorf("could not fetch kubernetes resources: %w", err)
 		}

@@ -94,6 +94,8 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				// kernels < 4.17 will rely on the tracefs events interface to attach kprobes, which requires event names to be unique
+				// because the setup_new_exec_interp and setup_new_exec_args_envs probes are attached to the same function, we rely on using a secondary uid for that purpose
 				UID:          SecurityAgentUID + "_a",
 				EBPFFuncName: "hook_setup_new_exec_args_envs",
 			},
@@ -223,21 +225,21 @@ func getExecTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "args_envs_progs",
 			Key:           ExecGetEnvsOffsetKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tail_call_target_get_envs_offset",
+				EBPFFuncName: tailCallFnc("get_envs_offset"),
 			},
 		},
 		{
 			ProgArrayName: "args_envs_progs",
 			Key:           ExecParseArgsEnvsSplitKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tail_call_target_parse_args_envs_split",
+				EBPFFuncName: tailCallFnc("parse_args_envs_split"),
 			},
 		},
 		{
 			ProgArrayName: "args_envs_progs",
 			Key:           ExecParseArgsEnvsKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tail_call_target_parse_args_envs",
+				EBPFFuncName: tailCallFnc("parse_args_envs"),
 			},
 		},
 	}

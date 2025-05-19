@@ -68,6 +68,26 @@ const (
 	samplerHasher = uint64(1111111111111111111)
 )
 
+// IsKeep returns whether the priority is "keep".
+func (s SamplingPriority) IsKeep() bool {
+	return s == PriorityAutoKeep || s == PriorityUserKeep
+}
+
+func (s SamplingPriority) tagValue() string {
+	switch s {
+	case PriorityUserDrop:
+		return "manual_drop"
+	case PriorityAutoDrop:
+		return "auto_drop"
+	case PriorityAutoKeep:
+		return "auto_keep"
+	case PriorityUserKeep:
+		return "manual_keep"
+	default:
+		return "none"
+	}
+}
+
 // SampleByRate returns whether to keep a trace, based on its ID and a sampling rate.
 // This assumes that trace IDs are nearly uniformly distributed.
 func SampleByRate(traceID uint64, rate float64) bool {

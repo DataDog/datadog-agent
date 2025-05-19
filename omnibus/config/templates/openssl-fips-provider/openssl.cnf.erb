@@ -1,10 +1,11 @@
 config_diagnostics = 1
 openssl_conf = openssl_init
 
-.include <%= install_dir %>/embedded/ssl/fipsmodule.cnf
+.include <%= embedded_ssl_dir %>/fipsmodule.cnf
 
 [openssl_init]
 providers = provider_sect
+alg_section = algorithm_sect
 
 [provider_sect]
 fips = fips_sect
@@ -12,3 +13,6 @@ base = base_sect
 
 [base_sect]
 activate = 1
+
+[algorithm_sect]
+default_properties = fips=yes

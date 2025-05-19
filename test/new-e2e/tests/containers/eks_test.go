@@ -6,104 +6,156 @@
 package containers
 
 import (
-	"context"
-	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
+	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
+	tifeks "github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
-
-	"github.com/pulumi/pulumi/sdk/v3/go/auto"
-	"github.com/stretchr/testify/suite"
-	"k8s.io/client-go/tools/clientcmd"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 )
 
 type eksSuite struct {
 	k8sSuite
-	initOnly bool
 }
 
 func TestEKSSuite(t *testing.T) {
-	var initOnly bool
-	initOnlyParam, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.InitOnly, false)
-	if err == nil {
-		initOnly = initOnlyParam
-	}
-	suite.Run(t, &eksSuite{initOnly: initOnly})
+	e2e.Run(t, &eksSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(
+		awskubernetes.WithEKSOptions(
+			tifeks.WithLinuxNodeGroup(),
+			tifeks.WithWindowsNodeGroup(),
+			tifeks.WithBottlerocketNodeGroup(),
+			tifeks.WithLinuxARMNodeGroup(),
+		),
+		awskubernetes.WithDeployDogstatsd(),
+		awskubernetes.WithDeployTestWorkload(),
+		awskubernetes.WithAgentOptions(kubernetesagentparams.WithDualShipping()),
+	)))
 }
 
 func (suite *eksSuite) SetupSuite() {
-	ctx := context.Background()
-
-	stackConfig := runner.ConfigMap{
-		"ddagent:deploy":        auto.ConfigValue{Value: "true"},
-		"ddagent:fakeintake":    auto.ConfigValue{Value: "true"},
-		"ddtestworkload:deploy": auto.ConfigValue{Value: "true"},
-		"dddogstatsd:deploy":    auto.ConfigValue{Value: "true"},
-	}
-
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
-		ctx,
-		"eks-cluster",
-		eks.Run,
-		infra.WithConfigMap(stackConfig),
-	)
-
-	if !suite.Assert().NoError(err) {
-		stackName, err := infra.GetStackManager().GetPulumiStackName("eks-cluster")
-		suite.Require().NoError(err)
-		suite.T().Log(dumpEKSClusterState(ctx, stackName))
-		if !runner.GetProfile().AllowDevMode() || !*keepStacks {
-			infra.GetStackManager().DeleteStack(ctx, "eks-cluster", nil)
-		}
-		suite.T().FailNow()
-	}
-
-	if suite.initOnly {
-		suite.T().Skip("E2E_INIT_ONLY is set, skipping tests")
-	}
-
-	fakeintake := &components.FakeIntake{}
-	fiSerialized, err := json.Marshal(stackOutput.Outputs["dd-Fakeintake-aws-ecs"].Value)
-	suite.Require().NoError(err)
-	suite.Require().NoError(fakeintake.Import(fiSerialized, &fakeintake))
-	suite.Require().NoError(fakeintake.Init(suite))
-	suite.Fakeintake = fakeintake.Client()
-
-	kubeCluster := &components.KubernetesCluster{}
-	kubeSerialized, err := json.Marshal(stackOutput.Outputs["dd-Cluster-eks"].Value)
-	suite.Require().NoError(err)
-	suite.Require().NoError(kubeCluster.Import(kubeSerialized, &kubeCluster))
-	suite.Require().NoError(kubeCluster.Init(suite))
-	suite.KubeClusterName = kubeCluster.ClusterName
-	suite.K8sClient = kubeCluster.Client()
-	suite.K8sConfig, err = clientcmd.RESTConfigFromKubeConfig([]byte(kubeCluster.KubeConfig))
-	suite.Require().NoError(err)
-
-	kubernetesAgent := &components.KubernetesAgent{}
-	kubernetesAgentSerialized, err := json.Marshal(stackOutput.Outputs["dd-KubernetesAgent-aws-datadog-agent"].Value)
-	suite.Require().NoError(err)
-	suite.Require().NoError(kubernetesAgent.Import(kubernetesAgentSerialized, &kubernetesAgent))
-
-	suite.KubernetesAgentRef = kubernetesAgent
-
 	suite.k8sSuite.SetupSuite()
+	suite.Fakeintake = suite.Env().FakeIntake.Client()
 }
 
-func (suite *eksSuite) TearDownSuite() {
-	if suite.initOnly {
-		suite.T().Logf("E2E_INIT_ONLY is set, skipping deletion")
-		return
-	}
+func (suite *eksSuite) TestEKSFargate() {
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "eks.fargate.cpu.capacity",
+			Tags: []string{
+				`^kube_deployment:dogstatsd-fargate$`,
+				`^kube_namespace:workload-dogstatsd-fargate$`,
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
+				`^kube_cluster_name:`,
+				`^kube_deployment:dogstatsd-fargate$`,
+				`^kube_namespace:workload-dogstatsd-fargate$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:dogstatsd-fargate-`,
+				`^kube_priority_class:system-node-critical$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:dogstatsd-fargate-`,
+				`^orch_cluster_id:`,
+				`^pod_name:dogstatsd-fargate-`,
+				`^pod_phase:running$`,
+				`^virtual_node:fargate-ip-.*\.ec2\.internal$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 0.25,
+				Min: 0.25,
+			},
+		},
+	})
 
-	suite.k8sSuite.TearDownSuite()
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "eks.fargate.memory.capacity",
+			Tags: []string{
+				`^kube_deployment:dogstatsd-fargate$`,
+				`^kube_namespace:workload-dogstatsd-fargate$`,
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
+				`^kube_cluster_name:`,
+				`^kube_deployment:dogstatsd-fargate$`,
+				`^kube_namespace:workload-dogstatsd-fargate$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:dogstatsd-fargate-`,
+				`^kube_priority_class:system-node-critical$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:dogstatsd-fargate-`,
+				`^orch_cluster_id:`,
+				`^pod_name:dogstatsd-fargate-`,
+				`^pod_phase:running$`,
+				`^virtual_node:fargate-ip-.*\.ec2\.internal$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 1024 * 1024 * 1024,
+				Min: 1024 * 1024 * 1024,
+			},
+		},
+	})
 
-	ctx := context.Background()
-	stackName, err := infra.GetStackManager().GetPulumiStackName("eks-cluster")
-	suite.Require().NoError(err)
-	suite.T().Log(dumpEKSClusterState(ctx, stackName))
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "eks.fargate.pods.running",
+			Tags: []string{
+				`^kube_deployment:dogstatsd-fargate$`,
+				`^kube_namespace:workload-dogstatsd-fargate$`,
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
+				`^kube_cluster_name:`,
+				`^kube_deployment:dogstatsd-fargate$`,
+				`^kube_namespace:workload-dogstatsd-fargate$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:dogstatsd-fargate-`,
+				`^kube_priority_class:system-node-critical$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:dogstatsd-fargate-`,
+				`^orch_cluster_id:`,
+				`^pod_name:dogstatsd-fargate-`,
+				`^pod_phase:running$`,
+				`^virtual_node:fargate-ip-.*\.ec2\.internal$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 1,
+				Min: 1,
+			},
+		},
+	})
+}
+
+func (suite *eksSuite) TestDogstatsdFargate() {
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "custom.metric",
+			Tags: []string{
+				`^kube_deployment:dogstatsd-fargate$`,
+				`^kube_namespace:workload-dogstatsd-fargate$`,
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
+				`^kube_cluster_name:`,
+				`^kube_deployment:dogstatsd-fargate$`,
+				`^kube_namespace:workload-dogstatsd-fargate$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_priority_class:system-node-critical$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:dogstatsd-fargate-`,
+				`^orch_cluster_id:`,
+				`^pod_phase:running$`,
+				`^series:`,
+			},
+		},
+	})
 }

@@ -37,7 +37,7 @@ const (
 	MetricSourceContainerd
 	MetricSourceCri
 	MetricSourceDocker
-	MetricSourceNtp
+	MetricSourceNTP
 	MetricSourceSystemd
 	MetricSourceHelm
 	MetricSourceKubernetesAPIServer
@@ -60,6 +60,10 @@ const (
 	MetricSourceDisk
 	MetricSourceNetwork
 	MetricSourceSnmp
+	MetricSourceCloudFoundry
+	MetricSourceJenkins
+	MetricSourceGPU
+	MetricSourceWlan
 
 	// Python Checks
 	MetricSourceZenohRouter
@@ -135,6 +139,9 @@ const (
 	MetricSourceAwsPricing
 	MetricSourceAqua
 	MetricSourceKubernetesClusterAutoscaler
+	MetricSourceKubeVirtAPI
+	MetricSourceKubeVirtController
+	MetricSourceKubeVirtHandler
 	MetricSourceTraefikMesh
 	MetricSourceWeaviate
 	MetricSourceTorchserve
@@ -302,6 +309,74 @@ const (
 	MetricSourceAppgateSDP
 	MetricSourceAnyscale
 	MetricSourceMilvus
+	MetricSourceNvidiaNim
+	MetricSourceQuarkus
+	MetricSourceVelero
+	MetricSourceCelery
+	MetricSourceInfiniband
+	MetricSourceSilverstripeCMS
+	MetricSourceAnecdote
+	MetricSourceSonatypeNexus
+
+	// OpenTelemetry Collector receivers
+	MetricSourceOpenTelemetryCollectorUnknown
+	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
+	MetricSourceOpenTelemetryCollectorElasticsearchReceiver
+	MetricSourceOpenTelemetryCollectorExpvarReceiver
+	MetricSourceOpenTelemetryCollectorFilestatsReceiver
+	MetricSourceOpenTelemetryCollectorFlinkmetricsReceiver
+	MetricSourceOpenTelemetryCollectorGitproviderReceiver
+	MetricSourceOpenTelemetryCollectorHaproxyReceiver
+	MetricSourceOpenTelemetryCollectorHostmetricsReceiver
+	MetricSourceOpenTelemetryCollectorHttpcheckReceiver
+	MetricSourceOpenTelemetryCollectorIisReceiver
+	MetricSourceOpenTelemetryCollectorK8sclusterReceiver
+	MetricSourceOpenTelemetryCollectorKafkametricsReceiver
+	MetricSourceOpenTelemetryCollectorKubeletstatsReceiver
+	MetricSourceOpenTelemetryCollectorMemcachedReceiver
+	MetricSourceOpenTelemetryCollectorMongodbatlasReceiver
+	MetricSourceOpenTelemetryCollectorMongodbReceiver
+	MetricSourceOpenTelemetryCollectorMysqlReceiver
+	MetricSourceOpenTelemetryCollectorNginxReceiver
+	MetricSourceOpenTelemetryCollectorNsxtReceiver
+	MetricSourceOpenTelemetryCollectorOracledbReceiver
+	MetricSourceOpenTelemetryCollectorPostgresqlReceiver
+	MetricSourceOpenTelemetryCollectorPrometheusReceiver
+	MetricSourceOpenTelemetryCollectorRabbitmqReceiver
+	MetricSourceOpenTelemetryCollectorRedisReceiver
+	MetricSourceOpenTelemetryCollectorRiakReceiver
+	MetricSourceOpenTelemetryCollectorSaphanaReceiver
+	MetricSourceOpenTelemetryCollectorSnmpReceiver
+	MetricSourceOpenTelemetryCollectorSnowflakeReceiver
+	MetricSourceOpenTelemetryCollectorSplunkenterpriseReceiver
+	MetricSourceOpenTelemetryCollectorSqlserverReceiver
+	MetricSourceOpenTelemetryCollectorSshcheckReceiver
+	MetricSourceOpenTelemetryCollectorStatsdReceiver
+	MetricSourceOpenTelemetryCollectorVcenterReceiver
+	MetricSourceOpenTelemetryCollectorZookeeperReceiver
+	MetricSourceOpenTelemetryCollectorActiveDirectorydsReceiver
+	MetricSourceOpenTelemetryCollectorAerospikeReceiver
+	MetricSourceOpenTelemetryCollectorApacheReceiver
+	MetricSourceOpenTelemetryCollectorApachesparkReceiver
+	MetricSourceOpenTelemetryCollectorAzuremonitorReceiver
+	MetricSourceOpenTelemetryCollectorBigipReceiver
+	MetricSourceOpenTelemetryCollectorChronyReceiver
+	MetricSourceOpenTelemetryCollectorCouchdbReceiver
+
+	// Serverless
+	MetricSourceServerless
+	MetricSourceAwsLambdaCustom
+	MetricSourceAwsLambdaEnhanced
+	MetricSourceAwsLambdaRuntime
+	MetricSourceAzureContainerAppCustom
+	MetricSourceAzureContainerAppEnhanced
+	MetricSourceAzureContainerAppRuntime
+	MetricSourceAzureAppServiceCustom
+	MetricSourceAzureAppServiceEnhanced
+	MetricSourceAzureAppServiceRuntime
+	MetricSourceGoogleCloudRunCustom
+	MetricSourceGoogleCloudRunEnhanced
+	MetricSourceGoogleCloudRunRuntime
 )
 
 // String returns a string representation of MetricSource
@@ -349,7 +424,7 @@ func (ms MetricSource) String() string {
 		return "cri"
 	case MetricSourceDocker:
 		return "docker"
-	case MetricSourceNtp:
+	case MetricSourceNTP:
 		return "ntp"
 	case MetricSourceSystemd:
 		return "systemd"
@@ -441,6 +516,8 @@ func (ms MetricSource) String() string {
 		return "citrix_hypervisor"
 	case MetricSourceClickhouse:
 		return "clickhouse"
+	case MetricSourceCloudFoundry:
+		return "cloudfoundry"
 	case MetricSourceCloudFoundryAPI:
 		return "cloud_foundry_api"
 	case MetricSourceCockroachdb:
@@ -493,6 +570,8 @@ func (ms MetricSource) String() string {
 		return "glusterfs"
 	case MetricSourceGoExpvar:
 		return "go_expvar"
+	case MetricSourceGPU:
+		return "gpu"
 	case MetricSourceGunicorn:
 		return "gunicorn"
 	case MetricSourceHaproxy:
@@ -523,6 +602,8 @@ func (ms MetricSource) String() string {
 		return "impala"
 	case MetricSourceIstio:
 		return "istio"
+	case MetricSourceJenkins:
+		return "jenkins"
 	case MetricSourceKafkaConsumer:
 		return "kafka_consumer"
 	case MetricSourceKepler:
@@ -705,6 +786,8 @@ func (ms MetricSource) String() string {
 		return "karpenter"
 	case MetricSourceNvidiaTriton:
 		return "nvidia_triton"
+	case MetricSourceNvidiaNim:
+		return "nvidia_nim"
 	case MetricSourceRay:
 		return "ray"
 	case MetricSourceStrimzi:
@@ -867,6 +950,128 @@ func (ms MetricSource) String() string {
 		return "aws_neuron"
 	case MetricSourceMilvus:
 		return "milvus"
+	case MetricSourceQuarkus:
+		return "quarkus"
+	case MetricSourceVelero:
+		return "velero"
+	case MetricSourceCelery:
+		return "celery"
+	case MetricSourceInfiniband:
+		return "infiniband"
+	case MetricSourceOpenTelemetryCollectorUnknown:
+		return "opentelemetry_collector_unknown"
+	case MetricSourceOpenTelemetryCollectorDockerstatsReceiver:
+		return "opentelemetry_collector_dockerstatsreceiver"
+	case MetricSourceOpenTelemetryCollectorElasticsearchReceiver:
+		return "opentelemetry_collector_elasticsearchreceiver"
+	case MetricSourceOpenTelemetryCollectorExpvarReceiver:
+		return "opentelemetry_collector_expvarreceiver"
+	case MetricSourceOpenTelemetryCollectorFilestatsReceiver:
+		return "opentelemetry_collector_filestatsreceiver"
+	case MetricSourceOpenTelemetryCollectorFlinkmetricsReceiver:
+		return "opentelemetry_collector_flinkmetricsreceiver"
+	case MetricSourceOpenTelemetryCollectorGitproviderReceiver:
+		return "opentelemetry_collector_gitproviderreceiver"
+	case MetricSourceOpenTelemetryCollectorHaproxyReceiver:
+		return "opentelemetry_collector_haproxyreceiver"
+	case MetricSourceOpenTelemetryCollectorHostmetricsReceiver:
+		return "opentelemetry_collector_hostmetricsreceiver"
+	case MetricSourceOpenTelemetryCollectorHttpcheckReceiver:
+		return "opentelemetry_collector_httpcheckreceiver"
+	case MetricSourceOpenTelemetryCollectorIisReceiver:
+		return "opentelemetry_collector_iisreceiver"
+	case MetricSourceOpenTelemetryCollectorK8sclusterReceiver:
+		return "opentelemetry_collector_k8sclusterreceiver"
+	case MetricSourceOpenTelemetryCollectorKafkametricsReceiver:
+		return "opentelemetry_collector_kafkametricsreceiver"
+	case MetricSourceOpenTelemetryCollectorKubeletstatsReceiver:
+		return "opentelemetry_collector_kubeletstatsreceiver"
+	case MetricSourceOpenTelemetryCollectorMemcachedReceiver:
+		return "opentelemetry_collector_memcachedreceiver"
+	case MetricSourceOpenTelemetryCollectorMongodbatlasReceiver:
+		return "opentelemetry_collector_mongodbatlasreceiver"
+	case MetricSourceOpenTelemetryCollectorMongodbReceiver:
+		return "opentelemetry_collector_mongodbreceiver"
+	case MetricSourceOpenTelemetryCollectorMysqlReceiver:
+		return "opentelemetry_collector_mysqlreceiver"
+	case MetricSourceOpenTelemetryCollectorNginxReceiver:
+		return "opentelemetry_collector_nginxreceiver"
+	case MetricSourceOpenTelemetryCollectorNsxtReceiver:
+		return "opentelemetry_collector_nsxtreceiver"
+	case MetricSourceOpenTelemetryCollectorOracledbReceiver:
+		return "opentelemetry_collector_oracledbreceiver"
+	case MetricSourceOpenTelemetryCollectorPostgresqlReceiver:
+		return "opentelemetry_collector_postgresqlreceiver"
+	case MetricSourceOpenTelemetryCollectorPrometheusReceiver:
+		return "opentelemetry_collector_prometheusreceiver"
+	case MetricSourceOpenTelemetryCollectorRabbitmqReceiver:
+		return "opentelemetry_collector_rabbitmqreceiver"
+	case MetricSourceOpenTelemetryCollectorRedisReceiver:
+		return "opentelemetry_collector_redisreceiver"
+	case MetricSourceOpenTelemetryCollectorRiakReceiver:
+		return "opentelemetry_collector_riakreceiver"
+	case MetricSourceOpenTelemetryCollectorSaphanaReceiver:
+		return "opentelemetry_collector_saphanareceiver"
+	case MetricSourceOpenTelemetryCollectorSnmpReceiver:
+		return "opentelemetry_collector_snmpreceiver"
+	case MetricSourceOpenTelemetryCollectorSnowflakeReceiver:
+		return "opentelemetry_collector_snowflakereceiver"
+	case MetricSourceOpenTelemetryCollectorSplunkenterpriseReceiver:
+		return "opentelemetry_collector_splunkenterprisereceiver"
+	case MetricSourceOpenTelemetryCollectorSqlserverReceiver:
+		return "opentelemetry_collector_sqlserverreceiver"
+	case MetricSourceOpenTelemetryCollectorSshcheckReceiver:
+		return "opentelemetry_collector_sshcheckreceiver"
+	case MetricSourceOpenTelemetryCollectorStatsdReceiver:
+		return "opentelemetry_collector_statsdreceiver"
+	case MetricSourceOpenTelemetryCollectorVcenterReceiver:
+		return "opentelemetry_collector_vcenterreceiver"
+	case MetricSourceOpenTelemetryCollectorZookeeperReceiver:
+		return "opentelemetry_collector_zookeeperreceiver"
+	case MetricSourceOpenTelemetryCollectorActiveDirectorydsReceiver:
+		return "opentelemetry_collector_activedirectorydsreceiver"
+	case MetricSourceOpenTelemetryCollectorAerospikeReceiver:
+		return "opentelemetry_collector_aerospikereceiver"
+	case MetricSourceOpenTelemetryCollectorApacheReceiver:
+		return "opentelemetry_collector_apachereceiver"
+	case MetricSourceOpenTelemetryCollectorApachesparkReceiver:
+		return "opentelemetry_collector_apachesparkreceiver"
+	case MetricSourceOpenTelemetryCollectorAzuremonitorReceiver:
+		return "opentelemetry_collector_azuremonitorreceiver"
+	case MetricSourceOpenTelemetryCollectorBigipReceiver:
+		return "opentelemetry_collector_bigipreceiver"
+	case MetricSourceOpenTelemetryCollectorChronyReceiver:
+		return "opentelemetry_collector_chronyreceiver"
+	case MetricSourceOpenTelemetryCollectorCouchdbReceiver:
+		return "opentelemetry_collector_couchdbreceiver"
+	case MetricSourceServerless:
+		return "serverless"
+	case MetricSourceAwsLambdaCustom:
+		return "aws_lambda_custom"
+	case MetricSourceAwsLambdaEnhanced:
+		return "aws_lambda_enhanced"
+	case MetricSourceAwsLambdaRuntime:
+		return "aws_lambda_runtime"
+	case MetricSourceAzureContainerAppCustom:
+		return "azure_container_app_custom"
+	case MetricSourceAzureContainerAppEnhanced:
+		return "azure_container_app_enhanced"
+	case MetricSourceAzureContainerAppRuntime:
+		return "azure_container_app_runtime"
+	case MetricSourceAzureAppServiceCustom:
+		return "azure_app_service_custom"
+	case MetricSourceAzureAppServiceEnhanced:
+		return "azure_app_service_enhanced"
+	case MetricSourceAzureAppServiceRuntime:
+		return "azure_app_service_runtime"
+	case MetricSourceGoogleCloudRunCustom:
+		return "google_cloud_run_custom"
+	case MetricSourceGoogleCloudRunEnhanced:
+		return "google_cloud_run_enhanced"
+	case MetricSourceGoogleCloudRunRuntime:
+		return "google_cloud_run_runtime"
+	case MetricSourceWlan:
+		return "wlan"
 	default:
 		return "<unknown>"
 	}
@@ -875,6 +1080,8 @@ func (ms MetricSource) String() string {
 // CheckNameToMetricSource returns a MetricSource given the name
 func CheckNameToMetricSource(name string) MetricSource {
 	switch name {
+	case "anecdote":
+		return MetricSourceAnecdote
 	case "container":
 		return MetricSourceContainer
 	case "containerd":
@@ -884,7 +1091,7 @@ func CheckNameToMetricSource(name string) MetricSource {
 	case "docker":
 		return MetricSourceDocker
 	case "ntp":
-		return MetricSourceNtp
+		return MetricSourceNTP
 	case "systemd":
 		return MetricSourceSystemd
 	case "helm":
@@ -1025,6 +1232,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceGlusterfs
 	case "go_expvar":
 		return MetricSourceGoExpvar
+	case "gpu":
+		return MetricSourceGPU
 	case "gunicorn":
 		return MetricSourceGunicorn
 	case "haproxy":
@@ -1071,6 +1280,12 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceKubeProxy
 	case "kube_scheduler":
 		return MetricSourceKubeScheduler
+	case "kubevirt_api":
+		return MetricSourceKubeVirtAPI
+	case "kubevirt_controller":
+		return MetricSourceKubeVirtController
+	case "kubevirt_handler":
+		return MetricSourceKubeVirtHandler
 	case "kubelet":
 		return MetricSourceKubelet
 	case "kubernetes_state":
@@ -1155,10 +1370,14 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceScylla
 	case "silk":
 		return MetricSourceSilk
+	case "silverstripe_cms":
+		return MetricSourceSilverstripeCMS
 	case "singlestore":
 		return MetricSourceSinglestore
 	case "snowflake":
 		return MetricSourceSnowflake
+	case "sonatype_nexus":
+		return MetricSourceSonatypeNexus
 	case "spark":
 		return MetricSourceSpark
 	case "sqlserver":
@@ -1233,6 +1452,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceKarpenter
 	case "nvidia_triton":
 		return MetricSourceNvidiaTriton
+	case "nvidia_nim":
+		return MetricSourceNvidiaNim
 	case "ray":
 		return MetricSourceRay
 	case "strimzi":
@@ -1401,6 +1622,98 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceTibcoEMS
 	case "milvus":
 		return MetricSourceMilvus
+	case "quarkus":
+		return MetricSourceQuarkus
+	case "velero":
+		return MetricSourceVelero
+	case "opentelemetry_collector_unknown":
+		return MetricSourceOpenTelemetryCollectorUnknown
+	case "opentelemetry_collector_dockerstatsreceiver":
+		return MetricSourceOpenTelemetryCollectorDockerstatsReceiver
+	case "opentelemetry_collector_elasticsearchreceiver":
+		return MetricSourceOpenTelemetryCollectorElasticsearchReceiver
+	case "opentelemetry_collector_expvarreceiver":
+		return MetricSourceOpenTelemetryCollectorExpvarReceiver
+	case "opentelemetry_collector_filestatsreceiver":
+		return MetricSourceOpenTelemetryCollectorFilestatsReceiver
+	case "opentelemetry_collector_flinkmetricsreceiver":
+		return MetricSourceOpenTelemetryCollectorFlinkmetricsReceiver
+	case "opentelemetry_collector_gitproviderreceiver":
+		return MetricSourceOpenTelemetryCollectorGitproviderReceiver
+	case "opentelemetry_collector_haproxyreceiver":
+		return MetricSourceOpenTelemetryCollectorHaproxyReceiver
+	case "opentelemetry_collector_hostmetricsreceiver":
+		return MetricSourceOpenTelemetryCollectorHostmetricsReceiver
+	case "opentelemetry_collector_httpcheckreceiver":
+		return MetricSourceOpenTelemetryCollectorHttpcheckReceiver
+	case "opentelemetry_collector_iisreceiver":
+		return MetricSourceOpenTelemetryCollectorIisReceiver
+	case "opentelemetry_collector_k8sclusterreceiver":
+		return MetricSourceOpenTelemetryCollectorK8sclusterReceiver
+	case "opentelemetry_collector_kafkametricsreceiver":
+		return MetricSourceOpenTelemetryCollectorKafkametricsReceiver
+	case "opentelemetry_collector_kubeletstatsreceiver":
+		return MetricSourceOpenTelemetryCollectorKubeletstatsReceiver
+	case "opentelemetry_collector_memcachedreceiver":
+		return MetricSourceOpenTelemetryCollectorMemcachedReceiver
+	case "opentelemetry_collector_mongodbatlasreceiver":
+		return MetricSourceOpenTelemetryCollectorMongodbatlasReceiver
+	case "opentelemetry_collector_mongodbreceiver":
+		return MetricSourceOpenTelemetryCollectorMongodbReceiver
+	case "opentelemetry_collector_mysqlreceiver":
+		return MetricSourceOpenTelemetryCollectorMysqlReceiver
+	case "opentelemetry_collector_nginxreceiver":
+		return MetricSourceOpenTelemetryCollectorNginxReceiver
+	case "opentelemetry_collector_nsxtreceiver":
+		return MetricSourceOpenTelemetryCollectorNsxtReceiver
+	case "opentelemetry_collector_oracledbreceiver":
+		return MetricSourceOpenTelemetryCollectorOracledbReceiver
+	case "opentelemetry_collector_postgresqlreceiver":
+		return MetricSourceOpenTelemetryCollectorPostgresqlReceiver
+	case "opentelemetry_collector_prometheusreceiver":
+		return MetricSourceOpenTelemetryCollectorPrometheusReceiver
+	case "opentelemetry_collector_rabbitmqreceiver":
+		return MetricSourceOpenTelemetryCollectorRabbitmqReceiver
+	case "opentelemetry_collector_redisreceiver":
+		return MetricSourceOpenTelemetryCollectorRedisReceiver
+	case "opentelemetry_collector_riakreceiver":
+		return MetricSourceOpenTelemetryCollectorRiakReceiver
+	case "opentelemetry_collector_saphanareceiver":
+		return MetricSourceOpenTelemetryCollectorSaphanaReceiver
+	case "opentelemetry_collector_snmpreceiver":
+		return MetricSourceOpenTelemetryCollectorSnmpReceiver
+	case "opentelemetry_collector_snowflakereceiver":
+		return MetricSourceOpenTelemetryCollectorSnowflakeReceiver
+	case "opentelemetry_collector_splunkenterprisereceiver":
+		return MetricSourceOpenTelemetryCollectorSplunkenterpriseReceiver
+	case "opentelemetry_collector_sqlserverreceiver":
+		return MetricSourceOpenTelemetryCollectorSqlserverReceiver
+	case "opentelemetry_collector_sshcheckreceiver":
+		return MetricSourceOpenTelemetryCollectorSshcheckReceiver
+	case "opentelemetry_collector_statsdreceiver":
+		return MetricSourceOpenTelemetryCollectorStatsdReceiver
+	case "opentelemetry_collector_vcenterreceiver":
+		return MetricSourceOpenTelemetryCollectorVcenterReceiver
+	case "opentelemetry_collector_zookeeperreceiver":
+		return MetricSourceOpenTelemetryCollectorZookeeperReceiver
+	case "opentelemetry_collector_activedirectorydsreceiver":
+		return MetricSourceOpenTelemetryCollectorActiveDirectorydsReceiver
+	case "opentelemetry_collector_aerospikereceiver":
+		return MetricSourceOpenTelemetryCollectorAerospikeReceiver
+	case "opentelemetry_collector_apachereceiver":
+		return MetricSourceOpenTelemetryCollectorApacheReceiver
+	case "opentelemetry_collector_apachesparkreceiver":
+		return MetricSourceOpenTelemetryCollectorApachesparkReceiver
+	case "opentelemetry_collector_azuremonitorreceiver":
+		return MetricSourceOpenTelemetryCollectorAzuremonitorReceiver
+	case "opentelemetry_collector_bigipreceiver":
+		return MetricSourceOpenTelemetryCollectorBigipReceiver
+	case "opentelemetry_collector_chronyreceiver":
+		return MetricSourceOpenTelemetryCollectorChronyReceiver
+	case "opentelemetry_collector_couchdbreceiver":
+		return MetricSourceOpenTelemetryCollectorCouchdbReceiver
+	case "wlan":
+		return MetricSourceWlan
 	default:
 		return MetricSourceUnknown
 	}

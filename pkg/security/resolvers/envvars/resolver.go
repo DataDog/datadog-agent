@@ -10,7 +10,7 @@ package envvars
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -42,5 +42,5 @@ func (r *Resolver) ResolveEnvVars(pid uint32) ([]string, bool, error) {
 		// communicate the fact that it was truncated
 		return nil, true, nil
 	}
-	return utils.EnvVars(r.priorityEnvs, pid, model.MaxArgsEnvsSize)
+	return utils.EnvVars(r.priorityEnvs, pid, sharedconsts.MaxArgsEnvsSize)
 }

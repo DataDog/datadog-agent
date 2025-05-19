@@ -7,9 +7,21 @@ package infraattributesprocessor
 
 import (
 	"context"
+	"fmt"
+	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"go.uber.org/fx"
 
+	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/processor"
@@ -18,18 +30,75 @@ import (
 
 var processorCapabilities = consumer.Capabilities{MutatesData: true}
 
-// TODO: Remove tagger and generateID as depenendencies to enable future import of
-// infraattributesprocessor by external go packages like ocb
 type factory struct {
-	tagger     taggerClient
-	generateID GenerateKubeMetadataEntityID
+	data *data // Must be accessed only through getOrCreateData
+	mu   sync.Mutex
+}
+
+type data struct {
+	infraTags infraTagsProcessor
+}
+
+func (f *factory) getOrCreateData() (*data, error) {
+	// Ensure that the tagger is initialized only once.
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.data != nil {
+		return f.data, nil
+	}
+	f.data = &data{}
+	var client taggerTypes.TaggerClient
+	app := fx.New(
+		fx.Provide(func() config.Component {
+			return pkgconfigsetup.Datadog()
+		}),
+		fx.Provide(func(_ config.Component) log.Params {
+			return log.ForDaemon("otelcol", "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
+		}),
+		logfx.Module(),
+		telemetryModule(),
+		fxutil.FxAgentBase(),
+		remoteTaggerfx.Module(tagger.RemoteParams{
+			RemoteTarget: func(c config.Component) (string, error) {
+				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
+			},
+			RemoteTokenFetcher: func(c config.Component) func() (string, error) {
+				return func() (string, error) {
+					return security.FetchAuthToken(c)
+				}
+			},
+			RemoteFilter: taggerTypes.NewMatchAllFilter(),
+		}),
+		fx.Provide(func(t tagger.Component) taggerTypes.TaggerClient {
+			return t
+		}),
+		fx.Populate(&client),
+	)
+	if err := app.Err(); err != nil {
+		return nil, err
+	}
+	f.data.infraTags = newInfraTagsProcessor(client, option.None[SourceProviderFunc]())
+	return f.data, nil
 }
 
 // NewFactory returns a new factory for the InfraAttributes processor.
-func NewFactory(tagger taggerClient, generateID GenerateKubeMetadataEntityID) processor.Factory {
+func NewFactory() processor.Factory {
+	return newFactoryForAgent(nil)
+}
+
+// SourceProviderFunc is a function that returns the source of the host.
+type SourceProviderFunc func(context.Context) (string, error)
+
+// NewFactoryForAgent returns a new factory for the InfraAttributes processor.
+func NewFactoryForAgent(tagger taggerTypes.TaggerClient, hostGetter SourceProviderFunc) processor.Factory {
+	return newFactoryForAgent(&data{
+		infraTags: newInfraTagsProcessor(tagger, option.New(hostGetter)),
+	})
+}
+
+func newFactoryForAgent(data *data) processor.Factory {
 	f := &factory{
-		tagger:     tagger,
-		generateID: generateID,
+		data: data,
 	}
 
 	return processor.NewFactory(
@@ -43,7 +112,7 @@ func NewFactory(tagger taggerClient, generateID GenerateKubeMetadataEntityID) pr
 
 func (f *factory) createDefaultConfig() component.Config {
 	return &Config{
-		Cardinality: types.LowCardinality,
+		Cardinality: taggerTypes.LowCardinality,
 	}
 }
 
@@ -53,7 +122,12 @@ func (f *factory) createMetricsProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Metrics,
 ) (processor.Metrics, error) {
-	iap, err := newInfraAttributesMetricProcessor(set, cfg.(*Config), f.tagger, f.generateID)
+	data, err := f.getOrCreateData()
+	if err != nil {
+		return nil, err
+	}
+
+	iap, err := newInfraAttributesMetricProcessor(set, data.infraTags, cfg.(*Config))
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +146,11 @@ func (f *factory) createLogsProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Logs,
 ) (processor.Logs, error) {
-	iap, err := newInfraAttributesLogsProcessor(set, cfg.(*Config), f.tagger, f.generateID)
+	data, err := f.getOrCreateData()
+	if err != nil {
+		return nil, err
+	}
+	iap, err := newInfraAttributesLogsProcessor(set, data.infraTags, cfg.(*Config))
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +169,11 @@ func (f *factory) createTracesProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (processor.Traces, error) {
-	iap, err := newInfraAttributesSpanProcessor(set, cfg.(*Config), f.tagger, f.generateID)
+	data, err := f.getOrCreateData()
+	if err != nil {
+		return nil, err
+	}
+	iap, err := newInfraAttributesSpanProcessor(set, data.infraTags, cfg.(*Config))
 	if err != nil {
 		return nil, err
 	}

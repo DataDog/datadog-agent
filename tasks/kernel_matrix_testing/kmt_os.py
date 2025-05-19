@@ -225,6 +225,7 @@ class MacOS:
         ctx.run(f"brew list {' '.join(MacOS.packages)} > {flare_folder / 'brew_libvirt.txt'}", warn=True)
         ctx.run(f"netstat -an > {flare_folder / 'netstat.txt'}", warn=True)
         ctx.run(f"ifconfig -a > {flare_folder / 'ifconfig.txt'}", warn=True)
+        ctx.run(f"cp -v /var/db/dhcpd_leases {flare_folder / 'dhcpd_leases'}", warn=True)
 
 
 def flare(ctx: Context, tmp_flare_folder: Path, dest_folder: Path, keep_uncompressed_files: bool = False):

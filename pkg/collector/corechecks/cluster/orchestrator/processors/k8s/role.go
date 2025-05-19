@@ -33,6 +33,16 @@ func (h *RoleHandlers) AfterMarshalling(ctx processors.ProcessorContext, resourc
 	return
 }
 
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *RoleHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*rbacv1.Role)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
+	return
+}
+
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
 func (h *RoleHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
@@ -49,7 +59,7 @@ func (h *RoleHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourc
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Roles:       models,
-		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:        pctx.ExtraTags,
 	}
 }
 
@@ -58,7 +68,7 @@ func (h *RoleHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourc
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *RoleHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*rbacv1.Role)
-	return k8sTransformers.ExtractRole(r)
+	return k8sTransformers.ExtractRole(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic
@@ -70,7 +80,7 @@ func (h *RoleHandlers) ResourceList(ctx processors.ProcessorContext, list interf
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources

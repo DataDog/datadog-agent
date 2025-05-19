@@ -13,7 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cihub/seelog"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
@@ -30,11 +29,11 @@ func applyEmpty(_ string, _ state.ApplyStatus) {}
 func TestStart(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	remoteClient := NewMockRemoteClient(ctrl)
-	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient}
+	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, DebugServerPort: 1}
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
-	pkglog.SetupLogger(seelog.Default, "debug")
+	pkglog.SetupLogger(pkglog.Default(), "debug")
 
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
@@ -58,9 +57,9 @@ func TestPrioritySampler(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
-	pkglog.SetupLogger(seelog.Default, "debug")
+	pkglog.SetupLogger(pkglog.Default(), "debug")
 
-	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
+	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true, DebugServerPort: 1}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
 	payload := apmsampling.SamplerConfig{
@@ -89,9 +88,9 @@ func TestErrorsSampler(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
-	pkglog.SetupLogger(seelog.Default, "debug")
+	pkglog.SetupLogger(pkglog.Default(), "debug")
 
-	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
+	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true, DebugServerPort: 1}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
 	payload := apmsampling.SamplerConfig{
@@ -120,9 +119,9 @@ func TestRareSampler(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
-	pkglog.SetupLogger(seelog.Default, "debug")
+	pkglog.SetupLogger(pkglog.Default(), "debug")
 
-	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
+	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true, DebugServerPort: 1}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
 	payload := apmsampling.SamplerConfig{
@@ -151,9 +150,9 @@ func TestEnvPrecedence(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
-	pkglog.SetupLogger(seelog.Default, "debug")
+	pkglog.SetupLogger(pkglog.Default(), "debug")
 
-	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true, DefaultEnv: "agent-env"}
+	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true, DefaultEnv: "agent-env", DebugServerPort: 1}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
 	payload := apmsampling.SamplerConfig{
@@ -193,7 +192,7 @@ func TestLogLevel(t *testing.T) {
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
 
-	pkglog.SetupLogger(seelog.Default, "debug")
+	pkglog.SetupLogger(pkglog.Default(), "debug")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "Bearer fakeToken", r.Header.Get("Authorization"))
 		w.WriteHeader(200)
@@ -204,8 +203,7 @@ func TestLogLevel(t *testing.T) {
 	agentConfig := config.AgentConfig{
 		RemoteConfigClient: remoteClient,
 		DefaultEnv:         "agent-env",
-		ReceiverHost:       "127.0.0.1",
-		ReceiverPort:       port,
+		DebugServerPort:    port,
 		GetAgentAuthToken: func() string {
 			return "fakeToken"
 		},

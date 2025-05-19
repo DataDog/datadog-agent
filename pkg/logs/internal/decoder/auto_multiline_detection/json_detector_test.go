@@ -40,11 +40,23 @@ func TestJsonDetector(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(string(tc.rawMessage), func(t *testing.T) {
 			messageContext := &messageContext{
-				rawMessage: []byte(tc.rawMessage),
-				label:      aggregate,
+				rawMessage:      []byte(tc.rawMessage),
+				label:           aggregate,
+				labelAssignedBy: defaultLabelSource,
 			}
 			assert.Equal(t, tc.expectedResult, jsonDetector.ProcessAndContinue(messageContext))
 			assert.Equal(t, tc.expectedLabel, messageContext.label)
 		})
 	}
+}
+
+func TestJsonDetectorDoesntOverrideAssignedLabel(t *testing.T) {
+	jsonDetector := NewJSONDetector()
+	messageContext := &messageContext{
+		rawMessage:      []byte(`{"key": "value"}`),
+		label:           aggregate,
+		labelAssignedBy: "Not default!",
+	}
+	assert.Equal(t, true, jsonDetector.ProcessAndContinue(messageContext))
+	assert.Equal(t, aggregate, messageContext.label)
 }

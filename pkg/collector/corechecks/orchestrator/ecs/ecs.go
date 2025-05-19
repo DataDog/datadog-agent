@@ -14,7 +14,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/rand"
-	"strconv"
 	"strings"
 	"time"
 
@@ -31,12 +30,13 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/ecs"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // CheckName is the name of the check
@@ -52,7 +52,7 @@ type Check struct {
 	workloadmetaStore          workloadmeta.Component
 	tagger                     tagger.Component
 	isECSCollectionEnabledFunc func() bool
-	awsAccountID               int
+	awsAccountID               string
 	clusterName                string
 	region                     string
 	clusterID                  string
@@ -61,16 +61,17 @@ type Check struct {
 }
 
 // Factory creates a new check factory
-func Factory(store workloadmeta.Component, tagger tagger.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check { return newCheck(store, tagger) })
+func Factory(store workloadmeta.Component, tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check { return newCheck(store, tagger) })
 }
 
 func newCheck(store workloadmeta.Component, tagger tagger.Component) check.Check {
+	extraTags := pkgconfigsetup.Datadog().GetStringSlice(oconfig.OrchestratorNSKey("extra_tags"))
 	return &Check{
 		CheckBase:                  core.NewCheckBase(CheckName),
 		workloadmetaStore:          store,
 		tagger:                     tagger,
-		config:                     oconfig.NewDefaultOrchestratorConfig(),
+		config:                     oconfig.NewDefaultOrchestratorConfig(extraTags),
 		groupID:                    atomic.NewInt32(rand.Int31()),
 		isECSCollectionEnabledFunc: oconfig.IsOrchestratorECSExplorerEnabled,
 	}
@@ -173,15 +174,15 @@ func (c *Check) shouldRun() bool {
 
 	c.initConfig()
 
-	if c.region == "" || c.awsAccountID == 0 || c.clusterName == "" || c.clusterID == "" {
-		log.Warnf("Orchestrator ECS check is missing required information, region: %s, awsAccountID: %d, clusterName: %s, clusterID: %s", c.region, c.awsAccountID, c.clusterName, c.clusterID)
+	if c.region == "" || c.awsAccountID == "" || c.clusterName == "" || c.clusterID == "" {
+		log.Warnf("Orchestrator ECS check is missing required information, region: %s, awsAccountID: %s, clusterName: %s, clusterID: %s", c.region, c.awsAccountID, c.clusterName, c.clusterID)
 		return false
 	}
 	return true
 }
 
 func (c *Check) initConfig() {
-	if c.awsAccountID != 0 && c.region != "" && c.clusterName != "" && c.clusterID != "" {
+	if c.awsAccountID != "" && c.region != "" && c.clusterName != "" && c.clusterID != "" {
 		return
 	}
 
@@ -194,7 +195,7 @@ func (c *Check) initConfig() {
 	c.clusterName = tasks[0].ClusterName
 	c.region = tasks[0].Region
 
-	if tasks[0].Region == "" || tasks[0].AWSAccountID == 0 {
+	if tasks[0].Region == "" || tasks[0].AWSAccountID == "" {
 		c.region, c.awsAccountID = getRegionAndAWSAccountID(tasks[0].EntityID.ID)
 	}
 
@@ -206,8 +207,8 @@ func (c *Check) initCollectors() {
 }
 
 // initClusterID generates a cluster ID from the AWS account ID, region and cluster name.
-func initClusterID(awsAccountID int, region, clusterName string) string {
-	cluster := fmt.Sprintf("%d/%s/%s", awsAccountID, region, clusterName)
+func initClusterID(awsAccountID string, region, clusterName string) string {
+	cluster := fmt.Sprintf("%s/%s/%s", awsAccountID, region, clusterName)
 
 	hash := md5.New()
 	hash.Write([]byte(cluster))
@@ -222,13 +223,13 @@ func initClusterID(awsAccountID int, region, clusterName string) string {
 
 // ParseRegionAndAWSAccountID parses the region and AWS account ID from an ARN.
 // https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html#arns-syntax
-func getRegionAndAWSAccountID(arn string) (string, int) {
+func getRegionAndAWSAccountID(arn string) (string, string) {
 	arnParts := strings.Split(arn, ":")
 	if len(arnParts) < 5 {
-		return "", 0
+		return "", ""
 	}
 	if arnParts[0] != "arn" || strings.Index(arnParts[1], "aws") != 0 {
-		return "", 0
+		return "", ""
 	}
 	region := arnParts[3]
 	if strings.Count(region, "-") < 2 {
@@ -239,12 +240,8 @@ func getRegionAndAWSAccountID(arn string) (string, int) {
 	// aws account id is 12 digits
 	// https://docs.aws.amazon.com/accounts/latest/reference/manage-acct-identifiers.html
 	if len(id) != 12 {
-		return region, 0
-	}
-	awsAccountID, err := strconv.Atoi(id)
-	if err != nil {
-		return region, 0
+		return region, ""
 	}
 
-	return region, awsAccountID
+	return region, id
 }

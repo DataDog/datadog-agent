@@ -32,6 +32,16 @@ func (h *HorizontalPodAutoscalerHandlers) AfterMarshalling(ctx processors.Proces
 	return
 }
 
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *HorizontalPodAutoscalerHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*v2.HorizontalPodAutoscaler)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
+	return
+}
+
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
 func (h *HorizontalPodAutoscalerHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
@@ -48,7 +58,7 @@ func (h *HorizontalPodAutoscalerHandlers) BuildMessageBody(ctx processors.Proces
 		GroupId:                  pctx.MsgGroupID,
 		GroupSize:                int32(groupSize),
 		HorizontalPodAutoscalers: models,
-		Tags:                     append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:                     pctx.ExtraTags,
 	}
 }
 
@@ -57,7 +67,7 @@ func (h *HorizontalPodAutoscalerHandlers) BuildMessageBody(ctx processors.Proces
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *HorizontalPodAutoscalerHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (horizontalPodAutoscalerModel interface{}) {
 	r := resource.(*v2.HorizontalPodAutoscaler)
-	return k8sTransformers.ExtractHorizontalPodAutoscaler(r)
+	return k8sTransformers.ExtractHorizontalPodAutoscaler(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic
@@ -69,7 +79,7 @@ func (h *HorizontalPodAutoscalerHandlers) ResourceList(ctx processors.ProcessorC
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources

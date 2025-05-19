@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 )
 
@@ -47,7 +47,7 @@ func (v *windowsStatusSuite) TestChecksMetadataWindows() {
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(
-			agentparams.WithFile("C:/ProgramData/Datadog/conf.d/custom_check.d/conf.yaml", string(customCheckYaml), true),
+			agentparams.WithIntegration("custom_check.d", string(customCheckYaml)),
 			agentparams.WithFile("C:/ProgramData/Datadog/checks.d/custom_check.py", string(customCheckPython), true),
 		)))
 
@@ -64,4 +64,8 @@ func (v *windowsStatusSuite) TestChecksMetadataWindows() {
 	}
 
 	fetchAndCheckStatus(&v.baseStatusSuite, expectedSections)
+}
+
+func (v *windowsStatusSuite) TestDefaultInstallStatus() {
+	v.testDefaultInstallStatus(nil, []string{"Status: Not running or unreachable"})
 }

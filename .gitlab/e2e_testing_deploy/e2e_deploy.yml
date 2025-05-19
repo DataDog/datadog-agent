@@ -34,7 +34,7 @@
 
 .deploy_deb_testing-a7:
   stage: e2e_deploy
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -52,6 +52,7 @@ deploy_deb_testing-a7_x64:
     [
       "installer_deb-amd64",
       "agent_deb-x64-a7",
+      "agent_deb-x64-a7-fips",
       "agent_heroku_deb-x64-a7",
       "iot_agent_deb-x64",
       "dogstatsd_deb-x64",
@@ -75,7 +76,7 @@ deploy_deb_testing-a7_arm64:
     - !reference [.manual]
   extends:
     - .deploy_deb_testing-a7
-  needs: ["installer_deb-arm64", "agent_deb-arm64-a7", "lint_linux-arm64"]
+  needs: ["installer_deb-arm64", "agent_deb-arm64-a7", "agent_deb-arm64-a7-fips", "lint_linux-arm64"]
   script:
     - *setup_apt_signing_key
     - set +x # make sure we don't output the creds to the build log
@@ -87,7 +88,7 @@ deploy_deb_testing-a7_arm64:
 
 .deploy_rpm_testing-a7:
   stage: e2e_deploy
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -105,6 +106,7 @@ deploy_rpm_testing-a7_x64:
     [
       "installer_rpm-amd64",
       "agent_rpm-x64-a7",
+      "agent_rpm-x64-a7-fips",
       "iot_agent_rpm-x64",
       "dogstatsd_rpm-x64",
       "lint_linux-x64",
@@ -121,7 +123,7 @@ deploy_rpm_testing-a7_arm64:
     - !reference [.manual]
   extends:
     - .deploy_rpm_testing-a7
-  needs: ["installer_rpm-arm64", "agent_rpm-arm64-a7", "lint_linux-arm64"]
+  needs: ["installer_rpm-arm64", "agent_rpm-arm64-a7", "agent_rpm-arm64-a7-fips", "lint_linux-arm64"]
   script:
     - *setup_rpm_signing_key
     - set +x
@@ -133,7 +135,7 @@ deploy_suse_rpm_testing_x64-a7:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: e2e_deploy
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
   needs:
     [
@@ -141,6 +143,7 @@ deploy_suse_rpm_testing_x64-a7:
       "agent_suse-x64-a7",
       "iot_agent_suse-x64",
       "dogstatsd_suse-x64",
+      "agent_suse-x64-a7-fips",
       "lint_linux-x64",
     ]
   variables:
@@ -158,9 +161,9 @@ deploy_suse_rpm_testing_arm64-a7:
     - !reference [.on_installer_or_e2e_changes]
     - !reference [.manual]
   stage: e2e_deploy
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
-  needs: ["installer_suse_rpm-arm64", "agent_suse-arm64-a7", "lint_linux-arm64"]
+  needs: ["installer_suse_rpm-arm64", "agent_suse-arm64-a7", "agent_suse-arm64-a7-fips", "lint_linux-arm64"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
@@ -176,7 +179,7 @@ deploy_windows_testing-a7:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: e2e_deploy
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
   needs:
     ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7", "windows-installer-amd64"]
@@ -187,8 +190,30 @@ deploy_windows_testing-a7:
       --recursive
       --exclude "*"
       --include "datadog-agent-7.*.msi"
+      --include "datadog-agent-upgrade-test-7.*.msi"
       --include "datadog-installer-*-1-x86_64.msi"
       --include "datadog-installer-*-1-x86_64.exe"
-      $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET_A7
+      $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET
+      --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+      full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+deploy_windows_testing-a7-fips:
+  rules:
+    - !reference [.except_no_tests_no_deploy]
+    - !reference [.except_mergequeue]
+    - when: on_success
+  stage: e2e_deploy
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
+  tags: ["arch:amd64"]
+  needs:
+    ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7-fips"]
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    - $S3_CP_CMD
+      --recursive
+      --exclude "*"
+      --include "datadog-fips-agent-7.*.msi"
+      $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET
       --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
       full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732

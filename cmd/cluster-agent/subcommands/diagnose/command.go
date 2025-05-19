@@ -16,11 +16,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
+	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
-	"github.com/DataDog/datadog-agent/pkg/diagnose"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -38,7 +39,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true), // no need to show regular logs
 				}),
 				core.Bundle(),
-				compressionfx.Module(),
+				diagnosefx.Module(),
 			)
 		},
 	}
@@ -46,18 +47,20 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
-func run(_ config.Component) error {
-	// Verbose:  true - to show details like if was done a while ago
-	// RunLocal: true - do not attept to run in actual running agent but
-	//                  may need to implement it in future
-	// Include: connectivity-datadog-autodiscovery - limit to a single
-	//                  diagnose suite as it was done in this agent for
-	//                  a while. Most likely need to relax or add more
-	//                  diagnose suites in the future
-	diagCfg := diagnosis.Config{Verbose: true, RunLocal: true}
-	diagnoses, err := diagnose.RunLocalCheck(diagCfg, diagnose.RegisterConnectivityAutodiscovery)
+func run(_ config.Component, diagnoseComponent diagnose.Component) error {
+	suite := diagnose.Suites{
+		diagnose.AutodiscoveryConnectivity: func(_ diagnose.Config) []diagnose.Diagnosis {
+			return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()
+		},
+	}
+
+	config := diagnose.Config{Verbose: true}
+
+	result, err := diagnoseComponent.RunLocalSuite(suite, config)
+
 	if err != nil {
 		return err
 	}
-	return diagnose.RunDiagnoseStdOut(color.Output, diagCfg, diagnoses)
+
+	return format.Text(color.Output, config, result)
 }

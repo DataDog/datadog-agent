@@ -134,6 +134,37 @@ const (
 	EVENT_HEADER_EXT_TYPE_MAX                = 0x0011
 )
 
+//revive:disable:exported
+const (
+	EVENT_TRACE_FLAG_ALPC               = 0x00100000
+	EVENT_TRACE_FLAG_CSWITCH            = 0x00000010
+	EVENT_TRACE_FLAG_DBGPRINT           = 0x00040000
+	EVENT_TRACE_FLAG_DISK_FILE_IO       = 0x00000200
+	EVENT_TRACE_FLAG_DISK_IO            = 0x00000100
+	EVENT_TRACE_FLAG_DISK_IO_INIT       = 0x00000400
+	EVENT_TRACE_FLAG_DISPATCHER         = 0x00000800
+	EVENT_TRACE_FLAG_DPC                = 0x00000020
+	EVENT_TRACE_FLAG_DRIVER             = 0x00800000
+	EVENT_TRACE_FLAG_FILE_IO            = 0x02000000
+	EVENT_TRACE_FLAG_FILE_IO_INIT       = 0x04000000
+	EVENT_TRACE_FLAG_IMAGE_LOAD         = 0x00000004
+	EVENT_TRACE_FLAG_INTERRUPT          = 0x00000040
+	EVENT_TRACE_FLAG_JOB                = 0x00080000
+	EVENT_TRACE_FLAG_MEMORY_HARD_FAULTS = 0x00002000
+	EVENT_TRACE_FLAG_MEMORY_PAGE_FAULTS = 0x00001000
+	EVENT_TRACE_FLAG_NETWORK_TCPIP      = 0x00010000
+	EVENT_TRACE_FLAG_NO_SYSCONFIG       = 0x10000000
+	EVENT_TRACE_FLAG_PROCESS            = 0x00000001
+	EVENT_TRACE_FLAG_PROCESS_COUNTERS   = 0x00000008
+	EVENT_TRACE_FLAG_PROFILE            = 0x01000000
+	EVENT_TRACE_FLAG_REGISTRY           = 0x00020000
+	EVENT_TRACE_FLAG_SPLIT_IO           = 0x00200000
+	EVENT_TRACE_FLAG_SYSTEMCALL         = 0x00000080
+	EVENT_TRACE_FLAG_THREAD             = 0x00000002
+	EVENT_TRACE_FLAG_VAMAP              = 0x00008000
+	EVENT_TRACE_FLAG_VIRTUAL_ALLOC      = 0x00004000
+)
+
 //revive:enable:exported
 //revive:enable:var-naming
 
@@ -177,6 +208,8 @@ type SessionConfiguration struct {
 	MinBuffers uint32
 	//MaxBuffers is the maximum number of buffers for ETW to allocate.  The default is 0
 	MaxBuffers uint32
+	// EnableFlags indicate which SystemTraceProvider events should be included in the Trace
+	EnableFlags uint32
 }
 
 // SessionStatistics contains statistics about the session

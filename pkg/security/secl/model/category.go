@@ -57,15 +57,19 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		MProtectEventType.String(),
 		PTraceEventType.String(),
 		UnloadModuleEventType.String(),
+		AcceptEventType.String(),
 		BindEventType.String(),
-		ConnectEventType.String():
+		ConnectEventType.String(),
+		SysCtlEventType.String():
 		return KernelCategory
 
 	// Network
 	case
 		IMDSEventType.String(),
 		RawPacketEventType.String(),
-		DNSEventType.String():
+		DNSEventType.String(),
+		FullDNSResponseEventType.String(),
+		NetworkFlowMonitorEventType.String():
 		return NetworkCategory
 	}
 

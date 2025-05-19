@@ -2,13 +2,14 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 //go:build !windows
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 package disk
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 
 	yaml "gopkg.in/yaml.v2"
@@ -16,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -153,12 +154,7 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 }
 
 func stringSliceContain(slice []string, x string) bool {
-	for _, e := range slice {
-		if e == x {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, x)
 }
 
 func (c *Check) applyDeviceTags(device, mountpoint string, tags []string) []string {
@@ -175,8 +171,8 @@ func (c *Check) applyDeviceTags(device, mountpoint string, tags []string) []stri
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory() option.Option[func() check.Check] {
+	return option.New(newCheck)
 }
 
 func newCheck() check.Check {

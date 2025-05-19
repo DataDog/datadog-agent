@@ -9,8 +9,10 @@ package bininspect
 
 import (
 	"debug/dwarf"
-	"errors"
 	"fmt"
+	"maps"
+	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils"
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr"
@@ -30,7 +32,7 @@ type dwarfInspector struct {
 // It also returns some additional relevant metadata about the given file.
 // It is using the DWARF debug data to obtain information, and therefore should be run on elf files that contain debug
 // data, like our test binaries.
-func InspectWithDWARF(elfFile *safeelf.File, functions []string, structFields []FieldIdentifier) (*Result, error) {
+func InspectWithDWARF(elfFile *safeelf.File, dwarfData *dwarf.Data, functions []string, structFields []FieldIdentifier) (*Result, error) {
 	if elfFile == nil {
 		return nil, ErrNilElf
 	}
@@ -39,12 +41,6 @@ func InspectWithDWARF(elfFile *safeelf.File, functions []string, structFields []
 	arch, err := GetArchitecture(elfFile)
 	if err != nil {
 		return nil, err
-	}
-
-	dwarfData, ok := HasDwarfInfo(elfFile)
-
-	if !ok || dwarfData == nil {
-		return nil, errors.New("expected dwarf data")
 	}
 
 	inspector := dwarfInspector{
@@ -138,7 +134,7 @@ func (d dwarfInspector) findFunctionDebugInfoEntries(functions []string) (map[st
 	}
 
 	if len(functionsToSearch) != 0 {
-		return nil, errors.New("not all functions found")
+		return nil, fmt.Errorf("not all functions found: %s", strings.Join(slices.Collect(maps.Keys(functionsToSearch)), ","))
 	}
 
 	return functionEntries, nil

@@ -106,8 +106,8 @@ func getFileSystemInfo() ([]MountInfo, error) {
 	var findClose = mod.NewProc("FindVolumeClose")
 
 	buf := make([]uint16, 512)
-	var sz int32 = 512
-	fh, _, _ := findFirst.Call(uintptr(unsafe.Pointer(&buf[0])), uintptr(sz))
+	var bufsize int32 = 512
+	fh, _, _ := findFirst.Call(uintptr(unsafe.Pointer(&buf[0])), uintptr(bufsize))
 	var findHandle = windows.Handle(fh)
 	var fileSystemInfo []MountInfo
 
@@ -119,7 +119,7 @@ func getFileSystemInfo() ([]MountInfo, error) {
 		for moreData {
 			outstring := convertWindowsString(buf)
 
-			size, _ := getDiskSize(outstring)
+			diskSize, _ := getDiskSize(outstring)
 
 			mountpts := getMountPoints(outstring)
 			var mountName string
@@ -128,13 +128,13 @@ func getFileSystemInfo() ([]MountInfo, error) {
 			}
 			mountInfo := MountInfo{
 				Name:      outstring,
-				SizeKB:    size / 1024,
+				SizeKB:    diskSize / 1024,
 				MountedOn: mountName,
 			}
 			fileSystemInfo = append(fileSystemInfo, mountInfo)
 			status, _, _ := findNext.Call(fh,
 				uintptr(unsafe.Pointer(&buf[0])),
-				uintptr(size))
+				uintptr(bufsize))
 			if 0 == status {
 				moreData = false
 			}

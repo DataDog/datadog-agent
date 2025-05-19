@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"math"
 	"path"
 	"strings"
@@ -82,6 +83,8 @@ var InvalidDiscarders = map[eval.Field][]string{
 	"removexattr.file.path":        dentryInvalidDiscarder,
 	"chdir.file.path":              dentryInvalidDiscarder,
 }
+
+var dnsMask uint16
 
 // bumpDiscardersRevision sends an eRPC request to bump the discarders revisionr
 func bumpDiscardersRevision(e *erpc.ERPC) error {
@@ -237,7 +240,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 		return nil, nil
 	}
 
-	if _, err := id.discarderEvent.GetFieldType(field); err != nil {
+	if _, _, _, err := id.discarderEvent.GetFieldMetadata(field); err != nil {
 		return nil, err
 	}
 
@@ -246,7 +249,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 	}
 
 	basenameField := strings.Replace(field, model.PathSuffix, model.NameSuffix, 1)
-	if _, err := id.discarderEvent.GetFieldType(basenameField); err != nil {
+	if _, _, _, err := id.discarderEvent.GetFieldMetadata(basenameField); err != nil {
 		return nil, err
 	}
 
@@ -400,7 +403,7 @@ func (id *inodeDiscarders) discardParentInode(req *erpc.Request, rs *rules.RuleS
 
 	for i := 0; i < discarderDepth; i++ {
 		key, err := id.dentryResolver.GetParent(parentKey)
-		if err != nil || dentry.IsFakeInode(pathKey.Inode) {
+		if err != nil || model.IsFakeInode(pathKey.Inode) {
 			if i == 0 {
 				return false, 0, 0, err
 			}
@@ -451,7 +454,7 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 
 			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.erpcRequest, rs, eventType, field, filename, fileEvent.PathKey, event.TimestampRaw)
 			if !isDiscarded && !isDeleted && err == nil {
-				if !dentry.IsFakeInode(fileEvent.PathKey.Inode) {
+				if !model.IsFakeInode(fileEvent.PathKey.Inode) {
 					seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, fileEvent.PathKey.Inode, filename)
 
 					// not able to discard the parent then only discard the filename
@@ -688,4 +691,35 @@ func init() {
 			return "chdir.file.path", &event.Open.File, false
 		}))
 	SupportedDiscarders["chdir.file.path"] = true
+
+	allDiscarderHandlers["dns"] = append(allDiscarderHandlers["dns"], func(_ *rules.RuleSet, event *model.Event, probe *EBPFProbe, discarder Discarder) (bool, error) {
+		field := "dns.response.code"
+		dnsResponse := &event.DNS
+
+		if !dnsResponse.HasResponse() {
+			return false, nil
+		}
+
+		if discarder.Field == field {
+			mask := uint16(1)
+			mask <<= dnsResponse.Response.ResponseCode
+			dnsMask |= mask
+
+			bufferSelector, err := managerhelper.Map(probe.Manager, "filtered_dns_rcodes")
+			if err != nil {
+				return false, err
+			}
+
+			err = bufferSelector.Put(uint32(0), dnsMask)
+			if err != nil {
+				return false, err
+			}
+
+			seclog.Tracef("DNS discarder for response code: %d", dnsResponse.Response.ResponseCode)
+			return true, nil
+		}
+
+		return false, nil
+	})
+	SupportedDiscarders["dns.response.code"] = true
 }

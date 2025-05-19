@@ -32,6 +32,16 @@ func (h *LimitRangeHandlers) AfterMarshalling(ctx processors.ProcessorContext, r
 	return
 }
 
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *LimitRangeHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*corev1.LimitRange)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
+	return
+}
+
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
 func (h *LimitRangeHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
@@ -48,7 +58,7 @@ func (h *LimitRangeHandlers) BuildMessageBody(ctx processors.ProcessorContext, r
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		LimitRanges: models,
-		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:        pctx.ExtraTags,
 	}
 }
 
@@ -57,7 +67,7 @@ func (h *LimitRangeHandlers) BuildMessageBody(ctx processors.ProcessorContext, r
 //nolint:revive
 func (h *LimitRangeHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (LimitRangeModel interface{}) {
 	r := resource.(*corev1.LimitRange)
-	return k8sTransformers.ExtractLimitRange(r)
+	return k8sTransformers.ExtractLimitRange(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic
@@ -69,7 +79,7 @@ func (h *LimitRangeHandlers) ResourceList(ctx processors.ProcessorContext, list 
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources

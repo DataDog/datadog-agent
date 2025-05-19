@@ -17,7 +17,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -137,7 +137,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 		},
 	}
 
-	taggerInstance := mock.SetupFakeTagger(t)
+	taggerInstance := taggerfxmock.SetupFakeTagger(t)
 
 	tests := []struct {
 		name                    string
@@ -655,7 +655,7 @@ func TestUnbundledEventsTransformFiltering(t *testing.T) {
 		},
 	}
 
-	taggerInstance := mock.SetupFakeTagger(t)
+	taggerInstance := taggerfxmock.SetupFakeTagger(t)
 
 	tests := []struct {
 		name                   string
@@ -901,7 +901,7 @@ func TestUnbundledEventsTransformFiltering(t *testing.T) {
 }
 
 func TestGetTagsFromTagger(t *testing.T) {
-	taggerInstance := mock.SetupFakeTagger(t)
+	taggerInstance := taggerfxmock.SetupFakeTagger(t)
 	taggerInstance.SetGlobalTags([]string{"global:here"}, nil, nil, nil)
 
 	tests := []struct {
@@ -935,7 +935,7 @@ func TestGetTagsFromTagger(t *testing.T) {
 }
 
 func TestUnbundledEventsShouldCollect(t *testing.T) {
-	taggerInstance := mock.SetupFakeTagger(t)
+	taggerInstance := taggerfxmock.SetupFakeTagger(t)
 
 	tests := []struct {
 		name     string

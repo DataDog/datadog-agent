@@ -23,7 +23,6 @@ type ScanOptions struct {
 	Timeout          time.Duration
 	WaitAfter        time.Duration
 	Fast             bool
-	CollectFiles     bool
 	UseMount         bool
 	OverlayFsScan    bool
 }

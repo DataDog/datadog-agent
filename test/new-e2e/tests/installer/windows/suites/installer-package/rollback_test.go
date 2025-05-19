@@ -6,14 +6,15 @@
 package installertests
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 )
 
 type testInstallerRollbackSuite struct {
-	baseInstallerSuite
+	baseInstallerPackageSuite
 }
 
 // TestInstallerRollback tests the MSI rollback of the Datadog Installer on a system.

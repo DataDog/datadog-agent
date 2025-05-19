@@ -6,8 +6,8 @@
 //go:build test && otlp
 // +build test,otlp
 
-// Package collectorimpl implements the collector component
-package collectorimpl
+// Package pipelineimpl implements the collector component
+package pipelineimpl
 
 import (
 	"bytes"
@@ -140,7 +140,7 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 
 	// Fill the flare
 	f := helpers.NewFlareBuilderMock(t, false)
-	col.fillFlare(f.Fb)
+	col.fillFlare(f)
 
 	f.AssertFileExists("otel", "otel-response.json")
 

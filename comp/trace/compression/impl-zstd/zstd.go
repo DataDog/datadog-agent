@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package compressionimpl implements the compression component interface
-package compressionimpl
+// Package zstdimpl implements the compression component interface
+package zstdimpl
 
 import (
 	"io"

@@ -18,15 +18,28 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
 	procmodel "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
+	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestGoRoutines(t *testing.T) {
@@ -42,42 +55,6 @@ func TestGoRoutines(t *testing.T) {
 	assert.Equal(t, expected, string(content))
 }
 
-func TestIncludeSystemProbeConfig(t *testing.T) {
-	configmock.NewFromFile(t, "./test/datadog-agent.yaml")
-	// create system-probe.yaml file because it's in .gitignore
-	_, err := os.Create("./test/system-probe.yaml")
-	require.NoError(t, err, "couldn't create system-probe.yaml")
-	defer os.Remove("./test/system-probe.yaml")
-
-	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	getConfigFiles(mock.Fb, searchPaths{"": "./test/confd"})
-
-	mock.AssertFileExists("etc", "datadog.yaml")
-	mock.AssertFileExists("etc", "system-probe.yaml")
-}
-
-func TestIncludeConfigFiles(t *testing.T) {
-	configmock.New(t)
-
-	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	getConfigFiles(mock.Fb, searchPaths{"": "./test/confd"})
-
-	mock.AssertFileExists("etc/confd/test.yaml")
-	mock.AssertFileExists("etc/confd/test.Yml")
-	mock.AssertNoFileExists("etc/confd/not_included.conf")
-}
-
-func TestIncludeConfigFilesWithPrefix(t *testing.T) {
-	configmock.New(t)
-
-	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	getConfigFiles(mock.Fb, searchPaths{"prefix": "./test/confd"})
-
-	mock.AssertFileExists("etc/confd/prefix/test.yaml")
-	mock.AssertFileExists("etc/confd/prefix/test.Yml")
-	mock.AssertNoFileExists("etc/confd/prefix/not_included.conf")
-}
-
 func createTestFile(t *testing.T, filename string) string {
 	path := filepath.Join(t.TempDir(), filename)
 	require.NoError(t, os.WriteFile(path, []byte("mockfilecontent"), os.ModePerm))
@@ -91,7 +68,7 @@ func TestRegistryJSON(t *testing.T) {
 	confMock.SetWithoutSource("logs_config.run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	getRegistryJSON(mock.Fb)
+	getRegistryJSON(mock)
 
 	mock.AssertFileContent("mockfilecontent", "registry.json")
 }
@@ -105,6 +82,27 @@ func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
 	confMock.SetWithoutSource("cmd_host", host)
 	confMock.SetWithoutSource("cmd_port", port)
 	confMock.SetWithoutSource("process_config.cmd_port", port)
+}
+
+func setupProcessAPIServer(t *testing.T, port int) {
+	_ = fxutil.Test[processapiserver.Component](t, fx.Options(
+		processapiserver.Module(),
+		core.MockBundle(),
+		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
+			"process_config.cmd_port": port,
+		}}),
+		workloadmetafx.Module(workloadmeta.NewParams()),
+		fx.Supply(
+			status.Params{
+				PythonVersionGetFunc: func() string { return "n/a" },
+			},
+		),
+		taggerfx.Module(),
+		statusimpl.Module(),
+		settingsimpl.MockModule(),
+		secretsimpl.MockModule(),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+	))
 }
 
 func TestGetAgentTaggerList(t *testing.T) {
@@ -172,7 +170,7 @@ func TestVersionHistory(t *testing.T) {
 	confMock.SetWithoutSource("run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	getVersionHistory(mock.Fb)
+	getVersionHistory(mock)
 
 	mock.AssertFileContent("mockfilecontent", "version-history.json")
 }
@@ -200,8 +198,9 @@ process_config:
   enabled: "true"
 `
 	// Setting an unused port to avoid problem when test run next to running Process Agent
+	port := 56789
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("process_config.cmd_port", 56789)
+	cfg.SetWithoutSource("process_config.cmd_port", port)
 
 	t.Run("without process-agent running", func(t *testing.T) {
 		content, err := getProcessAgentFullConfig()
@@ -219,7 +218,7 @@ process_config:
 			_, err = w.Write(b)
 			require.NoError(t, err)
 		}
-		srv := httptest.NewServer(http.HandlerFunc(handler))
+		srv := httptest.NewTLSServer(http.HandlerFunc(handler))
 		defer srv.Close()
 
 		setupIPCAddress(t, cfg, srv.URL)
@@ -227,6 +226,24 @@ process_config:
 		content, err := getProcessAgentFullConfig()
 		require.NoError(t, err)
 		assert.Equal(t, exp, string(content))
+	})
+
+	t.Run("verify auth", func(t *testing.T) {
+		listener, err := net.Listen("tcp", ":0")
+		require.NoError(t, err)
+		port := listener.Addr().(*net.TCPAddr).Port
+		listener.Close()
+
+		setupProcessAPIServer(t, port)
+
+		cfg := configmock.New(t)
+		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
+		cfg.SetWithoutSource("process_config.cmd_port", port)
+
+		content, err := getProcessAgentFullConfig()
+		require.NoError(t, err)
+		// if auth is not set, "no session token provided" would appear instead
+		assert.Equal(t, "", string(content))
 	})
 }
 
@@ -269,9 +286,10 @@ func TestProcessAgentChecks(t *testing.T) {
 
 	t.Run("without process-agent running", func(t *testing.T) {
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
-		getChecksFromProcessAgent(mock.Fb, func() (string, error) { return "fake:1337", nil })
-
-		mock.AssertFileContentMatch("error: process-agent is not running or is unreachable: error collecting data for 'process_discovery_check_output.json': .*", "process_check_output.json")
+		// Use a hostname that will fail to resolve even with AppGate enabled,
+		// otherwise this test will timeout
+		getChecksFromProcessAgent(mock, func() (string, error) { return "[invalid][host]:1337", nil })
+		mock.AssertFileContentMatch("error collecting data for 'process_discovery_check_output.json': .*", "process_discovery_check_output.json")
 	})
 	t.Run("with process-agent running", func(t *testing.T) {
 		cfg := configmock.New(t)
@@ -294,16 +312,34 @@ func TestProcessAgentChecks(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		srv := httptest.NewServer(http.HandlerFunc(handler))
-		defer srv.Close()
+		at := ipcmock.New(t)
 
+		srv := at.NewMockServer(http.HandlerFunc(handler))
 		setupIPCAddress(t, configmock.New(t), srv.URL)
 
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
-		getChecksFromProcessAgent(mock.Fb, getProcessAPIAddressPort)
+		getChecksFromProcessAgent(mock, getProcessAPIAddressPort)
 
 		mock.AssertFileContent(string(expectedProcessesJSON), "process_check_output.json")
 		mock.AssertFileContent(string(expectedContainersJSON), "container_check_output.json")
 		mock.AssertFileContent(string(expectedProcessDiscoveryJSON), "process_discovery_check_output.json")
+	})
+	t.Run("verify auth", func(t *testing.T) {
+		listener, err := net.Listen("tcp", ":0")
+		require.NoError(t, err)
+		port := listener.Addr().(*net.TCPAddr).Port
+		listener.Close()
+
+		setupProcessAPIServer(t, port)
+
+		cfg := configmock.New(t)
+		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
+		cfg.SetWithoutSource("process_config.cmd_port", port)
+
+		mock := flarehelpers.NewFlareBuilderMock(t, false)
+		getChecksFromProcessAgent(mock, getProcessAPIAddressPort)
+
+		// if auth is not set, "no session token provided" would appear instead
+		mock.AssertFileContent("error collecting data for 'process_discovery_check_output.json': process_discovery check is not running or has not been scheduled yet", "process_discovery_check_output.json")
 	})
 }

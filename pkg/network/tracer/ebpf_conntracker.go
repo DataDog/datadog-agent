@@ -16,7 +16,6 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
 	"github.com/prometheus/client_golang/prometheus"
@@ -38,6 +37,7 @@ import (
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -133,6 +133,8 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		return nil, fmt.Errorf("failed to start ebpf conntracker: %w", err)
 	}
 
+	ddebpf.AddProbeFDMappings(m)
+
 	ctMap, err := maps.GetMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple](m, probes.ConntrackMap)
 	if err != nil {
 		_ = m.Stop(manager.CleanAll)
@@ -145,7 +147,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		return nil, fmt.Errorf("unable to get telemetry map: %w", err)
 	}
 
-	rootNS, err := kernel.GetNetNsInoFromPid(cfg.ProcRoot, 1)
+	rootNS, err := netns.GetNetNsInoFromPid(cfg.ProcRoot, 1)
 	if err != nil {
 		return nil, fmt.Errorf("could not find network root namespace: %w", err)
 	}
@@ -239,7 +241,7 @@ func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionTuple) 
 	defer tuplePool.Put(src)
 
 	toConntrackTupleFromTuple(src, stats)
-	if log.ShouldLog(seelog.TraceLvl) {
+	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("looking up in conntrack (stats): %s", stats)
 	}
 
@@ -247,14 +249,14 @@ func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionTuple) 
 	// NAT rules referencing conntrack are installed there instead
 	// of other network namespaces (for pods, for instance)
 	src.Netns = e.rootNS
-	if log.ShouldLog(seelog.TraceLvl) {
+	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("looking up in conntrack (tuple): %s", src)
 	}
 	dst := e.get(src)
 	if dst == nil && stats.NetNS != e.rootNS {
 		// Perform another lookup, this time using the connection namespace
 		src.Netns = stats.NetNS
-		if log.ShouldLog(seelog.TraceLvl) {
+		if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("looking up in conntrack (tuple,netns): %s", src)
 		}
 		dst = e.get(src)
@@ -299,7 +301,7 @@ func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 
 	if err := e.ctMap.Delete(key); err != nil {
 		if errors.Is(err, ebpf.ErrKeyNotExist) {
-			if log.ShouldLog(seelog.TraceLvl) {
+			if log.ShouldLog(log.TraceLvl) {
 				log.Tracef("connection does not exist in ebpf conntrack map: %s", key)
 			}
 

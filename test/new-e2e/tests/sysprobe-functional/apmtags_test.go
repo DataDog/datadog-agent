@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
+	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 )
 
@@ -112,6 +112,8 @@ func (v *apmvmSuite) SetupSuite() {
 
 	// this creates the VM.
 	v.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer v.CleanupOnSetupFailure()
 
 	// get the remote host
 	vm := v.Env().RemoteHost

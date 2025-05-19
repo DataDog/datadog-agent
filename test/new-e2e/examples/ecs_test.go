@@ -14,11 +14,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
 
 	tifEcs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
-	"github.com/aws/aws-sdk-go/aws"
 )
 
 type myECSSuite struct {

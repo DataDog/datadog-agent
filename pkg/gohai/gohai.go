@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gohai/network"
 	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 	"github.com/DataDog/datadog-agent/pkg/gohai/processes"
+	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -52,30 +53,30 @@ type Payload struct {
 }
 
 // GetPayload builds a payload of every metadata collected with gohai except processes metadata.
-func GetPayload(isContainerized bool) *Payload {
+func GetPayload(hostname string, useHostnameResolver, isContainerized bool) *Payload {
 	return &Payload{
-		Gohai: getGohaiInfo(isContainerized, false),
+		Gohai: getGohaiInfo(hostname, useHostnameResolver, isContainerized, false),
 	}
 }
 
 // GetPayloadWithProcesses builds a pyaload of all metdata including processes
-func GetPayloadWithProcesses(isContainerized bool) *Payload {
+func GetPayloadWithProcesses(hostname string, useHostnameResolver, isContainerized bool) *Payload {
 	return &Payload{
-		Gohai: getGohaiInfo(isContainerized, true),
+		Gohai: getGohaiInfo(hostname, useHostnameResolver, isContainerized, true),
 	}
 }
 
 // GetPayloadAsString marshals the gohai struct twice (to a string). This allows the gohai payload to be embedded as a
 // string in a JSON. This is required to mimic the metadata format inherited from Agent v5.
-func GetPayloadAsString(IsContainerized bool) (string, error) {
-	marshalledPayload, err := json.Marshal(getGohaiInfo(IsContainerized, false))
+func GetPayloadAsString(hostname string, useHostnameResolver, IsContainerized bool) (string, error) {
+	marshalledPayload, err := json.Marshal(getGohaiInfo(hostname, useHostnameResolver, IsContainerized, false))
 	if err != nil {
 		return "", err
 	}
 	return string(marshalledPayload), nil
 }
 
-func getGohaiInfo(isContainerized, withProcesses bool) *gohai {
+func getGohaiInfo(hostname string, useHostnameResolver, isContainerized, withProcesses bool) *gohai {
 	res := new(gohai)
 
 	cpuPayload, warns, err := cpu.CollectInfo().AsJSON()
@@ -114,10 +115,24 @@ func getGohaiInfo(isContainerized, withProcesses bool) *gohai {
 	}
 
 	if !isContainerized || detectDocker0() {
+
 		var networkPayload interface{}
 		networkInfo, err := network.CollectInfo()
 		warns = nil
 		if err == nil {
+			if useHostnameResolver {
+				ipv4s, ipv6s, err := network.ResolveFromHostname(hostname)
+				if err != nil {
+					log.Errorf("failed to resolve hostname to IP addresses: %s", err) //nolint:errcheck
+				} else {
+					if len(ipv4s) > 0 {
+						networkInfo.IPAddress = ipv4s[0]
+					}
+					if len(ipv6s) > 0 {
+						networkInfo.IPAddressV6 = utils.NewValue(ipv6s[0])
+					}
+				}
+			}
 			networkPayload, warns, err = networkInfo.AsJSON()
 		}
 		if err == nil {

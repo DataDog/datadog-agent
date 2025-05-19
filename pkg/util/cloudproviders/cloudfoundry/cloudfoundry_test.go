@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	netutil "github.com/DataDog/datadog-agent/pkg/util/net"
 )
 
 func TestHostAliasDisable(t *testing.T) {
@@ -30,7 +30,7 @@ func TestHostAliasDisable(t *testing.T) {
 
 func TestHostAlias(t *testing.T) {
 	ctx := context.Background()
-	defer func() { getFqdn = util.Fqdn }()
+	defer func() { getFqdn = netutil.Fqdn }()
 	mockConfig := configmock.New(t)
 
 	mockConfig.SetWithoutSource("cloud_foundry", true)

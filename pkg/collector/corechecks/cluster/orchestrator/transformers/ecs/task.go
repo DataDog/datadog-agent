@@ -51,6 +51,7 @@ func ExtractECSTask(task TaskWithContainers, tagger tagger.Component) *model.ECS
 		EphemeralStorageMetrics: task.Task.EphemeralStorageMetrics,
 		ServiceName:             task.Task.ServiceName,
 		VpcId:                   task.Task.VPCID,
+		ContainerInstanceArn:    task.Task.ContainerInstanceARN,
 		PullStartedAt:           extractTimestampPtr(task.Task.PullStartedAt),
 		PullStoppedAt:           extractTimestampPtr(task.Task.PullStoppedAt),
 		ExecutionStoppedAt:      extractTimestampPtr(task.Task.ExecutionStoppedAt),

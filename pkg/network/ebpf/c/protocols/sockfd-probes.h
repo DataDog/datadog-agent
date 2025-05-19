@@ -13,6 +13,7 @@
 
 #include "sock.h"
 #include "sockfd.h"
+#include "pid_tgid.h"
 
 SEC("kprobe/tcp_close")
 int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
@@ -27,14 +28,12 @@ int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
     }
 
     pid_fd_t *pid_fd = bpf_map_lookup_elem(&pid_fd_by_tuple, &t);
-    if (pid_fd == NULL) {
-        return 0;
+    if (pid_fd != NULL) {
+        // Copy map value to stack so we can use it as a map key (needed for older kernels)
+        pid_fd_t pid_fd_copy = *pid_fd;
+        bpf_map_delete_elem(&tuple_by_pid_fd, &pid_fd_copy);
+        bpf_map_delete_elem(&pid_fd_by_tuple, &t);
     }
-
-    // Copy map value to stack so we can use it as a map key (needed for older kernels)
-    pid_fd_t pid_fd_copy = *pid_fd;
-    bpf_map_delete_elem(&tuple_by_pid_fd, &pid_fd_copy);
-    bpf_map_delete_elem(&pid_fd_by_tuple, &t);
 
     // The cleanup of the map happens either during TCP termination or during the TLS shutdown event.
     // TCP termination is managed by the socket filter, thus it cannot clean TLS entries,
@@ -53,7 +52,7 @@ int BPF_KPROBE(kprobe__sockfd_lookup_light, int sockfd) {
     // but can reduce the accuracy of programs relying on socket FDs for
     // processes with a lot of FD churn
     pid_fd_t key = {
-        .pid = pid_tgid >> 32,
+        .pid = GET_USER_MODE_PID(pid_tgid),
         .fd = sockfd,
     };
     conn_tuple_t *t = bpf_map_lookup_elem(&tuple_by_pid_fd, &key);
@@ -121,7 +120,7 @@ int BPF_KRETPROBE(kretprobe__sockfd_lookup_light, struct socket *socket) {
     }
 
     pid_fd_t pid_fd = {
-        .pid = pid_tgid >> 32,
+        .pid = GET_USER_MODE_PID(pid_tgid),
         .fd = (*sockfd),
     };
 

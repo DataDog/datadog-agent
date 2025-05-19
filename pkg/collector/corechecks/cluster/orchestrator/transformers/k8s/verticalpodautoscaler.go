@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
 
@@ -17,7 +18,7 @@ import (
 )
 
 // ExtractVerticalPodAutoscaler returns the protobuf model corresponding to a Kubernetes Vertical Pod Autoscaler resource.
-func ExtractVerticalPodAutoscaler(v *v1.VerticalPodAutoscaler) *model.VerticalPodAutoscaler {
+func ExtractVerticalPodAutoscaler(ctx processors.ProcessorContext, v *v1.VerticalPodAutoscaler) *model.VerticalPodAutoscaler {
 	if v == nil {
 		return &model.VerticalPodAutoscaler{}
 	}
@@ -35,7 +36,10 @@ func ExtractVerticalPodAutoscaler(v *v1.VerticalPodAutoscaler) *model.VerticalPo
 		m.Tags = append(m.Tags, conditionTags...)
 	}
 
+	pctx := ctx.(*processors.K8sProcessorContext)
 	m.Tags = append(m.Tags, transformers.RetrieveUnifiedServiceTags(v.ObjectMeta.Labels)...)
+	m.Tags = append(m.Tags, transformers.RetrieveMetadataTags(v.ObjectMeta.Labels, v.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+
 	return m
 }
 

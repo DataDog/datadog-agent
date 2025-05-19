@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 )
 
 type EbpfProgramSuite struct {
@@ -27,7 +28,7 @@ type EbpfProgramSuite struct {
 }
 
 func TestEbpfProgram(t *testing.T) {
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		if !IsSupported(ebpf.NewConfig()) {
 			t.Skip("shared-libraries monitoring is not supported on this configuration")
 		}

@@ -18,11 +18,9 @@ import (
 	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	networkpayload "github.com/DataDog/datadog-agent/pkg/network/payload"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -79,6 +77,9 @@ type ConnectionFamily uint8
 type ConnectionDirection uint8
 
 const (
+	// UNKNOWN represents connections where the direction is not known (yet)
+	UNKNOWN ConnectionDirection = 0
+
 	// INCOMING represents connections inbound to the host
 	INCOMING ConnectionDirection = 1 // incoming
 
@@ -121,11 +122,7 @@ type Connections struct {
 	KernelHeaderFetchResult     int32
 	CORETelemetryByAsset        map[string]int32
 	PrebuiltAssets              []string
-	HTTP                        map[http.Key]*http.RequestStats
-	HTTP2                       map[http.Key]*http.RequestStats
-	Kafka                       map[kafka.Key]*kafka.RequestStats
-	Postgres                    map[postgres.Key]*postgres.RequestStat
-	Redis                       map[redis.Key]*redis.RequestStat
+	USMData                     USMProtocolsData
 }
 
 // NewConnections create a new Connections object
@@ -159,9 +156,6 @@ const (
 	ConnsBpfMapSize                 ConnTelemetryType = "conns_bpf_map_size"
 	ConntrackSamplingPercent        ConnTelemetryType = "conntrack_sampling_percent"
 	NPMDriverFlowsMissedMaxExceeded ConnTelemetryType = "driver_flows_missed_max_exceeded"
-
-	// USM Payload Telemetry
-	USMHTTPHits ConnTelemetryType = "usm.http.total_hits"
 )
 
 //revive:enable
@@ -190,11 +184,6 @@ var (
 		MonotonicUDPSendsProcessed,
 		MonotonicUDPSendsMissed,
 		MonotonicDNSPacketsDropped,
-	}
-
-	// USMPayloadTelemetry lists all USM metrics that are sent as payload telemetry
-	USMPayloadTelemetry = []ConnTelemetryType{
-		USMHTTPHits,
 	}
 )
 
@@ -234,14 +223,15 @@ type StatCookie = uint64
 
 // ConnectionTuple represents the unique network key for a connection
 type ConnectionTuple struct {
-	Source util.Address
-	Dest   util.Address
-	Pid    uint32
-	NetNS  uint32
-	SPort  uint16
-	DPort  uint16
-	Type   ConnectionType
-	Family ConnectionFamily
+	Source    util.Address
+	Dest      util.Address
+	Pid       uint32
+	NetNS     uint32
+	SPort     uint16
+	DPort     uint16
+	Type      ConnectionType
+	Family    ConnectionFamily
+	Direction ConnectionDirection
 }
 
 func (c ConnectionTuple) String() string {
@@ -283,9 +273,9 @@ type ConnectionStats struct {
 	RTTVar          uint32
 	StaticTags      uint64
 	ProtocolStack   protocols.Stack
+	TLSTags         tls.Tags
 
 	// keep these fields last because they are 1 byte each and otherwise inflate the struct size due to alignment
-	Direction        ConnectionDirection
 	SPortIsEphemeral EphemeralPortType
 	IntraHost        bool
 	IsAssured        bool
@@ -293,14 +283,10 @@ type ConnectionStats struct {
 }
 
 // Via has info about the routing decision for a flow
-type Via struct {
-	Subnet Subnet `json:"subnet,omitempty"`
-}
+type Via = networkpayload.Via
 
 // Subnet stores info about a subnet
-type Subnet struct {
-	Alias string `json:"alias,omitempty"`
-}
+type Subnet = networkpayload.Subnet
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd
 type IPTranslation struct {

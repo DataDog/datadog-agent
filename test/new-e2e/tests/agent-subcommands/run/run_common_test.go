@@ -6,9 +6,13 @@
 package status
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -39,4 +43,19 @@ func runCommandWithTimeout(host *components.RemoteHost, cmd string, timeout time
 	}
 	// return the timeout error
 	return out, ctx.Err()
+}
+
+func (s *baseRunSuite) readUntil(stdout io.Reader, str string) {
+	s.Assert().EventuallyWithT(func(c *assert.CollectT) {
+		out := make([]byte, 0x4000)
+		_, e := stdout.Read(out)
+		if e != nil && !errors.Is(e, io.EOF) {
+			c.Errorf("error reading stdout %s", e)
+			c.FailNow()
+		}
+		if !assert.True(c, bytes.Contains(out, []byte(str)), "Did not fine %s", str) {
+			s.T().Logf("Waiting for %s", str)
+		}
+
+	}, 3*time.Minute, 1*time.Second, "Did Not find %s", str)
 }

@@ -42,6 +42,12 @@ const DefaultIntakeOrigin IntakeOrigin = "agent"
 // ServerlessIntakeOrigin is the lambda extension origin
 const ServerlessIntakeOrigin IntakeOrigin = "lambda-extension"
 
+// DDOTIntakeOrigin is the DDOT Collector origin
+const DDOTIntakeOrigin IntakeOrigin = "ddot"
+
+// OTelCollectorIntakeOrigin is the OSS OTel Collector origin
+const OTelCollectorIntakeOrigin IntakeOrigin = "otel-collector"
+
 // logs-intake endpoints depending on the site and environment.
 var logsEndpoints = map[string]int{
 	"agent-intake.logs.datadoghq.com": 10516,
@@ -142,7 +148,7 @@ func IsExpectedTagsSet(coreConfig pkgconfigmodel.Reader) bool {
 
 func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys) (*Endpoints, error) {
 	useProto := logsConfig.devModeUseProto()
-	main := NewTCPEndpoint(logsConfig)
+	main := newTCPEndpoint(logsConfig)
 
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
 		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
@@ -185,12 +191,22 @@ func BuildHTTPEndpointsWithVectorOverride(coreConfig pkgconfigmodel.Reader, inta
 	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), httpEndpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 }
 
-// BuildHTTPEndpointsWithConfig uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() w ldHTTPEndpointsWithConfigdefault variables logsConfigDefaultKeys and httpEndpointPrefix
+// BuildHTTPEndpointsWithCompressionOverride returns the HTTP endpoints to send logs to with compression options.
+func BuildHTTPEndpointsWithCompressionOverride(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, compressionOptions EndpointCompressionOptions) (*Endpoints, error) {
+	return buildHTTPEndpoints(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, compressionOptions)
+}
+
+// BuildHTTPEndpointsWithConfig returns the HTTP endpoints to send logs to.
 func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
+	return buildHTTPEndpoints(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, EndpointCompressionOptions{})
+}
+
+// buildHTTPEndpoints uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() w ldHTTPEndpointsWithConfigdefault variables logsConfigDefaultKeys and httpEndpointPrefix
+func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, compressionOptions EndpointCompressionOptions) (*Endpoints, error) {
 	// Provide default values for legacy settings when the configuration key does not exist
 	defaultNoSSL := logsConfig.logsNoSSL()
 
-	main := NewHTTPEndpoint(logsConfig)
+	main := newHTTPEndpoint(logsConfig)
 
 	if logsConfig.useV2API() && intakeTrackType != "" {
 		main.Version = EPIntakeVersion2
@@ -199,6 +215,11 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 		main.Origin = intakeOrigin
 	} else {
 		main.Version = EPIntakeVersion1
+	}
+
+	if compressionOptions.CompressionKind != "" {
+		main.CompressionKind = compressionOptions.CompressionKind
+		main.CompressionLevel = compressionOptions.CompressionLevel
 	}
 
 	if vectorURL, vectorURLDefined := logsConfig.getObsPipelineURL(); logsConfig.obsPipelineWorkerEnabled() && vectorURLDefined {
@@ -243,9 +264,10 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 			return nil, fmt.Errorf("could not parse %s: %v", mrfURL, err)
 		}
 
-		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), mrfHost, mrfPort, mrfUseSSL)
+		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), "multi_region_failover.api_key", mrfHost, mrfPort, mrfUseSSL)
 		e.IsMRF = true
 		e.UseCompression = main.UseCompression
+		e.CompressionKind = main.CompressionKind
 		e.CompressionLevel = main.CompressionLevel
 		e.BackoffBase = main.BackoffBase
 		e.BackoffMax = main.BackoffMax

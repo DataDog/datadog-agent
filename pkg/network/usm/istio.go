@@ -8,25 +8,30 @@
 package usm
 
 import (
+	"errors"
 	"fmt"
-	"os"
+	"io"
 	"strings"
-	"sync"
-	"time"
+
+	"github.com/cilium/ebpf"
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
-	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	istioSslReadRetprobe  = "istio_uretprobe__SSL_read"
 	istioSslWriteRetprobe = "istio_uretprobe__SSL_write"
+
+	istioAttacherName = "istio"
 )
 
 var istioProbes = []manager.ProbesSelector{
@@ -76,6 +81,58 @@ var istioProbes = []manager.ProbesSelector{
 	},
 }
 
+var istioSpec = &protocols.ProtocolSpec{
+	Factory: newIstioMonitor,
+	Maps:    sharedLibrariesMaps,
+	Probes: []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "kprobe__tcp_sendmsg",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslDoHandshakeProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslDoHandshakeRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslSetBioProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslReadProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: istioSslReadRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslWriteProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: istioSslWriteRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslShutdownProbe,
+			},
+		},
+	},
+}
+
 // istioMonitor essentially scans for Envoy processes and attaches SSL uprobes
 // to them.
 //
@@ -83,179 +140,101 @@ var istioProbes = []manager.ProbesSelector{
 // because the Envoy binary embedded in the Istio containers have debug symbols
 // whereas the "vanilla" Envoy images are distributed without them.
 type istioMonitor struct {
-	registry *utils.FileRegistry
-	procRoot string
-	envoyCmd string
-
-	// `utils.FileRegistry` callbacks
-	registerCB   func(utils.FilePath) error
-	unregisterCB func(utils.FilePath) error
-
-	// Termination
-	wg   sync.WaitGroup
-	done chan struct{}
+	cfg            *config.Config
+	attacher       *uprobes.UprobeAttacher
+	envoyCmd       string
+	processMonitor *monitor.ProcessMonitor
 }
 
-// Validate that istioMonitor implements the Attacher interface.
-var _ utils.Attacher = &istioMonitor{}
+// Ensure istioMonitor implements the Protocol interface.
+var _ protocols.Protocol = (*istioMonitor)(nil)
 
-func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
-	if !c.EnableIstioMonitoring {
-		return nil
+func newIstioMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error) {
+	if !c.EnableIstioMonitoring || !usmconfig.TLSSupported(c) {
+		return nil, nil
 	}
 
-	procRoot := kernel.ProcFSRoot()
-	return &istioMonitor{
-		registry: utils.NewFileRegistry(consts.USMModuleName, "istio"),
-		procRoot: procRoot,
-		envoyCmd: c.EnvoyPath,
-		done:     make(chan struct{}),
-
-		// Callbacks
-		registerCB:   addHooks(mgr, procRoot, istioProbes),
-		unregisterCB: removeHooks(mgr, istioProbes),
+	m := &istioMonitor{
+		cfg:            c,
+		envoyCmd:       c.EnvoyPath,
+		attacher:       nil,
+		processMonitor: monitor.GetProcessMonitor(),
 	}
+
+	attachCfg := uprobes.AttacherConfig{
+		ProcRoot: c.ProcRoot,
+		Rules: []*uprobes.AttachRule{{
+			Targets:          uprobes.AttachToExecutable,
+			ProbesSelector:   istioProbes,
+			ExecutableFilter: m.isIstioBinary,
+		}},
+		EbpfConfig:                     &c.Config,
+		ExcludeTargets:                 uprobes.ExcludeSelf | uprobes.ExcludeInternal | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,
+		EnablePeriodicScanNewProcesses: true,
+	}
+	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, istioAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{}, m.processMonitor)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot create uprobe attacher: %w", err)
+	}
+
+	m.attacher = attacher
+
+	return m, nil
 }
 
-// DetachPID detaches a given pid from the eBPF program
-func (m *istioMonitor) DetachPID(pid uint32) error {
-	return m.registry.Unregister(pid)
+// ConfigureOptions changes map attributes to the given options.
+func (m *istioMonitor) ConfigureOptions(options *manager.Options) {
+	sharedLibrariesConfigureOptions(options, m.cfg)
 }
 
-var (
-	// ErrNoEnvoyPath is returned when no envoy path is found for a given PID
-	ErrNoEnvoyPath = fmt.Errorf("no envoy path found for PID")
-)
-
-// AttachPID attaches a given pid to the eBPF program
-func (m *istioMonitor) AttachPID(pid uint32) error {
-	path := m.getEnvoyPath(pid)
-	if path == "" {
-		return ErrNoEnvoyPath
+// PreStart is called before the start of the provided eBPF manager.
+func (m *istioMonitor) PreStart() error {
+	if m.attacher == nil {
+		return errors.New("istio monitoring is enabled but the attacher is nil")
 	}
 
-	return m.registry.Register(
-		path,
-		pid,
-		m.registerCB,
-		m.unregisterCB,
-		utils.IgnoreCB,
-	)
+	if err := m.attacher.Start(); err != nil {
+		return fmt.Errorf("cannot start istio attacher: %w", err)
+	}
+
+	return nil
 }
 
-// Start the istioMonitor
-func (m *istioMonitor) Start() {
-	if m == nil {
-		return
-	}
-
-	processMonitor := monitor.GetProcessMonitor()
-
-	// Subscribe to process events
-	doneExec := processMonitor.SubscribeExec(m.handleProcessExec)
-	doneExit := processMonitor.SubscribeExit(m.handleProcessExit)
-
-	// Attach to existing processes
-	m.sync()
-
-	m.wg.Add(1)
-	go func() {
-		// This ticker is responsible for controlling the rate at which
-		// we scrape the whole procFS again in order to ensure that we
-		// terminate any dangling uprobes and register new processes
-		// missed by the process monitor stream
-		processSync := time.NewTicker(scanTerminatedProcessesInterval)
-
-		defer func() {
-			processSync.Stop()
-			// Execute process monitor callback termination functions
-			doneExec()
-			doneExit()
-			// Stopping the process monitor (if we're the last instance)
-			processMonitor.Stop()
-			// Cleaning up all active hooks
-			m.registry.Clear()
-			// marking we're finished.
-			m.wg.Done()
-		}()
-
-		for {
-			select {
-			case <-m.done:
-				return
-			case <-processSync.C:
-				m.sync()
-				m.registry.Log()
-			}
-		}
-	}()
-
-	utils.AddAttacher(consts.USMModuleName, "istio", m)
-	log.Info("Istio monitoring enabled")
+// PostStart is called after the start of the provided eBPF manager.
+func (*istioMonitor) PostStart() error {
+	return nil
 }
 
 // Stop the istioMonitor.
 func (m *istioMonitor) Stop() {
-	if m == nil {
+	if m.attacher == nil {
+		log.Error("istio monitoring is enabled but the attacher is nil")
 		return
 	}
 
-	close(m.done)
-	m.wg.Wait()
+	m.attacher.Stop()
 }
 
-// sync state of istioMonitor with the current state of procFS
-// the purpose of this method is two-fold:
-// 1) register processes for which we missed exec events (targeted mostly at startup)
-// 2) unregister processes for which we missed exit events
-func (m *istioMonitor) sync() {
-	deletionCandidates := m.registry.GetRegisteredProcesses()
-
-	_ = kernel.WithAllProcs(m.procRoot, func(pid int) error {
-		if _, ok := deletionCandidates[uint32(pid)]; ok {
-			// We have previously hooked into this process and it remains active,
-			// so we remove it from the deletionCandidates list, and move on to the next PID
-			delete(deletionCandidates, uint32(pid))
-			return nil
-		}
-
-		// This is a new PID so we attempt to attach SSL probes to it
-		_ = m.AttachPID(uint32(pid))
-		return nil
-	})
-
-	// At this point all entries from deletionCandidates are no longer alive, so
-	// we should detach our SSL probes from them
-	for pid := range deletionCandidates {
-		m.handleProcessExit(pid)
-	}
+// isIstioBinary checks whether the given file is an istioBinary, based on the expected envoy
+// command substring (as defined by m.envoyCmd).
+func (m *istioMonitor) isIstioBinary(path string, _ *uprobes.ProcInfo) bool {
+	return strings.Contains(path, m.envoyCmd)
 }
 
-func (m *istioMonitor) handleProcessExit(pid uint32) {
-	// We avoid filtering PIDs here because it's cheaper to simply do a registry lookup
-	// instead of fetching a process name in order to determine whether it is an
-	// envoy process or not (which at the very minimum involves syscalls)
-	_ = m.DetachPID(pid)
+// DumpMaps is a no-op.
+func (*istioMonitor) DumpMaps(io.Writer, string, *ebpf.Map) {}
+
+// Name return the program's name.
+func (*istioMonitor) Name() string {
+	return istioAttacherName
 }
 
-func (m *istioMonitor) handleProcessExec(pid uint32) {
-	_ = m.AttachPID(pid)
+// GetStats is a no-op.
+func (*istioMonitor) GetStats() (*protocols.ProtocolStats, func()) {
+	return nil, nil
 }
 
-// getEnvoyPath returns the executable path of the envoy binary for a given PID.
-// It constructs the path to the symbolic link for the executable file of the process with the given PID,
-// then resolves this symlink to determine the actual path of the binary.
-//
-// If the resolved path contains the expected envoy command substring (as defined by m.envoyCmd),
-// the function returns this path. If the PID does not correspond to an envoy process or if an error
-// occurs during resolution, it returns an empty string.
-func (m *istioMonitor) getEnvoyPath(pid uint32) string {
-	exePath := fmt.Sprintf("%s/%d/exe", m.procRoot, pid)
-
-	envoyPath, err := os.Readlink(exePath)
-	if err != nil || !strings.Contains(envoyPath, m.envoyCmd) {
-		return ""
-	}
-
-	return envoyPath
+// IsBuildModeSupported returns always true, as tls module is supported by all modes.
+func (*istioMonitor) IsBuildModeSupported(buildmode.Type) bool {
+	return true
 }

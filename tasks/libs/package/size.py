@@ -2,18 +2,20 @@ import os
 import sys
 import tempfile
 from datetime import datetime
-
-from invoke import Exit
+from pathlib import Path
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
-from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.utils import get_metric_origin
-from tasks.libs.package.utils import get_package_path
+from tasks.libs.package.utils import find_package
 
 DEBIAN_OS = "debian"
+HEROKU_OS = "heroku"
 CENTOS_OS = "centos"
 SUSE_OS = "suse"
+WINDOWS_OS = "windows"
+MAC_OS = "darwin"
 
 SCANNED_BINARIES = {
     "agent": {
@@ -36,25 +38,30 @@ SCANNED_BINARIES = {
     },
 }
 
+# The below template contains the relative increase threshold for each package type
 PACKAGE_SIZE_TEMPLATE = {
     'amd64': {
-        'datadog-agent': {'deb': 140000000},
-        'datadog-iot-agent': {'deb': 10000000},
-        'datadog-dogstatsd': {'deb': 10000000},
-        'datadog-heroku-agent': {'deb': 70000000},
+        'datadog-agent': {'deb': int(5e5)},
+        'datadog-iot-agent': {'deb': int(5e5)},
+        'datadog-dogstatsd': {'deb': int(5e5)},
+        'datadog-heroku-agent': {'deb': int(5e5)},
     },
     'x86_64': {
-        'datadog-agent': {'rpm': 140000000, 'suse': 140000000},
-        'datadog-iot-agent': {'rpm': 10000000, 'suse': 10000000},
-        'datadog-dogstatsd': {'rpm': 10000000, 'suse': 10000000},
+        'datadog-agent': {'rpm': int(5e5), 'suse': int(5e5)},
+        'datadog-iot-agent': {'rpm': int(5e5), 'suse': int(5e5)},
+        'datadog-dogstatsd': {'rpm': int(5e5), 'suse': int(5e5)},
     },
     'arm64': {
-        'datadog-agent': {'deb': 140000000},
-        'datadog-iot-agent': {'deb': 10000000},
-        'datadog-dogstatsd': {'deb': 10000000},
+        'datadog-agent': {'deb': int(5e5)},
+        'datadog-iot-agent': {'deb': int(5e5)},
+        'datadog-dogstatsd': {'deb': int(5e5)},
     },
-    'aarch64': {'datadog-agent': {'rpm': 140000000}, 'datadog-iot-agent': {'rpm': 10000000}},
+    'aarch64': {'datadog-agent': {'rpm': int(5e5)}, 'datadog-iot-agent': {'rpm': int(5e5)}},
 }
+
+
+class InfraError(Exception):
+    pass
 
 
 def extract_deb_package(ctx, package_path, extract_dir):
@@ -62,15 +69,41 @@ def extract_deb_package(ctx, package_path, extract_dir):
 
 
 def extract_rpm_package(ctx, package_path, extract_dir):
+    log_dir = os.environ.get("CI_PROJECT_DIR", None)
+    if log_dir is None:
+        log_dir = "/tmp"
     with ctx.cd(extract_dir):
-        ctx.run(f"rpm2cpio {package_path} | cpio -idm > /dev/null")
+        out = ctx.run(f"rpm2cpio {package_path} | cpio -idm > {log_dir}/extract_rpm_package_report", warn=True)
+        if out.exited == 2:
+            raise InfraError("RPM archive extraction failed ! retrying...(infra flake)")
+
+
+def extract_zip_archive(ctx, package_path, extract_dir):
+    with ctx.cd(extract_dir):
+        ctx.run(f"unzip {package_path}", hide=True)
+
+
+def extract_dmg_archive(ctx, package_path, extract_dir):
+    with ctx.cd(extract_dir):
+        ctx.run(f"dmg2img {package_path} -o dmg_image.img")
+        ctx.run("7z x dmg_image.img")
+        ctx.run("mkdir ./extracted_pkg")
+        package_path_pkg_format = os.path.basename(package_path).replace("dmg", "pkg")
+        ctx.run(f"xar -xf ./Agent/{package_path_pkg_format} -C ./extracted_pkg")
+        ctx.run("mkdir image_content")
+        with ctx.cd("image_content"):
+            ctx.run("cat ../extracted_pkg/datadog-agent-core.pkg/Payload | gunzip -d | cpio -i")
 
 
 def extract_package(ctx, package_os, package_path, extract_dir):
-    if package_os == DEBIAN_OS:
+    if package_os in (DEBIAN_OS, HEROKU_OS):
         return extract_deb_package(ctx, package_path, extract_dir)
     elif package_os in (CENTOS_OS, SUSE_OS):
         return extract_rpm_package(ctx, package_path, extract_dir)
+    elif package_os == WINDOWS_OS:
+        return extract_zip_archive(ctx, package_path, extract_dir)
+    elif package_os == MAC_OS:
+        return extract_dmg_archive(ctx, package_path, extract_dir)
     else:
         raise ValueError(
             message=color_message(
@@ -83,10 +116,12 @@ def file_size(path):
     return os.path.getsize(path)
 
 
-def directory_size(ctx, path):
-    # HACK: For uncompressed size, fall back to native Unix utilities - computing a directory size with Python
-    # TODO: To make this work on other OSes, the complete directory walk would need to be implemented
-    return int(ctx.run(f"du -sB1 {path}", hide=True).stdout.split()[0])
+def directory_size(path):
+    """Compute the size of a directory as the sum of all the files inside (recursively)"""
+    return sum(
+        sum((dirpath / basename).lstat().st_size for basename in filenames)
+        for dirpath, _, filenames in Path(path).walk()
+    )
 
 
 def compute_package_size_metrics(
@@ -114,7 +149,7 @@ def compute_package_size_metrics(
         extract_package(ctx=ctx, package_os=package_os, package_path=package_path, extract_dir=extract_dir)
 
         package_compressed_size = file_size(path=package_path)
-        package_uncompressed_size = directory_size(ctx, path=extract_dir)
+        package_uncompressed_size = directory_size(path=extract_dir)
 
         timestamp = int(datetime.utcnow().timestamp())
         common_tags = [
@@ -159,67 +194,30 @@ def compute_package_size_metrics(
     return series
 
 
-def compare(ctx, package_sizes, arch, flavor, os_name, threshold):
+def compare(ctx, package_sizes, ancestor, pkg_size):
     """
-    Compare (or update) a package size with the ancestor package size.
+    Compare (or update, when on main branch) a package size with the ancestor package size.
     """
-    mb = 1000000
-    if os_name == 'suse':
-        dir = os.environ['OMNIBUS_PACKAGE_DIR_SUSE']
-        path = f'{dir}/{flavor}-7*{arch}.rpm'
-    else:
-        dir = os.environ['OMNIBUS_PACKAGE_DIR']
-        separator = '_' if os_name == 'deb' else '-'
-        path = f'{dir}/{flavor}{separator}7*{arch}.{os_name}'
-    package_size = _get_uncompressed_size(ctx, get_package_path(path), os_name)
-    branch = get_current_branch(ctx)
-    ancestor = get_common_ancestor(ctx, branch)
-    if branch == get_default_branch():
-        package_sizes[ancestor][arch][flavor][os_name] = package_size
+    current_size = _get_uncompressed_size(ctx, find_package(pkg_size.path()), pkg_size.os)
+    if os.environ['CI_COMMIT_REF_NAME'] == get_default_branch():
+        # On main, ancestor is the current commit, so we set the current value
+        package_sizes[ancestor][pkg_size.arch][pkg_size.flavor][pkg_size.os] = current_size
         return
-    previous_size = get_previous_size(package_sizes, ancestor, arch, flavor, os_name)
-    diff = package_size - previous_size
+    previous_size = package_sizes[ancestor][pkg_size.arch][pkg_size.flavor][pkg_size.os]
+    pkg_size.compare(current_size, previous_size)
 
-    # For printing purposes
-    new_package_size_mb = package_size / mb
-    stable_package_size_mb = previous_size / mb
-    threshold_mb = threshold / mb
-    diff_mb = diff / mb
-    message = f"""{flavor}-{arch}-{os_name} size increase is OK:
-  New package size is {new_package_size_mb:.2f}MB
-  Ancestor package ({ancestor}) size is {stable_package_size_mb:.2f}MB
-  Diff is {diff_mb:.2f}MB (max allowed diff: {threshold_mb:.2f}MB)"""
-
-    if diff > threshold:
-        print(color_message(message.replace('OK', 'too large'), Color.RED), file=sys.stderr)
-        raise Exit(code=1)
-
-    print(message)
-
-
-def get_previous_size(package_sizes, ancestor, arch, flavor, os_name):
-    """
-    Get the size of the package for the given ancestor, or the earliest ancestor if the given ancestor is not found.
-    """
-    if ancestor in package_sizes:
-        commit = ancestor
+    if pkg_size.ko():
+        print(color_message(pkg_size.log(), Color.RED), file=sys.stderr)
     else:
-        commit = min(package_sizes, key=lambda x: package_sizes[x]['timestamp'])
-    return package_sizes[commit][arch][flavor][os_name]
+        print(pkg_size.log())
+    return pkg_size
 
 
 def _get_uncompressed_size(ctx, package, os_name):
     if os_name == 'deb':
-        return _get_deb_uncompressed_size(ctx, package)
+        return (
+            int(ctx.run(f'dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs', hide=True).stdout)
+            * 1024
+        )
     else:
-        return _get_rpm_uncompressed_size(ctx, package)
-
-
-def _get_deb_uncompressed_size(ctx, package):
-    # the size returned by dpkg is a number of bytes divided by 1024
-    # so we multiply it back to get the same unit as RPM or stat
-    return int(ctx.run(f'dpkg-deb --info {package} | grep Installed-Size | cut -d : -f 2 | xargs').stdout) * 1024
-
-
-def _get_rpm_uncompressed_size(ctx, package):
-    return int(ctx.run(f'rpm -qip {package} | grep Size | cut -d : -f 2 | xargs').stdout)
+        return int(ctx.run(f'rpm -qip {package} | grep Size | cut -d : -f 2 | xargs', hide=True).stdout)

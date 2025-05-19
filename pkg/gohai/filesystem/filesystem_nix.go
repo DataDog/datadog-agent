@@ -10,10 +10,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moby/sys/mountinfo"
 	"golang.org/x/sys/unix"
 
-	log "github.com/cihub/seelog"
-	"github.com/moby/sys/mountinfo"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type fsInfoGetter func(*mountinfo.Info) (uint64, error)

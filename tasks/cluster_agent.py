@@ -12,11 +12,11 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import get_build_tags, get_default_build_tags
+from tasks.build_tags import get_default_build_tags
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
-from tasks.libs.common.utils import TestsNotSupportedError
-from tasks.libs.releasing.version import load_release_versions
+from tasks.gointegrationtest import CLUSTER_AGENT_IT_CONF, containerized_integration_tests
+from tasks.libs.releasing.version import load_dependencies
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
@@ -35,13 +35,13 @@ def build(
     development=True,
     skip_assets=False,
     policies_version=None,
-    release_version="nightly-a7",
+    major_version='7',
 ):
     """
     Build Cluster Agent
 
      Example invokation:
-        inv cluster-agent.build
+        dda inv cluster-agent.build
     """
     build_common(
         ctx,
@@ -54,14 +54,15 @@ def build(
         race,
         development,
         skip_assets,
+        major_version=major_version,
     )
 
     if policies_version is None:
-        print(f"Loading release versions for {release_version}")
-        env = load_release_versions(ctx, release_version)
+        print("Loading dependencies from release.json")
+        env = load_dependencies(ctx)
         if "SECURITY_AGENT_POLICIES_VERSION" in env:
             policies_version = env["SECURITY_AGENT_POLICIES_VERSION"]
-            print(f"Security Agent polices for {release_version}: {policies_version}")
+            print(f"Security Agent polices: {policies_version}")
 
     build_context = "Dockerfiles/cluster-agent"
     policies_path = f"{build_context}/security-agent-policies"
@@ -92,33 +93,14 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", t
     """
     Run integration tests for cluster-agent
     """
-    if sys.platform == 'win32':
-        raise TestsNotSupportedError('Cluster Agent integration tests are not supported on Windows')
-
-    # We need docker for the kubeapiserver integration tests
-    tags = get_default_build_tags(build="cluster-agent") + ["docker", "test"]
-
-    go_build_tags = " ".join(get_build_tags(tags, []))
-    race_opt = "-race" if race else ""
-    exec_opts = ""
-    timeout_opt = f"-timeout {timeout}" if timeout else ""
-
-    # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
-    # to the call, we don't want them because while calling invoke below, invoke
-    # thinks that the parameters are for it to interpret.
-    # we're calling an intermediate script which only pass the binary name to the invoke task.
-    if remote_docker:
-        exec_opts = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
-
-    go_cmd = f'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'
-
-    prefixes = [
-        "./test/integration/util/kube_apiserver",
-        "./test/integration/util/leaderelection",
-    ]
-
-    for prefix in prefixes:
-        ctx.run(f"{go_cmd} {prefix}")
+    containerized_integration_tests(
+        ctx,
+        CLUSTER_AGENT_IT_CONF,
+        race=race,
+        remote_docker=remote_docker,
+        go_mod=go_mod,
+        timeout=timeout,
+    )
 
 
 @task
@@ -152,8 +134,8 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     ctx.run(f"chmod +x {latest_cws_instrumentation_file}")
 
     build_context = "Dockerfiles/cluster-agent"
-    exec_path = f"{build_context}/datadog-cluster-agent.{arch}"
-    cws_instrumentation_base = f"{build_context}/datadog-cws-instrumentation"
+    exec_path = f"{build_context}/datadog-cluster-agent"
+    cws_instrumentation_base = f"{build_context}/cws-instrumentation"
     cws_instrumentation_exec_path = f"{cws_instrumentation_base}/cws-instrumentation.{arch}"
 
     dockerfile_path = f"{build_context}/Dockerfile"
@@ -184,11 +166,12 @@ def hacky_dev_image_build(
     base_image=None,
     target_image="cluster-agent",
     push=False,
+    race=False,
     signed_pull=False,
     arch=None,
 ):
     os.environ["DELVE"] = "1"
-    build(ctx)
+    build(ctx, race=race)
 
     if arch is None:
         arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())

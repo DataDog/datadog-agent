@@ -34,13 +34,10 @@ struct dentry_resolver_input_t {
     struct path_key_t original_key;
     struct dentry *dentry;
     u64 discarder_event_type;
-    union {
-        s64 sysretval;
-        struct {
-            u32 cgroup_write_pid;
-            u32 cgroup_flags;
-        } cgroup_write_ctx;
-    };
+    struct {
+        u32 cgroup_write_pid;
+        u32 cgroup_flags;
+    } cgroup_write_ctx;
     int callback;
     int ret;
     int iteration;

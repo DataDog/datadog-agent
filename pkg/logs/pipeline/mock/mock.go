@@ -44,6 +44,10 @@ func (p *mockProvider) StopSDSProcessing() error {
 	return nil
 }
 
+func (p *mockProvider) GetOutputChan() chan *message.Message {
+	return nil
+}
+
 // Flush does nothing
 //
 //nolint:revive // TODO(AML) Fix revive linter

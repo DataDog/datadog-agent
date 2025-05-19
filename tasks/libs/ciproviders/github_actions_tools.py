@@ -14,11 +14,51 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_default_branch
 
 
+def trigger_windows_bump_workflow(
+    repo="buildenv", workflow_name="runner-bump.yml", github_action_ref="master", new_version=None
+):
+    """
+    Trigger a workflow to bump windows gitlab runner
+    """
+    inputs = {}
+    if new_version is not None:
+        inputs["new-version"] = new_version
+
+    print(
+        "Creating workflow on {} on ref {} with args:\n{}".format(  # noqa: FS002
+            repo, github_action_ref, "\n".join([f"  - {k}: {inputs[k]}" for k in inputs])
+        )
+    )
+
+    # Hack: get current time to only fetch workflows that started after now
+    now = datetime.utcnow()
+
+    gh = GithubAPI(f"DataDog/{repo}")
+    result = gh.trigger_workflow(workflow_name, github_action_ref, inputs)
+
+    if not result:
+        print(f"Couldn't trigger workflow run. result={result}")
+        raise Exit(code=1)
+
+    # Since we can't get the worflow run id from a `create_dispatch` api call we are fetching the first running workflow after `now`.
+    recent_runs = gh.workflow_run_for_ref_after_date(workflow_name, github_action_ref, now)
+    MAX_RETRY = 10
+    while not recent_runs and MAX_RETRY > 0:
+        MAX_RETRY -= 1
+        sleep(3)
+        recent_runs = gh.workflow_run_for_ref_after_date(workflow_name, github_action_ref, now)
+
+    if not recent_runs:
+        print("Couldn't get the run workflow")
+        raise Exit(code=1)
+
+    return recent_runs[0]
+
+
 def trigger_macos_workflow(
     workflow_name="macos.yaml",
     github_action_ref="master",
     datadog_agent_ref=None,
-    release_version=None,
     major_version=None,
     gitlab_pipeline_id=None,
     bucket_branch=None,
@@ -37,9 +77,6 @@ def trigger_macos_workflow(
 
     if datadog_agent_ref is not None:
         inputs["datadog_agent_ref"] = datadog_agent_ref
-
-    if release_version is not None:
-        inputs["release_version"] = release_version
 
     if major_version is not None:
         inputs["agent_major_version"] = major_version
@@ -130,7 +167,7 @@ def trigger_macos_workflow(
     raise Exit(code=1)
 
 
-def follow_workflow_run(run):
+def follow_workflow_run(run, repository="DataDog/datadog-agent-macos-build", interval=5):
     """
     Follow the workflow run until completion and return its conclusion.
     """
@@ -141,13 +178,11 @@ def follow_workflow_run(run):
 
     minutes = 0
     failures = 0
-    # Wait time (in minutes) between two queries of the workflow status
-    interval = 5
     MAX_FAILURES = 5
     while True:
         # Do not fail outright for temporary failures
         try:
-            github = GithubAPI('DataDog/datadog-agent-macos-build')
+            github = GithubAPI(repository)
             run = github.workflow_run(run.id)
         except GithubException as e:
             failures += 1
@@ -241,7 +276,7 @@ def parse_log_file(log_file):
                 return lines[line_number:]
 
 
-def download_artifacts(run, destination="."):
+def download_artifacts(run, destination=".", repository="DataDog/datadog-agent-macos-build"):
     """
     Download all artifacts for a given job in the specified location.
     """
@@ -255,7 +290,7 @@ def download_artifacts(run, destination="."):
 
     # Create temp directory to store the artifact zips
     with tempfile.TemporaryDirectory() as tmpdir:
-        workflow = GithubAPI('DataDog/datadog-agent-macos-build')
+        workflow = GithubAPI(repository)
         for artifact in run_artifacts:
             # Download artifact
             print("Downloading artifact: ", artifact)
@@ -281,14 +316,25 @@ def download_logs(run, destination="."):
             zip_ref.extractall(destination)
 
 
-def download_with_retry(download_function, run, destination=".", retry_count=3, retry_interval=10):
+def download_with_retry(
+    download_function,
+    run,
+    destination=".",
+    retry_count=3,
+    retry_interval=10,
+    repository=None,
+):
     import requests
 
     retry = retry_count
 
     while retry > 0:
         try:
-            download_function(run, destination)
+            if repository:
+                # download_artifacts with repository argument
+                download_function(run, destination, repository)
+            else:
+                download_function(run, destination)
             print(color_message(f"Download successful for run {run.id} to {destination}", "blue"))
             return
         except (requests.exceptions.RequestException, ConnectionError):

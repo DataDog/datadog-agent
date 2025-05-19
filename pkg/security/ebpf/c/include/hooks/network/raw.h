@@ -1,16 +1,18 @@
 #ifndef _HOOKS_NETWORK_RAW_H_
 #define _HOOKS_NETWORK_RAW_H_
 
-#include "helpers/network.h"
+#include "helpers/network/parser.h"
+#include "helpers/network/raw.h"
 #include "perf_ring.h"
 
-__attribute__((always_inline)) struct raw_packet_event_t *get_raw_packet_event() {
-    u32 key = 0;
-    return bpf_map_lookup_elem(&raw_packet_event, &key);
-}
+TAIL_CALL_CLASSIFIER_FNC(raw_packet_sender, struct __sk_buff *skb) {
+    u64 rate = 10;
+    LOAD_CONSTANT("raw_packet_limiter_rate", rate);
 
-SEC("classifier/raw_packet_sender")
-int classifier_raw_packet_sender(struct __sk_buff *skb) {
+    if (!global_limiter_allow(RAW_PACKET_LIMITER, rate, 1)) {
+        return ACT_OK;
+    }
+
     struct packet_t *pkt = get_packet();
     if (pkt == NULL) {
         // should never happen
@@ -24,7 +26,7 @@ int classifier_raw_packet_sender(struct __sk_buff *skb) {
     }
 
     // process context
-    fill_network_process_context(&evt->process, pkt);
+    fill_network_process_context_from_pkt(&evt->process, pkt);
 
     struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
     if (entry == NULL) {
@@ -33,7 +35,7 @@ int classifier_raw_packet_sender(struct __sk_buff *skb) {
         copy_container_id_no_tracing(entry->container.container_id, &evt->container.container_id);
     }
 
-    fill_network_device_context(&evt->device, skb, pkt);
+    fill_network_device_context_from_pkt(&evt->device, skb, pkt);
 
     u32 len = evt->len;
     if (len > sizeof(evt->data)) {

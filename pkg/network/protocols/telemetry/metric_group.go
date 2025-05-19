@@ -97,7 +97,7 @@ func (mg *MetricGroup) Summary() string {
 	)
 
 	// safeguard against division by zero
-	if timeDelta == 0 {
+	if timeDelta < 1 {
 		timeDelta = 1
 	}
 

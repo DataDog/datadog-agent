@@ -11,6 +11,9 @@ const (
 	// with the number of traces contained in the payload.
 	TraceCount = "X-Datadog-Trace-Count"
 
+	// ProcessTags is a list that contains process tags split by a ','.
+	ProcessTags = "X-Datadog-Process-Tags"
+
 	// ContainerID specifies the name of the header which contains the ID of the
 	// container where the request originated.
 	// Deprecated in favor of Datadog-Entity-ID.
@@ -24,6 +27,16 @@ const (
 	// * "cid-<container-id>"
 	// * "ci-<container-id>,in-<cgroupv2-inode>"
 	LocalData = "Datadog-Entity-ID"
+
+	// ExternalData is a list that contain prefixed-items, split by a ','. Current items are:
+	// * "it-<init>" if the container is an init container.
+	// * "cn-<container-name>" for the container name.
+	// * "pu-<pod-uid>" for the pod UID.
+	// Order does not matter.
+	// Possible values:
+	// * "it-false,cn-nginx,pu-3413883c-ac60-44ab-96e0-9e52e4e173e2"
+	// * "cn-init,pu-cb4aba1d-0129-44f1-9f1b-b4dc5d29a3b3,it-true"
+	ExternalData = "Datadog-External-Env"
 
 	// Lang specifies the name of the header which contains the language from
 	// which the traces originate.
@@ -46,11 +59,12 @@ const (
 	TracerVersion = "Datadog-Meta-Tracer-Version"
 
 	// ComputedTopLevel specifies that the client has marked top-level spans, when set.
-	// Any non-empty value will mean 'yes'.
+	// Any value other than 0, f, F, FALSE, False, false will mean 'yes'.
 	ComputedTopLevel = "Datadog-Client-Computed-Top-Level"
 
 	// ComputedStats specifies whether the client has computed stats so that the agent
 	// doesn't have to.
+	// Any value other than 0, f, F, FALSE, False, false will mean 'yes'.
 	ComputedStats = "Datadog-Client-Computed-Stats"
 
 	// DroppedP0Traces contains the number of P0 trace chunks dropped by the client.
@@ -69,7 +83,11 @@ const (
 	// it wants to receive the "real" status in the response. By default, the agent
 	// will send a 200 OK response for every payload, even those dropped due to
 	// intake limits.
-	// Any value set in this header will cause the agent to send a 429 code to a client
+	// Any value other than 0, f, F, FALSE, False, false set in this header will cause the agent to send a 429 code to a client
 	// when the payload cannot be submitted.
 	SendRealHTTPStatus = "Datadog-Send-Real-Http-Status"
+
+	// TracerObfuscationVersion specifies the version of obfuscation done at the tracer, if any.
+	// This used to avoid "double obfuscating" data.
+	TracerObfuscationVersion = "Datadog-Obfuscation-Version"
 )

@@ -22,10 +22,11 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 )
 
-func setupMetricClient() (*metric.ManualReader, statsd.ClientInterface, timing.Reporter) {
+func setupMetricClient(t *testing.T) (*metric.ManualReader, statsd.ClientInterface, timing.Reporter) {
 	reader := metric.NewManualReader()
 	meterProvider := metric.NewMeterProvider(metric.WithReader(reader))
-	metricClient := metricsclient.InitializeMetricClient(meterProvider, metricsclient.ExporterSourceTag)
+	metricClient, err := metricsclient.InitializeMetricClient(meterProvider, metricsclient.ExporterSourceTag)
+	require.NoError(t, err)
 	timingReporter := timing.New(metricClient)
 	return reader, metricClient, timingReporter
 }
@@ -36,7 +37,7 @@ func TestTraceAgentConfig(t *testing.T) {
 	require.True(t, cfg.ReceiverEnabled)
 
 	out := make(chan *pb.StatsPayload)
-	_, metricClient, timingReporter := setupMetricClient()
+	_, metricClient, timingReporter := setupMetricClient(t)
 	_ = NewAgentWithConfig(context.Background(), cfg, out, metricClient, timingReporter)
 	require.False(t, cfg.ReceiverEnabled)
 	require.NotEmpty(t, cfg.Endpoints[0].APIKey)
@@ -59,12 +60,12 @@ func testTraceAgent(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	require.NoError(t, err)
 	cfg.OTLPReceiver.AttributesTranslator = attributesTranslator
 	cfg.BucketInterval = 50 * time.Millisecond
-	if enableReceiveResourceSpansV2 {
-		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	out := make(chan *pb.StatsPayload, 10)
 	ctx := context.Background()
-	_, metricClient, timingReporter := setupMetricClient()
+	_, metricClient, timingReporter := setupMetricClient(t)
 	a := NewAgentWithConfig(ctx, cfg, out, metricClient, timingReporter)
 	a.Start()
 	defer a.Stop()
@@ -109,6 +110,7 @@ func testTraceAgent(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					assert.Greater(t, len(bucket.Stats), 0)
 					actual = append(actual, bucket.Stats...)
 				}
+				assert.Equal(t, "Internal", cspayload.Stats[0].Stats[0].Name)
 			}
 		case <-timeout:
 			t.Fatal("timed out")

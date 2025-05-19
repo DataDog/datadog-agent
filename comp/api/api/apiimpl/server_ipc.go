@@ -6,7 +6,6 @@
 package apiimpl
 
 import (
-	"crypto/tls"
 	"net/http"
 	"time"
 
@@ -18,13 +17,13 @@ import (
 const ipcServerName string = "IPC API Server"
 const ipcServerShortName string = "IPC"
 
-func (server *apiServer) startIPCServer(ipcServerAddr string, tlsConfig *tls.Config, tmf observability.TelemetryMiddlewareFactory) (err error) {
+func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.TelemetryMiddlewareFactory) (err error) {
 	server.ipcListener, err = getListener(ipcServerAddr)
 	if err != nil {
 		return err
 	}
 
-	configEndpointMux := configendpoint.GetConfigEndpointMuxCore()
+	configEndpointMux := configendpoint.GetConfigEndpointMuxCore(server.cfg)
 	configEndpointMux.Use(validateToken)
 
 	ipcMux := http.NewServeMux()
@@ -39,7 +38,7 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tlsConfig *tls.Con
 	ipcServer := &http.Server{
 		Addr:      ipcServerAddr,
 		Handler:   http.TimeoutHandler(ipcMuxHandler, time.Duration(pkgconfigsetup.Datadog().GetInt64("server_timeout"))*time.Second, "timeout"),
-		TLSConfig: tlsConfig,
+		TLSConfig: server.ipc.GetTLSServerConfig(),
 	}
 
 	startServer(server.ipcListener, ipcServer, ipcServerName)

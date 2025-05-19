@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 from contextlib import contextmanager
+from time import sleep
 from typing import TYPE_CHECKING
 
 from invoke import Context
@@ -13,6 +15,8 @@ from tasks.libs.common.user_interactions import yes_no_question
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
+TAG_BATCH_SIZE = 3
 
 
 @contextmanager
@@ -30,19 +34,39 @@ def clone(ctx, repo, branch, options=""):
         os.chdir(current_dir)
 
 
-def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterable[str]:
+def get_staged_files(ctx, commit="HEAD", include_deleted_files=False, relative_path=False) -> Iterable[str]:
     """
     Get the list of staged (to be committed) files in the repository compared to the `commit` commit.
     """
 
     files = ctx.run(f"git diff --name-only --staged {commit}", hide=True).stdout.strip().splitlines()
+    repo_root = ctx.run("git rev-parse --show-toplevel", hide=True).stdout.strip() if not relative_path else ""
 
-    if include_deleted_files:
-        yield from files
-    else:
-        for file in files:
-            if os.path.isfile(file):
-                yield file
+    for file in files:
+        if include_deleted_files or os.path.isfile(file):
+            yield os.path.join(repo_root, file)
+
+
+def get_unstaged_files(ctx, re_filter=None, include_deleted_files=False) -> Iterable[str]:
+    """
+    Get the list of unstaged files in the repository.
+    """
+
+    files = ctx.run("git diff --name-only", hide=True).stdout.splitlines()
+
+    for file in files:
+        if (re_filter is None or re_filter.search(file)) and (include_deleted_files or os.path.isfile(file)):
+            yield file
+
+
+def get_untracked_files(ctx, re_filter=None) -> Iterable[str]:
+    """
+    Get the list of untracked files in the repository.
+    """
+    files = ctx.run("git ls-files --others --exclude-standard", hide=True).stdout.splitlines()
+    for file in files:
+        if re_filter is None or re_filter.search(file):
+            yield file
 
 
 def get_file_modifications(
@@ -158,28 +182,48 @@ def check_base_branch(branch, release_version):
     Checks if the given branch is either the default branch or the release branch associated
     with the given release version.
     """
-    return branch == get_default_branch() or branch == release_version.branch()
+    return branch == get_default_branch() or branch == release_version
 
 
-def try_git_command(ctx, git_command):
-    """
-    Try a git command that should be retried (after user confirmation) if it fails.
+def try_git_command(ctx, git_command, non_interactive_retries=2, non_interactive_delay=5):
+    """Try a git command that should be retried (after user confirmation) if it fails.
     Primarily useful for commands which can fail if commit signing fails: we don't want the
     whole workflow to fail if that happens, we want to retry.
+
+    Args:
+        ctx: The invoke context.
+        git_command: The git command to run.
+        non_interactive_retries: The number of times to retry the command if it fails when running non-interactively.
+        non_interactive_delay: The delay in seconds to retry the command if it fails when running non-interactively.
     """
 
     do_retry = True
+    n_retries = 0
+    interactive = sys.stdin.isatty()
 
     while do_retry:
         res = ctx.run(git_command, warn=True)
         if res.exited is None or res.exited > 0:
-            print(
-                color_message(
-                    f"Failed to run \"{git_command}\" (did the commit/tag signing operation fail?)",
-                    "orange",
+            if interactive:
+                print(
+                    color_message(
+                        f"Failed to run \"{git_command}\" (did the commit/tag signing operation fail?)",
+                        "orange",
+                    )
                 )
-            )
-            do_retry = yes_no_question("Do you want to retry this operation?", color="orange", default=True)
+                do_retry = yes_no_question("Do you want to retry this operation?", color="orange", default=True)
+            else:
+                # Non interactive, retry in `non_interactive_delay` seconds if we haven't reached the limit
+                n_retries += 1
+                if n_retries > non_interactive_retries:
+                    print(f'{color_message("Error", Color.RED)}: Failed to run git command', file=sys.stderr)
+                    return False
+
+                print(
+                    f'{color_message("Warning", Color.ORANGE)}: Retrying git command in {non_interactive_delay}s',
+                    file=sys.stderr,
+                )
+                sleep(non_interactive_delay)
             continue
 
         return True
@@ -231,16 +275,24 @@ def get_last_commit(ctx, repo, branch):
     )
 
 
+def get_git_references(ctx, repo, ref, tags=False):
+    """
+    Fetches a specific reference (ex: branch, tag, or HEAD) from a remote Git repository
+    """
+    filter_by = " -t" if tags else ""
+    return ctx.run(
+        rf'git ls-remote{filter_by} https://github.com/DataDog/{repo} "{ref}"',
+        hide=True,
+    ).stdout.strip()
+
+
 def get_last_release_tag(ctx, repo, pattern):
     import re
     from functools import cmp_to_key
 
     import semver
 
-    tags = ctx.run(
-        rf'git ls-remote -t https://github.com/DataDog/{repo} "{pattern}"',
-        hide=True,
-    ).stdout.strip()
+    tags = get_git_references(ctx, repo, pattern, tags=True)
     if not tags:
         raise Exit(
             color_message(
@@ -250,7 +302,8 @@ def get_last_release_tag(ctx, repo, pattern):
             code=1,
         )
 
-    release_pattern = re.compile(r'.*7\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$')
+    major = 6 if is_agent6(ctx) else 7
+    release_pattern = re.compile(rf'^.*{major}' + r'\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?(\^{})?$')
     tags_without_suffix = [
         line for line in tags.splitlines() if not line.endswith("^{}") and release_pattern.match(line)
     ]
@@ -270,3 +323,43 @@ def get_last_release_tag(ctx, repo, pattern):
             last_tag_name = last_tag_name_with_suffix.removesuffix("^{}")
     last_tag_name = last_tag_name.removeprefix("refs/tags/")
     return last_tag_commit, last_tag_name
+
+
+def set_git_config(ctx, key, value):
+    ctx.run(f'git config {key} {value}')
+
+
+def create_tree(ctx, base_branch):
+    """
+    Create a tree on all the local staged files
+    """
+    base = get_common_ancestor(ctx, "HEAD", base_branch)
+    tree = {"base_tree": base, "tree": []}
+    template = {"path": None, "mode": "100644", "type": "blob", "content": None}
+    for file in get_staged_files(ctx, include_deleted_files=True, relative_path=True):
+        blob = template.copy()
+        blob["path"] = file
+        content = ""
+        if os.path.isfile(file):
+            with open(file) as f:
+                content = f.read()
+        blob["content"] = content
+        tree["tree"].append(blob)
+    return tree
+
+
+def push_tags_in_batches(ctx, tags, force_option="", delete=False):
+    """
+    Push or delete tags to remote in batches
+    """
+    if not tags:
+        return
+
+    tags_list = ' '.join(tags)
+    command = "push --delete" if delete else "push"
+
+    for idx in range(0, len(tags), TAG_BATCH_SIZE):
+        batch_tags = tags[idx : idx + TAG_BATCH_SIZE]
+        ctx.run(f"git {command} origin {' '.join(batch_tags)}{force_option}")
+
+    print(f"{'Deleted' if delete else 'Pushed'} tags: {tags_list}")

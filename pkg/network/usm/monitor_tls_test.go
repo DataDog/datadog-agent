@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,8 +31,8 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
-	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
+	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -44,8 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"
-	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
@@ -55,11 +55,7 @@ type tlsSuite struct {
 }
 
 func TestTLSSuite(t *testing.T) {
-	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !prebuilt.IsDeprecated() {
-		modes = append(modes, ebpftest.Prebuilt)
-	}
-	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
 			t.Skip("TLS not supported for this setup")
 		}
@@ -115,11 +111,12 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 				dir = path.Join(dir, "testdata", "musl")
 				scanner, err := globalutils.NewScanner(regexp.MustCompile("started"), globalutils.NoPattern)
 				require.NoError(t, err, "failed to create pattern scanner")
-				dockerCfg := dockerutils.NewComposeConfig("musl-alpine",
-					dockerutils.DefaultTimeout,
-					dockerutils.DefaultRetries,
-					scanner,
-					dockerutils.EmptyEnv,
+
+				dockerCfg := dockerutils.NewComposeConfig(
+					dockerutils.NewBaseConfig(
+						"musl-alpine",
+						scanner,
+					),
 					path.Join(dir, "/docker-compose.yml"))
 				err = dockerutils.Run(t, dockerCfg)
 				require.NoError(t, err)
@@ -193,9 +190,9 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 }
 
 func testHTTPSLibrary(t *testing.T, cfg *config.Config, fetchCmd, prefetchLibs []string) {
-	usmMonitor := setupUSMTLSMonitor(t, cfg)
+	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 	// not ideal but, short process are hard to catch
-	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", prefetchLib(t, prefetchLibs...).Process.Pid, utils.ManualTracingFallbackDisabled)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, prefetchLib(t, prefetchLibs...).Process.Pid, utils.ManualTracingFallbackDisabled)
 
 	// Issue request using fetchCmd (wget, curl, ...)
 	// This is necessary (as opposed to using net/http) because we want to
@@ -210,7 +207,7 @@ func testHTTPSLibrary(t *testing.T, cfg *config.Config, fetchCmd, prefetchLibs [
 	requestCmd.Stderr = requestCmd.Stdout
 	require.NoError(t, requestCmd.Start())
 
-	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", requestCmd.Process.Pid, utils.ManualTracingFallbackDisabled)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, requestCmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 
 	if err := requestCmd.Wait(); err != nil {
 		output, err := io.ReadAll(stdout)
@@ -290,14 +287,14 @@ func (s *tlsSuite) TestOpenSSLVersions() {
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
-	usmMonitor := setupUSMTLSMonitor(t, cfg)
+	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 
 	addressOfHTTPPythonServer := "127.0.0.1:8001"
 	cmd := testutil.HTTPPythonServer(t, addressOfHTTPPythonServer, testutil.Options{
 		EnableTLS: true,
 	})
 
-	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
 
 	client, requestFn := simpleGetRequestsGenerator(t, addressOfHTTPPythonServer)
 	var requests []*nethttp.Request
@@ -362,9 +359,9 @@ func (s *tlsSuite) TestOpenSSLVersionsSlowStart() {
 		missedRequests = append(missedRequests, requestFn())
 	}
 
-	usmMonitor := setupUSMTLSMonitor(t, cfg)
+	usmMonitor := setupUSMTLSMonitor(t, cfg, reInitEventConsumer)
 	// Giving the tracer time to install the hooks
-	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
 
 	// Send a warmup batch of requests to trigger the fallback behavior
 	for i := 0; i < numberOfRequests; i++ {
@@ -569,7 +566,7 @@ func TestOldConnectionRegression(t *testing.T) {
 		cfg.EnableHTTPMonitoring = true
 		cfg.EnableGoTLSSupport = true
 		cfg.GoTLSExcludeSelf = false
-		usmMonitor := setupUSMTLSMonitor(t, cfg)
+		usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 
 		// Ensure this test program is being traced
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
@@ -600,7 +597,9 @@ func TestOldConnectionRegression(t *testing.T) {
 		}
 
 		// Ensure we have captured a request
-		stats, ok := usmMonitor.GetProtocolStats()[protocols.HTTP]
+		statsObj, cleaners := usmMonitor.GetProtocolStats()
+		defer cleaners()
+		stats, ok := statsObj[protocols.HTTP]
 		require.True(t, ok)
 		httpStats, ok := stats.(map[http.Key]*http.RequestStats)
 		require.True(t, ok)
@@ -640,7 +639,7 @@ func TestLimitListenerRegression(t *testing.T) {
 		// don't accidentally report a false positive based on client (`curl`)
 		// data as opposed to the GoTLS server with `netutils.LimitListener`
 		cfg.EnableNativeTLSMonitoring = false
-		usmMonitor := setupUSMTLSMonitor(t, cfg)
+		usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 
 		// Ensure this test program is being traced
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
@@ -653,7 +652,9 @@ func TestLimitListenerRegression(t *testing.T) {
 		}
 
 		// Ensure we have captured a request
-		stats, ok := usmMonitor.GetProtocolStats()[protocols.HTTP]
+		statsObj, cleaners := usmMonitor.GetProtocolStats()
+		defer cleaners()
+		stats, ok := statsObj[protocols.HTTP]
 		require.True(t, ok)
 		httpStats, ok := stats.(map[http.Key]*http.RequestStats)
 		require.True(t, ok)
@@ -691,7 +692,7 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config, isHTTP2 bo
 		cfg.EnableHTTPMonitoring = true
 	}
 
-	usmMonitor := setupUSMTLSMonitor(t, cfg)
+	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 
 	// This maps will keep track of whether the tracer saw this request already or not
 	reqs := make(requestsMap)
@@ -730,7 +731,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config, isHTTP
 	// spin-up goTLS client but don't issue requests yet
 	command, issueRequestsFn := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences, isHTTP2)
 
-	usmMonitor := setupUSMTLSMonitor(t, cfg)
+	usmMonitor := setupUSMTLSMonitor(t, cfg, reInitEventConsumer)
 
 	// This maps will keep track of whether the tracer saw this request already or not
 	reqs := make(requestsMap)
@@ -763,7 +764,7 @@ func testHTTPSGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
 
-	usmMonitor := setupUSMTLSMonitor(t, cfg)
+	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 
 	require.NoError(t, gotlstestutil.RunServer(t, serverPort))
 	reqs := make(requestsMap)
@@ -797,7 +798,7 @@ func testHTTPSGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
 
-	usmMonitor := setupUSMTLSMonitor(t, cfg)
+	usmMonitor := setupUSMTLSMonitor(t, cfg, reInitEventConsumer)
 
 	reqs := make(requestsMap)
 	for i := 0; i < expectedOccurrences; i++ {
@@ -865,13 +866,49 @@ func (m requestsMap) String() string {
 	return result.String()
 }
 
-func setupUSMTLSMonitor(t *testing.T, cfg *config.Config) *Monitor {
-	usmMonitor, err := NewMonitor(cfg, nil)
+var (
+	// eventConsumerInstance is used to store the event consumer singleton
+	eventConsumerInstance *consumers.ProcessConsumer
+	// eventConsumerMutex is used to protect the event consumer singleton
+	eventConsumerMutex sync.Mutex
+)
+
+// initializeEventConsumerSingleton is used to initialize the event consumer singleton
+func initializeEventConsumerSingleton(t *testing.T) *consumers.ProcessConsumer {
+	eventConsumerMutex.Lock()
+	defer eventConsumerMutex.Unlock()
+
+	if eventConsumerInstance == nil {
+		eventConsumerInstance = consumerstestutil.NewTestProcessConsumer(t)
+	}
+	return eventConsumerInstance
+}
+
+// reinitializeEventConsumer is used to reinitialize the event consumer instance
+func reinitializeEventConsumer(t *testing.T) {
+	eventConsumerMutex.Lock()
+	defer eventConsumerMutex.Unlock()
+
+	eventConsumerInstance = consumerstestutil.NewTestProcessConsumer(t)
+}
+
+const (
+	// reInitEventConsumer is used to indicate that we should create a new consumer instance
+	reInitEventConsumer = true
+	// useExistingConsumer is used to indicate that we should use the existing consumer instance
+	useExistingConsumer = false
+)
+
+func setupUSMTLSMonitor(t *testing.T, cfg *config.Config, reinit bool) *Monitor {
+	usmMonitor, err := NewMonitor(cfg, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, usmMonitor.Start())
 	if cfg.EnableUSMEventStream && usmconfig.NeedProcessMonitor(cfg) {
-		secutils.SetCachedHostname("test-hostname")
-		eventmonitortestutil.StartEventMonitor(t, procmontestutil.RegisterProcessMonitorEventConsumer)
+		if reinit {
+			reinitializeEventConsumer(t)
+		} else {
+			monitor.InitializeEventConsumer(initializeEventConsumerSingleton(t))
+		}
 	}
 	t.Cleanup(usmMonitor.Stop)
 	t.Cleanup(utils.ResetDebugger)
@@ -880,7 +917,9 @@ func setupUSMTLSMonitor(t *testing.T, cfg *config.Config) *Monitor {
 
 // getHTTPLikeProtocolStats returns the stats for the protocols that store their stats in a map of http.Key and *http.RequestStats as values.
 func getHTTPLikeProtocolStats(monitor *Monitor, protocolType protocols.ProtocolType) map[http.Key]*http.RequestStats {
-	httpStats, ok := monitor.GetProtocolStats()[protocolType]
+	statsObj, cleaners := monitor.GetProtocolStats()
+	defer cleaners()
+	httpStats, ok := statsObj[protocolType]
 	if !ok {
 		return nil
 	}
@@ -910,8 +949,8 @@ func (s *tlsSuite) TestNodeJSTLS() {
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableNodeJSMonitoring = true
 
-	usmMonitor := setupUSMTLSMonitor(t, cfg)
-	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "nodejs", int(nodeJSPID), utils.ManualTracingFallbackEnabled)
+	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, nodeJsAttacherName, int(nodeJSPID), utils.ManualTracingFallbackEnabled)
 
 	// This maps will keep track of whether the tracer saw this request already or not
 	client, requestFn := simpleGetRequestsGenerator(t, fmt.Sprintf("localhost:%s", serverPort))

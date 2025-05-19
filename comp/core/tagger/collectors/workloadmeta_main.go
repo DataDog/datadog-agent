@@ -14,14 +14,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
 )
 
 const (
@@ -35,8 +36,9 @@ const (
 	processSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
 	kubeMetadataSource   = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
 	deploymentSource     = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
+	gpuSource            = workloadmetaCollectorName + "-" + string(workloadmeta.KindGPU)
 
-	clusterTagNamePrefix = "kube_cluster_name"
+	clusterTagNamePrefix = tags.KubeClusterName
 )
 
 // CollectorPriorities holds collector priorities
@@ -96,7 +98,7 @@ func (c *WorkloadMetaCollector) Run(ctx context.Context, datadogConfig config.Co
 }
 
 func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, datadogConfig config.Component) {
-	c.staticTags = util.GetStaticTags(ctx)
+	c.staticTags = tagutil.GetStaticTags(ctx, datadogConfig)
 	if _, exists := c.staticTags[clusterTagNamePrefix]; flavor.GetFlavor() == flavor.ClusterAgent && !exists {
 		// If we are running the cluster agent, we want to set the kube_cluster_name tag as a global tag if we are able
 		// to read it, for the instances where we are running in an environment where hostname cannot be detected.
@@ -112,7 +114,7 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, dat
 	}
 	// These are the global tags that should only be applied to the internal global entity on DCA.
 	// Whereas the static tags are applied to containers and pods directly as well.
-	globalEnvTags := util.GetGlobalEnvTags(datadogConfig)
+	globalEnvTags := tagutil.GetGlobalEnvTags(datadogConfig)
 
 	tagList := taglist.NewTagList()
 

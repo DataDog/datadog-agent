@@ -19,9 +19,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
 // Getpid returns the current process ID in the host namespace
@@ -110,6 +110,11 @@ func StatusPath(pid uint32) string {
 	return procPidPath(pid, "status")
 }
 
+// TaskStatusPath returns the path to the status file of a task pid in /proc
+func TaskStatusPath(pid uint32, task string) string {
+	return procPidPath3(pid, "task", task, "status")
+}
+
 // LoginUIDPath returns the path to the loginuid file of a pid in /proc
 func LoginUIDPath(pid uint32) string {
 	return procPidPath(pid, "loginuid")
@@ -144,6 +149,10 @@ func procPidPath2(pid uint32, path1 string, path2 string) string {
 	return filepath.Join(kernel.ProcFSRoot(), strconv.FormatUint(uint64(pid), 10), path1, path2)
 }
 
+func procPidPath3(pid uint32, path1, path2, path3 string) string {
+	return filepath.Join(kernel.ProcFSRoot(), strconv.FormatUint(uint64(pid), 10), path1, path2, path3)
+}
+
 // ModulesPath returns the path to the modules file in /proc
 func ModulesPath() string {
 	return filepath.Join(kernel.ProcFSRoot(), "modules")
@@ -153,18 +162,18 @@ func ModulesPath() string {
 func GetLoginUID(pid uint32) (uint32, error) {
 	content, err := os.ReadFile(LoginUIDPath(pid))
 	if err != nil {
-		return model.AuditUIDUnset, err
+		return sharedconsts.AuditUIDUnset, err
 	}
 
 	data := strings.TrimSuffix(string(content), "\n")
 	if len(data) == 0 {
-		return model.AuditUIDUnset, fmt.Errorf("invalid login uid: %v", data)
+		return sharedconsts.AuditUIDUnset, fmt.Errorf("invalid login uid: %v", data)
 	}
 
 	// parse login uid
 	auid, err := strconv.ParseUint(data, 10, 32)
 	if err != nil {
-		return model.AuditUIDUnset, fmt.Errorf("coudln't parse loginuid: %v", err)
+		return sharedconsts.AuditUIDUnset, fmt.Errorf("coudln't parse loginuid: %v", err)
 	}
 	return uint32(auid), nil
 }
@@ -297,7 +306,7 @@ func EnvVars(priorityEnvsPrefixes []string, pid uint32, maxEnvVars int) ([]strin
 	envs = append(envs, priorityEnvs...)
 
 	for scanner.Scan() {
-		if len(envs) >= model.MaxArgsEnvsSize {
+		if len(envs) >= sharedconsts.MaxArgsEnvsSize {
 			return envs, true, nil
 		}
 
@@ -410,8 +419,8 @@ func GetProcessPidNamespace(pid uint32) (uint64, error) {
 }
 
 // GetNsPids returns the namespaced pids of the the givent root pid
-func GetNsPids(pid uint32) ([]uint32, error) {
-	statusFile := StatusPath(pid)
+func GetNsPids(pid uint32, task string) ([]uint32, error) {
+	statusFile := TaskStatusPath(pid, task)
 	content, err := os.ReadFile(statusFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read status file: %w", err)
@@ -442,6 +451,26 @@ func GetNsPids(pid uint32) ([]uint32, error) {
 	return nil, fmt.Errorf("NSpid field not found")
 }
 
+// GetPidTasks returns the task IDs of a process
+func GetPidTasks(pid uint32) ([]string, error) {
+	taskPath := procPidPath(pid, "task")
+
+	// Read the contents of the task directory
+	tasks, err := os.ReadDir(taskPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read task directory: %v", err)
+	}
+
+	// Collect all task IDs
+	var taskIDs []string
+	for _, task := range tasks {
+		if task.IsDir() {
+			taskIDs = append(taskIDs, task.Name())
+		}
+	}
+	return taskIDs, nil
+}
+
 // FindPidNamespace search and return the host PID for the given namespaced PID + its namespace
 func FindPidNamespace(nspid uint32, ns uint64) (uint32, error) {
 	procPids, err := process.Pids()
@@ -455,8 +484,17 @@ func FindPidNamespace(nspid uint32, ns uint64) (uint32, error) {
 			continue
 		}
 
-		if procNs == ns {
-			nspids, err := GetNsPids(uint32(procPid))
+		if procNs != ns {
+			continue
+		}
+
+		tasks, err := GetPidTasks(uint32(procPid))
+		if err != nil {
+			continue
+		}
+
+		for _, task := range tasks {
+			nspids, err := GetNsPids(uint32(procPid), task)
 			if err != nil {
 				return 0, err
 			}
@@ -529,22 +567,14 @@ var isNsPidAvailable = sync.OnceValue(func() bool {
 })
 
 // TryToResolveTraceePid tries to resolve and returnt the HOST tracee PID, given the HOST tracer PID and the namespaced tracee PID.
-func TryToResolveTraceePid(hostTracerPID, NsTraceePid uint32) (uint32, error) {
+func TryToResolveTraceePid(hostTracerPID uint32, tracerNSID uint64, NsTraceePid uint32) (uint32, error) {
 	// Look if the NSpid status field is available or not (it should be, except for Centos7).
 	if isNsPidAvailable() {
 		/*
 		   If it's available, we will search for an host pid having the same PID namespace as the
 		   tracer, and having the corresponding NS PID in its status field
 		*/
-
-		// 1. get the pid namespace of the tracer
-		ns, err := GetProcessPidNamespace(hostTracerPID)
-		if err != nil {
-			return 0, fmt.Errorf("Failed to resolve PID namespace: %v", err)
-		}
-
-		// 2. find the host pid matching the arg pid with he tracer namespace
-		pid, err := FindPidNamespace(NsTraceePid, ns)
+		pid, err := FindPidNamespace(NsTraceePid, tracerNSID)
 		if err != nil {
 			return 0, fmt.Errorf("Failed to resolve tracee PID namespace: %v", err)
 		}

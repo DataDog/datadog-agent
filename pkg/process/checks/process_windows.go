@@ -11,17 +11,15 @@ import (
 	"math"
 	"runtime"
 
-	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v4/cpu"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-var (
-	// overridden in tests
-	numCPU = runtime.NumCPU
-)
+// overridden in tests
+var numCPU = runtime.NumCPU
 
 func formatUser(fp *procutil.Process, _ *LookupIdProbe) *model.ProcessUser {
 	return &model.ProcessUser{
@@ -66,4 +64,10 @@ func calculatePct(deltaProc, deltaTime, numCPU float64) float32 {
 	// Avoid reporting negative CPU percentages when this occurs
 	overalPct = math.Max(overalPct, 0.0)
 	return float32(overalPct)
+}
+
+func warnECSFargateMisconfig(_ []*model.Container) {}
+
+func isECSFargatePidModeSetToTask(_ []*model.Container) bool {
+	return false
 }

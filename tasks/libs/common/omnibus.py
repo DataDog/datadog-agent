@@ -8,22 +8,12 @@ import requests
 
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
 from tasks.libs.common.utils import get_metric_origin
+from tasks.libs.releasing.version import RELEASE_JSON_DEPENDENCIES
 from tasks.release import _get_release_json_value
 
 
-def _get_build_images(ctx):
-    # We intentionally include both build images & their test suffixes in the pattern
-    # as a test image and the merged version shouldn't share their cache
-    tags = ctx.run("grep -E 'DATADOG_AGENT_.*BUILDIMAGES' .gitlab-ci.yml | cut -d ':' -f 2", hide='stdout').stdout
-    return (t.strip() for t in tags.splitlines())
-
-
 def _get_omnibus_commits(field):
-    if 'RELEASE_VERSION' in os.environ:
-        release_version = os.environ['RELEASE_VERSION']
-    else:
-        release_version = os.environ['RELEASE_VERSION_7']
-    return _get_release_json_value(f'{release_version}::{field}')
+    return _get_release_json_value(f'{RELEASE_JSON_DEPENDENCIES}::{field}')
 
 
 def _get_environment_for_cache() -> dict:
@@ -38,6 +28,7 @@ def _get_environment_for_cache() -> dict:
             'AGENT_',
             'API_KEY_',
             'APP_KEY_',
+            'ATLASSIAN_',
             'AWS_',
             'BAZEL_',
             'BETA_',
@@ -48,18 +39,20 @@ def _get_environment_for_cache() -> dict:
             'CONDUCTOR_',
             'DATADOG_AGENT_',
             'DD_',
+            'DDCI_',
             'DDR_',
             'DEB_',
             'DESTINATION_',
             'DOCKER_',
             'DYNAMIC_',
-            'E2E_TESTS_',
+            'E2E_',
             'EMISSARY_',
             'EXECUTOR_',
             'FF_',
             'GITHUB_',
             'GITLAB_',
             'GIT_',
+            'INSTALLER_',
             'JIRA_',
             'K8S_',
             'KITCHEN_',
@@ -78,10 +71,12 @@ def _get_environment_for_cache() -> dict:
             'STATS_',
             'SMP_',
             'SSH_',
+            'TAGGER_',
             'TARGET_',
             'TEST_INFRA_',
             'USE_',
             'VAULT_',
+            'VALIDATE_',
             'XPC_',
             'WINDOWS_',
         ]
@@ -102,11 +97,15 @@ def _get_environment_for_cache() -> dict:
             "CHANNEL",
             "CHART",
             "CI",
-            "CLUSTER",
+            "CLUSTERS",
+            "CODECOV",
+            "CODECOV_TOKEN",
+            "COMPARE_TO_BRANCH",
             "COMPUTERNAME",
             "CONDA_PROMPT_MODIFIER",
             "CONSUL_HTTP_ADDR",
             "DATACENTERS",
+            "DDCI",
             "DDR",
             "DEPLOY_AGENT",
             "DOGSTATSD_BINARIES_DIR",
@@ -118,12 +117,16 @@ def _get_environment_for_cache() -> dict:
             "GENERAL_ARTIFACTS_CACHE_BUCKET_URL",
             "GET_SOURCES_ATTEMPTS",
             "GO_TEST_SKIP_FLAKE",
+            "GONOSUMDB",
+            "GOPROXY",
             "HELM_HOOKS_CI_IMAGE",
+            "HELM_HOOKS_PERIODICAL_REBUILD_CONDUCTOR_ENV",
             "HOME",
             "HOSTNAME",
             "HOST_IP",
             "INFOPATH",
             "INSTALL_SCRIPT_API_KEY_ORG2",
+            "INSTANCE_TYPE",
             "INTEGRATION_WHEELS_CACHE_BUCKET",
             "IRBRC",
             "KITCHEN_INFRASTRUCTURE_FLAKES_RETRY",
@@ -136,10 +139,15 @@ def _get_environment_for_cache() -> dict:
             "MANPATH",
             "MESSAGE",
             "NEW_CLUSTER",
+            "NEW_CLUSTER_PR_SLACK_WORKFLOW_WEBHOOK",
+            "NOTIFICATIONS_SLACK_CHANNEL",
+            "NOTIFIER_IMAGE",
             "OLDPWD",
             "PCP_DIR",
             "PACKAGE_ARCH",
+            "PIP_EXTRA_INDEX_URL",
             "PIP_INDEX_URL",
+            "PIPELINE_KEY_ALIAS",
             "PROCESS_S3_BUCKET",
             "PWD",
             "PROMPT",
@@ -148,14 +156,13 @@ def _get_environment_for_cache() -> dict:
             "SIGN",
             "SHELL",
             "SHLVL",
+            "SLACK_AGENT",
             "STATIC_BINARIES_DIR",
             "STATSD_URL",
             "SYSTEM_PROBE_BINARIES_DIR",
-            "TESTING_CLEANUP",
             "TIMEOUT",
             "TMPDIR",
             "TRACE_AGENT_URL",
-            "USE_S3_CACHING",
             "USER",
             "USERDOMAIN",
             "USERNAME",
@@ -200,20 +207,27 @@ def _last_omnibus_changes(ctx):
     return result
 
 
+def get_dd_api_key(ctx):
+    if sys.platform == 'win32':
+        cmd = f'aws.cmd ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text'
+    elif sys.platform == 'darwin':
+        cmd = f'vault kv get -field=token kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
+    else:
+        cmd = f'vault kv get -field=token kv/k8s/gitlab-runner/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
+    return ctx.run(cmd, hide=True).stdout.strip()
+
+
 def omnibus_compute_cache_key(ctx):
     print('Computing cache key')
     h = hashlib.sha1()
     omnibus_last_changes = _last_omnibus_changes(ctx)
     h.update(str.encode(omnibus_last_changes))
-    buildimages_hash = _get_build_images(ctx)
-    for img_hash in buildimages_hash:
-        h.update(str.encode(img_hash))
-    omnibus_ruby_commit = _get_omnibus_commits('OMNIBUS_RUBY_VERSION')
-    omnibus_software_commit = _get_omnibus_commits('OMNIBUS_SOFTWARE_VERSION')
+    h.update(str.encode(os.getenv('CI_JOB_IMAGE', 'local_build')))
+    # Omnibus ruby & software versions can be forced through the environment
+    # so we need to read it from there first, and fallback to release.json
+    omnibus_ruby_commit = os.getenv('OMNIBUS_RUBY_VERSION', _get_omnibus_commits('OMNIBUS_RUBY_VERSION'))
     print(f'Omnibus ruby commit: {omnibus_ruby_commit}')
-    print(f'Omnibus software commit: {omnibus_software_commit}')
     h.update(str.encode(omnibus_ruby_commit))
-    h.update(str.encode(omnibus_software_commit))
     environment = _get_environment_for_cache()
     for k, v in environment.items():
         print(f'\tUsing environment variable {k} to compute cache key')
@@ -320,17 +334,8 @@ def send_build_metrics(ctx, overall_duration):
                     "metadata": get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE, True),
                 }
             )
-    if sys.platform == 'win32':
-        dd_api_key = ctx.run(
-            f'aws.cmd ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
-            hide=True,
-        ).stdout.strip()
-    else:
-        dd_api_key = ctx.run(
-            f'vault kv get -field=token kv/k8s/gitlab-runner/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}',
-            hide=True,
-        ).stdout.strip()
-    headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
+
+    headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': get_dd_api_key(ctx)}
     r = requests.post("https://api.datadoghq.com/api/v2/series", json={'series': series}, headers=headers)
     if r.ok:
         print('Successfully sent build metrics to DataDog')
@@ -340,17 +345,7 @@ def send_build_metrics(ctx, overall_duration):
 
 
 def send_cache_miss_event(ctx, pipeline_id, job_name, job_id):
-    if sys.platform == 'win32':
-        dd_api_key = ctx.run(
-            f'aws.cmd ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
-            hide=True,
-        ).stdout.strip()
-    else:
-        dd_api_key = ctx.run(
-            f'vault kv get -field=token kv/k8s/gitlab-runner/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}',
-            hide=True,
-        ).stdout.strip()
-    headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
+    headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': get_dd_api_key(ctx)}
     payload = {
         'title': 'omnibus cache miss',
         'text': f"Couldn't fetch cache associated with cache key for job {job_name} in pipeline #{pipeline_id}",

@@ -34,7 +34,6 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -45,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -138,11 +138,7 @@ func TestKafkaProtocolParsing(t *testing.T) {
 	serverHost := "127.0.0.1"
 	require.NoError(t, kafka.RunServer(t, serverHost, kafkaPort))
 
-	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !prebuilt.IsDeprecated() {
-		modes = append(modes, ebpftest.Prebuilt)
-	}
-	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		suite.Run(t, new(KafkaProtocolParsingSuite))
 	})
 }
@@ -153,10 +149,10 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 	var versions []*kversion.Versions
 	versions = append(versions, kversion.V2_5_0())
 
-	produce10fetch12 := kversion.V3_7_0()
-	produce10fetch12.SetMaxKeyVersion(kafka.ProduceAPIKey, 10)
-	produce10fetch12.SetMaxKeyVersion(kafka.FetchAPIKey, 12)
-	versions = append(versions, produce10fetch12)
+	produce12fetch12 := kversion.V4_0_0()
+	produce12fetch12.SetMaxKeyVersion(kafka.ProduceAPIKey, 12)
+	produce12fetch12.SetMaxKeyVersion(kafka.FetchAPIKey, 12)
+	versions = append(versions, produce12fetch12)
 
 	versionName := func(version *kversion.Versions) string {
 		produce, found := version.LookupMaxKeyVersion(kafka.ProduceAPIKey)
@@ -290,7 +286,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					ServerAddress: ctx.targetAddress,
 					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(kversion.V1_0_0()),
+						kgo.MaxVersions(version),
 						kgo.ClientID(""),
 					},
 				})
@@ -306,7 +302,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				getAndValidateKafkaStats(t, monitor, fixCount(1), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(1),
 					expectedNumberOfFetchRequests:   0,
-					expectedAPIVersionProduce:       5,
+					expectedAPIVersionProduce:       expectedAPIVersionProduce,
 					expectedAPIVersionFetch:         0,
 					tlsEnabled:                      tls,
 				}, kafkaSuccessErrorCode)
@@ -469,7 +465,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 			},
 		},
 		{
-			name: "Kafka Kernel Telemetry",
+			name: "Kafka Kernel Telemetry - Topic name size buckets",
 			context: testContext{
 				serverPort:    kafkaPort,
 				targetAddress: targetAddress,
@@ -521,14 +517,14 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 						require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 
 						var telemetryMap *kafka.RawKernelTelemetry
-						require.Eventually(t, func() bool {
+						require.EventuallyWithT(t, func(collect *assert.CollectT) {
 							telemetryMap, err = kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
-							require.NoError(t, err)
+							require.NoError(collect, err)
 
 							// Ensure that the other buckets remain unchanged before verifying the expected bucket.
 							for idx := 0; idx < kafka.TopicNameBuckets; idx++ {
 								if idx != tt.expectedBucketIndex {
-									require.Equal(t, currentRawKernelTelemetry.Topic_name_size_buckets[idx],
+									require.Equal(collect, currentRawKernelTelemetry.Topic_name_size_buckets[idx],
 										telemetryMap.Topic_name_size_buckets[idx],
 										"Expected bucket (%d) to remain unchanged", idx)
 								}
@@ -536,13 +532,78 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 
 							// Verify that the expected bucket contains the correct number of occurrences.
 							expectedNumberOfOccurrences := fixCount(2) // (1 produce request + 1 fetch request)
-							return uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Topic_name_size_buckets[tt.expectedBucketIndex] == telemetryMap.Topic_name_size_buckets[tt.expectedBucketIndex]
+							require.Equal(collect, uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Topic_name_size_buckets[tt.expectedBucketIndex], telemetryMap.Topic_name_size_buckets[tt.expectedBucketIndex])
 						}, time.Second*3, time.Millisecond*100)
 
 						// Update the current raw kernel telemetry for the next iteration
 						currentRawKernelTelemetry = telemetryMap
 					})
 				}
+			},
+		},
+		{
+			name: "Kafka Kernel Telemetry - API version buckets",
+			context: testContext{
+				serverPort:    kafkaPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras: map[string]interface{}{
+					"topic_name": s.getTopicName(),
+				},
+			},
+			testBody: func(t *testing.T, ctx *testContext, monitor *Monitor) {
+				currentRawKernelTelemetry := &kafka.RawKernelTelemetry{}
+				topicName := ctx.extras["topic_name"].(string)
+				client, err := kafka.NewClient(kafka.Options{
+					ServerAddress: ctx.targetAddress,
+					DialFn:        dialFn,
+					CustomOptions: []kgo.Opt{
+						kgo.MaxVersions(version),
+						kgo.ClientID("test-client"),
+						kgo.ConsumeTopics(topicName), // ConsumeTopics is needed to trigger the fetch request
+					},
+				})
+
+				require.NoError(t, err)
+				ctx.clients = append(ctx.clients, client)
+				require.NoError(t, client.CreateTopic(topicName))
+
+				// Send produce request we expect to be tracked
+				// This should also trigger a fetch request
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				defer cancel()
+				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+
+				var telemetryMap *kafka.RawKernelTelemetry
+				require.EventuallyWithT(t, func(collect *assert.CollectT) {
+					telemetryMap, err = kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
+					require.NoError(collect, err)
+
+					telemetryDiff := telemetryMap.Sub(*currentRawKernelTelemetry)
+					expectedCount := uint64(fixCount(1)) // because we use Docker the packets are seen twice
+
+					// Verify that the expected bucket contains the correct hits.
+					for bucketIndex := 0; bucketIndex < len(telemetryDiff.Classified_produce_api_version_hits); bucketIndex++ {
+						// Ensure that the other buckets remain unchanged before verifying the expected bucket.
+						if bucketIndex != expectedAPIVersionProduce {
+							require.Equal(collect, uint64(0), telemetryDiff.Classified_produce_api_version_hits[bucketIndex])
+						} else {
+							require.Equal(collect, expectedCount, telemetryDiff.Classified_produce_api_version_hits[bucketIndex])
+						}
+					}
+					for bucketIndex := 0; bucketIndex < len(telemetryDiff.Classified_fetch_api_version_hits); bucketIndex++ {
+						// Ensure that the other buckets remain unchanged before verifying the expected bucket.
+						if bucketIndex != expectedAPIVersionFetch {
+							require.Equal(collect, uint64(0), telemetryDiff.Classified_fetch_api_version_hits[bucketIndex])
+						} else {
+							require.Equal(collect, expectedCount, telemetryDiff.Classified_fetch_api_version_hits[bucketIndex])
+						}
+					}
+				}, time.Second*3, time.Millisecond*100)
+
+				// Update the current raw kernel telemetry for the next iteration
+				currentRawKernelTelemetry = telemetryMap
 			},
 		},
 	}
@@ -559,7 +620,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					client.Client.Close()
 				}
 			})
-			monitor := newKafkaMonitor(t, cfg)
+			monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 			if tls && cfg.EnableGoTLSSupport {
 				utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
@@ -1157,7 +1218,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 	can.runServer()
 	proxyPid := can.runProxy()
 
-	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
+	monitor := setupUSMTLSMonitor(t, getDefaultTestConfiguration(tls), useExistingConsumer)
 	if tls {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
 	}
@@ -1385,7 +1446,7 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 	can.runServer()
 	proxyPid := can.runProxy()
 
-	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
+	monitor := setupUSMTLSMonitor(t, getDefaultTestConfiguration(tls), useExistingConsumer)
 	if tls {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
 	}
@@ -1514,7 +1575,7 @@ func TestKafkaInFlightMapCleaner(t *testing.T) {
 	cfg := getDefaultTestConfiguration(false)
 	cfg.HTTPMapCleanerInterval = 5 * time.Second
 	cfg.HTTPIdleConnectionTTL = time.Second
-	monitor := newKafkaMonitor(t, cfg)
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 	ebpfNow, err := ddebpf.NowNanoseconds()
 	require.NoError(t, err)
 	inFlightMap, _, err := monitor.ebpfProgram.GetMap("kafka_in_flight")
@@ -1563,7 +1624,8 @@ func (i *PrintableInt) Add(other int) {
 func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidation, errorCode int32) map[kafka.Key]*kafka.RequestStats {
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		protocolStats := monitor.GetProtocolStats()
+		protocolStats, cleaners := monitor.GetProtocolStats()
+		defer cleaners()
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
 		if exists {
@@ -1592,7 +1654,8 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidationWithErrorCodes) map[kafka.Key]*kafka.RequestStats {
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		protocolStats := monitor.GetProtocolStats()
+		protocolStats, cleaners := monitor.GetProtocolStats()
+		defer cleaners()
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
 		if exists {
@@ -1690,29 +1753,11 @@ func validateProduceFetchCountWithErrorCodes(t *assert.CollectT, kafkaStats map[
 	}
 }
 
-func newKafkaMonitor(t *testing.T, cfg *config.Config) *Monitor {
-	monitor, err := NewMonitor(cfg, nil)
-	skipIfNotSupported(t, err)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		monitor.Stop()
-	})
-	t.Cleanup(utils.ResetDebugger)
-
-	err = monitor.Start()
-	require.NoError(t, err)
-	return monitor
-}
-
 // This test will help us identify if there is any verifier problems while loading the Kafka binary in the CI environment
 func TestLoadKafkaBinary(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !prebuilt.IsDeprecated() {
-		modes = append(modes, ebpftest.Prebuilt)
-	}
-	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		t.Run("debug", func(t *testing.T) {
 			loadKafkaBinary(t, true)
 		})
@@ -1730,5 +1775,5 @@ func loadKafkaBinary(t *testing.T, debug bool) {
 	cfg.MaxTrackedConnections = 1000
 	cfg.BPFDebug = debug
 
-	newKafkaMonitor(t, cfg)
+	setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 }

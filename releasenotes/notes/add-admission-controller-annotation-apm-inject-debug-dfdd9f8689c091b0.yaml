@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Add ``admission.datadoghq.com/apm-inject.debug: "true"`` annotation to inject
+    ``DD_APM_INSTRUMENTATION_DEBUG=true``, ``DD_TRACE_STARTUP_LOGS=true`` and
+    ``DD_TRACE_DEBUG=true`` to an application container.
+    This is useful for debugging Single Step Instrumentation or tracer issues
+    in Kubernetes environments.

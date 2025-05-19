@@ -9,6 +9,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"slices"
 	"time"
 
 	"go.uber.org/atomic"
@@ -41,6 +43,10 @@ var (
 )
 
 func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, ac autodiscovery.Component) {
+	if pkgconfigsetup.Datadog().GetString("fleet_policies_dir") != "" {
+		confSearchPaths = append(confSearchPaths, filepath.Join(pkgconfigsetup.Datadog().GetString("fleet_policies_dir"), "conf.d"))
+	}
+
 	providers.InitConfigFilesReader(confSearchPaths)
 
 	acTelemetryStore := ac.GetTelemetryStore()
@@ -272,12 +278,7 @@ func waitForConfigsFromAD(ctx context.Context,
 	} else {
 		// match configs with names in checkNames
 		match = func(cfg integration.Config) bool {
-			for _, checkName := range checkNames {
-				if cfg.Name == checkName {
-					return true
-				}
-			}
-			return false
+			return slices.Contains(checkNames, cfg.Name)
 		}
 	}
 

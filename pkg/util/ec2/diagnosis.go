@@ -8,11 +8,11 @@ package ec2
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	diagnoseComp "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 )
 
 func init() {
-	diagnosis.RegisterMetadataAvail("EC2 Metadata availability", diagnose)
+	diagnoseComp.RegisterMetadataAvail("EC2 Metadata availability", diagnose)
 }
 
 // diagnose the ec2 metadata API availability

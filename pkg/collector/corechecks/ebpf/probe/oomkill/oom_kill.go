@@ -13,7 +13,6 @@ package oomkill
 
 import (
 	"fmt"
-	"math"
 
 	"golang.org/x/sys/unix"
 
@@ -24,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -77,7 +75,7 @@ func loadOOMKillCOREProbe() (*Probe, error) {
 }
 
 func loadOOMKillRuntimeCompiledProbe(cfg *ebpf.Config) (*Probe, error) {
-	buf, err := runtime.OomKill.Compile(cfg, getCFlags(cfg), statsd.Client)
+	buf, err := runtime.OomKill.Compile(cfg, getCFlags(cfg))
 	if err != nil {
 		return nil, err
 	}
@@ -104,10 +102,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options)
 		},
 	}
 
-	managerOptions.RLimit = &unix.Rlimit{
-		Cur: math.MaxUint64,
-		Max: math.MaxUint64,
-	}
+	managerOptions.RemoveRlimit = true
 
 	if err := m.InitWithOptions(buf, managerOptions); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)
@@ -122,6 +117,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options)
 		return nil, fmt.Errorf("failed to get map '%s': %w", oomMapName, err)
 	}
 	ebpf.AddNameMappings(m, "oom_kill")
+	ebpf.AddProbeFDMappings(m)
 
 	return &Probe{
 		m:      m,

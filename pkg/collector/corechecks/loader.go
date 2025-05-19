@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // CheckFactory factory function type to instantiate checks
@@ -25,8 +25,11 @@ type CheckFactory func() check.Check
 // Catalog keeps track of Go checks by name
 var catalog = make(map[string]CheckFactory)
 
+// GoCheckLoaderName is the name of the Go loader
+const GoCheckLoaderName string = "core"
+
 // RegisterCheck adds a check to the catalog
-func RegisterCheck(name string, checkFactory optional.Option[func() check.Check]) {
+func RegisterCheck(name string, checkFactory option.Option[func() check.Check]) {
 	if v, ok := checkFactory.Get(); ok {
 		catalog[name] = v
 	}
@@ -51,8 +54,8 @@ func NewGoCheckLoader() (*GoCheckLoader, error) {
 }
 
 // Name return returns Go loader name
-func (gl *GoCheckLoader) Name() string {
-	return "core"
+func (*GoCheckLoader) Name() string {
+	return GoCheckLoaderName
 }
 
 // Load returns a Go check
@@ -83,9 +86,10 @@ func (gl *GoCheckLoader) String() string {
 }
 
 func init() {
-	factory := func(sender.SenderManager, optional.Option[integrations.Component], tagger.Component) (check.Loader, error) {
-		return NewGoCheckLoader()
+	factory := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, int, error) {
+		loader, err := NewGoCheckLoader()
+		return loader, 30, err
 	}
 
-	loaders.RegisterLoader(30, factory)
+	loaders.RegisterLoader(factory)
 }

@@ -3,14 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver && test
+//go:build kubeapiserver
 
 package kubernetesresourceparsers
 
 import (
-	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -118,13 +119,26 @@ func TestPodParser_Parse(t *testing.T) {
 			},
 		},
 		PersistentVolumeClaimNames: []string{"pvcName"},
-		Ready:                      true,
-		IP:                         "127.0.0.1",
-		PriorityClass:              "priorityClass",
-		GPUVendorList:              []string{"nvidia", "intel"},
-		QOSClass:                   "Guaranteed",
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				Name: "gpuContainer1",
+			},
+			{
+				Name: "gpuContainer2",
+			},
+		},
+		Ready:         true,
+		IP:            "127.0.0.1",
+		PriorityClass: "priorityClass",
+		GPUVendorList: []string{"nvidia", "intel"},
+		QOSClass:      "Guaranteed",
 	}
 
-	assert.True(t, reflect.DeepEqual(expected, parsed),
-		"Expected: %v, Actual: %v", expected, parsed)
+	opt := cmpopts.SortSlices(func(a, b string) bool {
+		return a < b
+	})
+	assert.True(t,
+		cmp.Equal(expected, parsed, opt),
+		cmp.Diff(expected, parsed, opt),
+	)
 }

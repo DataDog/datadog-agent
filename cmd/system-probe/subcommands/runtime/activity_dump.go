@@ -24,7 +24,9 @@ import (
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -34,6 +36,7 @@ type activityDumpCliParams struct {
 
 	name                     string
 	containerID              string
+	cgroupID                 string
 	file                     string
 	file2                    string
 	timeout                  string
@@ -109,7 +112,12 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		"",
 		"an containerID can be used to filter the activity dump.",
 	)
-
+	activityDumpStopCmd.Flags().StringVar(
+		&cliParams.cgroupID,
+		"cgroup-id",
+		"",
+		"a cgroup ID can be used to filter the activity dump.",
+	)
 	return []*cobra.Command{activityDumpStopCmd}
 }
 
@@ -150,6 +158,12 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		"container-id",
 		"",
 		"a container identifier can be used to filter the activity dump from a specific container.",
+	)
+	activityDumpGenerateDumpCmd.Flags().StringVar(
+		&cliParams.cgroupID,
+		"cgroup-id",
+		"",
+		"a cgroup identifier can be used to filter the activity dump from a specific cgroup.",
 	)
 	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&cliParams.timeout,
@@ -376,27 +390,27 @@ NEXT2:
 	return
 }
 
-func computeActivityDumpDiff(p1, p2 *dump.ActivityDump, states map[string]bool) *dump.ActivityDump {
-	return &dump.ActivityDump{
-		ActivityTree: &activity_tree.ActivityTree{
-			ProcessNodes: diffADSubtree(p1.ActivityTree.ProcessNodes, p2.ActivityTree.ProcessNodes, states),
-		},
+func computeActivityDumpDiff(p1, p2 *profile.Profile, states map[string]bool) *profile.Profile {
+	p := profile.New()
+	p.ActivityTree = &activity_tree.ActivityTree{
+		ProcessNodes: diffADSubtree(p1.ActivityTree.ProcessNodes, p2.ActivityTree.ProcessNodes, states),
 	}
+	return p
 }
 
 func diffActivityDump(_ log.Component, _ config.Component, _ secrets.Component, args *activityDumpCliParams) error {
-	ad := dump.NewEmptyActivityDump(nil)
-	if err := ad.Decode(args.file); err != nil {
+	p := profile.New()
+	if err := p.Decode(args.file); err != nil {
 		return err
 	}
 
-	ad2 := dump.NewEmptyActivityDump(nil)
-	if err := ad2.Decode(args.file2); err != nil {
+	p2 := profile.New()
+	if err := p2.Decode(args.file2); err != nil {
 		return err
 	}
 
 	states := make(map[string]bool)
-	diff := computeActivityDumpDiff(ad, ad2, states)
+	diff := computeActivityDumpDiff(p, p2, states)
 
 	switch args.format {
 	case "dot":
@@ -411,13 +425,13 @@ func diffActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 				}
 			}
 		}
-		buffer, err := graph.EncodeDOT(dump.ActivityDumpGraphTemplate)
+		buffer, err := graph.EncodeDOT(profile.ActivityDumpGraphTemplate)
 		if err != nil {
 			return err
 		}
 		os.Stdout.Write(buffer.Bytes())
 	case "protobuf":
-		buffer, err := diff.EncodeProtobuf()
+		buffer, err := diff.EncodeSecDumpProtobuf()
 		if err != nil {
 			return err
 		}
@@ -449,6 +463,7 @@ func generateActivityDump(_ log.Component, _ config.Component, _ secrets.Compone
 
 	output, err := client.GenerateActivityDump(&api.ActivityDumpParams{
 		ContainerID:       activityDumpArgs.containerID,
+		CGroupID:          activityDumpArgs.cgroupID,
 		Timeout:           activityDumpArgs.timeout,
 		DifferentiateArgs: activityDumpArgs.differentiateArgs,
 		Storage:           storage,
@@ -468,10 +483,10 @@ func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ sec
 	var output *api.TranscodingRequestMessage
 
 	// encoding request will be handled locally
-	ad := dump.NewEmptyActivityDump(nil)
+	p := profile.New()
 
 	// open and parse input file
-	if err := ad.Decode(activityDumpArgs.file); err != nil {
+	if err := p.Decode(activityDumpArgs.file); err != nil {
 		return err
 	}
 	parsedRequests, err := parseStorageRequest(activityDumpArgs)
@@ -481,10 +496,7 @@ func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ sec
 
 	storageRequests, err := secconfig.ParseStorageRequests(parsedRequests)
 	if err != nil {
-		return fmt.Errorf("couldn't parse transcoding request for [%s]: %v", ad.GetSelectorStr(), err)
-	}
-	for _, request := range storageRequests {
-		ad.AddStorageRequest(request)
+		return fmt.Errorf("couldn't parse transcoding request for [%s]: %v", p.GetSelectorStr(), err)
 	}
 
 	cfg, err := secconfig.NewConfig()
@@ -492,17 +504,54 @@ func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ sec
 		return fmt.Errorf("couldn't load configuration: %w", err)
 
 	}
-	storage, err := dump.NewAgentCommandStorageManager(cfg)
-	if err != nil {
-		return fmt.Errorf("couldn't instantiate storage manager: %w", err)
+
+	output = &api.TranscodingRequestMessage{
+		Storage: make([]*api.StorageRequestMessage, 0, len(storageRequests)),
 	}
 
-	err = storage.Persist(ad)
-	if err != nil {
-		return fmt.Errorf("couldn't persist dump from %s: %w", activityDumpArgs.file, err)
-	}
+	var localStorage storage.ActivityDumpStorage
+	var localStorageErr error
+	var remoteStorage storage.ActivityDumpStorage
+	var remoteStorageErr error
+	for _, storageRequest := range storageRequests {
+		switch storageRequest.Type {
+		case secconfig.LocalStorage:
+			if localStorage == nil && localStorageErr == nil {
+				localStorage, localStorageErr = storage.NewDirectory(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount)
+				if localStorageErr != nil {
+					return fmt.Errorf("couldn't instantiate local storage: %w", localStorageErr)
+				}
+			}
+			data, err := p.Encode(storageRequest.Format)
+			if err != nil {
+				return fmt.Errorf("couldn't encode activity dump: %w", err)
+			}
+			if err := localStorage.Persist(storageRequest, p, data); err != nil {
+				return fmt.Errorf("couldn't persist dump from %s to local storage: %w", activityDumpArgs.file, err)
+			}
+			output.Storage = append(output.Storage, storageRequest.ToStorageRequestMessage(p.Metadata.Name))
+		case secconfig.RemoteStorage:
+			if remoteStorage == nil && remoteStorageErr == nil {
+				backend, err := backend.NewActivityDumpRemoteBackend()
+				if err != nil {
+					return fmt.Errorf("couldn't instantiate remote storage backend: %w", err)
+				}
 
-	output = ad.ToTranscodingRequestMessage()
+				remoteStorage, remoteStorageErr = storage.NewActivityDumpRemoteStorageForwarder(backend)
+				if remoteStorageErr != nil {
+					return fmt.Errorf("couldn't instantiate remote storage: %w", remoteStorageErr)
+				}
+			}
+			data, err := p.Encode(storageRequest.Format)
+			if err != nil {
+				return fmt.Errorf("couldn't encode activity dump: %w", err)
+			}
+			if err := remoteStorage.Persist(storageRequest, p, data); err != nil {
+				return fmt.Errorf("couldn't persist dump from %s to remote storage: %w", activityDumpArgs.file, err)
+			}
+			output.Storage = append(output.Storage, storageRequest.ToStorageRequestMessage(p.Metadata.Name))
+		}
+	}
 
 	if len(output.GetError()) > 0 {
 		return fmt.Errorf("encoding generation failed: %s", output.GetError())
@@ -573,7 +622,7 @@ func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 	}
 	defer client.Close()
 
-	output, err := client.StopActivityDump(activityDumpArgs.name, activityDumpArgs.containerID)
+	output, err := client.StopActivityDump(activityDumpArgs.name, activityDumpArgs.containerID, activityDumpArgs.cgroupID)
 	if err != nil {
 		return fmt.Errorf("unable to send request to system-probe: %w", err)
 	}
@@ -583,4 +632,11 @@ func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 
 	fmt.Println("done!")
 	return nil
+}
+
+func printStorageRequestMessage(prefix string, storage *api.StorageRequestMessage) {
+	fmt.Printf("%s- file: %s\n", prefix, storage.GetFile())
+	fmt.Printf("%s  format: %s\n", prefix, storage.GetFormat())
+	fmt.Printf("%s  storage type: %s\n", prefix, storage.GetType())
+	fmt.Printf("%s  compression: %v\n", prefix, storage.GetCompression())
 }

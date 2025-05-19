@@ -1,0 +1,9 @@
+{
+	"filters": {
+		"pkg/security": {
+			"run-only": [
+				"TestEventMonitor"
+			]
+		}
+	}
+}

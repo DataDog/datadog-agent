@@ -14,7 +14,7 @@ int io_uring_create(struct tracepoint_io_uring_io_uring_create_t *args) {
 
 HOOK_EXIT("io_ring_ctx_alloc")
 int rethook_io_ring_ctx_alloc(ctx_t *ctx) {
-    void *ioctx = (void *)CTX_PARMRET(ctx, 1);
+    void *ioctx = (void *)CTX_PARMRET(ctx);
     cache_ioctx_pid_tgid(ioctx);
     return 0;
 }

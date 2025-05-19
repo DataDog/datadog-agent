@@ -19,7 +19,7 @@ const (
 	invalidSource = "invalidSource"
 )
 
-var testEntityID = types.NewEntityID("test", "EntityID")
+var testEntityID = types.NewEntityID(types.ContainerID, "EntityID")
 
 func TestToEntity(t *testing.T) {
 	entityTags := newEntityTagsWithSingleSource(testEntityID, testSource)
@@ -99,6 +99,12 @@ func TestGetHashedTags(t *testing.T) {
 		t,
 		[]string{"l1:v1", "l2:v2", "service:s1", "o1:v1", "o2:v2", "h1:v1", "h2:v2"},
 		entityTags.getHashedTags(types.HighCardinality).Get(),
+	)
+
+	assert.Equal(
+		t,
+		[]string(nil),
+		entityTags.getHashedTags(types.NoneCardinality).Get(),
 	)
 }
 

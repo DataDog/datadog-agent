@@ -17,8 +17,10 @@ import (
 	"github.com/google/uuid"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,14 +34,18 @@ const (
 // Server is a grpc server that streams tagger entities
 type Server struct {
 	taggerComponent tagger.Component
+	telemetry       *telemetryStore
 	maxEventSize    int
+	throttler       Throttler
 }
 
 // NewServer returns a new Server
-func NewServer(t tagger.Component, maxEventSize int) *Server {
+func NewServer(t tagger.Component, telemetry telemetry.Component, maxEventSize int, maxParallelSync int) *Server {
 	return &Server{
 		taggerComponent: t,
+		telemetry:       newTelemetryStore(telemetry),
 		maxEventSize:    maxEventSize,
+		throttler:       NewSyncThrottler(uint32(maxParallelSync)),
 	}
 }
 
@@ -52,6 +58,42 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 		return err
 	}
 
+	ticker := time.NewTicker(streamKeepAliveInterval)
+	defer ticker.Stop()
+
+	timeoutRefreshError := make(chan error)
+
+	go func() {
+		// The remote tagger client has a timeout that closes the
+		// connection after 10 minutes of inactivity (implemented in
+		// comp/core/tagger/remote/tagger.go) In order to avoid closing the
+		// connection and having to open it again, the server will send
+		// an empty message after 9 minutes of inactivity. The goal is
+		// only to keep the connection alive without losing the
+		// protection against “half” closed connections brought by the
+		// timeout.
+		for {
+			select {
+			case <-out.Context().Done():
+				return
+
+			case <-ticker.C:
+				err = grpc.DoWithTimeout(func() error {
+					return out.Send(&pb.StreamTagsResponse{
+						Events: []*pb.StreamTagsEvent{},
+					})
+				}, taggerStreamSendTimeout)
+
+				if err != nil {
+					log.Warnf("error sending tagger keep-alive: %s", err)
+					s.telemetry.ServerStreamErrors.Inc()
+					timeoutRefreshError <- err
+					return
+				}
+			}
+		}
+	}()
+
 	filterBuilder := types.NewFilterBuilder()
 	for _, prefix := range in.GetPrefixes() {
 		filterBuilder = filterBuilder.Include(types.EntityIDPrefix(prefix))
@@ -61,22 +103,26 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 
 	streamingID := in.GetStreamingID()
 	if streamingID == "" {
-		// this is done to preserve backward compatibility
-		// if CLC runner is using an old version, the streaming ID would be an empty string,
-		// and the server needs to auto-assign a unique id
 		streamingID = uuid.New().String()
 	}
-
 	subscriptionID := fmt.Sprintf("streaming-client-%s", streamingID)
+
+	// initBurst is a flag indicating if the initial sync is still in progress or not
+	// true means the sync hasn't yet been finalised
+	// false means the streaming client has already caught up with the server
+	initBurst := true
+	log.Debugf("requesting token from server throttler for streaming id: %q", streamingID)
+	tk := s.throttler.RequestToken()
+	defer s.throttler.Release(tk)
+
 	subscription, err := s.taggerComponent.Subscribe(subscriptionID, filter)
+	log.Debugf("cluster tagger has just initiated subscription for %q at time %v", subscriptionID, time.Now().Unix())
 	if err != nil {
+		log.Errorf("Failed to subscribe to tagger for subscription %q", subscriptionID)
 		return err
 	}
 
 	defer subscription.Unsubscribe()
-
-	ticker := time.NewTicker(streamKeepAliveInterval)
-	defer ticker.Stop()
 
 	sendFunc := func(chunk []*pb.StreamTagsEvent) error {
 		return grpc.DoWithTimeout(func() error {
@@ -109,33 +155,21 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 
 			if err := processChunksInPlace(responseEvents, s.maxEventSize, computeTagsEventInBytes, sendFunc); err != nil {
 				log.Warnf("error sending tagger event: %s", err)
-				s.taggerComponent.GetTaggerTelemetryStore().ServerStreamErrors.Inc()
+				s.telemetry.ServerStreamErrors.Inc()
 				return err
+			}
+
+			if initBurst {
+				initBurst = false
+				s.throttler.Release(tk)
+				log.Infof("cluster tagger has just finished initialization for subscription %q at time %v", subscriptionID, time.Now().Unix())
 			}
 
 		case <-out.Context().Done():
 			return nil
 
-		// The remote tagger client has a timeout that closes the
-		// connection after 10 minutes of inactivity (implemented in
-		// comp/core/tagger/remote/tagger.go) In order to avoid closing the
-		// connection and having to open it again, the server will send
-		// an empty message after 9 minutes of inactivity. The goal is
-		// only to keep the connection alive without losing the
-		// protection against “half” closed connections brought by the
-		// timeout.
-		case <-ticker.C:
-			err = grpc.DoWithTimeout(func() error {
-				return out.Send(&pb.StreamTagsResponse{
-					Events: []*pb.StreamTagsEvent{},
-				})
-			}, taggerStreamSendTimeout)
-
-			if err != nil {
-				log.Warnf("error sending tagger keep-alive: %s", err)
-				s.taggerComponent.GetTaggerTelemetryStore().ServerStreamErrors.Inc()
-				return err
-			}
+		case err = <-timeoutRefreshError:
+			return err
 		}
 	}
 }
@@ -163,5 +197,29 @@ func (s *Server) TaggerFetchEntity(_ context.Context, in *pb.FetchEntityRequest)
 		Id:          in.Id,
 		Cardinality: in.GetCardinality(),
 		Tags:        tags,
+	}, nil
+}
+
+// TaggerGenerateContainerIDFromOriginInfo requests the Tagger to generate a container ID from the given OriginInfo.
+func (s *Server) TaggerGenerateContainerIDFromOriginInfo(_ context.Context, in *pb.GenerateContainerIDFromOriginInfoRequest) (*pb.GenerateContainerIDFromOriginInfoResponse, error) {
+	generatedContainerID, err := s.taggerComponent.GenerateContainerIDFromOriginInfo(origindetection.OriginInfo{
+		LocalData: origindetection.LocalData{
+			ProcessID:   *in.LocalData.ProcessID,
+			ContainerID: *in.LocalData.ContainerID,
+			Inode:       *in.LocalData.Inode,
+			PodUID:      *in.LocalData.PodUID,
+		},
+		ExternalData: origindetection.ExternalData{
+			Init:          *in.ExternalData.Init,
+			ContainerName: *in.ExternalData.ContainerName,
+			PodUID:        *in.ExternalData.PodUID,
+		},
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%s", err)
+	}
+
+	return &pb.GenerateContainerIDFromOriginInfoResponse{
+		ContainerID: generatedContainerID,
 	}, nil
 }

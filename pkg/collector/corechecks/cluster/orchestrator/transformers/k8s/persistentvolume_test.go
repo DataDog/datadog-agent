@@ -8,11 +8,13 @@
 package k8s
 
 import (
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -167,11 +169,18 @@ func TestExtractPersistentVolume(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			pctx := &processors.K8sProcessorContext{
+				LabelsAsTags:      map[string]string{"app": "application"},
+				AnnotationsAsTags: map[string]string{"annotation": "annotation_key"},
+			}
 			tc.basicInputPV.Spec.PersistentVolumeSource = tc.inputSource
 			tc.basicExpectedPV.Spec.PersistentVolumeType = tc.expectedType
 			tc.basicExpectedPV.Spec.PersistentVolumeSource = tc.expectedSource
 			tc.basicExpectedPV.Tags = append(tc.basicExpectedPV.Tags, "pv_type:"+strings.ToLower(tc.expectedType))
-			assert.Equal(t, &tc.basicExpectedPV, ExtractPersistentVolume(&tc.basicInputPV))
+			actual := ExtractPersistentVolume(pctx, &tc.basicInputPV)
+			sort.Strings(actual.Tags)
+			sort.Strings(tc.basicExpectedPV.Tags)
+			assert.Equal(t, &tc.basicExpectedPV, actual)
 		})
 	}
 }
@@ -307,7 +316,11 @@ func newExpectedPV() model.PersistentVolume {
 			Message: "test",
 			Reason:  "test",
 		},
-		Tags: []string{"pv_phase:pending"},
+		Tags: []string{
+			"pv_phase:pending",
+			"application:my-app",
+			"annotation_key:my-annotation",
+		},
 	}
 }
 

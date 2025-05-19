@@ -16,8 +16,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/shirou/gopsutil/v3/process"
-
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -28,8 +26,8 @@ var pageSize = uint64(os.Getpagesize())
 // getRSS returns the RSS for the process, in bytes. Compare MemoryInfo() in
 // gopsutil which does the same thing but which parses several other fields
 // which we're not interested in.
-func getRSS(proc *process.Process) (uint64, error) {
-	statmPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "statm")
+func getRSS(pid int32) (uint64, error) {
+	statmPath := kernel.HostProc(strconv.Itoa(int(pid)), "statm")
 
 	// This file is very small so just read it fully.
 	contents, err := os.ReadFile(statmPath)

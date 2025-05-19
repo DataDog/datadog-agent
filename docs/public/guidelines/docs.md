@@ -2,7 +2,7 @@
 
 This site is built by [MkDocs](https://github.com/mkdocs/mkdocs) and uses the [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) theme.
 
-You can serve documentation locally with the `docs.serve` [invoke task](../setup.md#preface).
+You can serve documentation locally with the `inv docs.serve` [command](../setup.md#tooling).
 
 ## Organization
 

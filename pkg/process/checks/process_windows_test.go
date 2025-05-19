@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/stretchr/testify/assert"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -80,6 +80,24 @@ func TestFormatCPUTimes(t *testing.T) {
 			assert.Equal(t, test.expected, formatCPUTimes(
 				test.statsNow, test.statsNow.CPUTime, test.statsPrev, cpu.TimesStat{}, cpu.TimesStat{},
 			))
+		})
+	}
+}
+
+func TestProcessIsECSFargatePidModeSetToTaskWindows(t *testing.T) {
+	for _, tc := range []struct {
+		description string
+		containers  []*model.Container
+		expected    bool
+	}{
+		{
+			description: "windows unsupported",
+			containers:  []*model.Container{},
+			expected:    false,
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			assert.Equal(t, tc.expected, isECSFargatePidModeSetToTask(tc.containers))
 		})
 	}
 }

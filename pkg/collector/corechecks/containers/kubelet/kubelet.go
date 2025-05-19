@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -102,8 +102,8 @@ func initProviders(filter *containers.Filter, config *common.KubeletConfig, podU
 }
 
 // Factory returns a new KubeletCheck factory
-func Factory(store workloadmeta.Component, tagger tagger.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
+func Factory(store workloadmeta.Component, tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
 		return NewKubeletCheck(core.NewCheckBase(CheckName), &common.KubeletConfig{}, store, tagger)
 	})
 }
@@ -124,6 +124,12 @@ func (k *KubeletCheck) Configure(senderManager sender.SenderManager, _ uint64, c
 	err = k.instance.Parse(config)
 	if err != nil {
 		return err
+	}
+
+	// Set sane defaults
+	if k.instance.Timeout == 0 {
+		// old default was 10 seconds, let's keep it
+		k.instance.Timeout = 10
 	}
 
 	k.instance.Namespace = common.KubeletMetricsPrefix

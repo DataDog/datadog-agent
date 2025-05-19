@@ -216,7 +216,7 @@ typedef struct {
     __u32 remainder;
     __u32 header_length;
     char buf[HTTP2_FRAME_HEADER_SIZE];
-} frame_header_remainder_t;
+} incomplete_frame_t;
 
 // http2_telemetry_t is used to hold the HTTP/2 kernel telemetry.
 // request_seen                         Count of HTTP/2 requests seen
@@ -226,8 +226,8 @@ typedef struct {
 // literal_value_exceeds_frame          Count of times we couldn't retrieve the literal value due to reaching the end of the frame.
 // exceeding_max_interesting_frames		Count of times we reached the max number of frames per iteration.
 // exceeding_max_frames_to_filter		Count of times we have left with more frames to filter than the max number of frames to filter.
+// continuation_frames                  Count of occurrences where a frame of type CONTINUATION was found.
 // path_size_bucket                     Count of path sizes and divided into buckets.
-// frames_split_count                   Count of times we tried to read more data than the end of the data end.
 typedef struct {
     __u64 request_seen;
     __u64 response_seen;
@@ -236,6 +236,7 @@ typedef struct {
     __u64 literal_value_exceeds_frame;
     __u64 exceeding_max_interesting_frames;
     __u64 exceeding_max_frames_to_filter;
+    __u64 continuation_frames;
     __u64 path_size_bucket[HTTP2_TELEMETRY_PATH_BUCKETS+1];
 } http2_telemetry_t;
 

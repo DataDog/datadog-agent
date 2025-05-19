@@ -19,10 +19,17 @@ var envVariablesByStoreKey = map[StoreKey]string{
 	Environments:                 "E2E_ENVIRONMENTS",
 	ExtraResourcesTags:           "E2E_EXTRA_RESOURCES_TAGS",
 	KeyPairName:                  "E2E_KEY_PAIR_NAME",
-	PrivateKeyPassword:           "E2E_PRIVATE_KEY_PASSWORD",
-	PrivateKeyPath:               "E2E_PRIVATE_KEY_PATH",
+	AWSPrivateKeyPassword:        "E2E_AWS_PRIVATE_KEY_PASSWORD",
+	AWSPrivateKeyPath:            "E2E_AWS_PRIVATE_KEY_PATH",
 	Profile:                      "E2E_PROFILE",
-	PublicKeyPath:                "E2E_PUBLIC_KEY_PATH",
+	AWSPublicKeyPath:             "E2E_AWS_PUBLIC_KEY_PATH",
+	AzurePrivateKeyPath:          "E2E_AZURE_PRIVATE_KEY_PATH",
+	AzurePublicKeyPath:           "E2E_AZURE_PUBLIC_KEY_PATH",
+	AzurePrivateKeyPassword:      "E2E_AZURE_PRIVATE_KEY_PASSWORD",
+	GCPPrivateKeyPath:            "E2E_GCP_PRIVATE_KEY_PATH",
+	GCPPublicKeyPath:             "E2E_GCP_PUBLIC_KEY_PATH",
+	GCPPrivateKeyPassword:        "E2E_GCP_PRIVATE_KEY_PASSWORD",
+	LocalPublicKeyPath:           "E2E_LOCAL_PUBLIC_KEY_PATH",
 	PulumiPassword:               "E2E_PULUMI_PASSWORD",
 	SkipDeleteOnFailure:          "E2E_SKIP_DELETE_ON_FAILURE",
 	StackParameters:              "E2E_STACK_PARAMS",
@@ -37,6 +44,7 @@ var envVariablesByStoreKey = map[StoreKey]string{
 	InitOnly:                     "E2E_INIT_ONLY",
 	MajorVersion:                 "E2E_MAJOR_VERSION",
 	PreInitialized:               "E2E_PRE_INITIALIZED",
+	FIPS:                         "E2E_FIPS",
 }
 
 type envValueStore struct {

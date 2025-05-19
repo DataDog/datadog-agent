@@ -11,6 +11,7 @@ package kubelet
 import (
 	"context"
 	stdErrors "errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
@@ -267,7 +267,7 @@ func parsePodContainers(
 		}
 
 		var allocatedResources []workloadmeta.ContainerAllocatedResource
-		for _, resource := range container.AllocatedResources {
+		for _, resource := range container.ResolvedAllocatedResources {
 			allocatedResources = append(allocatedResources, workloadmeta.ContainerAllocatedResource{
 				Name: resource.Name,
 				ID:   resource.ID,
@@ -310,15 +310,15 @@ func parsePodContainers(
 						kubernetes.CriContainerNamespaceLabel: pod.Metadata.Namespace,
 					},
 				},
-				Image:              image,
-				EnvVars:            env,
-				SecurityContext:    containerSecurityContext,
-				Ports:              ports,
-				Runtime:            workloadmeta.ContainerRuntime(runtime),
-				State:              containerState,
-				Owner:              parent,
-				Resources:          resources,
-				AllocatedResources: allocatedResources,
+				Image:                      image,
+				EnvVars:                    env,
+				SecurityContext:            containerSecurityContext,
+				Ports:                      ports,
+				Runtime:                    workloadmeta.ContainerRuntime(runtime),
+				State:                      containerState,
+				Owner:                      parent,
+				Resources:                  resources,
+				ResolvedAllocatedResources: allocatedResources,
 			},
 		})
 	}
@@ -403,6 +403,11 @@ func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.
 }
 
 func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
+	// filter out env vars that have external sources (eg. ConfigMap, Secret, etc.)
+	envSpec = slices.DeleteFunc(envSpec, func(v kubelet.EnvVar) bool {
+		return v.ValueFrom != nil
+	})
+
 	env := make(map[string]string)
 	mappingFunc := expansion.MappingFuncFor(env)
 
@@ -417,9 +422,18 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 			continue
 		}
 
+		ok := true
 		runtimeVal := e.Value
 		if runtimeVal != "" {
-			runtimeVal = expansion.Expand(runtimeVal, mappingFunc)
+			runtimeVal, ok = expansion.Expand(runtimeVal, mappingFunc)
+		}
+
+		// Ignore environment variables that failed to expand
+		// This occurs when the env var references another env var
+		// that has its value sourced from an external source
+		// (eg. ConfigMap, Secret, DownwardAPI)
+		if !ok {
+			continue
 		}
 
 		env[e.Name] = runtimeVal
@@ -431,11 +445,11 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {
 	resources := workloadmeta.ContainerResources{}
 	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
-		resources.CPURequest = pointer.Ptr(cpuReq.AsApproximateFloat64() * 100) // For 100Mi, AsApproximate returns 0.1, we return 10%
+		resources.CPURequest = kubernetes.FormatCPURequests(cpuReq)
 	}
 
 	if memoryReq, found := spec.Resources.Requests[kubelet.ResourceMemory]; found {
-		resources.MemoryRequest = pointer.Ptr(uint64(memoryReq.Value()))
+		resources.MemoryRequest = kubernetes.FormatMemoryRequests(memoryReq)
 	}
 
 	// extract GPU resource info from the possible GPU sources

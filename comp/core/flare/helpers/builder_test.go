@@ -213,8 +213,8 @@ func TestAddFileYamlDetection(t *testing.T) {
     - abcdef
     - abcdef`)
 	redacted := `instances:
-- host: 127.0.0.1
-  token: "********"`
+  - host: 127.0.0.1
+    token: "********"`
 
 	fb.AddFile("test.yaml", clear)
 	assertFileContent(t, fb, redacted, "test.yaml")
@@ -297,8 +297,8 @@ func TestCopyFileYamlDetection(t *testing.T) {
     - abcdef
     - abcdef`)
 	redacted := `instances:
-- host: 127.0.0.1
-  token: "********"`
+  - host: 127.0.0.1
+    token: "********"`
 
 	path1 := filepath.Join(t.TempDir(), "test.yaml")
 	os.WriteFile(path1, []byte(input), os.ModePerm)

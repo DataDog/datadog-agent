@@ -10,8 +10,8 @@ package checks
 import (
 	// waiting for upstream fix to platform collection in containerized environments
 	"github.com/DataDog/gopsutil/host"
-	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/mem"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 )

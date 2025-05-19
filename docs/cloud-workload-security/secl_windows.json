@@ -43,6 +43,11 @@
           "property_doc_link": "event-os-doc"
         },
         {
+          "name": "event.rule.tags",
+          "definition": "Tags associated with the rule that's used to evaluate the event",
+          "property_doc_link": "event-rule-tags-doc"
+        },
+        {
           "name": "event.service",
           "definition": "Service associated with the event",
           "property_doc_link": "event-service-doc"
@@ -1399,6 +1404,18 @@
       "examples": []
     },
     {
+      "name": "event.rule.tags",
+      "link": "event-rule-tags-doc",
+      "type": "string",
+      "definition": "Tags associated with the rule that's used to evaluate the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "event.service",
       "link": "event-service-doc",
       "type": "string",
@@ -1459,6 +1476,85 @@
         },
         {
           "name": "false",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "DNS Responses",
+      "link": "dns-responses",
+      "description": "DNS Responses are the supported response codes",
+      "all": [
+        {
+          "name": "NOERROR",
+          "architecture": "all"
+        },
+        {
+          "name": "FORMERR",
+          "architecture": "all"
+        },
+        {
+          "name": "SERVFAIL",
+          "architecture": "all"
+        },
+        {
+          "name": "NXDOMAIN",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTIMP",
+          "architecture": "all"
+        },
+        {
+          "name": "REFUSED",
+          "architecture": "all"
+        },
+        {
+          "name": "YXDOMAIN",
+          "architecture": "all"
+        },
+        {
+          "name": "YXRRSET",
+          "architecture": "all"
+        },
+        {
+          "name": "NXRRSET",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTAUTH",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTZONE",
+          "architecture": "all"
+        },
+        {
+          "name": "BADVERS",
+          "architecture": "all"
+        },
+        {
+          "name": "BADSIG",
+          "architecture": "all"
+        },
+        {
+          "name": "BADKEY",
+          "architecture": "all"
+        },
+        {
+          "name": "BADTIME",
+          "architecture": "all"
+        },
+        {
+          "name": "BADMODE",
+          "architecture": "all"
+        },
+        {
+          "name": "BADNAME",
+          "architecture": "all"
+        },
+        {
+          "name": "BADALG",
           "architecture": "all"
         }
       ]
@@ -2315,6 +2411,21 @@
         },
         {
           "name": "IP_PROTO_RAW",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Network directions",
+      "link": "network-directions",
+      "description": "Network directions are the supported directions of network packets.",
+      "all": [
+        {
+          "name": "INGRESS",
+          "architecture": "all"
+        },
+        {
+          "name": "EGRESS",
           "architecture": "all"
         }
       ]

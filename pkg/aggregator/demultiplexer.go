@@ -18,13 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	// AutoAdjustStrategyMaxThroughput will adapt the number of pipelines for maximum throughput
-	AutoAdjustStrategyMaxThroughput = "max_throughput"
-	// AutoAdjustStrategyPerOrigin will adapt the number of pipelines for better container isolation
-	AutoAdjustStrategyPerOrigin = "per_origin"
-)
-
 // Demultiplexer is composed of multiple samplers (check and time/dogstatsd)
 // a shared forwarder, the event platform forwarder, orchestrator data buffers
 // and other data that need to be sent to the forwarders.
@@ -155,12 +148,6 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 	var dsdWorkerCount int
 	var pipelineCount int
 	autoAdjust := pkgconfigsetup.Datadog().GetBool("dogstatsd_pipeline_autoadjust")
-	autoAdjustStrategy := pkgconfigsetup.Datadog().GetString("dogstatsd_pipeline_autoadjust_strategy")
-
-	if autoAdjustStrategy != AutoAdjustStrategyMaxThroughput && autoAdjustStrategy != AutoAdjustStrategyPerOrigin {
-		log.Warnf("Invalid value for 'dogstatsd_pipeline_autoadjust_strategy', using default value: %s", AutoAdjustStrategyMaxThroughput)
-		autoAdjustStrategy = AutoAdjustStrategyMaxThroughput
-	}
 
 	// no auto-adjust of the pipeline count:
 	// we use the pipeline count configuration
@@ -177,12 +164,8 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 		// - one per aggregation pipeline (time sampler)
 		// - the rest for workers
 		// But we want at minimum 2 workers.
-		dsdWorkerCount = vCPUs - 1 - pipelineCount
-
-		if dsdWorkerCount < 2 {
-			dsdWorkerCount = 2
-		}
-	} else if autoAdjustStrategy == AutoAdjustStrategyMaxThroughput {
+		dsdWorkerCount = max(vCPUs-1-pipelineCount, 2)
+	} else {
 		// we will auto-adjust the pipeline and workers count to maximize throughput
 		//
 		// Benchmarks have revealed that 3 very busy workers can be processed
@@ -197,10 +180,7 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 		//  - half the amount of vCPUS - 1 for the amount of pipeline routines
 		//  - this last routine for the listener routine
 
-		dsdWorkerCount = vCPUs / 2
-		if dsdWorkerCount < 2 { // minimum 2 workers
-			dsdWorkerCount = 2
-		}
+		dsdWorkerCount = max(vCPUs/2, 2)
 
 		pipelineCount = dsdWorkerCount - 1
 		if pipelineCount <= 0 { // minimum 1 pipeline
@@ -209,24 +189,6 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 
 		if pkgconfigsetup.Datadog().GetInt("dogstatsd_pipeline_count") > 1 {
 			log.Warn("DogStatsD pipeline count value ignored since 'dogstatsd_pipeline_autoadjust' is enabled.")
-		}
-	} else if autoAdjustStrategy == AutoAdjustStrategyPerOrigin {
-		// we will auto-adjust the pipeline and workers count to isolate the pipelines
-		//
-		// The goal here is to have many pipelines to isolate the processing of the
-		// different samplers and avoid contention between them.
-		//
-		// This also has the benefit of increasing compression efficiency by having
-		// similarly tagged metrics flushed together.
-
-		dsdWorkerCount = vCPUs / 2
-		if dsdWorkerCount < 2 {
-			dsdWorkerCount = 2
-		}
-
-		pipelineCount = pkgconfigsetup.Datadog().GetInt("dogstatsd_pipeline_count")
-		if pipelineCount <= 0 { // guard against configuration mistakes
-			pipelineCount = vCPUs * 2
 		}
 	}
 	log.Info("Dogstatsd workers and pipelines count: ", dsdWorkerCount, " workers, ", pipelineCount, " pipelines")

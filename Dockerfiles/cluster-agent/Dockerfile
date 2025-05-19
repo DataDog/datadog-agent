@@ -14,16 +14,17 @@ LABEL org.opencontainers.image.title "Datadog Cluster Agent"
 
 WORKDIR /output
 
-COPY datadog-cluster-agent.$TARGETARCH opt/datadog-agent/bin/datadog-cluster-agent
+COPY datadog-cluster-agent opt/datadog-agent/bin/datadog-cluster-agent
 COPY ./conf.d etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
-COPY ./security-agent-policies/compliance/containers/ etc/datadog-agent/compliance.d
+COPY ./security-agent-policies/compliance/containers/cis-kubernetes*.yaml etc/datadog-agent/compliance.d/
+COPY ./security-agent-policies/compliance/containers/*.rego etc/datadog-agent/compliance.d/
 COPY ./install_info etc/datadog-agent/install_info
 COPY entrypoint.sh .
 COPY readsecret.sh readsecret_multiple_providers.sh ./
 
 # CWS Instrumentation
-COPY --chmod=0755 ./datadog-cws-instrumentation/ opt/datadog-agent/bin/datadog-cws-instrumentation/
+COPY --chmod=0755 ./cws-instrumentation/ opt/datadog-agent/bin/datadog-cws-instrumentation/
 
 RUN apt-get update \
     && apt-get install --no-install-recommends -y adduser \

@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	gcphost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/gcp/host/linux"
+	gcphost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/gcp/host/linux"
 )
 
 type linuxGCPHostnameSuite struct {

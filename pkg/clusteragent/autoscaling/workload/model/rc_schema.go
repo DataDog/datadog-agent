@@ -8,12 +8,10 @@
 package model
 
 import (
-	"time"
-
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+
+	datadoghqv1alpha1 "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqv1alpha2 "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 )
 
 // ReccomendationError is an error encountered while computing a recommendation on Datadog side
@@ -39,63 +37,16 @@ type AutoscalingSettings struct {
 	Name string `json:"name"`
 
 	// Spec is the full spec of the PodAutoscaler
-	Spec *datadoghq.DatadogPodAutoscalerSpec `json:"spec"`
+	// WARNING: Legacy field, to be removed
+	Spec *datadoghqv1alpha1.DatadogPodAutoscalerSpec `json:"spec,omitempty"`
+
+	// Specs contains one version of the PodAutoscaler spec
+	// Has priority over the legacy field Spec
+	Specs *AutoscalingSpecs `json:"specs,omitempty"`
 }
 
-// ScalingValues represents the scaling values (horizontal and vertical) for a target
-type ScalingValues struct {
-	// HorizontalError refers to an error encountered by Datadog while computing the horizontal scaling values
-	HorizontalError error
-	Horizontal      *HorizontalScalingValues
-
-	// VerticalError refers to an error encountered by Datadog while computing the vertical scaling values
-	VerticalError error
-	Vertical      *VerticalScalingValues
-
-	// Error refers to a general error encountered by Datadog while computing the scaling values
-	Error error
-}
-
-// HorizontalScalingValues holds the horizontal scaling values for a target
-type HorizontalScalingValues struct {
-	// Source is the source of the value
-	Source datadoghq.DatadogPodAutoscalerValueSource
-
-	// Timestamp is the time at which the data was generated
-	Timestamp time.Time
-
-	// Replicas is the desired number of replicas for the target
-	Replicas int32
-}
-
-// VerticalScalingValues holds the vertical scaling values for a target
-type VerticalScalingValues struct {
-	// Source is the source of the value
-	Source datadoghq.DatadogPodAutoscalerValueSource
-
-	// Timestamp is the time at which the data was generated
-	Timestamp time.Time
-
-	// ResourcesHash is the hash of containerResources
-	ResourcesHash string
-
-	// ContainerResources holds the resources for a container
-	ContainerResources []datadoghq.DatadogPodAutoscalerContainerResources
-}
-
-// SumCPUMemoryRequests sums the CPU and memory requests of all containers
-func (v *VerticalScalingValues) SumCPUMemoryRequests() (cpu, memory resource.Quantity) {
-	for _, container := range v.ContainerResources {
-		cpuReq := container.Requests.Cpu()
-		if cpuReq != nil {
-			cpu.Add(*cpuReq)
-		}
-
-		memoryReq := container.Requests.Memory()
-		if memoryReq != nil {
-			memory.Add(*memoryReq)
-		}
-	}
-
-	return
+// AutoscalingSpecs contains the different versions of the PodAutoscaler spec
+type AutoscalingSpecs struct {
+	V1Alpha1 *datadoghqv1alpha1.DatadogPodAutoscalerSpec `json:"v1alpha1,omitempty"`
+	V1Alpha2 *datadoghqv1alpha2.DatadogPodAutoscalerSpec `json:"v1alpha2,omitempty"`
 }

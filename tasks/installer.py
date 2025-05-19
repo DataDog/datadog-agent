@@ -2,22 +2,19 @@
 installer namespaced tasks
 """
 
-import base64
-import os
-import shutil
+import glob
+import hashlib
+from os import makedirs, path
 
 from invoke import task
-from invoke.exceptions import Exit
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
-from tasks.libs.releasing.version import get_version
 
-DIR_BIN = os.path.join(".", "bin", "installer")
-INSTALLER_BIN = os.path.join(DIR_BIN, bin_name("installer"))
-DOWNLOADER_BIN = os.path.join(DIR_BIN, bin_name("downloader"))
-INSTALL_SCRIPT = os.path.join(DIR_BIN, "install.sh")
-INSTALL_SCRIPT_TEMPLATE = os.path.join("pkg", "fleet", "installer", "setup", "install.sh")
+DIR_BIN = path.join(".", "bin", "installer")
+INSTALLER_BIN = path.join(DIR_BIN, bin_name("installer"))
+INSTALL_SCRIPT_TEMPLATE = path.join("pkg", "fleet", "installer", "setup", "install.sh")
+
 MAJOR_VERSION = '7'
 
 
@@ -74,82 +71,113 @@ def build(
 
 
 @task
-def build_downloader(
-    ctx,
-    os="linux",
-    arch="amd64",
-):
+def build_linux_script(ctx, flavor, version, bin_amd64, bin_arm64, output, package="installer-package"):
     '''
-    Builds the installer downloader binary.
-    '''
-    ctx.run(
-        f'go build -ldflags="-s -w" -o {DOWNLOADER_BIN} {REPO_PATH}/cmd/installer-downloader',
-        env={'GOOS': os, 'GOARCH': arch, 'CGO_ENABLED': '0'},
-    )
-
-
-@task
-def build_linux_script(
-    ctx,
-):
-    '''
-    Builds the linux script that is used to install the agent on linux.
+    Builds the script that is used to install datadog on linux.
     '''
 
     with open(INSTALL_SCRIPT_TEMPLATE) as f:
         install_script = f.read()
 
-    archs = ['amd64', 'arm64']
-    for arch in archs:
-        build_downloader(ctx, os='linux', arch=arch)
-        with open(DOWNLOADER_BIN, 'rb') as f:
-            encoded_bin = base64.encodebytes(f.read()).decode('utf-8')
-        install_script = install_script.replace(f'DOWNLOADER_BIN_{arch.upper()}', encoded_bin)
-
     commit_sha = ctx.run('git rev-parse HEAD', hide=True).stdout.strip()
     install_script = install_script.replace('INSTALLER_COMMIT', commit_sha)
+    install_script = install_script.replace('INSTALLER_FLAVOR', flavor)
+    install_script = install_script.replace('INSTALLER_VERSION', version)
 
-    with open(INSTALL_SCRIPT, 'w') as f:
+    bin_amd64_sha256 = hashlib.sha256(open(bin_amd64, 'rb').read()).hexdigest()
+    bin_arm64_sha256 = hashlib.sha256(open(bin_arm64, 'rb').read()).hexdigest()
+    install_script = install_script.replace('INSTALLER_AMD64_SHA256', bin_amd64_sha256)
+    install_script = install_script.replace('INSTALLER_ARM64_SHA256', bin_arm64_sha256)
+    install_script = install_script.replace('PACKAGE_NAME', package)
+
+    makedirs(DIR_BIN, exist_ok=True)
+    with open(path.join(DIR_BIN, output), 'w') as f:
         f.write(install_script)
 
 
 @task
-def push_artifact(
-    ctx,
-    artifact,
-    registry,
-    version="",
-    tag="latest",
-    arch="amd64",
-):
+def generate_experiment_units(ctx, check=False):
     '''
-    Pushes an OCI artifact to a registry.
-    example:
-        inv -e installer.push-artifact --artifact "datadog-installer" --registry "docker.io/myregistry" --tag "latest"
+    Generates systemd units for the experiment service.
     '''
-    if version == "":
-        version = get_version(ctx, include_git=True, url_safe=True, major_version='7', include_pipeline_id=True)
 
-    # structural pattern matching is only available in Python 3.10+, which currently fails the `vulture` check
-    if artifact == 'datadog-agent':
-        image_name = 'agent-package'
-    elif artifact == 'datadog-installer':
-        image_name = 'installer-package'
-    else:
-        print("Unexpected artifact")
-        raise Exit(code=1)
+    # Get paths to all stable service files (not the generated experiment ones)
+    stable_paths = [
+        f
+        for f in glob.glob('./pkg/fleet/installer/packages/embedded/*.service')
+        if not f.endswith('-exp.service') and 'datadog-installer' not in f
+    ]
+    for stable_path in stable_paths:
+        experiment_path = stable_path.replace(".service", "-exp.service")
+        experiment_file = ""
+        with open(stable_path) as f:
+            # Special handling for datadog-agent.service, which is the main service
+            if "datadog-agent.service" in stable_path:
+                experiment_file = generate_core_agent_experiment_unit(f)
+            else:
+                experiment_file = generate_subprocess_experiment_unit(f)
 
-    if os.name == 'nt':
-        target_os = 'windows'
-    else:
-        print('Unexpected os')
-        raise Exit(code=1)
+        if not check:
+            with open(experiment_path, 'w') as f:
+                f.write(experiment_file)
+        else:
+            try:
+                with open(experiment_path) as f:
+                    if f.read() != experiment_file:
+                        raise Exception(
+                            f"File {experiment_path} is not up to date, please run `dda inv -e installer.generate-experiment-units`"
+                        )
+            except FileNotFoundError:
+                raise Exception(
+                    f"File {experiment_path} does not exist but is expected to, please run `dda inv -e installer.generate-experiment-units`"
+                ) from None
 
-    datadog_package = shutil.which('datadog-package')
-    if datadog_package is None:
-        print('datadog-package could not be found in path')
-        raise Exit(code=1)
 
-    ctx.run(
-        f'{datadog_package} push {registry}/{image_name}:{tag} omnibus/pkg/{artifact}-{version}-1-{target_os}-{arch}.oci.tar'
-    )
+def generate_subprocess_experiment_unit(f):
+    """
+    Generates subprocesses experiment unit file.
+    """
+
+    experiment_file = ""
+    for line in f:
+        if "BindsTo=" in line:
+            line = line.replace(".service", "-exp.service")
+        if "Conflicts=" in line:
+            line = line.replace("-exp.service", ".service")
+        if "Description=" in line:
+            line = line.replace("\n", "") + " Experiment\n"
+        line = line.replace("stable", "experiment")
+        experiment_file += line
+    return experiment_file
+
+
+def generate_core_agent_experiment_unit(f):
+    """
+    Generates the core agent experiment unit file.
+    """
+    experiment_timeout = "3000s"
+    experiment_kill_timeout = "15s"
+
+    experiment_file = ""
+    for line in f:
+        if "Wants=" in line:
+            line = line.replace(".service", "-exp.service")
+            line += "OnFailure=datadog-agent.service\n"
+            line += "Before=datadog-agent.service\n"
+        if line == "[Install]\n" or "WantedBy=" in line:
+            continue  # Skip line
+        if "Restart=" in line:
+            line = "Restart=no\n"
+        if "Description=" in line:
+            line = line.replace("\n", "") + " Experiment\n"
+        if "Conflicts=" in line:
+            line = "Conflicts=datadog-agent.service\n"
+        if "ExecStart=" in line:
+            line = f"ExecStart=/usr/bin/timeout --kill-after={experiment_kill_timeout} {experiment_timeout} {line.replace('ExecStart=', '')[:-1]}\nExecStopPost=/bin/false\n"
+        line = line.replace("stable", "experiment")
+        experiment_file += line
+
+    # Remove additional trailing new lines
+    experiment_file = experiment_file.rstrip("\n") + "\n"
+
+    return experiment_file

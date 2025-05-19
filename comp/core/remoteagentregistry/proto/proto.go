@@ -40,7 +40,10 @@ func ProtobufToStatusData(agentID string, displayName string, resp *pb.GetStatus
 }
 
 func protobufToStatusSection(statusSection *pb.StatusSection) remoteagentregistry.StatusSection {
-	return statusSection.Fields
+	if statusSection != nil {
+		return statusSection.Fields
+	}
+	return remoteagentregistry.StatusSection{}
 }
 
 func protobufToNamedSections(namedSections map[string]*pb.StatusSection) map[string]remoteagentregistry.StatusSection {

@@ -13,8 +13,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
@@ -77,12 +78,13 @@ func BenchmarkSeries(b *testing.B) {
 	}
 	bufferContext := marshaler.NewBufferContext()
 	mockConfig := mock.New(b)
+	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
 	pb := func(series metrics.Series) (transaction.BytesPayloads, error) {
 		iterableSeries := metricsserializer.CreateIterableSeries(metricsserializer.CreateSerieSource(series))
-		return iterableSeries.MarshalSplitCompress(bufferContext, mockConfig, selector.NewCompressor(mockConfig))
+		return iterableSeries.MarshalSplitCompress(bufferContext, mockConfig, compressor)
 	}
 
-	payloadBuilder := stream.NewJSONPayloadBuilder(true, mockConfig, selector.NewCompressor(mockConfig))
+	payloadBuilder := stream.NewJSONPayloadBuilder(true, mockConfig, compressor, logmock.New(b))
 	json := func(series metrics.Series) (transaction.BytesPayloads, error) {
 		iterableSeries := metricsserializer.CreateIterableSeries(metricsserializer.CreateSerieSource(series))
 		return payloadBuilder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)

@@ -52,7 +52,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func workloadList(_ log.Component, config config.Component, cliParams *cliParams) error {
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient()
 
 	// Set session token
 	err := util.SetAuthToken(config)
@@ -91,7 +91,7 @@ func workloadURL(verbose bool) (string, error) {
 		return "", fmt.Errorf("config error: %s", err.Error())
 	}
 
-	url := fmt.Sprintf("http://%s/agent/workload-list", addressPort)
+	url := fmt.Sprintf("https://%s/agent/workload-list", addressPort)
 
 	if verbose {
 		return url + "/verbose", nil

@@ -3,11 +3,13 @@ from __future__ import annotations
 import datetime
 import errno
 import glob
+import json
 import os
 import re
 import shutil
 import sys
 import tempfile
+from itertools import chain
 from subprocess import check_output
 
 from invoke.exceptions import Exit
@@ -278,9 +280,7 @@ def create_dir_if_needed(dir):
 
 
 @task
-def build_embed_syscall_tester(
-    ctx, arch: str | Arch = CURRENT_ARCH, static=True, compiler="clang", ebpf_compiler="clang"
-):
+def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True, compiler="clang"):
     arch = Arch.from_str(arch)
     check_for_ninja(ctx)
     build_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "bin")
@@ -290,7 +290,7 @@ def build_embed_syscall_tester(
     nf_path = os.path.join(ctx.cwd, 'syscall-tester.ninja')
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=120)
-        ninja_define_ebpf_compiler(nw, arch=arch, compiler=ebpf_compiler)
+        ninja_define_ebpf_compiler(nw, arch=arch)
         ninja_define_exe_compiler(nw, compiler=compiler)
 
         ninja_syscall_tester(nw, build_dir, static=static, compiler=compiler)
@@ -319,7 +319,6 @@ def build_functional_tests(
     debug=False,
     skip_object_files=False,
     syscall_tester_compiler='clang',
-    ebpf_compiler='clang',
 ):
     if not is_windows:
         if not skip_object_files:
@@ -330,9 +329,8 @@ def build_functional_tests(
                 kernel_release=kernel_release,
                 debug=debug,
                 bundle_ebpf=bundle_ebpf,
-                ebpf_compiler=ebpf_compiler,
             )
-        build_embed_syscall_tester(ctx, compiler=syscall_tester_compiler, ebpf_compiler=ebpf_compiler)
+        build_embed_syscall_tester(ctx, compiler=syscall_tester_compiler)
 
     arch = Arch.from_str(arch)
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, arch=arch)
@@ -364,7 +362,7 @@ def build_functional_tests(
 
     if not skip_linters:
         targets = [srcpath]
-        results, _ = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags)
+        results, _ = run_golangci_lint(ctx, base_path="", targets=targets, build_tags=build_tags)
         for result in results:
             # golangci exits with status 1 when it finds an issue
             if result.exited != 0:
@@ -540,9 +538,9 @@ def generate_cws_documentation(ctx, go_generate=False):
 def cws_go_generate(ctx, verbose=False):
     ctx.run("go install golang.org/x/tools/cmd/stringer")
     ctx.run("go install github.com/mailru/easyjson/easyjson")
+    ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/accessors")
+    ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/operators")
     with ctx.cd("./pkg/security/secl"):
-        ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors")
-        ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/operators")
         if sys.platform == "linux":
             ctx.run("GOOS=windows go generate ./...")
         # Disable cross generation from windows for now. Need to fix the stringer issue.
@@ -559,7 +557,7 @@ def cws_go_generate(ctx, verbose=False):
             "./pkg/security/serializers/serializers_linux_easyjson.go",
         )
 
-    ctx.run("go generate ./pkg/security/...")
+    ctx.run("go generate -tags=linux_bpf,cws_go_generate ./pkg/security/...")
 
 
 @task
@@ -568,10 +566,10 @@ def generate_syscall_table(ctx):
         if abis:
             abis = f"-abis {abis}"
         ctx.run(
-            f"go run github.com/DataDog/datadog-agent/pkg/security/secl/model/syscall_table_generator -table-url {table_url} -output {output_file} -output-string {output_string_file} {abis}"
+            f"go run github.com/DataDog/datadog-agent/pkg/security/generators/syscall_table_generator -table-url {table_url} -output {output_file} -output-string {output_string_file} {abis}"
         )
 
-    linux_version = "v6.8"
+    linux_version = "v6.13"
     single_run(
         ctx,
         f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/arch/x86/entry/syscalls/syscall_64.tbl",
@@ -588,13 +586,14 @@ def generate_syscall_table(ctx):
 
 
 DEFAULT_BTFHUB_CONSTANTS_PATH = "./pkg/security/probe/constantfetch/btfhub/constants.json"
+DEFAULT_BTFHUB_CONSTANTS_ARM64_PATH = "./pkg/security/probe/constantfetch/btfhub/constants_arm64.json"
+DEFAULT_BTFHUB_CONSTANTS_AMD64_PATH = "./pkg/security/probe/constantfetch/btfhub/constants_amd64.json"
 
 
 @task
-def generate_btfhub_constants(ctx, archive_path, force_refresh=False, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
-    force_refresh_opt = "-force-refresh" if force_refresh else ""
+def generate_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
     ctx.run(
-        f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
+        f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
     )
 
 
@@ -606,12 +605,47 @@ def combine_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONST
 
 
 @task
+def extract_btfhub_constants(ctx, arch, input_path, output_path):
+    res = {}
+    used_contant_ids = set()
+    with open(input_path) as fi:
+        base = json.load(fi)
+        res["constants"] = base["constants"]
+        res["kernels"] = []
+        for kernel in base["kernels"]:
+            if kernel["arch"] == arch:
+                res["kernels"].append(kernel)
+                used_contant_ids.add(kernel["cindex"])
+
+    new_constants = []
+    mapping = {}
+    for i, group in enumerate(res["constants"]):
+        if i in used_contant_ids:
+            new_i = len(new_constants)
+            new_constants.append(group)
+            mapping[i] = new_i
+
+    for kernel in res["kernels"]:
+        kernel["cindex"] = mapping[kernel["cindex"]]
+    res["constants"] = new_constants
+
+    with open(output_path, "w") as fo:
+        json.dump(res, fo, indent="\t")
+
+
+@task
+def split_btfhub_constants(ctx):
+    extract_btfhub_constants(ctx, "arm64", DEFAULT_BTFHUB_CONSTANTS_PATH, DEFAULT_BTFHUB_CONSTANTS_ARM64_PATH)
+    extract_btfhub_constants(ctx, "x86_64", DEFAULT_BTFHUB_CONSTANTS_PATH, DEFAULT_BTFHUB_CONSTANTS_AMD64_PATH)
+
+
+@task
 def generate_cws_proto(ctx):
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2")
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.3")
             ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.6.0")
-            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.4.0")
+            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1")
 
             plugin_opts = " ".join(
                 [
@@ -625,8 +659,13 @@ def generate_cws_proto(ctx):
             ctx.run(
                 f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/api/api.proto"
             )
+            ctx.run(
+                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/eventmonitor/proto/api/api.proto"
+            )
 
-    for path in glob.glob("pkg/security/**/*.pb.go", recursive=True):
+    security_files = glob.glob("pkg/security/**/*.pb.go", recursive=True)
+    eventmonitor_files = glob.glob("pkg/eventmonitor/**/*.pb.go", recursive=True)
+    for path in chain(security_files, eventmonitor_files):
         print(f"replacing protoc version in {path}")
         with open(path) as f:
             content = f.read()
@@ -778,7 +817,7 @@ def sync_secl_win_pkg(ctx):
         ("accessors_windows.go", "accessors_win.go"),
         ("legacy_secl.go", None),
         ("security_profile.go", None),
-        ("string_array_iter.go", None),
+        ("iterator.go", None),
     ]
 
     ctx.run("rm -r pkg/security/seclwin/model")

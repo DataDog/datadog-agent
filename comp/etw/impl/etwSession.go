@@ -317,6 +317,7 @@ func initializeRealtimeSessionProperties(s *etwSession) ([]byte, C.PEVENT_TRACE_
 	pProperties.Wnode.BufferSize = C.ulong(bufSize)
 	pProperties.Wnode.ClientContext = 1
 	pProperties.Wnode.Flags = C.WNODE_FLAG_TRACED_GUID
+	pProperties.EnableFlags = C.ulong(s.sessionConfig.EnableFlags)
 
 	pProperties.LogFileMode = C.EVENT_TRACE_REAL_TIME_MODE
 	if s.sessionConfig.MaxBuffers > 0 {

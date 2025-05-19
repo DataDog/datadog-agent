@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cilium/ebpf/btf"
 
 	pkgebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -22,16 +21,11 @@ import (
 )
 
 // GetAvailableConstantFetchers returns available constant fetchers
-func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, statsdClient statsd.ClientInterface) []ConstantFetcher {
+func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version) []ConstantFetcher {
 	fetchers := make([]ConstantFetcher, 0)
 
 	if coreFetcher, err := NewBTFConstantFetcherFromCurrentKernel(); err == nil {
 		fetchers = append(fetchers, coreFetcher)
-	}
-
-	if config.RuntimeCompiledConstantsEnabled {
-		rcConstantFetcher := NewRuntimeCompilationConstantFetcher(&config.Config, statsdClient)
-		fetchers = append(fetchers, rcConstantFetcher)
 	}
 
 	btfhubFetcher, err := NewBTFHubConstantFetcher(kv)
@@ -99,4 +93,14 @@ func GetHasVFSRenameStructArgs() (bool, error) {
 	}
 
 	return false, nil
+}
+
+// GetBTFFunctionArgCount returns the number of arguments of a BTF function
+func GetBTFFunctionArgCount(funcName string) (int, error) {
+	proto, err := getBTFFuncProto(funcName)
+	if err != nil {
+		return 0, err
+	}
+
+	return len(proto.Params), nil
 }

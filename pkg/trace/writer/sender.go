@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"math/rand"
 	"net/http"
@@ -35,8 +36,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
 		panic(errors.New("config was not properly validated"))
 	}
-	// spread out the the maximum connection limit (climit) between senders
-	maxConns := math.Max(1, float64(climit/len(cfg.Endpoints)))
+	maxConns := maxConns(climit, cfg.Endpoints)
 	senders := make([]*sender, len(cfg.Endpoints))
 	for i, endpoint := range cfg.Endpoints {
 		url, err := url.Parse(endpoint.Host + path)
@@ -46,17 +46,37 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			os.Exit(1)
 		}
 		senders[i] = newSender(&senderConfig{
-			client:     cfg.NewHTTPClient(),
-			maxConns:   int(maxConns),
-			maxQueued:  qsize,
-			maxRetries: cfg.MaxSenderRetries,
-			url:        url,
-			apiKey:     endpoint.APIKey,
-			recorder:   r,
-			userAgent:  fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
+			client:       cfg.NewHTTPClient(),
+			maxConns:     int(maxConns),
+			maxQueued:    qsize,
+			maxRetries:   cfg.MaxSenderRetries,
+			url:          url,
+			apiKey:       endpoint.APIKey,
+			recorder:     r,
+			userAgent:    fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
+			isMRF:        endpoint.IsMRF,
+			isMRFEnabled: cfg.IsMRFEnabled,
 		}, statsd)
 	}
 	return senders
+}
+
+func maxConns(climit int, endpoints []*config.Endpoint) int {
+	// spread out the the maximum connection limit (climit) between senders.
+	// We exclude multi-region failover senders from this calculation, since they
+	// will be inactive most of the time.
+
+	// short-circuit the most common setup
+	if len(endpoints) == 1 {
+		return climit
+	}
+	n := 0
+	for _, e := range endpoints {
+		if !e.IsMRF {
+			n++
+		}
+	}
+	return int(math.Max(1, float64(climit/n)))
 }
 
 // eventRecorder implementations are able to take note of events happening in
@@ -136,6 +156,10 @@ type senderConfig struct {
 	recorder eventRecorder
 	// userAgent is the computed user agent we'll use when communicating with Datadog
 	userAgent string
+	// IsMRF determines whether this is a Multi-Region Failover endpoint.
+	isMRF bool
+	// IsMRFEnabled determines whether Multi-Region Failover is enabled.
+	isMRFEnabled func() bool
 }
 
 // sender is responsible for sending payloads to a given URL. It uses a size-limited
@@ -147,9 +171,10 @@ type sender struct {
 	inflight   *atomic.Int32 // inflight payloads
 	maxRetries int32
 
-	mu     sync.RWMutex // guards closed
-	closed bool         // closed reports if the loop is stopped
-	statsd statsd.ClientInterface
+	mu      sync.RWMutex // guards closed
+	closed  bool         // closed reports if the loop is stopped
+	statsd  statsd.ClientInterface
+	enabled bool // false on inactive MRF senders. True otherwise
 }
 
 // newSender returns a new sender based on the given config cfg.
@@ -160,6 +185,7 @@ func newSender(cfg *senderConfig, statsd statsd.ClientInterface) *sender {
 		inflight:   atomic.NewInt32(0),
 		maxRetries: int32(cfg.maxRetries),
 		statsd:     statsd,
+		enabled:    true,
 	}
 	for i := 0; i < cfg.maxConns; i++ {
 		go s.loop()
@@ -326,6 +352,33 @@ func (s *sender) recordEvent(t eventType, data *eventData) {
 	s.cfg.recorder.recordEvent(t, data)
 }
 
+// isEnabled returns true if the sender is enabled. Non-MRF senders are always enabled, and MRF ones
+// only when isMRFEnabled is true
+func (s *sender) isEnabled() bool {
+	if !s.cfg.isMRF {
+		return true
+	}
+	if s.cfg.isMRFEnabled == nil {
+		log.Errorf("Error checking MRF. isMRFEnabled() is not configured on domain %v", s.cfg.url)
+		return true
+	}
+	if s.cfg.isMRFEnabled() {
+		if !s.enabled {
+			log.Infof("Sender for domain %v has been failed over to, enabling it for MRF.", s.cfg.url)
+			s.enabled = true
+		}
+		return true
+	}
+
+	if s.enabled {
+		s.enabled = false
+		log.Infof("Sender for domain %v was disabled; payloads will be dropped for this domain.", s.cfg.url)
+	} else {
+		log.Debugf("Sender for domain %v is disabled; dropping payload for this domain.", s.cfg.url)
+	}
+	return false
+}
+
 // retriableError is an error returned by the server which may be retried at a later time.
 type retriableError struct{ err error }
 
@@ -406,9 +459,7 @@ func newPayload(headers map[string]string) *payload {
 
 func (p *payload) clone() *payload {
 	headers := make(map[string]string, len(p.headers))
-	for k, v := range p.headers {
-		headers[k] = v
-	}
+	maps.Copy(headers, p.headers)
 	clone := newPayload(headers)
 	if _, err := clone.body.ReadFrom(bytes.NewBuffer(p.body.Bytes())); err != nil {
 		log.Errorf("Error cloning writer payload: %v", err)
@@ -445,28 +496,35 @@ func stopSenders(senders []*sender) {
 
 // sendPayloads sends the payload p to all senders.
 func sendPayloads(senders []*sender, p *payload, syncMode bool) {
-	if syncMode {
-		defer waitForSenders(senders)
+	enabledSenders := make([]*sender, 0, len(senders))
+	for _, s := range senders {
+		if s.isEnabled() {
+			enabledSenders = append(enabledSenders, s)
+		}
 	}
 
-	if len(senders) == 1 {
+	if syncMode {
+		defer waitForSenders(enabledSenders)
+	}
+
+	if len(enabledSenders) == 1 {
 		// fast path
-		senders[0].Push(p)
+		enabledSenders[0].Push(p)
 		return
 	}
 	// Create a clone for each payload because each sender places payloads
 	// back onto the pool after they are sent.
-	payloads := make([]*payload, 0, len(senders))
+	payloads := make([]*payload, 0, len(enabledSenders))
 	// Perform all the clones before any sends are to ensure the original
 	// payload body is completely unread.
-	for i := range senders {
+	for i := range enabledSenders {
 		if i == 0 {
 			payloads = append(payloads, p)
 		} else {
 			payloads = append(payloads, p.clone())
 		}
 	}
-	for i, sender := range senders {
+	for i, sender := range enabledSenders {
 		sender.Push(payloads[i])
 	}
 }

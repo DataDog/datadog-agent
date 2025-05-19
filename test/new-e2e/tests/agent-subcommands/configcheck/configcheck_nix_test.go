@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
 type linuxConfigCheckSuite struct {
@@ -80,12 +80,6 @@ func (v *linuxConfigCheckSuite) TestDefaultInstalledChecks() {
 			CheckName:  "uptime",
 			Filepath:   "file:/etc/datadog-agent/conf.d/uptime.d/conf.yaml.default",
 			InstanceID: "uptime:",
-			Settings:   "{}",
-		},
-		{
-			CheckName:  "service_discovery",
-			Filepath:   "file:/etc/datadog-agent/conf.d/service_discovery.d/conf.yaml.default",
-			InstanceID: "service_discovery:",
 			Settings:   "{}",
 		},
 	}

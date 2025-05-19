@@ -8,70 +8,94 @@ package meta
 
 import (
 	_ "embed"
+	"encoding/json"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/go-tuf/data"
 )
 
 var (
-	//go:embed prod.1.director.json
-	prodRootDirector1 []byte
-	//go:embed prod.1.config.json
-	prodRootConfig1 []byte
+	//go:embed prod.director.json
+	prodRootDirector []byte
+	//go:embed prod.config.json
+	prodRootConfig []byte
 
-	//go:embed staging.1.director.json
-	stagingRootDirector1 []byte
-	//go:embed staging.1.config.json
-	stagingRootConfig1 []byte
+	//go:embed staging.director.json
+	stagingRootDirector []byte
+	//go:embed staging.config.json
+	stagingRootConfig []byte
 )
 
-// EmbeddedRoot is an embedded root
-type EmbeddedRoot []byte
+// EmbeddedRoot is an embedded root with its version parsed
+type EmbeddedRoot struct {
+	latest uint64
+	root   []byte
+}
 
-// EmbeddedRoots is a map of version => EmbeddedRoot
-type EmbeddedRoots map[uint64]EmbeddedRoot
-
-var (
-	prodRootsDirector = EmbeddedRoots{1: prodRootDirector1}
-	prodRootsConfig   = EmbeddedRoots{1: prodRootConfig1}
-
-	stagingRootsDirector = EmbeddedRoots{1: stagingRootDirector1}
-	stagingRootsConfig   = EmbeddedRoots{1: stagingRootConfig1}
-)
+// NewEmbeddedRoot creates a new EmbeddedRoot
+func NewEmbeddedRoot(embeddedRoot []byte) EmbeddedRoot {
+	version, err := parseRootVersion(embeddedRoot)
+	if err != nil {
+		panic(err)
+	}
+	return EmbeddedRoot{
+		latest: version,
+		root:   embeddedRoot,
+	}
+}
 
 // RootsDirector returns all the roots of the director repo
-func RootsDirector(site string, directorRootOverride string) EmbeddedRoots {
+func RootsDirector(site string, directorRootOverride string) EmbeddedRoot {
 	if directorRootOverride != "" {
-		return EmbeddedRoots{
-			1: EmbeddedRoot(directorRootOverride),
-		}
+		return NewEmbeddedRoot([]byte(directorRootOverride))
 	}
 	switch site {
 	case "datad0g.com":
-		return stagingRootsDirector
+		return NewEmbeddedRoot(stagingRootDirector)
 	default:
-		return prodRootsDirector
+		return NewEmbeddedRoot(prodRootDirector)
 	}
 }
 
 // RootsConfig returns all the roots of the director repo
-func RootsConfig(site string, configRootOverride string) EmbeddedRoots {
+func RootsConfig(site string, configRootOverride string) EmbeddedRoot {
 	if configRootOverride != "" {
-		return EmbeddedRoots{
-			1: EmbeddedRoot(configRootOverride),
-		}
+		return NewEmbeddedRoot([]byte(configRootOverride))
 	}
+
 	switch site {
 	case "datad0g.com":
-		return stagingRootsConfig
+		return NewEmbeddedRoot(stagingRootConfig)
 	default:
-		return prodRootsConfig
+		return NewEmbeddedRoot(prodRootConfig)
 	}
 }
 
-// Last returns the last root the EmbeddedRoots
-func (roots EmbeddedRoots) Last() EmbeddedRoot {
-	return roots[roots.LastVersion()]
+// Root returns the last root the EmbeddedRoots
+func (root EmbeddedRoot) Root() []byte {
+	return root.root
 }
 
-// LastVersion returns the last version of the EmbeddedRoots
-func (roots EmbeddedRoots) LastVersion() uint64 {
-	return uint64(len(roots))
+// Version returns the last version of the EmbeddedRoots
+func (root EmbeddedRoot) Version() uint64 {
+	return root.latest
+}
+
+// parseRootVersion from the embedded roots for easy update
+func parseRootVersion(rootBytes []byte) (uint64, error) {
+	var signedRoot data.Signed
+	err := json.Unmarshal(rootBytes, &signedRoot)
+	if err != nil {
+		log.Errorf("Corrupted root metadata: %v", err)
+		return 0, err
+	}
+
+	var root data.Root
+	err = json.Unmarshal(signedRoot.Signed, &root)
+	if err != nil {
+		log.Errorf("Corrupted root metadata: %v", err)
+		return 0, err
+	}
+
+	return uint64(root.Version), nil
 }

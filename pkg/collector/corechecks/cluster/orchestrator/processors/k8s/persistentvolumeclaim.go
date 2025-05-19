@@ -33,6 +33,16 @@ func (h *PersistentVolumeClaimHandlers) AfterMarshalling(ctx processors.Processo
 	return
 }
 
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PersistentVolumeClaimHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*corev1.PersistentVolumeClaim)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
+	return
+}
+
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
 func (h *PersistentVolumeClaimHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
@@ -49,7 +59,7 @@ func (h *PersistentVolumeClaimHandlers) BuildMessageBody(ctx processors.Processo
 		GroupId:                pctx.MsgGroupID,
 		GroupSize:              int32(groupSize),
 		PersistentVolumeClaims: models,
-		Tags:                   append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:                   pctx.ExtraTags,
 	}
 }
 
@@ -58,7 +68,7 @@ func (h *PersistentVolumeClaimHandlers) BuildMessageBody(ctx processors.Processo
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PersistentVolumeClaimHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*corev1.PersistentVolumeClaim)
-	return k8sTransformers.ExtractPersistentVolumeClaim(r)
+	return k8sTransformers.ExtractPersistentVolumeClaim(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic
@@ -70,7 +80,7 @@ func (h *PersistentVolumeClaimHandlers) ResourceList(ctx processors.ProcessorCon
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources

@@ -6,6 +6,8 @@
 // Package metadata defines types for describing data about a device.
 package metadata
 
+import "github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
+
 // PayloadMetadataBatchSize is the number of resources per event payload
 // Resources are devices, interfaces, etc
 const PayloadMetadataBatchSize = 100
@@ -34,16 +36,18 @@ const (
 
 // NetworkDevicesMetadata contains network devices metadata
 type NetworkDevicesMetadata struct {
-	Subnet           string                 `json:"subnet,omitempty"`
-	Namespace        string                 `json:"namespace"`
-	Devices          []DeviceMetadata       `json:"devices,omitempty"`
-	Interfaces       []InterfaceMetadata    `json:"interfaces,omitempty"`
-	IPAddresses      []IPAddressMetadata    `json:"ip_addresses,omitempty"`
-	Links            []TopologyLinkMetadata `json:"links,omitempty"`
-	NetflowExporters []NetflowExporter      `json:"netflow_exporters,omitempty"`
-	Diagnoses        []DiagnosisMetadata    `json:"diagnoses,omitempty"`
-	DeviceOIDs       []DeviceOID            `json:"device_oids,omitempty"`
-	CollectTimestamp int64                  `json:"collect_timestamp"`
+	Subnet           string                   `json:"subnet,omitempty"`
+	Namespace        string                   `json:"namespace"`
+	Integration      integrations.Integration `json:"integration"`
+	Devices          []DeviceMetadata         `json:"devices,omitempty"`
+	Interfaces       []InterfaceMetadata      `json:"interfaces,omitempty"`
+	IPAddresses      []IPAddressMetadata      `json:"ip_addresses,omitempty"`
+	Links            []TopologyLinkMetadata   `json:"links,omitempty"`
+	NetflowExporters []NetflowExporter        `json:"netflow_exporters,omitempty"`
+	Diagnoses        []DiagnosisMetadata      `json:"diagnoses,omitempty"`
+	DeviceOIDs       []DeviceOID              `json:"device_oids,omitempty"`
+	DeviceScanStatus *ScanStatusMetadata      `json:"scan_status,omitempty"`
+	CollectTimestamp int64                    `json:"collect_timestamp"`
 }
 
 // DeviceMetadata contains device metadata
@@ -79,6 +83,35 @@ type DeviceOID struct {
 	OID      string `json:"oid"`
 	Type     string `json:"type"`
 	Value    string `json:"value"`
+}
+
+// ScanStatus type for the different possible scan statuses
+type ScanStatus string
+
+const (
+	// ScanStatusInProgress represents a scan in progress
+	ScanStatusInProgress ScanStatus = "in progress"
+	// ScanStatusCompleted represents a completed scan
+	ScanStatusCompleted ScanStatus = "completed"
+	// ScanStatusError represents a scan error
+	ScanStatusError ScanStatus = "error"
+)
+
+// ScanType type for the different possible scan types manual or rc_triggered
+type ScanType string
+
+const (
+	// ManualScan represents a manual scan
+	ManualScan ScanType = "manual"
+	// RCTriggeredScan represents a rc triggered scan
+	RCTriggeredScan ScanType = "rc_triggered"
+)
+
+// ScanStatusMetadata contains scan status metadata
+type ScanStatusMetadata struct {
+	DeviceID   string     `json:"device_id"`
+	ScanStatus ScanStatus `json:"scan_status"`
+	ScanType   ScanType   `json:"scan_type,omitempty"`
 }
 
 // InterfaceMetadata contains interface metadata
@@ -131,10 +164,11 @@ type TopologyLinkSide struct {
 
 // TopologyLinkMetadata contains topology interface to interface links metadata
 type TopologyLinkMetadata struct {
-	ID         string            `json:"id"`
-	SourceType string            `json:"source_type"`
-	Local      *TopologyLinkSide `json:"local"`
-	Remote     *TopologyLinkSide `json:"remote"`
+	ID          string            `json:"id"`
+	SourceType  string            `json:"source_type"`
+	Integration string            `json:"integration,omitempty"`
+	Local       *TopologyLinkSide `json:"local"`
+	Remote      *TopologyLinkSide `json:"remote"`
 }
 
 // NetflowExporter contains netflow exporters info

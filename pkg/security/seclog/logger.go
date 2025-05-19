@@ -10,10 +10,9 @@ import (
 	"fmt"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
-
-	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -74,13 +73,11 @@ func (l *PatternLogger) trace(tag fmt.Stringer, format string, params ...interfa
 	if len(stag) != 0 {
 
 		l.RLock()
-		for _, t := range l.tags {
-			if t == stag {
-				l.RUnlock()
-				log.TraceStackDepth(depth, fmt.Sprintf(format, params...))
+		if slices.Contains(l.tags, stag) {
+			l.RUnlock()
+			log.TraceStackDepth(depth, fmt.Sprintf(format, params...))
 
-				return
-			}
+			return
 		}
 		l.RUnlock()
 	}
@@ -138,7 +135,7 @@ func (l *PatternLogger) Tracef(format string, params ...interface{}) {
 
 // IsTracing is used to check if TraceF would actually log
 func (l *PatternLogger) IsTracing() bool {
-	if logLevel, err := log.GetLogLevel(); err != nil || logLevel != seelog.TraceLvl {
+	if logLevel, err := log.GetLogLevel(); err != nil || logLevel != log.TraceLvl {
 		return false
 	}
 	return true

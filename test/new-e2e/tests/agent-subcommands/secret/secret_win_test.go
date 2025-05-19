@@ -17,9 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type windowsSecretSuite struct {
@@ -65,10 +65,10 @@ host_aliases:
 	agentParams := []func(*agentparams.Params) error{
 		agentparams.WithAgentConfig(config),
 	}
-	agentParams = append(agentParams, secrets.WithWindowsSecretSetupScript("C:/TestFolder/wrapper.bat", false)...)
+	agentParams = append(agentParams, secretsutils.WithWindowsSetupScript("C:/TestFolder/wrapper.bat", false)...)
 
 	// Create secret before running the Agent
-	secretClient := secrets.NewSecretClient(v.T(), v.Env().RemoteHost, `C:\TestFolder`)
+	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, `C:\TestFolder`)
 	secretClient.SetSecret("alias_secret", "a_super_secret_string")
 
 	// We embed a script that file create the secret binary (C:\wrapper.bat) with the correct permissions
@@ -103,10 +103,10 @@ api_key: ENC[api_key]
 		agentparams.WithSkipAPIKeyInConfig(),
 		agentparams.WithAgentConfig(config),
 	}
-	agentParams = append(agentParams, secrets.WithWindowsSecretSetupScript("C:/TestFolder/wrapper.bat", false)...)
+	agentParams = append(agentParams, secretsutils.WithWindowsSetupScript("C:/TestFolder/wrapper.bat", false)...)
 
 	// Create API Key secret before running the Agent
-	secretClient := secrets.NewSecretClient(v.T(), v.Env().RemoteHost, `C:\TestFolder`)
+	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, `C:\TestFolder`)
 	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
 
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(

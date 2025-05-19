@@ -14,9 +14,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func main() {
+	flavor.SetFlavor(flavor.SystemProbe)
 	rootCmd := command.MakeCommand(subcommands.SysprobeSubcommands())
 	command.SetDefaultCommandIfNonePresent(rootCmd)
 	os.Exit(runcmd.Run(rootCmd))

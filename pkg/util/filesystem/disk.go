@@ -6,7 +6,7 @@
 
 package filesystem
 
-import "github.com/shirou/gopsutil/v3/disk"
+import "github.com/shirou/gopsutil/v4/disk"
 
 // Disk gets information about the disk
 type Disk struct{}

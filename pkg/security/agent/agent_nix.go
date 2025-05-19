@@ -12,9 +12,10 @@ import (
 
 	"go.uber.org/atomic"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-go/v5/statsd"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 )
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
@@ -30,13 +31,14 @@ func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname strin
 	}
 
 	// on windows do no storage manager
-	storage, err := dump.NewAgentStorageManager()
+	storage, err := backend.NewActivityDumpRemoteBackend()
 	if err != nil {
 		return nil, err
 	}
 
 	return &RuntimeSecurityAgent{
 		client:                  client,
+		statsdClient:            statsdClient,
 		hostname:                hostname,
 		profContainersTelemetry: profContainersTelemetry,
 		storage:                 storage,

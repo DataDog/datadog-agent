@@ -32,6 +32,8 @@ type Instance struct {
 	Port       int32
 	IamEnabled bool
 	Engine     string
+	DbName     string
+	DbmEnabled bool
 }
 
 const (
@@ -41,12 +43,11 @@ const (
 
 // GetAuroraClusterEndpoints queries an AWS account for the endpoints of an Aurora cluster
 // requires the dbClusterIdentifier for the cluster
-func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string) (map[string]*AuroraCluster, error) {
+func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string, dbmTag string) (map[string]*AuroraCluster, error) {
 	if len(dbClusterIdentifiers) == 0 {
 		return nil, fmt.Errorf("at least one database cluster identifier is required")
 	}
 	clusters := make(map[string]*AuroraCluster, 0)
-
 	for _, clusterID := range dbClusterIdentifiers {
 		// TODO: Seth Samuel: This method is not paginated, so if there are more than 100 instances in a cluster, we will only get the first 100
 		// We should add pagination support to this method at some point
@@ -82,6 +83,35 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 				if db.Engine != nil {
 					instance.Engine = *db.Engine
 				}
+				if db.DBName != nil {
+					instance.DbName = *db.DBName
+				} else {
+					if db.Engine != nil {
+						defaultDBName, err := dbNameFromEngine(*db.Engine)
+						if err != nil {
+							return nil, fmt.Errorf("error getting default db name from engine: %v", err)
+						}
+
+						instance.DbName = defaultDBName
+					} else {
+						// This should never happen, as engine is a required field in the API
+						// but we should handle it.
+						return nil, fmt.Errorf("engine is nil for instance %s", clusterID)
+					}
+				}
+				for _, tag := range db.TagList {
+					tagString := ""
+					if tag.Key != nil {
+						tagString += *tag.Key
+					}
+					if tag.Value != nil {
+						tagString += ":" + *tag.Value
+					}
+					if tagString == dbmTag {
+						instance.DbmEnabled = true
+						break
+					}
+				}
 				if _, ok := clusters[*db.DBClusterIdentifier]; !ok {
 					clusters[*db.DBClusterIdentifier] = &AuroraCluster{
 						Instances: make([]*Instance, 0),
@@ -95,6 +125,18 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 		return nil, fmt.Errorf("no endpoints found for aurora clusters with id(s): %s", strings.Join(dbClusterIdentifiers, ", "))
 	}
 	return clusters, nil
+}
+
+// dbNameFromEngine returns the default database name for a given engine type
+func dbNameFromEngine(engine string) (string, error) {
+	switch engine {
+	case auroraMysqlEngine:
+		return "mysql", nil
+	case auroraPostgresqlEngine:
+		return "postgres", nil
+	default:
+		return "", fmt.Errorf("unsupported engine type: %s", engine)
+	}
 }
 
 // GetAuroraClustersFromTags returns a list of Aurora clusters to query from a list of tags

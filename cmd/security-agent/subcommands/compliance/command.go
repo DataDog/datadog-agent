@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -24,13 +24,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	complianceutils "github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -82,6 +84,7 @@ func complianceLoadCommand(globalParams *command.GlobalParams) *cobra.Command {
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 				}),
 				core.Bundle(),
+				logscompressionfx.Module(),
 			)
 		},
 	}
@@ -160,6 +163,7 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 				}),
 				core.Bundle(),
+				logscompressionfx.Module(),
 			)
 		},
 		Hidden: true,
@@ -176,8 +180,8 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 	return eventCmd
 }
 
-func eventRun(log log.Component, eventArgs *eventCliParams) error {
-	hostnameDetected, err := secutils.GetHostnameWithContextAndFallback(context.Background())
+func eventRun(log log.Component, eventArgs *eventCliParams, compression compression.Component) error {
+	hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.Background())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
@@ -187,7 +191,7 @@ func eventRun(log log.Component, eventArgs *eventCliParams) error {
 		return err
 	}
 
-	reporter := compliance.NewLogReporter(hostnameDetected, eventArgs.sourceName, eventArgs.sourceType, endpoints, dstContext)
+	reporter := compliance.NewLogReporter(hostnameDetected, eventArgs.sourceName, eventArgs.sourceType, endpoints, dstContext, compression)
 	defer reporter.Stop()
 
 	eventData := make(map[string]interface{})

@@ -15,7 +15,6 @@ import (
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -25,14 +24,16 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // CheckName is the name of the check
@@ -60,8 +61,8 @@ type Check struct {
 }
 
 // Factory creates a new check factory
-func Factory(store workloadmeta.Component, cfg config.Component, tagger tagger.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(
+func Factory(store workloadmeta.Component, cfg config.Component, tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(
 		func() check.Check {
 			return newCheck(store, cfg, tagger)
 		},
@@ -69,9 +70,10 @@ func Factory(store workloadmeta.Component, cfg config.Component, tagger tagger.C
 }
 
 func newCheck(store workloadmeta.Component, cfg config.Component, tagger tagger.Component) check.Check {
+	extraTags := cfg.GetStringSlice(oconfig.OrchestratorNSKey("extra_tags"))
 	return &Check{
 		CheckBase: core.NewCheckBase(CheckName),
-		config:    oconfig.NewDefaultOrchestratorConfig(),
+		config:    oconfig.NewDefaultOrchestratorConfig(extraTags),
 		store:     store,
 		cfg:       cfg,
 		tagger:    tagger,
@@ -159,18 +161,20 @@ func (c *Check) Run() error {
 			NodeType:         orchestrator.K8sPod,
 			ClusterID:        c.clusterID,
 			ManifestProducer: true,
+			Kind:             kubernetes.PodKind,
+			APIVersion:       "v1",
+			ExtraTags:        util.ImmutableTagsJoin(c.config.ExtraTags, []string{"kube_api_version:v1"}),
 		},
-		HostName:           c.hostName,
-		ApiGroupVersionTag: "kube_api_version:v1",
-		SystemInfo:         c.systemInfo,
+		HostName:   c.hostName,
+		SystemInfo: c.systemInfo,
 	}
 
-	processResult, processed := c.processor.Process(ctx, podList)
+	processResult, listed, processed := c.processor.Process(ctx, podList)
 	if processed == -1 {
 		return fmt.Errorf("unable to process pods: a panic occurred")
 	}
 
-	orchestrator.SetCacheStats(len(podList), processed, ctx.NodeType)
+	orchestrator.SetCacheStats(listed, processed, ctx.NodeType)
 
 	c.sender.OrchestratorMetadata(processResult.MetadataMessages, c.clusterID, int(orchestrator.K8sPod))
 	c.sender.OrchestratorManifest(processResult.ManifestMessages, c.clusterID)

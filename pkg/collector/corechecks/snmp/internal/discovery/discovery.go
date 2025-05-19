@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// This code is deprecated, new code is in: comp/core/autodiscovery/listeners/snmp.go
+
 //nolint:revive // TODO(NDM) Fix revive linter
 package discovery
 
@@ -14,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
@@ -43,6 +46,7 @@ type Discovery struct {
 	discoveredDevices map[checkconfig.DeviceDigest]Device
 
 	sessionFactory session.Factory
+	agentConfig    config.Component
 }
 
 // Device implements and store results from the Service interface for the SNMP listener
@@ -152,7 +156,7 @@ func (d *Discovery) discoverDevices() {
 	defer discoveryTicker.Stop()
 	for {
 		discoveryVar.Set(listeners.GetSubnetVarKey(d.config.Network, subnet.cacheKey), &expvar.String{})
-		subnet.devicesScannedCounter.Store(0)
+		subnet.devicesScannedCounter.Store(uint32(len(subnet.config.IgnoredIPAddresses)))
 		log.Debugf("subnet %s: Run discovery", d.config.Network)
 		startingIP := make(net.IP, len(subnet.startingIP))
 		copy(startingIP, subnet.startingIP)
@@ -237,7 +241,7 @@ func (d *Discovery) getDevicesFound() []string {
 }
 
 func (d *Discovery) createDevice(deviceDigest checkconfig.DeviceDigest, subnet *snmpSubnet, deviceIP string, writeCache bool) {
-	deviceCk, err := devicecheck.NewDeviceCheck(subnet.config, deviceIP, d.sessionFactory)
+	deviceCk, err := devicecheck.NewDeviceCheck(subnet.config, deviceIP, d.sessionFactory, d.agentConfig)
 	if err != nil {
 		// should not happen since the deviceCheck is expected to be valid at this point
 		// and are only changing the device ip
@@ -335,11 +339,12 @@ func (d *Discovery) writeCache(subnet *snmpSubnet) {
 }
 
 // NewDiscovery return a new Discovery instance
-func NewDiscovery(config *checkconfig.CheckConfig, sessionFactory session.Factory) *Discovery {
+func NewDiscovery(config *checkconfig.CheckConfig, sessionFactory session.Factory, agentConfig config.Component) *Discovery {
 	return &Discovery{
 		discoveredDevices: make(map[checkconfig.DeviceDigest]Device),
 		stop:              make(chan struct{}),
 		config:            config,
 		sessionFactory:    sessionFactory,
+		agentConfig:       agentConfig,
 	}
 }

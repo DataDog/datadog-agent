@@ -1,0 +1,12 @@
+--- libxslt-1.1.30/libxslt/Makefile.in.orig	2017-10-25 14:23:01.000000000 +0100
++++ libxslt-1.1.30/libxslt/Makefile.in	2017-10-25 14:29:06.000000000 +0100
+@@ -457,7 +457,8 @@
+ libxslt_la_LDFLAGS = \
+ 		$(WIN32_EXTRA_LDFLAGS)			\
+ 		$(LIBXSLT_VERSION_SCRIPT)		\
+-		-version-info $(LIBXSLT_VERSION_INFO)
++		-version-info $(LIBXSLT_VERSION_INFO) \
++		-Wl,--image-base,0x6d780000
+
+ man_MANS = libxslt.3
+ EXTRA_DIST = $(man_MANS) trio.h triodef.h libxslt.syms

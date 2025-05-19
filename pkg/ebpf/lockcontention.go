@@ -317,10 +317,10 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		maps[uint32(mapid)] = &targetMap{mp.FD(), uint32(mapid), name, mp, info}
 	}
 
-	constants := make(map[string]interface{})
+	constants := make(map[string]uint64)
 	l.objects = new(bpfObjects)
 
-	kaddrs, err := getKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses...)
+	kaddrs, err := GetKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses...)
 	if err != nil {
 		return fmt.Errorf("unable to fetch kernel symbol addresses: %w", err)
 	}
@@ -357,9 +357,17 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		}
 		constants["num_of_ranges"] = uint64(ranges)
 		constants["log2_num_of_ranges"] = uint64(math.Log2(float64(ranges)))
-
-		if err := collectionSpec.RewriteConstants(constants); err != nil {
-			return fmt.Errorf("failed to write constant: %w", err)
+		for k, v := range constants {
+			if vs, ok := collectionSpec.Variables[k]; !ok {
+				return fmt.Errorf("missing ebpf variable %s", k)
+			} else {
+				if !vs.Constant() {
+					return fmt.Errorf("non-constant ebpf variable %s", k)
+				}
+				if err := vs.Set(v); err != nil {
+					return fmt.Errorf("failed to set ebpf variable %s: %w", k, err)
+				}
+			}
 		}
 
 		opts := ebpf.CollectionOptions{
@@ -423,7 +431,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	}
 
 	if uint32(count) < ranges && !staticRanges {
-		log.Warnf("discovered fewer ranges than expected: %d < %d", count, ranges)
+		log.Debugf("discovered fewer ranges than expected: %d < %d", count, ranges)
 	}
 
 	for i, id := range mapids {
@@ -561,59 +569,4 @@ func estimateNumOfLockRanges(tm map[uint32]*targetMap, cpu uint32) uint32 {
 	}
 
 	return num
-}
-
-type ksymIterProgram struct {
-	BpfIteratorDumpKsyms *ebpf.Program `ebpf:"bpf_iter__dump_ksyms"`
-}
-
-func getKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses ...string) (map[string]uint64, error) {
-	var prog ksymIterProgram
-
-	if err := LoadCOREAsset("ksyms_iter.o", func(bc bytecode.AssetReader, managerOptions manager.Options) error {
-		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
-		if err != nil {
-			return fmt.Errorf("failed to load collection spec: %w", err)
-		}
-
-		opts := ebpf.CollectionOptions{
-			Programs: ebpf.ProgramOptions{
-				LogLevel:    ebpf.LogLevelBranch,
-				KernelTypes: managerOptions.VerifierOptions.Programs.KernelTypes,
-			},
-		}
-
-		if err := collectionSpec.LoadAndAssign(&prog, &opts); err != nil {
-			var ve *ebpf.VerifierError
-			if errors.As(err, &ve) {
-				return fmt.Errorf("verfier error loading collection: %s\n%+v", err, ve)
-			}
-			return fmt.Errorf("failed to load objects: %w", err)
-		}
-
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-
-	iter, err := link.AttachIter(link.IterOptions{
-		Program: prog.BpfIteratorDumpKsyms,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to attach bpf iterator: %w", err)
-	}
-	defer iter.Close()
-
-	ksymsReader, err := iter.Open()
-	if err != nil {
-		return nil, err
-	}
-	defer ksymsReader.Close()
-
-	addrs, err := GetKernelSymbolsAddressesNoCache(ksymsReader, kernelAddresses...)
-	if err != nil {
-		return nil, err
-	}
-
-	return addrs, nil
 }

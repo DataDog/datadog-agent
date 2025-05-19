@@ -10,8 +10,6 @@ package kubernetesresourceparsers
 import (
 	"testing"
 
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -53,16 +51,16 @@ func TestDeploymentParser_Parse(t *testing.T) {
 						"internal.dd.datadoghq.com/init.nginx-cont.detected_langs": "go,java,  python  ",
 					},
 				},
-				InjectableLanguages: langUtil.ContainersLanguages{
-					*langUtil.NewInitContainer("nginx-cont"): {
-						langUtil.Language(languagemodels.Go):     {},
-						langUtil.Language(languagemodels.Java):   {},
-						langUtil.Language(languagemodels.Python): {},
+				InjectableLanguages: languagemodels.ContainersLanguages{
+					*languagemodels.NewInitContainer("nginx-cont"): {
+						languagemodels.Go:     {},
+						languagemodels.Java:   {},
+						languagemodels.Python: {},
 					},
-					*langUtil.NewContainer("nginx-cont"): {
-						langUtil.Language(languagemodels.Go):     {},
-						langUtil.Language(languagemodels.Java):   {},
-						langUtil.Language(languagemodels.Python): {},
+					*languagemodels.NewContainer("nginx-cont"): {
+						languagemodels.Go:     {},
+						languagemodels.Java:   {},
+						languagemodels.Python: {},
 					},
 				},
 			},
@@ -110,7 +108,7 @@ func TestDeploymentParser_Parse(t *testing.T) {
 				Env:                 "env",
 				Service:             "service",
 				Version:             "version",
-				InjectableLanguages: make(langUtil.ContainersLanguages),
+				InjectableLanguages: make(languagemodels.ContainersLanguages),
 			},
 			deployment: &appsv1.Deployment{
 				TypeMeta: metav1.TypeMeta{
@@ -151,16 +149,16 @@ func TestDeploymentParser_Parse(t *testing.T) {
 						"internal.dd.datadoghq.com/init.nginx-cont.detected_langs": "go,java,  python  ",
 					},
 				},
-				InjectableLanguages: langUtil.ContainersLanguages{
-					*langUtil.NewInitContainer("nginx-cont"): {
-						langUtil.Language(languagemodels.Go):     {},
-						langUtil.Language(languagemodels.Java):   {},
-						langUtil.Language(languagemodels.Python): {},
+				InjectableLanguages: languagemodels.ContainersLanguages{
+					*languagemodels.NewInitContainer("nginx-cont"): {
+						languagemodels.Go:     {},
+						languagemodels.Java:   {},
+						languagemodels.Python: {},
 					},
-					*langUtil.NewContainer("nginx-cont"): {
-						langUtil.Language(languagemodels.Go):     {},
-						langUtil.Language(languagemodels.Java):   {},
-						langUtil.Language(languagemodels.Python): {},
+					*languagemodels.NewContainer("nginx-cont"): {
+						languagemodels.Go:     {},
+						languagemodels.Java:   {},
+						languagemodels.Python: {},
 					},
 				},
 			},

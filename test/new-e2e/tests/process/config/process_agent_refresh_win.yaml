@@ -1,0 +1,13 @@
+secret_backend_command: C:\TestFolder\wrapper.bat
+secret_backend_arguments:
+  - 'C:\TestFolder'
+api_key: ENC[api_key]
+
+process_config:
+  process_collection:
+    enabled: true
+  container_collection:
+    enabled: false
+  process_discovery:
+    enabled: false
+

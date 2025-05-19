@@ -13,13 +13,13 @@ issues:
 
   exclude-dirs:
     - pkg/proto/patches
+    - pkg/security/utils/lru
+    - pkg/template
     - tasks/unit_tests/testdata/components_src
 
   exclude:
     - "Error return value of `io.WriteString` is not checked" # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go
     - "Error return value of `pem.Encode` is not checked" # 'errcheck' errors in test/integration/utils/certificates.go
-    - "Error return value of `c.logErrorNotImplemented` is not checked" # 'errcheck' errors in pkg/config/nodetreemodel/config.go
-    - "Error return value of `n.logErrorNotImplemented` is not checked" # 'errcheck' errors in pkg/config/nodetreemodel/config.go
     - "exported: exported const Exec should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/process/events/model/model_common.go
     - "exported: exported const APIName should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/serverless/trace/inferredspan/constants.go
     - "unnecessary conversion" # 'unconvert' errors in test/integration/utils/certificates_test.go
@@ -60,6 +60,8 @@ issues:
     # net.Error.Temporary() isn't properly defined and was thus deprecated.
     # We are using it and it's not clear how to replace it.
     - text: "Temporary has been deprecated since Go 1.18"
+      linters: [staticcheck]
+    - text: ".IsSet is deprecated: this method will be removed once all settings have a default, use 'IsConfigured' instead"
       linters: [staticcheck]
     # Treat this list as a TODO for fixing issues with pkgconfigusage custom linter
     # DO NOT ADD NEW ENTRIES
@@ -462,7 +464,7 @@ issues:
     - path: comp/core/workloadmeta/collectors/internal/podman/podman.go
       linters:
         - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/process/process_collector.go
+    - path: comp/core/workloadmeta/collectors/internal/processlanguage/process_collector.go
       linters:
         - pkgconfigusage
     - path: comp/core/workloadmeta/collectors/util/process_util_linux.go
@@ -567,6 +569,7 @@ issues:
     - path: comp/dogstatsd/packets/packet_manager_windows.go
       linters:
         - pkgconfigusage
+
 linters:
   disable-all: true
   enable:
@@ -607,6 +610,32 @@ linters-settings:
             desc: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert, and confusing since it actually has the behavior of github.com/stretchr/testify/require"
           - pkg: "debug/elf"
             desc: "prefer pkg/util/safeelf to prevent panics during parsing"
+          - pkg: "golang.org/x/exp/slices"
+            desc: "use the std slices package instead"
+          - pkg: "github.com/aws/aws-sdk-go/"
+            desc: "use the v2 sdk instead"
+      logger:
+        files:
+          - "!**/pkg/util/log/**"
+        deny:
+          - pkg: "github.com/cihub/seelog"
+            desc: "seelog should not be used directly. Use `pkg/util/log` instead."
+      templates:
+        deny:
+          # see https://github.com/golang/go/issues/72895 for details
+          - pkg: "text/template"
+            desc: "Use \"github.com/DataDog/datadog-agent/pkg/template/text\" instead to avoid disabling dead code elimination."
+          - pkg: "html/template"
+            desc: "Use \"github.com/DataDog/datadog-agent/pkg/template/html\" instead to avoid disabling dead code elimination."
+        files:
+          - "**/cmd/**"
+          - "**/comp/**"
+          - "**/pkg/**"
+          - "!**/pkg/template/**"
+          - "!**/pkg/security/generators/**"
+          - "!**/pkg/network/go/lutgen/**"
+          - "!$test"
+          - "!**/tests/**"
 
   errcheck:
     exclude-functions:
@@ -648,6 +677,7 @@ linters-settings:
       - github.com/DataDog/datadog-agent/pkg/util/log.Warnc
       - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
       - github.com/DataDog/datadog-agent/pkg/util/log.WarnStackDepth
+      - github.com/DataDog/datadog-agent/pkg/util/log.WarnfStackDepth
       - golang.org/x/sys/windows.CloseHandle
       - golang.org/x/sys/windows.FreeLibrary
       - golang.org/x/sys/windows.FreeSid
@@ -681,6 +711,12 @@ linters-settings:
           - github.com/DataDog/datadog-agent/pkg/util/log.Printf
           - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
           - github.com/DataDog/datadog-agent/pkg/util/log.Errorf
+          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Tracef
+          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Debugf
+          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Infof
+          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warnf
+          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Errorf
+          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Criticalf
   revive:
     # in order to change revive config, the default configuration must be explicitly defined
     # https://github.com/mgechev/revive/blob/master/defaults.toml

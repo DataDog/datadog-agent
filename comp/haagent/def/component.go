@@ -13,8 +13,8 @@ type Component interface {
 	// Enabled returns true if ha_agent.enabled is set to true
 	Enabled() bool
 
-	// GetGroup returns the value of ha_agent.group
-	GetGroup() string
+	// GetConfigID returns the value of config_id
+	GetConfigID() string
 
 	// GetState returns current HA agent state
 	GetState() State
@@ -23,6 +23,6 @@ type Component interface {
 	// the state is set to active, otherwise standby.
 	SetLeader(leaderAgentHostname string)
 
-	// ShouldRunIntegration returns true if the integration should be run
-	ShouldRunIntegration(integrationName string) bool
+	// IsActive returns true if the agent should run checks
+	IsActive() bool
 }

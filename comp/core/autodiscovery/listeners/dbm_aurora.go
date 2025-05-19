@@ -135,7 +135,7 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 		log.Debugf("no aurora clusters found with provided tags %v", l.config.Tags)
 		return
 	}
-	auroraCluster, err := l.awsRdsClient.GetAuroraClusterEndpoints(ctx, ids)
+	auroraCluster, err := l.awsRdsClient.GetAuroraClusterEndpoints(ctx, ids, l.config.DbmTag)
 	if err != nil {
 		_ = log.Error(err)
 		return
@@ -218,17 +218,17 @@ func (d *DBMAuroraService) GetTaggerEntity() string {
 }
 
 // GetADIdentifiers return the single AD identifier for a static config service
-func (d *DBMAuroraService) GetADIdentifiers(context.Context) ([]string, error) {
-	return []string{d.adIdentifier}, nil
+func (d *DBMAuroraService) GetADIdentifiers() []string {
+	return []string{d.adIdentifier}
 }
 
 // GetHosts returns the host for the aurora endpoint
-func (d *DBMAuroraService) GetHosts(context.Context) (map[string]string, error) {
+func (d *DBMAuroraService) GetHosts() (map[string]string, error) {
 	return map[string]string{"": d.instance.Endpoint}, nil
 }
 
 // GetPorts returns the port for the aurora endpoint
-func (d *DBMAuroraService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (d *DBMAuroraService) GetPorts() ([]ContainerPort, error) {
 	port := int(d.instance.Port)
 	return []ContainerPort{{port, fmt.Sprintf("p%d", port)}}, nil
 }
@@ -244,17 +244,17 @@ func (d *DBMAuroraService) GetTagsWithCardinality(_ string) ([]string, error) {
 }
 
 // GetPid returns nil and an error because pids are currently not supported
-func (d *DBMAuroraService) GetPid(context.Context) (int, error) {
+func (d *DBMAuroraService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetHostname returns nothing - not supported
-func (d *DBMAuroraService) GetHostname(context.Context) (string, error) {
+func (d *DBMAuroraService) GetHostname() (string, error) {
 	return "", ErrNotSupported
 }
 
 // IsReady returns true on DBMAuroraService
-func (d *DBMAuroraService) IsReady(context.Context) bool {
+func (d *DBMAuroraService) IsReady() bool {
 	return true
 }
 
@@ -271,13 +271,18 @@ func (d *DBMAuroraService) HasFilter(containers.FilterType) bool {
 // GetExtraConfig parses the template variables with the extra_ prefix and returns the value
 func (d *DBMAuroraService) GetExtraConfig(key string) (string, error) {
 	switch key {
+	case "dbm":
+		return strconv.FormatBool(d.instance.DbmEnabled), nil
 	case "region":
 		return d.region, nil
 	case "managed_authentication_enabled":
 		return strconv.FormatBool(d.instance.IamEnabled), nil
 	case "dbclusteridentifier":
 		return d.clusterID, nil
+	case "dbname":
+		return d.instance.DbName, nil
 	}
+
 	return "", ErrNotSupported
 }
 

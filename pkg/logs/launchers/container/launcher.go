@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build docker
+//go:build kubelet || docker
 
 //nolint:revive // TODO(AML) Fix revive linter
 package container
@@ -13,7 +13,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -23,7 +23,7 @@ import (
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -60,13 +60,13 @@ type Launcher struct {
 	// tailers contains the tailer for each source
 	tailers map[*sourcesPkg.LogSource]tailerfactory.Tailer
 
-	wmeta optional.Option[workloadmeta.Component]
+	wmeta option.Option[workloadmeta.Component]
 
 	tagger tagger.Component
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(sources *sourcesPkg.LogSources, wmeta optional.Option[workloadmeta.Component], tagger tagger.Component) *Launcher {
+func NewLauncher(sources *sourcesPkg.LogSources, wmeta option.Option[workloadmeta.Component], tagger tagger.Component) *Launcher {
 	launcher := &Launcher{
 		sources: sources,
 		tailers: make(map[*sourcesPkg.LogSource]tailerfactory.Tailer),

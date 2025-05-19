@@ -8,14 +8,16 @@
 package dynamicinstrumentation
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/cilium/ebpf/ringbuf"
+
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/eventparser"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
-	"github.com/cilium/ebpf/ringbuf"
 )
 
 func (goDI *GoDI) startRingbufferConsumer(rate float64) (func(), error) {
@@ -24,13 +26,8 @@ func (goDI *GoDI) startRingbufferConsumer(rate float64) (func(), error) {
 		return nil, fmt.Errorf("couldn't set up reader for ringbuffer: %w", err)
 	}
 
-	var (
-		record ringbuf.Record
-		closed = false
-	)
-
+	var record ringbuf.Record
 	closeFunc := func() {
-		closed = true
 		r.Close()
 	}
 
@@ -40,16 +37,20 @@ func (goDI *GoDI) startRingbufferConsumer(rate float64) (func(), error) {
 
 	go func() {
 		for {
-			if closed {
-				break
-			}
 			err = r.ReadInto(&record)
 			if err != nil {
+				if errors.Is(err, ringbuf.ErrClosed) {
+					return
+				}
 				log.Infof("couldn't read event off ringbuffer: %s", err.Error())
 				continue
 			}
 
-			event := eventparser.ParseEvent(record.RawSample, rateLimiters)
+			event, err := eventparser.ParseEvent(record.RawSample, rateLimiters)
+			if err != nil {
+				log.Trace(err)
+				continue
+			}
 			if event == nil {
 				continue
 			}

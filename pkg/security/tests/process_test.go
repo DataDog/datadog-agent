@@ -28,7 +28,6 @@ import (
 	"time"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
@@ -37,8 +36,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/syndtr/gocapability/capability"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -189,7 +188,7 @@ func TestProcessContext(t *testing.T) {
 		},
 		{
 			ID:         "test_self_exec",
-			Expression: `exec.file.name in ["syscall_tester", "exe"] && exec.argv0 == "selfexec123" && process.comm == "exe"`,
+			Expression: `exec.file.name in ["syscall_tester", "exe"] && exec.argv0 == "selfexec123"`,
 		},
 		{
 			ID:         "test_rule_ctx_1",
@@ -435,7 +434,7 @@ func TestProcessContext(t *testing.T) {
 
 			argv := strings.Split(args.(string), " ")
 			assert.Equal(t, 2, len(argv), "incorrect number of args: %s", argv)
-			assert.Equal(t, model.MaxArgEnvSize-1, len(argv[1]), "wrong arg length")
+			assert.Equal(t, sharedconsts.MaxArgEnvSize-1, len(argv[1]), "wrong arg length")
 			assert.Equal(t, true, strings.HasSuffix(argv[1], "..."), "args not truncated")
 
 			// truncated is reported if a single argument is truncated or if the list is truncated
@@ -480,8 +479,8 @@ func TestProcessContext(t *testing.T) {
 
 			argv := strings.Split(execArgs.(string), " ")
 			if ebpfLessEnabled {
-				assert.Equal(t, model.MaxArgsEnvsSize-1, len(argv), "incorrect number of args: %s", argv)
-				for i := 0; i != model.MaxArgsEnvsSize-1; i++ {
+				assert.Equal(t, sharedconsts.MaxArgsEnvsSize-1, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != sharedconsts.MaxArgsEnvsSize-1; i++ {
 					assert.Equal(t, args[i], argv[i], "expected arg not found")
 				}
 			} else {
@@ -530,11 +529,11 @@ func TestProcessContext(t *testing.T) {
 
 			argv := strings.Split(execArgs.(string), " ")
 			if ebpfLessEnabled {
-				assert.Equal(t, model.MaxArgsEnvsSize-1, len(argv), "incorrect number of args: %s", argv)
-				for i := 0; i != model.MaxArgsEnvsSize-1; i++ {
+				assert.Equal(t, sharedconsts.MaxArgsEnvsSize-1, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != sharedconsts.MaxArgsEnvsSize-1; i++ {
 					expected := args[i]
-					if len(expected) > model.MaxArgEnvSize {
-						expected = args[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+					if len(expected) > sharedconsts.MaxArgEnvSize {
+						expected = args[i][:sharedconsts.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
 					}
 					assert.Equal(t, expected, argv[i], "expected arg not found")
 				}
@@ -542,8 +541,8 @@ func TestProcessContext(t *testing.T) {
 				assert.Equal(t, 457, len(argv), "incorrect number of args: %s", argv)
 				for i := 0; i != 457; i++ {
 					expected := args[i]
-					if len(expected) > model.MaxArgEnvSize {
-						expected = args[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+					if len(expected) > sharedconsts.MaxArgEnvSize {
+						expected = args[i][:sharedconsts.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
 					}
 					assert.Equal(t, expected, argv[i], "expected arg not found")
 				}
@@ -594,7 +593,7 @@ func TestProcessContext(t *testing.T) {
 
 			envp := (execEnvp.([]string))
 			assert.Equal(t, 2, len(envp), "incorrect number of envs: %s", envp)
-			assert.Equal(t, model.MaxArgEnvSize-1, len(envp[1]), "wrong env length")
+			assert.Equal(t, sharedconsts.MaxArgEnvSize-1, len(envp[1]), "wrong env length")
 			assert.Equal(t, true, strings.HasSuffix(envp[1], "..."), "envs not truncated")
 
 			// truncated is reported if a single environment variable is truncated or if the list is truncated
@@ -645,8 +644,8 @@ func TestProcessContext(t *testing.T) {
 
 			envp := (execEnvp.([]string))
 			if ebpfLessEnabled {
-				assert.Equal(t, model.MaxArgsEnvsSize, len(envp), "incorrect number of envs: %s", envp)
-				for i := 0; i != model.MaxArgsEnvsSize; i++ {
+				assert.Equal(t, sharedconsts.MaxArgsEnvsSize, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != sharedconsts.MaxArgsEnvsSize; i++ {
 					assert.Equal(t, envs[i], envp[i], "expected env not found")
 				}
 			} else {
@@ -707,11 +706,11 @@ func TestProcessContext(t *testing.T) {
 
 			envp := (execEnvp.([]string))
 			if ebpfLessEnabled {
-				assert.Equal(t, model.MaxArgsEnvsSize, len(envp), "incorrect number of envs: %s", envp)
-				for i := 0; i != model.MaxArgsEnvsSize; i++ {
+				assert.Equal(t, sharedconsts.MaxArgsEnvsSize, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != sharedconsts.MaxArgsEnvsSize; i++ {
 					expected := envs[i]
-					if len(expected) > model.MaxArgEnvSize {
-						expected = envs[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+					if len(expected) > sharedconsts.MaxArgEnvSize {
+						expected = envs[i][:sharedconsts.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
 					}
 					assert.Equal(t, expected, envp[i], "expected env not found")
 				}
@@ -719,8 +718,8 @@ func TestProcessContext(t *testing.T) {
 				assert.Equal(t, 863, len(envp), "incorrect number of envs: %s", envp)
 				for i := 0; i != 863; i++ {
 					expected := envs[i]
-					if len(expected) > model.MaxArgEnvSize {
-						expected = envs[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+					if len(expected) > sharedconsts.MaxArgEnvSize {
+						expected = envs[i][:sharedconsts.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
 					}
 					assert.Equal(t, expected, envp[i], "expected env not found")
 				}
@@ -838,7 +837,9 @@ func TestProcessContext(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_ancestors")
-			assert.Equal(t, "sh", event.ProcessContext.Ancestor.Comm)
+			if !ebpfLessEnabled {
+				assert.Equal(t, "sh", event.ProcessContext.Ancestor.Comm)
+			}
 		})
 	})
 
@@ -862,8 +863,10 @@ func TestProcessContext(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_parent")
-			assert.Equal(t, "sh", event.ProcessContext.Parent.Comm)
-			assert.Equal(t, "sh", event.ProcessContext.Ancestor.Comm)
+			if !ebpfLessEnabled {
+				assert.Equal(t, "sh", event.ProcessContext.Parent.Comm)
+				assert.Equal(t, "sh", event.ProcessContext.Ancestor.Comm)
+			}
 		})
 	})
 
@@ -999,8 +1002,11 @@ func TestProcessContext(t *testing.T) {
 			_, _ = cmd.CombinedOutput()
 
 			return nil
-		}, test.validateExecEvent(t, kind, func(_ *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, kind, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_self_exec")
+			if !ebpfLessEnabled {
+				assert.Equal(t, "exe", event.ProcessContext.Comm)
+			}
 		}))
 	})
 
@@ -1811,7 +1817,7 @@ func TestProcessExit(t *testing.T) {
 			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_ok")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
-			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(sharedconsts.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
 			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
@@ -1830,7 +1836,7 @@ func TestProcessExit(t *testing.T) {
 			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_error")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
-			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(sharedconsts.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(1), event.Exit.Code, "wrong exit code")
 			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
@@ -1849,7 +1855,7 @@ func TestProcessExit(t *testing.T) {
 			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_coredump")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
-			assert.Equal(t, uint32(model.ExitCoreDumped), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(sharedconsts.ExitCoreDumped), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(syscall.SIGQUIT), event.Exit.Code, "wrong exit code")
 			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
@@ -1870,7 +1876,7 @@ func TestProcessExit(t *testing.T) {
 			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_signal")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
-			assert.Equal(t, uint32(model.ExitSignaled), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(sharedconsts.ExitSignaled), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(syscall.SIGKILL), event.Exit.Code, "wrong exit code")
 			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
@@ -1888,7 +1894,7 @@ func TestProcessExit(t *testing.T) {
 			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_time_1")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
-			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(sharedconsts.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
 			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
@@ -1906,7 +1912,7 @@ func TestProcessExit(t *testing.T) {
 			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_time_2")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
-			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(sharedconsts.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
 			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
@@ -2021,18 +2027,18 @@ func TestProcessInterpreter(t *testing.T) {
 			scriptName: "regularExec.sh",
 			executedScript: fmt.Sprintf(`#!/bin/bash
 
-echo "Executing echo insIDe a bash script"
+echo "Executing echo inside a bash script"
 
 %s - << EOF
-print('Executing print insIDe a python (%s) script insIDe a bash script')
+print('Executing print inside a python (%s) script inside a bash script')
 
 EOF
 
 echo "Back to bash"`, python, python),
 			check: func(event *model.Event) {
-				var fieldNotSupportedError *eval.ErrNotSupported
-				_, err := event.GetFieldValue("exec.interpreter.file.name")
-				assert.ErrorAs(t, err, &fieldNotSupportedError, "exec event shouldn't have an interpreter")
+				value, err := event.GetFieldValue("exec.interpreter.file.name")
+				assert.NoError(t, err)
+				assert.Empty(t, value, "exec event shouldn't have an interpreter")
 				assertFieldEqual(t, event, "process.parent.file.name", "regularExec.sh", "wrong process parent file name")
 				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"regularExec.sh"}, "ancestor file name not an option")
 			},
@@ -2046,19 +2052,19 @@ echo "Back to bash"`, python, python),
 			scriptName: "regularExecWithInterpreterRule.sh",
 			executedScript: fmt.Sprintf(`#!/bin/bash
 
-echo "Executing echo insIDe a bash script"
+echo "Executing echo inside a bash script"
 
 %s <<__HERE__
 #!%s
 
-print('Executing print insIDe a python (%s) script insIDe a bash script')
+print('Executing print inside a python (%s) script inside a bash script')
 __HERE__
 
 echo "Back to bash"`, python, python, python),
 			check: func(event *model.Event) {
-				var fieldNotSupportedError *eval.ErrNotSupported
-				_, err := event.GetFieldValue("exec.interpreter.file.name")
-				assert.ErrorAs(t, err, &fieldNotSupportedError, "exec event shouldn't have an interpreter")
+				value, err := event.GetFieldValue("exec.interpreter.file.name")
+				assert.NoError(t, err)
+				assert.Empty(t, value, "exec event shouldn't have an interpreter")
 				assertFieldEqual(t, event, "process.parent.file.name", "regularExecWithInterpreterRule.sh", "wrong process parent file name")
 				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"regularExecWithInterpreterRule.sh"}, "ancestor file name not an option")
 			},
@@ -2073,12 +2079,12 @@ echo "Back to bash"`, python, python, python),
 			innerScriptName: "pyscript.py",
 			executedScript: fmt.Sprintf(`#!/bin/bash
 
-echo "Executing echo insIDe a bash script"
+echo "Executing echo inside a bash script"
 
 cat << EOF > pyscript.py
 #!%s
 
-print('Executing print insIDe a python (%s) script inside a bash script')
+print('Executing print inside a python (%s) script inside a bash script')
 
 EOF
 
@@ -2103,7 +2109,7 @@ chmod 755 pyscript.py
 		//			scriptName: "nestedInterpretedExec.sh",
 		//			executedScript: `#!/bin/bash
 		//
-		//echo "Executing echo insIDe a bash script"
+		//echo "Executing echo inside a bash script"
 		//
 		//cat << '__HERE__' > hello.pl
 		//#!/usr/bin/perl
@@ -2120,7 +2126,7 @@ chmod 755 pyscript.py
 		//
 		//import subprocess
 		//
-		//print('Executing print insIDe a python script')
+		//print('Executing print inside a python script')
 		//
 		//subprocess.run(["perl", "./hello.pl"])
 		//
@@ -2145,11 +2151,6 @@ chmod 755 pyscript.py
 	}
 	defer testModule.Close()
 
-	p, ok := testModule.probe.PlatformProbe.(*sprobe.EBPFProbe)
-	if !ok {
-		t.Skip("not supported")
-	}
-
 	for _, test := range tests {
 		testModule.Run(t, test.name, func(t *testing.T, _ wrapperType, _ func(cmd string, args []string, envs []string) *exec.Cmd) {
 			scriptLocation := filepath.Join(os.TempDir(), test.scriptName)
@@ -2167,9 +2168,6 @@ chmod 755 pyscript.py
 					t.Errorf("could not run %s: %s", scriptLocation, scriptRunErr)
 				}
 				t.Log(string(output))
-
-				offsets, _ := p.GetOffsetConstants()
-				t.Logf("%s: %+v\n", constantfetch.OffsetNameLinuxBinprmStructFile, offsets[constantfetch.OffsetNameLinuxBinprmStructFile])
 
 				return nil
 			}, testModule.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
@@ -2286,9 +2284,10 @@ func TestProcessResolution(t *testing.T) {
 
 		// This makes use of the cache and do not parse /proc
 		// it still checks the ResolveFromProcfs returns the correct entry
-		procEntry := resolver.ResolveFromProcfs(pid, nil)
+		procEntry := resolver.ResolveFromProcfs(pid, 0, nil)
 		if procEntry == nil {
-			t.Fatalf("not able to resolve the entry")
+			t.Errorf("not able to resolve the entry of pid %d", pid)
+			return
 		}
 
 		equals(t, mapsEntry, procEntry, false)

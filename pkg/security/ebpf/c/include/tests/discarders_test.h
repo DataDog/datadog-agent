@@ -33,6 +33,9 @@ int test_discarders_event_mask() {
     ret = _is_discarded_by_inode(EVENT_OPEN, mount_id, inode);
     assert_not_zero(ret, "inode should be discarded");
 
+    ret = _is_discarded_by_inode(EVENT_CHMOD, mount_id, inode);
+    assert_zero(ret, "inode shouldn't be discarded");
+
     // add another event type
     ret = discard_inode(EVENT_CHMOD, mount_id, inode, 0, 0);
     assert_zero(ret, "failed to discard the inode");

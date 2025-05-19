@@ -392,7 +392,7 @@ func (fh *EBPFLessFieldHandlers) ResolveAWSSecurityCredentials(_ *model.Event) [
 
 // ResolveSyscallCtxArgs resolve syscall ctx
 func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgs(_ *model.Event, e *model.SyscallContext) {
-	e.Resolved = true
+	e.Resolved = false
 }
 
 // ResolveSyscallCtxArgsStr1 resolve syscall ctx

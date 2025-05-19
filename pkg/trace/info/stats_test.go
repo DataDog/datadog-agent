@@ -61,6 +61,8 @@ func TestSpansMalformed(t *testing.T) {
 			"service_truncate":         0,
 			"peer_service_truncate":    0,
 			"peer_service_invalid":     0,
+			"base_service_truncate":    0,
+			"base_service_invalid":     0,
 			"invalid_start_date":       0,
 			"invalid_http_status_code": 0,
 			"invalid_duration":         0,
@@ -217,12 +219,14 @@ func TestReceiverStats(t *testing.T) {
 		stats.SpansMalformed.SpanNameTruncate.Store(6)
 		stats.SpansMalformed.PeerServiceTruncate.Store(7)
 		stats.SpansMalformed.PeerServiceInvalid.Store(8)
-		stats.SpansMalformed.SpanNameInvalid.Store(9)
-		stats.SpansMalformed.ResourceEmpty.Store(10)
-		stats.SpansMalformed.TypeTruncate.Store(11)
-		stats.SpansMalformed.InvalidStartDate.Store(12)
-		stats.SpansMalformed.InvalidDuration.Store(13)
-		stats.SpansMalformed.InvalidHTTPStatusCode.Store(14)
+		stats.SpansMalformed.BaseServiceTruncate.Store(9)
+		stats.SpansMalformed.BaseServiceInvalid.Store(10)
+		stats.SpansMalformed.SpanNameInvalid.Store(11)
+		stats.SpansMalformed.ResourceEmpty.Store(12)
+		stats.SpansMalformed.TypeTruncate.Store(13)
+		stats.SpansMalformed.InvalidStartDate.Store(14)
+		stats.SpansMalformed.InvalidDuration.Store(15)
+		stats.SpansMalformed.InvalidHTTPStatusCode.Store(16)
 		return &ReceiverStats{
 			Stats: map[Tags]*TagStats{
 				tags: {
@@ -236,7 +240,7 @@ func TestReceiverStats(t *testing.T) {
 	t.Run("PublishAndReset", func(t *testing.T) {
 		rs := testStats()
 		rs.PublishAndReset(statsclient)
-		assert.EqualValues(t, 42, len(statsclient.CountCalls))
+		assert.EqualValues(t, 44, len(statsclient.CountCalls))
 		assertStatsAreReset(t, rs)
 	})
 
@@ -258,7 +262,7 @@ func TestReceiverStats(t *testing.T) {
 		logs := strings.Split(b.String(), "\n")
 		assert.Equal(t, "[INFO] [lang:go lang_version:1.12 lang_vendor:gov interpreter:gcc tracer_version:1.33 endpoint_version:v0.4 service:service] -> traces received: 1, traces filtered: 4, traces amount: 9 bytes, events extracted: 13, events sampled: 14",
 			logs[0])
-		assert.Equal(t, "[WARN] [lang:go lang_version:1.12 lang_vendor:gov interpreter:gcc tracer_version:1.33 endpoint_version:v0.4 service:service] -> traces_dropped(decoding_error:1, empty_trace:3, foreign_span:6, payload_too_large:2, span_id_zero:5, timeout:7, trace_id_zero:4, unexpected_eof:8), spans_malformed(duplicate_span_id:1, invalid_duration:13, invalid_http_status_code:14, invalid_start_date:12, peer_service_invalid:8, peer_service_truncate:7, resource_empty:10, service_empty:2, service_invalid:4, service_truncate:3, span_name_empty:5, span_name_invalid:9, span_name_truncate:6, type_truncate:11). Enable debug logging for more details.",
+		assert.Equal(t, "[WARN] [lang:go lang_version:1.12 lang_vendor:gov interpreter:gcc tracer_version:1.33 endpoint_version:v0.4 service:service] -> traces_dropped(decoding_error:1, empty_trace:3, foreign_span:6, payload_too_large:2, span_id_zero:5, timeout:7, trace_id_zero:4, unexpected_eof:8), spans_malformed(base_service_invalid:10, base_service_truncate:9, duplicate_span_id:1, invalid_duration:15, invalid_http_status_code:16, invalid_start_date:14, peer_service_invalid:8, peer_service_truncate:7, resource_empty:12, service_empty:2, service_invalid:4, service_truncate:3, span_name_empty:5, span_name_invalid:11, span_name_truncate:6, type_truncate:13). Enable debug logging for more details.",
 			logs[1])
 
 		assertStatsAreReset(t, rs)

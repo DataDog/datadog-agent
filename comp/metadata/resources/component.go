@@ -6,7 +6,7 @@
 // Package resources implements a component to generate the 'resources' metadata payload.
 package resources
 
-// team: agent-shared-components
+// team: agent-configuration
 
 // Component is the component type.
 type Component interface {

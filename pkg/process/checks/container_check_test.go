@@ -10,6 +10,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,6 +41,7 @@ func containerCheckWithMockContainerProvider(t *testing.T) (*ContainerCheck, *pr
 	return &ContainerCheck{
 		hostInfo:          hostInfo,
 		containerProvider: containerProvider,
+		statsd:            &statsd.NoOpClient{},
 	}, containerProvider
 }
 

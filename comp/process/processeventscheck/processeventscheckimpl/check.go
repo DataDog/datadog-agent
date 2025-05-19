@@ -9,6 +9,8 @@ package processeventscheckimpl
 import (
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/process/processeventscheck"
 	"github.com/DataDog/datadog-agent/comp/process/types"
@@ -32,6 +34,7 @@ type dependencies struct {
 	fx.In
 
 	Config config.Component
+	Statsd statsd.ClientInterface
 }
 
 type result struct {
@@ -43,7 +46,7 @@ type result struct {
 
 func newCheck(deps dependencies) result {
 	c := &check{
-		processEventsCheck: checks.NewProcessEventsCheck(deps.Config),
+		processEventsCheck: checks.NewProcessEventsCheck(deps.Config, deps.Statsd),
 	}
 	return result{
 		Check: types.ProvidesCheck{

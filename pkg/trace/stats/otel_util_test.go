@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -20,6 +18,10 @@ import (
 	semconv "go.opentelemetry.io/collector/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/metric/noop"
 	"google.golang.org/protobuf/testing/protocmp"
+
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 var (
@@ -43,22 +45,25 @@ func TestProcessOTLPTraces(t *testing.T) {
 	parentID := pcommon.SpanID(testSpanID2)
 
 	for _, tt := range []struct {
-		name                   string
-		traceID                *pcommon.TraceID
-		spanID                 *pcommon.SpanID
-		parentSpanID           *pcommon.SpanID
-		spanName               string
-		rattrs                 map[string]string
-		sattrs                 map[string]any
-		spanKind               ptrace.SpanKind
-		libname                string
-		spanNameAsResourceName bool
-		spanNameRemappings     map[string]string
-		ignoreRes              []string
-		peerTagsAggr           bool
-		legacyTopLevel         bool
-		ctagKeys               []string
-		expected               *pb.StatsPayload
+		name                             string
+		traceID                          *pcommon.TraceID
+		spanID                           *pcommon.SpanID
+		parentSpanID                     *pcommon.SpanID
+		spanName                         string
+		rattrs                           map[string]string
+		sattrs                           map[string]any
+		spanKind                         ptrace.SpanKind
+		libname                          string
+		spanNameAsResourceName           bool
+		spanNameRemappings               map[string]string
+		ignoreRes                        []string
+		peerTagsAggr                     bool
+		legacyTopLevel                   bool
+		ctagKeys                         []string
+		expected                         *pb.StatsPayload
+		enableObfuscation                bool
+		enableReceiveResourceSpansV2     bool
+		enableOperationAndResourceNameV2 bool
 	}{
 		{
 			name:     "empty trace id",
@@ -140,7 +145,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			rattrs:   map[string]string{"service.name": "svc", "db.system": "spanner", semconv.AttributeContainerID: "test_cid"},
 			ctagKeys: []string{semconv.AttributeContainerID},
 			spanKind: ptrace.SpanKindClient,
-			expected: createStatsPayload(agentEnv, agentHost, "svc", "opentelemetry.client", "db", "client", "spanname4", agentHost, agentEnv, "test_cid", []string{"container_id:test_cid"}, nil, true, false),
+			expected: createStatsPayload(agentEnv, agentHost, "svc", "opentelemetry.client", "db", "client", "spanname4", agentHost, agentEnv, "test_cid", []string{"container_id:test_cid", "env:test_env"}, nil, true, false),
 		},
 		{
 			name:               "operation name remapping and resource from http",
@@ -167,6 +172,26 @@ func TestProcessOTLPTraces(t *testing.T) {
 			sattrs:    map[string]any{"http.request.method": "GET", semconv.AttributeHTTPRoute: "/home"},
 			ignoreRes: []string{"GET /home"},
 			expected:  &pb.StatsPayload{AgentEnv: agentEnv, AgentHostname: agentHost},
+		},
+		{
+			name:                             "obfuscate sql span",
+			spanName:                         "spanname8",
+			spanKind:                         ptrace.SpanKindClient,
+			rattrs:                           map[string]string{"service.name": "svc", semconv.AttributeDBSystem: semconv.AttributeDBSystemMSSQL, semconv.AttributeDBStatement: "SELECT username FROM users WHERE id = 12345"},
+			enableObfuscation:                true,
+			enableReceiveResourceSpansV2:     true,
+			enableOperationAndResourceNameV2: true,
+			expected:                         createStatsPayload(agentEnv, agentHost, "svc", "client.request", "sql", "client", "SELECT username FROM users WHERE id = ?", agentHost, agentEnv, "", nil, nil, true, false),
+		},
+		{
+			name:                             "obfuscated redis span",
+			spanName:                         "spanname9",
+			rattrs:                           map[string]string{"service.name": "svc", "host.name": "test-host", "db.system": "redis", "db.statement": "SET key value"},
+			spanKind:                         ptrace.SpanKindClient,
+			enableObfuscation:                true,
+			enableReceiveResourceSpansV2:     true,
+			enableOperationAndResourceNameV2: true,
+			expected:                         createStatsPayload(agentEnv, agentHost, "svc", "client.request", "redis", "client", "SET", "test-host", agentEnv, "", nil, nil, true, false),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -210,22 +235,36 @@ func TestProcessOTLPTraces(t *testing.T) {
 			conf := config.New()
 			conf.Hostname = agentHost
 			conf.DefaultEnv = agentEnv
-			conf.Features["enable_cid_stats"] = struct{}{}
+			if !tt.enableReceiveResourceSpansV2 {
+				conf.Features["disable_receive_resource_spans_v2"] = struct{}{}
+			}
 			conf.PeerTagsAggregation = tt.peerTagsAggr
 			conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 			conf.OTLPReceiver.SpanNameAsResourceName = tt.spanNameAsResourceName
-			if conf.OTLPReceiver.SpanNameAsResourceName {
-				// Verify that while EnableOperationAndResourceNamesV2 is in alpha, SpanNameAsResourceName overrides it
-				conf.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
+			if !tt.enableOperationAndResourceNameV2 {
+				conf.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 			}
 			conf.OTLPReceiver.SpanNameRemappings = tt.spanNameRemappings
 			conf.Ignore["resource"] = tt.ignoreRes
 			if !tt.legacyTopLevel {
 				conf.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
 			}
+			conf.ContainerTags = func(cid string) ([]string, error) {
+				if cid == "test_cid" {
+					return []string{"env:test_env"}, nil
+				}
+				return nil, nil
+			}
 
 			concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
-			inputs := OTLPTracesToConcentratorInputs(traces, conf, tt.ctagKeys, conf.ConfiguredPeerTags())
+			var obfuscator *obfuscate.Obfuscator
+			var inputs []Input
+			if tt.enableObfuscation {
+				obfuscator = newTestObfuscator(conf)
+				inputs = OTLPTracesToConcentratorInputsWithObfuscation(traces, conf, tt.ctagKeys, conf.ConfiguredPeerTags(), obfuscator)
+			} else {
+				inputs = OTLPTracesToConcentratorInputs(traces, conf, tt.ctagKeys, conf.ConfiguredPeerTags())
+			}
 			for _, input := range inputs {
 				concentrator.Add(input)
 			}
@@ -285,6 +324,7 @@ func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 	conf.Hostname = agentHost
 	conf.DefaultEnv = agentEnv
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
+	conf.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 
 	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
 	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil)

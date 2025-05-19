@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
@@ -39,6 +39,12 @@ const (
 	CheckName           = "containerd"
 	pullImageGrpcMethod = "PullImage"
 	cacheValidity       = 2 * time.Second
+
+	imageSizeQueryInterval = 10 * time.Minute
+	imageCreateEvent       = "/images/create"
+	imageUpdateEvent       = "/images/update"
+	imageDeleteEvent       = "/images/delete"
+	imageWildcardEvent     = "/images/*"
 )
 
 var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
@@ -64,8 +70,8 @@ type ContainerdConfig struct {
 }
 
 // Factory is used to create register the check and initialize it.
-func Factory(store workloadmeta.Component, tagger tagger.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
+func Factory(store workloadmeta.Component, tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
 		return &ContainerdCheck{
 			CheckBase: corechecks.NewCheckBase(CheckName),
 			instance:  &ContainerdConfig{},
@@ -102,9 +108,18 @@ func (c *ContainerdCheck) Configure(senderManager sender.SenderManager, _ uint64
 	}
 
 	c.httpClient = http.Client{Timeout: time.Duration(1) * time.Second}
-	c.processor = generic.NewProcessor(metrics.GetProvider(optional.NewOption(c.store)), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(c.containerFilter, c.store), c.tagger)
+	c.processor = generic.NewProcessor(metrics.GetProvider(option.New(c.store)), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(c.containerFilter, c.store), c.tagger)
 	c.processor.RegisterExtension("containerd-custom-metrics", &containerdCustomMetricsExtension{})
 	c.subscriber = createEventSubscriber("ContainerdCheck", c.client, cutil.FiltersWithNamespaces(c.instance.ContainerdFilters))
+
+	c.subscriber.isCacheConfigValid = c.isEventConfigValid()
+	if err := c.initializeImageCache(); err != nil {
+		log.Warnf("Failed to initialize image size cache: %v", err)
+	}
+	if !c.subscriber.isCacheConfigValid {
+		log.Debugf("Image event collection not configured. Starting periodic cache updates.")
+		go c.periodicImageSizeQuery()
+	}
 
 	return nil
 }
@@ -153,8 +168,8 @@ func (c *ContainerdCheck) runContainerdCustom(sender sender.Sender) error {
 	}
 
 	for _, namespace := range namespaces {
-		if err := c.collectImageSizes(sender, c.client, namespace); err != nil {
-			log.Infof("Failed to scrape containerd openmetrics endpoint, err: %s", err)
+		if err := c.collectImageSizes(sender, namespace); err != nil {
+			log.Infof("Namespace skipped: %s", err)
 		}
 	}
 
@@ -215,25 +230,15 @@ func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error 
 	return nil
 }
 
-func (c *ContainerdCheck) collectImageSizes(sender sender.Sender, cl cutil.ContainerdItf, namespace string) error {
-	// Report images size
-	images, err := cl.ListImages(namespace)
-	if err != nil {
-		return err
+func (c *ContainerdCheck) collectImageSizes(sender sender.Sender, namespace string) error {
+	imageSizes := c.subscriber.GetImageSizes()
+	cachedImages, ok := imageSizes[namespace]
+	if !ok {
+		return fmt.Errorf("no cached images found for namespace: %s", namespace)
 	}
 
-	for _, image := range images {
-		var size int64
-
-		if err := cl.CallWithClientContext(namespace, func(c context.Context) error {
-			size, err = image.Size(c)
-			return err
-		}); err != nil {
-			log.Debugf("Unable to get image size for image: %s, err: %s", image.Name(), err)
-			continue
-		}
-
-		sender.Gauge("containerd.image.size", float64(size), "", getImageTags(image.Name()))
+	for imageName, size := range cachedImages {
+		sender.Gauge("containerd.image.size", float64(size), "", getImageTags(imageName))
 	}
 
 	return nil
@@ -251,4 +256,78 @@ func (c *ContainerdCheck) collectEvents(sender sender.Sender) {
 	events := c.subscriber.Flush(time.Now().Unix())
 	// Process events
 	c.computeEvents(events, sender, c.containerFilter)
+}
+
+func (c *ContainerdCheck) initializeImageCache() error {
+	namespaces, err := cutil.NamespacesToWatch(context.TODO(), c.client)
+	if err != nil {
+		return fmt.Errorf("failed to list namespaces: %w", err)
+	}
+
+	newCache := make(map[string]map[string]int64)
+
+	for _, namespace := range namespaces {
+		images, err := c.client.ListImages(namespace)
+		if err != nil {
+			log.Warnf("Failed to list images for namespace %s: %v", namespace, err)
+			continue
+		}
+
+		newCache[namespace] = make(map[string]int64)
+
+		for _, image := range images {
+			size, err := c.subscriber.getImageSize(namespace, image.Name())
+			if err != nil {
+				log.Debugf("Failed to get size for image %s in namespace %s: %v", image.Name(), namespace, err)
+				continue
+			}
+
+			newCache[namespace][image.Name()] = size
+		}
+	}
+
+	c.subscriber.imageSizeCacheLock.Lock()
+	c.subscriber.imageSizeCache = newCache
+	c.subscriber.imageSizeCacheLock.Unlock()
+
+	return nil
+}
+
+func (c *ContainerdCheck) isEventConfigValid() bool {
+	if !c.instance.CollectEvents {
+		return false
+	}
+
+	hasImageEvents := map[string]bool{
+		imageCreateEvent: false,
+		imageUpdateEvent: false,
+		imageDeleteEvent: false,
+	}
+
+	for _, filter := range c.instance.ContainerdFilters {
+		strippedFilter := strings.Trim(strings.TrimPrefix(filter, "topic=="), `"`)
+		if strippedFilter == imageWildcardEvent {
+			return true
+		}
+		if _, ok := hasImageEvents[strippedFilter]; ok {
+			hasImageEvents[strippedFilter] = true
+		}
+	}
+	for _, included := range hasImageEvents {
+		if !included {
+			return false
+		}
+	}
+	return true
+}
+
+func (c *ContainerdCheck) periodicImageSizeQuery() {
+	ticker := time.NewTicker(imageSizeQueryInterval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if err := c.initializeImageCache(); err != nil {
+			log.Warnf("Failed to refresh image size cache: %v", err)
+		}
+	}
 }

@@ -1,0 +1,5 @@
+{{ if .enabled -}}
+{{- range $key, $value := .ha_agent_metadata }}
+  {{ $key }}: {{ $value }}
+{{- end }}
+{{- end }}

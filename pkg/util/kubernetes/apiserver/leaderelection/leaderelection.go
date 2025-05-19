@@ -228,9 +228,15 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 
 func (le *LeaderEngine) runLeaderElection() {
 	for {
-		log.Infof("Starting leader election process for %q...", le.HolderIdentity)
-		le.leaderElector.Run(le.ctx)
-		log.Info("Leader election lost")
+		select {
+		case <-le.ctx.Done():
+			log.Infof("Quitting leader election process: context was cancelled")
+			return
+		default:
+			log.Infof("Starting leader election process for %q...", le.HolderIdentity)
+			le.leaderElector.Run(le.ctx)
+			log.Info("Leader election lost")
+		}
 	}
 }
 
@@ -275,17 +281,23 @@ func (le *LeaderEngine) IsLeader() bool {
 	return le.GetLeader() == le.HolderIdentity
 }
 
-// Subscribe allows any component to receive a notification
-// when the current process becomes leader.
+// Subscribe allows any component to receive a notification when leadership state of the current
+// process changes.
+//
+// The subscriber will not be notified about the leadership state change if the previous notification
+// hasn't yet been consumed from the notification channel.
+//
 // Calling Subscribe is optional, use IsLeader if the client doesn't need an event-based approach.
-func (le *LeaderEngine) Subscribe() <-chan struct{} {
-	c := make(chan struct{}, 5) // buffered channel to avoid blocking in case of stuck subscriber
+func (le *LeaderEngine) Subscribe() (leadershipChangeNotif <-chan struct{}, isLeader func() bool) {
+	c := make(chan struct{}, 1)
 
 	le.m.Lock()
 	le.subscribers = append(le.subscribers, c)
 	le.m.Unlock()
 
-	return c
+	leadershipChangeNotif = c
+	isLeader = le.IsLeader
+	return
 }
 
 func detectLeases(client discovery.DiscoveryInterface) (bool, error) {

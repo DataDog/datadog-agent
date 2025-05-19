@@ -8,6 +8,7 @@ package info
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"expvar" // automatically publish `/debug/vars` on HTTP port
 	"fmt"
@@ -16,36 +17,55 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
-	"text/template"
 	"time"
 
+	"go.uber.org/atomic"
+
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var (
+	once sync.Once
+	// Unfortunately there must be a global Info tracker as we publish info via expvar
+	// and calls to expvar.Publish must only happen once per key
+	ift = &tracker{
+		receiverStats:         []TagStats{},
+		languages:             nil,
+		traceWriterInfo:       nil,
+		statsWriterInfo:       nil,
+		watchdogInfo:          watchdog.Info{},
+		rateByService:         nil,
+		rateByServiceFiltered: nil,
+		start:                 time.Now(),
+		infoTmpl:              nil,
+		notRunningTmpl:        nil,
+		errorTmpl:             nil,
+	}
+)
+
+type tracker struct {
 	infoMu        sync.RWMutex
-	receiverStats = []TagStats{} // only for the last minute
+	receiverStats []TagStats // only for the last minute
 	languages     []string
 
-	// TODO: move from package globals to a clean single struct
-
-	traceWriterInfo TraceWriterInfo
-	statsWriterInfo StatsWriterInfo
+	traceWriterInfo *TraceWriterInfo
+	statsWriterInfo *StatsWriterInfo
 
 	watchdogInfo  watchdog.Info
 	rateByService map[string]float64
 	// The rates by service with empty env values removed (As they are confusing to view for customers)
 	rateByServiceFiltered map[string]float64
-	start                 = time.Now()
-	once                  sync.Once
+	start                 time.Time
 	infoTmpl              *template.Template
 	notRunningTmpl        *template.Template
 	errorTmpl             *template.Template
-)
+}
 
 const (
 	infoTmplSrc = `{{.Banner}}
@@ -69,7 +89,7 @@ const (
   From {{if $ts.Tags.Lang}}{{ $ts.Tags.Lang }} {{ $ts.Tags.LangVersion }} ({{ $ts.Tags.Interpreter }}), client {{ $ts.Tags.TracerVersion }}{{else}}unknown clients{{end}}
     Traces received: {{ $ts.Stats.TracesReceived }} ({{ $ts.Stats.TracesBytes }} bytes)
     Spans received: {{ $ts.Stats.SpansReceived }}
-    {{ with $ts.WarnString }}
+    {{ with WarnString $ts }}
     WARNING: {{ . }}
     {{end}}
 
@@ -85,10 +105,10 @@ const (
 
   --- Writer stats (1 min) ---
 
-  Traces: {{.Status.TraceWriter.Payloads}} payloads, {{.Status.TraceWriter.Traces}} traces, {{if gt .Status.TraceWriter.Events.Load 0}}{{.Status.TraceWriter.Events.Load}} events, {{end}}{{.Status.TraceWriter.Bytes}} bytes
-  {{if gt .Status.TraceWriter.Errors.Load 0}}WARNING: Traces API errors (1 min): {{.Status.TraceWriter.Errors.Load}}{{end}}
-  Stats: {{.Status.StatsWriter.Payloads.Load}} payloads, {{.Status.StatsWriter.StatsBuckets.Load}} stats buckets, {{.Status.StatsWriter.Bytes.Load}} bytes
-  {{if gt .Status.StatsWriter.Errors.Load 0}}WARNING: Stats API errors (1 min): {{.Status.StatsWriter.Errors.Load}}{{end}}
+  Traces: {{.Status.TraceWriter.Payloads}} payloads, {{.Status.TraceWriter.Traces}} traces, {{if gt (Load .Status.TraceWriter.Events) 0}}{{Load .Status.TraceWriter.Events}} events, {{end}}{{.Status.TraceWriter.Bytes}} bytes
+  {{if gt (Load .Status.TraceWriter.Errors) 0}}WARNING: Traces API errors (1 min): {{Load .Status.TraceWriter.Errors}}{{end}}
+  Stats: {{Load .Status.StatsWriter.Payloads}} payloads, {{Load .Status.StatsWriter.StatsBuckets}} stats buckets, {{Load .Status.StatsWriter.Bytes}} bytes
+  {{if gt (Load .Status.StatsWriter.Errors) 0}}WARNING: Stats API errors (1 min): {{Load .Status.StatsWriter.Errors}}{{end}}
 `
 
 	notRunningTmplSrc = `{{.Banner}}
@@ -109,10 +129,10 @@ const (
 `
 )
 
-// UpdateReceiverStats updates internal stats about the receiver.
+// UpdateReceiverStats updates all stats associated with the Receiver
 func UpdateReceiverStats(rs *ReceiverStats) {
-	infoMu.Lock()
-	defer infoMu.Unlock()
+	ift.infoMu.Lock()
+	defer ift.infoMu.Unlock()
 	rs.RLock()
 	defer rs.RUnlock()
 
@@ -123,78 +143,77 @@ func UpdateReceiverStats(rs *ReceiverStats) {
 		}
 	}
 
-	receiverStats = s
-	languages = rs.Languages()
+	ift.receiverStats = s
+	ift.languages = rs.Languages()
 }
 
-// Languages exposes languages reporting traces to the Agent.
+// Languages returns all the known languages seen
 func Languages() []string {
-	infoMu.Lock()
-	defer infoMu.Unlock()
-
-	return languages
+	ift.infoMu.RLock()
+	defer ift.infoMu.RUnlock()
+	return ift.languages
 }
 
 func publishReceiverStats() interface{} {
-	infoMu.RLock()
-	defer infoMu.RUnlock()
-	return slices.Clone(receiverStats)
+	ift.infoMu.RLock()
+	defer ift.infoMu.RUnlock()
+	return slices.Clone(ift.receiverStats)
 }
 
-// UpdateRateByService updates the RateByService map and the filtered RateByServiceFiltered map.
+// UpdateRateByService updates the sampling rate by service map
 func UpdateRateByService(rbs map[string]float64) {
-	infoMu.Lock()
-	defer infoMu.Unlock()
-	rateByService = rbs
+	ift.infoMu.Lock()
+	defer ift.infoMu.Unlock()
+	ift.rateByService = rbs
 
-	rateByServiceFiltered = make(map[string]float64, len(rateByService))
-	for k, v := range rateByService {
+	ift.rateByServiceFiltered = make(map[string]float64, len(ift.rateByService))
+	for k, v := range ift.rateByService {
 		if !strings.HasSuffix(k, ",env:") {
-			rateByServiceFiltered[k] = v
+			ift.rateByServiceFiltered[k] = v
 		}
 	}
 }
 
 func publishRateByService() interface{} {
-	infoMu.RLock()
-	defer infoMu.RUnlock()
-	return rateByService
+	ift.infoMu.RLock()
+	defer ift.infoMu.RUnlock()
+	return ift.rateByService
 }
 
 func publishRateByServiceFiltered() interface{} {
-	infoMu.RLock()
-	defer infoMu.RUnlock()
-	return rateByServiceFiltered
+	ift.infoMu.RLock()
+	defer ift.infoMu.RUnlock()
+	return ift.rateByServiceFiltered
 }
 
 // UpdateWatchdogInfo updates internal stats about the watchdog.
 func UpdateWatchdogInfo(wi watchdog.Info) {
-	infoMu.Lock()
-	defer infoMu.Unlock()
-	watchdogInfo = wi
+	ift.infoMu.Lock()
+	defer ift.infoMu.Unlock()
+	ift.watchdogInfo = wi
 }
 
 func publishWatchdogInfo() interface{} {
-	infoMu.RLock()
-	defer infoMu.RUnlock()
-	return watchdogInfo
+	ift.infoMu.RLock()
+	defer ift.infoMu.RUnlock()
+	return ift.watchdogInfo
 }
 
 func publishUptime() interface{} {
-	return int(time.Since(start) / time.Second)
+	return int(time.Since(ift.start) / time.Second)
 }
 
 type infoString string
 
 func (s infoString) String() string { return string(s) }
 
-// InitInfo initializes the info structure. It should be called only once.
+// InitInfo initializes the info package, exposing some metrics and data via expvar
 func InitInfo(conf *config.AgentConfig) error {
 	var err error
 	once.Do(func() {
 		// Use the same error declared outside of once.Do and don't declare a new one.
 		// See https://go.dev/play/p/K7sxXE2xvLp
-		err = initInfo(conf)
+		err = initInfo(conf, ift)
 	})
 	return err
 }
@@ -205,7 +224,7 @@ func InitInfo(conf *config.AgentConfig) error {
 // automatically ignore extra fields.
 type StatusInfo struct {
 	CmdLine  []string `json:"cmdline"`
-	Pid      int      `json:"pid"`
+	Pid      string   `json:"pid"`
 	Uptime   int      `json:"uptime"`
 	MemStats struct {
 		Alloc uint64
@@ -236,8 +255,9 @@ func getProgramBanner(version string) (string, string) {
 // If error is nil, means the program is running.
 // If not, it displays a pretty-printed message anyway (for support)
 func Info(w io.Writer, conf *config.AgentConfig) error {
-	url := fmt.Sprintf("http://127.0.0.1:%d/debug/vars", conf.DebugServerPort)
-	client := http.Client{Timeout: 3 * time.Second}
+	url := fmt.Sprintf("https://127.0.0.1:%d/debug/vars", conf.DebugServerPort)
+	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	client := http.Client{Timeout: 3 * time.Second, Transport: tr}
 	resp, err := client.Get(url)
 	if err != nil {
 		// OK, here, we can't even make an http call on the agent port,
@@ -245,7 +265,7 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 		// these parameters. We display the port as a hint on where to
 		// debug further, this is where the expvar JSON should come from.
 		program, banner := getProgramBanner(conf.AgentVersion)
-		_ = notRunningTmpl.Execute(w, struct {
+		_ = ift.notRunningTmpl.Execute(w, struct {
 			Banner    string
 			Program   string
 			DebugPort int
@@ -262,7 +282,7 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 	var info StatusInfo
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
 		program, banner := getProgramBanner(conf.AgentVersion)
-		_ = errorTmpl.Execute(w, struct {
+		_ = ift.errorTmpl.Execute(w, struct {
 			Banner  string
 			Program string
 			Error   error
@@ -280,7 +300,7 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 	program, banner := getProgramBanner(info.Version.Version)
 
 	var buffer bytes.Buffer
-	err = infoTmpl.Execute(&buffer, struct {
+	err = ift.infoTmpl.Execute(&buffer, struct {
 		Banner  string
 		Program string
 		Status  *StatusInfo
@@ -309,7 +329,7 @@ func CleanInfoExtraLines(info string) string {
 	return indentedEmptyLines.ReplaceAllString(info, "\n")
 }
 
-func initInfo(conf *config.AgentConfig) error {
+func initInfo(conf *config.AgentConfig, ift *tracker) error {
 	publishVersion := func() interface{} {
 		return struct {
 			Version   string
@@ -326,8 +346,10 @@ func initInfo(conf *config.AgentConfig) error {
 		"percent": func(v float64) string {
 			return fmt.Sprintf("%02.1f", v*100)
 		},
+		"WarnString": func(ts *TagStats) string { return ts.WarnString() },
+		"Load":       func(i atomic.Int64) int64 { return i.Load() },
 	}
-	expvar.NewInt("pid").Set(int64(os.Getpid()))
+	expvar.NewString("pid").Set(strconv.Itoa(os.Getpid()))
 	expvar.Publish("uptime", expvar.Func(publishUptime))
 	expvar.Publish("version", expvar.Func(publishVersion))
 	expvar.Publish("receiver", expvar.Func(publishReceiverStats))
@@ -361,16 +383,16 @@ func initInfo(conf *config.AgentConfig) error {
 	// Config is parsed at the beginning and never changed again, anyway.
 	expvar.Publish("config", infoString(string(scrubbed)))
 
-	infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
+	ift.infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
 	if err != nil {
 		return err
 	}
 
-	notRunningTmpl, err = template.New("infoNotRunning").Parse(notRunningTmplSrc)
+	ift.notRunningTmpl, err = template.New("infoNotRunning").Parse(notRunningTmplSrc)
 	if err != nil {
 		return err
 	}
 
-	errorTmpl, err = template.New("infoError").Parse(errorTmplSrc)
+	ift.errorTmpl, err = template.New("infoError").Parse(errorTmplSrc)
 	return err
 }

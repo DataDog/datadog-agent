@@ -7,7 +7,8 @@ ARG WITH_JMX="false"
 ARG VARIANT="unknown"
 ARG INSTALL_INFO="unknown"
 ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
-ARG WITH_FIPS="false"
+# Should be empty for non-FIPS builds
+ARG WITH_FIPS
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
 
@@ -23,6 +24,7 @@ RUN . ./install.ps1
 COPY bouncycastle-fips /fips-build
 COPY install-fips.ps1 ./
 RUN . ./install-fips.ps1
+ENV JAVA_TOOL_OPTIONS="${WITH_FIPS:+--module-path=\'c:\\program files\\datadog\\bouncycastle fips\' -Djava.security.properties==\'c:\\program files\\datadog\\bouncycastle fips\\java.security\' -Dpolicy.url.2=\'file:c:\\program files\\datadog\\bouncycastle fips\\bc-fips.policy\'}"
 
 EXPOSE 8125/udp 8126/tcp
 

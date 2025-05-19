@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package integration contains the type that represents a configuration.
+// Package integration defines types representing an integration configuration,
+// which can be used by several components of the agent to configure checks or
+// log collectors, for example.
 package integration
 
 import (
@@ -297,15 +299,15 @@ func (c *Data) GetNameForInstance() string {
 
 // SetNameForInstance set name for instance
 func (c *Data) SetNameForInstance(name string) error {
-	commonOptions := CommonInstanceConfig{}
-	err := yaml.Unmarshal(*c, &commonOptions)
+	rawConfig := map[interface{}]interface{}{}
+	err := yaml.Unmarshal(*c, &rawConfig)
 	if err != nil {
 		return fmt.Errorf("invalid instance section: %s", err)
 	}
-	commonOptions.Name = name
+	rawConfig["name"] = name
 
 	// modify original config
-	out, err := yaml.Marshal(&commonOptions)
+	out, err := yaml.Marshal(&rawConfig)
 	if err != nil {
 		return err
 	}

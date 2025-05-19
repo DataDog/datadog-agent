@@ -34,6 +34,11 @@ func (BaseHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext, re
 	return ExtractModelManifests(ctx, resourceManifests, groupSize)
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (BaseHandlers) ResourceTaggerTags(ctx processors.ProcessorContext, resource interface{}) []string {
+	return nil
+}
+
 // ExtractModelManifests creates the model manifest from the given manifests
 func ExtractModelManifests(ctx processors.ProcessorContext, resourceManifests []interface{}, groupSize int) *model.CollectorManifest {
 	pctx := ctx.(*processors.K8sProcessorContext)
@@ -49,7 +54,7 @@ func ExtractModelManifests(ctx processors.ProcessorContext, resourceManifests []
 		Manifests:   manifests,
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
-		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:        pctx.ExtraTags,
 	}
 	return cm
 }

@@ -29,33 +29,25 @@ type component struct {
 	name       string
 	healthChan chan time.Time
 	healthy    bool
+	// if set to true, once the check is healthy, we mark it as healthy forever and we stop checking it
+	once bool
 }
 
 type catalog struct {
 	sync.RWMutex
 	components map[*Handle]*component
 	latestRun  time.Time
-	startup    bool
 }
 
 func newCatalog() *catalog {
 	return &catalog{
 		components: make(map[*Handle]*component),
 		latestRun:  time.Now(), // Start healthy
-		startup:    false,
-	}
-}
-
-func newStartupCatalog() *catalog {
-	return &catalog{
-		components: make(map[*Handle]*component),
-		latestRun:  time.Now(), // Start healthy
-		startup:    true,
 	}
 }
 
 // register a component with the default 30 seconds timeout, returns a token
-func (c *catalog) register(name string) *Handle {
+func (c *catalog) register(name string, options ...Option) *Handle {
 	c.Lock()
 	defer c.Unlock()
 
@@ -68,6 +60,11 @@ func (c *catalog) register(name string) *Handle {
 		healthChan: make(chan time.Time, bufferSize),
 		healthy:    false,
 	}
+
+	for _, option := range options {
+		option(component)
+	}
+
 	h := &Handle{
 		C: component.healthChan,
 	}
@@ -107,8 +104,8 @@ func (c *catalog) pingComponents(healthDeadline time.Time) bool {
 	c.Lock()
 	defer c.Unlock()
 	for _, component := range c.components {
-		// In startup mode, we skip already healthy components.
-		if c.startup && component.healthy {
+		// We skip components that are registered to be skipped once they pass once
+		if component.healthy && component.once {
 			continue
 		}
 		select {

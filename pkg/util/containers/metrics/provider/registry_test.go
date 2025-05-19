@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,13 +20,13 @@ func TestCollectorRegistry(t *testing.T) {
 	assert.Nil(t, c.effectiveCollectors[RuntimeMetadata{runtime: RuntimeNameDocker}])
 
 	// Check for collectors (none are registered, should not change output)
-	c.retryCollectors(nil, optional.NewNoneOption[workloadmeta.Component]())
+	c.retryCollectors(nil, option.None[workloadmeta.Component]())
 	assert.Nil(t, c.effectiveCollectors[RuntimeMetadata{runtime: RuntimeNameDocker}])
 
 	c.registerCollector(
 		CollectorFactory{
 			ID: "dummy1",
-			Constructor: func(*Cache, optional.Option[workloadmeta.Component]) (CollectorMetadata, error) {
+			Constructor: func(*Cache, option.Option[workloadmeta.Component]) (CollectorMetadata, error) {
 				collector := dummyCollector{
 					id:              "dummy1",
 					selfContainerID: "dummy1",
@@ -44,7 +44,7 @@ func TestCollectorRegistry(t *testing.T) {
 	c.registerCollector(
 		CollectorFactory{
 			ID: "dummy2",
-			Constructor: func(*Cache, optional.Option[workloadmeta.Component]) (CollectorMetadata, error) {
+			Constructor: func(*Cache, option.Option[workloadmeta.Component]) (CollectorMetadata, error) {
 				return CollectorMetadata{}, ErrPermaFail
 			},
 		},
@@ -54,7 +54,7 @@ func TestCollectorRegistry(t *testing.T) {
 	c.registerCollector(
 		CollectorFactory{
 			ID: "dummy3",
-			Constructor: func(*Cache, optional.Option[workloadmeta.Component]) (CollectorMetadata, error) {
+			Constructor: func(*Cache, option.Option[workloadmeta.Component]) (CollectorMetadata, error) {
 				if dummy3Retries < 2 {
 					dummy3Retries++
 					return CollectorMetadata{}, fmt.Errorf("not yet okay")
@@ -90,7 +90,7 @@ func TestCollectorRegistry(t *testing.T) {
 		assert.Equal(t, expected, actual)
 	}
 
-	wmeta := optional.NewNoneOption[workloadmeta.Component]()
+	wmeta := option.None[workloadmeta.Component]()
 	collectorsToRetry := c.retryCollectors(nil, wmeta)
 	assert.Equal(t, 1, collectorsToRetry)
 	assertCollectors(map[RuntimeMetadata]string{
@@ -121,7 +121,7 @@ func TestCollectorRegistry(t *testing.T) {
 	c.registerCollector(
 		CollectorFactory{
 			ID: "dummy4",
-			Constructor: func(*Cache, optional.Option[workloadmeta.Component]) (CollectorMetadata, error) {
+			Constructor: func(*Cache, option.Option[workloadmeta.Component]) (CollectorMetadata, error) {
 				collector := dummyCollector{
 					id:              "dummy4",
 					selfContainerID: "dummy4",

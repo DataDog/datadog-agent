@@ -1,0 +1,12 @@
+---
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "Python Apps"
+        podSelector:
+          matchLabels:
+            language: "python"
+        fooBar: "baz"
+        ddTraceVersions:
+          python: "v3"

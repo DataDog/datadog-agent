@@ -17,6 +17,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
@@ -125,7 +126,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	if err != nil {
 		return nil, err
 	}
-	if _, err = setTestPolicy(commonCfgDir, nil, macroDefs, ruleDefs); err != nil {
+	if _, err = setTestPolicy(commonCfgDir, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
 	statsdClient := statsdclient.NewStatsdClient()
@@ -171,7 +172,8 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	var ruleSetloadedErr *multierror.Error
 	if !opts.staticOpts.disableRuntimeSecurity {
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod})
+		compression := logscompression.NewComponent()
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod}, compression)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}

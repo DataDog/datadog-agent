@@ -131,7 +131,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 		if err != nil {
 			return
 		}
-		seelog.ReplaceLogger(logger) //nolint:errcheck
+		_ = seelog.ReplaceLogger(logger)
 		// We wire the new logger with the Datadog logic
 		log.ChangeLogLevel(logger, seelogLogLevel)
 	})
@@ -246,29 +246,29 @@ type logWriter struct {
 }
 
 // NewLogWriter returns a logWriter set with given logLevel. Returns an error if logLevel is unknown/not set.
-func NewLogWriter(additionalDepth int, logLevel seelog.LogLevel) (io.Writer, error) {
+func NewLogWriter(additionalDepth int, logLevel log.LogLevel) (io.Writer, error) {
 	writer := &logWriter{
 		additionalDepth: additionalDepth,
 	}
 
 	switch logLevel {
-	case seelog.TraceLvl:
+	case log.TraceLvl:
 		writer.logFunc = log.TraceStackDepth
-	case seelog.DebugLvl:
+	case log.DebugLvl:
 		writer.logFunc = log.DebugStackDepth
-	case seelog.InfoLvl:
+	case log.InfoLvl:
 		writer.logFunc = log.InfoStackDepth
-	case seelog.WarnLvl:
+	case log.WarnLvl:
 		writer.logFunc = func(dept int, v ...interface{}) {
 			_ = log.WarnStackDepth(dept, v...)
 		}
 		writer.additionalDepth++
-	case seelog.ErrorLvl:
+	case log.ErrorLvl:
 		writer.logFunc = func(dept int, v ...interface{}) {
 			_ = log.ErrorStackDepth(dept, v...)
 		}
 		writer.additionalDepth++
-	case seelog.CriticalLvl:
+	case log.CriticalLvl:
 		writer.logFunc = func(dept int, v ...interface{}) {
 			_ = log.CriticalStackDepth(dept, v...)
 		}
@@ -294,7 +294,7 @@ type tlsHandshakeErrorWriter struct {
 }
 
 // NewTLSHandshakeErrorWriter is a wrapper function which creates a new logWriter.
-func NewTLSHandshakeErrorWriter(additionalDepth int, logLevel seelog.LogLevel) (io.Writer, error) {
+func NewTLSHandshakeErrorWriter(additionalDepth int, logLevel log.LogLevel) (io.Writer, error) {
 	logWriter, err := NewLogWriter(additionalDepth, logLevel)
 	if err != nil {
 		return nil, err
@@ -584,9 +584,9 @@ func appendFmt(builder *strings.Builder, format contextFormat, s string, buf []b
 }
 
 func init() {
-	seelog.RegisterCustomFormatter("CustomSyslogHeader", createSyslogHeaderFormatter) //nolint:errcheck
-	seelog.RegisterCustomFormatter("ShortFilePath", parseShortFilePath)               //nolint:errcheck
-	seelog.RegisterCustomFormatter("ExtraJSONContext", createExtraJSONContext)        //nolint:errcheck
-	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)        //nolint:errcheck
-	seelog.RegisterReceiver("syslog", &SyslogReceiver{})                              //nolint:errcheck
+	_ = seelog.RegisterCustomFormatter("CustomSyslogHeader", createSyslogHeaderFormatter)
+	_ = seelog.RegisterCustomFormatter("ShortFilePath", parseShortFilePath)
+	_ = seelog.RegisterCustomFormatter("ExtraJSONContext", createExtraJSONContext)
+	_ = seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
+	seelog.RegisterReceiver("syslog", &SyslogReceiver{})
 }

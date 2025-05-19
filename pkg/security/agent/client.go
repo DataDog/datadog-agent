@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"runtime"
 	"time"
 
@@ -35,7 +34,7 @@ type SecurityModuleClientWrapper interface {
 	DumpProcessCache(withArgs bool, format string) (string, error)
 	GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error)
 	ListActivityDumps() (*api.ActivityDumpListMessage, error)
-	StopActivityDump(name, containerid string) (*api.ActivityDumpStopMessage, error)
+	StopActivityDump(name, container, cgroup string) (*api.ActivityDumpStopMessage, error)
 	GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error)
 	DumpNetworkNamespace(snapshotInterfaces bool) (*api.DumpNetworkNamespaceMessage, error)
 	GetConfig() (*api.SecurityConfigMessage, error)
@@ -81,10 +80,11 @@ func (c *RuntimeSecurityClient) GenerateActivityDump(request *api.ActivityDumpPa
 }
 
 // StopActivityDump stops an active dump if it exists
-func (c *RuntimeSecurityClient) StopActivityDump(name, containerid string) (*api.ActivityDumpStopMessage, error) {
+func (c *RuntimeSecurityClient) StopActivityDump(name, container, cgroup string) (*api.ActivityDumpStopMessage, error) {
 	return c.apiClient.StopActivityDump(context.Background(), &api.ActivityDumpStopParams{
 		Name:        name,
-		ContainerID: containerid,
+		ContainerID: container,
+		CGroupID:    cgroup,
 	})
 }
 
@@ -187,18 +187,19 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
 
-	family, _ := config.GetFamilyAddress(socketPath)
-	if runtime.GOOS == "windows" && family == "unix" {
-		return nil, fmt.Errorf("unix sockets are not supported on Windows")
+	family := config.GetFamilyAddress(socketPath)
+	if family == "unix" {
+		if runtime.GOOS == "windows" {
+			return nil, fmt.Errorf("unix sockets are not supported on Windows")
+		}
+
+		socketPath = fmt.Sprintf("unix://%s", socketPath)
 	}
 
-	conn, err := grpc.Dial( //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
+	conn, err := grpc.NewClient(
 		socketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
-		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
-			return net.Dial(family, url)
-		}),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
 				BaseDelay: time.Second,

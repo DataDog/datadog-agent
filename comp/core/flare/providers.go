@@ -44,15 +44,16 @@ func (f *flare) collectLogsFiles(fb types.FlareBuilder) error {
 	}
 
 	f.log.Flush()
-	fb.CopyDirToWithoutScrubbing(filepath.Dir(logFile), "logs", shouldIncludeFunc)          //nolint:errcheck
-	fb.CopyDirToWithoutScrubbing(filepath.Dir(jmxLogFile), "logs", shouldIncludeFunc)       //nolint:errcheck
-	fb.CopyDirToWithoutScrubbing(filepath.Dir(dogstatsdLogFile), "logs", shouldIncludeFunc) //nolint:errcheck
+	fb.CopyDirToWithoutScrubbing(filepath.Dir(logFile), "logs", shouldIncludeFunc)                         //nolint:errcheck
+	fb.CopyDirToWithoutScrubbing(filepath.Dir(jmxLogFile), "logs", shouldIncludeFunc)                      //nolint:errcheck
+	fb.CopyDirToWithoutScrubbing(filepath.Dir(dogstatsdLogFile), "logs/dogstatsd_info", shouldIncludeFunc) //nolint:errcheck
 	return nil
 }
 
 func (f *flare) collectConfigFiles(fb types.FlareBuilder) error {
 	confSearchPaths := map[string]string{
 		"":        f.config.GetString("confd_path"),
+		"fleet":   filepath.Join(f.config.GetString("fleet_policies_dir"), "conf.d"),
 		"dist":    filepath.Join(f.params.distPath, "conf.d"),
 		"checksd": f.params.pythonChecksPath,
 	}

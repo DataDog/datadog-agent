@@ -32,7 +32,7 @@ var (
 
 func client() *http.Client {
 	clientInitOnce.Do(func() {
-		httpClient = apiutil.GetClient(false)
+		httpClient = apiutil.GetClient()
 	})
 
 	return httpClient
@@ -95,7 +95,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 	port := s.Config.GetInt("apm_config.debug.port")
 
 	c := client()
-	url := fmt.Sprintf("http://localhost:%d/debug/vars", port)
+	url := fmt.Sprintf("https://localhost:%d/debug/vars", port)
 	resp, err := apiutil.DoGet(c, url, apiutil.CloseConnection)
 	if err != nil {
 		return map[string]interface{}{

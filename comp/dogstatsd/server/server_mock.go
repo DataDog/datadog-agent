@@ -16,6 +16,7 @@ import (
 
 type serverMock struct {
 	isRunning bool
+	blocklist []string
 }
 
 // MockProvides is the mock component output
@@ -54,14 +55,13 @@ func (s *serverMock) Capture(_ string, _ time.Duration, _ bool) (string, error) 
 	return "", nil
 }
 
-// UdsListenerRunning is a mocked function that returns false
-func (s *serverMock) UdsListenerRunning() bool {
-	return false
-}
-
 // UDPLocalAddr is a mocked function but UDP isn't enabled on the mock
 func (s *serverMock) UDPLocalAddr() string {
 	return ""
+}
+
+func (s *serverMock) SetBlocklist(v []string, _ bool) {
+	s.blocklist = v
 }
 
 // ServerlessFlush is a noop mocked function

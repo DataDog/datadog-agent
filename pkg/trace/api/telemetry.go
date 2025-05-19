@@ -123,7 +123,6 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 		statsd:              statsd,
 		logger:              log.NewThrottled(5, 10*time.Second),
 	}
-	forwarder.start()
 	return forwarder
 }
 

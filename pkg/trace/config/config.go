@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -37,6 +38,9 @@ type Endpoint struct {
 	// NoProxy will be set to true when the proxy setting for the trace API endpoint
 	// needs to be ignored (e.g. it is part of the "no_proxy" list in the yaml settings).
 	NoProxy bool
+
+	// IsMRF determines whether this is a Multi-Region Failover endpoint.
+	IsMRF bool `mapstructure:"-" json:"-"`
 }
 
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
@@ -77,6 +81,17 @@ type OTLP struct {
 
 	// AttributesTranslator specifies an OTLP to Datadog attributes translator.
 	AttributesTranslator *attributes.Translator `mapstructure:"-"`
+
+	// IgnoreMissingDatadogFields specifies whether we should recompute DD span fields if the corresponding "datadog."
+	// namespaced span attributes are missing. If it is false (default), we will use the incoming "datadog." namespaced
+	// OTLP span attributes to construct the DD span, and if they are missing, we will recompute them from the other
+	// OTLP semantic convention attributes. If it is true, we will only populate a field if its associated "datadog."
+	// OTLP span attribute exists, otherwise we will leave it empty.
+	IgnoreMissingDatadogFields bool `mapstructure:"ignore_missing_datadog_fields"`
+
+	// GrpcMaxRecvMsgSizeMib specifies the max receive message size (in Mib) in OTLP receiver gRPC server in the trace agent binary.
+	// This config only applies to Agent OTLP ingestion. It does not apply to OSS Datadog exporter/connector or DDOT.
+	GrpcMaxRecvMsgSizeMib int `mapstructure:"-"`
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
@@ -109,6 +124,10 @@ type ObfuscationConfig struct {
 	// for spans of type "redis".
 	Redis obfuscate.RedisConfig `mapstructure:"redis"`
 
+	// Valkey holds the configuration for obfuscating the "valkey.raw_command" tag
+	// for spans of type "valkey".
+	Valkey obfuscate.ValkeyConfig `mapstructure:"valkey"`
+
 	// Memcached holds the configuration for obfuscating the "memcached.command" tag
 	// for spans of type "memcached".
 	Memcached obfuscate.MemcachedConfig `mapstructure:"memcached"`
@@ -120,8 +139,15 @@ type ObfuscationConfig struct {
 	Cache obfuscate.CacheConfig `mapstructure:"cache"`
 }
 
-func obfuscationMode(enabled bool) obfuscate.ObfuscationMode {
-	if enabled {
+func obfuscationMode(conf *AgentConfig, sqllexerEnabled bool) obfuscate.ObfuscationMode {
+	if conf.SQLObfuscationMode != "" {
+		if conf.SQLObfuscationMode == string(obfuscate.ObfuscateOnly) || conf.SQLObfuscationMode == string(obfuscate.ObfuscateAndNormalize) {
+			return obfuscate.ObfuscationMode(conf.SQLObfuscationMode)
+		}
+		log.Warnf("Invalid SQL obfuscator mode %s, falling back to default", conf.SQLObfuscationMode)
+		return ""
+	}
+	if sqllexerEnabled {
 		return obfuscate.ObfuscateOnly
 	}
 	return ""
@@ -135,7 +161,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			ReplaceDigits:    conf.HasFeature("quantize_sql_tables") || conf.HasFeature("replace_sql_digits"),
 			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
 			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
-			ObfuscationMode:  obfuscationMode(conf.HasFeature("sqllexer")),
+			ObfuscationMode:  obfuscationMode(conf, conf.HasFeature("sqllexer")),
 		},
 		ES:                   o.ES,
 		OpenSearch:           o.OpenSearch,
@@ -144,6 +170,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 		SQLExecPlanNormalize: o.SQLExecPlanNormalize,
 		HTTP:                 o.HTTP,
 		Redis:                o.Redis,
+		Valkey:               o.Valkey,
 		Memcached:            o.Memcached,
 		CreditCard:           o.CreditCards,
 		Logger:               new(debugLogger),
@@ -237,6 +264,20 @@ type EVPProxy struct {
 	MaxPayloadSize int64
 	// ReceiverTimeout indicates the maximum time an EVPProxy request can take. Value in seconds.
 	ReceiverTimeout int
+}
+
+// OpenLineageProxy contains the settings for the OpenLineageProxy proxy.
+type OpenLineageProxy struct {
+	// Enabled reports whether OpenLineageProxy is enabled (true by default).
+	Enabled bool
+	// DDURL is the Datadog site to forward payloads to (defaults to the Site setting if not set).
+	DDURL string
+	// APIKey is the main API Key (defaults to the main API key).
+	APIKey string `json:"-"` // Never marshal this field
+	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
+	AdditionalEndpoints map[string][]string
+	// APIVersion indicates what version the OpenLineageProxy uses for the DO-intake API.
+	APIVersion int
 }
 
 // InstallSignatureConfig contains the information on how the agent was installed
@@ -355,6 +396,8 @@ type AgentConfig struct {
 	MaxSenderRetries int
 	// HTTP client used in writer connections. If nil, default client values will be used.
 	HTTPClientFunc func() *http.Client `json:"-"`
+	// HTTP Transport used in writer connections. If nil, default transport values will be used.
+	HTTPTransportFunc func() *http.Transport `json:"-"`
 
 	// internal telemetry
 	StatsdEnabled  bool
@@ -395,6 +438,9 @@ type AgentConfig struct {
 	// Obfuscation holds sensitive data obufscator's configuration.
 	Obfuscation *ObfuscationConfig
 
+	// SQLObfuscationMode holds obfuscator mode.
+	SQLObfuscationMode string
+
 	// MaxResourceLen the maximum length the resource can have
 	MaxResourceLen int
 
@@ -422,6 +468,9 @@ type AgentConfig struct {
 	// EVPProxy contains the settings for the EVPProxy proxy.
 	EVPProxy EVPProxy
 
+	// OpenLineageProxy contains the settings for the OpenLineageProxy proxy;
+	OpenLineageProxy OpenLineageProxy
+
 	// DebuggerProxy contains the settings for the Live Debugger proxy.
 	DebuggerProxy DebuggerProxyConfig
 
@@ -445,6 +494,9 @@ type AgentConfig struct {
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
 
+	// ContainerIDFromOriginInfo ...
+	ContainerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error) `json:"-"`
+
 	// ContainerProcRoot is the root dir for `proc` info
 	ContainerProcRoot string
 
@@ -464,6 +516,10 @@ type AgentConfig struct {
 	// GetAgentAuthToken retrieves an auth token to communicate with other agent processes
 	// Function will be nil if in an environment without an auth token
 	GetAgentAuthToken func() string `json:"-"`
+
+	// IsMRFEnabled determines whether Multi-Region Failover is enabled. It is based on the core config's
+	// `multi_region_failover.enabled` and `multi_region_failover.failover_apm` settings.
+	IsMRFEnabled func() bool `json:"-"`
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -538,19 +594,25 @@ func New() *AgentConfig {
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
 		Obfuscation:                 &ObfuscationConfig{},
+		SQLObfuscationMode:          "",
 		MaxResourceLen:              5000,
 
 		GlobalTags: computeGlobalTags(),
 
-		Proxy:         http.ProxyFromEnvironment,
-		OTLPReceiver:  &OTLP{},
-		ContainerTags: noopContainerTagsFunc,
+		Proxy:                     http.ProxyFromEnvironment,
+		OTLPReceiver:              &OTLP{},
+		ContainerTags:             noopContainerTagsFunc,
+		ContainerIDFromOriginInfo: NoopContainerIDFromOriginInfoFunc,
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
 		EVPProxy: EVPProxy{
 			Enabled:        true,
 			MaxPayloadSize: 5 * 1024 * 1024,
+		},
+		OpenLineageProxy: OpenLineageProxy{
+			Enabled:    true,
+			APIVersion: 2,
 		},
 
 		Features:               make(map[string]struct{}),
@@ -571,6 +633,14 @@ var ErrContainerTagsFuncNotDefined = errors.New("containerTags function not defi
 
 func noopContainerTagsFunc(_ string) ([]string, error) {
 	return nil, ErrContainerTagsFuncNotDefined
+}
+
+// ErrContainerIDFromOriginInfoFuncNotDefined is returned when the ContainerIDFromOriginInfo function is not defined.
+var ErrContainerIDFromOriginInfoFuncNotDefined = errors.New("ContainerIDFromOriginInfo function not defined")
+
+// NoopContainerIDFromOriginInfoFunc is used when the ContainerIDFromOriginInfo function is not defined.
+func NoopContainerIDFromOriginInfoFunc(_ origindetection.OriginInfo) (string, error) {
+	return "", ErrContainerIDFromOriginInfoFuncNotDefined
 }
 
 // APIKey returns the first (main) endpoint's API key.
@@ -607,6 +677,9 @@ func (c *AgentConfig) NewHTTPClient() *ResetClient {
 // NewHTTPTransport returns a new http.Transport to be used for outgoing connections to
 // the Datadog API.
 func (c *AgentConfig) NewHTTPTransport() *http.Transport {
+	if c.HTTPTransportFunc != nil {
+		return c.HTTPTransportFunc()
+	}
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.SkipSSLValidation},
 		// below field values are from http.DefaultTransport (go1.12)

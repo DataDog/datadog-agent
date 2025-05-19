@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 	"math"
 	"net"
 	"net/http"
@@ -17,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
@@ -26,10 +27,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
+	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -37,6 +37,9 @@ import (
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 )
 
 // keyStatsComputed specifies the resource attribute key which indicates if stats have been
@@ -49,19 +52,19 @@ var _ (ptraceotlp.GRPCServer) = (*OTLPReceiver)(nil)
 // data on two ports for both plain HTTP and gRPC.
 type OTLPReceiver struct {
 	ptraceotlp.UnimplementedGRPCServer
-	wg             sync.WaitGroup      // waits for a graceful shutdown
-	grpcsrv        *grpc.Server        // the running GRPC server on a started receiver, if enabled
-	out            chan<- *Payload     // the outgoing payload channel
-	conf           *config.AgentConfig // receiver config
-	cidProvider    IDProvider          // container ID provider
-	statsd         statsd.ClientInterface
-	timing         timing.Reporter
-	ignoreResNames map[string]struct{}
+	wg                 sync.WaitGroup      // waits for a graceful shutdown
+	grpcsrv            *grpc.Server        // the running GRPC server on a started receiver, if enabled
+	out                chan<- *Payload     // the outgoing payload channel
+	conf               *config.AgentConfig // receiver config
+	cidProvider        IDProvider          // container ID provider
+	statsd             statsd.ClientInterface
+	timing             timing.Reporter
+	grpcMaxRecvMsgSize int
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
-	operationAndResourceNamesV2GateEnabled := cfg.HasFeature("enable_operation_and_resource_name_logic_v2")
+	operationAndResourceNamesV2GateEnabled := !cfg.HasFeature("disable_operation_and_resource_name_logic_v2")
 	operationAndResourceNamesV2GateEnabledVal := 0.0
 	if operationAndResourceNamesV2GateEnabled {
 		operationAndResourceNamesV2GateEnabledVal = 1.0
@@ -70,21 +73,13 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 
 	spanNameAsResourceNameEnabledVal := 0.0
 	if cfg.OTLPReceiver.SpanNameAsResourceName {
-		if operationAndResourceNamesV2GateEnabled {
-			log.Warnf("Detected SpanNameAsResourceName in config - this feature will be deprecated in a future version, and overrides feature gate \"enable_operation_and_resource_name_logic_v2\". Please remove it and set \"operation.name\" attribute on your spans instead.")
-		} else {
-			log.Warnf("Detected SpanNameAsResourceName in config - this feature will be deprecated in a future version. Please remove it, enable feature gate \"enable_operation_and_resource_name_logic_v2\", and set \"operation.name\" attribute on your spans instead.")
-		}
+		log.Warnf("Detected SpanNameAsResourceName in config - this feature will be deprecated in a future version. Please remove it and set \"operation.name\" attribute on your spans instead. See the migration guide at https://docs.datadoghq.com/opentelemetry/guide/migrate/migrate_operation_names/")
 		spanNameAsResourceNameEnabledVal = 1.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.span_name_as_resource_name_enabled", spanNameAsResourceNameEnabledVal, nil, 1)
 	spanNameRemappingsEnabledVal := 0.0
 	if len(cfg.OTLPReceiver.SpanNameRemappings) > 0 {
-		if operationAndResourceNamesV2GateEnabled {
-			log.Warnf("Detected SpanNameRemappings in config - this feature will be deprecated in a future version. Please remove it to access functionality from feature gate \"enable_operation_and_resource_name_logic_v2\".")
-		} else {
-			log.Warnf("Detected SpanNameRemappings in config - this feature will be deprecated in a future version. Please remove it and enable feature gate \"enable_operation_and_resource_name_logic_v2\"")
-		}
+		log.Warnf("Detected SpanNameRemappings in config - this feature will be deprecated in a future version. Please remove it to access new operation name functionality. See the migration guide at https://docs.datadoghq.com/opentelemetry/guide/migrate/migrate_operation_names/")
 		spanNameRemappingsEnabledVal = 1.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.span_name_remappings_enabled", spanNameRemappingsEnabledVal, nil, 1)
@@ -92,17 +87,17 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 	if cfg.HasFeature("enable_otlp_compute_top_level_by_span_kind") {
 		computeTopLevelBySpanKindVal = 1.0
 	}
-	ignoreResNames := make(map[string]struct{})
-	for _, resName := range cfg.Ignore["resource"] {
-		ignoreResNames[resName] = struct{}{}
-	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.compute_top_level_by_span_kind", computeTopLevelBySpanKindVal, nil, 1)
-	enableReceiveResourceSpansV2Val := 0.0
-	if cfg.HasFeature("enable_receive_resource_spans_v2") {
-		enableReceiveResourceSpansV2Val = 1.0
+	enableReceiveResourceSpansV2Val := 1.0
+	if cfg.HasFeature("disable_receive_resource_spans_v2") {
+		enableReceiveResourceSpansV2Val = 0.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.enable_receive_resource_spans_v2", enableReceiveResourceSpansV2Val, nil, 1)
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot), statsd: statsd, timing: timing, ignoreResNames: ignoreResNames}
+	grpcMaxRecvMsgSize := 10 * 1024 * 1024
+	if cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib > 0 {
+		grpcMaxRecvMsgSize = cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib * 1024 * 1024
+	}
+	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo), statsd: statsd, timing: timing, grpcMaxRecvMsgSize: grpcMaxRecvMsgSize}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -114,7 +109,7 @@ func (o *OTLPReceiver) Start() {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {
 			o.grpcsrv = grpc.NewServer(
-				grpc.MaxRecvMsgSize(10*1024*1024),
+				grpc.MaxRecvMsgSize(o.grpcMaxRecvMsgSize),
 				grpc.MaxConcurrentStreams(1), // Each payload must be sent to processing stage before we decode the next.
 			)
 			ptraceotlp.RegisterGRPCServer(o.grpcsrv, o)
@@ -181,7 +176,7 @@ func fastHeaderGet(h http.Header, canonicalKey string) string {
 func (o *OTLPReceiver) processRequest(ctx context.Context, header http.Header, in ptraceotlp.ExportRequest) {
 	for i := 0; i < in.Traces().ResourceSpans().Len(); i++ {
 		rspans := in.Traces().ResourceSpans().At(i)
-		o.ReceiveResourceSpans(ctx, rspans, header)
+		o.ReceiveResourceSpans(ctx, rspans, header, nil)
 	}
 }
 
@@ -224,14 +219,14 @@ func (o *OTLPReceiver) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 }
 
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
-func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
-	if o.conf.HasFeature("enable_receive_resource_spans_v2") {
-		return o.receiveResourceSpansV2(ctx, rspans, httpHeader.Get(header.ComputedStats) != "")
+func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
+	if o.conf.HasFeature("disable_receive_resource_spans_v2") {
+		return o.receiveResourceSpansV1(ctx, rspans, httpHeader, hostFromAttributesHandler)
 	}
-	return o.receiveResourceSpansV1(ctx, rspans, httpHeader)
+	return o.receiveResourceSpansV2(ctx, rspans, isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)), hostFromAttributesHandler)
 }
 
-func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool) source.Source {
+func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
 	otelres := rspans.Resource()
 	resourceAttributes := otelres.Attributes()
 
@@ -242,22 +237,12 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		libspans := rspans.ScopeSpans().At(i)
 		for j := 0; j < libspans.Spans().Len(); j++ {
 			otelspan := libspans.Spans().At(j)
-			var resourceName string
-			if transform.OperationAndResourceNameV2Enabled(o.conf) {
-				resourceName = traceutil.GetOTelResourceV2(otelspan, otelres)
-			} else {
-				resourceName = traceutil.GetOTelResourceV1(otelspan, otelres)
-			}
-			if _, exists := o.ignoreResNames[resourceName]; exists {
-				continue
-			}
-
 			spancount++
 			traceID := traceutil.OTelTraceIDToUint64(otelspan.TraceID())
 			if tracesByID[traceID] == nil {
 				tracesByID[traceID] = pb.Trace{}
 			}
-			ddspan := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), o.conf, nil)
+			ddspan := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), o.conf)
 
 			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
 				priorityByID[traceID] = sampler.SamplingPriority(p)
@@ -286,7 +271,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	}
 	// Get the hostname or set to empty if source is empty
 	var hostname string
-	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), traceutil.SignalTypeSet)
+	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), traceutil.SignalTypeSet, hostFromAttributesHandler)
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
@@ -300,10 +285,23 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		hostname = o.conf.Hostname
 		src = source.Source{Kind: source.HostnameKind, Identifier: hostname}
 	}
-	containerID := traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
+	if o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
+		hostname = ""
+	}
+	if incomingHostname := traceutil.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogHost); incomingHostname != "" {
+		hostname = incomingHostname
+	}
+
+	containerID := traceutil.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogContainerID)
+	if containerID == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
+		containerID = traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
+	}
 
 	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
-	env := traceutil.GetOTelAttrVal(resourceAttributes, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
+	env := traceutil.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogEnvironment)
+	if env == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
+		env = traceutil.GetOTelAttrVal(resourceAttributes, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
+	}
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:      hostname,
 		Chunks:        o.createChunks(tracesByID, priorityByID),
@@ -312,22 +310,30 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		LanguageName:  tagstats.Lang,
 		TracerVersion: tagstats.TracerVersion,
 	}
-	ctags := attributes.ContainerTagsFromResourceAttributes(resourceAttributes)
-	payloadTags := flatten(ctags)
 
-	// Ppoulate container tags by calling ContainerTags tagger from configuration
-	if tags := getContainerTags(o.conf.ContainerTags, containerID); tags != "" {
-		appendTags(payloadTags, tags)
-	} else {
-		// we couldn't obtain any container tags
-		if src.Kind == source.AWSECSFargateKind {
-			// but we have some information from the source provider that we can add
-			appendTags(payloadTags, src.Tag())
+	var flattenedTags string
+	if incomingContainerTags := traceutil.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogContainerTags); incomingContainerTags != "" {
+		flattenedTags = incomingContainerTags
+	} else if !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
+		ctags := attributes.ContainerTagsFromResourceAttributes(resourceAttributes)
+		payloadTags := flatten(ctags)
+
+		// Populate container tags by calling ContainerTags tagger from configuration
+		if tags := getContainerTags(o.conf.ContainerTags, containerID); tags != "" {
+			appendTags(payloadTags, tags)
+		} else {
+			// we couldn't obtain any container tags
+			if src.Kind == source.AWSECSFargateKind {
+				// but we have some information from the source provider that we can add
+				appendTags(payloadTags, src.Tag())
+			}
 		}
+		flattenedTags = payloadTags.String()
 	}
-	if payloadTags.Len() > 0 {
+
+	if len(flattenedTags) > 0 {
 		p.TracerPayload.Tags = map[string]string{
-			tagContainersTags: payloadTags.String(),
+			tagContainersTags: flattenedTags,
 		}
 	}
 
@@ -335,10 +341,10 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	return src
 }
 
-func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
+func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
-	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), traceutil.SignalTypeSet)
+	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), traceutil.SignalTypeSet, hostFromAttributesHandler)
 	hostFromMap := func(m map[string]string, key string) {
 		// hostFromMap sets the hostname to m[key] if it is set.
 		if v, ok := m[key]; ok {
@@ -417,8 +423,8 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	_ = o.statsd.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	p := Payload{
 		Source:                 tagstats,
-		ClientComputedStats:    rattr[keyStatsComputed] != "" || httpHeader.Get(header.ComputedStats) != "",
-		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind") || httpHeader.Get(header.ComputedTopLevel) != "",
+		ClientComputedStats:    rattr[keyStatsComputed] != "" || isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)),
+		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind") || isHeaderTrue(header.ComputedTopLevel, httpHeader.Get(header.ComputedTopLevel)),
 	}
 	if env == "" {
 		env = o.conf.DefaultEnv
@@ -442,7 +448,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:        hostname,
 		Chunks:          o.createChunks(tracesByID, priorityByID),
-		Env:             traceutil.NormalizeTag(env),
+		Env:             normalize.NormalizeTagValue(env),
 		ContainerID:     containerID,
 		LanguageName:    tagstats.Lang,
 		LanguageVersion: tagstats.LangVersion,
@@ -503,15 +509,31 @@ func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesBy
 			Tags:  map[string]string{"_dd.otlp_sr": rate},
 			Spans: spans,
 		}
+		if o.conf.ProbabilisticSamplerEnabled {
+			// SamplingPriority is not related to the decision of ProbabilisticSampler and ErrorsSampler.
+			chunk.Priority = int32(sampler.PriorityNone)
+			// Skip making a sampling decision at this point.
+			// Either ProbabilisticSampler enabled by this config or ErrorsSampler will decide.
+			traceChunks = append(traceChunks, chunk)
+			continue
+		}
+		var samplingPriorty sampler.SamplingPriority
+		var decisionMaker string
 		if p, ok := prioritiesByID[k]; ok {
 			// a manual decision has been made by the user
-			chunk.Priority = int32(p)
-			traceutil.SetMeta(spans[0], "_dd.p.dm", "-4")
+			samplingPriorty = p
+			decisionMaker = "-4"
 		} else {
 			// we use the probabilistic sampler to decide
-			chunk.Priority = int32(o.sample(k))
-			traceutil.SetMeta(spans[0], "_dd.p.dm", "-9")
+			samplingPriorty = o.sample(k)
+			decisionMaker = "-9"
 		}
+		// `_dd.p.dm` must not be set even if a drop decision is applied to the trace here.
+		// Traces with a drop decision by the OTLPReceiver’s probabilistic sampler are re-evaluated by ErrorsSampler later.
+		if samplingPriorty.IsKeep() {
+			traceutil.SetMeta(spans[0], "_dd.p.dm", decisionMaker)
+		}
+		chunk.Priority = int32(samplingPriorty)
 		traceChunks = append(traceChunks, chunk)
 	}
 	return traceChunks
@@ -600,7 +622,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	if _, ok := span.Meta["env"]; !ok {
 		// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
 		if _, env := transform.GetFirstFromMap(span.Meta, "deployment.environment.name", semconv.AttributeDeploymentEnvironment); env != "" {
-			transform.SetMetaOTLP(span, "env", traceutil.NormalizeTag(env))
+			transform.SetMetaOTLP(span, "env", normalize.NormalizeTag(env))
 		}
 	}
 	if in.TraceState().AsRaw() != "" {
@@ -616,7 +638,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	if msg := in.Status().Message(); msg != "" {
 		transform.SetMetaOTLP(span, semconv.OtelStatusDescription, msg)
 	}
-	transform.Status2Error(in.Status(), in.Events(), span)
+	span.Error = transform.Status2Error(in.Status(), in.Events(), span.Meta)
 	if transform.OperationAndResourceNameV2Enabled(o.conf) {
 		span.Name = traceutil.GetOTelOperationNameV2(in)
 	} else {
@@ -639,12 +661,12 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	if span.Service == "" {
 		span.Service = "OTLPResourceNoServiceName"
 	}
+	res := pcommon.NewResource()
+	for k, v := range rattr {
+		res.Attributes().PutStr(k, v)
+	}
 	if span.Resource == "" {
 		if transform.OperationAndResourceNameV2Enabled(o.conf) {
-			res := pcommon.NewResource()
-			for k, v := range rattr {
-				res.Attributes().PutStr(k, v)
-			}
 			span.Resource = traceutil.GetOTelResourceV2(in, res)
 		} else {
 			if r := resourceFromTags(span.Meta); r != "" {
@@ -655,7 +677,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		}
 	}
 	if span.Type == "" {
-		span.Type = spanKind2Type(in.Kind(), span)
+		span.Type = traceutil.SpanKind2Type(in, res)
 	}
 	return span
 }
@@ -684,32 +706,15 @@ func resourceFromTags(meta map[string]string) string {
 			return m + " " + svc
 		}
 		return m
+	} else if typ := meta[semconv117.AttributeGraphqlOperationType]; typ != "" {
+		// Enrich GraphQL query resource names.
+		// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
+		if name := meta[semconv117.AttributeGraphqlOperationName]; name != "" {
+			return typ + " " + name
+		}
+		return typ
 	}
 	return ""
-}
-
-// spanKind2Type returns a span's type based on the given kind and other present properties.
-func spanKind2Type(kind ptrace.SpanKind, span *pb.Span) string {
-	var typ string
-	switch kind {
-	case ptrace.SpanKindServer:
-		typ = "web"
-	case ptrace.SpanKindClient:
-		typ = "http"
-		db, ok := span.Meta[string(semconv.AttributeDBSystem)]
-		if !ok {
-			break
-		}
-		switch db {
-		case "redis", "memcached":
-			typ = "cache"
-		default:
-			typ = "db"
-		}
-	default:
-		typ = "custom"
-	}
-	return typ
 }
 
 // computeTopLevelAndMeasured updates the span's top-level and measured attributes.

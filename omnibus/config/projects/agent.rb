@@ -26,7 +26,10 @@ if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
 else
   COMPRESSION_THREADS = 1
 end
-if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
+
+# We want an higher compression level on deploy pipelines that are not nightly.
+# Nightly pipelines will be used as main reference for static quality gates and need the same compression level as main.
+if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && ENV.has_key?("BUCKET_BRANCH") && ENV['BUCKET_BRANCH'] != "nightly"
   COMPRESSION_LEVEL = 9
 else
   COMPRESSION_LEVEL = 5
@@ -104,12 +107,14 @@ end
 do_build = false
 do_package = false
 
-if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
-  dependency "package-artifact"
+if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"] or do_repackage?
   do_package = true
   skip_healthcheck true
 else
   do_build = true
+  if ENV["OMNIBUS_FORCE_PACKAGES"]
+    do_package = true
+  end
 end
 
 # For now we build and package in the same stage for heroku
@@ -221,20 +226,12 @@ end
 # ------------------------------------
 
 if do_build
-  # Include traps db file in snmp.d/traps_db/
-  dependency 'snmp-traps'
-
   # Datadog agent
   dependency 'datadog-agent'
 
   # This depends on the agent and must be added after it
   if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
     dependency 'datadog-security-agent-policies'
-  end
-
-  # System-probe
-  if sysprobe_enabled?
-    dependency 'system-probe'
   end
 
   if osx_target?
@@ -260,9 +257,23 @@ if do_build
     dependency "init-scripts-agent"
   end
 elsif do_package
-  dependency "package-artifact"
+  if do_repackage?
+    dependency "existing-agent-package"
+    dependency "datadog-agent"
+  else
+    dependency "package-artifact"
+  end
   dependency "init-scripts-agent"
 end
+
+# version manifest is based on the built softwares.
+# When packaging, we only build 2, which causes very incomplete manifests
+# to be generated. However, we build correct ones during the build stage, which
+# gets extracted in the correct location in the "package-artifacts" recipe.
+# By disabling manifest generation during packaging jobs, we ensure the manifest we
+# will package is the correct one
+disable_version_manifest do_package
+
 
 if linux_target?
   extra_package_file "#{output_config_dir}/etc/datadog-agent/"
@@ -336,8 +347,29 @@ if windows_target?
     windows_symbol_stripping_file bin
   end
 
-  if ENV['SIGN_WINDOWS_DD_WCS']
-    BINARIES_TO_SIGN = GO_BINARIES + [
+  # We need to strip the debug symbols from the rtloader files
+  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
+
+  if windows_signing_enabled?
+    # Sign additional binaries from here.
+    # We can't request signing from the respective components/software definitions
+    # for now since the binaries may be restored from cache, which would
+    # shortcut the associated build directives, which would not schedule the files
+    # for signing.
+    PYTHON_BINARIES = [
+      "#{python_3_embedded}\\python.exe",
+      "#{python_3_embedded}\\pythonw.exe",
+      "#{python_3_embedded}\\python3.dll",
+      "#{python_3_embedded}\\python312.dll",
+    ]
+    OPENSSL_BINARIES = [
+      "#{python_3_embedded}\\DLLs\\libcrypto-3-x64.dll",
+      "#{python_3_embedded}\\DLLs\\libssl-3-x64.dll",
+      "#{python_3_embedded}\\bin\\openssl.exe",
+      fips_mode? ? "#{python_3_embedded}\\lib\\ossl-modules\\fips.dll" : nil,
+    ].compact
+
+    BINARIES_TO_SIGN = GO_BINARIES + PYTHON_BINARIES + OPENSSL_BINARIES + [
       "#{install_dir}\\bin\\agent\\ddtray.exe",
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
     ]

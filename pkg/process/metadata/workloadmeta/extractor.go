@@ -7,6 +7,7 @@
 package workloadmeta
 
 import (
+	"maps"
 	"runtime"
 	"strconv"
 	"sync"
@@ -218,9 +219,7 @@ func (w *WorkloadMetaExtractor) GetAllProcessEntities() (map[string]*ProcessEnti
 
 	// Store pointers in map to avoid duplicating ProcessEntity data
 	snapshot := make(map[string]*ProcessEntity)
-	for id, proc := range w.cache {
-		snapshot[id] = proc
-	}
+	maps.Copy(snapshot, w.cache)
 
 	return snapshot, w.cacheVersion
 }

@@ -9,14 +9,13 @@ package config
 import (
 	"fmt"
 	"os"
-	"runtime"
 	"strings"
 	"time"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -98,14 +97,14 @@ type Config struct {
 	// EventStreamUseFentry specifies whether to use eBPF fentry when available instead of kprobes
 	EventStreamUseFentry bool
 
+	// EventStreamUseKprobeFallback specifies whether to use fentry fallback can be used
+	EventStreamUseKprobeFallback bool
+
+	// EventStreamKretprobeMaxActive specifies the maximum number of active kretprobe at a given time
+	EventStreamKretprobeMaxActive int
+
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
-
-	// EnableRuntimeCompiledConstants defines if the runtime compilation based constant fetcher is enabled
-	RuntimeCompiledConstantsEnabled bool
-
-	// RuntimeCompiledConstantsIsSet is set if the runtime compiled constants option is user-set
-	RuntimeCompiledConstantsIsSet bool
 
 	// NetworkLazyInterfacePrefixes is the list of interfaces prefix that aren't explicitly deleted by the container
 	// runtime, and that are lazily deleted by the kernel when a network namespace is cleaned up. This list helps the
@@ -120,6 +119,15 @@ type Config struct {
 
 	// RawNetworkClassifierHandle defines the handle at which CWS should insert its Raw TC classifiers.
 	RawNetworkClassifierHandle uint16
+
+	// NetworkFlowMonitorEnabled defines if the network flow monitor should be enabled.
+	NetworkFlowMonitorEnabled bool
+
+	// NetworkFlowMonitorPeriod defines the period at which collected flows should flushed to user space.
+	NetworkFlowMonitorPeriod time.Duration
+
+	// NetworkFlowMonitorSKStorageEnabled defines if the network flow monitor should use a SK_STORAGE map (higher memory footprint).
+	NetworkFlowMonitorSKStorageEnabled bool
 
 	// ProcessConsumerEnabled defines if the process-agent wants to receive kernel events
 	ProcessConsumerEnabled bool
@@ -136,6 +144,9 @@ type Config struct {
 	// NetworkRawPacketEnabled defines if the network raw packet is enabled
 	NetworkRawPacketEnabled bool
 
+	// NetworkRawPacketLimiterRate defines the rate at which raw packets should be sent to user space
+	NetworkRawPacketLimiterRate int
+
 	// NetworkPrivateIPRanges defines the list of IP that should be considered private
 	NetworkPrivateIPRanges []string
 
@@ -147,6 +158,18 @@ type Config struct {
 
 	// SyscallsMonitorEnabled defines if syscalls monitoring metrics should be collected
 	SyscallsMonitorEnabled bool
+
+	// DNSResolverCacheSize is the numer of entries in the DNS resolver LRU cache
+	DNSResolverCacheSize int
+
+	// DNSResolutionEnabled resolving DNS names from IP addresses
+	DNSResolutionEnabled bool
+
+	// SpanTrackingEnabled defines if span tracking should be enabled
+	SpanTrackingEnabled bool
+
+	// SpanTrackingCacheSize is the size of the span tracking cache
+	SpanTrackingCacheSize int
 }
 
 // NewConfig returns a new Config object
@@ -156,43 +179,54 @@ func NewConfig() (*Config, error) {
 	setEnv()
 
 	c := &Config{
-		Config:                       *ebpf.NewConfig(),
-		EnableAllProbes:              getBool("enable_all_probes"),
-		EnableKernelFilters:          getBool("enable_kernel_filters"),
-		EnableApprovers:              getBool("enable_approvers"),
-		EnableDiscarders:             getBool("enable_discarders"),
-		FlushDiscarderWindow:         getInt("flush_discarder_window"),
-		PIDCacheSize:                 getInt("pid_cache_size"),
-		StatsTagsCardinality:         getString("events_stats.tags_cardinality"),
-		CustomSensitiveWords:         getStringSlice("custom_sensitive_words"),
-		ERPCDentryResolutionEnabled:  getBool("erpc_dentry_resolution_enabled"),
-		MapDentryResolutionEnabled:   getBool("map_dentry_resolution_enabled"),
-		DentryCacheSize:              getInt("dentry_cache_size"),
-		RuntimeMonitor:               getBool("runtime_monitor.enabled"),
-		NetworkLazyInterfacePrefixes: getStringSlice("network.lazy_interface_prefixes"),
-		NetworkClassifierPriority:    uint16(getInt("network.classifier_priority")),
-		NetworkClassifierHandle:      uint16(getInt("network.classifier_handle")),
-		RawNetworkClassifierHandle:   uint16(getInt("network.raw_classifier_handle")),
-		EventStreamUseRingBuffer:     getBool("event_stream.use_ring_buffer"),
-		EventStreamBufferSize:        getInt("event_stream.buffer_size"),
-		EventStreamUseFentry:         getEventStreamFentryValue(),
-		EnvsWithValue:                getStringSlice("envs_with_value"),
-		NetworkEnabled:               getBool("network.enabled"),
-		NetworkIngressEnabled:        getBool("network.ingress.enabled"),
-		NetworkRawPacketEnabled:      getBool("network.raw_packet.enabled"),
-		NetworkPrivateIPRanges:       getStringSlice("network.private_ip_ranges"),
-		NetworkExtraPrivateIPRanges:  getStringSlice("network.extra_private_ip_ranges"),
-		StatsPollingInterval:         time.Duration(getInt("events_stats.polling_interval")) * time.Second,
-		SyscallsMonitorEnabled:       getBool("syscalls_monitor.enabled"),
+		Config:                             *ebpf.NewConfig(),
+		EnableAllProbes:                    getBool("enable_all_probes"),
+		EnableKernelFilters:                getBool("enable_kernel_filters"),
+		EnableApprovers:                    getBool("enable_approvers"),
+		EnableDiscarders:                   getBool("enable_discarders"),
+		FlushDiscarderWindow:               getInt("flush_discarder_window"),
+		PIDCacheSize:                       getInt("pid_cache_size"),
+		StatsTagsCardinality:               getString("events_stats.tags_cardinality"),
+		CustomSensitiveWords:               getStringSlice("custom_sensitive_words"),
+		ERPCDentryResolutionEnabled:        getBool("erpc_dentry_resolution_enabled"),
+		MapDentryResolutionEnabled:         getBool("map_dentry_resolution_enabled"),
+		DentryCacheSize:                    getInt("dentry_cache_size"),
+		RuntimeMonitor:                     getBool("runtime_monitor.enabled"),
+		NetworkLazyInterfacePrefixes:       getStringSlice("network.lazy_interface_prefixes"),
+		NetworkClassifierPriority:          uint16(getInt("network.classifier_priority")),
+		NetworkClassifierHandle:            uint16(getInt("network.classifier_handle")),
+		RawNetworkClassifierHandle:         uint16(getInt("network.raw_classifier_handle")),
+		NetworkFlowMonitorPeriod:           getDuration("network.flow_monitor.period"),
+		NetworkFlowMonitorEnabled:          getBool("network.flow_monitor.enabled"),
+		NetworkFlowMonitorSKStorageEnabled: getBool("network.flow_monitor.sk_storage.enabled"),
+		EventStreamUseRingBuffer:           getBool("event_stream.use_ring_buffer"),
+		EventStreamBufferSize:              getInt("event_stream.buffer_size"),
+		EventStreamUseFentry:               getBool("event_stream.use_fentry"),
+		EventStreamUseKprobeFallback:       getBool("event_stream.use_kprobe_fallback"),
+		EventStreamKretprobeMaxActive:      getInt("event_stream.kretprobe_max_active"),
+
+		EnvsWithValue:               getStringSlice("envs_with_value"),
+		NetworkEnabled:              getBool("network.enabled"),
+		NetworkIngressEnabled:       getBool("network.ingress.enabled"),
+		NetworkRawPacketEnabled:     getBool("network.raw_packet.enabled"),
+		NetworkRawPacketLimiterRate: getInt("network.raw_packet.limiter_rate"),
+		NetworkPrivateIPRanges:      getStringSlice("network.private_ip_ranges"),
+		NetworkExtraPrivateIPRanges: getStringSlice("network.extra_private_ip_ranges"),
+		StatsPollingInterval:        time.Duration(getInt("events_stats.polling_interval")) * time.Second,
+		SyscallsMonitorEnabled:      getBool("syscalls_monitor.enabled"),
+		DNSResolverCacheSize:        getInt("dns_resolution.cache_size"),
+		DNSResolutionEnabled:        getBool("dns_resolution.enabled"),
 
 		// event server
 		SocketPath:       pkgconfigsetup.SystemProbe().GetString(join(evNS, "socket")),
 		EventServerBurst: pkgconfigsetup.SystemProbe().GetInt(join(evNS, "event_server.burst")),
 
 		// runtime compilation
-		RuntimeCompilationEnabled:       getBool("runtime_compilation.enabled"),
-		RuntimeCompiledConstantsEnabled: getBool("runtime_compilation.compiled_constants_enabled"),
-		RuntimeCompiledConstantsIsSet:   isSet("runtime_compilation.compiled_constants_enabled"),
+		RuntimeCompilationEnabled: getBool("runtime_compilation.enabled"),
+
+		// span tracking
+		SpanTrackingEnabled:   getBool("span_tracking.enabled"),
+		SpanTrackingCacheSize: getInt("span_tracking.cache_size"),
 	}
 
 	if err := c.sanitize(); err != nil {
@@ -225,19 +259,15 @@ func (c *Config) sanitize() error {
 		c.RuntimeCompilationEnabled = false
 	}
 
-	if !c.RuntimeCompilationEnabled {
-		c.RuntimeCompiledConstantsEnabled = false
-	}
-
 	if c.EventStreamBufferSize%os.Getpagesize() != 0 || c.EventStreamBufferSize&(c.EventStreamBufferSize-1) != 0 {
 		return fmt.Errorf("runtime_security_config.event_stream.buffer_size must be a power of 2 and a multiple of %d", os.Getpagesize())
 	}
 
-	if !isSet("enable_approvers") && c.EnableKernelFilters {
+	if !isConfigured("enable_approvers") && c.EnableKernelFilters {
 		c.EnableApprovers = true
 	}
 
-	if !isSet("enable_discarders") && c.EnableKernelFilters {
+	if !isConfigured("enable_discarders") && c.EnableKernelFilters {
 		c.EnableDiscarders = true
 	}
 
@@ -265,21 +295,6 @@ func (c *Config) sanitizeConfigNetwork() {
 	}
 }
 
-func getEventStreamFentryValue() bool {
-	if getBool("event_stream.use_fentry") {
-		return true
-	}
-
-	switch runtime.GOARCH {
-	case "amd64":
-		return getBool("event_stream.use_fentry_amd64")
-	case "arm64":
-		return getBool("event_stream.use_fentry_arm64")
-	default:
-		return false
-	}
-}
-
 func join(pieces ...string) string {
 	return strings.Join(pieces, ".")
 }
@@ -290,14 +305,14 @@ func getAllKeys(key string) (string, string) {
 	return deprecatedKey, newKey
 }
 
-func isSet(key string) bool {
+func isConfigured(key string) bool {
 	deprecatedKey, newKey := getAllKeys(key)
-	return pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) || pkgconfigsetup.SystemProbe().IsSet(newKey)
+	return pkgconfigsetup.SystemProbe().IsConfigured(deprecatedKey) || pkgconfigsetup.SystemProbe().IsConfigured(newKey)
 }
 
 func getBool(key string) bool {
 	deprecatedKey, newKey := getAllKeys(key)
-	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
+	if pkgconfigsetup.SystemProbe().IsConfigured(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
 		return pkgconfigsetup.SystemProbe().GetBool(deprecatedKey)
 	}
@@ -306,16 +321,25 @@ func getBool(key string) bool {
 
 func getInt(key string) int {
 	deprecatedKey, newKey := getAllKeys(key)
-	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
+	if pkgconfigsetup.SystemProbe().IsConfigured(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
 		return pkgconfigsetup.SystemProbe().GetInt(deprecatedKey)
 	}
 	return pkgconfigsetup.SystemProbe().GetInt(newKey)
 }
 
-func getString(key string) string {
+func getDuration(key string) time.Duration {
 	deprecatedKey, newKey := getAllKeys(key)
 	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
+		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
+		return pkgconfigsetup.SystemProbe().GetDuration(deprecatedKey)
+	}
+	return pkgconfigsetup.SystemProbe().GetDuration(newKey)
+}
+
+func getString(key string) string {
+	deprecatedKey, newKey := getAllKeys(key)
+	if pkgconfigsetup.SystemProbe().IsConfigured(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
 		return pkgconfigsetup.SystemProbe().GetString(deprecatedKey)
 	}
@@ -324,7 +348,7 @@ func getString(key string) string {
 
 func getStringSlice(key string) []string {
 	deprecatedKey, newKey := getAllKeys(key)
-	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
+	if pkgconfigsetup.SystemProbe().IsConfigured(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
 		return pkgconfigsetup.SystemProbe().GetStringSlice(deprecatedKey)
 	}

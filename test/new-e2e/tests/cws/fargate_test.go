@@ -190,7 +190,7 @@ func TestECSFargate(t *testing.T) {
 					"cws-instrumentation-init": {
 						Cpu:       pulumi.IntPtr(0),
 						Name:      pulumi.String("cws-instrumentation-init"),
-						Image:     pulumi.String(getCWSInstrumentationFullImagePath()),
+						Image:     pulumi.String(getCWSInstrumentationFullImagePath(awsEnv.CommonEnvironment)),
 						Essential: pulumi.BoolPtr(false),
 						Command: pulumi.ToStringArray([]string{
 							"/cws-instrumentation",
@@ -289,10 +289,15 @@ const (
 	agentDefaultImagePath              = "public.ecr.aws/datadog/agent:7-rc"
 )
 
-func getCWSInstrumentationFullImagePath() string {
+func getCWSInstrumentationFullImagePath(e *configCommon.CommonEnvironment) string {
 	if fullImagePath := os.Getenv("CWS_INSTRUMENTATION_FULLIMAGEPATH"); fullImagePath != "" {
 		return fullImagePath
 	}
+
+	if e.PipelineID() != "" && e.CommitSHA() != "" {
+		return fmt.Sprintf("669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:%s-%s", e.PipelineID(), e.CommitSHA())
+	}
+
 	return cwsInstrumentationDefaultImagePath
 }
 

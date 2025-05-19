@@ -12,11 +12,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/create"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 )
 
 // Struct that is used within the config
@@ -40,15 +42,102 @@ type trapsConfig struct {
 	Namespace        string   `yaml:"namespace"`
 }
 
+// newEmptyMockConf returns an empty config appropriate for running tests
+// we can't use pkg/config/mock here because that package depends upon this one, so
+// this avoids a circular dependency
+func newEmptyMockConf(_ *testing.T) model.Config {
+	cfg := create.NewConfig("test")
+	cfg.SetTestOnlyDynamicSchema(true)
+	return cfg
+}
+
 // We don't use config mock here to not create cycle dependencies (same reason why config mock are not used in
 // pkg/config/{setup/model})
 func newConfigFromYaml(t *testing.T, yaml string) model.Config {
-	conf := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legitimate use of NewConfig
-
+	conf := newEmptyMockConf(t)
 	conf.SetConfigType("yaml")
 	err := conf.ReadConfig(bytes.NewBuffer([]byte(yaml)))
 	require.NoError(t, err)
 	return conf
+}
+
+type Person struct {
+	Name string
+	Age  int
+	Tags map[string]string
+	Jobs []string
+}
+
+func TestUnmarshalBasic(t *testing.T) {
+	confYaml := `
+user:
+  name: Bob
+  age:  30
+  tags:
+    hair: black
+  jobs:
+  - plumber
+  - teacher
+`
+	mockConfig := newConfigFromYaml(t, confYaml)
+
+	var person Person
+	err := unmarshalKeyReflection(mockConfig, "user", &person)
+	assert.NoError(t, err)
+
+	assert.Equal(t, person.Name, "Bob")
+	assert.Equal(t, person.Age, 30)
+	assert.Equal(t, person.Tags, map[string]string{"hair": "black"})
+	assert.Equal(t, person.Jobs, []string{"plumber", "teacher"})
+}
+
+func TestUnmarshalErrors(t *testing.T) {
+	confYaml := `
+user:
+  name:
+    hair: black
+`
+	mockConfig := newConfigFromYaml(t, confYaml)
+	var person Person
+	err := unmarshalKeyReflection(mockConfig, "user", &person)
+	assert.ErrorContains(t, err, `at [name]: scalar required, but input is not a leaf: &{map[hair:0x`)
+
+	confYaml = `
+user:
+  jobs: 30
+`
+	mockConfig = newConfigFromYaml(t, confYaml)
+	err = unmarshalKeyReflection(mockConfig, "user", &person)
+	assert.ErrorContains(t, err, `at [jobs]: []T required, but input is not an array: &{30`)
+
+	confYaml = `
+user:
+  age:
+  - plumber
+  - teacher
+`
+	mockConfig = newConfigFromYaml(t, confYaml)
+	err = unmarshalKeyReflection(mockConfig, "user", &person)
+	assert.ErrorContains(t, err, `unable to cast []interface {}{"plumber", "teacher"} of type []interface {} to int`)
+
+	confYaml = `
+user:
+  tags:
+  - plumber
+  - teacher
+`
+	mockConfig = newConfigFromYaml(t, confYaml)
+	err = unmarshalKeyReflection(mockConfig, "user", &person)
+	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{[plumber teacher]`)
+
+	confYaml = `
+user:
+  tags: 30
+`
+	mockConfig = newConfigFromYaml(t, confYaml)
+	err = unmarshalKeyReflection(mockConfig, "user", &person)
+	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{30`)
+
 }
 
 func TestUnmarshalKeyTrapsConfig(t *testing.T) {
@@ -98,6 +187,55 @@ network_devices:
 	assert.Equal(t, trapsCfg.BindHost, "ok")
 	assert.Equal(t, trapsCfg.StopTimeout, 4)
 	assert.Equal(t, trapsCfg.Namespace, "abc")
+}
+
+func TestUnmarshalKeyNilString(t *testing.T) {
+	// nil values in the yaml will convert to "" for string
+	confYaml := `
+users:
+- user:         alice
+  authKey:      hunter2
+  authProtocol: MD5
+  privKey:      pswd
+  privProtocol: AE5
+- user:         bob
+  authKey:      "123456"
+  authProtocol: MD5
+  privKey:
+  privProtocol:
+`
+
+	mockConfig := newConfigFromYaml(t, confYaml)
+
+	var users []userV3
+	err := unmarshalKeyReflection(mockConfig, "users", &users)
+	assert.NoError(t, err)
+
+	assert.Equal(t, len(users), 2)
+	assert.Equal(t, users[0].Username, "alice")
+	assert.Equal(t, users[0].PrivKey, "pswd")
+	assert.Equal(t, users[1].Username, "bob")
+	assert.Equal(t, users[1].PrivKey, "")
+}
+
+func TestUnmarshalKeyNilInt(t *testing.T) {
+	// nil values in the yaml will convert to 0 for int types
+	confYaml := `
+network_devices:
+  snmp_traps:
+    enabled: true
+    port:
+    stop_timeout:
+`
+	mockConfig := newConfigFromYaml(t, confYaml)
+
+	var trapsCfg = trapsConfig{}
+	err := unmarshalKeyReflection(mockConfig, "network_devices.snmp_traps", &trapsCfg)
+	assert.NoError(t, err)
+
+	assert.Equal(t, trapsCfg.Enabled, true)
+	assert.Equal(t, trapsCfg.Port, uint16(0))
+	assert.Equal(t, trapsCfg.StopTimeout, 0)
 }
 
 type endpoint struct {
@@ -970,7 +1108,7 @@ feature:
 
 		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "can't copy into target: scalar required")
+		assert.Contains(t, err.Error(), "scalar required")
 	})
 }
 
@@ -1205,6 +1343,11 @@ type squashConfig struct {
 	Endpoint endpoint `mapstructure:",squash"`
 }
 
+type serviceConfig struct {
+	Host     string   `mapstructure:"host"`
+	Endpoint endpoint `mapstructure:"endpoint"`
+}
+
 func TestUnmarshalKeyWithSquash(t *testing.T) {
 	confYaml := `
 service:
@@ -1224,6 +1367,52 @@ service:
 		assert.Equal(t, svc.Endpoint.Name, "intake")
 		assert.Equal(t, svc.Endpoint.APIKey, "abc1")
 	})
+}
+
+func TestUnmarshalKeyWithErrorUnused(t *testing.T) {
+	testcases := []struct {
+		name    string
+		conf    string
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "ErrUnused flag succeeds without option",
+			conf: `
+service:
+  host: datad0g.com
+`,
+			wantErr: false,
+		},
+		{
+			name: "ErrUnused flag fails with option",
+			conf: `
+service:
+  host: datad0g.com
+  name: intake
+  apikey: abc1
+  foo: bar
+`,
+			wantErr: true,
+			errMsg:  "found unused config keys: [apikey foo name]",
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := newConfigFromYaml(t, tc.conf)
+			mockConfig.SetKnown("service")
+
+			svc := &serviceConfig{}
+			err := unmarshalKeyReflection(mockConfig, "service", svc, ErrorUnused)
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestUnmarshalKeysToMapOfString(t *testing.T) {

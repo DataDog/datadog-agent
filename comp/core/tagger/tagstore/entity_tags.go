@@ -7,6 +7,7 @@ package tagstore
 
 import (
 	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -109,12 +110,16 @@ func (e *EntityTagsWithMultipleSources) getStandard() []string {
 func (e *EntityTagsWithMultipleSources) getHashedTags(cardinality types.TagCardinality) tagset.HashedTags {
 	e.computeCache()
 
-	if cardinality == types.HighCardinality {
+	switch cardinality {
+	case types.HighCardinality:
 		return e.cachedAll
-	} else if cardinality == types.OrchestratorCardinality {
+	case types.OrchestratorCardinality:
 		return e.cachedOrchestrator
+	case types.NoneCardinality:
+		return tagset.HashedTags{}
+	default:
+		return e.cachedLow
 	}
-	return e.cachedLow
 }
 
 func (e *EntityTagsWithMultipleSources) computeCache() {
@@ -223,7 +228,7 @@ func (e *EntityTagsWithMultipleSources) tagsBySource() map[string][]string {
 	tagsBySource := make(map[string][]string)
 
 	for source, tags := range e.sourceTags {
-		allTags := append([]string{}, tags.lowCardTags...)
+		allTags := slices.Clone(tags.lowCardTags)
 		allTags = append(allTags, tags.orchestratorCardTags...)
 		allTags = append(allTags, tags.highCardTags...)
 		tagsBySource[source] = allTags
@@ -302,6 +307,8 @@ func (e *EntityTagsWithSingleSource) getHashedTags(cardinality types.TagCardinal
 		return e.cachedAll
 	case types.OrchestratorCardinality:
 		return e.cachedOrchestrator
+	case types.NoneCardinality:
+		return tagset.HashedTags{}
 	default:
 		return e.cachedLow
 	}

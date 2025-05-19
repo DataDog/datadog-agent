@@ -28,9 +28,9 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 )
 
@@ -44,33 +44,44 @@ type buildCommandFn func(command string, envVars EnvVar) string
 
 type convertPathSeparatorFn func(string) string
 
-// A Host client that is connected to an [ssh.Client].
-type Host struct {
-	client *ssh.Client
+// HostArtifactClient is a client that can get files from the artifact bucket to the remote host
+type HostArtifactClient interface {
+	Get(path string, destPath string) error
+}
 
-	context              e2e.Context
+type sshExecutor struct {
+	client  *ssh.Client
+	context common.Context
+
 	username             string
 	host                 string
 	privateKey           []byte
 	privateKeyPassphrase []byte
 	buildCommand         buildCommandFn
+	scrubber             *scrubber.Scrubber
+}
+
+// A Host client that is connected to an [ssh.Client].
+type Host struct {
+	*sshExecutor
+	HostArtifactClient
+
 	convertPathSeparator convertPathSeparatorFn
 	osFamily             oscomp.Family
 	// as per the documentation of http.Transport: "Transports should be reused instead of created as needed."
 	httpTransport *http.Transport
-	scrubber      *scrubber.Scrubber
 }
 
 // NewHost creates a new ssh client to connect to a remote host with
 // reconnect retry logic
-func NewHost(context e2e.Context, hostOutput remote.HostOutput) (*Host, error) {
+func NewHost(context common.Context, hostOutput remote.HostOutput) (*Host, error) {
 	var privateSSHKey []byte
-	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
+
+	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StoreKey(hostOutput.CloudProvider+parameters.PrivateKeyPathSuffix), "")
 	if err != nil {
 		return nil, err
 	}
-
-	privateKeyPassword, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.PrivateKeyPassword, "")
+	privateKeyPassword, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.StoreKey(hostOutput.CloudProvider+parameters.PrivateKeyPasswordSuffix), "")
 	if err != nil {
 		return nil, err
 	}
@@ -82,16 +93,23 @@ func NewHost(context e2e.Context, hostOutput remote.HostOutput) (*Host, error) {
 		}
 	}
 
-	host := &Host{
+	sshExecutor := &sshExecutor{
 		context:              context,
 		username:             hostOutput.Username,
 		host:                 fmt.Sprintf("%s:%d", hostOutput.Address, hostOutput.Port),
 		privateKey:           privateSSHKey,
 		privateKeyPassphrase: []byte(privateKeyPassword),
 		buildCommand:         buildCommandFactory(hostOutput.OSFamily),
+		scrubber:             scrubber.NewWithDefaults(),
+	}
+
+	hostArtifacts := hostArtifactsClientFactory(sshExecutor, hostOutput.OSFlavor, hostOutput.CloudProvider, hostOutput.Architecture)
+
+	host := &Host{
+		HostArtifactClient:   hostArtifacts,
+		sshExecutor:          sshExecutor,
 		convertPathSeparator: convertPathSeparatorFactory(hostOutput.OSFamily),
 		osFamily:             hostOutput.OSFamily,
-		scrubber:             scrubber.NewWithDefaults(),
 	}
 
 	host.httpTransport = host.newHTTPTransport()
@@ -101,7 +119,7 @@ func NewHost(context e2e.Context, hostOutput remote.HostOutput) (*Host, error) {
 }
 
 // Reconnect closes the current ssh client and creates a new one, with retries.
-func (h *Host) Reconnect() error {
+func (h *sshExecutor) Reconnect() error {
 	h.context.T().Log("Reconnecting to host")
 	if h.client != nil {
 		_ = h.client.Close()
@@ -117,7 +135,7 @@ func (h *Host) Reconnect() error {
 }
 
 // Execute executes a command and returns an error if any.
-func (h *Host) Execute(command string, options ...ExecuteOption) (string, error) {
+func (h *sshExecutor) Execute(command string, options ...ExecuteOption) (string, error) {
 	params, err := optional.MakeParams(options...)
 	if err != nil {
 		return "", err
@@ -126,7 +144,7 @@ func (h *Host) Execute(command string, options ...ExecuteOption) (string, error)
 	return h.executeAndReconnectOnError(command)
 }
 
-func (h *Host) executeAndReconnectOnError(command string) (string, error) {
+func (h *sshExecutor) executeAndReconnectOnError(command string) (string, error) {
 	scrubbedCommand := h.scrubber.ScrubLine(command) // scrub the command in case it contains secrets
 	h.context.T().Logf("%s - %s - Executing command `%s`", time.Now().Format("02-01-2006 15:04:05"), h.context.T().Name(), scrubbedCommand)
 	stdout, err := execute(h.client, command)
@@ -143,8 +161,32 @@ func (h *Host) executeAndReconnectOnError(command string) (string, error) {
 	return stdout, err
 }
 
+// Start a command and returns session, and an error if any.
+func (h *sshExecutor) Start(command string, options ...ExecuteOption) (*ssh.Session, io.WriteCloser, io.Reader, error) {
+	params, err := optional.MakeParams(options...)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	command = h.buildCommand(command, params.EnvVariables)
+	return h.startAndReconnectOnError(command)
+}
+
+func (h *sshExecutor) startAndReconnectOnError(command string) (*ssh.Session, io.WriteCloser, io.Reader, error) {
+	scrubbedCommand := h.scrubber.ScrubLine(command) // scrub the command in case it contains secrets
+	h.context.T().Logf("%s - %s - Executing command `%s`", time.Now().Format("02-01-2006 15:04:05"), h.context.T().Name(), scrubbedCommand)
+	session, stdin, stdout, err := start(h.client, command)
+	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
+		err = h.Reconnect()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		session, stdin, stdout, err = start(h.client, command)
+	}
+	return session, stdin, stdout, err
+}
+
 // MustExecute executes a command and requires no error.
-func (h *Host) MustExecute(command string, options ...ExecuteOption) string {
+func (h *sshExecutor) MustExecute(command string, options ...ExecuteOption) string {
 	stdout, err := h.Execute(command, options...)
 	require.NoError(h.context.T(), err)
 	return stdout
@@ -198,6 +240,18 @@ func (h *Host) FileExists(path string) (bool, error) {
 	}
 
 	return info.Mode().IsRegular(), nil
+}
+
+// EnsureFileIsReadable add readable rights to a remote file
+func (h *Host) EnsureFileIsReadable(path string) error {
+	// ensure the file is readable on the remote host
+	if h.osFamily != oscomp.WindowsFamily {
+		_, err := h.Execute(fmt.Sprintf("sudo chmod +r %s", path))
+		if err != nil {
+			return fmt.Errorf("failed to make file readable: %w", err)
+		}
+	}
+	return nil
 }
 
 // GetFile create a sftp session and copy a single file from the remote host through SSH
@@ -362,7 +416,11 @@ func (h *Host) DialPort(port uint16) (net.Conn, error) {
 func (h *Host) GetTmpFolder() (string, error) {
 	switch osFamily := h.osFamily; osFamily {
 	case oscomp.WindowsFamily:
-		return h.Execute("echo %TEMP%")
+		out, err := h.Execute("echo $env:TEMP")
+		if err != nil {
+			return out, err
+		}
+		return strings.TrimSpace(out), nil
 	case oscomp.LinuxFamily:
 		return "/tmp", nil
 	default:
@@ -370,9 +428,27 @@ func (h *Host) GetTmpFolder() (string, error) {
 	}
 }
 
+// GetAgentConfigFolder returns the agent config folder path for the host
+func (h *Host) GetAgentConfigFolder() (string, error) {
+	switch h.osFamily {
+	case oscomp.WindowsFamily:
+		out, err := h.Execute("echo $env:PROGRAMDATA")
+		if err != nil {
+			return out, err
+		}
+		return fmt.Sprintf("%s\\Datadog", strings.TrimSpace(out)), nil
+	case oscomp.LinuxFamily:
+		return "/etc/datadog-agent", nil
+	case oscomp.MacOSFamily:
+		return "/opt/datadog-agent/etc", nil
+	default:
+		return "", errors.ErrUnsupported
+	}
+}
+
 // GetLogsFolder returns the logs folder path for the host
 func (h *Host) GetLogsFolder() (string, error) {
-	switch osFamily := h.osFamily; osFamily {
+	switch h.osFamily {
 	case oscomp.WindowsFamily:
 		return `C:\ProgramData\Datadog\logs`, nil
 	case oscomp.LinuxFamily:
@@ -381,6 +457,16 @@ func (h *Host) GetLogsFolder() (string, error) {
 		return "/opt/datadog-agent/logs", nil
 	default:
 		return "", errors.ErrUnsupported
+	}
+}
+
+// JoinPath joins the path elements with the correct separator for the host
+func (h *Host) JoinPath(path ...string) string {
+	switch h.osFamily {
+	case oscomp.WindowsFamily:
+		return strings.Join(path, "\\")
+	default:
+		return strings.Join(path, "/")
 	}
 }
 

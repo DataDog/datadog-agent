@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package remotetaggerimpl
+package remoteimpl
 
 import (
 	"testing"
@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	entityID        types.EntityID = types.NewEntityID("foo", "bar")
-	anotherEntityID types.EntityID = types.NewEntityID("foo", "quux")
+	entityID        types.EntityID = types.NewEntityID(types.ContainerID, "bar")
+	anotherEntityID types.EntityID = types.NewEntityID(types.ContainerID, "quux")
 )
 
 func TestProcessEvent_AddAndModify(t *testing.T) {

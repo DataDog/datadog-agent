@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	lib "github.com/cilium/ebpf"
-	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
@@ -34,10 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-)
-
-var (
-	fakeInodeMSW = uint64(0xdeadc001)
+	"github.com/DataDog/datadog-agent/pkg/security/utils/cache"
 )
 
 type counterEntry struct {
@@ -57,7 +53,7 @@ type Resolver struct {
 	erpcStats             [2]*lib.Map
 	bufferSelector        *lib.Map
 	activeERPCStatsBuffer uint32
-	cache                 map[uint32]*lru.Cache[model.PathKey, PathEntry]
+	cache                 *cache.TwoLayersLRU[uint32, model.PathKey, PathEntry]
 	erpc                  *erpc.ERPC
 	erpcSegment           []byte
 	erpcSegmentSize       int
@@ -126,11 +122,6 @@ func allERPCRet() []eRPCRet {
 	return []eRPCRet{eRPCok, eRPCCacheMiss, eRPCBufferSize, eRPCWritePageFault, eRPCTailCallError, eRPCReadPageFault, eRPCUnknownError}
 }
 
-// IsFakeInode returns whether the given inode is a fake inode
-func IsFakeInode(inode uint64) bool {
-	return inode>>32 == fakeInodeMSW
-}
-
 // SendStats sends the dentry resolver metrics
 func (dr *Resolver) SendStats() error {
 	for counterEntry, counter := range dr.hitsCounters {
@@ -146,6 +137,8 @@ func (dr *Resolver) SendStats() error {
 			_ = dr.statsdClient.Count(metrics.MetricDentryResolverMiss, val, counterEntry.Tags(), 1.0)
 		}
 	}
+
+	_ = dr.statsdClient.Gauge(metrics.MetricDentryCacheSize, float64(dr.cache.Len()), []string{}, 1)
 
 	return dr.sendERPCStats()
 }
@@ -183,40 +176,21 @@ func (dr *Resolver) sendERPCStats() error {
 
 // DelCacheEntries removes all the entries belonging to a mountID
 func (dr *Resolver) DelCacheEntries(mountID uint32) {
-	delete(dr.cache, mountID)
+	dr.cache.RemoveKey1(mountID)
 }
 
 func (dr *Resolver) lookupInodeFromCache(pathKey model.PathKey) (PathEntry, error) {
-	entries, exists := dr.cache[pathKey.MountID]
+	entry, exists := dr.cache.Get(pathKey.MountID, pathKey)
 	if !exists {
 		return PathEntry{}, ErrEntryNotFound
 	}
-
-	entry, exists := entries.Get(pathKey)
-	if !exists {
-		return PathEntry{}, ErrEntryNotFound
-	}
-
 	return entry, nil
 }
 
 // We need to cache inode by inode instead of caching the whole path in order to be
 // able to invalidate the whole path if one of its element got rename or removed.
-func (dr *Resolver) cacheInode(key model.PathKey, path PathEntry) error {
-	entries, exists := dr.cache[key.MountID]
-	if !exists {
-		var err error
-
-		entries, err = lru.New[model.PathKey, PathEntry](dr.config.DentryCacheSize)
-		if err != nil {
-			return err
-		}
-		dr.cache[key.MountID] = entries
-	}
-
-	entries.Add(key, path)
-
-	return nil
+func (dr *Resolver) cacheInode(key model.PathKey, path PathEntry) {
+	dr.cache.Add(key.MountID, key, path)
 }
 
 // ResolveNameFromCache returns the name
@@ -268,10 +242,9 @@ func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey) (string, error) {
 
 	name := pathLeaf.GetName()
 
-	if !IsFakeInode(pathKey.Inode) {
+	if !model.IsFakeInode(pathKey.Inode) {
 		cacheEntry := newPathEntry(pathLeaf.Parent, name)
-
-		_ = dr.cacheInode(pathKey, cacheEntry)
+		dr.cacheInode(pathKey, cacheEntry)
 	}
 
 	return name, nil
@@ -398,7 +371,7 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 		}
 
 		// do not cache fake path keys in the case of rename events
-		if !IsFakeInode(pathKey.Inode) && cache {
+		if !model.IsFakeInode(pathKey.Inode) && cache {
 			dr.keys = append(dr.keys, pathKey)
 			dr.cacheNameEntries = append(dr.cacheNameEntries, name)
 		}
@@ -478,7 +451,7 @@ func (dr *Resolver) cacheEntries(keys []model.PathKey, names []string) error {
 			cacheEntry.Parent = keys[i+1]
 		}
 
-		_ = dr.cacheInode(k, cacheEntry)
+		dr.cacheInode(k, cacheEntry)
 	}
 
 	return nil
@@ -564,7 +537,7 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 		dr.filenameParts = append(dr.filenameParts, segment)
 		i += len(segment) + 1
 
-		if !IsFakeInode(pathKey.Inode) && cache {
+		if !model.IsFakeInode(pathKey.Inode) && cache {
 			dr.keys = append(dr.keys, pathKey)
 			dr.cacheNameEntries = append(dr.cacheNameEntries, segment)
 		}
@@ -734,37 +707,20 @@ func (dr *Resolver) ToJSON() ([]byte, error) {
 		Entries []json.RawMessage
 	}{}
 
-	for mountID, cache := range dr.cache {
-		e := struct {
-			MountID uint32
-			Entries []struct {
-				PathKey   model.PathKey
-				PathEntry PathEntry
-			}
+	dr.cache.Walk(func(_ uint32, pathKey model.PathKey, value PathEntry) {
+		entry := struct {
+			PathKey   model.PathKey
+			PathEntry PathEntry
 		}{
-			MountID: mountID,
+			PathKey:   pathKey,
+			PathEntry: value,
 		}
 
-		for _, key := range cache.Keys() {
-			value, exists := cache.Get(key)
-			if !exists {
-				continue
-			}
-
-			e.Entries = append(e.Entries, struct {
-				PathKey   model.PathKey
-				PathEntry PathEntry
-			}{
-				PathKey:   key,
-				PathEntry: value,
-			})
-		}
-
-		data, err := json.Marshal(e)
+		data, err := json.Marshal(entry)
 		if err == nil {
 			dump.Entries = append(dump.Entries, data)
 		}
-	}
+	})
 
 	return json.Marshal(dump)
 }
@@ -803,10 +759,15 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *
 		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 
+	cache, err := cache.NewTwoLayersLRU[uint32, model.PathKey, PathEntry](config.DentryCacheSize)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Resolver{
 		config:        config,
 		statsdClient:  statsdClient,
-		cache:         make(map[uint32]*lru.Cache[model.PathKey, PathEntry]),
+		cache:         cache,
 		erpc:          e,
 		erpcRequest:   erpc.NewERPCRequest(0),
 		erpcStatsZero: make([]eRPCStats, numCPU),

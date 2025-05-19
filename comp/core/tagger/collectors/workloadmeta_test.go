@@ -815,6 +815,34 @@ func TestHandleKubePod(t *testing.T) {
 			},
 		},
 		{
+			name: "datadog autoscaling tag",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						datadogAutoscalingIDAnnotation: "datadogpodautoscaler",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					EntityID:     podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_autoscaler_kind:datadogpodautoscaler",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
 			name: "disable kube_service",
 			pod: workloadmeta.KubernetesPod{
 				EntityID: podEntityID,
@@ -1473,7 +1501,7 @@ func TestHandleECSTask(t *testing.T) {
 				ClusterName:  "ecs-cluster",
 				Family:       "datadog-agent",
 				Version:      "1",
-				AWSAccountID: 1234567891234,
+				AWSAccountID: "1234567891234",
 				LaunchType:   workloadmeta.ECSLaunchTypeEC2,
 				Containers: []workloadmeta.OrchestratorContainer{
 					{
@@ -1526,7 +1554,7 @@ func TestHandleECSTask(t *testing.T) {
 				},
 				AvailabilityZone: "us-east-1c",
 				Region:           "us-east-1",
-				AWSAccountID:     1234567891234,
+				AWSAccountID:     "1234567891234",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -1721,6 +1749,42 @@ func TestHandleContainer(t *testing.T) {
 					// otel standard tags
 					"OTEL_SERVICE_NAME":        svc,
 					"OTEL_RESOURCE_ATTRIBUTES": fmt.Sprintf("service.name=%s,service.version=%s,deployment.environment=%s", svc, version, env),
+				},
+			},
+			envAsTags: map[string]string{
+				"team": "owner_team",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:   containerSource,
+					EntityID: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: append([]string{
+						"owner_team:container-integrations",
+					}, standardTags...),
+					StandardTags: standardTags,
+				},
+			},
+		},
+		{
+			name: "OTel new env convention",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				EnvVars: map[string]string{
+					// env as tags
+					"TEAM": "container-integrations",
+					"TIER": "node",
+
+					// otel standard tags
+					"OTEL_SERVICE_NAME":        svc,
+					"OTEL_RESOURCE_ATTRIBUTES": fmt.Sprintf("service.name=%s,service.version=%s,deployment.environment.name=%s", svc, version, env),
 				},
 			},
 			envAsTags: map[string]string{
@@ -2253,6 +2317,89 @@ func TestHandleContainerImage(t *testing.T) {
 	}
 }
 
+func TestHandleGPU(t *testing.T) {
+	entityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindGPU,
+		ID:   "gpu-1234",
+	}
+
+	taggerEntityID := types.NewEntityID(types.GPU, entityID.ID)
+
+	tests := []struct {
+		name     string
+		gpu      workloadmeta.GPU
+		expected []*types.TagInfo
+	}{
+		{
+			name: "basic",
+			gpu: workloadmeta.GPU{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+				},
+				Vendor: "nvidia",
+				Device: "tesla-v100",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_vendor:nvidia",
+						"gpu_device:tesla-v100",
+						"gpu_uuid:gpu-1234",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "tags normalization",
+			gpu: workloadmeta.GPU{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindGPU,
+					ID:   "GPU-1234",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "GPU-1234",
+				},
+				Vendor: "Nvidia",
+				Device: "Tesla v100",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             types.NewEntityID(types.GPU, "GPU-1234"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_vendor:nvidia",
+						"gpu_device:tesla_v100",
+						"gpu_uuid:gpu-1234",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
+
+			actual := collector.handleGPU(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &tt.gpu,
+			})
+
+			assertTagInfoListEqual(t, tt.expected, actual)
+		})
+	}
+}
+
 func TestHandleDelete(t *testing.T) {
 	const (
 		podName       = "datadog-agent-foobar"
@@ -2367,7 +2514,8 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 	collector.children = map[types.EntityID]map[types.EntityID]struct{}{
 		// Notice that here we set the container that belonged to the pod
 		// but that no longer exists
-		podTaggerEntityID: {containerToBeDeletedTaggerEntityID: struct{}{}}}
+		podTaggerEntityID: {containerToBeDeletedTaggerEntityID: struct{}{}},
+	}
 
 	eventBundle := workloadmeta.EventBundle{
 		Events: []workloadmeta.Event{

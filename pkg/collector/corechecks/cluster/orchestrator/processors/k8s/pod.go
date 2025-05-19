@@ -56,6 +56,16 @@ func (h *PodHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource
 	return
 }
 
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*corev1.Pod)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
+	return
+}
+
 // BeforeCacheCheck is a handler called before cache lookup.
 func (h *PodHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	pctx := ctx.(*processors.K8sProcessorContext)
@@ -116,14 +126,15 @@ func (h *PodHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 	}
 
 	return &model.CollectorPod{
-		ClusterName: pctx.Cfg.KubeClusterName,
-		ClusterId:   pctx.ClusterID,
-		GroupId:     pctx.MsgGroupID,
-		GroupSize:   int32(groupSize),
-		HostName:    pctx.HostName,
-		Pods:        models,
-		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
-		Info:        pctx.SystemInfo,
+		ClusterName:  pctx.Cfg.KubeClusterName,
+		ClusterId:    pctx.ClusterID,
+		GroupId:      pctx.MsgGroupID,
+		GroupSize:    int32(groupSize),
+		HostName:     pctx.HostName,
+		Pods:         models,
+		Tags:         pctx.ExtraTags,
+		Info:         pctx.SystemInfo,
+		IsTerminated: ctx.IsTerminatedResources(),
 	}
 }
 
@@ -132,7 +143,7 @@ func (h *PodHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PodHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*corev1.Pod)
-	return k8sTransformers.ExtractPod(r)
+	return k8sTransformers.ExtractPod(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic
@@ -144,7 +155,7 @@ func (h *PodHandlers) ResourceList(ctx processors.ProcessorContext, list interfa
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources
@@ -162,6 +173,23 @@ func (h *PodHandlers) ResourceUID(ctx processors.ProcessorContext, resource inte
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PodHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resourceModel.(*model.Pod).Metadata.ResourceVersion
+}
+
+// ResourceTaggerTags is a handler called to retrieve tags for a resource from the tagger.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodHandlers) ResourceTaggerTags(ctx processors.ProcessorContext, resource interface{}) []string {
+	r, ok := resource.(*corev1.Pod)
+	if !ok {
+		log.Debugf("Could not cast resource to pod")
+		return nil
+	}
+	tags, err := h.tagProvider.GetTags(r, taggertypes.HighCardinality)
+	if err != nil {
+		log.Debugf("Could not retrieve tags for pod: %s", err.Error())
+		return nil
+	}
+	return tags
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before

@@ -9,7 +9,7 @@ See the [Live Processes docs](https://docs.datadoghq.com/graphing/infrastructure
 Pre-requisites:
 
 * `go >= 1.23`
-* `invoke`
+* [deva](https://datadoghq.dev/datadog-agent/setup/#tooling)
 
 Check out the repo in your `$GOPATH`
 
@@ -24,7 +24,7 @@ Note that you must be in `$GOPATH/src/github.com/DataDog/datadog-agent`, NOT `~/
 To build the Process Agent run:
 
 ```
-inv -e process-agent.build
+dda inv -e process-agent.build
 ```
 
 You can now run the Agent on the command-line:

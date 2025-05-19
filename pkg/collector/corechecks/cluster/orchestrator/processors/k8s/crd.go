@@ -31,7 +31,7 @@ func (crd *CRDHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext
 	cm := common.ExtractModelManifests(ctx, resourceManifests, groupSize)
 	return &model.CollectorManifestCRD{
 		Manifest: cm,
-		Tags:     append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:     pctx.ExtraTags,
 	}
 }
 
@@ -39,6 +39,16 @@ func (crd *CRDHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (crd *CRDHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
+	return
+}
+
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *CRDHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*v1.CustomResourceDefinition)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
 	return
 }
 
@@ -66,7 +76,7 @@ func (crd *CRDHandlers) ResourceList(ctx processors.ProcessorContext, list inter
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopyObject())
 	}
 
 	return resources

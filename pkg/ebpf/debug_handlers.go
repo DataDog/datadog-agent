@@ -6,10 +6,9 @@
 package ebpf
 
 import (
+	"fmt"
 	"io"
 	"net/http"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // HandleBTFLoaderInfo responds with where the system-probe found BTF data (and
@@ -17,7 +16,7 @@ import (
 func HandleBTFLoaderInfo(w http.ResponseWriter, _ *http.Request) {
 	info, err := GetBTFLoaderInfo()
 	if err != nil {
-		log.Errorf("unable to get ebpf_btf_loader info: %s", err)
+		fmt.Fprintf(w, "unable to get ebpf_btf_loader info: %s", err)
 		w.WriteHeader(500)
 		return
 	}

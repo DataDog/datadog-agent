@@ -31,6 +31,37 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func TestMaxConns(t *testing.T) {
+	for tn, tc := range map[string]struct {
+		endpoints []*config.Endpoint
+		climit    int
+		maxConns  int
+	}{
+		"single-non-mrf": {
+			[]*config.Endpoint{{IsMRF: false}},
+			5,
+			5,
+		},
+		"multiple-non-mrf": {
+			[]*config.Endpoint{{IsMRF: false}, {IsMRF: false}},
+			5,
+			2,
+		},
+		"multiple-with-mrf": {
+			[]*config.Endpoint{{IsMRF: false}, {IsMRF: true}},
+			5,
+			5,
+		},
+		"single-mrf": {
+			[]*config.Endpoint{{IsMRF: true}},
+			5,
+			5,
+		},
+	} {
+		assert.Equal(t, tc.maxConns, maxConns(tc.climit, tc.endpoints), "%s", tn)
+	}
+}
+
 func TestIsRetriable(t *testing.T) {
 	for code, want := range map[int]bool{
 		400: false,
@@ -229,6 +260,58 @@ func TestSender(t *testing.T) {
 			assert.Equal(1, failed[i].count)
 			assert.True(time.Since(start)-failed[i].duration < time.Second)
 		}
+	})
+
+	t.Run("mrf", func(t *testing.T) {
+		assert := assert.New(t)
+		servers := []*testServer{
+			newTestServer(),
+			newTestServer(),
+			newTestServer(),
+		}
+		for _, server := range servers {
+			defer server.Close()
+		}
+
+		senders := []*sender{
+			newSender(testSenderConfig(servers[0].URL), statsd),
+			newSender(testSenderConfig(servers[1].URL), statsd),
+			newSender(testSenderConfig(servers[2].URL), statsd),
+		}
+		// Enable and failover MRF on s1, enable and not failover on s2, disabled on s3
+		senders[0].cfg.isMRF = true
+		senders[0].cfg.isMRFEnabled = func() bool { return true }
+		senders[1].cfg.isMRF = true
+		senders[1].cfg.isMRFEnabled = func() bool { return false }
+
+		assert.True(senders[0].isEnabled())
+		assert.False(senders[1].isEnabled())
+		assert.True(senders[2].isEnabled())
+
+		for i := 0; i < 20; i++ {
+			sendPayloads(senders, expectResponses(404), false)
+		}
+		for _, s := range senders {
+			s.Stop()
+		}
+
+		// Server 1 receives payloads
+		assert.Equal(20, servers[0].Total(), "total")
+		assert.Equal(0, servers[0].Accepted(), "accepted")
+		assert.Equal(0, servers[0].Retried(), "retry")
+		assert.Equal(20, servers[0].Failed(), "failed")
+
+		// Server 2 doesn't
+		assert.Equal(0, servers[1].Total(), "total")
+		assert.Equal(0, servers[1].Accepted(), "accepted")
+		assert.Equal(0, servers[1].Retried(), "retry")
+		assert.Equal(0, servers[1].Failed(), "failed")
+
+		// Server 3 receives payloads
+		assert.Equal(20, servers[2].Total(), "total")
+		assert.Equal(0, servers[2].Accepted(), "accepted")
+		assert.Equal(0, servers[2].Retried(), "retry")
+		assert.Equal(20, servers[2].Failed(), "failed")
 	})
 }
 

@@ -48,7 +48,7 @@ func (r *HTTPReceiver) symDBProxyHandler() http.Handler {
 		apiKey = strings.TrimSpace(k)
 	}
 	transport := newMeasuringForwardingTransport(
-		config.New().NewHTTPTransport(), target, apiKey, r.conf.SymDBProxy.AdditionalEndpoints, "datadog.trace_agent.debugger.", []string{}, r.statsd)
+		r.conf.NewHTTPTransport(), target, apiKey, r.conf.SymDBProxy.AdditionalEndpoints, "datadog.trace_agent.debugger.", []string{}, r.statsd)
 	return newSymDBProxy(r.conf, transport, hostTags)
 }
 
@@ -62,7 +62,7 @@ func symDBErrorHandler(err error) http.Handler {
 
 // newSymDBProxy returns a new httputil.ReverseProxy proxying and augmenting requests with headers containing the tags.
 func newSymDBProxy(conf *config.AgentConfig, transport http.RoundTripper, hostTags string) *httputil.ReverseProxy {
-	cidProvider := NewIDProvider(conf.ContainerProcRoot)
+	cidProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
 		Director:  getSymDBDirector(hostTags, cidProvider, conf.ContainerTags),

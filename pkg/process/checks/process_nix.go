@@ -8,21 +8,24 @@
 package checks
 
 import (
+	"fmt"
 	"math"
 	"os/user"
+	"slices"
 	"strconv"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v4/cpu"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-var (
-	// overridden in tests
-	hostCPUCount = system.HostCPUCount
-)
+// overridden in tests
+var hostCPUCount = system.HostCPUCount
 
 func formatUser(fp *procutil.Process, uidProbe *LookupIdProbe) *model.ProcessUser {
 	var username string
@@ -78,12 +81,7 @@ func calculatePct(deltaProc, deltaTime, numCPU float64) float32 {
 
 	// Calculates utilization split across all CPUs. A busy-loop process
 	// on a 2-CPU-core system would be reported as 50% instead of 100%.
-	overalPct := (deltaProc / deltaTime) * 100
-
-	// Sometimes we get values that don't make sense, so we clamp to 100%
-	if overalPct > 100 {
-		overalPct = 100
-	}
+	overalPct := min((deltaProc/deltaTime)*100, 100)
 
 	// In order to emulate top we multiply utilization by # of CPUs so a busy loop would be 100%.
 	pct := overalPct * numCPU
@@ -93,4 +91,24 @@ func calculatePct(deltaProc, deltaTime, numCPU float64) float32 {
 	// Avoid reporting negative CPU percentages when this occurs
 	pct = math.Max(pct, 0.0)
 	return float32(pct)
+}
+
+// warnECSFargateMisconfig pidMode is currently not supported on fargate windows, see docs: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#task_definition_pidmode
+func warnECSFargateMisconfig(containers []*model.Container) {
+	if fargate.IsFargateInstance() && !isECSFargatePidModeSetToTask(containers) {
+		log.Warn(`Process collection may be misconfigured. Please ensure your task definition has "pidMode":"task" set. See https://docs.datadoghq.com/integrations/ecs_fargate/#process-collection for more information.`)
+	}
+}
+
+// isECSFargatePidModeSetToTask checks if pidMode is set to task in task definition to allow for process collection and assumes the method is called in a fargate environment
+func isECSFargatePidModeSetToTask(containers []*model.Container) bool {
+	// aws-fargate-pause container only exists when "pidMode" is set to "task" on ecs fargate
+	ecsContainerNameTag := fmt.Sprintf("%s:%s", tags.EcsContainerName, "aws-fargate-pause")
+	for _, c := range containers {
+		// container fields are not yet populated with information from tags at this point, so we need to check the tags
+		if slices.Contains(c.Tags, ecsContainerNameTag) {
+			return true
+		}
+	}
+	return false
 }

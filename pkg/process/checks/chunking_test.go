@@ -310,10 +310,7 @@ func TestWeightProcess(t *testing.T) {
 
 			expectedWeight := len(serialized)
 			assert.Equal(t, expectedWeight, p.Size())
-			allowedDelta := int(float64(actualWeight) * allowedPctDelta / 100.)
-			if allowedDelta < allowedMinDelta {
-				allowedDelta = allowedMinDelta
-			}
+			allowedDelta := max(int(float64(actualWeight)*allowedPctDelta/100.), allowedMinDelta)
 
 			withinLimits := expectedWeight-allowedDelta <= actualWeight && actualWeight <= expectedWeight+allowedDelta
 			assert.True(

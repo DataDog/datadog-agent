@@ -13,9 +13,11 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -30,7 +32,7 @@ type ec2VMSuite struct {
 	e2e.BaseSuite[hostHttpbinEnv]
 }
 
-func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) e2e.PulumiEnvRunFunc[hostHttpbinEnv] {
+func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) provisioners.PulumiEnvRunFunc[hostHttpbinEnv] {
 	return func(ctx *pulumi.Context, env *hostHttpbinEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -77,7 +79,7 @@ func TestEC2VMSuite(t *testing.T) {
 	t.Parallel()
 	s := &ec2VMSuite{}
 
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(), nil))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(), nil))}
 
 	// Source of our E2E CI images test/new-e2e/tests/agent-platform/platforms.json
 	// Other VM image can be used, our E2E CI images test/new-e2e/tests/agent-platform/platforms.json
@@ -87,13 +89,15 @@ func TestEC2VMSuite(t *testing.T) {
 
 func (v *ec2VMSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer v.CleanupOnSetupFailure()
 
 	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils docker.io")
 	v.Env().RemoteHost.MustExecute("sudo usermod -a -G docker ubuntu")
 	v.Env().RemoteHost.Reconnect()
 
 	// prefetch docker image locally
-	v.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/apps-npm-tools:main")
+	v.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/apps-npm-tools:" + apps.Version)
 }
 
 // BeforeTest will be called before each test
@@ -136,7 +140,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate a connection
-	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:main curl " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:" + apps.Version + " curl " + testURL)
 
 	test1HostFakeIntakeNPM(&v.BaseSuite, v.Env().FakeIntake)
 }
@@ -144,7 +148,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_DockerRequests() {
 // TestFakeIntakeNPM600cnxBucket_HostRequests Validate the agent can communicate with the (fake) backend and send connections
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
-//   - looking for n payloads and check if the last 2 have a maximum span of 100ms
+//   - looking for n payloads and check if the last 2 have a maximum span of 200ms
 func (v *ec2VMSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
@@ -157,12 +161,12 @@ func (v *ec2VMSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 // TestFakeIntakeNPM600cnxBucket_DockerRequests Validate the agent can communicate with the (fake) backend and send connections
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
-//   - looking for n payloads and check if the last 2 have a maximum span of 100ms
+//   - looking for n payloads and check if the last 2 have a maximum span of 200ms
 func (v *ec2VMSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
-	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:main ab -n 600 -c 600 " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:" + apps.Version + " ab -n 600 -c 600 " + testURL)
 
 	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake)
 }
@@ -185,8 +189,8 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
-	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:main curl " + testURL)
-	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:main dig @8.8.8.8 www.google.ch")
+	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:" + apps.Version + " curl " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:" + apps.Version + " dig @8.8.8.8 www.google.ch")
 
 	test1HostFakeIntakeNPMTCPUDPDNS(&v.BaseSuite, v.Env().FakeIntake)
 }

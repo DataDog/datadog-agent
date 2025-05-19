@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
@@ -46,6 +46,11 @@ const (
 	dockerLabelService = "com.datadoghq.tags.service"
 
 	autodiscoveryLabelTagsKey = "com.datadoghq.ad.tags"
+
+	// Datadog Autoscaling annotation
+	// (from pkg/clusteragent/autoscaling/workload/model/const.go)
+	// no importing due to packages it pulls
+	datadogAutoscalingIDAnnotation = "autoscaling.datadoghq.com/autoscaler-id"
 )
 
 var (
@@ -62,9 +67,10 @@ var (
 	}
 
 	otelResourceAttributesMapping = map[string]string{
-		"service.name":           tags.Service,
-		"service.version":        tags.Version,
-		"deployment.environment": tags.Env,
+		"service.name":                tags.Service,
+		"service.version":             tags.Version,
+		"deployment.environment":      tags.Env,
+		"deployment.environment.name": tags.Env,
 	}
 
 	lowCardOrchestratorEnvKeys = map[string]string{
@@ -149,6 +155,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				// tagInfos = append(tagInfos, c.handleProcess(ev)...) No tags for now
 			case workloadmeta.KindKubernetesDeployment:
 				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
+			case workloadmeta.KindGPU:
+				tagInfos = append(tagInfos, c.handleGPU(ev)...)
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
@@ -356,18 +364,14 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
 	}
 
-	kubeServiceDisabled := false
-	for _, disabledTag := range pkgconfigsetup.Datadog().GetStringSlice("kubernetes_ad_tags_disabled") {
-		if disabledTag == "kube_service" {
-			kubeServiceDisabled = true
-			break
-		}
+	// autoscaler presence
+	if pod.Annotations[datadogAutoscalingIDAnnotation] != "" {
+		tagList.AddLow(tags.KubeAutoscalerKind, "datadogpodautoscaler")
 	}
-	for _, disabledTag := range strings.Split(pod.Annotations["tags.datadoghq.com/disable"], ",") {
-		if disabledTag == "kube_service" {
-			kubeServiceDisabled = true
-			break
-		}
+
+	kubeServiceDisabled := slices.Contains(pkgconfigsetup.Datadog().GetStringSlice("kubernetes_ad_tags_disabled"), "kube_service")
+	if slices.Contains(strings.Split(pod.Annotations["tags.datadoghq.com/disable"], ","), "kube_service") {
+		kubeServiceDisabled = true
 	}
 	if !kubeServiceDisabled {
 		for _, svc := range pod.KubeServices {
@@ -451,7 +455,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	taskTags.AddLow(tags.TaskName, task.Family)
 	taskTags.AddLow(tags.TaskFamily, task.Family)
 	taskTags.AddLow(tags.TaskVersion, task.Version)
-	taskTags.AddLow(tags.AwsAccount, strconv.Itoa(task.AWSAccountID))
+	taskTags.AddLow(tags.AwsAccount, task.AWSAccountID)
 	taskTags.AddLow(tags.Region, task.Region)
 	taskTags.AddOrchestrator(tags.TaskARN, task.ID)
 
@@ -603,6 +607,36 @@ func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*typ
 		{
 			Source:               kubeMetadataSource,
 			EntityID:             common.BuildTaggerEntityID(kubeMetadata.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+
+	return tagInfos
+}
+
+func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInfo {
+	gpu := ev.Entity.(*workloadmeta.GPU)
+
+	tagList := taglist.NewTagList()
+
+	tagList.AddLow(tags.KubeGPUVendor, strings.ToLower(gpu.Vendor))
+	tagList.AddLow(tags.KubeGPUDevice, strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")))
+	tagList.AddLow(tags.KubeGPUUUID, strings.ToLower(gpu.ID))
+	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
+
+	low, orch, high, standard := tagList.Compute()
+
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
+	tagInfos := []*types.TagInfo{
+		{
+			Source:               gpuSource,
+			EntityID:             common.BuildTaggerEntityID(gpu.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,

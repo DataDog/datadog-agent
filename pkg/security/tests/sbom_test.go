@@ -10,7 +10,6 @@ package tests
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"testing"
 
@@ -18,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 
 	"github.com/avast/retry-go/v4"
 )
@@ -29,13 +27,6 @@ func TestSBOM(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
-
-	originalFlavor := flavor.GetFlavor()
-	flavor.SetFlavor(flavor.SecurityAgent)
-	defer func() {
-		flavor.SetFlavor(originalFlavor)
-	}()
-	os.Chdir("/")
 
 	ruleDefs := []*rules.RuleDefinition{
 		{

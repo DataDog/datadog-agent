@@ -52,16 +52,16 @@ func TestBeautifyKey(t *testing.T) {
 		},
 		{
 			ConnectionTuple: ConnectionTuple{
-				Pid:    32065,
-				Type:   0,
-				Family: AFINET,
-				Source: util.AddressFromString("172.21.148.124"),
-				Dest:   util.AddressFromString("130.211.21.187"),
-				SPort:  52012,
-				DPort:  443,
+				Pid:       32065,
+				Type:      0,
+				Family:    AFINET,
+				Source:    util.AddressFromString("172.21.148.124"),
+				Dest:      util.AddressFromString("130.211.21.187"),
+				SPort:     52012,
+				DPort:     443,
+				Direction: 2,
 			},
-			Direction: 2,
-			Cookie:    2,
+			Cookie: 2,
 		},
 	} {
 		bk := c.ByteKey(buf)

@@ -14,6 +14,7 @@ import (
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -21,11 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // Module defines the fx options for this component.
@@ -46,6 +46,7 @@ type dependencies struct {
 	HaAgent                haagent.Component
 	Compressor             compression.Component
 	Tagger                 tagger.Component
+	Hostname               hostnameinterface.Component
 
 	Params Params
 }
@@ -72,7 +73,7 @@ type provides struct {
 }
 
 func newDemultiplexer(deps dependencies) (provides, error) {
-	hostnameDetected, err := hostname.Get(context.TODO())
+	hostnameDetected, err := deps.Hostname.Get(context.TODO())
 	if err != nil {
 		if deps.Params.continueOnMissingHostname {
 			deps.Log.Warnf("Error getting hostname: %s", err)

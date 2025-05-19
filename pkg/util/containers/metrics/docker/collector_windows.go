@@ -8,7 +8,6 @@
 package docker
 
 import (
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
@@ -16,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-func convertContainerStats(stats *container.Stats) *provider.ContainerStats {
+func convertContainerStats(stats *container.StatsResponse) *provider.ContainerStats {
 	return &provider.ContainerStats{
 		Timestamp: stats.Read,
 		CPU:       convertCPUStats(&stats.CPUStats),
@@ -60,7 +59,7 @@ func convertPIDStats(numProcs uint32) *provider.ContainerPIDStats {
 	}
 }
 
-func computeCPULimit(containerStats *provider.ContainerStats, spec *types.ContainerJSON) {
+func computeCPULimit(containerStats *provider.ContainerStats, spec *container.InspectResponse) {
 	if spec == nil || spec.HostConfig == nil || containerStats.CPU == nil {
 		return
 	}

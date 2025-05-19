@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/exp/maps"
 
@@ -25,6 +26,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
@@ -41,8 +44,12 @@ type atel struct {
 	runner  runner
 	atelCfg *Config
 
+	lightTracer *installertelemetry.Telemetry
+
 	cancelCtx context.Context
 	cancel    context.CancelFunc
+
+	startupSpan *installertelemetry.Span
 
 	prevPromMetricCounterValues   map[string]float64
 	prevPromMetricHistogramValues map[string]uint64
@@ -127,6 +134,12 @@ func createAtel(
 		runner = newRunnerImpl()
 	}
 
+	installertelemetry.SetSamplingRate("agent.startup", atelCfg.StartupTraceSampling)
+
+	tracerHTTPClient := &http.Client{
+		Transport: httputils.CreateHTTPTransport(cfgComp),
+	}
+
 	return &atel{
 		enabled: true,
 		cfgComp: cfgComp,
@@ -135,6 +148,13 @@ func createAtel(
 		sender:  sender,
 		runner:  runner,
 		atelCfg: atelCfg,
+
+		lightTracer: installertelemetry.NewTelemetry(
+			tracerHTTPClient,
+			utils.SanitizeAPIKey(cfgComp.GetString("api_key")),
+			cfgComp.GetString("site"),
+			"datadog-agent",
+		),
 
 		prevPromMetricCounterValues:   make(map[string]float64),
 		prevPromMetricHistogramValues: make(map[string]uint64),
@@ -208,12 +228,15 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 
 			// create a key from the tags (and drop not specified in the configuration tags)
 			var specTags = make([]*dto.LabelPair, 0, len(origTags))
+			var sb strings.Builder
 			for _, t := range tags {
 				if _, ok := mCfg.aggregateTagsMap[t.GetName()]; ok {
 					specTags = append(specTags, t)
-					tagsKey += makeLabelPairKey(t)
+					sb.WriteString(makeLabelPairKey(t))
 				}
 			}
+			tagsKey = sb.String()
+
 			if mCfg.AggregateTotal {
 				aggregateMetric(mt, totalm, m)
 			}
@@ -255,65 +278,73 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 	return maps.Values(amMap)
 }
 
+// Using Prometheus  terminology. Metrics name or in "Prom" MetricFamily is technically a Datadog metrics.
+// dto.Metric are a metric values for each timeseries (tag/value combination).
 func buildKeysForMetricsPreviousValues(mt dto.MetricType, metricName string, metrics []*dto.Metric) []string {
 	keyNames := make([]string, 0, len(metrics))
 	for _, m := range metrics {
 		var keyName string
 		tags := m.GetLabel()
 		if len(tags) == 0 {
-			// start with the metric name
+			// For "tagless" MetricFamily, len(metrics) will be 1, with single iteration and m.GetLabel()
+			// will be nil. Accordingly, to form a key for that metric its name alone is sufficient.
 			keyName = metricName
 		} else {
-			// Sort tags to stability of the key
-			sortedTags := cloneLabelsSorted(tags)
-			var builder strings.Builder
-
-			// start with the metric name plus the tags
-			builder.WriteString(metricName)
-			for _, tag := range sortedTags {
-				builder.WriteString(makeLabelPairKey(tag))
-			}
-			keyName = builder.String()
+			//If the metric has tags, len(metrics) will be equal to the number of metric's timeseries.
+			// Each timeseries or "m" on each iteration in this code, will contain a set of unique
+			// tagset (as m.GetLabel()). Accordingly, each timeseries should be represented by a unique
+			// and stable (reproducible) key formed by tagset key names and values.
+			keyName = fmt.Sprintf("%s%s:", metricName, convertLabelsToKey(tags))
 		}
 
 		if mt == dto.MetricType_HISTOGRAM {
-			// add bucket names to the key
+			// On each iteration for metrics without tags (only 1 iteration) or with tags (iteration per
+			// timeseries). If the metric is a HISTOGRAM, each timeseries bucket individually plus
+			// implicit "+Inf" bucket. For example, for 3 timeseries with 4-bucket histogram, we will
+			// track 15 values using 15 keys (3x(4+1)).
 			for _, bucket := range m.Histogram.GetBucket() {
 				keyNames = append(keyNames, fmt.Sprintf("%v:%v", keyName, bucket.GetUpperBound()))
 			}
-		} else {
-			keyNames = append(keyNames, keyName)
 		}
+
+		// Add the key for Counter, Gauge metric and HISTOGRAM's +Inf bucket
+		keyNames = append(keyNames, keyName)
 	}
 
 	return keyNames
 }
 
+// Swap current value with the previous value and deduct the previous value from the current value
+func deductAndUpdatePrevValue(key string, prevPromMetricValues map[string]uint64, curValue *uint64) {
+	origCurValue := *curValue
+	if prevValue, ok := prevPromMetricValues[key]; ok {
+		*curValue -= prevValue
+	}
+	prevPromMetricValues[key] = origCurValue
+}
+
 func convertPromHistogramsToDatadogHistogramsValues(metrics []*dto.Metric, prevPromMetricValues map[string]uint64, keyNames []string) {
 	if len(metrics) > 0 {
 		bucketCount := len(metrics[0].Histogram.GetBucket())
+		var prevValue uint64
+
 		for i, m := range metrics {
-			// First, deduct the previous cumulative count from the current one
+			// 1. deduct the previous cumulative count from each explicit  buckets
 			for j, b := range m.Histogram.GetBucket() {
-				key := keyNames[(i*bucketCount)+j]
-				curValue := b.GetCumulativeCount()
-
-				// Adjust the counter value if found
-				if prevValue, ok := prevPromMetricValues[key]; ok {
-					*b.CumulativeCount -= prevValue
-				}
-
-				// Upsert the cache of previous counter values
-				prevPromMetricValues[key] = curValue
+				deductAndUpdatePrevValue(keyNames[(i*(bucketCount+1))+j], prevPromMetricValues, b.CumulativeCount)
 			}
+			// 2. deduct the previous cumulative count from the implicit  "+Inf" bucket
+			deductAndUpdatePrevValue(keyNames[((i+1)*(bucketCount+1))-1], prevPromMetricValues, m.Histogram.SampleCount)
 
-			// Then, de-cumulate next bucket value from the previous bucket values
-			var prevValue uint64
+			// 3. "De-cumulate" next explicit bucket value from the preceding bucket value
+			prevValue = 0
 			for _, b := range m.Histogram.GetBucket() {
 				curValue := b.GetCumulativeCount()
 				*b.CumulativeCount -= prevValue
 				prevValue = curValue
 			}
+			// 4. "De-cumulate" implicit "+Inf" bucket value from the preceding bucket value
+			*m.Histogram.SampleCount -= prevValue
 		}
 	}
 }
@@ -443,12 +474,26 @@ func (a *atel) reportAgentMetrics(session *senderSession, pms []*telemetry.Metri
 func (a *atel) loadPayloads(profiles []*Profile) (*senderSession, error) {
 	// Gather all prom metrics. Currently Gather() does not allow filtering by
 	// metric name, so we need to gather all metrics and filter them on our own.
-	//	pms, err := a.telemetry.Gather(false)
 	pms, err := a.telComp.Gather(false)
 	if err != nil {
 		a.logComp.Errorf("failed to get filtered telemetry metrics: %v", err)
 		return nil, err
 	}
+
+	// Ensure that metrics from the default Prometheus registry are also collected.
+	pmsDefault, errDefault := a.telComp.Gather(true)
+	if errDefault == nil {
+		pms = append(pms, pmsDefault...)
+	} else {
+		// Not a fatal error, just log it
+		a.logComp.Errorf("failed to get filtered telemetry metrics: %v", err)
+	}
+
+	// All metrics stored in the "pms" slice above must follow the format:
+	//    <subsystem>__<metric_name>
+	// The "subsystem" and "name" should be concatenated with a double underscore ("__") separator,
+	// e.g., "checks__execution_time". Therefore, the "Options.NoDoubleUnderscoreSep: true" option
+	// must not be used when creating metrics.
 
 	session := a.sender.startSession(a.cancelCtx)
 	for _, p := range profiles {
@@ -481,7 +526,7 @@ func (a *atel) writePayload(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	a.logComp.Info("Showing agent telemetry payload")
-	payload, err := a.GetAsJSON()
+	payload, err := a.getAsJSON()
 	if err != nil {
 		httputils.SetJSONError(w, a.logComp.Error(err.Error()), 500)
 		return
@@ -490,7 +535,7 @@ func (a *atel) writePayload(w http.ResponseWriter, _ *http.Request) {
 	w.Write(payload)
 }
 
-func (a *atel) GetAsJSON() ([]byte, error) {
+func (a *atel) getAsJSON() ([]byte, error) {
 	session, err := a.loadPayloads(a.atelCfg.Profiles)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load agent telemetry payload: %w", err)
@@ -516,11 +561,69 @@ func (a *atel) GetAsJSON() ([]byte, error) {
 	return prettyPayload.Bytes(), nil
 }
 
+func (a *atel) SendEvent(eventType string, eventPayload []byte) error {
+	// Check if the telemetry is enabled
+	if !a.enabled {
+		return errors.New("agent telemetry is not enabled")
+	}
+
+	// Check if the payload type is registered
+	eventInfo, ok := a.atelCfg.events[eventType]
+	if !ok {
+		a.logComp.Errorf("Payload type `%s` has to be registered to be sent", eventType)
+		return fmt.Errorf("Payload type `%s` is not registered", eventType)
+	}
+
+	// Convert payload to JSON
+	var eventPayloadJSON map[string]interface{}
+	err := json.Unmarshal(eventPayload, &eventPayloadJSON)
+	if err != nil {
+		a.logComp.Errorf("Failed to unmarshal payload: %s", err)
+		return fmt.Errorf("failed to unmarshal payload: %w", err)
+	}
+
+	// Send the payload
+	ss := a.sender.startSession(a.cancelCtx)
+	a.sender.sendEventPayload(ss, eventInfo, eventPayloadJSON)
+	err = a.sender.flushSession(ss)
+	if err != nil {
+		a.logComp.Errorf("failed to flush sent payload: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+func (a *atel) StartStartupSpan(operationName string) (*installertelemetry.Span, context.Context) {
+	if a.lightTracer != nil {
+		return installertelemetry.StartSpanFromContext(a.cancelCtx, operationName)
+	}
+	return &installertelemetry.Span{}, a.cancelCtx
+}
+
 // start is called by FX when the application starts.
 func (a *atel) start() error {
 	a.logComp.Infof("Starting agent telemetry for %d schedules and %d profiles", len(a.atelCfg.schedule), len(a.atelCfg.Profiles))
 
 	a.cancelCtx, a.cancel = context.WithCancel(context.Background())
+
+	if a.lightTracer != nil {
+		// Start internal telemetry trace
+		a.startupSpan, a.cancelCtx = installertelemetry.StartSpanFromContext(a.cancelCtx, "agent.startup")
+		go func() {
+			timing := time.After(1 * time.Minute)
+			select {
+			case <-a.cancelCtx.Done():
+				if a.startupSpan != nil {
+					a.startupSpan.Finish(a.cancelCtx.Err())
+				}
+			case <-timing:
+				if a.startupSpan != nil {
+					a.startupSpan.Finish(nil)
+				}
+			}
+		}()
+	}
 
 	// Start the runner and add the jobs.
 	a.runner.start()
@@ -537,8 +640,16 @@ func (a *atel) start() error {
 
 // stop is called by FX when the application stops.
 func (a *atel) stop() error {
+	if a.startupSpan != nil {
+		a.startupSpan.Finish(nil)
+	}
+
 	a.logComp.Info("Stopping agent telemetry")
 	a.cancel()
+
+	if a.lightTracer != nil {
+		a.lightTracer.Stop()
+	}
 
 	runnerCtx := a.runner.stop()
 	<-runnerCtx.Done()

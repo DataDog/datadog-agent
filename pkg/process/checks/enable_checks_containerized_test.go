@@ -10,7 +10,11 @@ package checks
 import (
 	"testing"
 
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -18,6 +22,8 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
+	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
+	gpusubscriberfxmock "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -40,7 +46,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.SetWithoutSource("process_config.disable_realtime_checks", false)
 		env.SetFeatures(t, env.Docker)
 
-		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertContainsCheck(t, enabledChecks, RTContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, ProcessCheckName)
@@ -55,7 +61,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.SetWithoutSource("process_config.disable_realtime_checks", true)
 		env.SetFeatures(t, env.Docker)
 
-		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
 	})
@@ -67,7 +73,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
 
-		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
@@ -81,7 +87,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
 		env.SetFeatures(t, env.Docker)
 
-		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertContainsCheck(t, enabledChecks, ProcessCheckName)
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
@@ -98,12 +104,12 @@ func TestContainerCheck(t *testing.T) {
 		env.SetFeatures(t, env.Docker)
 
 		flavor.SetFlavor("process_agent")
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
 
 		flavor.SetFlavor("agent")
-		enabledChecks = getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.NpCollector)
+		enabledChecks = getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertContainsCheck(t, enabledChecks, RTContainerCheckName)
 	})
@@ -136,7 +142,7 @@ func TestDisableRealTime(t *testing.T) {
 			mockConfig.SetWithoutSource("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
 			env.SetFeatures(t, env.Docker)
 
-			enabledChecks := getEnabledChecks(t, mockConfig, configmock.NewSystemProbe(t), deps.WMeta, deps.NpCollector)
+			enabledChecks := getEnabledChecks(t, mockConfig, configmock.NewSystemProbe(t), deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 			assert.EqualValues(tc.expectedChecks, enabledChecks)
 		})
 	}
@@ -144,14 +150,43 @@ func TestDisableRealTime(t *testing.T) {
 
 type deps struct {
 	fx.In
-	WMeta       workloadmeta.Component
-	NpCollector npcollector.Component
+	WMeta         workloadmeta.Component
+	NpCollector   npcollector.Component
+	GpuSubscriber gpusubscriber.Component
+	Statsd        statsd.ClientInterface
 }
 
 func createDeps(t *testing.T) deps {
 	return fxutil.Test[deps](t,
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		gpusubscriberfxmock.MockModule(),
 		npcollectorimpl.MockModule(),
+		fx.Provide(func() statsd.ClientInterface {
+			return &statsd.NoOpClient{}
+		}),
 	)
+}
+
+func assertContainsCheck(t *testing.T, checks []string, name string) {
+	t.Helper()
+	assert.Contains(t, checks, name)
+}
+
+func assertNotContainsCheck(t *testing.T, checks []string, name string) {
+	t.Helper()
+	assert.NotContains(t, checks, name)
+}
+
+func getEnabledChecks(t *testing.T, cfg, sysprobeYamlConfig pkgconfigmodel.ReaderWriter, wmeta workloadmeta.Component, gpuSubscriber gpusubscriber.Component, npCollector npcollector.Component, statsd statsd.ClientInterface) []string {
+	sysprobeConfigStruct, err := sysconfig.New("", "")
+	require.NoError(t, err)
+
+	var enabledChecks []string
+	for _, check := range All(cfg, sysprobeYamlConfig, sysprobeConfigStruct, wmeta, gpuSubscriber, npCollector, statsd) {
+		if check.IsEnabled() {
+			enabledChecks = append(enabledChecks, check.Name())
+		}
+	}
+	return enabledChecks
 }

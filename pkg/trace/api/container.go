@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 )
 
@@ -28,7 +29,7 @@ type IDProvider interface {
 type idProvider struct{}
 
 // NewIDProvider initializes an IDProvider instance, in non-linux environments the procRoot arg is unused.
-func NewIDProvider(_ string) IDProvider {
+func NewIDProvider(_ string, _ func(originInfo origindetection.OriginInfo) (string, error)) IDProvider {
 	return &idProvider{}
 }
 

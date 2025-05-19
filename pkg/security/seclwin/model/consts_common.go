@@ -9,10 +9,12 @@ package model
 import (
 	"crypto/sha256"
 	"fmt"
+	"maps"
 	"sync"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 )
 
@@ -181,6 +183,29 @@ var (
 		"CLASS_ANY":    255,
 	}
 
+	// DNSResponseCodeConstants see https://datatracker.ietf.org/doc/html/rfc2929
+	// generate_constants:DNS Responses,DNS Responses are the supported response codes
+	DNSResponseCodeConstants = map[string]int{
+		"NOERROR":  0,
+		"FORMERR":  1,
+		"SERVFAIL": 2,
+		"NXDOMAIN": 3,
+		"NOTIMP":   4,
+		"REFUSED":  5,
+		"YXDOMAIN": 6,
+		"YXRRSET":  7,
+		"NXRRSET":  8,
+		"NOTAUTH":  9,
+		"NOTZONE":  10,
+		"BADVERS":  16,
+		"BADSIG":   16,
+		"BADKEY":   17,
+		"BADTIME":  18,
+		"BADMODE":  19,
+		"BADNAME":  20,
+		"BADALG":   21,
+	}
+
 	// BooleanConstants holds the evaluator for boolean constants
 	// generate_constants:Boolean constants,Boolean constants are the supported boolean constants.
 	BooleanConstants = map[string]interface{}{
@@ -319,11 +344,18 @@ var (
 		"IP_PROTO_RAW":     IPProtoRAW,
 	}
 
+	// NetworkDirectionConstants is the list of supported network directions
+	// generate_constants:Network directions,Network directions are the supported directions of network packets.
+	NetworkDirectionConstants = map[string]NetworkDirection{
+		"INGRESS": Ingress,
+		"EGRESS":  Egress,
+	}
+
 	// exitCauseConstants is the list of supported Exit causes
-	exitCauseConstants = map[string]ExitCause{
-		"EXITED":     ExitExited,
-		"COREDUMPED": ExitCoreDumped,
-		"SIGNALED":   ExitSignaled,
+	exitCauseConstants = map[string]sharedconsts.ExitCause{
+		"EXITED":     sharedconsts.ExitExited,
+		"COREDUMPED": sharedconsts.ExitCoreDumped,
+		"SIGNALED":   sharedconsts.ExitSignaled,
 	}
 
 	tlsVersionContants = map[string]uint16{
@@ -337,13 +369,14 @@ var (
 )
 
 var (
-	dnsQTypeStrings      = map[uint32]string{}
-	dnsQClassStrings     = map[uint32]string{}
-	l3ProtocolStrings    = map[L3Protocol]string{}
-	l4ProtocolStrings    = map[L4Protocol]string{}
-	addressFamilyStrings = map[uint16]string{}
-	exitCauseStrings     = map[ExitCause]string{}
-	tlsVersionStrings    = map[uint16]string{}
+	dnsQTypeStrings         = map[uint32]string{}
+	dnsQClassStrings        = map[uint32]string{}
+	dnsResponseCodeStrings  = map[uint32]string{}
+	l3ProtocolStrings       = map[L3Protocol]string{}
+	l4ProtocolStrings       = map[L4Protocol]string{}
+	networkDirectionStrings = map[NetworkDirection]string{}
+	addressFamilyStrings    = map[uint16]string{}
+	tlsVersionStrings       = map[uint16]string{}
 )
 
 // File flags
@@ -389,6 +422,13 @@ func initDNSQClassConstants() {
 	}
 }
 
+func initDNSResponseCodeConstants() {
+	for k, v := range DNSResponseCodeConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		dnsResponseCodeStrings[uint32(v)] = k
+	}
+}
+
 func initDNSQTypeConstants() {
 	for k, v := range DNSQTypeConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: v}
@@ -410,6 +450,13 @@ func initL4ProtocolConstants() {
 	}
 }
 
+func initNetworkDirectionContants() {
+	for k, v := range NetworkDirectionConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		networkDirectionStrings[v] = k
+	}
+}
+
 func initAddressFamilyConstants() {
 	for k, v := range addressFamilyConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
@@ -423,14 +470,11 @@ func initAddressFamilyConstants() {
 func initExitCauseConstants() {
 	for k, v := range exitCauseConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
-		exitCauseStrings[v] = k
 	}
 }
 
 func initBoolConstants() {
-	for k, v := range BooleanConstants {
-		seclConstants[k] = v
-	}
+	maps.Copy(seclConstants, BooleanConstants)
 }
 
 func initSSLVersionConstants() {
@@ -460,15 +504,18 @@ func initConstants() {
 	initSignalConstants()
 	initPipeBufFlagConstants()
 	initDNSQClassConstants()
+	initDNSResponseCodeConstants()
 	initDNSQTypeConstants()
 	initL3ProtocolConstants()
 	initL4ProtocolConstants()
+	initNetworkDirectionContants()
 	initAddressFamilyConstants()
 	initExitCauseConstants()
 	initBPFMapNamesConstants()
 	initAUIDConstants()
 	usersession.InitUserSessionTypes()
 	initSSLVersionConstants()
+	initSysCtlActionConstants()
 }
 
 // RetValError represents a syscall return error value
@@ -781,18 +828,16 @@ const (
 	IPProtoRAW L4Protocol = 255
 )
 
-// ExitCause represents the cause of a process termination
-type ExitCause uint32
+// NetworkDirection is used to identify the network direction of a flow
+type NetworkDirection uint32
 
-func (cause ExitCause) String() string {
-	return exitCauseStrings[cause]
+func (direction NetworkDirection) String() string {
+	return networkDirectionStrings[direction]
 }
 
 const (
-	// ExitExited Process exited normally
-	ExitExited ExitCause = iota
-	// ExitCoreDumped Process was terminated with a coredump signal
-	ExitCoreDumped
-	// ExitSignaled Process was terminated with a signal other than a coredump
-	ExitSignaled
+	// Egress is used to identify egress traffic
+	Egress NetworkDirection = iota + 1
+	// Ingress is used to identify ingress traffic
+	Ingress
 )

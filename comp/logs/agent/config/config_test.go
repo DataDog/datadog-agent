@@ -14,6 +14,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/atomic"
 )
 
 type ConfigTestSuite struct {
@@ -193,49 +194,58 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 	suite.config.SetWithoutSource("logs_config.use_v2_api", false)
 
 	expectedMainEndpoint := Endpoint{
-		apiKeyGetter:     func() string { return "123" },
-		Host:             "agent-http-intake.logs.datadoghq.com",
-		Port:             443,
-		useSSL:           true,
-		UseCompression:   true,
-		CompressionLevel: 6,
-		BackoffFactor:    3,
-		BackoffBase:      1.0,
-		BackoffMax:       2.0,
-		RecoveryInterval: 10,
-		RecoveryReset:    true,
-		Version:          EPIntakeVersion1,
-		isReliable:       true,
+		apiKey:                 atomic.NewString("123"),
+		configSettingPath:      "api_key",
+		isAdditionalEndpoint:   false,
+		additionalEndpointsIdx: 0,
+		Host:                   "agent-http-intake.logs.datadoghq.com",
+		Port:                   443,
+		useSSL:                 true,
+		UseCompression:         true,
+		CompressionLevel:       6,
+		BackoffFactor:          3,
+		BackoffBase:            1.0,
+		BackoffMax:             2.0,
+		RecoveryInterval:       10,
+		RecoveryReset:          true,
+		Version:                EPIntakeVersion1,
+		isReliable:             true,
 	}
 	expectedAdditionalEndpoint1 := Endpoint{
-		apiKeyGetter:     func() string { return "456" },
-		Host:             "additional.endpoint.1",
-		Port:             1234,
-		useSSL:           true,
-		UseCompression:   true,
-		CompressionLevel: 6,
-		BackoffFactor:    3,
-		BackoffBase:      1.0,
-		BackoffMax:       2.0,
-		RecoveryInterval: 10,
-		RecoveryReset:    true,
-		Version:          EPIntakeVersion1,
-		isReliable:       true,
+		apiKey:                 atomic.NewString("456"),
+		configSettingPath:      "logs_config.additional_endpoints",
+		isAdditionalEndpoint:   true,
+		additionalEndpointsIdx: 0,
+		Host:                   "additional.endpoint.1",
+		Port:                   1234,
+		useSSL:                 true,
+		UseCompression:         true,
+		CompressionLevel:       6,
+		BackoffFactor:          3,
+		BackoffBase:            1.0,
+		BackoffMax:             2.0,
+		RecoveryInterval:       10,
+		RecoveryReset:          true,
+		Version:                EPIntakeVersion1,
+		isReliable:             true,
 	}
 	expectedAdditionalEndpoint2 := Endpoint{
-		apiKeyGetter:     func() string { return "789" },
-		Host:             "additional.endpoint.2",
-		Port:             1234,
-		useSSL:           true,
-		UseCompression:   true,
-		CompressionLevel: 6,
-		BackoffFactor:    3,
-		BackoffBase:      1.0,
-		BackoffMax:       2.0,
-		RecoveryInterval: 10,
-		RecoveryReset:    true,
-		Version:          EPIntakeVersion1,
-		isReliable:       true,
+		apiKey:                 atomic.NewString("789"),
+		configSettingPath:      "logs_config.additional_endpoints",
+		isAdditionalEndpoint:   true,
+		additionalEndpointsIdx: 1,
+		Host:                   "additional.endpoint.2",
+		Port:                   1234,
+		useSSL:                 true,
+		UseCompression:         true,
+		CompressionLevel:       6,
+		BackoffFactor:          3,
+		BackoffBase:            1.0,
+		BackoffMax:             2.0,
+		RecoveryInterval:       10,
+		RecoveryReset:          true,
+		Version:                EPIntakeVersion1,
+		isReliable:             true,
 	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, pkgconfigsetup.DefaultBatchMaxConcurrentSend, pkgconfigsetup.DefaultBatchMaxSize, pkgconfigsetup.DefaultBatchMaxContentSize, pkgconfigsetup.DefaultInputChanSize)
@@ -255,24 +265,30 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 	suite.config.SetWithoutSource("logs_config.dev_mode_use_proto", true)
 
 	expectedMainEndpoint := Endpoint{
-		apiKeyGetter:     func() string { return "123" },
-		Host:             "agent-http-intake.logs.datadoghq.com",
-		Port:             443,
-		useSSL:           true,
-		UseCompression:   false,
-		CompressionLevel: 0,
-		ProxyAddress:     "proxy.test:3128",
-		isReliable:       true,
+		apiKey:                 atomic.NewString("123"),
+		configSettingPath:      "api_key",
+		isAdditionalEndpoint:   false,
+		additionalEndpointsIdx: 0,
+		Host:                   "agent-http-intake.logs.datadoghq.com",
+		Port:                   443,
+		useSSL:                 true,
+		UseCompression:         false,
+		CompressionLevel:       0,
+		ProxyAddress:           "proxy.test:3128",
+		isReliable:             true,
 	}
 	expectedAdditionalEndpoint := Endpoint{
-		apiKeyGetter:     func() string { return "456" },
-		Host:             "additional.endpoint",
-		Port:             1234,
-		useSSL:           true,
-		UseCompression:   false,
-		CompressionLevel: 0,
-		ProxyAddress:     "proxy.test:3128",
-		isReliable:       true,
+		apiKey:                 atomic.NewString("456"),
+		configSettingPath:      "logs_config.additional_endpoints",
+		isAdditionalEndpoint:   true,
+		additionalEndpointsIdx: 0,
+		Host:                   "additional.endpoint",
+		Port:                   1234,
+		useSSL:                 true,
+		UseCompression:         false,
+		CompressionLevel:       0,
+		ProxyAddress:           "proxy.test:3128",
+		isReliable:             true,
 	}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
@@ -308,46 +324,55 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 	suite.config.SetWithoutSource("logs_config.additional_endpoints", endpointsInConfig)
 
 	expectedMainEndpoint := Endpoint{
-		apiKeyGetter:     func() string { return "123" },
-		Host:             "agent-http-intake.logs.datadoghq.com",
-		Port:             443,
-		useSSL:           true,
-		UseCompression:   true,
-		CompressionLevel: 6,
-		BackoffFactor:    pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:      pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:       pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval: pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
-		Version:          EPIntakeVersion1,
-		isReliable:       true,
+		apiKey:                 atomic.NewString("123"),
+		configSettingPath:      "api_key",
+		isAdditionalEndpoint:   false,
+		additionalEndpointsIdx: 0,
+		Host:                   "agent-http-intake.logs.datadoghq.com",
+		Port:                   443,
+		useSSL:                 true,
+		UseCompression:         true,
+		CompressionLevel:       6,
+		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
+		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:                EPIntakeVersion1,
+		isReliable:             true,
 	}
 	expectedAdditionalEndpoint1 := Endpoint{
-		apiKeyGetter:     func() string { return "456" },
-		Host:             "additional.endpoint.1",
-		Port:             1234,
-		useSSL:           true,
-		UseCompression:   true,
-		CompressionLevel: 6,
-		BackoffFactor:    pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:      pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:       pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval: pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
-		Version:          EPIntakeVersion1,
-		isReliable:       true,
+		apiKey:                 atomic.NewString("456"),
+		configSettingPath:      "logs_config.additional_endpoints",
+		isAdditionalEndpoint:   true,
+		additionalEndpointsIdx: 0,
+		Host:                   "additional.endpoint.1",
+		Port:                   1234,
+		useSSL:                 true,
+		UseCompression:         true,
+		CompressionLevel:       6,
+		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
+		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:                EPIntakeVersion1,
+		isReliable:             true,
 	}
 	expectedAdditionalEndpoint2 := Endpoint{
-		apiKeyGetter:     func() string { return "789" },
-		Host:             "additional.endpoint.2",
-		Port:             1234,
-		useSSL:           true,
-		UseCompression:   true,
-		CompressionLevel: 6,
-		BackoffFactor:    pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:      pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:       pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval: pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
-		Version:          EPIntakeVersion1,
-		isReliable:       true,
+		apiKey:                 atomic.NewString("789"),
+		configSettingPath:      "logs_config.additional_endpoints",
+		isAdditionalEndpoint:   true,
+		additionalEndpointsIdx: 1,
+		Host:                   "additional.endpoint.2",
+		Port:                   1234,
+		useSSL:                 true,
+		UseCompression:         true,
+		CompressionLevel:       6,
+		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
+		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:                EPIntakeVersion1,
+		isReliable:             true,
 	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, pkgconfigsetup.DefaultBatchMaxConcurrentSend, pkgconfigsetup.DefaultBatchMaxSize, pkgconfigsetup.DefaultBatchMaxContentSize, pkgconfigsetup.DefaultInputChanSize)
@@ -383,52 +408,61 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 	suite.config.SetWithoutSource("logs_config.additional_endpoints", endpointsInConfig)
 
 	expectedMainEndpoint := Endpoint{
-		apiKeyGetter:     func() string { return "123" },
-		Host:             "agent-http-intake.logs.datadoghq.com",
-		Port:             443,
-		useSSL:           true,
-		UseCompression:   true,
-		CompressionLevel: 6,
-		BackoffFactor:    pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:      pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:       pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval: pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
-		Version:          EPIntakeVersion2,
-		TrackType:        "test-track",
-		Protocol:         "test-proto",
-		Origin:           "test-source",
-		isReliable:       true,
+		apiKey:                 atomic.NewString("123"),
+		configSettingPath:      "api_key",
+		isAdditionalEndpoint:   false,
+		additionalEndpointsIdx: 0,
+		Host:                   "agent-http-intake.logs.datadoghq.com",
+		Port:                   443,
+		useSSL:                 true,
+		UseCompression:         true,
+		CompressionLevel:       6,
+		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
+		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:                EPIntakeVersion2,
+		TrackType:              "test-track",
+		Protocol:               "test-proto",
+		Origin:                 "test-source",
+		isReliable:             true,
 	}
 	expectedAdditionalEndpoint1 := Endpoint{
-		apiKeyGetter:     func() string { return "456" },
-		Host:             "additional.endpoint.1",
-		Port:             1234,
-		useSSL:           true,
-		UseCompression:   true,
-		CompressionLevel: 6,
-		BackoffFactor:    pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:      pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:       pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval: pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
-		Version:          EPIntakeVersion1,
-		isReliable:       true,
+		apiKey:                 atomic.NewString("456"),
+		configSettingPath:      "logs_config.additional_endpoints",
+		isAdditionalEndpoint:   true,
+		additionalEndpointsIdx: 0,
+		Host:                   "additional.endpoint.1",
+		Port:                   1234,
+		useSSL:                 true,
+		UseCompression:         true,
+		CompressionLevel:       6,
+		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
+		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:                EPIntakeVersion1,
+		isReliable:             true,
 	}
 	expectedAdditionalEndpoint2 := Endpoint{
-		apiKeyGetter:     func() string { return "789" },
-		Host:             "additional.endpoint.2",
-		Port:             1234,
-		useSSL:           true,
-		UseCompression:   true,
-		CompressionLevel: 6,
-		BackoffFactor:    pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:      pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:       pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval: pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
-		Version:          EPIntakeVersion2,
-		TrackType:        "test-track",
-		Protocol:         "test-proto",
-		Origin:           "test-source",
-		isReliable:       true,
+		apiKey:                 atomic.NewString("789"),
+		configSettingPath:      "logs_config.additional_endpoints",
+		isAdditionalEndpoint:   true,
+		additionalEndpointsIdx: 1,
+		Host:                   "additional.endpoint.2",
+		Port:                   1234,
+		useSSL:                 true,
+		UseCompression:         true,
+		CompressionLevel:       6,
+		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
+		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:                EPIntakeVersion2,
+		TrackType:              "test-track",
+		Protocol:               "test-proto",
+		Origin:                 "test-source",
+		isReliable:             true,
 	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, pkgconfigsetup.DefaultBatchMaxConcurrentSend, pkgconfigsetup.DefaultBatchMaxSize, pkgconfigsetup.DefaultBatchMaxContentSize, pkgconfigsetup.DefaultInputChanSize)
@@ -454,24 +488,30 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 	suite.config.SetWithoutSource("logs_config.additional_endpoints", endpointsInConfig)
 
 	expectedMainEndpoint := Endpoint{
-		apiKeyGetter:     func() string { return "123" },
-		Host:             "agent-http-intake.logs.datadoghq.com",
-		Port:             443,
-		useSSL:           true,
-		UseCompression:   false,
-		CompressionLevel: 0,
-		ProxyAddress:     "proxy.test:3128",
-		isReliable:       true,
+		apiKey:                 atomic.NewString("123"),
+		configSettingPath:      "api_key",
+		isAdditionalEndpoint:   false,
+		additionalEndpointsIdx: 0,
+		Host:                   "agent-http-intake.logs.datadoghq.com",
+		Port:                   443,
+		useSSL:                 true,
+		UseCompression:         false,
+		CompressionLevel:       0,
+		ProxyAddress:           "proxy.test:3128",
+		isReliable:             true,
 	}
 	expectedAdditionalEndpoint := Endpoint{
-		apiKeyGetter:     func() string { return "456" },
-		Host:             "additional.endpoint",
-		Port:             1234,
-		useSSL:           true,
-		UseCompression:   false,
-		CompressionLevel: 0,
-		ProxyAddress:     "proxy.test:3128",
-		isReliable:       true,
+		apiKey:                 atomic.NewString("456"),
+		configSettingPath:      "logs_config.additional_endpoints",
+		isAdditionalEndpoint:   true,
+		additionalEndpointsIdx: 0,
+		Host:                   "additional.endpoint",
+		Port:                   1234,
+		useSSL:                 true,
+		UseCompression:         false,
+		CompressionLevel:       0,
+		ProxyAddress:           "proxy.test:3128",
+		isReliable:             true,
 	}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
@@ -491,21 +531,24 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 	suite.Nil(err)
 
 	main := Endpoint{
-		apiKeyGetter:     func() string { return "123" },
-		Host:             "my-proxy",
-		Port:             443,
-		useSSL:           true,
-		UseCompression:   true,
-		CompressionLevel: 6,
-		BackoffFactor:    pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:      pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:       pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval: pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
-		Version:          EPIntakeVersion2,
-		TrackType:        "test-track",
-		Protocol:         "test-proto",
-		Origin:           "test-source",
-		isReliable:       true,
+		apiKey:                 atomic.NewString("123"),
+		configSettingPath:      "api_key",
+		isAdditionalEndpoint:   false,
+		additionalEndpointsIdx: 0,
+		Host:                   "my-proxy",
+		Port:                   443,
+		useSSL:                 true,
+		UseCompression:         true,
+		CompressionLevel:       ZstdCompressionLevel,
+		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
+		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:                EPIntakeVersion2,
+		TrackType:              "test-track",
+		Protocol:               "test-proto",
+		Origin:                 "test-source",
+		isReliable:             true,
 	}
 
 	expectedEndpoints := &Endpoints{
@@ -536,21 +579,24 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 	suite.Nil(err)
 
 	main := Endpoint{
-		apiKeyGetter:     func() string { return "123" },
-		Host:             "default-intake.logs.mydomain.com",
-		Port:             0,
-		useSSL:           true,
-		UseCompression:   true,
-		CompressionLevel: 6,
-		BackoffFactor:    pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:      pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:       pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval: pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
-		Version:          EPIntakeVersion2,
-		TrackType:        "test-track",
-		Origin:           "test-source",
-		Protocol:         "test-proto",
-		isReliable:       true,
+		apiKey:                 atomic.NewString("123"),
+		configSettingPath:      "api_key",
+		isAdditionalEndpoint:   false,
+		additionalEndpointsIdx: 0,
+		Host:                   "default-intake.logs.mydomain.com",
+		Port:                   0,
+		useSSL:                 true,
+		UseCompression:         true,
+		CompressionLevel:       ZstdCompressionLevel,
+		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
+		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:                EPIntakeVersion2,
+		TrackType:              "test-track",
+		Origin:                 "test-source",
+		Protocol:               "test-proto",
+		isReliable:             true,
 	}
 
 	expectedEndpoints := &Endpoints{
@@ -573,21 +619,24 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 	suite.config.SetWithoutSource("logs_config.batch_wait", 1)
 
 	main := Endpoint{
-		apiKeyGetter:     func() string { return "123" },
-		Host:             "http-intake.logs.datadoghq.com",
-		Port:             0,
-		useSSL:           true,
-		UseCompression:   true,
-		CompressionLevel: 6,
-		BackoffFactor:    pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:      pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:       pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval: pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
-		Version:          EPIntakeVersion2,
-		TrackType:        "test-track",
-		Origin:           "lambda-extension",
-		Protocol:         "test-proto",
-		isReliable:       true,
+		apiKey:                 atomic.NewString("123"),
+		configSettingPath:      "api_key",
+		isAdditionalEndpoint:   false,
+		additionalEndpointsIdx: 0,
+		Host:                   "http-intake.logs.datadoghq.com.",
+		Port:                   0,
+		useSSL:                 true,
+		UseCompression:         true,
+		CompressionLevel:       ZstdCompressionLevel,
+		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
+		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:                EPIntakeVersion2,
+		TrackType:              "test-track",
+		Origin:                 "lambda-extension",
+		Protocol:               "test-proto",
+		isReliable:             true,
 	}
 
 	expectedEndpoints := &Endpoints{
@@ -608,9 +657,9 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 }
 
 func getTestEndpoint(host string, port int, ssl bool) Endpoint {
-	e := NewEndpoint("123", host, port, ssl)
+	e := NewEndpoint("123", "", host, port, ssl)
 	e.UseCompression = true
-	e.CompressionLevel = 6
+	e.CompressionLevel = ZstdCompressionLevel // by default endpoints uses zstd
 	e.BackoffFactor = pkgconfigsetup.DefaultLogsSenderBackoffFactor
 	e.BackoffBase = pkgconfigsetup.DefaultLogsSenderBackoffBase
 	e.BackoffMax = pkgconfigsetup.DefaultLogsSenderBackoffMax
@@ -686,7 +735,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithoutVector() {
 	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
 	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com", 0, true))
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com.", 0, true))
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
 }
@@ -695,7 +744,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 	suite.config.SetWithoutSource("api_key", "123")
 
 	suite.config.SetWithoutSource("network_devices.netflow.forwarder.use_compression", false)
-	suite.config.SetWithoutSource("network_devices.netflow.forwarder.compression_level", 10)
+	suite.config.SetWithoutSource("network_devices.netflow.forwarder.zstd_compression_level", 10)
 	suite.config.SetWithoutSource("network_devices.netflow.forwarder.batch_wait", 10)
 	suite.config.SetWithoutSource("network_devices.netflow.forwarder.connection_reset_interval", 3)
 	suite.config.SetWithoutSource("network_devices.netflow.forwarder.logs_no_ssl", true)
@@ -716,8 +765,11 @@ func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 	suite.Nil(err)
 
 	main := Endpoint{
-		apiKeyGetter:            func() string { return "123" },
-		Host:                    "ndmflow-intake.datadoghq.com",
+		apiKey:                  atomic.NewString("123"),
+		configSettingPath:       "api_key",
+		isAdditionalEndpoint:    false,
+		additionalEndpointsIdx:  0,
+		Host:                    "ndmflow-intake.datadoghq.com.",
 		Port:                    0,
 		useSSL:                  true,
 		UseCompression:          false,
@@ -760,21 +812,24 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrlWithPrefix() {
 	suite.Nil(err)
 
 	main := Endpoint{
-		apiKeyGetter:     func() string { return "123" },
-		Host:             "my-proxy.com",
-		Port:             443,
-		useSSL:           true,
-		UseCompression:   true,
-		CompressionLevel: 6,
-		BackoffFactor:    pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:      pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:       pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval: pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
-		Version:          EPIntakeVersion2,
-		TrackType:        "test-track",
-		Protocol:         "test-proto",
-		Origin:           "test-source",
-		isReliable:       true,
+		apiKey:                 atomic.NewString("123"),
+		configSettingPath:      "api_key",
+		isAdditionalEndpoint:   false,
+		additionalEndpointsIdx: 0,
+		Host:                   "my-proxy.com",
+		Port:                   443,
+		useSSL:                 true,
+		UseCompression:         true,
+		CompressionLevel:       ZstdCompressionLevel,
+		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
+		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:                EPIntakeVersion2,
+		TrackType:              "test-track",
+		Protocol:               "test-proto",
+		Origin:                 "test-source",
+		isReliable:             true,
 	}
 
 	expectedEndpoints := &Endpoints{
@@ -802,21 +857,24 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDUrlWithPrefix() {
 	suite.Nil(err)
 
 	main := Endpoint{
-		apiKeyGetter:     func() string { return "123" },
-		Host:             "my-proxy.com",
-		Port:             443,
-		useSSL:           true,
-		UseCompression:   true,
-		CompressionLevel: 6,
-		BackoffFactor:    pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:      pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:       pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval: pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
-		Version:          EPIntakeVersion2,
-		TrackType:        "test-track",
-		Protocol:         "test-proto",
-		Origin:           "test-source",
-		isReliable:       true,
+		apiKey:                 atomic.NewString("123"),
+		configSettingPath:      "api_key",
+		isAdditionalEndpoint:   false,
+		additionalEndpointsIdx: 0,
+		Host:                   "my-proxy.com",
+		Port:                   443,
+		useSSL:                 true,
+		UseCompression:         true,
+		CompressionLevel:       ZstdCompressionLevel,
+		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
+		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:                EPIntakeVersion2,
+		TrackType:              "test-track",
+		Protocol:               "test-proto",
+		Origin:                 "test-source",
+		isReliable:             true,
 	}
 
 	expectedEndpoints := &Endpoints{
