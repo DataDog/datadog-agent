@@ -148,7 +148,7 @@ func (r *RequestStats) AddRequest(errorCode int32, count int, staticTags uint64,
 		}
 
 		// The kafka kernel decoder can capture multiple requests in a single packet, so
-		// in case of a case of a new event with multiple requests, we might not have a FirstLatencySample
+		// in case of a new event with multiple requests, we might not have a FirstLatencySample
 		// In such a case, we need to skip adding the latency sample to the sketch
 		if originalCount == 1 {
 			// Add the deferred latency sample
