@@ -60,7 +60,7 @@ func (h *DaemonSetHandlers) BuildMessageBody(ctx processors.ProcessorContext, re
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		DaemonSets:  models,
-		Tags:        util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.CollectorTags),
+		Tags:        util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
 	}
 }
 

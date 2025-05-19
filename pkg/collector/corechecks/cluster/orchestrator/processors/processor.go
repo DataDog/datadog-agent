@@ -39,6 +39,7 @@ type ProcessorContext interface {
 	GetKind() string
 	GetAPIVersion() string
 	IsTerminatedResources() bool
+	GetCollectorTags() []string
 }
 
 // BaseProcessorContext is the base context for all processors
@@ -87,6 +88,11 @@ func (c *BaseProcessorContext) GetKind() string {
 // GetAPIVersion returns the version
 func (c *BaseProcessorContext) GetAPIVersion() string {
 	return c.APIVersion
+}
+
+// GetCollectorTags returns the CollectorTags
+func (c *BaseProcessorContext) GetCollectorTags() []string {
+	return c.CollectorTags
 }
 
 // IsTerminatedResources returns true if resources are terminated
@@ -205,8 +211,6 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 	// Make sure to recover if a panic occurs.
 	defer RecoverOnPanic()
 
-	pctx := ctx.(*BaseProcessorContext)
-
 	resourceList := p.h.ResourceList(ctx, list)
 	resourceMetadataModels := make([]interface{}, 0, len(resourceList))
 	resourceManifestModels := make([]interface{}, 0, len(resourceList))
@@ -269,7 +273,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 			Version:         "v1",
 			ContentType:     "json",
 			// include collector tags as buffered Manifests share types, and only ExtraTags should be included in CollectorManifests
-			Tags:         util.ImmutableTagsJoin(pctx.CollectorTags, p.h.GetMetadataTags(ctx, resourceMetadataModel)),
+			Tags:         util.ImmutableTagsJoin(ctx.GetCollectorTags(), p.h.GetMetadataTags(ctx, resourceMetadataModel)),
 			IsTerminated: ctx.IsTerminatedResources(),
 		})
 	}

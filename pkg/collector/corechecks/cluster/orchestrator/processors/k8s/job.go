@@ -60,7 +60,7 @@ func (h *JobHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Jobs:        models,
-		Tags:        util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.CollectorTags),
+		Tags:        util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
 	}
 }
 

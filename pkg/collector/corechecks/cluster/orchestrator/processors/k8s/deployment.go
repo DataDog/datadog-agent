@@ -60,7 +60,7 @@ func (h *DeploymentHandlers) BuildMessageBody(ctx processors.ProcessorContext, r
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Deployments: models,
-		Tags:        util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.CollectorTags),
+		Tags:        util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
 	}
 }
 

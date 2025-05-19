@@ -60,7 +60,7 @@ func (h *ClusterRoleBindingHandlers) BuildMessageBody(ctx processors.ProcessorCo
 		GroupId:             pctx.MsgGroupID,
 		GroupSize:           int32(groupSize),
 		ClusterRoleBindings: models,
-		Tags:                util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.CollectorTags),
+		Tags:                util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
 	}
 }
 

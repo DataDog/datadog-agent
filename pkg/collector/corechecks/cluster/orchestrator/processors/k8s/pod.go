@@ -133,7 +133,7 @@ func (h *PodHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 		GroupSize:    int32(groupSize),
 		HostName:     pctx.HostName,
 		Pods:         models,
-		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.CollectorTags),
+		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
 		Info:         pctx.SystemInfo,
 		IsTerminated: ctx.IsTerminatedResources(),
 	}

@@ -59,7 +59,7 @@ func (h *CronJobV1Handlers) BuildMessageBody(ctx processors.ProcessorContext, re
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		CronJobs:    models,
-		Tags:        util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.CollectorTags),
+		Tags:        util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
 	}
 }
 

@@ -60,7 +60,7 @@ func (h *RoleHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourc
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Roles:       models,
-		Tags:        util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.CollectorTags),
+		Tags:        util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
 	}
 }
 
