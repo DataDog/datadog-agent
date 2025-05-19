@@ -238,7 +238,6 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 	v := reflect.ValueOf(value)
 	if v.Kind() == reflect.Struct {
-		log.Debugf("Structs are not supported as values for key %q", key)
 		panic("You cannot set a struct as a value")
 	}
 	c.Set(key, value, model.SourceUnknown)

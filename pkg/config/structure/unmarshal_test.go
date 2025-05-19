@@ -1483,172 +1483,33 @@ func TestMapGetChildNotFound(t *testing.T) {
 	assert.Equal(t, inner.ChildrenKeys(), []string{"a", "b"})
 }
 
-func TestCopyAny_ScalarPointers(t *testing.T) {
-	t.Run("Nil source to nil bool pointer", func(t *testing.T) {
-		var target *bool
-		fs := &featureSet{}
+func TestUnmarshalKeyWithPointerToBool(t *testing.T) {
+	confYaml := `
+feature_flags:
+  enabled: true
+  disabled: false
+  missing: false
+`
 
-		source, err := nodetreemodel.NewNodeTree(nil, "test-source")
-		if err != nil {
-			t.Fatalf("unexpected error creating source node: %v", err)
-		}
+	type FeatureFlags struct {
+		Enabled  *bool `yaml:"enabled"`
+		Disabled *bool `yaml:"disabled"`
+		Missing  *bool `yaml:"missing"`
+	}
 
-		targetValue := reflect.ValueOf(&target).Elem()
-		err = copyAny(targetValue, source, []string{}, fs)
+	mockConfig := newConfigFromYaml(t, confYaml)
+	mockConfig.SetKnown("feature_flags")
 
-		assert.Nil(t, err)
-		assert.Nil(t, target) // Target should remain nil
-	})
+	var flags FeatureFlags
+	flags = FeatureFlags{}
 
-	t.Run("Bool value to nil bool pointer", func(t *testing.T) {
-		var target *bool
-		fs := &featureSet{}
+	err := UnmarshalKey(mockConfig, "feature_flags", &flags)
+	assert.NoError(t, err)
 
-		source, err := nodetreemodel.NewNodeTree(true, "test-source")
-		if err != nil {
-			t.Fatalf("unexpected error creating source node: %v", err)
-		}
-
-		targetValue := reflect.ValueOf(&target).Elem()
-		err = copyAny(targetValue, source, []string{}, fs)
-
-		assert.Nil(t, err)
-		assert.NotNil(t, target)
-		assert.True(t, *target) // Target should now point to true
-	})
-
-	t.Run("Nil source to non-nil bool pointer", func(t *testing.T) {
-		boolVal := true
-		target := &boolVal
-		fs := &featureSet{}
-
-		source, err := nodetreemodel.NewNodeTree(nil, "test-source")
-		if err != nil {
-			t.Fatalf("unexpected error creating source node: %v", err)
-		}
-
-		targetValue := reflect.ValueOf(&target).Elem()
-		err = copyAny(targetValue, source, []string{}, fs)
-
-		assert.Nil(t, err)
-		assert.Nil(t, target) // Target should be set to nil
-	})
-
-	t.Run("Nil source to nil int pointer", func(t *testing.T) {
-		var target *int
-		fs := &featureSet{}
-
-		source, err := nodetreemodel.NewNodeTree(nil, "test-source")
-		if err != nil {
-			t.Fatalf("unexpected error creating source node: %v", err)
-		}
-
-		targetValue := reflect.ValueOf(&target).Elem()
-		err = copyAny(targetValue, source, []string{}, fs)
-
-		assert.Nil(t, err)
-		assert.Nil(t, target) // Target should remain nil
-	})
-
-	t.Run("Int value to nil int pointer", func(t *testing.T) {
-		var target *int
-		fs := &featureSet{}
-
-		source, err := nodetreemodel.NewNodeTree(42, "test-source")
-		if err != nil {
-			t.Fatalf("unexpected error creating source node: %v", err)
-		}
-
-		targetValue := reflect.ValueOf(&target).Elem()
-		err = copyAny(targetValue, source, []string{}, fs)
-
-		assert.Nil(t, err)
-		assert.NotNil(t, target)
-		assert.Equal(t, 42, *target) // Target should now point to 42
-	})
-
-	t.Run("Nil source to nil string pointer", func(t *testing.T) {
-		var target *string
-		fs := &featureSet{}
-
-		source, err := nodetreemodel.NewNodeTree(nil, "test-source")
-		if err != nil {
-			t.Fatalf("unexpected error creating source node: %v", err)
-		}
-
-		targetValue := reflect.ValueOf(&target).Elem()
-		err = copyAny(targetValue, source, []string{}, fs)
-
-		assert.Nil(t, err)
-		assert.Nil(t, target) // Target should remain nil
-	})
-
-	t.Run("String value to nil string pointer", func(t *testing.T) {
-		var target *string
-		fs := &featureSet{}
-
-		source, err := nodetreemodel.NewNodeTree("hello", "test-source")
-		if err != nil {
-			t.Fatalf("unexpected error creating source node: %v", err)
-		}
-
-		targetValue := reflect.ValueOf(&target).Elem()
-		err = copyAny(targetValue, source, []string{}, fs)
-
-		assert.Nil(t, err)
-		assert.NotNil(t, target)
-		assert.Equal(t, "hello", *target) // Target should now point to "hello"
-	})
-
-	t.Run("Float value to nil float64 pointer", func(t *testing.T) {
-		var target *float64
-		fs := &featureSet{}
-
-		source, err := nodetreemodel.NewNodeTree(3.14, "test-source")
-		if err != nil {
-			t.Fatalf("unexpected error creating source node: %v", err)
-		}
-
-		targetValue := reflect.ValueOf(&target).Elem()
-		err = copyAny(targetValue, source, []string{}, fs)
-
-		assert.Nil(t, err)
-		assert.NotNil(t, target)
-		assert.Equal(t, 3.14, *target) // Target should now point to 3.14
-	})
-
-	t.Run("Incompatible value type", func(t *testing.T) {
-		var target *bool
-		fs := &featureSet{}
-
-		// String value can't be converted to bool
-		source, err := nodetreemodel.NewNodeTree("not a bool", "test-source")
-		if err != nil {
-			t.Fatalf("unexpected error creating source node: %v", err)
-		}
-
-		targetValue := reflect.ValueOf(&target).Elem()
-		err = copyAny(targetValue, source, []string{}, fs)
-
-		assert.NotNil(t, err)                                // Should get an error
-		assert.Contains(t, err.Error(), "could not convert") // Error should be about type conversion
-	})
-
-	t.Run("Non-leaf source node", func(t *testing.T) {
-		var target *bool
-		fs := &featureSet{}
-
-		// Create a map which will be an inner node, not a leaf
-		mapData := map[string]interface{}{"key": "value"}
-		source, err := nodetreemodel.NewNodeTree(mapData, "test-source")
-		if err != nil {
-			t.Fatalf("unexpected error creating source node: %v", err)
-		}
-
-		targetValue := reflect.ValueOf(&target).Elem()
-		err = copyAny(targetValue, source, []string{}, fs)
-
-		assert.NotNil(t, err)                         // Should get an error
-		assert.Contains(t, err.Error(), "not a leaf") // Error should be about not being a leaf node
-	})
+	assert.NotNil(t, flags.Enabled)
+	assert.NotNil(t, flags.Disabled)
+	assert.NotNil(t, flags.Missing)
+	assert.Equal(t, true, *flags.Enabled)
+	assert.Equal(t, false, *flags.Disabled)
+	assert.Equal(t, false, *flags.Missing)
 }

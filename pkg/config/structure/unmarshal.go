@@ -370,32 +370,6 @@ func copyList(target reflect.Value, inputList []nodetreemodel.Node, currPath []s
 
 func copyAny(target reflect.Value, input nodetreemodel.Node, currPath []string, fs *featureSet) error {
 	if target.Kind() == reflect.Pointer {
-		if target.Type().Elem().Kind() != reflect.Invalid && isScalarKind(reflect.New(target.Type().Elem()).Elem()) {
-			if leaf, ok := input.(nodetreemodel.LeafNode); ok {
-				// For nil leaf values or nil leaf objects, set target to nil
-				if leaf == nil || leaf.Get() == nil {
-					target.Set(reflect.Zero(target.Type()))
-					return nil
-				}
-
-				// Create new scalar value of the pointed-to type
-				ptrElemType := target.Type().Elem()
-				elemValue := reflect.New(ptrElemType).Elem()
-
-				// Try to set the scalar value
-				err := copyLeaf(elemValue, leaf, fs)
-				if err != nil {
-					return err
-				}
-
-				// Set the pointer to point to our new value
-				ptrValue := reflect.New(ptrElemType)
-				ptrValue.Elem().Set(elemValue)
-				target.Set(ptrValue)
-				return nil
-			}
-			return fmt.Errorf("can't copy into pointer to scalar: leaf required, but input is not a leaf")
-		}
 		allocPtr := reflect.New(target.Type().Elem())
 		target.Set(allocPtr)
 		target = allocPtr.Elem()
