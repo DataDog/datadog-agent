@@ -528,8 +528,8 @@ func computeLocations(typ ir.Type, v *subprogramChildVisitor, locField *dwarf.Fi
 				return nil, err
 			}
 			locations = append(locations, ir.Location{
-				Range:    ir.PCRange{entry.LowPC, entry.HighPC},
-				Location: locationPieces,
+				Range:  ir.PCRange{entry.LowPC, entry.HighPC},
+				Pieces: locationPieces,
 			})
 		}
 
@@ -544,8 +544,8 @@ func computeLocations(typ ir.Type, v *subprogramChildVisitor, locField *dwarf.Fi
 		}
 		for _, r := range v.ranges {
 			locations = append(locations, ir.Location{
-				Range:    r,
-				Location: locationPieces,
+				Range:  r,
+				Pieces: locationPieces,
 			})
 		}
 	default:

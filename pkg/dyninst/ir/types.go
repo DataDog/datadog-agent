@@ -189,10 +189,7 @@ func (t *GoInterfaceType) irType() {}
 // GoSliceHeaderType is the type of the slice header.
 type GoSliceHeaderType struct {
 	StructureType
-
-	// ArrayType is the synthetic type that represents the variable-length array
-	// of elements in the slice.
-	ArrayType *GoSliceDataType
+	GoSliceDataType *GoSliceDataType
 }
 
 func (GoSliceHeaderType) irType() {}
@@ -220,7 +217,7 @@ func (GoChannelType) irType() {}
 // GoStringHeaderType is the type of the string header.
 type GoStringHeaderType struct {
 	StructureType
-	ArrayType *GoStringDataType
+	GoStringDataType *GoStringDataType
 }
 
 func (GoStringHeaderType) irType() {}
@@ -234,7 +231,7 @@ type GoStringDataType struct {
 
 func (GoStringDataType) irType() {}
 
-// GoMapType is a type that represents a map in the target program.
+// GoMapType is a type that represents pointer to a map header.
 type GoMapType struct {
 	TypeCommon
 	GoTypeAttributes
