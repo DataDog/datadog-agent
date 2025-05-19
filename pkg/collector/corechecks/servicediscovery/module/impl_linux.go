@@ -13,7 +13,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -31,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -72,6 +72,7 @@ type serviceInfo struct {
 	containerServiceNameSource string
 	ddServiceName              string
 	ddServiceInjected          bool
+	tracerMetadata             []tracermetadata.TracerMetadata
 	ports                      []uint16
 	checkedContainerData       bool
 	language                   language.Language
@@ -107,6 +108,7 @@ func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Servi
 	out.ContainerServiceNameSource = i.containerServiceNameSource
 	out.DDService = i.ddServiceName
 	out.DDServiceInjected = i.ddServiceInjected
+	out.TracerMetadata = i.tracerMetadata
 	out.Ports = i.ports
 	out.APMInstrumentation = string(i.apmInstrumentation)
 	out.Language = string(i.language)
@@ -338,17 +340,13 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 
 	services := make([]model.Service, 0)
 
-	procRoot := kernel.ProcFSRoot()
 	pids, err := process.Pids()
 	if err != nil {
 		utils.WriteAsJSON(w, "could not get PIDs", utils.CompactOutput)
 		return
 	}
 
-	context := parsingContext{
-		procRoot:  procRoot,
-		netNsInfo: make(map[uint32]*namespaceInfo),
-	}
+	context := newParsingContext()
 
 	containers := s.getContainersMap()
 	containerTagsCache := make(map[string][]string)
@@ -383,38 +381,6 @@ func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
 	}
 
 	utils.WriteAsJSON(w, services, utils.CompactOutput)
-}
-
-const prefix = "socket:["
-
-// getSockets get a list of socket inode numbers opened by a process
-func getSockets(pid int32) ([]uint64, error) {
-	statPath := kernel.HostProc(fmt.Sprintf("%d/fd", pid))
-	d, err := os.Open(statPath)
-	if err != nil {
-		return nil, err
-	}
-	defer d.Close()
-	fnames, err := d.Readdirnames(-1)
-	if err != nil {
-		return nil, err
-	}
-	var sockets []uint64
-	for _, fd := range fnames {
-		fullPath, err := os.Readlink(filepath.Join(statPath, fd))
-		if err != nil {
-			continue
-		}
-		if strings.HasPrefix(fullPath, prefix) {
-			sock, err := strconv.ParseUint(fullPath[len(prefix):len(fullPath)-1], 10, 64)
-			if err != nil {
-				continue
-			}
-			sockets = append(sockets, sock)
-		}
-	}
-
-	return sockets, nil
 }
 
 // socketInfo stores information related to each socket.
@@ -574,8 +540,17 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 // parsingContext holds temporary context not preserved between invocations of
 // the endpoint.
 type parsingContext struct {
-	procRoot  string
-	netNsInfo map[uint32]*namespaceInfo
+	procRoot       string
+	netNsInfo      map[uint32]*namespaceInfo
+	readlinkBuffer []byte
+}
+
+func newParsingContext() parsingContext {
+	return parsingContext{
+		procRoot:       kernel.ProcFSRoot(),
+		netNsInfo:      make(map[uint32]*namespaceInfo),
+		readlinkBuffer: make([]byte, readlinkBufferSize),
+	}
 }
 
 // addIgnoredPid store excluded pid.
@@ -621,11 +596,18 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 		return nil, err
 	}
 
-	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
-	lang := language.FindInArgs(exe, cmdline)
-	if lang == "" {
-		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
+	var tracerMetadataArr []tracermetadata.TracerMetadata
+	var firstMetadata *tracermetadata.TracerMetadata
+
+	tracerMetadata, err := tracermetadata.GetTracerMetadata(int(pid), kernel.ProcFSRoot())
+	if err == nil {
+		// Currently we only get the first tracer metadata
+		tracerMetadataArr = append(tracerMetadataArr, tracerMetadata)
+		firstMetadata = &tracerMetadata
 	}
+
+	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
+	lang := language.Detect(exe, cmdline, proc.Pid, s.privilegedDetector, firstMetadata)
 	env, err := getTargetEnvs(proc)
 	if err != nil {
 		return nil, err
@@ -640,7 +622,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 	ctx.ContextMap = contextMap
 
 	nameMeta := detector.GetServiceName(lang, ctx)
-	apmInstrumentation := apm.Detect(lang, ctx)
+	apmInstrumentation := apm.Detect(lang, ctx, firstMetadata)
 
 	name := nameMeta.DDService
 	if name == "" {
@@ -655,6 +637,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 		generatedNameSource:      string(nameMeta.Source),
 		additionalGeneratedNames: nameMeta.AdditionalNames,
 		ddServiceName:            nameMeta.DDService,
+		tracerMetadata:           tracerMetadataArr,
 		language:                 lang,
 		apmInstrumentation:       apmInstrumentation,
 		ddServiceInjected:        nameMeta.DDServiceInjected,
@@ -668,7 +651,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 const maxNumberOfPorts = 50
 
 func (s *discovery) getPorts(context parsingContext, pid int32) ([]uint16, error) {
-	sockets, err := getSockets(pid)
+	sockets, err := getSockets(pid, context.readlinkBuffer)
 	if err != nil {
 		return nil, err
 	}
@@ -1127,16 +1110,12 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
-	procRoot := kernel.ProcFSRoot()
 	pids, err := process.Pids()
 	if err != nil {
 		return nil, err
 	}
 
-	context := parsingContext{
-		procRoot:  procRoot,
-		netNsInfo: make(map[uint32]*namespaceInfo),
-	}
+	context := newParsingContext()
 
 	response := &model.ServicesResponse{
 		StartedServices:   make([]model.Service, 0, len(s.potentialServices)),

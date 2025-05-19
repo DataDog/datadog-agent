@@ -11,25 +11,19 @@ fi
 # --- Setup environment ---
 unset OMNIBUS_GIT_CACHE_DIR
 unset OMNIBUS_BASE_DIR
-export INSTALL_DIR="$PWD/datadog-agent-build/bin"
-export CONFIG_DIR="$PWD/datadog-agent-build/config"
-export OMNIBUS_DIR="$PWD/omnibus_build"
+WORKDIR="/tmp"
+export INSTALL_DIR="$WORKDIR/datadog-agent-build/bin"
+export CONFIG_DIR="$WORKDIR/datadog-agent-build/config"
+export OMNIBUS_DIR="$WORKDIR/omnibus_build"
 export OMNIBUS_PACKAGE_DIR="$PWD"/omnibus/pkg
+
+rm -rf "$INSTALL_DIR" "$CONFIG_DIR" "$OMNIBUS_DIR"
+mkdir -p "$INSTALL_DIR" "$CONFIG_DIR" "$OMNIBUS_DIR"
 
 # Update the INTEGRATION_CORE_VERSION if requested
 if [ -n "$INTEGRATIONS_CORE_REF" ]; then
     export INTEGRATIONS_CORE_VERSION="$INTEGRATIONS_CORE_REF"
 fi
-
-# --- Setup Go ---
-echo Setting up Go
-mkdir -p ~/go
-export GO_VERSION="$(cat .go-version)"
-eval "$(gimme $GO_VERSION)"
-export PATH="$PATH:$GOROOT/bin"
-echo Go version should be $GO_VERSION
-go version
-dda inv check-go-version
 
 # --- Setup signing ---
 if [ "$SIGN" = true ]; then
@@ -95,18 +89,17 @@ rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIBUS_DIR"
 if [ "$SIGN" = "true" ]; then
     # Unlock the keychain to get access to the signing certificates
     security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
-    dda inv -- -e omnibus.build --hardened-runtime --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
+    dda inv -- -e omnibus.build --hardened-runtime --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
     # Lock the keychain once we're done
     security lock-keychain "$KEYCHAIN_NAME"
 else
-    dda inv -- -e omnibus.build --skip-sign --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
+    dda inv -- -e omnibus.build --skip-sign --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
 fi
 echo Built packages using omnibus
 
 # --- Notarization ---
 if [ "$SIGN" = true ]; then
     echo -e "\e[0Ksection_start:`date +%s`:notarization\r\e[0KDoing notarization"
-    export RELEASE_VERSION=${RELEASE_VERSION:-$VERSION}
     unset LATEST_DMG
 
     # Find latest .dmg file in $GOPATH/src/github.com/Datadog/datadog-agent/omnibus/pkg
@@ -118,23 +111,22 @@ if [ "$SIGN" = true ]; then
 
     # Send package for notarization; retrieve REQUEST_UUID
     echo "Sending notarization request."
-
-    # Apply timeout / retry
-    for attempt in $(seq 1 $NOTARIZATION_ATTEMPTS); do
-    RESULT=$(timeout "$NOTARIZATION_TIMEOUT" xcrun notarytool submit --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait) || EXIT_CODE=$?
-    echo "Results: $RESULT"
-    SUBMISSION_ID=$(echo "$RESULT" | awk '$1 == "id:"{print $2; exit}')
-    echo "Submission ID: $SUBMISSION_ID"
-    echo "Submission logs:"
-    xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID"
-    if [ -n "$EXIT_CODE" ]; then
-        echo "Notarization attempt #$attempt/$NOTARIZATION_ATTEMPTS failed, retrying in $NOTARIZATION_WAIT_TIME"
-        sleep "$NOTARIZATION_WAIT_TIME"
-    else
-        echo "Successfully notarized the package"
-        break
-    fi
-    done
+    export NOTARIZATION_TIMEOUT
+    export LATEST_DMG
+    # shellcheck disable=SC2016
+    ./tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" bash -c '
+        EXIT_CODE=0
+        RESULT=$(xcrun notarytool submit --timeout "$NOTARIZATION_TIMEOUT" --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait || EXIT_CODE=$?)
+        echo "Results: $RESULT"
+        SUBMISSION_ID="$(echo "$RESULT" | awk "\$1 == \"id:\"{print \$2; exit}")"
+        echo "Submission ID: $SUBMISSION_ID"
+        # Wait for logs to be available
+        sleep 1
+        echo "Submission logs:"
+        # Always show logs even if notarization fails to have more context
+        xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID"
+        exit "$EXIT_CODE"
+    '
     echo -e "\e[0Ksection_end:`date +%s`:notarization\r\e[0K"
 fi
 

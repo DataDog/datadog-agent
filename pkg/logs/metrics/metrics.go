@@ -57,7 +57,7 @@ var (
 	EncodedBytesSent = expvar.Int{}
 	// TlmEncodedBytesSent is the total number of sent bytes after encoding if any
 	TlmEncodedBytesSent = telemetry.NewCounter("logs", "encoded_bytes_sent",
-		[]string{"source"}, "Total number of sent bytes after encoding if any")
+		[]string{"source", "compression_kind"}, "Total number of sent bytes after encoding if any")
 	// BytesMissed is the number of bytes lost before they could be consumed by the agent, such as after a log rotation
 	BytesMissed = expvar.Int{}
 	// TlmBytesMissed is the number of bytes lost before they could be consumed by the agent, such as after log rotation
@@ -78,6 +78,9 @@ var (
 
 	// TlmAutoMultilineAggregatorFlush Count of each line flushed from the auto multiline aggregator.
 	TlmAutoMultilineAggregatorFlush = telemetry.NewCounter("logs", "auto_multi_line_aggregator_flush", []string{"truncated", "line_type"}, "Count of each line flushed from the auto multiline aggregator")
+
+	// TlmAutoMultilineJSONAggregatorFlush Count of each line flushed from the auto multiline JSON aggregator.
+	TlmAutoMultilineJSONAggregatorFlush = telemetry.NewCounter("logs", "auto_multi_line_json_aggregator_flush", []string{"is_valid"}, "Count of each line flushed from the auto multiline JSON aggregator")
 
 	// TlmLogsDiscardedFromSDSBuffer how many messages were dropped when waiting for an SDS configuration because the buffer is full
 	TlmLogsDiscardedFromSDSBuffer = telemetry.NewCounter("logs", "sds__dropped_from_buffer", nil, "Count of messages dropped from the buffer while waiting for an SDS configuration")

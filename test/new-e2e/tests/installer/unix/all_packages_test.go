@@ -52,10 +52,12 @@ var (
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testInstaller},
 		{t: testAgent},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testUpgradeScenario, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 	}
 )
+
+const latestPython2AnsibleVersion = "5.10.0"
 
 func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
@@ -244,8 +246,14 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		// Install ansible then install the agent
 		var ansiblePrefix string
 		for i := 0; i < 3; i++ {
+			var err error
 			ansiblePrefix = s.installAnsible(s.os)
-			_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+			if (s.os.Flavor == e2eos.AmazonLinux && s.os.Version == e2eos.AmazonLinux2.Version) ||
+				(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
+				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd:==%s", ansiblePrefix, latestPython2AnsibleVersion))
+			} else {
+				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+			}
 			if err == nil {
 				break
 			}

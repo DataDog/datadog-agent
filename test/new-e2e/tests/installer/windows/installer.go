@@ -50,6 +50,11 @@ func NewDatadogInstaller(env *environments.WindowsHost, msiURL, outputDir string
 	}
 }
 
+// SetBinaryPath sets the path to the Datadog Installer binary.
+func (d *DatadogInstaller) SetBinaryPath(path string) {
+	d.binaryPath = path
+}
+
 func (d *DatadogInstaller) execute(cmd string, options ...client.ExecuteOption) (string, error) {
 	// Ensure the API key and site are set for telemetry
 	apiKey := os.Getenv("DD_API_KEY")
@@ -153,10 +158,23 @@ func (d *DatadogInstaller) SetCatalog(newCatalog Catalog) (string, error) {
 
 // StartExperiment will use the Datadog Installer service to start an experiment.
 func (d *DatadogInstaller) StartExperiment(packageName string, packageVersion string) (string, error) {
+	if packageName == consts.AgentPackage {
+		// workaround for 7.65 daemon which must use the start-installer-experiment subcommand to start an experiment for the Agent package
+		// through the local API.
+		ver, err := d.Version()
+		if err != nil {
+			return "", err
+		}
+		if strings.HasPrefix(ver, "7.65.") {
+			return d.StartInstallerExperiment(consts.AgentPackage, packageVersion)
+		}
+	}
 	return d.execute(fmt.Sprintf("daemon start-experiment '%s' '%s'", packageName, packageVersion))
 }
 
-// StartInstallerExperiment will use the Datadog Installer service to start an experiment
+// StartInstallerExperiment will use the Datadog Installer service to start an experiment for the Agent package.
+//
+// Only neeeded for 7.65, future versions use the start-experiment subcommand instead.
 func (d *DatadogInstaller) StartInstallerExperiment(packageName string, packageVersion string) (string, error) {
 	return d.execute(fmt.Sprintf("daemon start-installer-experiment '%s' '%s'", packageName, packageVersion))
 }
@@ -319,7 +337,7 @@ func CreatePackageSourceIfLocal(host *components.RemoteHost, pkg TestPackageConf
 			return pkg, err
 		}
 		// Must replace slashes so that daemon can parse it correctly
-		outPath = strings.Replace(outPath, "\\", "/", -1)
+		outPath = strings.ReplaceAll(outPath, "\\", "/")
 		pkg.urloverride = fmt.Sprintf("file://%s", outPath)
 	}
 	return pkg, nil

@@ -61,6 +61,7 @@ from tasks.libs.releasing.json import (
     _get_release_json_value,
     _save_release_json,
     generate_repo_data,
+    get_current_milestone,
     load_release_json,
     set_current_milestone,
     set_new_release_branch,
@@ -293,7 +294,7 @@ def tag_devel(ctx, release_branch, commit="HEAD", push=True, force=False):
 
 @task
 def finish(ctx, release_branch, upstream="origin"):
-    """Updates the release entry in the release.json file for the new version.
+    """Updates the release.json file for the new version.
 
     Updates internal module dependencies with the new version.
     """
@@ -320,6 +321,7 @@ def finish(ctx, release_branch, upstream="origin"):
 
         next_milestone = next_final_version(ctx, release_branch, True)
         next_milestone = next_milestone.next_version(bump_patch=True)
+        previous_milestone = get_current_milestone()
         print(f"Creating the {next_milestone} milestone...")
 
         gh = GithubAPI()
@@ -393,6 +395,7 @@ def finish(ctx, release_branch, upstream="origin"):
             release_branch,
             final_branch,
             new_version,
+            milestone=previous_milestone,
         )
 
 
@@ -668,7 +671,6 @@ def run_rc_pipeline(ctx, gitlab_tag, k8s_deployments=False):
     run(
         ctx,
         git_ref=gitlab_tag,
-        use_release_entry=True,
         repo_branch="beta",
         deploy=True,
         rc_build=True,
@@ -773,7 +775,7 @@ def create_release_branches(
 
     That includes:
         - creates a release branch in datadog-agent, datadog-agent-macos, and omnibus-ruby repositories,
-        - updates release.json on new datadog-agent branch to point to newly created release branches in nightly section
+        - updates release.json on new datadog-agent branch to point to newly created release branches
         - updates entries in .gitlab-ci.yml and .gitlab/notify/notify.yml which depend on local branch name
 
     Args:

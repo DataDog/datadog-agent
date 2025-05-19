@@ -30,6 +30,7 @@ import (
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -219,7 +220,7 @@ func (c *Check) processSysprobeStats(snd sender.Sender, stats model.GPUStats, gp
 	// map each device UUID to the set of tags corresponding to entities (processes) using it
 	activeEntitiesPerDevice := make(map[string]common.StringSet)
 	for _, dev := range c.deviceCache.All() {
-		activeEntitiesPerDevice[dev.UUID] = common.NewStringSet()
+		activeEntitiesPerDevice[dev.GetDeviceInfo().UUID] = common.NewStringSet()
 	}
 
 	// Emit the usage metrics
@@ -269,11 +270,12 @@ func (c *Check) processSysprobeStats(snd sender.Sender, stats model.GPUStats, gp
 	// workloadmeta store, as the latter might not be up-to-date and we want these limit metrics
 	// to match the usage metrics reported above
 	for _, dev := range c.deviceCache.All() {
-		deviceTags := c.deviceTags[dev.UUID]
+		devInfo := dev.GetDeviceInfo()
+		deviceTags := c.deviceTags[devInfo.UUID]
 
 		// Retrieve the tags for all the active processes on this device. This will include pid, container
 		// tags and will enable matching between the usage of an entity and the corresponding limit.
-		activeEntitiesTags := activeEntitiesPerDevice[dev.UUID]
+		activeEntitiesTags := activeEntitiesPerDevice[devInfo.UUID]
 		if activeEntitiesTags == nil {
 			// Might be nil if there are no active processes on this device
 			activeEntitiesTags = common.NewStringSet()
@@ -282,7 +284,7 @@ func (c *Check) processSysprobeStats(snd sender.Sender, stats model.GPUStats, gp
 		// Also, add the tags for all containers that have this GPU allocated. Add to the set to avoid repetitions.
 		// Adding this ensures we correctly report utilization even if some of the GPUs allocated to the container
 		// are not being used.
-		for _, container := range gpuToContainersMap[dev.UUID] {
+		for _, container := range gpuToContainersMap[devInfo.UUID] {
 			for _, tag := range c.getContainerTags(container.EntityID.ID) {
 				activeEntitiesTags.Add(tag)
 			}
@@ -290,8 +292,8 @@ func (c *Check) processSysprobeStats(snd sender.Sender, stats model.GPUStats, gp
 
 		allTags := append(deviceTags, activeEntitiesTags.GetAll()...)
 
-		snd.Gauge(metricNameCoreLimit, float64(dev.CoreCount), "", allTags)
-		snd.Gauge(metricNameMemoryLimit, float64(dev.Memory), "", allTags)
+		snd.Gauge(metricNameCoreLimit, float64(devInfo.CoreCount), "", allTags)
+		snd.Gauge(metricNameMemoryLimit, float64(devInfo.Memory), "", allTags)
 	}
 
 	return nil
@@ -323,14 +325,14 @@ func (c *Check) getContainerTags(containerID string) []string {
 
 func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 	containers := c.wmeta.ListContainersWithFilter(func(cont *workloadmeta.Container) bool {
-		return len(cont.AllocatedResources) > 0
+		return len(cont.ResolvedAllocatedResources) > 0
 	})
 
 	gpuToContainers := make(map[string][]*workloadmeta.Container)
 
 	for _, container := range containers {
-		for _, resource := range container.AllocatedResources {
-			if resource.Name == "nvidia.com/gpu" {
+		for _, resource := range container.ResolvedAllocatedResources {
+			if gpuutil.IsNvidiaKubernetesResource(resource.Name) {
 				gpuToContainers[resource.ID] = append(gpuToContainers[resource.ID], container)
 			}
 		}

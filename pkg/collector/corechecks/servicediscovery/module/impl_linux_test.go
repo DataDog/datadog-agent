@@ -22,7 +22,6 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
-	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -36,6 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 	"go.uber.org/fx"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -49,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
@@ -398,6 +399,17 @@ func TestServiceName(t *testing.T) {
 	discovery := setupDiscoveryModule(t)
 	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
+	trMeta := tracermetadata.TracerMetadata{
+		SchemaVersion:  1,
+		RuntimeID:      "test-runtime-id",
+		TracerLanguage: "go",
+		ServiceName:    "test-service",
+	}
+	data, err := trMeta.MarshalMsg(nil)
+	require.NoError(t, err)
+
+	createTracerMemfd(t, data)
+
 	listener, err := net.Listen("tcp", "")
 	require.NoError(t, err)
 	f, err := listener.(*net.TCPListener).File()
@@ -421,10 +433,11 @@ func TestServiceName(t *testing.T) {
 	f.Close()
 
 	pid := cmd.Process.Pid
+	var startEvent *model.Service
 	// Eventually to give the processes time to start
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		resp := getServices(collect, discovery.url)
-		startEvent := findService(pid, resp.StartedServices)
+		startEvent = findService(pid, resp.StartedServices)
 		require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
 
 		// Non-ASCII character removed due to normalization.
@@ -436,6 +449,10 @@ func TestServiceName(t *testing.T) {
 		assert.Equal(collect, startEvent.ContainerID, "")
 		assert.Equal(collect, startEvent.LastHeartbeat, mockedTime.Unix())
 	}, 30*time.Second, 100*time.Millisecond)
+
+	// Verify tracer metadata
+	assert.Equal(t, []tracermetadata.TracerMetadata{trMeta}, startEvent.TracerMetadata)
+	assert.Equal(t, string(language.Go), startEvent.Language)
 }
 
 func TestServiceLifetime(t *testing.T) {
@@ -595,25 +612,29 @@ func testCaptureWrappedCommands(t *testing.T, script string, commandWrapper []st
 	var err error
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		proc, err = process.NewProcess(int32(cmd.Process.Pid))
-		assert.NoError(collect, err)
+		require.NoError(collect, err)
+
+		// If we wrap the script with `sh -c`, we can have differences between a
+		// local run and a kmt run, as for kmt `sh` is symbolic link to bash,
+		// while locally it can be a symbolic link to dash.
+		//
+		// In the dash case, we will see 2 processes `sh -c script.py` and a
+		// sub-process `python3 script.py`, while in the bash case we will see
+		// only `python3 script.py` (after initially potentially seeing `sh -c
+		// script.py` before the process execs). We need to check for the
+		// command line arguments of the process to make sure we are looking at
+		// the right process.
+		cmdline, err := proc.Cmdline()
+		require.NoError(t, err)
+		if cmdline == strings.Join(commandLineArgs, " ") && len(commandWrapper) > 0 {
+			var children []*process.Process
+			children, err = proc.Children()
+			require.NoError(collect, err)
+			require.Len(collect, children, 1)
+			proc = children[0]
+		}
 	}, 10*time.Second, 100*time.Millisecond)
 
-	cmdline, err := proc.Cmdline()
-	require.NoError(t, err)
-	// If we wrap the script with `sh -c`, we can have differences between a local run and a kmt run, as for
-	// kmt `sh` is symbolic link to bash, while locally it can be a symbolic link to dash. In the dash case, we will
-	// see 2 processes `sh -c script.py` and a sub-process `python3 script.py`, while in the bash case we will see
-	// only `python3 script.py`. We need to check for the command line arguments of the process to make sure we
-	// are looking at the right process.
-	if cmdline == strings.Join(commandLineArgs, " ") && len(commandWrapper) > 0 {
-		var children []*process.Process
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
-			children, err = proc.Children()
-			assert.NoError(collect, err)
-			assert.Len(collect, children, 1)
-		}, 10*time.Second, 100*time.Millisecond)
-		proc = children[0]
-	}
 	t.Cleanup(func() { _ = proc.Kill() })
 
 	discovery := setupDiscoveryModule(t)
@@ -922,11 +943,12 @@ func TestDocker(t *testing.T) {
 	dir, _ := testutil.CurDir()
 	scanner, err := globalutils.NewScanner(regexp.MustCompile("Serving.*"), globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
-	dockerCfg := dockerutils.NewComposeConfig("foo-server",
-		dockerutils.DefaultTimeout,
-		dockerutils.DefaultRetries,
-		scanner,
-		dockerutils.EmptyEnv,
+
+	dockerCfg := dockerutils.NewComposeConfig(
+		dockerutils.NewBaseConfig(
+			"foo-server",
+			scanner,
+		),
 		filepath.Join(dir, "testdata", "docker-compose.yml"))
 	err = dockerutils.Run(t, dockerCfg)
 	require.NoError(t, err)
@@ -1269,91 +1291,6 @@ func TestTagsPriority(t *testing.T) {
 	}
 }
 
-func getSocketsOld(p *process.Process) ([]uint64, error) {
-	FDs, err := p.OpenFiles()
-	if err != nil {
-		return nil, err
-	}
-
-	// sockets have the following pattern "socket:[inode]"
-	var sockets []uint64
-	for _, fd := range FDs {
-		if strings.HasPrefix(fd.Path, prefix) {
-			inodeStr := strings.TrimPrefix(fd.Path[:len(fd.Path)-1], prefix)
-			sock, err := strconv.ParseUint(inodeStr, 10, 64)
-			if err != nil {
-				continue
-			}
-			sockets = append(sockets, sock)
-		}
-	}
-
-	return sockets, nil
-}
-
-const (
-	numberFDs = 100
-)
-
-func createFilesAndSockets(tb testing.TB) {
-	listeningSockets := make([]net.Listener, 0, numberFDs)
-	tb.Cleanup(func() {
-		for _, l := range listeningSockets {
-			l.Close()
-		}
-	})
-	for i := 0; i < numberFDs; i++ {
-		l, err := net.Listen("tcp", "localhost:0")
-		require.NoError(tb, err)
-		listeningSockets = append(listeningSockets, l)
-	}
-	regularFDs := make([]*os.File, 0, numberFDs)
-	tb.Cleanup(func() {
-		for _, f := range regularFDs {
-			f.Close()
-		}
-	})
-	for i := 0; i < numberFDs; i++ {
-		f, err := os.CreateTemp("", "")
-		require.NoError(tb, err)
-		regularFDs = append(regularFDs, f)
-	}
-}
-
-func TestGetSockets(t *testing.T) {
-	createFilesAndSockets(t)
-	p, err := process.NewProcess(int32(os.Getpid()))
-	require.NoError(t, err)
-
-	sockets, err := getSockets(p.Pid)
-	require.NoError(t, err)
-
-	sockets2, err := getSocketsOld(p)
-	require.NoError(t, err)
-
-	require.Equal(t, sockets, sockets2)
-}
-
-func BenchmarkGetSockets(b *testing.B) {
-	createFilesAndSockets(b)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		getSockets(int32(os.Getpid()))
-	}
-}
-
-func BenchmarkOldGetSockets(b *testing.B) {
-	createFilesAndSockets(b)
-	p, err := process.NewProcess(int32(os.Getpid()))
-	require.NoError(b, err)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		getSocketsOld(p)
-	}
-}
-
 // addSockets adds only listening sockets to a map to be used for later looksups.
 func addSockets[P procfs.NetTCP | procfs.NetUDP](sockMap map[uint64]socketInfo, sockets P,
 	family network.ConnectionFamily, ctype network.ConnectionType, state uint64,
@@ -1468,6 +1405,51 @@ func getStateResponse(t *testing.T, url string) *state {
 	resp.Body.Close()
 
 	return &state
+}
+
+func createTracerMemfd(t *testing.T, data []byte) int {
+	t.Helper()
+	fd, err := unix.MemfdCreate("datadog-tracer-info-xxx", 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { unix.Close(fd) })
+	err = unix.Ftruncate(fd, int64(len(data)))
+	require.NoError(t, err)
+	mappedData, err := unix.Mmap(fd, 0, len(data), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	require.NoError(t, err)
+	copy(mappedData, data)
+	err = unix.Munmap(mappedData)
+	require.NoError(t, err)
+	return fd
+}
+
+func TestValidInvalidTracerMetadata(t *testing.T) {
+	discovery := newDiscovery(t, nil)
+	require.NotEmpty(t, discovery)
+	self := os.Getpid()
+
+	t.Run("valid metadata", func(t *testing.T) {
+		// Test with valid metadata from file
+		curDir, err := testutil.CurDir()
+		require.NoError(t, err)
+		testDataPath := filepath.Join(curDir, "testdata/tracer_cpp.data")
+		data, err := os.ReadFile(testDataPath)
+		require.NoError(t, err)
+
+		createTracerMemfd(t, data)
+
+		info, err := discovery.getServiceInfo(int32(self))
+		require.NoError(t, err)
+		require.Equal(t, language.CPlusPlus, info.language)
+		require.Equal(t, apm.Provided, info.apmInstrumentation)
+	})
+
+	t.Run("invalid metadata", func(t *testing.T) {
+		createTracerMemfd(t, []byte("invalid data"))
+
+		info, err := discovery.getServiceInfo(int32(self))
+		require.NoError(t, err)
+		require.Equal(t, apm.None, info.apmInstrumentation)
+	})
 }
 
 func TestStateEndpoint(t *testing.T) {

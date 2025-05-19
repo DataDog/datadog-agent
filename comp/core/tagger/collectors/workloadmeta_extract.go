@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
@@ -456,7 +455,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	taskTags.AddLow(tags.TaskName, task.Family)
 	taskTags.AddLow(tags.TaskFamily, task.Family)
 	taskTags.AddLow(tags.TaskVersion, task.Version)
-	taskTags.AddLow(tags.AwsAccount, strconv.Itoa(task.AWSAccountID))
+	taskTags.AddLow(tags.AwsAccount, task.AWSAccountID)
 	taskTags.AddLow(tags.Region, task.Region)
 	taskTags.AddOrchestrator(tags.TaskARN, task.ID)
 

@@ -130,6 +130,7 @@ type BaseEvent struct {
 	Origin        string         `field:"event.origin"`                                                  // SECLDoc[event.origin] Definition:`Origin of the event`
 	Service       string         `field:"event.service,handler:ResolveService,opts:skip_ad|gen_getters"` // SECLDoc[event.service] Definition:`Service associated with the event`
 	Hostname      string         `field:"event.hostname,handler:ResolveHostname"`                        // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
+	RuleTags      []string       `field:"event.rule.tags"`                                               // SECLDoc[event.rule.tags] Definition:`Tags associated with the rule that's used to evaluate the event`
 
 	// context shared with all event types
 	ProcessContext         *ProcessContext        `field:"process"`
@@ -461,8 +462,8 @@ func (pc *ProcessCacheEntry) callReleaseCallbacks() {
 
 // Release decrement and eventually release the entry
 func (pc *ProcessCacheEntry) Release() {
-	pc.refCount--
-	if pc.refCount > 0 {
+	if pc.refCount > 1 {
+		pc.refCount--
 		return
 	}
 
@@ -548,6 +549,11 @@ type ProcessContext struct {
 	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator,check:IsNotKworker"`
 }
 
+// HasResponse returns whether the DNS event has a response
+func (de *DNSEvent) HasResponse() bool {
+	return de.Response != nil
+}
+
 // ExitEvent represents a process exit event
 type ExitEvent struct {
 	*Process
@@ -555,19 +561,30 @@ type ExitEvent struct {
 	Code  uint32 `field:"code,opts:gen_getters"` // SECLDoc[code] Definition:`Exit code of the process or number of the signal that caused the process to terminate`
 }
 
-// DNSEvent represents a DNS event
+// DNSQuestion represents the dns question
+type DNSQuestion struct {
+	Name  string `field:"name,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`the queried domain name`
+	Type  uint16 `field:"type"`                                                   // SECLDoc[type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
+	Class uint16 `field:"class"`                                                  // SECLDoc[class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
+	Size  uint16 `field:"length"`                                                 // SECLDoc[length] Definition:`the total DNS request size in bytes`
+	Count uint16 `field:"count"`                                                  // SECLDoc[count] Definition:`the total count of questions in the DNS request`
+}
+
+// DNSEvent represents a DNS request event
 type DNSEvent struct {
-	ID    uint16 `field:"id"`                                                              // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
-	Name  string `field:"question.name,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[question.name] Definition:`the queried domain name`
-	Type  uint16 `field:"question.type"`                                                   // SECLDoc[question.type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
-	Class uint16 `field:"question.class"`                                                  // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
-	Size  uint16 `field:"question.length"`                                                 // SECLDoc[question.length] Definition:`the total DNS request size in bytes`
-	Count uint16 `field:"question.count"`                                                  // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
+	ID       uint16       `field:"id"` // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
+	Question DNSQuestion  `field:"question"`
+	Response *DNSResponse `field:"response,check:HasResponse"`
+}
+
+// DNSResponse represents a DNS response event
+type DNSResponse struct {
+	ResponseCode uint8 `field:"code"` // SECLDoc[code] Definition:`Response code of the DNS response according to RFC 1035` Constants:`DNS Responses`
 }
 
 // Matches returns true if the two DNS events matches
 func (de *DNSEvent) Matches(new *DNSEvent) bool {
-	return de.Name == new.Name && de.Type == new.Type && de.Class == new.Class
+	return de.Question.Name == new.Question.Name && de.Question.Type == new.Question.Type && de.Question.Class == new.Question.Class
 }
 
 // IMDSEvent represents an IMDS event

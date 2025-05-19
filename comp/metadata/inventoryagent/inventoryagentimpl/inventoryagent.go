@@ -22,9 +22,10 @@ import (
 	"gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -42,7 +43,6 @@ import (
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -94,11 +94,12 @@ type inventoryagent struct {
 
 	log          log.Component
 	conf         config.Component
+	hostnameComp hostnameinterface.Component
 	sysprobeConf option.Option[sysprobeconfig.Component]
 	m            sync.Mutex
 	data         agentMetadata
 	hostname     string
-	authToken    authtoken.Component
+	ipc          ipc.Component
 }
 
 type dependencies struct {
@@ -108,7 +109,8 @@ type dependencies struct {
 	Config         config.Component
 	SysProbeConfig option.Option[sysprobeconfig.Component]
 	Serializer     serializer.MetricSerializer
-	AuthToken      authtoken.Component
+	IPC            ipc.Component
+	Hostname       hostnameinterface.Component
 }
 
 type provides struct {
@@ -122,14 +124,15 @@ type provides struct {
 }
 
 func newInventoryAgentProvider(deps dependencies) provides {
-	hname, _ := hostname.Get(context.Background())
+	hname, _ := deps.Hostname.Get(context.Background())
 	ia := &inventoryagent{
 		conf:         deps.Config,
 		sysprobeConf: deps.SysProbeConfig,
 		log:          deps.Log,
+		hostnameComp: deps.Hostname,
 		hostname:     hname,
 		data:         make(agentMetadata),
-		authToken:    deps.AuthToken,
+		ipc:          deps.IPC,
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
@@ -170,7 +173,7 @@ func (ia *inventoryagent) initData() {
 	ia.data["install_method_tool_version"] = toolVersion
 	ia.data["install_method_installer_version"] = installerVersion
 
-	data, err := hostname.GetWithProvider(context.Background())
+	data, err := ia.hostnameComp.GetWithProvider(context.Background())
 	if err == nil {
 		if data.Provider != "" && !data.FromFargate() {
 			ia.data["hostname_source"] = data.Provider

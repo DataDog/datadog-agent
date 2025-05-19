@@ -61,6 +61,85 @@ func newConfigFromYaml(t *testing.T, yaml string) model.Config {
 	return conf
 }
 
+type Person struct {
+	Name string
+	Age  int
+	Tags map[string]string
+	Jobs []string
+}
+
+func TestUnmarshalBasic(t *testing.T) {
+	confYaml := `
+user:
+  name: Bob
+  age:  30
+  tags:
+    hair: black
+  jobs:
+  - plumber
+  - teacher
+`
+	mockConfig := newConfigFromYaml(t, confYaml)
+
+	var person Person
+	err := unmarshalKeyReflection(mockConfig, "user", &person)
+	assert.NoError(t, err)
+
+	assert.Equal(t, person.Name, "Bob")
+	assert.Equal(t, person.Age, 30)
+	assert.Equal(t, person.Tags, map[string]string{"hair": "black"})
+	assert.Equal(t, person.Jobs, []string{"plumber", "teacher"})
+}
+
+func TestUnmarshalErrors(t *testing.T) {
+	confYaml := `
+user:
+  name:
+    hair: black
+`
+	mockConfig := newConfigFromYaml(t, confYaml)
+	var person Person
+	err := unmarshalKeyReflection(mockConfig, "user", &person)
+	assert.ErrorContains(t, err, `at [name]: scalar required, but input is not a leaf: &{map[hair:0x`)
+
+	confYaml = `
+user:
+  jobs: 30
+`
+	mockConfig = newConfigFromYaml(t, confYaml)
+	err = unmarshalKeyReflection(mockConfig, "user", &person)
+	assert.ErrorContains(t, err, `at [jobs]: []T required, but input is not an array: &{30`)
+
+	confYaml = `
+user:
+  age:
+  - plumber
+  - teacher
+`
+	mockConfig = newConfigFromYaml(t, confYaml)
+	err = unmarshalKeyReflection(mockConfig, "user", &person)
+	assert.ErrorContains(t, err, `unable to cast []interface {}{"plumber", "teacher"} of type []interface {} to int`)
+
+	confYaml = `
+user:
+  tags:
+  - plumber
+  - teacher
+`
+	mockConfig = newConfigFromYaml(t, confYaml)
+	err = unmarshalKeyReflection(mockConfig, "user", &person)
+	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{[plumber teacher]`)
+
+	confYaml = `
+user:
+  tags: 30
+`
+	mockConfig = newConfigFromYaml(t, confYaml)
+	err = unmarshalKeyReflection(mockConfig, "user", &person)
+	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{30`)
+
+}
+
 func TestUnmarshalKeyTrapsConfig(t *testing.T) {
 	confYaml := `
 network_devices:
@@ -1029,7 +1108,7 @@ feature:
 
 		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "can't copy into target: scalar required")
+		assert.Contains(t, err.Error(), "scalar required")
 	})
 }
 

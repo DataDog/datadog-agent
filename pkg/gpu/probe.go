@@ -207,6 +207,9 @@ func (p *Probe) start() error {
 	if err := p.attacher.Start(); err != nil {
 		return fmt.Errorf("error starting uprobes attacher: %w", err)
 	}
+
+	ddebpf.AddProbeFDMappings(p.m.Manager)
+
 	return nil
 }
 
@@ -214,7 +217,7 @@ func (p *Probe) start() error {
 func (p *Probe) Close() {
 	p.attacher.Stop()
 	_ = p.m.Stop(manager.CleanAll)
-	ddebpf.ClearNameMappings(consts.GpuModuleName)
+	ddebpf.ClearProgramIDMappings(consts.GpuModuleName)
 	p.consumer.Stop()
 	p.eventHandler.Stop()
 }
@@ -384,6 +387,7 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 		ScanProcessesInterval:          cfg.ScanProcessesInterval,
 		EnablePeriodicScanNewProcesses: true,
 		EnableDetailedLogging:          false,
+		ExcludeTargets:                 uprobes.ExcludeInternal | uprobes.ExcludeSelf,
 	}
 }
 

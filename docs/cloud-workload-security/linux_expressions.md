@@ -135,6 +135,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
 | [`event.origin`](#event-origin-doc) | Origin of the event |
 | [`event.os`](#event-os-doc) | Operating system of the event |
+| [`event.rule.tags`](#event-rule-tags-doc) | Tags associated with the rule that's used to evaluate the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`process.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
@@ -561,6 +562,7 @@ A DNS request was sent
 | [`dns.question.name`](#dns-question-name-doc) | the queried domain name |
 | [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
+| [`dns.response.code`](#dns-response-code-doc) | Response code of the DNS response according to RFC 1035 |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
@@ -2891,6 +2893,16 @@ Constants: [DNS qtypes](#dns-qtypes)
 
 
 
+### `dns.response.code` {#dns-response-code-doc}
+Type: int
+
+Definition: Response code of the DNS response according to RFC 1035
+
+
+Constants: [DNS Responses](#dns-responses)
+
+
+
 ### `event.async` {#event-async-doc}
 Type: bool
 
@@ -2916,6 +2928,13 @@ Definition: Origin of the event
 Type: string
 
 Definition: Operating system of the event
+
+
+
+### `event.rule.tags` {#event-rule-tags-doc}
+Type: string
+
+Definition: Tags associated with the rule that's used to evaluate the event
 
 
 
@@ -3885,6 +3904,30 @@ Boolean constants are the supported boolean constants.
 | ---- |---------------|
 | `true` | all |
 | `false` | all |
+
+### `DNS Responses` {#dns-responses}
+DNS Responses are the supported response codes
+
+| Name | Architectures |
+| ---- |---------------|
+| `NOERROR` | all |
+| `FORMERR` | all |
+| `SERVFAIL` | all |
+| `NXDOMAIN` | all |
+| `NOTIMP` | all |
+| `REFUSED` | all |
+| `YXDOMAIN` | all |
+| `YXRRSET` | all |
+| `NXRRSET` | all |
+| `NOTAUTH` | all |
+| `NOTZONE` | all |
+| `BADVERS` | all |
+| `BADSIG` | all |
+| `BADKEY` | all |
+| `BADTIME` | all |
+| `BADMODE` | all |
+| `BADNAME` | all |
+| `BADALG` | all |
 
 ### `DNS qclasses` {#dns-qclasses}
 DNS qclasses are the supported DNS query classes.

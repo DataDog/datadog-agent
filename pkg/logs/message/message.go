@@ -19,11 +19,8 @@ import (
 // or/and at the end of every trucated lines.
 var TruncatedFlag = []byte("...TRUNCATED...")
 
-// TruncatedTag is added to truncated log messages (if enabled).
-const TruncatedTag = "truncated"
-
-// AutoMultiLineTag is added to multiline log messages (if enabled).
-const AutoMultiLineTag = "auto_multiline"
+// AggregatedJSONTag is added to recombined JSON log messages (if enabled).
+const AggregatedJSONTag = "aggregated_json:true"
 
 // EscapedLineFeed is used to escape new line character
 // for multiline message.
@@ -43,13 +40,7 @@ type Payload struct {
 	UnencodedSize int
 }
 
-func NewPayload(messages []*Message, encoded []byte, encoding string, unencodedSize int) *Payload {
-	messageMetas := make([]*MessageMetadata, len(messages))
-	for i, m := range messages {
-		// Split the metadata from the message content to avoid holding the entire message in memory
-		meta := m.MessageMetadata
-		messageMetas[i] = &meta
-	}
+func NewPayload(messageMetas []*MessageMetadata, encoded []byte, encoding string, unencodedSize int) *Payload {
 	return &Payload{
 		MessageMetas:  messageMetas,
 		Encoded:       encoded,
