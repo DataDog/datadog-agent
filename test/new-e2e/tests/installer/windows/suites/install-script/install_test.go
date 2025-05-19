@@ -52,6 +52,7 @@ func (s *testInstallScriptSuite) TestInstallAgentPackage() {
 // TestInstallFromOldInstaller tests installing the Datadog Agent package from an old installer.
 // shows we can correctly use the script to uninstall the old agent + installer MSIs
 func (s *testInstallScriptSuite) TestInstallFromOldInstaller() {
+	flake.Mark(s.T())
 	s.Run("Install from old installer", func() {
 		s.installOldInstallerAndAgent()
 		s.Run("Install New Version", func() {
@@ -115,7 +116,6 @@ func (s *testInstallScriptSuite) upgradeToLatestExperiment() {
 }
 
 func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
-	flake.Mark(s.T())
 	// Arrange
 	agentVersion := fmt.Sprintf("%s-1", oldAgentVersion)
 	// Act
