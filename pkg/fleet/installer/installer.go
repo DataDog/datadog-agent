@@ -280,13 +280,20 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if !shouldInstallPredicate(dbPkg, pkg) {
 		return nil
 	}
-	err = i.hooks.PreInstall(ctx, pkg.Name, packages.PackageTypeOCI, false)
+	upgrade := !errors.Is(err, db.ErrPackageNotFound) && dbPkg.Version != pkg.Version
+	err = i.hooks.PreInstall(ctx, pkg.Name, packages.PackageTypeOCI, upgrade)
 	if err != nil {
 		return fmt.Errorf("could not prepare package: %w", err)
 	}
 	err = checkAvailableDiskSpace(i.packages, pkg)
 	if err != nil {
 		return fmt.Errorf("not enough disk space: %w", err)
+	}
+	if upgrade {
+		err = i.hooks.PreRemove(ctx, pkg.Name, packages.PackageTypeOCI, true)
+		if err != nil {
+			return fmt.Errorf("could not prepare package: %w", err)
+		}
 	}
 	tmpDir, err := i.packages.MkdirTemp()
 	if err != nil {
@@ -314,7 +321,7 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not configure package: %w", err)
 	}
-	err = i.hooks.PostInstall(ctx, pkg.Name, packages.PackageTypeOCI, false, args)
+	err = i.hooks.PostInstall(ctx, pkg.Name, packages.PackageTypeOCI, upgrade, args)
 	if err != nil {
 		return fmt.Errorf("could not setup package: %w", err)
 	}
