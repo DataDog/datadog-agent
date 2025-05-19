@@ -5,6 +5,7 @@ go 1.23.1
 // Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
 // The plugin versions NEED to be aligned.
 // TODO: Implement hard check in CI
+// Comment to force update of go.mod - can be removed anytime.
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.150
