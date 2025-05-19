@@ -3,8 +3,8 @@ Description=Datadog Installer
 After=network.target datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent.service
 Conflicts=datadog-agent-installer-exp.service
-ConditionPathExists=|/etc/datadog-agent/installer.pid
-ConditionPathExists=|/etc/datadog-agent/managed/datadog-agent/stable/installer.yaml
+ConditionPathExists=!/etc/systemd/system/datadog-installer.service
+ConditionPathExists=!/etc/systemd/system/datadog-installer-exp.service
 
 [Service]
 Type=simple

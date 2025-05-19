@@ -28,6 +28,7 @@ ExecStart={{.InstallDir}}/bin/agent/agent run -p {{.InstallDir}}/run/agent.pid
 {{- else}}
 Restart=no
 ExecStart=/usr/bin/timeout --kill-after=15s 3000s {{.InstallDir}}/bin/agent/agent run -p {{.InstallDir}}/run/agent.pid
+ExecStopPost=/bin/false
 {{- end}}
 
 {{ if .Stable}}
