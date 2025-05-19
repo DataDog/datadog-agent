@@ -36,7 +36,7 @@ static int __noinline read_stack(expression_context_t *context, size_t stack_off
 {
     long err;
     __u64 valueHolder = 0;
-    err = bpf_probe_read_kernel(&valueHolder, element_size, &context->ctx->DWARF_STACK_REGISTER+stack_offset);
+    err = bpf_probe_read_kernel(&valueHolder, element_size, &context->ctx->DWARF_BP_REG+stack_offset);
     if (err != 0) {
         log_debug("error when reading data from stack: %ld", err);
     }
@@ -63,7 +63,7 @@ static int __noinline read_register_value_to_output(expression_context_t *contex
 static int __noinline read_stack_value_to_output(expression_context_t *context, __u64 stack_offset, __u32 element_size)
 {
     long err;
-    err = bpf_probe_read_kernel(&context->event->output[(context->output_offset)], element_size, &context->ctx->DWARF_STACK_REGISTER+stack_offset);
+    err = bpf_probe_read_kernel(&context->event->output[(context->output_offset)], element_size, &context->ctx->DWARF_BP_REG+stack_offset);
     if (err != 0) {
         log_debug("error when reading data while reading stack value to output: %ld", err);
     }
