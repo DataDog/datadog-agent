@@ -130,15 +130,13 @@ func (v *VersaCheck) Run() error {
 		deviceTags[ip] = append(deviceTags[ip], tags...)
 	}
 
-	deviceNameToIDMap := generateDeviceNameToIDMap(deviceMetadata)
-	v.metricsSender.SetDeviceTagsMap(deviceTags)
-
-	slaMetrics, err := c.GetSLAMetrics()
-	if err != nil {
-		log.Warnf("error getting SLA metrics from Versa client: %v", err)
-	}
-
 	if *v.config.CollectSLAMetrics {
+		deviceNameToIDMap := generateDeviceNameToIDMap(deviceMetadata)
+		v.metricsSender.SetDeviceTagsMap(deviceTags)
+		slaMetrics, err := c.GetSLAMetrics()
+		if err != nil {
+			log.Warnf("error getting SLA metrics from Versa client: %v", err)
+		}
 		v.metricsSender.SendSLAMetrics(slaMetrics, deviceNameToIDMap)
 	}
 
@@ -194,6 +192,7 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectHardwareStatus = boolPointer(false)
 	instanceConfig.CollectCloudApplicationsMetrics = boolPointer(false)
 	instanceConfig.CollectBGPNeighborStates = boolPointer(false)
+	instanceConfig.CollectSLAMetrics = boolPointer(false)
 
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {

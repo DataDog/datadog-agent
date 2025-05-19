@@ -251,6 +251,9 @@ func parseAaData(data [][]interface{}) ([]SLAMetrics, error) {
 	var rows []SLAMetrics
 	for _, row := range data {
 		m := SLAMetrics{}
+		if len(row) != 12 {
+			return nil, fmt.Errorf("expected 12 columns, got %d", len(row))
+		}
 		// Type assertions for each value
 		var ok bool
 		if m.DrillKey, ok = row[0].(string); !ok {
@@ -284,7 +287,6 @@ func parseAaData(data [][]interface{}) ([]SLAMetrics, error) {
 				return nil, fmt.Errorf("expected float64 at index %d", i+6)
 			}
 		}
-
 		rows = append(rows, m)
 	}
 	return rows, nil
