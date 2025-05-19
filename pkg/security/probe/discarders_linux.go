@@ -9,11 +9,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"math"
 	"path"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -477,26 +478,7 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 
 // isInvalidDiscarder returns whether the given value is a valid discarder for the given field
 func isInvalidDiscarder(field eval.Field, value string) bool {
-	return invalidDiscarders[invalidDiscarderEntry{
-		field: field,
-		value: value,
-	}]
-}
-
-// rearrange invalid discarders for fast lookup
-func createInvalidDiscardersCache() map[invalidDiscarderEntry]bool {
-	invalidDiscarders := make(map[invalidDiscarderEntry]bool)
-
-	for field, values := range InvalidDiscarders {
-		for _, value := range values {
-			invalidDiscarders[invalidDiscarderEntry{
-				field: field,
-				value: value,
-			}] = true
-		}
-	}
-
-	return invalidDiscarders
+	return strings.HasSuffix(field, ".file.path") && value == ""
 }
 
 // InodeDiscarderDump describes a dump of an inode discarder
@@ -610,16 +592,7 @@ func dumpDiscarders(resolver *dentry.Resolver, inodeMap, statsFB, statsBB *ebpf.
 	return dump, nil
 }
 
-type invalidDiscarderEntry struct {
-	field eval.Field
-	value string
-}
-
-var invalidDiscarders map[invalidDiscarderEntry]bool
-
 func init() {
-	invalidDiscarders = createInvalidDiscardersCache()
-
 	allDiscarderHandlers["open"] = append(allDiscarderHandlers["open"], filenameDiscarderWrapper(model.FileOpenEventType,
 		func(event *model.Event) (eval.Field, *model.FileEvent, bool) {
 			return "open.file.path", &event.Open.File, false
