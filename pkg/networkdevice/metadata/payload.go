@@ -172,6 +172,7 @@ type TopologyLinkMetadata struct {
 	Remote      *TopologyLinkSide `json:"remote"`
 }
 
+// VPNTunnelMetadata contains VPN tunnel metadata
 type VPNTunnelMetadata struct {
 	DeviceID          string   `json:"device_id"`
 	LocalOutsideIP    string   `json:"local_outside_ip"`
