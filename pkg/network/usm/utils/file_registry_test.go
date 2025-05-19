@@ -485,9 +485,9 @@ func TestAlreadyHoldingReferences(t *testing.T) {
 	unregisterCB := unregisterRecorder.Callback()
 
 	registry := newFileRegistry()
-	require.NoError(t, registry.Register(fooPath1, pid1, registerCB, unregisterCB))
-	require.NoError(t, registry.Register(fooPath2, pid1, registerCB, unregisterCB))
-	require.ErrorIs(t, registry.Register(fooPath1, pid2, registerCB, unregisterCB), ErrPathIsAlreadyRegistered)
+	require.NoError(t, registry.Register(fooPath1, pid1, registerCB, unregisterCB, IgnoreCB))
+	require.NoError(t, registry.Register(fooPath2, pid1, registerCB, unregisterCB, IgnoreCB))
+	require.ErrorIs(t, registry.Register(fooPath1, pid2, registerCB, unregisterCB, IgnoreCB), ErrPathIsAlreadyRegistered)
 
 	// Checking register callback was executed once for each library
 	// and that we're tracking the two command PIDs
