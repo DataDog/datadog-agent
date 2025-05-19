@@ -2439,25 +2439,33 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 
 		requests := conns.USMData.Kafka
 		if fetchRequestStats == nil || produceTopic1RequestsStats == nil || produceTopic2RequestsStats == nil {
-			require.True(ct, len(requests) > 0, "no requests")
+			require.Truef(ct, len(requests) > 0, "no requests; fetch: is nil? %v; produce t1: is nil? %v; produce t2: is nil? %v", fetchRequestStats == nil, produceTopic1RequestsStats == nil, produceTopic2RequestsStats == nil)
 		}
 
 		for key, stats := range requests {
-			if fetchRequestStats != nil && produceTopic1RequestsStats != nil && produceTopic2RequestsStats == nil {
-				break
-			}
-
 			if key.TopicName.Get() == topicName2 && key.RequestAPIKey == kafka.FetchAPIKey {
-				fetchRequestStats = stats
+				if fetchRequestStats == nil {
+					fetchRequestStats = stats
+				} else {
+					fetchRequestStats.CombineWith(stats)
+				}
 				continue
 			}
 			if key.TopicName.Get() == topicName1 && key.RequestAPIKey == kafka.ProduceAPIKey {
-				produceTopic1RequestsStats = stats
+				if produceTopic1RequestsStats == nil {
+					produceTopic1RequestsStats = stats
+				} else {
+					produceTopic1RequestsStats.CombineWith(stats)
+				}
 				continue
 			}
 
 			if key.TopicName.Get() == topicName2 && key.RequestAPIKey == kafka.ProduceAPIKey {
-				produceTopic2RequestsStats = stats
+				if produceTopic2RequestsStats == nil {
+					produceTopic2RequestsStats = stats
+				} else {
+					produceTopic2RequestsStats.CombineWith(stats)
+				}
 				continue
 			}
 		}
