@@ -339,9 +339,9 @@ func (s *KubeServiceService) GetServiceID() string {
 }
 
 // GetADIdentifiers returns the service AD identifiers
-func (s *KubeServiceService) GetADIdentifiers() ([]string, error) {
+func (s *KubeServiceService) GetADIdentifiers() []string {
 	// Only the entity for now, to match on annotation
-	return []string{s.entity}, nil
+	return []string{s.entity}
 }
 
 // GetHosts returns the pod hosts
@@ -393,9 +393,7 @@ func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (s *KubeServiceService) GetExtraConfig(key string) (string, error) {
+func (s *KubeServiceService) GetExtraConfig(_ string) (string, error) {
 	return "", ErrNotSupported
 }
 

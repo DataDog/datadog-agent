@@ -51,7 +51,7 @@ type (
 
 	// MatcherFunc defines functions for matching a packet from the wire to
 	// a traceroute based on the source/destination addresses and an identifier
-	MatcherFunc func(*ipv4.Header, []byte, net.IP, uint16, net.IP, uint16, uint32) (net.IP, error)
+	MatcherFunc func(*ipv4.Header, []byte, net.IP, uint16, net.IP, uint16, uint32, uint16) (net.IP, error)
 )
 
 // Error implements the error interface for

@@ -74,8 +74,8 @@ func (s *service) GetServiceID() string {
 }
 
 // GetADIdentifiers returns the service's AD identifiers.
-func (s *service) GetADIdentifiers() ([]string, error) {
-	return s.adIdentifiers, nil
+func (s *service) GetADIdentifiers() []string {
+	return s.adIdentifiers
 }
 
 // GetHosts returns the service's IPs for each host.

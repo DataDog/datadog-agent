@@ -274,7 +274,7 @@ func (t EventType) String() string {
 	case SysCtlEventType:
 		return "sysctl"
 	case FullDNSResponseEventType:
-		return "dns"
+		return "dns_response"
 	default:
 		return "unknown"
 	}

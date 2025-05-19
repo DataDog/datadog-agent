@@ -24,6 +24,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -33,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
@@ -87,6 +87,7 @@ type dependencies struct {
 	Config     config.Component
 	Serializer serializer.MetricSerializer
 	IPC        ipc.Component
+	Hostname   hostnameinterface.Component
 }
 
 type provides struct {
@@ -100,7 +101,7 @@ type provides struct {
 }
 
 func newInventoryOtelProvider(deps dependencies) (provides, error) {
-	hname, _ := hostname.Get(context.Background())
+	hname, _ := deps.Hostname.Get(context.Background())
 	// HTTP client need not verify otel-agent cert since it's self-signed
 	// at start-up. TLS used for encryption not authentication.
 	tr := &http.Transport{

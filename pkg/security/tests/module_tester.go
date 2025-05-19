@@ -669,7 +669,7 @@ func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *model.Event, field str
 	return false
 }
 
-func setTestPolicy(dir string, onDemandProbes []rules.OnDemandHookPoint, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition) (string, error) {
+func setTestPolicy(dir string, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition) (string, error) {
 	testPolicyFile, err := os.Create(path.Join(dir, "secagent-policy.policy"))
 	if err != nil {
 		return "", err
@@ -681,10 +681,9 @@ func setTestPolicy(dir string, onDemandProbes []rules.OnDemandHookPoint, macroDe
 	}
 
 	policyDef := &rules.PolicyDef{
-		Version:            "1.2.3",
-		Macros:             macroDefs,
-		Rules:              ruleDefs,
-		OnDemandHookPoints: onDemandProbes,
+		Version: "1.2.3",
+		Macros:  macroDefs,
+		Rules:   ruleDefs,
 	}
 
 	testPolicy, err := yaml.Marshal(policyDef)
@@ -811,7 +810,6 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"EnforcementDisarmerExecutablePeriod":        opts.enforcementDisarmerExecutablePeriod,
 		"EventServerRetention":                       opts.eventServerRetention,
 		"EnableSelfTests":                            opts.enableSelfTests,
-		"DnsPort":                                    opts.dnsPort,
 		"NetworkFlowMonitorEnabled":                  opts.networkFlowMonitorEnabled,
 	}); err != nil {
 		return nil, nil, err
