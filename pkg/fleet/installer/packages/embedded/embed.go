@@ -38,20 +38,9 @@ func mustReadSystemdUnit(name string, data systemdTemplateData) []byte {
 	return buf.Bytes()
 }
 
-// SystemdUnits is a map of systemd units to their content.
-type SystemdUnits struct {
-	DatadogAgentService             []byte
-	DatadogAgentExpService          []byte
-	DatadogAgentInstallerService    []byte
-	DatadogAgentInstallerExpService []byte
-	DatadogAgentTraceService        []byte
-	DatadogAgentTraceExpService     []byte
-	DatadogAgentProcessService      []byte
-	DatadogAgentProcessExpService   []byte
-	DatadogAgentSecurityService     []byte
-	DatadogAgentSecurityExpService  []byte
-	DatadogAgentSysprobeService     []byte
-	DatadogAgentSysprobeExpService  []byte
+// GetSystemdUnit returns the systemd unit for the given name.
+func GetSystemdUnit(name string) []byte {
+	return units[name]
 }
 
 var (
@@ -67,20 +56,18 @@ var (
 		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/experiment",
 		Stable:           false,
 	}
-
-	// Units is a map of systemd units to their content.
-	Units = SystemdUnits{
-		DatadogAgentService:             mustReadSystemdUnit("datadog-agent.service", stableData),
-		DatadogAgentExpService:          mustReadSystemdUnit("datadog-agent.service", expData),
-		DatadogAgentInstallerService:    mustReadSystemdUnit("datadog-agent-installer.service", stableData),
-		DatadogAgentInstallerExpService: mustReadSystemdUnit("datadog-agent-installer.service", expData),
-		DatadogAgentTraceService:        mustReadSystemdUnit("datadog-agent-trace.service", stableData),
-		DatadogAgentTraceExpService:     mustReadSystemdUnit("datadog-agent-trace.service", expData),
-		DatadogAgentProcessService:      mustReadSystemdUnit("datadog-agent-process.service", stableData),
-		DatadogAgentProcessExpService:   mustReadSystemdUnit("datadog-agent-process.service", expData),
-		DatadogAgentSecurityService:     mustReadSystemdUnit("datadog-agent-security.service", stableData),
-		DatadogAgentSecurityExpService:  mustReadSystemdUnit("datadog-agent-security.service", expData),
-		DatadogAgentSysprobeService:     mustReadSystemdUnit("datadog-agent-sysprobe.service", stableData),
-		DatadogAgentSysprobeExpService:  mustReadSystemdUnit("datadog-agent-sysprobe.service", expData),
+	units = map[string][]byte{
+		"datadog-agent.service":               mustReadSystemdUnit("datadog-agent.service", stableData),
+		"datadog-agent-exp.service":           mustReadSystemdUnit("datadog-agent.service", expData),
+		"datadog-agent-installer.service":     mustReadSystemdUnit("datadog-agent-installer.service", stableData),
+		"datadog-agent-installer-exp.service": mustReadSystemdUnit("datadog-agent-installer.service", expData),
+		"datadog-agent-trace.service":         mustReadSystemdUnit("datadog-agent-trace.service", stableData),
+		"datadog-agent-trace-exp.service":     mustReadSystemdUnit("datadog-agent-trace.service", expData),
+		"datadog-agent-process.service":       mustReadSystemdUnit("datadog-agent-process.service", stableData),
+		"datadog-agent-process-exp.service":   mustReadSystemdUnit("datadog-agent-process.service", expData),
+		"datadog-agent-security.service":      mustReadSystemdUnit("datadog-agent-security.service", stableData),
+		"datadog-agent-security-exp.service":  mustReadSystemdUnit("datadog-agent-security.service", expData),
+		"datadog-agent-sysprobe.service":      mustReadSystemdUnit("datadog-agent-sysprobe.service", stableData),
+		"datadog-agent-sysprobe-exp.service":  mustReadSystemdUnit("datadog-agent-sysprobe.service", expData),
 	}
 )
