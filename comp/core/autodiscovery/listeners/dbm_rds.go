@@ -114,11 +114,13 @@ func (l *DBMRdsListener) discoverRdsInstances() {
 		return
 	}
 	if len(instances) == 0 {
-		log.Debugf("no rds clusters found with provided tags %v", l.config.Tags)
+		log.Debugf("no rds instances found with provided tags %v", l.config.Tags)
 		return
 	}
+	log.Debugf("found %d rds instances with provided tags %v", len(instances), l.config.Tags)
 	discoveredServices := make(map[string]struct{})
 	for _, instance := range instances {
+		log.Debugf("found rds instance %v", instance)
 		entityID := instance.Digest(engineToIntegrationType[instance.Engine], instance.ID)
 		discoveredServices[entityID] = struct{}{}
 		l.createService(entityID, instance)
