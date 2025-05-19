@@ -43,7 +43,7 @@ func (m *mockTelemetry) StartStartupSpan(name string) (*installertelemetry.Span,
 	return &installertelemetry.Span{}, context.Background()
 }
 
-func (m *mockTelemetry) SendEvent(eventType string, eventPayload []byte) error {
+func (m *mockTelemetry) SendEvent(_ string, _ []byte) error {
 	return nil
 }
 
