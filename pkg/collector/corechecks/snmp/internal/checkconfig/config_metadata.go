@@ -247,6 +247,7 @@ var TopologyMetadataConfig = profiledefinition.MetadataConfig{
 	},
 }
 
+// VPNMetadataConfig represents the metadata needed for VPN tunnels
 var VPNMetadataConfig = profiledefinition.MetadataConfig{
 	"cisco_ipsec_tunnel": {
 		Fields: map[string]profiledefinition.MetadataField{

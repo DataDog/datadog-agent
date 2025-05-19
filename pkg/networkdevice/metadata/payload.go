@@ -174,12 +174,19 @@ type TopologyLinkMetadata struct {
 
 // VPNTunnelMetadata contains VPN tunnel metadata
 type VPNTunnelMetadata struct {
-	DeviceID          string   `json:"device_id"`
-	LocalOutsideIP    string   `json:"local_outside_ip"`
-	RemoteOutsideIP   string   `json:"remote_outside_ip"`
-	Protocol          string   `json:"protocol"`
-	LocalInsideCIDRs  []string `json:"local_inside_cidrs"`
-	RemoteInsideCIDRs []string `json:"remote_inside_cidrs"`
+	DeviceID        string                   `json:"device_id"`
+	LocalOutsideIP  string                   `json:"local_outside_ip"`
+	RemoteOutsideIP string                   `json:"remote_outside_ip"`
+	Protocol        string                   `json:"protocol"`
+	InsideAddresses []VPNTunnelInsideAddress `json:"inside_addresses"`
+}
+
+// VPNTunnelInsideAddress contains local/remote inside addresses metadata
+type VPNTunnelInsideAddress struct {
+	LocalAddressType  string `json:"local_address_type"`
+	LocalAddress      string `json:"local_address"`
+	RemoteAddressType string `json:"remote_address_type"`
+	RemoteAddress     string `json:"remote_address"`
 }
 
 // NetflowExporter contains netflow exporters info
