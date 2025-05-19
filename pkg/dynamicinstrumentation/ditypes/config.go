@@ -305,6 +305,7 @@ type ProcessInfo struct {
 	DDTracegoVersion       DDTraceGoVersion
 }
 
+// DDTraceGoVersion is the version of dd-trace-go that is used by the process
 type DDTraceGoVersion byte
 
 const (
