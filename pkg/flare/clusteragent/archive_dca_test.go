@@ -16,25 +16,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	autoscalingWorkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
-	autoscalingWorkloadModel "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
-
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func TestGetAutoscalerList(t *testing.T) {
-	dpaInternal := autoscalingWorkloadModel.NewFakePodAutoscalerInternal("ns", "test-dpa", nil)
-	autoscalerInfo := autoscalingWorkload.AutoscalersInfo{
-		PodAutoscalers: []autoscalingWorkloadModel.PodAutoscalerInternal{
-			dpaInternal,
+	mockResponse := map[string]any{
+		"PodAutoscalers": []interface{}{
+			map[string]any{
+				"name":      "test-dpa",
+				"namespace": "ns",
+			},
 		},
 	}
 
 	// Create test server that responds to /autoscaler-list path
 	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/autoscaler-list" {
-			out, _ := json.Marshal(&autoscalerInfo)
+			out, _ := json.Marshal(mockResponse)
 			w.Write(out)
 		}
 	}))
@@ -46,11 +45,11 @@ func TestGetAutoscalerList(t *testing.T) {
 	require.NoError(t, err)
 
 	// Parse the JSON response
-	var flareOutput autoscalingWorkload.AutoscalersInfo
+	var flareOutput map[string]any
 	err = json.Unmarshal(content, &flareOutput)
 	require.NoError(t, err, "Failed to unmarshal response JSON")
 
-	assert.Equal(t, autoscalerInfo, flareOutput, "The flare output should match what was sent")
+	assert.Equal(t, mockResponse, flareOutput, "The flare output should match what was sent")
 }
 
 func setupClusterAgentIPCAddress(t *testing.T, confMock model.Config, URL string) {
