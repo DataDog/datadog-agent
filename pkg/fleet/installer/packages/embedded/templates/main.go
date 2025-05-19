@@ -13,7 +13,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"text/template" //nolint:depguard
+
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
 //go:generate go run ./main.go ./generated
@@ -81,6 +82,8 @@ var (
 		Stable:           false,
 	}
 	systemdUnits = map[string][]byte{
+		"datadog-installer.service":           mustReadSystemdUnit("datadog-installer.service", stableData),
+		"datadog-installer-exp.service":       mustReadSystemdUnit("datadog-installer.service", expData),
 		"datadog-agent.service":               mustReadSystemdUnit("datadog-agent.service", stableData),
 		"datadog-agent-exp.service":           mustReadSystemdUnit("datadog-agent.service", expData),
 		"datadog-agent-installer.service":     mustReadSystemdUnit("datadog-agent-installer.service", stableData),
