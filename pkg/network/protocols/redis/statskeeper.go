@@ -32,6 +32,10 @@ func NewStatsKeeper(c *config.Config) *StatsKeeper {
 
 // Process processes the redis transaction
 func (s *StatsKeeper) Process(event *EventWrapper) {
+	if event.CommandType() >= maxCommand {
+		return
+	}
+
 	s.statsMutex.Lock()
 	defer s.statsMutex.Unlock()
 

@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows && npm
+//go:build linux_bpf
 
-package kafka
+// Package dyninst contains the implementation of the dynamic instrumentation as
+// provided by the agent that supports such products as Live Debugger and
+// Dynamic Instrumentation for Go.
+package dyninst
