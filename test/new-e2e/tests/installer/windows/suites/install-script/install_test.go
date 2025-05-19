@@ -7,6 +7,7 @@ package agenttests
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -114,6 +115,7 @@ func (s *testInstallScriptSuite) upgradeToLatestExperiment() {
 }
 
 func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
+	flake.Mark(s.T())
 	// Arrange
 	agentVersion := fmt.Sprintf("%s-1", oldAgentVersion)
 	// Act
