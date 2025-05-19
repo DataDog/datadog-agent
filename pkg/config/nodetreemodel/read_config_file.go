@@ -134,7 +134,7 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 			warnings = append(warnings, fmt.Errorf("unknown key from YAML: %s", currPath))
 			if !allowDynamicSchema {
 				continue
-			} else if isScalar(value) {
+			} else if isScalar(value) || isSlice(value) {
 				schemaChild = newLeafNode(value, model.SourceSchema)
 			} else {
 				schemaChild = newInnerNode(make(map[string]Node))

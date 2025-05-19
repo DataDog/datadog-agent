@@ -22,6 +22,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -32,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
@@ -85,6 +85,7 @@ type dependencies struct {
 	Config     config.Component
 	Serializer serializer.MetricSerializer
 	Client     ipc.HTTPClient
+	Hostname   hostnameinterface.Component
 }
 
 type provides struct {
@@ -98,7 +99,7 @@ type provides struct {
 }
 
 func newInventoryOtelProvider(deps dependencies) (provides, error) {
-	hname, _ := hostname.Get(context.Background())
+	hname, _ := deps.Hostname.Get(context.Background())
 	i := &inventoryotel{
 		conf:     deps.Config,
 		log:      deps.Log,

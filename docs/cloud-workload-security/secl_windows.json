@@ -43,6 +43,11 @@
           "property_doc_link": "event-os-doc"
         },
         {
+          "name": "event.rule.tags",
+          "definition": "Tags associated with the rule that's used to evaluate the event",
+          "property_doc_link": "event-rule-tags-doc"
+        },
+        {
           "name": "event.service",
           "definition": "Service associated with the event",
           "property_doc_link": "event-service-doc"
@@ -1391,6 +1396,18 @@
       "link": "event-os-doc",
       "type": "string",
       "definition": "Operating system of the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.rule.tags",
+      "link": "event-rule-tags-doc",
+      "type": "string",
+      "definition": "Tags associated with the rule that's used to evaluate the event",
       "prefixes": [
         ""
       ],

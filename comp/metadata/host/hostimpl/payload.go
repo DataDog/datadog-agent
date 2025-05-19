@@ -45,7 +45,7 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 func (h *host) getPayload(ctx context.Context) *Payload {
 	p := &Payload{
 		CommonPayload: *utils.GetCommonPayload(h.hostname, h.config),
-		Payload:       *utils.GetPayload(ctx, h.config),
+		Payload:       *utils.GetPayload(ctx, h.config, h.hostnameComp),
 	}
 
 	if r := h.resources.Get(); r != nil {
