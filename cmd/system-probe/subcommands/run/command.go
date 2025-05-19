@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -101,9 +102,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
 				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 				fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
-				fx.Supply(option.None[secrets.Component]()),
 				statsd.Module(),
 				config.Module(),
+				fx.Supply(secrets.NewEnabledParams()),
+				secretsimpl.Module(),
+				fx.Provide(func(s secrets.Component) option.Option[secrets.Component] { return option.New(s) }),
 				telemetryimpl.Module(),
 				sysprobeconfigimpl.Module(),
 				rcclientimpl.Module(),
@@ -284,9 +287,11 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
 		fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
-		fx.Supply(option.None[secrets.Component]()),
 		rcclientimpl.Module(),
 		config.Module(),
+		fx.Supply(secrets.NewEnabledParams()),
+		secretsimpl.Module(),
+		fx.Provide(func(s secrets.Component) option.Option[secrets.Component] { return option.New(s) }),
 		telemetryimpl.Module(),
 		statsd.Module(),
 		sysprobeconfigimpl.Module(),
