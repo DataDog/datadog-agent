@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
@@ -89,12 +88,7 @@ func postInstallDatadogInstaller(ctx HookContext) (err error) {
 		log.Infof("Installer: systemd is not running, skipping unit setup")
 		return nil
 	}
-	for _, unit := range installerUnits {
-		if err = systemd.WriteEmbeddedUnit(ctx, embedded.SystemdUnitTypeOCI, unit); err != nil {
-			return err
-		}
-	}
-	if err = systemd.Reload(ctx); err != nil {
+	if err = writeEmbeddedUnitsAndReload(ctx, installerUnits...); err != nil {
 		return err
 	}
 	if err = systemd.EnableUnit(ctx, installerUnit); err != nil {
@@ -132,7 +126,7 @@ func preRemoveDatadogInstaller(ctx HookContext) error {
 		if err := systemd.DisableUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to disable %s: %s", unit, err)
 		}
-		if err := systemd.RemoveUnit(ctx, unit); err != nil {
+		if err := removeUnits(ctx, unit); err != nil {
 			log.Warnf("Failed to stop %s: %s", unit, err)
 		}
 	}

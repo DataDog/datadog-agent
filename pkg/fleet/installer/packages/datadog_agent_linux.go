@@ -506,12 +506,7 @@ func (s *datadogAgentService) WriteStable(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType() {
 	case service.SystemdType:
-		switch ctx.PackageType {
-		case PackageTypeDEB, PackageTypeRPM:
-			return systemd.WriteEmbeddedUnitsAndReload(ctx, embedded.SystemdUnitTypeDebRpm, s.SystemdUnitsStable...)
-		case PackageTypeOCI:
-			return systemd.WriteEmbeddedUnitsAndReload(ctx, embedded.SystemdUnitTypeOCI, s.SystemdUnitsStable...)
-		}
+		return writeEmbeddedUnitsAndReload(ctx, s.SystemdUnitsStable...)
 	case service.UpstartType:
 		return nil // Nothing to do, files are embedded in the package
 	case service.SysvinitType:
@@ -527,7 +522,7 @@ func (s *datadogAgentService) RemoveStable(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType() {
 	case service.SystemdType:
-		return systemd.RemoveUnits(ctx, s.SystemdUnitsStable...)
+		return removeUnits(ctx, s.SystemdUnitsStable...)
 	case service.UpstartType:
 		return nil // Nothing to do, files are embedded in the package
 	case service.SysvinitType:
@@ -575,7 +570,7 @@ func (s *datadogAgentService) WriteExperiment(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType() {
 	case service.SystemdType:
-		return systemd.WriteEmbeddedUnitsAndReload(ctx, embedded.SystemdUnitTypeOCI, s.SystemdUnitsExp...)
+		return writeEmbeddedUnitsAndReload(ctx, s.SystemdUnitsExp...)
 	case service.UpstartType:
 		return fmt.Errorf("experiments are not supported on upstart")
 	case service.SysvinitType:
@@ -591,7 +586,7 @@ func (s *datadogAgentService) RemoveExperiment(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType() {
 	case service.SystemdType:
-		return systemd.RemoveUnits(ctx, s.SystemdUnitsExp...)
+		return removeUnits(ctx, s.SystemdUnitsExp...)
 	case service.UpstartType:
 		return nil // Experiments are not supported on upstart
 	case service.SysvinitType:
@@ -607,4 +602,68 @@ func isAgentConfigFilePresent() (bool, error) {
 		return false, fmt.Errorf("failed to check if /etc/datadog-agent/datadog.yaml exists: %v", err)
 	}
 	return !os.IsNotExist(err), nil
+}
+
+const (
+	ociUnitsPath = "/etc/systemd/system"
+	debUnitsPath = "/lib/systemd/system"
+	rpmUnitsPath = "/usr/lib/systemd/system"
+)
+
+func removeUnits(ctx HookContext, units ...string) error {
+	var unitsPath string
+	switch ctx.PackageType {
+	case PackageTypeDEB:
+		unitsPath = debUnitsPath
+	case PackageTypeRPM:
+		unitsPath = rpmUnitsPath
+	case PackageTypeOCI:
+		unitsPath = ociUnitsPath
+	}
+	for _, unit := range units {
+		err := os.Remove(filepath.Join(unitsPath, unit))
+		if err != nil {
+			return fmt.Errorf("failed to remove unit: %v", err)
+		}
+	}
+	return nil
+}
+
+func writeEmbeddedUnitsAndReload(ctx HookContext, units ...string) error {
+	var unitType embedded.SystemdUnitType
+	var unitsPath string
+	switch ctx.PackageType {
+	case PackageTypeDEB:
+		unitType = embedded.SystemdUnitTypeDebRpm
+		unitsPath = debUnitsPath
+	case PackageTypeRPM:
+		unitType = embedded.SystemdUnitTypeDebRpm
+		unitsPath = rpmUnitsPath
+	case PackageTypeOCI:
+		unitType = embedded.SystemdUnitTypeOCI
+		unitsPath = ociUnitsPath
+	}
+	for _, unit := range units {
+		content, err := embedded.GetSystemdUnit(unit, unitType)
+		if err != nil {
+			return err
+		}
+		err = writeEmbeddedUnit(unitsPath, unit, content)
+		if err != nil {
+			return err
+		}
+	}
+	return systemd.Reload(ctx)
+}
+
+func writeEmbeddedUnit(dir string, unit string, content []byte) error {
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create directory: %v", err)
+	}
+	err = os.WriteFile(filepath.Join(dir, unit), content, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write file: %v", err)
+	}
+	return nil
 }

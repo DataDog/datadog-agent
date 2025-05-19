@@ -13,8 +13,6 @@ build do
       # sysvinit support for debian only for now
       mkdir "/etc/init.d"
 
-      # debian recommends using a different directory for systemd unit files
-      systemd_directory = "/lib/systemd/system"
       erb source: "upstart_debian.conf.erb",
           dest: "/etc/init/datadog-agent.conf",
           mode: 0644,
@@ -57,7 +55,6 @@ build do
       project.extra_package_file '/etc/init.d/datadog-agent-trace'
       project.extra_package_file '/etc/init.d/datadog-agent-security'
     elsif redhat_target? || suse_target?
-      systemd_directory = "/usr/lib/systemd/system"
       # Ship a different upstart job definition on RHEL to accommodate the old
       # version of upstart (0.6.5) that RHEL 6 provides.
       erb source: "upstart_redhat.conf.erb",
