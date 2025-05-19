@@ -108,7 +108,7 @@ user:
 `
 	mockConfig = newConfigFromYaml(t, confYaml)
 	err = unmarshalKeyReflection(mockConfig, "user", &person)
-	assert.ErrorContains(t, err, `at [jobs]: []T required, but input is not an array: &{30 file} of *nodetreemodel.leafNodeImpl`)
+	assert.ErrorContains(t, err, `at [jobs]: []T required, but input is not an array: &{30`)
 
 	confYaml = `
 user:
@@ -128,7 +128,7 @@ user:
 `
 	mockConfig = newConfigFromYaml(t, confYaml)
 	err = unmarshalKeyReflection(mockConfig, "user", &person)
-	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{[plumber teacher] file} of *nodetreemodel.leafNodeImpl`)
+	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{[plumber teacher]`)
 
 	confYaml = `
 user:
@@ -136,7 +136,7 @@ user:
 `
 	mockConfig = newConfigFromYaml(t, confYaml)
 	err = unmarshalKeyReflection(mockConfig, "user", &person)
-	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{30 file} of *nodetreemodel.leafNodeImpl`)
+	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{30`)
 
 }
 

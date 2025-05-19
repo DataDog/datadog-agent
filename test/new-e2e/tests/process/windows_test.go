@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -193,32 +192,6 @@ func (s *windowsTestSuite) TestProtectedProcessCheck() {
 	assertProcessCheck(s.T(), s.Env(), false, false, "MsMpEng.exe", []string{"MsMpEng.exe"})
 }
 
-func (s *windowsTestSuite) TestUnprotectedProcessCheck() {
-	t := s.T()
-	flake.Mark(t)
-	s.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
-		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)),
-	))
-
-	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	require.NoError(t, err)
-
-	// unprotected process
-	cmd := []string{
-		"ping",
-		"-t",
-		"127.0.0.1",
-	}
-	process, err := runWindowsCommand(t, s.Env().RemoteHost, cmd)
-	require.NoError(s.T(), err)
-
-	// ping shows up as a capitalized process name, so in order to find the right process, we need to capitalize
-	process = strings.ToUpper(process)
-
-	assertProcessCheck(s.T(), s.Env(), false, false, process, cmd)
-}
-
 func (s *windowsTestSuite) TestProtectedProcessChecksInCoreAgent() {
 	t := s.T()
 	s.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
@@ -255,7 +228,7 @@ func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 	assertProcessDiscoveryCollected(t, payloads, "MsMpEng.exe")
 }
 
-func (s *windowsTestSuite) TestProcessCheckIO() {
+func (s *windowsTestSuite) TestUnprotectedProcessCheckIO() {
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
@@ -283,7 +256,7 @@ func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
 	assertManualProcessDiscoveryCheck(s.T(), check, "MsMpEng.exe")
 }
 
-func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
+func (s *windowsTestSuite) TestManualUnprotectedProcessCheckWithIO() {
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
@@ -313,6 +286,7 @@ func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
 
 // Runs Diskspd in another ssh session
 // https://github.com/Microsoft/diskspd/wiki/Command-line-and-parameters
+// diskspd is an unprotected process, so we can capture the command line
 func runDiskSpd(t *testing.T, remoteHost *components.RemoteHost) (string, []string, error) {
 	// Disk speed parameters
 	// -d120: Duration of the test in seconds

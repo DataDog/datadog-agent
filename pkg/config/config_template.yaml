@@ -4471,11 +4471,11 @@ api_key:
     #
     # resource_attributes_as_tags: false
 
-    ## @param instrumentation_scope_metadata_as_tags - boolean - optional - default: false
-    ## @env DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_SCOPE_METADATA_AS_TAGS - boolean - optional - default: false
+    ## @param instrumentation_scope_metadata_as_tags - boolean - optional - default: true
+    ## @env DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_SCOPE_METADATA_AS_TAGS - boolean - optional - default: true
     ## Set to true to add metadata about the instrumentation scope that created a metric.
     #
-    # instrumentation_scope_metadata_as_tags: false
+    # instrumentation_scope_metadata_as_tags: true
 
     ## @param tag_cardinality - string - optional - default: low
     ## @env DD_OTLP_CONFIG_METRICS_TAG_CARDINALITY - string - optional - default: low

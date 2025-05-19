@@ -118,12 +118,35 @@ func (v *VersaCheck) Run() error {
 		deviceMetadata = append(deviceMetadata, directorDeviceMetdata)
 	}
 
+	// Send the tags to the metrics sender
+	deviceTags := payload.GetApplianceDevicesTags(v.config.Namespace, appliances)
+	directorDeviceTags, err := payload.GetDirectorDeviceTags(v.config.Namespace, directorStatus)
+	if err != nil {
+		log.Warnf("error getting director device tags, director metrics will contain default tags: %v", err)
+	}
+	// TODO: is there any chance that the director IP overlaps with an appliance IP?
+	for ip, tags := range directorDeviceTags {
+		deviceTags[ip] = append(deviceTags[ip], tags...)
+	}
+	v.metricsSender.SetDeviceTagsMap(deviceTags)
+
 	// Send the metadata to the metrics sender
 	if *v.config.SendNDMMetadata {
 		v.metricsSender.SendMetadata(deviceMetadata, nil, nil)
 	}
 
-	// TODO: send metrics from the appliance detail call
+	// Send hardware metrics to the metrics sender
+	if *v.config.CollectHardwareMetrics {
+		uptimes := payload.GetDevicesUptime(appliances)
+		deviceStatus := payload.GetDevicesStatus(appliances)
+
+		v.metricsSender.SendDeviceMetrics(appliances)
+		v.metricsSender.SendUptimeMetrics(uptimes)
+		v.metricsSender.SendDeviceStatusMetrics(deviceStatus)
+	}
+
+	// Commit
+	v.metricsSender.Commit()
 
 	return nil
 }
