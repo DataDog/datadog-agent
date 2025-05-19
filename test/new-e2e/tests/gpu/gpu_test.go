@@ -70,7 +70,8 @@ var gpuSystems = map[systemName]systemData{
 		cudaSanityCheckImage:         pytorch19DockerImage, // We don't have base CUDA 10 images from NVIDIA, so we use the PyTorch image
 		os:                           os.Ubuntu2004,        // We don't have explicit support for Ubuntu 18.04, but this descriptor is not super-strict
 		hasEcrCredentialsHelper:      true,                 // already installed in the AMI, as it's not present in the 18.04 repos
-		hasAllNVMLCriticalAPIs:       false,                // DeviceGetNumGpuCores is missing for this version of the driver,                                                                                                    // 430 driver has all the critical APIs
+		hasAllNVMLCriticalAPIs:       false,                // DeviceGetNumGpuCores is missing for this version of the driver,
+		                                                                         // 430 driver has all the critical APIs
 		supportsSystemProbeComponent: false,
 	},
 	gpuSystemUbuntu1804Driver510: {
