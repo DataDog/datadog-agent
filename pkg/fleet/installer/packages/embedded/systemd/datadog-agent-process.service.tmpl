@@ -1,15 +1,15 @@
 [Unit]
-{{if .Stable}}
+{{- if .Stable}}
 Description=Datadog Process Agent
 After=network.target datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent.service
 Conflicts=datadog-agent-exp.service datadog-agent-process-exp.service
-{{else}}
+{{- else}}
 Description=Datadog Process Agent Experiment
 After=network.target datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent-exp.service
 Conflicts=datadog-agent.service datadog-agent-process.service
-{{end}}
+{{- end}}
 
 [Service]
 Type=simple
@@ -18,7 +18,7 @@ User=dd-agent
 Restart=on-failure
 EnvironmentFile=-{{.EtcDir}}/environment
 Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
-ExecStart={{.InstallDir}}/embedded/bin/process-agent --cfgpath={{EtcDir}}/datadog.yaml --sysprobe-config={{EtcDir}}/system-probe.yaml --pid={{InstallDir}}/run/process-agent.pid
+ExecStart={{.InstallDir}}/embedded/bin/process-agent --cfgpath={{.EtcDir}}/datadog.yaml --sysprobe-config={{.EtcDir}}/system-probe.yaml --pid={{.InstallDir}}/run/process-agent.pid
 StartLimitInterval=10
 StartLimitBurst=5
 

@@ -597,6 +597,8 @@ func (s *datadogAgentServiceOCI) RemoveExperiment(ctx HookContext) error {
 
 // WriteStableUnits writes the stable units to the system and reloads the systemd daemon
 func (s *datadogAgentServiceOCI) WriteStable(ctx HookContext) error {
+
+	
 	return systemd.WriteEmbeddedUnitsAndReload(ctx, s.SystemdUnitsStable...)
 }
 
