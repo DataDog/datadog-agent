@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
@@ -89,7 +90,7 @@ func postInstallDatadogInstaller(ctx HookContext) (err error) {
 		return nil
 	}
 	for _, unit := range installerUnits {
-		if err = systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
+		if err = systemd.WriteEmbeddedUnit(ctx, embedded.SystemdUnitTypeOCI, unit); err != nil {
 			return err
 		}
 	}

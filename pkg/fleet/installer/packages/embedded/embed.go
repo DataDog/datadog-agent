@@ -26,10 +26,21 @@ var ScriptDDContainerInstall []byte
 //go:embed scripts/dd-host-install
 var ScriptDDHostInstall []byte
 
-//go:embed templates/generated/*.service
+//go:embed templates/generated/oci/*.service
+//go:embed templates/generated/debrpm/*.service
 var systemdUnits embed.FS
 
+// SystemdUnitType is the type of systemd unit.
+type SystemdUnitType string
+
+const (
+	// SystemdUnitTypeOCI is the type of systemd unit for OCI.
+	SystemdUnitTypeOCI SystemdUnitType = "oci"
+	// SystemdUnitTypeDebRpm is the type of systemd unit for deb/rpm.
+	SystemdUnitTypeDebRpm SystemdUnitType = "debrpm"
+)
+
 // GetSystemdUnit returns the systemd unit for the given name.
-func GetSystemdUnit(name string) ([]byte, error) {
-	return systemdUnits.ReadFile(filepath.Join("templates/generated", name))
+func GetSystemdUnit(name string, unitType SystemdUnitType) ([]byte, error) {
+	return systemdUnits.ReadFile(filepath.Join("templates/generated", string(unitType), name))
 }

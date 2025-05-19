@@ -5,7 +5,7 @@ description "Generate and configure init scripts packaging"
 always_build true
 
 build do
-  output_config_dir = ENV["OUTPUT_CONFIG_DIR"] || "" 
+  output_config_dir = ENV["OUTPUT_CONFIG_DIR"] || ""
   if linux_target?
     etc_dir = "#{output_config_dir}/etc/datadog-agent"
     mkdir "/etc/init"
@@ -86,31 +86,5 @@ build do
     project.extra_package_file '/etc/init/datadog-agent-sysprobe.conf'
     project.extra_package_file '/etc/init/datadog-agent-trace.conf'
     project.extra_package_file '/etc/init/datadog-agent-security.conf'
-
-    erb source: "systemd.service.erb",
-        dest: "#{systemd_directory}/datadog-agent.service",
-        mode: 0644,
-        vars: { install_dir: install_dir, etc_dir: etc_dir }
-    erb source: "systemd.process.service.erb",
-        dest: "#{systemd_directory}/datadog-agent-process.service",
-        mode: 0644,
-        vars: { install_dir: install_dir, etc_dir: etc_dir }
-    erb source: "systemd.sysprobe.service.erb",
-        dest: "#{systemd_directory}/datadog-agent-sysprobe.service",
-        mode: 0644,
-        vars: { install_dir: install_dir, etc_dir: etc_dir }
-    erb source: "systemd.trace.service.erb",
-        dest: "#{systemd_directory}/datadog-agent-trace.service",
-        mode: 0644,
-        vars: { install_dir: install_dir, etc_dir: etc_dir }
-    erb source: "systemd.security.service.erb",
-        dest: "#{systemd_directory}/datadog-agent-security.service",
-        mode: 0644,
-        vars: { install_dir: install_dir, etc_dir: etc_dir }
-    project.extra_package_file "#{systemd_directory}/datadog-agent.service"
-    project.extra_package_file "#{systemd_directory}/datadog-agent-process.service"
-    project.extra_package_file "#{systemd_directory}/datadog-agent-sysprobe.service"
-    project.extra_package_file "#{systemd_directory}/datadog-agent-trace.service"
-    project.extra_package_file "#{systemd_directory}/datadog-agent-security.service"
   end
 end

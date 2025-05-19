@@ -83,6 +83,17 @@ func EnableUnit(ctx context.Context, unit string) error {
 	return telemetry.CommandContext(ctx, "systemctl", "enable", unit).Run()
 }
 
+// DisableUnits disables multiple systemd units
+func DisableUnits(ctx context.Context, units ...string) error {
+	for _, unit := range units {
+		err := DisableUnit(ctx, unit)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // DisableUnit disables a systemd unit
 func DisableUnit(ctx context.Context, unit string) error {
 	enabledErr := telemetry.CommandContext(ctx, "systemctl", "is-enabled", "--quiet", unit).Run()
@@ -104,9 +115,9 @@ func DisableUnit(ctx context.Context, unit string) error {
 }
 
 // WriteEmbeddedUnitsAndReload writes a systemd unit from embedded resources and reloads the systemd daemon
-func WriteEmbeddedUnitsAndReload(ctx context.Context, units ...string) (err error) {
+func WriteEmbeddedUnitsAndReload(ctx context.Context, unitType embedded.SystemdUnitType, units ...string) (err error) {
 	for _, unit := range units {
-		err = WriteEmbeddedUnit(ctx, unit)
+		err = WriteEmbeddedUnit(ctx, unitType, unit)
 		if err != nil {
 			return err
 		}
@@ -115,11 +126,11 @@ func WriteEmbeddedUnitsAndReload(ctx context.Context, units ...string) (err erro
 }
 
 // WriteEmbeddedUnit writes a systemd unit from embedded resources
-func WriteEmbeddedUnit(ctx context.Context, unit string) (err error) {
+func WriteEmbeddedUnit(ctx context.Context, unitType embedded.SystemdUnitType, unit string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "write_embedded_unit")
 	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
-	content, err := embedded.GetSystemdUnit(unit)
+	content, err := embedded.GetSystemdUnit(unit, unitType)
 	if err != nil {
 		return fmt.Errorf("error reading embedded unit %s: %w", unit, err)
 	}
