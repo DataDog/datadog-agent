@@ -308,7 +308,9 @@ type ProcessInfo struct {
 type DDTraceGoVersion byte
 
 const (
+	// DDTraceGoVersionV1 represents that the process is using dd-trace-go v1
 	DDTraceGoVersionV1 DDTraceGoVersion = iota + 1
+	// DDTraceGoVersionV2 represents that the process is using dd-trace-go v2
 	DDTraceGoVersionV2
 )
 
