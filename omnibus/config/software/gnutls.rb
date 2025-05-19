@@ -42,6 +42,8 @@ build do
     "--without-p11-kit",
     "--disable-hardware-acceleration",
     "--disable-static",
+    "--disable-doc",
+    "--disable-nls",
   ]
   configure(*configure_opts, env: env)
 
