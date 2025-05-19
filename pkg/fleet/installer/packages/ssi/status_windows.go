@@ -7,14 +7,7 @@
 
 package ssi
 
-import "context"
-
 // GetInstrumentationStatus contains the status of the APM auto-instrumentation.
 func GetInstrumentationStatus() (status APMInstrumentationStatus, err error) {
 	return status, nil // TBD on Windows
-}
-
-// IsAutoInstrumentationEnabled checks if the APM auto-instrumentation is enabled on the host.
-func IsAutoInstrumentationEnabled(_ context.Context) (bool, error) {
-	return false, nil // TBD on Windows
 }

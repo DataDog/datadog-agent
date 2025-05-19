@@ -9,14 +9,10 @@ package ssi
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
-
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
-	iexec "github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 )
 
 // GetInstrumentationStatus contains the status of the APM auto-instrumentation.
@@ -53,30 +49,4 @@ func GetInstrumentationStatus() (status APMInstrumentationStatus, err error) {
 	}
 
 	return status, nil
-}
-
-// isInjectorPkgInstalled checks if the APM injector package is installed on the host.
-func isInjectorPkgInstalled(ctx context.Context) (bool, error) {
-	installerPath, err := exec.LookPath("datadog-installer")
-	if err != nil {
-		if errors.Is(err, exec.ErrNotFound) {
-			return false, nil // Installer is not installed; thus no SSI
-		}
-		return false, fmt.Errorf("could not check if datadog-installer is installed: %w", err)
-	}
-	installerExec := iexec.NewInstallerExec(&env.Env{}, installerPath)
-	return installerExec.IsInstalled(ctx, "datadog-apm-inject")
-}
-
-// IsAutoInstrumentationEnabled checks if the APM auto-instrumentation is enabled on the host. This is scoped to Linux hosts and will return false in Kubernetes.
-func IsAutoInstrumentationEnabled(ctx context.Context) (bool, error) {
-	injectorInstalled, err := isInjectorPkgInstalled(ctx)
-	if err != nil {
-		return false, fmt.Errorf("could not check if injector package is installed: %w", err)
-	}
-	instrumentationStatus, err := GetInstrumentationStatus()
-	if err != nil {
-		return false, fmt.Errorf("could not get APM injection status: %w", err)
-	}
-	return injectorInstalled && (instrumentationStatus.HostInstrumented || (instrumentationStatus.DockerInstrumented && instrumentationStatus.DockerInstalled)), nil
 }
