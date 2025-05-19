@@ -167,7 +167,7 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 			ClusterId:   pctx.ClusterID,
 			GroupId:     pctx.MsgGroupID,
 			Cluster:     clusterModel,
-			Tags:        util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.CollectorTags),
+			Tags:        util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
 		},
 	}
 	manifestMessages := []model.MessageBody{
@@ -185,7 +185,7 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 					Version:         "v1",
 					// when manifest get buffered, they share a common CollectorManifest - collector-specific tags
 					// should be added to the Manifest only
-					Tags: pctx.CollectorTags,
+					Tags: pctx.GetCollectorTags(),
 				},
 			},
 			Tags: pctx.Cfg.ExtraTags,
