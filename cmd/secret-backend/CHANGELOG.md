@@ -1,5 +1,10 @@
 # CHANGELOG - datadog-secret-backend
 
+## 0.2.2 / 2025-05-19
+
+* Bump hashicorp/vault/api from `v1.15.0` to `v1.16.0`
+* Bump golang.org/x/net from `v0.34.0` to `v0.40.0`
+
 ## 0.2.1 / 2025-05-07
 
 * Release latest version of the datadog-secret-backend without debug and DWARF symbol.
