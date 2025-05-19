@@ -238,6 +238,8 @@ func (d *DBMRdsService) GetExtraConfig(key string) (string, error) {
 		return strconv.FormatBool(d.instance.IamEnabled), nil
 	case "dbinstanceidentifier":
 		return d.instance.ID, nil
+	case "dbclusteridentifier":
+		return d.instance.ClusterID, nil
 	case "dbname":
 		return d.instance.DbName, nil
 	}

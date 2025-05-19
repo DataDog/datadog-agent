@@ -51,6 +51,12 @@ func (c *Client) GetRdsInstancesFromTags(ctx context.Context, tags []string, dbm
 					ID:       *db.DBInstanceIdentifier,
 					Endpoint: *db.Endpoint.Address,
 				}
+
+				// Set the cluster ID if it is present
+				if db.DBClusterIdentifier != nil {
+					instance.ClusterID = *db.DBClusterIdentifier
+				}
+
 				// Set if IAM is configured for the endpoint
 				if db.IAMDatabaseAuthenticationEnabled != nil {
 					instance.IamEnabled = *db.IAMDatabaseAuthenticationEnabled

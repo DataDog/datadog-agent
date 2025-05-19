@@ -13,6 +13,7 @@ import "fmt"
 // Instance represents an Aurora or RDS instance
 type Instance struct {
 	ID         string
+	ClusterID  string
 	Endpoint   string
 	Port       int32
 	IamEnabled bool
