@@ -85,6 +85,7 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 	fb.AddFileFromFunc("datadog-agent-cr.yaml", getDatadogAgentManifest)              //nolint:errcheck
 	fb.AddFileFromFunc("envvars.log", flarecommon.GetEnvVars)                         //nolint:errcheck
 	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)                              //nolint:errcheck
+	fb.AddFileFromFunc("autoscaler-list.json", getDCAAutoscalerList)                  //nolint:errcheck
 	fb.AddFileFromFunc("tagger-list.json", getDCATaggerList)                          //nolint:errcheck
 	fb.AddFileFromFunc("workload-list.log", getDCAWorkloadList)                       //nolint:errcheck
 	fb.AddFileFromFunc("cluster-agent-metadata.json", getClusterAgentMetadataPayload) //nolint:errcheck
@@ -223,6 +224,31 @@ func getLocalClusterAgentDiagnose(fb flaretypes.FlareBuilder, diagnose diagnose.
 	}
 
 	return fb.AddFile("diagnose.log", bytes)
+}
+
+func getDCAAutoscalerList() ([]byte, error) {
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	if err != nil {
+		return nil, err
+	}
+
+	autoscalerListURL := fmt.Sprintf("https://%v:%v/autoscaler-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+
+	c := util.GetClient()
+	r, err := util.DoGet(c, autoscalerListURL, util.CloseConnection)
+	if err != nil {
+		return nil, err
+	}
+
+	// Pretty print JSON output
+	var b bytes.Buffer
+	writer := bufio.NewWriter(&b)
+	err = json.Indent(&b, r, "", "\t")
+	if err != nil {
+		return r, nil
+	}
+	writer.Flush()
+	return b.Bytes(), nil
 }
 
 func getDCATaggerList() ([]byte, error) {

@@ -8,10 +8,22 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/spf13/cobra"
 )
+
+func isPrermSupportedCommand() *cobra.Command {
+	return &cobra.Command{
+		Hidden: true,
+		Use:    "is-prerm-supported",
+		Short:  "Check if prerm is supported",
+		Run: func(_ *cobra.Command, _ []string) {
+			os.Exit(0)
+		},
+	}
+}
 
 func hooksCommand() *cobra.Command {
 	return &cobra.Command{
