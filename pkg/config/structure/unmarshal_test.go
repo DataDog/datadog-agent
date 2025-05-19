@@ -1500,8 +1500,7 @@ feature_flags:
 	mockConfig := newConfigFromYaml(t, confYaml)
 	mockConfig.SetKnown("feature_flags")
 
-	var flags FeatureFlags
-	flags = FeatureFlags{}
+	flags := FeatureFlags{}
 
 	err := UnmarshalKey(mockConfig, "feature_flags", &flags)
 	assert.NoError(t, err)
