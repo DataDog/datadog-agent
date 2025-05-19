@@ -66,25 +66,6 @@ var (
 	eventZeroDiscarder     = model.NewFakeEvent()
 )
 
-// InvalidDiscarders exposes list of values that are not discarders
-var InvalidDiscarders = map[eval.Field][]string{
-	"open.file.path":               dentryInvalidDiscarder,
-	"unlink.file.path":             dentryInvalidDiscarder,
-	"chmod.file.path":              dentryInvalidDiscarder,
-	"chown.file.path":              dentryInvalidDiscarder,
-	"mkdir.file.path":              dentryInvalidDiscarder,
-	"rmdir.file.path":              dentryInvalidDiscarder,
-	"rename.file.path":             dentryInvalidDiscarder,
-	"rename.file.destination.path": dentryInvalidDiscarder,
-	"utimes.file.path":             dentryInvalidDiscarder,
-	"link.file.path":               dentryInvalidDiscarder,
-	"link.file.destination.path":   dentryInvalidDiscarder,
-	"process.file.path":            dentryInvalidDiscarder,
-	"setxattr.file.path":           dentryInvalidDiscarder,
-	"removexattr.file.path":        dentryInvalidDiscarder,
-	"chdir.file.path":              dentryInvalidDiscarder,
-}
-
 var dnsMask uint16
 
 // bumpDiscardersRevision sends an eRPC request to bump the discarders revisionr
@@ -478,7 +459,7 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 
 // isInvalidDiscarder returns whether the given value is a valid discarder for the given field
 func isInvalidDiscarder(field eval.Field, value string) bool {
-	return strings.HasSuffix(field, ".file.path") && value == ""
+	return (strings.HasSuffix(field, ".file.path") || strings.HasSuffix(field, ".file.destination.path")) && value == ""
 }
 
 // InodeDiscarderDump describes a dump of an inode discarder
