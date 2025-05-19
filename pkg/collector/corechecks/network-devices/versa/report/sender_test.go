@@ -11,7 +11,27 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client"
+	"github.com/stretchr/testify/mock"
 )
+
+// mockTimeNow mocks time.Now
+var mockTimeNow = func() time.Time {
+	layout := "2006-01-02 15:04:05"
+	str := "2000-01-01 00:00:00"
+	t, _ := time.Parse(layout, str)
+	return t
+}
+
+// expectedMetric represents a metric that should be sent by the sender
+type expectedMetric struct {
+	name  string
+	value float64
+	tags  []string
+	ts    float64
+}
 
 func TestParseTimestamp(t *testing.T) {
 	tests := []struct {
@@ -200,4 +220,301 @@ func extractDurationComponents(d time.Duration) (years, days, hours, minutes, se
 	seconds = int64(d / time.Second)
 
 	return years, days, hours, minutes, seconds
+}
+
+func TestSendDeviceMetrics(t *testing.T) {
+	TimeNow = mockTimeNow
+	tests := []struct {
+		name            string
+		appliances      []client.Appliance
+		expectedMetrics []expectedMetric
+	}{
+		{
+			name: "Single appliance with valid metrics",
+			appliances: []client.Appliance{
+				{
+					Name:            "test-appliance",
+					IPAddress:       "192.168.1.1",
+					LastUpdatedTime: "2024-01-01 00:00:00.0", // 1704067200
+					Hardware: client.Hardware{
+						CPULoad:    50,
+						Memory:     "16GiB",
+						FreeMemory: "8GiB",
+						DiskSize:   "100GiB",
+						FreeDisk:   "50GiB",
+					},
+				},
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "cpu.usage",
+					value: 50,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    1704067200, // 2024-01-01 00:00:00.0
+				},
+				{
+					name:  versaMetricPrefix + "memory.usage",
+					value: 50, // (16GiB - 8GiB) / 16GiB * 100
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    1704067200,
+				},
+				{
+					name:  versaMetricPrefix + "disk.usage",
+					value: 50, // (100GiB - 50GiB) / 100GiB * 100
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    1704067200,
+				},
+			},
+		},
+		{
+			name: "Single appliance with valid metrics, invalid timestamp",
+			appliances: []client.Appliance{
+				{
+					Name:            "test-appliance",
+					IPAddress:       "192.168.1.1",
+					LastUpdatedTime: "2024INVALID 00:00:00.0", // Invalid, should fall back on TimeNow (946684800)
+					Hardware: client.Hardware{
+						CPULoad:    50,
+						Memory:     "16GiB",
+						FreeMemory: "8GiB",
+						DiskSize:   "100GiB",
+						FreeDisk:   "50GiB",
+					},
+				},
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "cpu.usage",
+					value: 50,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    946684800, // 2000-01-01 00:00:00
+				},
+				{
+					name:  versaMetricPrefix + "memory.usage",
+					value: 50, // (16GiB - 8GiB) / 16GiB * 100
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    946684800,
+				},
+				{
+					name:  versaMetricPrefix + "disk.usage",
+					value: 50, // (100GiB - 50GiB) / 100GiB * 100
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    946684800,
+				},
+			},
+		},
+		{
+			name: "Multiple appliances with valid metrics",
+			appliances: []client.Appliance{
+				{
+					Name:            "appliance-1",
+					IPAddress:       "192.168.1.1",
+					LastUpdatedTime: "2024-01-01 00:00:00.0",
+					Hardware: client.Hardware{
+						CPULoad:    30,
+						Memory:     "8GiB",
+						FreeMemory: "4GiB",
+						DiskSize:   "200GiB",
+						FreeDisk:   "100GiB",
+					},
+				},
+				{
+					Name:            "appliance-2",
+					IPAddress:       "192.168.1.2",
+					LastUpdatedTime: "2024-01-01 00:00:00.0",
+					Hardware: client.Hardware{
+						CPULoad:    70,
+						Memory:     "32GiB",
+						FreeMemory: "16GiB",
+						DiskSize:   "500GiB",
+						FreeDisk:   "250GiB",
+					},
+				},
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "cpu.usage",
+					value: 30,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    1704067200,
+				},
+				{
+					name:  versaMetricPrefix + "memory.usage",
+					value: 50, // (8GiB - 4GiB) / 8GiB * 100
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    1704067200,
+				},
+				{
+					name:  versaMetricPrefix + "disk.usage",
+					value: 50, // (200GiB - 100GiB) / 200GiB * 100
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    1704067200,
+				},
+				{
+					name:  versaMetricPrefix + "cpu.usage",
+					value: 70,
+					tags:  []string{"device_ip:192.168.1.2", "device_namespace:default"},
+					ts:    1704067200,
+				},
+				{
+					name:  versaMetricPrefix + "memory.usage",
+					value: 50, // (32GiB - 16GiB) / 32GiB * 100
+					tags:  []string{"device_ip:192.168.1.2", "device_namespace:default"},
+					ts:    1704067200,
+				},
+				{
+					name:  versaMetricPrefix + "disk.usage",
+					value: 50, // (500GiB - 250GiB) / 500GiB * 100
+					tags:  []string{"device_ip:192.168.1.2", "device_namespace:default"},
+					ts:    1704067200,
+				},
+			},
+		},
+		{
+			name: "Appliance with invalid total memory",
+			appliances: []client.Appliance{
+				{
+					Name:            "test-appliance",
+					IPAddress:       "192.168.1.1",
+					LastUpdatedTime: "2024-01-01 00:00:00.0",
+					Hardware: client.Hardware{
+						CPULoad:    50,
+						Memory:     "invalid",
+						FreeMemory: "8GiB",
+						DiskSize:   "100GiB",
+						FreeDisk:   "50GiB",
+					},
+				},
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "cpu.usage",
+					value: 50,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    1704067200,
+				},
+				{
+					name:  versaMetricPrefix + "disk.usage",
+					value: 50, // (100GiB - 50GiB) / 100GiB * 100
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    1704067200,
+				},
+			},
+		},
+		{
+			name: "Appliance with invalid free memory",
+			appliances: []client.Appliance{
+				{
+					Name:            "test-appliance",
+					IPAddress:       "192.168.1.1",
+					LastUpdatedTime: "2024-01-01 00:00:00.0",
+					Hardware: client.Hardware{
+						CPULoad:    50,
+						Memory:     "8GiB",
+						FreeMemory: "INVALID",
+						DiskSize:   "100GiB",
+						FreeDisk:   "50GiB",
+					},
+				},
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "cpu.usage",
+					value: 50,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    1704067200,
+				},
+				{
+					name:  versaMetricPrefix + "disk.usage",
+					value: 50, // (100GiB - 50GiB) / 100GiB * 100
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    1704067200,
+				},
+			},
+		},
+		{
+			name: "Appliance with invalid disk size",
+			appliances: []client.Appliance{
+				{
+					Name:            "test-appliance",
+					IPAddress:       "192.168.1.1",
+					LastUpdatedTime: "2024-01-01 00:00:00.0",
+					Hardware: client.Hardware{
+						CPULoad:    50,
+						Memory:     "16GiB",
+						FreeMemory: "8GiB",
+						DiskSize:   "invalid",
+						FreeDisk:   "50GiB",
+					},
+				},
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "cpu.usage",
+					value: 50,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    1704067200,
+				},
+				{
+					name:  versaMetricPrefix + "memory.usage",
+					value: 50, // (16GiB - 8GiB) / 16GiB * 100
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    1704067200,
+				},
+			},
+		},
+		{
+			name: "Appliance with invalid disk free",
+			appliances: []client.Appliance{
+				{
+					Name:            "test-appliance",
+					IPAddress:       "192.168.1.1",
+					LastUpdatedTime: "2024-01-01 00:00:00.0",
+					Hardware: client.Hardware{
+						CPULoad:    50,
+						Memory:     "16GiB",
+						FreeMemory: "8GiB",
+						DiskSize:   "130GiB",
+						FreeDisk:   "INVALID",
+					},
+				},
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "cpu.usage",
+					value: 50,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    1704067200,
+				},
+				{
+					name:  versaMetricPrefix + "memory.usage",
+					value: 50, // (16GiB - 8GiB) / 16GiB * 100
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    1704067200,
+				},
+			},
+		},
+		{
+			name:            "Empty appliance list",
+			appliances:      []client.Appliance{},
+			expectedMetrics: []expectedMetric{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSender := mocksender.NewMockSender("testID")
+			mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			s := NewSender(mockSender, "default")
+			s.SendDeviceMetrics(tt.appliances)
+
+			for _, metric := range tt.expectedMetrics {
+				mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", metric.name, metric.value, "", metric.tags, metric.ts)
+			}
+
+			// Verify no unexpected metrics were sent
+			mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", len(tt.expectedMetrics))
+		})
+	}
 }

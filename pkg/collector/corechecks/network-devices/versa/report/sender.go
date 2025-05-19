@@ -58,7 +58,7 @@ func (s *Sender) SendDeviceMetrics(appliances []client.Appliance) {
 		lastUpdatedTime, err := parseTimestamp(appliance.LastUpdatedTime)
 		if err != nil {
 			log.Warnf("Error parsing timestamp %s: %s. Sending device metrics...", appliance.LastUpdatedTime, err)
-			lastUpdatedTime = float64(time.Now().UnixMilli())
+			lastUpdatedTime = float64(TimeNow().UnixMilli())
 		}
 		if !s.ShouldSendEntry(key, lastUpdatedTime) {
 			// If the timestamp is before the max timestamp already sent, do not re-send
@@ -198,7 +198,7 @@ func (s *Sender) SendDirectorDeviceMetrics(director *client.DirectorStatus) {
 	tags := s.GetDeviceTags(defaultIPTag, ipAddress)
 
 	// Convert lastUpdatedTime to unix timestamp
-	lastUpdatedTime := float64(time.Now().UnixMilli())
+	lastUpdatedTime := float64(TimeNow().UnixMilli())
 
 	ts := lastUpdatedTime / 1000 // convert to seconds
 	cpuLoadString := director.SystemDetails.CPULoad
@@ -241,7 +241,7 @@ func parseTimestamp(timestamp string) (float64, error) {
 		// If parsing fails, try the alternate format
 		t, err = time.Parse(alternateVersaTimestampFormat, timestamp)
 		if err != nil {
-			return float64(time.Now().UnixMilli()), fmt.Errorf("error parsing timestamp: %w", err)
+			return float64(TimeNow().UnixMilli()), fmt.Errorf("error parsing timestamp: %w", err)
 		}
 	}
 	return float64(t.UnixMilli()), nil
