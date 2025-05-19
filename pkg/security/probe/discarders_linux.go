@@ -61,9 +61,8 @@ var (
 type onDiscarderHandler func(rs *rules.RuleSet, event *model.Event, probe *EBPFProbe, discarder Discarder) (bool, error)
 
 var (
-	allDiscarderHandlers   = make(map[eval.EventType][]onDiscarderHandler)
-	dentryInvalidDiscarder = []string{""}
-	eventZeroDiscarder     = model.NewFakeEvent()
+	allDiscarderHandlers = make(map[eval.EventType][]onDiscarderHandler)
+	eventZeroDiscarder   = model.NewFakeEvent()
 )
 
 var dnsMask uint16
