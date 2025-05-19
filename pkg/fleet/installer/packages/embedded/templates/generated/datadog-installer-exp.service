@@ -12,8 +12,6 @@ ExecStart=/opt/datadog-packages/datadog-installer/experiment/bin/installer/insta
 ExecStart=/bin/false
 ExecStop=/usr/bin/tail --pid $MAINPID -f /dev/null
 ExecStop=/bin/false
-StartLimitInterval=10
-StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target

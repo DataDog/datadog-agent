@@ -17,6 +17,8 @@ Type=simple
 PIDFile=/opt/datadog-packages/run/installer.pid
 Restart=on-failure
 ExecStart=/opt/datadog-packages/datadog-installer/stable/bin/installer/installer run -p /opt/datadog-packages/run/installer.pid
+StartLimitInterval=10
+StartLimitBurst=5
 {{- else}}
 Type=oneshot
 PIDFile=/opt/datadog-packages/run/installer-exp.pid
@@ -25,8 +27,6 @@ ExecStart=/bin/false
 ExecStop=/usr/bin/tail --pid $MAINPID -f /dev/null
 ExecStop=/bin/false
 {{- end}}
-StartLimitInterval=10
-StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target
