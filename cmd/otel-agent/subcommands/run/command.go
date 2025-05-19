@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
+	collectorimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl"
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	converterfx "github.com/DataDog/datadog-agent/comp/otelcol/converter/fx"
@@ -141,7 +142,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return statsd.NewOTelStatsd(client)
 		}),
 		ipcfx.ModuleReadWrite(),
-		collectorfx.Module(),
+		collectorfx.Module(collectorimpl.NewParams(params.BYOC)),
 		collectorcontribFx.Module(),
 		converterfx.Module(),
 		fx.Provide(func(cp converter.Component) confmap.Converter {

@@ -34,10 +34,11 @@ const (
 // Please note that the otel-agent can be launched directly
 // by the root command, unlike other agents that are managed
 // with subcommands.
-func MakeRootCommand() *cobra.Command {
+func MakeRootCommand(byoc bool) *cobra.Command {
 	globalParams := subcommands.GlobalParams{
 		ConfigName: "datadog-otel",
 		LoggerName: loggerName,
+		BYOC:       byoc,
 	}
 
 	return makeCommands(&globalParams)
