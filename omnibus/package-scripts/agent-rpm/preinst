@@ -1,17 +1,15 @@
 #!/bin/sh
-#
-# Perform necessary datadog-agent setup steps before package is installed.
-#
-# .rpm: STEP 2 of 6
+##########################################################################
+#             DO NOT EDIT THIS SCRIPT DIRECTLY.                          #
+#                                                                        #
+# The installation logic is handled by the installer in the following    #
+# file: pkg/fleet/installer/packages/datadog_agent_linux.go              #
+#                                                                        #
+##########################################################################
 
 INSTALL_DIR=/opt/datadog-agent
 
 set -e
-
-# Run the upgrade prerm. See pkg/fleet/installer/packages/datadog_agent_linux.go
-if [ "$*" = "2" ] && [ -f "${INSTALL_DIR}/embedded/bin/installer" ]; then
-    ${INSTALL_DIR}/embedded/bin/installer prerm --upgrade datadog-agent rpm
-fi
 
 # Uninstall the agent if it was installed by the installer
 if command -v datadog-installer >/dev/null 2>&1 && datadog-installer is-installed datadog-agent; then
@@ -23,6 +21,17 @@ fi
 if [ -f "/etc/init.d/datadog-agent" ]; then
     /etc/init.d/datadog-agent stop || true
 fi
+
+# Run the upgrade prerm if supported in the previous version. See pkg/fleet/installer/packages/datadog_agent_linux.go
+if [ "$*" = "2" ] && [ -f "${INSTALL_DIR}/embedded/bin/installer" ] && ${INSTALL_DIR}/embedded/bin/installer is-prerm-supported; then
+    ${INSTALL_DIR}/embedded/bin/installer prerm --upgrade datadog-agent rpm || true
+    exit 0
+fi
+
+##########################################################################
+#    LEGACY INSTALLATION LOGIC BELOW WHEN UPGRADING FROM AGENT <7.68     #
+#                   DO NOT EDIT THIS SECTION                             #
+##########################################################################
 
 # RPM unpacks the new files before running prerm of the old package
 # triggering manually the prerm python script of the old package
