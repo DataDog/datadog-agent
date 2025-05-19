@@ -629,6 +629,7 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 			DeviceID:        deviceID,
 			LocalOutsideIP:  store.GetColumnAsString("cisco_ipsec_tunnel.local_outside_ip", strIndex),
 			RemoteOutsideIP: store.GetColumnAsString("cisco_ipsec_tunnel.remote_outside_ip", strIndex),
+			Protocol:        "ipsec",
 		}
 		fmt.Println("VPN Tunnel Metadata:")
 		fmt.Println(*vpnTunnelByIndex[strIndex])
@@ -670,7 +671,7 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 		fmt.Println(localAddr)
 		fmt.Println(remoteAddr)
 
-		vpnTunnel.InsideAddresses = append(vpnTunnel.InsideAddresses, devicemetadata.VPNTunnelInsideAddress{
+		vpnTunnel.EndpointAddresses = append(vpnTunnel.EndpointAddresses, devicemetadata.VPNTunnelEndpointAddress{
 			LocalAddressType:  localAddrType,
 			LocalAddress:      localAddr,
 			RemoteAddressType: remoteAddrType,

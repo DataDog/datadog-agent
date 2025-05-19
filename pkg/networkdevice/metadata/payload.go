@@ -174,15 +174,15 @@ type TopologyLinkMetadata struct {
 
 // VPNTunnelMetadata contains VPN tunnel metadata
 type VPNTunnelMetadata struct {
-	DeviceID        string                   `json:"device_id"`
-	LocalOutsideIP  string                   `json:"local_outside_ip"`
-	RemoteOutsideIP string                   `json:"remote_outside_ip"`
-	Protocol        string                   `json:"protocol"`
-	InsideAddresses []VPNTunnelInsideAddress `json:"inside_addresses"`
+	DeviceID          string                     `json:"device_id"`
+	LocalOutsideIP    string                     `json:"local_outside_ip"`
+	RemoteOutsideIP   string                     `json:"remote_outside_ip"`
+	Protocol          string                     `json:"protocol"`
+	EndpointAddresses []VPNTunnelEndpointAddress `json:"endpoint_addresses"`
 }
 
-// VPNTunnelInsideAddress contains local/remote inside addresses metadata
-type VPNTunnelInsideAddress struct {
+// VPNTunnelEndpointAddress contains local/remote inside addresses metadata
+type VPNTunnelEndpointAddress struct {
 	LocalAddressType  string `json:"local_address_type"`
 	LocalAddress      string `json:"local_address"`
 	RemoteAddressType string `json:"remote_address_type"`
