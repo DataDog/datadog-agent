@@ -42,7 +42,6 @@ build do
 
   update_config_guess
   configure_options = [
-    "--enable-docs",
     "--disable-static",
     "--disable-pedantic",
   ]
