@@ -32,7 +32,7 @@ Subprograms:
           Type: 1 GoMapType map[string]int
           Locations:
             - Range: 0x9fe40..0x9fe78
-              Location: [{Size: 0, InReg: true, StackOffset: 0, Register: 0}]
+              Pieces: [{Size: 0, InReg: true, StackOffset: 0, Register: 0}]
           IsParameter: true
           IsReturn: false
       Lines: []
@@ -45,9 +45,9 @@ Subprograms:
           Type: 19 GoMapType map[string]main.bigStruct
           Locations:
             - Range: 0x9feb0..0x9fee8
-              Location: [{Size: 0, InReg: true, StackOffset: 0, Register: 0}]
+              Pieces: [{Size: 0, InReg: true, StackOffset: 0, Register: 0}]
             - Range: 0x9fee8..0x9ff70
-              Location: [{Size: 0, InReg: false, StackOffset: 16, Register: 0}]
+              Pieces: [{Size: 0, InReg: false, StackOffset: 16, Register: 0}]
           IsParameter: true
           IsReturn: false
       Lines: []
@@ -226,7 +226,7 @@ Types:
         - Name: len
           Offset: 8
           Type: 11 BaseType int
-      StringData: 35 GoStringDataType string.str
+      Data: 35 GoStringDataType string.str
     - __kind: PointerType
       ID: 18
       Name: '*uint8'

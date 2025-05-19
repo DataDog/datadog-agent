@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/obgect"
+	object "github.com/DataDog/datadog-agent/pkg/dyninst/obgect"
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr"
 )
 
@@ -302,7 +302,7 @@ func completeGoStringType(tc *typeCatalog, st *ir.StructureType) error {
 	strField.Type = strDataPtrType
 	tc.typesByID[st.ID] = &ir.GoStringHeaderType{
 		StructureType: st,
-		StringData:    strDataType,
+		Data:          strDataType,
 	}
 
 	return nil
@@ -337,7 +337,7 @@ func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
 	tc.typesByID[arrayDataPtrType.ID] = arrayDataPtrType
 	tc.typesByID[st.ID] = &ir.GoSliceHeaderType{
 		StructureType: st,
-		ArrayType:     arrayDataType,
+		Data:          arrayDataType,
 	}
 	return nil
 }
@@ -808,8 +808,8 @@ func computeLocations(
 				return nil, err
 			}
 			locations = append(locations, ir.Location{
-				Range:    ir.PCRange{entry.LowPC, entry.HighPC},
-				Location: locationPieces,
+				Range:  ir.PCRange{entry.LowPC, entry.HighPC},
+				Pieces: locationPieces,
 			})
 		}
 
@@ -828,8 +828,8 @@ func computeLocations(
 		}
 		for _, r := range v.ranges {
 			locations = append(locations, ir.Location{
-				Range:    r,
-				Location: locationPieces,
+				Range:  r,
+				Pieces: locationPieces,
 			})
 		}
 	default:

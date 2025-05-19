@@ -38,6 +38,6 @@ type LocationOp struct {
 	Size uint32
 }
 
-func (LocationOp) irOp() {}
+func (*LocationOp) irOp() {}
 
 // TODO: Define expressions as needed for probe generation.
