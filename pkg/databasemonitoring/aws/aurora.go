@@ -13,6 +13,7 @@ import (
 	"hash/fnv"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/rds/types"
@@ -57,49 +58,10 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 				if db.Endpoint.Address == nil || db.DBInstanceStatus == nil || strings.ToLower(*db.DBInstanceStatus) != "available" {
 					continue
 				}
-				// Add to list of instances for the cluster
-				instance := &Instance{
-					Endpoint: *db.Endpoint.Address,
-				}
-				// Set if IAM is configured for the endpoint
-				if db.IAMDatabaseAuthenticationEnabled != nil {
-					instance.IamEnabled = *db.IAMDatabaseAuthenticationEnabled
-				}
-				// Set the port, if it is known
-				if db.Endpoint.Port != nil {
-					instance.Port = *db.Endpoint.Port
-				}
-				if db.Engine != nil {
-					instance.Engine = *db.Engine
-				}
-				if db.DBName != nil {
-					instance.DbName = *db.DBName
-				} else {
-					if db.Engine != nil {
-						defaultDBName, err := dbNameFromEngine(*db.Engine)
-						if err != nil {
-							return nil, fmt.Errorf("error getting default db name from engine: %v", err)
-						}
-
-						instance.DbName = defaultDBName
-					} else {
-						// This should never happen, as engine is a required field in the API
-						// but we should handle it.
-						return nil, fmt.Errorf("engine is nil for instance %s", clusterID)
-					}
-				}
-				for _, tag := range db.TagList {
-					tagString := ""
-					if tag.Key != nil {
-						tagString += *tag.Key
-					}
-					if tag.Value != nil {
-						tagString += ":" + *tag.Value
-					}
-					if tagString == dbmTag {
-						instance.DbmEnabled = true
-						break
-					}
+				instance, err := makeInstance(db, dbmTag)
+				if err != nil {
+					log.Errorf("error creating instance from DBInstance: %v", err)
+					continue
 				}
 				if _, ok := clusters[*db.DBClusterIdentifier]; !ok {
 					clusters[*db.DBClusterIdentifier] = &AuroraCluster{

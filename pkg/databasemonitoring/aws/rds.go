@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/rds/types"
@@ -48,58 +49,14 @@ func (c *Client) GetRdsInstancesFromTags(ctx context.Context, tags []string, dbm
 		}
 		for _, db := range dbInstances.DBInstances {
 			if containsTags(db.TagList, tags) {
-				// Add to list of instances for the cluster
-				instance := Instance{
-					ID:       *db.DBInstanceIdentifier,
-					Endpoint: *db.Endpoint.Address,
+				instance, err := makeInstance(db, dbmTag)
+				if err != nil {
+					log.Errorf("error creating instance from DBInstance: %v", err)
+					continue
 				}
-
-				// Set the cluster ID if it is present
-				if db.DBClusterIdentifier != nil {
-					instance.ClusterID = *db.DBClusterIdentifier
+				if instance != nil {
+					instances = append(instances, *instance)
 				}
-
-				// Set if IAM is configured for the endpoint
-				if db.IAMDatabaseAuthenticationEnabled != nil {
-					instance.IamEnabled = *db.IAMDatabaseAuthenticationEnabled
-				}
-				// Set the port, if it is known
-				if db.Endpoint.Port != nil {
-					instance.Port = *db.Endpoint.Port
-				}
-				if db.Engine != nil {
-					instance.Engine = *db.Engine
-				}
-				if db.DBName != nil {
-					instance.DbName = *db.DBName
-				} else {
-					if db.Engine != nil {
-						defaultDBName, err := dbNameFromEngine(*db.Engine)
-						if err != nil {
-							return nil, fmt.Errorf("error getting default db name from engine: %v", err)
-						}
-
-						instance.DbName = defaultDBName
-					} else {
-						// This should never happen, as engine is a required field in the API
-						// but we should handle it.
-						return nil, fmt.Errorf("engine is nil for instance %s", *db.DBInstanceIdentifier)
-					}
-				}
-				for _, tag := range db.TagList {
-					tagString := ""
-					if tag.Key != nil {
-						tagString += *tag.Key
-					}
-					if tag.Value != nil {
-						tagString += ":" + *tag.Value
-					}
-					if tagString == dbmTag {
-						instance.DbmEnabled = true
-						break
-					}
-				}
-				instances = append(instances, instance)
 			}
 		}
 		marker = dbInstances.Marker
