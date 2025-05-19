@@ -292,6 +292,8 @@ func (mr *Resolver) DelPid(pid uint32) {
 }
 
 func (mr *Resolver) insert(m *model.Mount, pid uint32) {
+	mr.mountLog.Add(fmt.Sprintf("insert pid=%d: %+v", pid, *m))
+
 	// umount the previous one if exists
 	if prev, ok := mr.mounts.Get(m.MountID); prev != nil && ok {
 		// Log duplicate mountID detection
@@ -304,8 +306,7 @@ func (mr *Resolver) insert(m *model.Mount, pid uint32) {
 			newPath = m.MountPointStr
 		}
 
-		conflict := fmt.Sprintf("dupe. pid=%d. id=%d. current=%+v - previous=%+v", pid, m.MountID, *m, *prev)
-		mr.mountLog.Add(conflict)
+		mr.mountLog.Add(fmt.Sprintf("dupe. prev:%+v", *prev))
 
 		// put the prev entry and the all the children in the redemption list
 		mr.delete(prev)
@@ -340,7 +341,7 @@ func (mr *Resolver) getFromRedemption(mountID uint32) *model.Mount {
 		return nil
 	}
 
-	mr.debugLog.Add(fmt.Sprintf("getFromRedemption() [Out] mountID = %d found\n", mountID))
+	mr.debugLog.Add(fmt.Sprintf("getFromRedemption() [Out] mountID = %d found. %+v\n", mountID, *entry.mount))
 	return entry.mount
 }
 
@@ -350,7 +351,7 @@ func (mr *Resolver) lookupByMountID(mountID uint32) *model.Mount {
 
 	//if mount, ok := mr.pidToMounts.Get(mountID, pid); mount != nil && ok {
 	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
-		mr.debugLog.Add(fmt.Sprintf("lookupByMountID() [Out] mountID = %d found in mounts cache\n", mountID))
+		mr.debugLog.Add(fmt.Sprintf("lookupByMountID() [Out] mountID = %d found in mounts cache: %+v\n", mountID, *mount))
 		return mount
 	}
 
@@ -389,7 +390,6 @@ func (mr *Resolver) lookupByDevice(device uint32, pid uint32) *model.Mount {
 func (mr *Resolver) lookupMount(mountID uint32, device uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin) {
 	mr.debugLog.Add(fmt.Sprintf("lookupMount() [In] mountID = %d, device = %d, pid = %d\n", mountID, device, pid))
 
-	//mount := mr.lookupByMountID(mountID, pid)
 	mount := mr.lookupByMountID(mountID)
 	if mount != nil {
 		mr.debugLog.Add(fmt.Sprintf("lookupMount() [Out] found by mountID = %d\n", mountID))
@@ -422,7 +422,8 @@ func (mr *Resolver) _getMountPath(mountID uint32, device uint32, pid uint32, cac
 	}
 
 	if len(mount.Path) > 0 {
-		mr.debugLog.Add(fmt.Sprintf("_getMountPath() [Out] cached path: %s\n", mount.Path))
+		// INVALID PATH BEING RETURNED HERE
+		mr.debugLog.Add(fmt.Sprintf("_getMountPath() [Out] cached path: %+v\n", mount))
 		return mount.Path, source, origin, nil
 	}
 
@@ -613,12 +614,6 @@ func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, cont
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	//if mount, ok := mr.pidToMounts.Get(pid, mountID); mount != nil && ok {
-	//	mr.procHitsStats.Inc()
-	//	mr.debugLog.Add(fmt.Sprintf("resolveMount() with pid [Out] procfs hit, mountID = %d. \n", mountID))
-	//	return mount, model.MountSourceMountID, mount.Origin, nil
-	//}
-
 	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
 		mr.procHitsStats.Inc()
 		mr.debugLog.Add(fmt.Sprintf("resolveMount() Global [Out] procfs hit, mountID = %d. \n", mountID))
@@ -754,7 +749,7 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		cacheMissStats:  atomic.NewInt64(0),
 		procMissStats:   atomic.NewInt64(0),
 		debugLog:        debugLog,
-		mountLog:        debugging.NewRollingLog(1024 * 1024 * 10),
+		mountLog:        debugging.NewRollingLog(1024 * 1024 * 20),
 	}
 
 	redemption, err := simplelru.NewLRU(1024, func(_ uint32, entry *redemptionEntry) {
