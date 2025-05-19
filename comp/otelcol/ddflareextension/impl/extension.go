@@ -226,6 +226,7 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 			AgentCommand:     ext.info.Command,
 			AgentDesc:        ext.info.Description,
 			ExtensionVersion: ext.info.Version,
+			BYOC:             true,
 		},
 		ConfigResponse: extensionTypes.ConfigResponse{
 			CustomerConfig:        ext.configStore.getProvidedConf(),
