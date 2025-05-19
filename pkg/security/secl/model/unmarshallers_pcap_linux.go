@@ -18,22 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
-/*
-func (e *RawPacketEvent) cDump(data []byte) {
-	fmt.Printf("unsigned char data[] = {")
-	for i := 0; i < len(data); i++ {
-		if i%16 == 0 {
-			fmt.Printf("\n")
-		}
-		fmt.Printf("0x%02x", data[i])
-		if i < len(data)-1 {
-			fmt.Printf(",")
-		}
-	}
-	fmt.Printf("};\n")
-}
-*/
-
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RawPacketEvent) UnmarshalBinary(data []byte) (int, error) {
 	read, err := e.NetworkContext.Device.UnmarshalBinary(data)
@@ -48,8 +32,6 @@ func (e *RawPacketEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.CaptureInfo.InterfaceIndex = int(e.NetworkContext.Device.IfIndex)
 	e.CaptureInfo.Length = int(e.NetworkContext.Size)
 	e.CaptureInfo.CaptureLength = len(data)
-
-	//e.cDump(data)
 
 	packet := gopacket.NewPacket(data, layers.LayerTypeEthernet, gopacket.DecodeOptions{NoCopy: true, Lazy: true, DecodeStreamsAsDatagrams: true})
 	if layer := packet.Layer(layers.LayerTypeIPv4); layer != nil {
