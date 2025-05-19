@@ -214,7 +214,7 @@ func (suite *CollectorTestSuite) TestStarted() {
 	assert.False(suite.T(), suite.c.started())
 }
 
-func (suite *CollectorTestSuite) TestGetAllInstanceIDs() {
+func (suite *CollectorTestSuite) TestgetAllInstanceIDs() {
 	// Schedule 2 instances of TestCheck1 and 1 instance of TestCheck2
 	ch1 := NewCheckUnique("foo", "TestCheck1")
 	ch2 := NewCheckUnique("bar", "TestCheck1")
@@ -230,7 +230,7 @@ func (suite *CollectorTestSuite) TestGetAllInstanceIDs() {
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), 3, len(suite.c.checks))
 
-	ids := suite.c.GetAllInstanceIDs("TestCheck1")
+	ids := suite.c.getAllInstanceIDs("TestCheck1")
 	assert.Equal(suite.T(), 2, len(ids))
 	sort.Sort(ChecksList(ids))
 	expected := []checkid.ID{"bar", "foo"}

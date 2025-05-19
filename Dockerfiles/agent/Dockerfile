@@ -88,7 +88,7 @@ COPY install_info etc/datadog-agent/
 
 # Download BouncyCastle FIPS provider jar files.
 COPY bouncycastle-fips/pom.xml /opt/bouncycastle-fips/
-RUN if [ -n "$WITH_JMX" ]; then cd /opt/bouncycastle-fips && mvn dependency:copy-dependencies; else mkdir -p /opt/bouncycastle-fips/target/dependency; fi
+RUN if [ -n "$WITH_JMX_FIPS" ]; then cd /opt/bouncycastle-fips && mvn dependency:copy-dependencies; else mkdir -p /opt/bouncycastle-fips/target/dependency; fi
 
 ######################################
 #  Actual docker image construction  #
@@ -196,7 +196,7 @@ COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 COPY --from=extract /opt/bouncycastle-fips/target/dependency/*.jar /opt/bouncycastle-fips/
 COPY --chmod=644 bouncycastle-fips/java.security /opt/bouncycastle-fips/
 COPY --chmod=644 bouncycastle-fips/bc-fips.policy /opt/bouncycastle-fips/
-RUN if [ -z "$WITH_JMX" ]; then rm -rf /opt/bouncycastle-fips; fi
+RUN if [ -z "$WITH_JMX_FIPS" ]; then rm -rf /opt/bouncycastle-fips; fi
 # Configure Java to use BouncyCastle FIPS provider on JMX FIPS images.
 # Double equals sign for java.security.properties istructs java to replace system defaults with the contents of the new file.
 ENV JAVA_TOOL_OPTIONS="${WITH_JMX_FIPS:+--module-path=/opt/bouncycastle-fips -Djava.security.properties==/opt/bouncycastle-fips/java.security -Dpolicy.url.2=file:/opt/bouncycastle-fips/bc-fips.policy}"
