@@ -397,7 +397,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					variableProvider = rs.globalVariables
 				}
 
-				opts := eval.VariableOpts{TTL: actionDef.Set.TTL.GetDuration(), Size: actionDef.Set.Size}
+				opts := eval.VariableOpts{TTL: actionDef.Set.TTL.GetDuration(), Size: actionDef.Set.Size, Private: actionDef.Set.Private}
 
 				variable, err := variableProvider.NewSECLVariable(actionDef.Set.Name, variableValue, opts)
 				if err != nil {
@@ -407,6 +407,11 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 
 				if existingVariable := rs.evalOpts.VariableStore.Get(varName); existingVariable != nil && reflect.TypeOf(variable) != reflect.TypeOf(existingVariable) {
 					errs = multierror.Append(errs, fmt.Errorf("conflicting types for variable '%s'", varName))
+					continue
+				}
+
+				if existingVariable := rs.evalOpts.VariableStore.Get(varName); existingVariable != nil && existingVariable.GetVariableOpts().Private != variable.GetVariableOpts().Private {
+					errs = multierror.Append(errs, fmt.Errorf("conflicting private flag for variable '%s'", varName))
 					continue
 				}
 
@@ -732,10 +737,6 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 						value = evaluator.Eval(ctx)
 					}
 				}
-
-				props := mutable.GetProperties()
-				props.Private = action.Def.Set.Private
-				mutable.SetProperties(props)
 
 				if action.Def.Set.Append {
 					if err := mutable.Append(ctx, value); err != nil {

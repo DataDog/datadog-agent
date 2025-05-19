@@ -25,17 +25,11 @@ var (
 	errAppendNotSupported = errors.New("append is not supported")
 )
 
-// Properties contains options that can be set on variables
-type Properties struct {
-	Private bool // When a variable is marked as private, it will not be included in the serialized event
-	// Add other option fields here as needed
-}
-
 // SECLVariable describes a SECL variable value
 type SECLVariable interface {
 	GetEvaluator() interface{}
-	GetProperties() Properties
-	SetProperties(props Properties)
+	GetVariableOpts() VariableOpts
+	SetVariableOpts(opts VariableOpts)
 }
 
 // Variable is the interface implemented by variables
@@ -53,14 +47,14 @@ type ScopedVariable interface {
 type MutableVariable interface {
 	Set(ctx *Context, value interface{}) error
 	Append(ctx *Context, value interface{}) error
-	GetProperties() Properties
-	SetProperties(props Properties)
+	GetVariableOpts() VariableOpts
+	SetVariableOpts(opts VariableOpts)
 }
 
 // settableVariable describes a SECL variable
 type settableVariable struct {
 	setFnc func(ctx *Context, value interface{}) error
-	props  Properties
+	opts   VariableOpts
 }
 
 type expirableVariable interface {
@@ -86,14 +80,14 @@ func (v *settableVariable) IsMutable() bool {
 	return v.setFnc != nil
 }
 
-// GetProperties returns the variable properties
-func (v *settableVariable) GetProperties() Properties {
-	return v.props
+// GetVariableOpts returns the variable options
+func (v *settableVariable) GetVariableOpts() VariableOpts {
+	return v.opts
 }
 
-// SetProperties sets the variable properties
-func (v *settableVariable) SetProperties(props Properties) {
-	v.props = props
+// SetVariableOpts sets the variable VariableOpts
+func (v *settableVariable) SetVariableOpts(opts VariableOpts) {
+	v.opts = opts
 }
 
 // ScopedIntVariable describes a scoped integer variable
@@ -122,7 +116,7 @@ func NewScopedIntVariable(intFnc func(ctx *Context) (int, bool), setFnc func(ctx
 	return &ScopedIntVariable{
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			props: Properties{
+			opts: VariableOpts{
 				Private: false,
 			},
 		},
@@ -158,7 +152,7 @@ func NewScopedStringVariable(strFnc func(ctx *Context) (string, bool), setFnc fu
 		strFnc: strFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			props: Properties{
+			opts: VariableOpts{
 				Private: false,
 			},
 		},
@@ -192,7 +186,7 @@ func NewScopedBoolVariable(boolFnc func(ctx *Context) (bool, bool), setFnc func(
 		boolFnc: boolFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			props: Properties{
+			opts: VariableOpts{
 				Private: false,
 			},
 		},
@@ -226,7 +220,7 @@ func NewScopedIPVariable(ipFnc func(ctx *Context) (net.IPNet, bool), setFnc func
 		ipFnc: ipFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			props: Properties{
+			opts: VariableOpts{
 				Private: false,
 			},
 		},
@@ -277,7 +271,7 @@ func NewScopedStringArrayVariable(strFnc func(ctx *Context) ([]string, bool), se
 		strFnc: strFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			props: Properties{
+			opts: VariableOpts{
 				Private: false,
 			},
 		},
@@ -328,7 +322,7 @@ func NewScopedIntArrayVariable(intFnc func(ctx *Context) ([]int, bool), setFnc f
 		intFnc: intFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			props: Properties{
+			opts: VariableOpts{
 				Private: false,
 			},
 		},
@@ -379,7 +373,7 @@ func NewScopedIPArrayVariable(ipFnc func(ctx *Context) ([]net.IPNet, bool), setF
 		ipFnc: ipFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			props: Properties{
+			opts: VariableOpts{
 				Private: false,
 			},
 		},
@@ -406,7 +400,7 @@ type IntVariable struct {
 	isSet bool
 	Value int
 	variableWithTTL
-	props Properties
+	opts VariableOpts
 }
 
 // GetValue returns the variable value
@@ -449,14 +443,14 @@ func (m *IntVariable) GetEvaluator() interface{} {
 	}
 }
 
-// GetProperties returns the variable properties
-func (m *IntVariable) GetProperties() Properties {
-	return m.props
+// GetVariableOpts returns the variable VariableOpts
+func (m *IntVariable) GetVariableOpts() VariableOpts {
+	return m.opts
 }
 
-// SetProperties sets the variable properties
-func (m *IntVariable) SetProperties(props Properties) {
-	m.props = props
+// SetVariableOpts sets the variable VariableOpts
+func (m *IntVariable) SetVariableOpts(opts VariableOpts) {
+	m.opts = opts
 }
 
 // BoolVariable describes a mutable boolean variable
@@ -464,7 +458,7 @@ type BoolVariable struct {
 	isSet bool
 	Value bool
 	variableWithTTL
-	props Properties
+	opts VariableOpts
 }
 
 // GetEvaluator returns the variable SECL evaluator
@@ -477,26 +471,24 @@ func (m *BoolVariable) GetEvaluator() interface{} {
 	}
 }
 
-// GetProperties returns the variable properties
-func (m *BoolVariable) GetProperties() Properties {
-	return m.props
+// GetVariableOpts returns the variable VariableOpts
+func (m *BoolVariable) GetVariableOpts() VariableOpts {
+	return m.opts
 }
 
-// SetProperties sets the variable properties
-func (m *BoolVariable) SetProperties(props Properties) {
-	m.props = props
+// SetVariableOpts sets the variable VariableOpts
+func (m *BoolVariable) SetVariableOpts(opts VariableOpts) {
+	m.opts = opts
 }
 
 // NewIntVariable returns a new mutable integer variable
-func NewIntVariable(value int, ttl time.Duration) *IntVariable {
+func NewIntVariable(value int, opts VariableOpts) *IntVariable {
 	return &IntVariable{
 		Value: value,
 		variableWithTTL: variableWithTTL{
-			ttl: ttl,
+			ttl: opts.TTL,
 		},
-		props: Properties{
-			Private: false,
-		},
+		opts: opts,
 	}
 }
 
@@ -523,15 +515,13 @@ func (m *BoolVariable) Append(_ *Context, _ interface{}) error {
 }
 
 // NewBoolVariable returns a new mutable boolean variable
-func NewBoolVariable(value bool, ttl time.Duration) *BoolVariable {
+func NewBoolVariable(value bool, opts VariableOpts) *BoolVariable {
 	return &BoolVariable{
 		Value: value,
 		variableWithTTL: variableWithTTL{
-			ttl: ttl,
+			ttl: opts.TTL,
 		},
-		props: Properties{
-			Private: false,
-		},
+		opts: opts,
 	}
 }
 
@@ -540,7 +530,7 @@ type StringVariable struct {
 	Value string
 	isSet bool
 	variableWithTTL
-	props Properties
+	opts VariableOpts
 }
 
 // GetEvaluator returns the variable SECL evaluator
@@ -554,14 +544,14 @@ func (m *StringVariable) GetEvaluator() interface{} {
 	}
 }
 
-// GetProperties returns the variable properties
-func (m *StringVariable) GetProperties() Properties {
-	return m.props
+// GetVariableOpts returns the variable VariableOpts
+func (m *StringVariable) GetVariableOpts() VariableOpts {
+	return m.opts
 }
 
-// SetProperties sets the variable properties
-func (m *StringVariable) SetProperties(props Properties) {
-	m.props = props
+// SetVariableOpts sets the variable VariableOpts
+func (m *StringVariable) SetVariableOpts(opts VariableOpts) {
+	m.opts = opts
 }
 
 // GetValue returns the variable value
@@ -595,15 +585,13 @@ func (m *StringVariable) Set(_ *Context, value interface{}) error {
 }
 
 // NewStringVariable returns a new mutable string variable
-func NewStringVariable(value string, ttl time.Duration) *StringVariable {
+func NewStringVariable(value string, opts VariableOpts) *StringVariable {
 	return &StringVariable{
 		Value: value,
 		variableWithTTL: variableWithTTL{
-			ttl: ttl,
+			ttl: opts.TTL,
 		},
-		props: Properties{
-			Private: false,
-		},
+		opts: opts,
 	}
 }
 
@@ -612,7 +600,7 @@ type IPVariable struct {
 	Value net.IPNet
 	isSet bool
 	variableWithTTL
-	props Properties
+	opts VariableOpts
 }
 
 // GetValue returns the variable value
@@ -647,26 +635,24 @@ func (m *IPVariable) GetEvaluator() interface{} {
 	}
 }
 
-// GetProperties returns the variable properties
-func (m *IPVariable) GetProperties() Properties {
-	return m.props
+// GetVariableOpts returns the variable VariableOpts
+func (m *IPVariable) GetVariableOpts() VariableOpts {
+	return m.opts
 }
 
-// SetProperties sets the variable properties
-func (m *IPVariable) SetProperties(props Properties) {
-	m.props = props
+// SetVariableOpts sets the variable VariableOpts
+func (m *IPVariable) SetVariableOpts(opts VariableOpts) {
+	m.opts = opts
 }
 
 // NewIPVariable returns a new mutable IP variable
-func NewIPVariable(value net.IPNet, ttl time.Duration) *IPVariable {
+func NewIPVariable(value net.IPNet, opts VariableOpts) *IPVariable {
 	return &IPVariable{
 		Value: value,
 		variableWithTTL: variableWithTTL{
-			ttl: ttl,
+			ttl: opts.TTL,
 		},
-		props: Properties{
-			Private: false,
-		},
+		opts: opts,
 	}
 }
 
@@ -674,7 +660,7 @@ func NewIPVariable(value net.IPNet, ttl time.Duration) *IPVariable {
 type StringArrayVariable struct {
 	isSet bool
 	LRU   *ttlcache.Cache[string, bool]
-	props Properties
+	opts  VariableOpts
 }
 
 // GetValue returns the variable value
@@ -727,14 +713,14 @@ func (m *StringArrayVariable) GetEvaluator() interface{} {
 	}
 }
 
-// GetProperties returns the variable properties
-func (m *StringArrayVariable) GetProperties() Properties {
-	return m.props
+// GetVariableOpts returns the variable VariableOpts
+func (m *StringArrayVariable) GetVariableOpts() VariableOpts {
+	return m.opts
 }
 
-// SetProperties sets the variable properties
-func (m *StringArrayVariable) SetProperties(props Properties) {
-	m.props = props
+// SetVariableOpts sets the variable VariableOpts
+func (m *StringArrayVariable) SetVariableOpts(opts VariableOpts) {
+	m.opts = opts
 }
 
 // CleanupExpired cleans up expired values from the variable
@@ -745,18 +731,16 @@ func (m *StringArrayVariable) CleanupExpired() {
 }
 
 // NewStringArrayVariable returns a new mutable string array variable
-func NewStringArrayVariable(value []string, size int, ttl time.Duration) *StringArrayVariable {
-	if size == 0 {
-		size = defaultMaxVariables
+func NewStringArrayVariable(value []string, opts VariableOpts) *StringArrayVariable {
+	if opts.Size == 0 {
+		opts.Size = defaultMaxVariables
 	}
 
-	lru := ttlcache.New(ttlcache.WithCapacity[string, bool](uint64(size)), ttlcache.WithTTL[string, bool](ttl))
+	lru := ttlcache.New(ttlcache.WithCapacity[string, bool](uint64(opts.Size)), ttlcache.WithTTL[string, bool](opts.TTL))
 
 	v := &StringArrayVariable{
-		LRU: lru,
-		props: Properties{
-			Private: false,
-		},
+		LRU:  lru,
+		opts: opts,
 	}
 	_ = v.set(nil, value)
 	return v
@@ -766,7 +750,7 @@ func NewStringArrayVariable(value []string, size int, ttl time.Duration) *String
 type IntArrayVariable struct {
 	isSet bool
 	LRU   *ttlcache.Cache[int, bool]
-	props Properties
+	opts  VariableOpts
 }
 
 // GetValue returns the variable value
@@ -821,14 +805,14 @@ func (m *IntArrayVariable) GetEvaluator() interface{} {
 	}
 }
 
-// GetProperties returns the variable properties
-func (m *IntArrayVariable) GetProperties() Properties {
-	return m.props
+// GetVariableOpts returns the variable VariableOpts
+func (m *IntArrayVariable) GetVariableOpts() VariableOpts {
+	return m.opts
 }
 
-// SetProperties sets the variable properties
-func (m *IntArrayVariable) SetProperties(props Properties) {
-	m.props = props
+// SetVariableOpts sets the variable VariableOpts
+func (m *IntArrayVariable) SetVariableOpts(opts VariableOpts) {
+	m.opts = opts
 }
 
 // CleanupExpired cleans up expired values from the variable
@@ -839,18 +823,16 @@ func (m *IntArrayVariable) CleanupExpired() {
 }
 
 // NewIntArrayVariable returns a new mutable integer array variable
-func NewIntArrayVariable(value []int, size int, ttl time.Duration) *IntArrayVariable {
-	if size == 0 {
-		size = defaultMaxVariables
+func NewIntArrayVariable(value []int, opts VariableOpts) *IntArrayVariable {
+	if opts.Size == 0 {
+		opts.Size = defaultMaxVariables
 	}
 
-	lru := ttlcache.New(ttlcache.WithCapacity[int, bool](uint64(size)), ttlcache.WithTTL[int, bool](ttl))
+	lru := ttlcache.New(ttlcache.WithCapacity[int, bool](uint64(opts.Size)), ttlcache.WithTTL[int, bool](opts.TTL))
 
 	v := &IntArrayVariable{
-		LRU: lru,
-		props: Properties{
-			Private: false,
-		},
+		LRU:  lru,
+		opts: opts,
 	}
 	_ = v.set(nil, value)
 	return v
@@ -860,7 +842,7 @@ func NewIntArrayVariable(value []int, size int, ttl time.Duration) *IntArrayVari
 type IPArrayVariable struct {
 	LRU   *ttlcache.Cache[string, bool]
 	isSet bool
-	props Properties
+	opts  VariableOpts
 }
 
 // GetValue returns the variable value
@@ -929,14 +911,14 @@ func (m *IPArrayVariable) GetEvaluator() interface{} {
 	}
 }
 
-// GetProperties returns the variable properties
-func (m *IPArrayVariable) GetProperties() Properties {
-	return m.props
+// GetVariableOpts returns the variable VariableOpts
+func (m *IPArrayVariable) GetVariableOpts() VariableOpts {
+	return m.opts
 }
 
-// SetProperties sets the variable properties
-func (m *IPArrayVariable) SetProperties(props Properties) {
-	m.props = props
+// SetVariableOpts sets the variable VariableOpts
+func (m *IPArrayVariable) SetVariableOpts(opts VariableOpts) {
+	m.opts = opts
 }
 
 // CleanupExpired cleans up expired values from the variable
@@ -947,18 +929,16 @@ func (m *IPArrayVariable) CleanupExpired() {
 }
 
 // NewIPArrayVariable returns a new mutable IP array variable
-func NewIPArrayVariable(value []net.IPNet, size int, ttl time.Duration) *IPArrayVariable {
-	if size == 0 {
-		size = defaultMaxVariables
+func NewIPArrayVariable(value []net.IPNet, opts VariableOpts) *IPArrayVariable {
+	if opts.Size == 0 {
+		opts.Size = defaultMaxVariables
 	}
 
-	lru := ttlcache.New(ttlcache.WithCapacity[string, bool](uint64(size)), ttlcache.WithTTL[string, bool](ttl))
+	lru := ttlcache.New(ttlcache.WithCapacity[string, bool](uint64(opts.Size)), ttlcache.WithTTL[string, bool](opts.TTL))
 
 	v := &IPArrayVariable{
-		LRU: lru,
-		props: Properties{
-			Private: false,
-		},
+		LRU:  lru,
+		opts: opts,
 	}
 	_ = v.set(nil, value)
 	return v
@@ -981,8 +961,9 @@ type Variables struct {
 
 // VariableOpts holds the options of a variable set
 type VariableOpts struct {
-	Size int
-	TTL  time.Duration
+	Size    int
+	TTL     time.Duration
+	Private bool // When a variable is marked as private, it will not be included in the serialized event
 }
 
 // NewVariables returns a new set of global variables
@@ -993,19 +974,19 @@ func NewVariables() *Variables {
 func newSECLVariable(value interface{}, opts VariableOpts) (MutableSECLVariable, error) {
 	switch value := value.(type) {
 	case bool:
-		return NewBoolVariable(value, opts.TTL), nil
+		return NewBoolVariable(value, opts), nil
 	case int:
-		return NewIntVariable(value, opts.TTL), nil
+		return NewIntVariable(value, opts), nil
 	case string:
-		return NewStringVariable(value, opts.TTL), nil
+		return NewStringVariable(value, opts), nil
 	case net.IPNet:
-		return NewIPVariable(value, opts.TTL), nil
+		return NewIPVariable(value, opts), nil
 	case []string:
-		return NewStringArrayVariable(value, opts.Size, opts.TTL), nil
+		return NewStringArrayVariable(value, opts), nil
 	case []int:
-		return NewIntArrayVariable(value, opts.Size, opts.TTL), nil
+		return NewIntArrayVariable(value, opts), nil
 	case []net.IPNet:
-		return NewIPArrayVariable(value, opts.Size, opts.TTL), nil
+		return NewIPArrayVariable(value, opts), nil
 	default:
 		return nil, fmt.Errorf("unsupported value type: %s", reflect.TypeOf(value))
 	}
