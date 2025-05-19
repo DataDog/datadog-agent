@@ -135,7 +135,7 @@ func (l *DBMRdsListener) createService(entityID string, instance aws.Instance) {
 		return
 	}
 	svc := &DBMRdsService{
-		adIdentifier: engineToADIdentifier[instance.Engine],
+		adIdentifier: engineToRdsADIdentifier[instance.Engine],
 		entityID:     entityID,
 		checkName:    engineToIntegrationType[instance.Engine],
 		instance:     &instance,

@@ -30,9 +30,14 @@ var engineToIntegrationType = map[string]string{
 	auroraMysqlEngine:      "mysql",
 }
 
-var engineToADIdentifier = map[string]string{
+var engineToRdsADIdentifier = map[string]string{
 	postgresqlEngine:       dbmPostgresADIdentifier,
 	mysqlEngine:            dbmMySQLADIdentifier,
+	auroraPostgresqlEngine: dbmPostgresAuroraADIdentifier,
+	auroraMysqlEngine:      dbmMySQLAuroaADIdentifier,
+}
+
+var engineToAuroraADIdentifier = map[string]string{
 	auroraPostgresqlEngine: dbmPostgresAuroraADIdentifier,
 	auroraMysqlEngine:      dbmMySQLAuroaADIdentifier,
 }

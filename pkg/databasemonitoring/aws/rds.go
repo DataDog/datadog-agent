@@ -37,6 +37,8 @@ func (c *Client) GetRdsInstancesFromTags(ctx context.Context, tags []string, dbm
 					Name: aws.String("engine"),
 					Values: []string{
 						mysqlEngine, postgresEngine,
+						// Allow RDS to return Aurora instances as well
+						auroraMysqlEngine, auroraPostgresqlEngine,
 					},
 				},
 			},

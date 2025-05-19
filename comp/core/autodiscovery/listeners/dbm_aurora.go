@@ -144,7 +144,7 @@ func (l *DBMAuroraListener) createService(entityID, clusterID string, instance *
 		return
 	}
 	svc := &DBMAuroraService{
-		adIdentifier: engineToADIdentifier[instance.Engine],
+		adIdentifier: engineToAuroraADIdentifier[instance.Engine],
 		entityID:     entityID,
 		checkName:    engineToIntegrationType[instance.Engine],
 		instance:     instance,
