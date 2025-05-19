@@ -519,11 +519,14 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 		}
 		clusterTags.AddLow(tags.EcsClusterName, task.ClusterName)
 
-		low, _, _, _ := clusterTags.Compute()
+		low, orch, high, standard := clusterTags.Compute()
 		tagInfos = append(tagInfos, &types.TagInfo{
-			Source:      taskSource,
-			EntityID:    types.GetGlobalEntityID(),
-			LowCardTags: low,
+			Source:               taskSource,
+			EntityID:             types.GetGlobalEntityID(),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
 		})
 	}
 
