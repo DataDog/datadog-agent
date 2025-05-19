@@ -17,7 +17,7 @@ import (
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
-//go:generate go run ./main.go ./generated
+//go:generate go run ./main.go ./gen
 
 func main() {
 	if len(os.Args) != 2 {

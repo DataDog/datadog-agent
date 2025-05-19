@@ -26,8 +26,8 @@ var ScriptDDContainerInstall []byte
 //go:embed scripts/dd-host-install
 var ScriptDDHostInstall []byte
 
-//go:embed templates/generated/oci/*.service
-//go:embed templates/generated/debrpm/*.service
+//go:embed templates/gen/oci/*.service
+//go:embed templates/gen/debrpm/*.service
 var systemdUnits embed.FS
 
 // SystemdUnitType is the type of systemd unit.
@@ -42,5 +42,5 @@ const (
 
 // GetSystemdUnit returns the systemd unit for the given name.
 func GetSystemdUnit(name string, unitType SystemdUnitType) ([]byte, error) {
-	return systemdUnits.ReadFile(filepath.Join("templates/generated", string(unitType), name))
+	return systemdUnits.ReadFile(filepath.Join("templates/gen", string(unitType), name))
 }
