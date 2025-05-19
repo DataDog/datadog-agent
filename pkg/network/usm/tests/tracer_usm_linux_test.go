@@ -2432,6 +2432,7 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 	require.Empty(t, fetches.Errors())
 	require.Len(t, fetches.Records(), 1)
 
+	localhostAddress := util.AddressFromString(localhost)
 	var fetchRequestStats, produceTopic1RequestsStats, produceTopic2RequestsStats *kafka.RequestStats
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		conns, cleanup := getConnections(ct, tr)
@@ -2443,6 +2444,11 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 		}
 
 		for key, stats := range requests {
+			srcAddr := util.FromLowHigh(key.SrcIPLow, key.SrcIPHigh)
+			if srcAddr != localhostAddress {
+				continue
+			}
+
 			if key.TopicName.Get() == topicName2 && key.RequestAPIKey == kafka.FetchAPIKey {
 				if fetchRequestStats == nil {
 					fetchRequestStats = stats
