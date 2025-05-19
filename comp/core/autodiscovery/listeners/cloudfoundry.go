@@ -5,7 +5,6 @@
 
 //go:build clusterchecks
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 package listeners
 
 import (
@@ -233,7 +232,7 @@ func (s *CloudFoundryService) GetTags() ([]string, error) {
 }
 
 // GetTagsWithCardinality returns the tags with given cardinality. Not supported in CF
-func (s *CloudFoundryService) GetTagsWithCardinality(cardinality string) ([]string, error) {
+func (s *CloudFoundryService) GetTagsWithCardinality(_ string) ([]string, error) {
 	return s.GetTags()
 }
 
@@ -253,16 +252,12 @@ func (s *CloudFoundryService) IsReady() bool {
 }
 
 // HasFilter returns false on CF
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (s *CloudFoundryService) HasFilter(filter containers.FilterType) bool {
+func (s *CloudFoundryService) HasFilter(_ containers.FilterType) bool {
 	return false
 }
 
 // GetExtraConfig isn't supported
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (s *CloudFoundryService) GetExtraConfig(key string) (string, error) {
+func (s *CloudFoundryService) GetExtraConfig(_ string) (string, error) {
 	return "", ErrNotSupported
 }
 
