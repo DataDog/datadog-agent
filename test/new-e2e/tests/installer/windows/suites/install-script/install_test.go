@@ -7,7 +7,6 @@ package agenttests
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -52,7 +51,6 @@ func (s *testInstallScriptSuite) TestInstallAgentPackage() {
 // TestInstallFromOldInstaller tests installing the Datadog Agent package from an old installer.
 // shows we can correctly use the script to uninstall the old agent + installer MSIs
 func (s *testInstallScriptSuite) TestInstallFromOldInstaller() {
-	flake.Mark(s.T())
 	s.Run("Install from old installer", func() {
 		s.installOldInstallerAndAgent()
 		s.Run("Install New Version", func() {
