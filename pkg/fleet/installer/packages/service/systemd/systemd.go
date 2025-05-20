@@ -119,7 +119,7 @@ func WriteEmbeddedUnit(ctx context.Context, unit string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "write_embedded_unit")
 	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
-	content, err := embedded.FS.ReadFile(unit)
+	content, err := embedded.GetSystemdUnit(unit)
 	if err != nil {
 		return fmt.Errorf("error reading embedded unit %s: %w", unit, err)
 	}

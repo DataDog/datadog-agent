@@ -82,6 +82,7 @@ func (s *testInstallScriptSuite) mustInstallVersion(versionPredicate string, opt
 		fmt.Printf("%s\n", output)
 	}
 	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogInstallerService().
 		HasARunningDatadogAgentService().
@@ -137,6 +138,7 @@ func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
 
 	// Assert
 	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogInstallerService().
 		HasARunningDatadogAgentService().
