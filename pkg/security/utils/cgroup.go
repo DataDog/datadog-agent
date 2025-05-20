@@ -295,6 +295,8 @@ func checkPidExists(sysFScGroupPath string, expectedPid uint32) (bool, error) {
 			if data, err = os.ReadFile(filepath.Join(sysFScGroupPath, "cgroup.threads")); err != nil {
 				return false, err
 			}
+		} else {
+			return false, err
 		}
 	}
 	scanner := bufio.NewScanner(bytes.NewReader(data))
