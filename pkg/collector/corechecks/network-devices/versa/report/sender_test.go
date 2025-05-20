@@ -518,3 +518,272 @@ func TestSendDeviceMetrics(t *testing.T) {
 		})
 	}
 }
+
+func TestSendDirectorDeviceMetrics(t *testing.T) {
+	TimeNow = mockTimeNow
+	tests := []struct {
+		name            string
+		director        *client.DirectorStatus
+		expectedMetrics []expectedMetric
+	}{
+		{
+			name: "Director with valid metrics",
+			director: &client.DirectorStatus{
+				SystemDetails: client.DirectorSystemDetails{
+					CPULoad:    "50.5",
+					Memory:     "16GiB",
+					MemoryFree: "8GiB",
+					DiskUsage:  "50.5",
+				},
+				HAConfig: client.DirectorHAConfig{
+					MyVnfManagementIPs: []string{
+						"192.168.1.1",
+					},
+				},
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "cpu.usage",
+					value: 50.5,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    946684800, // 2000-01-01 00:00:00
+				},
+				{
+					name:  versaMetricPrefix + "memory.usage",
+					value: 50, // (16GiB - 8GiB) / 16GiB * 100
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    946684800,
+				},
+				{
+					name:  versaMetricPrefix + "disk.usage",
+					value: 50.5,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    946684800,
+				},
+			},
+		},
+		{
+			name: "Director with invalid CPU load",
+			director: &client.DirectorStatus{
+				SystemDetails: client.DirectorSystemDetails{
+					CPULoad:    "invalid",
+					Memory:     "16GiB",
+					MemoryFree: "8GiB",
+					DiskUsage:  "50.5",
+				},
+				HAConfig: client.DirectorHAConfig{
+					MyVnfManagementIPs: []string{
+						"192.168.1.1",
+					},
+				},
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "memory.usage",
+					value: 50,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    946684800,
+				},
+				{
+					name:  versaMetricPrefix + "disk.usage",
+					value: 50.5,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    946684800,
+				},
+			},
+		},
+		{
+			name: "Director with invalid memory metrics",
+			director: &client.DirectorStatus{
+				SystemDetails: client.DirectorSystemDetails{
+					CPULoad:    "50.5",
+					Memory:     "invalid",
+					MemoryFree: "8GiB",
+					DiskUsage:  "50.5",
+				},
+				HAConfig: client.DirectorHAConfig{
+					MyVnfManagementIPs: []string{
+						"192.168.1.1",
+					},
+				},
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "cpu.usage",
+					value: 50.5,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    946684800,
+				},
+				{
+					name:  versaMetricPrefix + "disk.usage",
+					value: 50.5,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    946684800,
+				},
+			},
+		},
+		{
+			name: "Director with invalid disk usage",
+			director: &client.DirectorStatus{
+				SystemDetails: client.DirectorSystemDetails{
+					CPULoad:    "50.5",
+					Memory:     "16GiB",
+					MemoryFree: "8GiB",
+					DiskUsage:  "invalid",
+				},
+				HAConfig: client.DirectorHAConfig{
+					MyVnfManagementIPs: []string{
+						"192.168.1.1",
+					},
+				},
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "cpu.usage",
+					value: 50.5,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    946684800,
+				},
+				{
+					name:  versaMetricPrefix + "memory.usage",
+					value: 50,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					ts:    946684800,
+				},
+			},
+		},
+		{
+			name: "Director with invalid IP address",
+			director: &client.DirectorStatus{
+				SystemDetails: client.DirectorSystemDetails{
+					CPULoad:    "50.5",
+					Memory:     "16GiB",
+					MemoryFree: "8GiB",
+					DiskUsage:  "50.5",
+				},
+			},
+			expectedMetrics: []expectedMetric{}, // No metrics should be sent if IP address is invalid
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSender := mocksender.NewMockSender("testID")
+			mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			s := NewSender(mockSender, "default")
+			s.SendDirectorDeviceMetrics(tt.director)
+
+			for _, metric := range tt.expectedMetrics {
+				mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", metric.name, metric.value, "", metric.tags, metric.ts)
+			}
+
+			// Verify no unexpected metrics were sent
+			mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", len(tt.expectedMetrics))
+		})
+	}
+}
+
+func TestSendDirectorUptimeMetrics(t *testing.T) {
+	tests := []struct {
+		name            string
+		director        *client.DirectorStatus
+		expectedMetrics []expectedMetric
+	}{
+		{
+			name: "Director with valid uptime metrics",
+			director: &client.DirectorStatus{
+				SystemUpTime: client.DirectorSystemUpTime{
+					ApplicationUpTime: "1278 days 16 hours 0 minutes 30 seconds",
+					SysProcUptime:     "10 days 2 hours 3 minutes 4 seconds",
+				},
+				HAConfig: client.DirectorHAConfig{
+					MyVnfManagementIPs: []string{
+						"192.168.1.1",
+					},
+				},
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "device.uptime",
+					value: float64((1278*24*60*60 + 16*60*60 + 30) * 100), // Convert to hundredths of a second
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default", "type:application"},
+				},
+				{
+					name:  versaMetricPrefix + "device.uptime",
+					value: float64((10*24*60*60 + 2*60*60 + 3*60 + 4) * 100), // Convert to hundredths of a second
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default", "type:system"},
+				},
+			},
+		},
+		{
+			name: "Director with invalid application uptime",
+			director: &client.DirectorStatus{
+				SystemUpTime: client.DirectorSystemUpTime{
+					ApplicationUpTime: "invalid uptime",
+					SysProcUptime:     "10 days 2 hours 3 minutes 4 seconds",
+				},
+				HAConfig: client.DirectorHAConfig{
+					MyVnfManagementIPs: []string{
+						"192.168.1.1",
+					},
+				},
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "device.uptime",
+					value: float64((10*24*60*60 + 2*60*60 + 3*60 + 4) * 100), // Convert to hundredths of a second
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default", "type:system"},
+				},
+			},
+		},
+		{
+			name: "Director with invalid system uptime",
+			director: &client.DirectorStatus{
+				SystemUpTime: client.DirectorSystemUpTime{
+					ApplicationUpTime: "4278 days 16 hours 0 minutes 30 seconds",
+					SysProcUptime:     "invalid uptime",
+				},
+				HAConfig: client.DirectorHAConfig{
+					MyVnfManagementIPs: []string{
+						"192.168.1.1",
+					},
+				},
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "device.uptime",
+					value: float64((4278*24*60*60 + 16*60*60 + 30) * 100), // Convert to hundredths of a second
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default", "type:application"},
+				},
+			},
+		},
+		{
+			name: "Director with invalid IP address",
+			director: &client.DirectorStatus{
+				SystemUpTime: client.DirectorSystemUpTime{
+					ApplicationUpTime: "7278 days 16 hours 0 minutes 30 seconds",
+					SysProcUptime:     "10 days 2 hours 3 minutes 4 seconds",
+				},
+			},
+			expectedMetrics: []expectedMetric{}, // No metrics should be sent if IP address is invalid
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSender := mocksender.NewMockSender("testID")
+			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			s := NewSender(mockSender, "default")
+			s.SendDirectorUptimeMetrics(tt.director)
+
+			for _, metric := range tt.expectedMetrics {
+				mockSender.AssertMetric(t, "Gauge", metric.name, metric.value, "", metric.tags)
+			}
+
+			// Verify no unexpected metrics were sent
+			mockSender.AssertNumberOfCalls(t, "Gauge", len(tt.expectedMetrics))
+		})
+	}
+}

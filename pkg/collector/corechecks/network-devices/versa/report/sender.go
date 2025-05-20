@@ -192,7 +192,7 @@ func (s *Sender) SendDirectorStatus(director *client.DirectorStatus) {
 func (s *Sender) SendDirectorDeviceMetrics(director *client.DirectorStatus) {
 	ipAddress, err := director.IPAddress()
 	if err != nil {
-		log.Errorf("Error getting director IP address: %s", err)
+		log.Errorf("Error getting director IP address, skipping device metrics: %s", err)
 		return
 	}
 	tags := s.GetDeviceTags(defaultIPTag, ipAddress)
@@ -204,33 +204,36 @@ func (s *Sender) SendDirectorDeviceMetrics(director *client.DirectorStatus) {
 	cpuLoadString := director.SystemDetails.CPULoad
 	cpuLoad, err := strconv.ParseFloat(cpuLoadString, 64)
 	if err != nil {
-		log.Warnf("Error parsing CPULoad %s: %s", cpuLoadString, err)
-		cpuLoad = 0
+		log.Errorf("Error parsing CPULoad %q for director %q, skipping versa.cpu.usage: %s", cpuLoadString, ipAddress, err)
+	} else {
+		s.GaugeWithTimestampWrapper(versaMetricPrefix+"cpu.usage", cpuLoad, tags, ts)
 	}
 
 	// Parse memory metrics
+	sendMemory := true
 	memFree, err := parseSize(director.SystemDetails.MemoryFree)
 	if err != nil {
-		log.Warnf("Error parsing FreeMemory %s: %s", director.SystemDetails.MemoryFree, err)
-		memFree = 0
+		log.Errorf("Error parsing FreeMemory %q for director %q, skipping versa.memory.usage: %s", director.SystemDetails.MemoryFree, ipAddress, err)
+		sendMemory = false
 	}
 	memTotal, err := parseSize(director.SystemDetails.Memory)
 	if err != nil {
-		log.Warnf("Error parsing Memory %s: %s", director.SystemDetails.Memory, err)
-		memTotal = 1
+		log.Errorf("Error parsing Memory %q for director %q, skipping versa.memory.usage: %s", director.SystemDetails.Memory, ipAddress, err)
+		sendMemory = false
 	}
-	memUsage := 100 - (memFree / memTotal * float64(100))
+	if sendMemory {
+		memUsage := 100 - (memFree / memTotal * float64(100))
+		s.GaugeWithTimestampWrapper(versaMetricPrefix+"memory.usage", memUsage, tags, ts)
+	}
 
 	// Parse disk metrics
 	diskUsage, err := strconv.ParseFloat(director.SystemDetails.DiskUsage, 64)
 	if err != nil {
-		log.Warnf("Error parsing DiskUsage %s: %s", director.SystemDetails.DiskUsage, err)
+		log.Warnf("Error parsing DiskUsage %q for director %q: %s", director.SystemDetails.DiskUsage, ipAddress, err)
 		diskUsage = 0
+	} else {
+		s.GaugeWithTimestampWrapper(versaMetricPrefix+"disk.usage", diskUsage, tags, ts)
 	}
-
-	s.GaugeWithTimestampWrapper(versaMetricPrefix+"cpu.usage", cpuLoad, tags, ts)
-	s.GaugeWithTimestampWrapper(versaMetricPrefix+"memory.usage", memUsage, tags, ts)
-	s.GaugeWithTimestampWrapper(versaMetricPrefix+"disk.usage", diskUsage, tags, ts)
 }
 
 // parseTimestamp parses a timestamp string in the Versa formats and returns the unix timestamp in milliseconds
