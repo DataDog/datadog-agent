@@ -125,8 +125,12 @@ class JobDependency:
             return False
 
         # Check if we have to match tags
-        if len(self.tags) == 0 or len(job_name_parts) == 1:
+        if len(self.tags) == 0:
             return True
+
+        # We want tags but the job name doesn't have any, so it can't match
+        if len(job_name_parts) == 1:
+            return False
 
         # Parse the job tags
         match = re.search(r"\[([^\]]+)\]", job_name_parts[1])
@@ -143,6 +147,9 @@ class JobDependency:
         return False
 
     def _match_tagset(self, tagset: list[tuple[str, set[str]]], job_tags: list[str]) -> bool:
+        if len(job_tags) < len(tagset):
+            return False  # Not enough tags to match
+
         for wanted, value in zip(tagset, job_tags, strict=False):
             wanted_values = wanted[1]
             if value not in wanted_values:
