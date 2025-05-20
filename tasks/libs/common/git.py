@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 TAG_BATCH_SIZE = 3
+RE_RELEASE_BRANCH = re.compile(r'(\d+)\.(\d+)\.x')
 
 
 @contextmanager
@@ -130,7 +131,7 @@ def get_current_branch(ctx) -> str:
 def is_a_release_branch(ctx, branch=None) -> bool:
     if not branch:
         branch = get_current_branch(ctx)
-    return re.match(r"^[0-9]+\.[0-9]+\.x$", branch) is not None
+    return RE_RELEASE_BRANCH.match(branch) is not None
 
 
 def is_agent6(ctx) -> bool:
