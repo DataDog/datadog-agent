@@ -159,7 +159,6 @@ static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *co
     }
 
     char upper_case_method[METHOD_LEN];
-
     get_upper_case_method(method, upper_case_method);
 
     redis_transaction_t transaction = {};
