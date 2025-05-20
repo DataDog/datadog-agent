@@ -130,7 +130,7 @@ func TestCustomHistogramSampling(t *testing.T) {
 
 func shuffle(slice []float64) {
 	t := time.Now()
-	rand.Seed(int64(t.Nanosecond()))
+	rand.New(rand.NewSource(int64(t.Nanosecond())))
 
 	for i := len(slice) - 1; i > 0; i-- {
 		j := rand.Intn(i)

@@ -88,7 +88,7 @@ func (c *hostCapabilities) QuerySysprobe(path string) (string, error) {
 func (c *hostCapabilities) RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error) {
 	// Yes, it's deprecated, but apparently without this we get the same random string every time
 	// so seed it just in case, it's a test so we don't care too much about RNG safety
-	rand.Seed(time.Now().UnixNano())
+	rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	containerName := strings.ToLower("workload-" + common.RandString(5))
 
@@ -171,7 +171,7 @@ func (c *kubernetesCapabilities) QuerySysprobe(path string) (string, error) {
 func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error) {
 	// Yes, it's deprecated, but apparently without this we get the same random string every time
 	// so seed it just in case, it's a test so we don't care too much about RNG safety
-	rand.Seed(time.Now().UnixNano())
+	rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	jobName := strings.ToLower("workload-" + common.RandString(5))
 	jobNamespace := "default"

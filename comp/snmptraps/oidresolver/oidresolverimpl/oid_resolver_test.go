@@ -293,7 +293,7 @@ func updateResolverWithIntermediateYAMLReader(t *testing.T, oidResolver *multiFi
 }
 
 func TestIsValidOID_PropertyBasedTesting(t *testing.T) {
-	rand.Seed(time.Now().Unix())
+	rand.New(rand.NewSource(time.Now().Unix()))
 	testSize := 100
 	validOIDs := make([]string, testSize)
 	for i := 0; i < testSize; i++ {

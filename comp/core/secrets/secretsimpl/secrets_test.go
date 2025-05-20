@@ -846,7 +846,7 @@ func TestStartRefreshRoutineWithScatter(t *testing.T) {
 
 			if tc.scatter {
 				// Seed the random number generator to make the test deterministic
-				rand.Seed(12345)
+				rand.New(rand.NewSource(12345))
 			}
 
 			resolver.cache = map[string]string{

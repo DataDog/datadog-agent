@@ -98,7 +98,7 @@ func TestParseEndpoint(t *testing.T) {
 
 func testPipe(t *testing.T, label string) {
 	generatePipeName := func(suffixlen int) string {
-		rand.Seed(time.Now().UnixNano())
+		rand.New(rand.NewSource(time.Now().UnixNano()))
 		letter := []rune("abcdef0123456789")
 		b := make([]rune, suffixlen)
 		for i := range b {

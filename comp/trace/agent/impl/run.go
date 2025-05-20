@@ -47,7 +47,7 @@ func runAgentSidekicks(ag component) error {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	rand.Seed(time.Now().UTC().UnixNano())
+	rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
 
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		cf, err := newConfigFetcher(ag.ipc)

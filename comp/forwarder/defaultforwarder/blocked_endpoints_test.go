@@ -20,7 +20,7 @@ import (
 )
 
 func init() {
-	rand.Seed(10)
+	rand.New(rand.NewSource(10))
 }
 
 func TestMinBackoffFactorValid(t *testing.T) {
