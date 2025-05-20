@@ -8,6 +8,7 @@ package djm
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"testing"
 
@@ -134,61 +135,6 @@ func TestSetupCommonHostTags(t *testing.T) {
 			setupCommonHostTags(s)
 
 			assert.ElementsMatch(t, tt.wantTags, s.Config.DatadogYAML.Tags)
-		})
-	}
-}
-
-func TestFetchDatabricksCustomTags(t *testing.T) {
-	tests := []struct {
-		name string
-		env  map[string]string
-	}{
-		{
-			name: "missing token and host",
-			env:  map[string]string{},
-		},
-		{
-			name: "missing token",
-			env: map[string]string{
-				"DATABRICKS_HOST": "https://example.com",
-			},
-		},
-		{
-			name: "missing host",
-			env: map[string]string{
-				"DATABRICKS_TOKEN": "abc123",
-			},
-		},
-		{
-			name: "token and host present but no cluster ID",
-			env: map[string]string{
-				"DATABRICKS_TOKEN": "abc123",
-				"DATABRICKS_HOST":  "https://example.com",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			os.Clearenv()
-			for k, v := range tt.env {
-				require.NoError(t, os.Setenv(k, v))
-			}
-
-			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
-			output := &common.Output{}
-			s := &common.Setup{
-				Span: span,
-				Out:  output,
-				Config: config.Config{
-					DatadogYAML: config.DatadogConfig{},
-				},
-			}
-
-			// This should not panic when token or host are missing
-			fetchDatabricksCustomTags(s)
-
-			assert.Empty(t, s.Config.DatadogYAML.Tags)
 		})
 	}
 }
@@ -331,8 +277,8 @@ func TestAddTagsToConfig(t *testing.T) {
 				"databricks:team": "data-platform",
 			},
 			wantTags: []string{
-				"databricks_env:production",
-				"databricks_team:data-platform",
+				"databricks:env:production",
+				"databricks:team:data-platform",
 			},
 		},
 		{
@@ -342,8 +288,8 @@ func TestAddTagsToConfig(t *testing.T) {
 				"region":      "us:east-1",
 			},
 			wantTags: []string{
-				"environment:prod_east",
-				"region:us_east-1",
+				"environment:prod:east",
+				"region:us:east-1",
 			},
 		},
 		{
@@ -366,47 +312,37 @@ func TestAddTagsToConfig(t *testing.T) {
 			addTagsToConfig(s, tt.tags)
 
 			assert.ElementsMatch(t, tt.wantTags, s.Config.DatadogYAML.Tags)
-
-			// Verify span tags were set
-			// Note: We can't directly access span tags in the test, but we can verify
-			// the function was called by checking that the setup has a span
-			if len(tt.tags) > 0 {
-				assert.NotNil(t, s.Span)
-			}
 		})
 	}
 }
 
-// TestFetchDatabricksCustomTagsWithEnv tests the fetchDatabricksCustomTags function
-// by setting up the environment variables and verifying that the function
-// correctly processes them.
-func TestFetchDatabricksCustomTagsWithEnv(t *testing.T) {
-	// Skip this test in CI since it would require mocking HTTP requests
-	if os.Getenv("CI") != "" {
-		t.Skip("Skipping test in CI environment")
-	}
-
+func TestFetchDatabricksCustomTags(t *testing.T) {
 	tests := []struct {
-		name         string
-		env          map[string]string
-		expectedTags []string
+		name string
+		env  map[string]string
 	}{
 		{
-			name: "Missing credentials",
-			env: map[string]string{
-				"DB_CLUSTER_ID":   "cluster-123",
-				"DB_CLUSTER_NAME": "job-456-run-789",
-			},
-			expectedTags: []string{},
+			name: "missing token and host",
+			env:  map[string]string{},
 		},
 		{
-			name: "With credentials but no cluster ID",
+			name: "missing token",
 			env: map[string]string{
-				"DATABRICKS_TOKEN": "fake-token",
-				"DATABRICKS_HOST":  "https://fake-host.databricks.com",
-				"DB_CLUSTER_NAME":  "job-456-run-789",
+				"DATABRICKS_HOST": "https://example.com",
 			},
-			expectedTags: []string{},
+		},
+		{
+			name: "missing host",
+			env: map[string]string{
+				"DATABRICKS_TOKEN": "abc123",
+			},
+		},
+		{
+			name: "token and host present but no cluster ID",
+			env: map[string]string{
+				"DATABRICKS_TOKEN": "abc123",
+				"DATABRICKS_HOST":  "https://example.com",
+			},
 		},
 	}
 
@@ -417,10 +353,9 @@ func TestFetchDatabricksCustomTagsWithEnv(t *testing.T) {
 				require.NoError(t, os.Setenv(k, v))
 			}
 
-			span, ctx := telemetry.StartSpanFromContext(context.Background(), "test")
+			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
 			output := &common.Output{}
 			s := &common.Setup{
-				Ctx:  ctx,
 				Span: span,
 				Out:  output,
 				Config: config.Config{
@@ -428,9 +363,10 @@ func TestFetchDatabricksCustomTagsWithEnv(t *testing.T) {
 				},
 			}
 
+			// This should not panic when token or host are missing
 			fetchDatabricksCustomTags(s)
 
-			assert.ElementsMatch(t, tt.expectedTags, s.Config.DatadogYAML.Tags)
+			assert.Empty(t, s.Config.DatadogYAML.Tags)
 		})
 	}
 }
@@ -518,12 +454,12 @@ func TestFetchDatabricksCustomTagsWithMock(t *testing.T) {
 			}
 
 			// Mock the fetchClusterTags function
-			fetchClusterTagsFunc = func(client *http.Client, host, token, clusterID string, s *common.Setup) (map[string]string, error) {
+			fetchClusterTagsFunc = func(_ *http.Client, _, _, _ string, _ *common.Setup) (map[string]string, error) {
 				return tt.mockClusterTags, nil
 			}
 
 			// Mock the fetchJobTags function
-			fetchJobTagsFunc = func(client *http.Client, host, token, jobID string, s *common.Setup) (map[string]string, error) {
+			fetchJobTagsFunc = func(_ *http.Client, _, _, _ string, _ *common.Setup) (map[string]string, error) {
 				return tt.mockJobTags, nil
 			}
 
