@@ -130,7 +130,7 @@ static __always_inline bool read_key_name(pktbuf_t pkt, char *buf, u8 buf_len, u
 
 // Processes incoming Redis requests (GET or SET commands).
 // Extracts command type and key (up to MAX_KEY_LEN bytes), stores transaction info in redis_in_flight map.
-static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *conn_tuple) {
+static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *conn_tuple, __u8 tags) {
     u32 param_count = read_array_message_param_count(pkt);
     if (param_count == 0) {
         return;
@@ -158,11 +158,23 @@ static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *co
         return;
     }
 
+    char upper_case_method[METHOD_LEN];
+
+    #pragma unroll (METHOD_LEN)
+    for (int i = 0; i < METHOD_LEN; i++) {
+        if ('a' <= method[i] && method[i] <= 'z') {
+            upper_case_method[i] = method[i] - 'a' +'A';
+        } else {
+            upper_case_method[i] = method[i];
+        }
+    }
+
     redis_transaction_t transaction = {};
+    transaction.tags = tags;
     transaction.request_started = bpf_ktime_get_ns();
-    if (bpf_memcmp(method, REDIS_CMD_SET, METHOD_LEN) == 0) {
+    if (bpf_memcmp(upper_case_method, REDIS_CMD_SET, METHOD_LEN) == 0) {
         transaction.command = REDIS_SET;
-    } else if (bpf_memcmp(method, REDIS_CMD_GET, METHOD_LEN) == 0) {
+    } else if (bpf_memcmp(upper_case_method, REDIS_CMD_GET, METHOD_LEN) == 0) {
         transaction.command = REDIS_GET;
     } else {
         return;
@@ -249,7 +261,7 @@ int socket__redis_process(struct __sk_buff *skb) {
 
     redis_transaction_t *transaction = bpf_map_lookup_elem(&redis_in_flight, &conn_tuple);
     if (transaction == NULL) {
-        process_redis_request(pkt, &conn_tuple);
+        process_redis_request(pkt, &conn_tuple, NO_TAGS);
     } else {
         process_redis_response(pkt, &conn_tuple, transaction);
     }
@@ -275,7 +287,7 @@ int uprobe__redis_tls_process(struct pt_regs *ctx) {
     pktbuf_t pkt = pktbuf_from_tls(ctx, args);
     redis_transaction_t *transaction = bpf_map_lookup_elem(&redis_in_flight, &tup);
     if (transaction == NULL) {
-        process_redis_request(pkt, &tup);
+        process_redis_request(pkt, &tup, (__u8)args->tags);
     } else {
         process_redis_response(pkt, &tup, transaction);
     }
