@@ -105,7 +105,9 @@ func OtelSpanToDDSpanMinimal(
 	}
 
 	var code uint32
-	if incomingCode, ok := otelspan.Attributes().Get(KeyDatadogHTTPStatusCode); ok {
+	if incomingCode, ok := sattr.Get(KeyDatadogHTTPStatusCode); ok {
+		code = uint32(incomingCode.Int())
+	} else if incomingCode, ok := rattr.Get(KeyDatadogHTTPStatusCode); ok {
 		code = uint32(incomingCode.Int())
 	}
 
