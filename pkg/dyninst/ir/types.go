@@ -148,7 +148,7 @@ type ArrayType struct {
 	GoTypeAttributes
 
 	// Count is the number of elements in the array.
-	Count int
+	Count uint32
 	// HasCount is true if the array has a count.
 	HasCount bool
 	// Element is the type of the element in the array.
@@ -310,7 +310,7 @@ type EventRootType struct {
 
 	// Bitset tracking successful expression evaluation (one bit per
 	// expression).
-	PresenseBitsetSize int
+	PresenseBitsetSize uint32
 	// Expressions is the list of expressions that are used to evaluate the
 	// value of the event.
 	Expressions []*RootExpression
@@ -327,7 +327,7 @@ type RootExpression struct {
 	// in the snapshot to name the variable.
 	Name string
 	// Offset is the offset of the expression in the event output.
-	Offset int
+	Offset uint32
 	// Expression is the logical operations to be evaluated to produce the
 	// value of the event.
 	Expression Expression
