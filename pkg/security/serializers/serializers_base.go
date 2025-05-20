@@ -488,7 +488,7 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (varia
 			}
 
 			// Skip private variables
-			if v, ok := variable.(eval.SECLVariable); ok && v.GetVariableOpts().Private {
+			if variable.GetVariableOpts().Private {
 				continue
 			}
 
