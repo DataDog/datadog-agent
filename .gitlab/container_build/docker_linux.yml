@@ -25,6 +25,8 @@
       if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
         CACHE_TO="--cache-to type=registry,ref=${DOCKER_CACHE_TARGET},mode=max"
       fi
+    # Temporary bypass of the above logic to do some testing
+    - CACHE_TO="--cache-to type=registry,ref=${DOCKER_CACHE_TARGET},mode=max"  # populate the cache
     - AGENT_BASE_IMAGE_TAG=registry.ddbuild.io/ci/datadog-agent/agent-base-image${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-$ARCH
     - TARGET_TAG=${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH
     - !reference [.login_to_docker_readonly]
