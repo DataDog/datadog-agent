@@ -17,7 +17,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-var protocolVersionNotSupportedErr = errors.New("protocol version not supported")
+var errProtocolVersionNotSupported = errors.New("protocol version not supported")
 var supportedProtocolVersions = []int{2, 3}
 
 // NewClient returns a new redis client.
@@ -53,5 +53,5 @@ func verifyProtocolVersion(protocolVersion int) error {
 			return nil
 		}
 	}
-	return protocolVersionNotSupportedErr
+	return errProtocolVersionNotSupported
 }
