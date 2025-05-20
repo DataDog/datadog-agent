@@ -15,6 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
@@ -24,7 +25,8 @@ import (
 type dependencies struct {
 	fx.In
 
-	Config config.Component
+	Config   config.Component
+	Hostname hostnameinterface.Component
 }
 
 type provides struct {
@@ -42,12 +44,14 @@ func Module() fxutil.Module {
 type statusProvider struct {
 	testServerURL string
 	config        config.Component
+	hostname      hostnameinterface.Component
 }
 
 func newStatus(deps dependencies) provides {
 	return provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
-			config: deps.Config,
+			config:   deps.Config,
+			hostname: deps.Hostname,
 		}),
 	}
 }
@@ -97,7 +101,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 		url = fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
 	}
 
-	agentStatus, err := processStatus.GetStatus(s.config, url)
+	agentStatus, err := processStatus.GetStatus(s.config, url, s.hostname)
 	if err != nil {
 		status["error"] = fmt.Sprintf("%v", err.Error())
 		return status

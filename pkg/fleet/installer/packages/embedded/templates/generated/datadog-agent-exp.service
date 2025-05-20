@@ -10,13 +10,13 @@ Before=datadog-agent.service
 Type=simple
 PIDFile=/opt/datadog-packages/datadog-agent/experiment/run/agent.pid
 User=dd-agent
-Restart=no
 EnvironmentFile=-/etc/datadog-agent/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/experiment"
-ExecStart=/usr/bin/timeout --kill-after=15s 3000s /opt/datadog-packages/datadog-agent/experiment/bin/agent/agent run -p /opt/datadog-packages/datadog-agent/experiment/run/agent.pid
-ExecStopPost=/bin/false
-# Since systemd 229, should be in [Unit] but in order to support systemd <229,
-# it is also supported to have it here.
+RuntimeDirectory=datadog
 StartLimitInterval=10
 StartLimitBurst=5
-RuntimeDirectory=datadog
+Restart=no
+ExecStart=/usr/bin/timeout --kill-after=15s 3000s /opt/datadog-packages/datadog-agent/experiment/bin/agent/agent run -p /opt/datadog-packages/datadog-agent/experiment/run/agent.pid
+ExecStopPost=/bin/false
+
+
