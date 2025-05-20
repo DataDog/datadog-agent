@@ -169,8 +169,10 @@ func (es *EntityStore) GetMetricsRaw(metricName string,
 				if containerName != "" && containerName != containerNameKey {
 					continue
 				}
-				entity := es.key2ValuesMap[entityHash]
-				podList.ContainerValues[containerNameKey] = convertsToEntityValueSlice(entity.valueQueue.data)
+
+				if entity, ok := es.key2ValuesMap[entityHash]; ok {
+					podList.ContainerValues[containerNameKey] = convertsToEntityValueSlice(entity.valueQueue.data)
+				}
 			}
 			if len(podList.ContainerValues) > 0 {
 				result.Results = append(result.Results, podList)
