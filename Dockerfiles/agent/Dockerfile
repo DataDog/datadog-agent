@@ -74,6 +74,13 @@ ARG DD_AGENT_ARTIFACT=datadog-agent*-$TARGETARCH.tar.xz
 COPY ${DD_AGENT_ARTIFACT} /
 WORKDIR /output
 
+# Configuration:
+#   - copy default config files
+COPY datadog*.yaml etc/datadog-agent/
+
+# Installation information
+COPY install_info etc/datadog-agent/
+
 # Extract and cleanup:
 #   - unused systemd unit
 #   - GPL sources for embedded software  # FIXME: move upstream
@@ -81,9 +88,9 @@ WORKDIR /output
 #   - static libraries                   # FIXME: move upstream
 #   - jmxfetch on nojmx build
 
-RUN find / -maxdepth 1 -type f -name "datadog-*-$TARGETARCH.tar.xz" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \;
-
-RUN find / -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
+RUN --mount=from=artifacts,target=/artifacts \
+ find /artifacts -maxdepth 1 -type f -name "datadog-*-$TARGETARCH.tar.xz" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \; \
+ && find /artifacts -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
  && rm -rf usr etc/init lib \
     go/ \
     opt/datadog-agent/sources \
@@ -94,13 +101,6 @@ RUN find / -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
  && find opt/datadog-agent/ -iname "*.a" -delete \
  && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
  && mkdir conf.d checks.d
-
-# Configuration:
-#   - copy default config files
-COPY datadog*.yaml etc/datadog-agent/
-
-# Installation information
-COPY install_info etc/datadog-agent/
 
 ######################################
 #  Actual docker image construction  #
