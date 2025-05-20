@@ -26,7 +26,7 @@ import (
 type ReaderConfigManager struct {
 	sync.Mutex
 	ConfigWriter *ConfigWriter
-	procTracker  *proctracker.ProcessTracker
+	ProcTracker  *proctracker.ProcessTracker
 
 	callback configUpdateCallback
 	configs  configsByService
@@ -42,8 +42,8 @@ func NewReaderConfigManager(pm process.Subscriber) (*ReaderConfigManager, error)
 		state:    ditypes.NewDIProcs(),
 	}
 
-	cm.procTracker = proctracker.NewProcessTracker(pm, cm.updateProcessInfo)
-	err := cm.procTracker.Start()
+	cm.ProcTracker = proctracker.NewProcessTracker(pm, cm.updateProcessInfo)
+	err := cm.ProcTracker.Start()
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func (cm *ReaderConfigManager) GetProcInfo(pid ditypes.PID) *ditypes.ProcessInfo
 // Stop causes the ReaderConfigManager to stop processing data
 func (cm *ReaderConfigManager) Stop() {
 	cm.ConfigWriter.Stop()
-	cm.procTracker.Stop()
+	cm.ProcTracker.Stop()
 }
 
 func (cm *ReaderConfigManager) update() error {
@@ -188,14 +188,33 @@ func (r *ConfigWriter) Processes() map[ditypes.PID]*ditypes.ProcessInfo {
 	return procs
 }
 
-func (r *ConfigWriter) Write(p []byte) (n int, e error) {
-	conf := map[string]map[string]rcConfig{}
-	err := json.Unmarshal(p, &conf)
+// WriteSync accepts the incoming RC config for processing (installation/deletion/editing of probes)
+// used by Go DI testing infra
+func (r *ConfigWriter) WriteSync(p []byte) error {
+	conf, err := unmarshalToRcConfig(p)
 	if err != nil {
-		return 0, log.Errorf("invalid config read from reader: %v", err)
+		return err
+	}
+	r.configCallback(conf)
+	return nil
+}
+
+func (r *ConfigWriter) Write(p []byte) (n int, e error) {
+	conf, err := unmarshalToRcConfig(p)
+	if err != nil {
+		return 0, err
 	}
 	r.updateChannel <- conf
 	return 0, nil
+}
+
+func unmarshalToRcConfig(p []byte) (map[string]map[string]rcConfig, error) {
+	conf := map[string]map[string]rcConfig{}
+	err := json.Unmarshal(p, &conf)
+	if err != nil {
+		return nil, log.Errorf("invalid config read from reader: %v", err)
+	}
+	return conf, nil
 }
 
 // Start initiates the ConfigWriter to start processing data
