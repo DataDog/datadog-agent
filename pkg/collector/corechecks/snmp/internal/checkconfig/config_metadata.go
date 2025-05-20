@@ -316,9 +316,9 @@ func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.Metad
 	if collectTopology {
 		mergeMetadata(newConfig, TopologyMetadataConfig)
 	}
-	if collectVPN {
-		mergeMetadata(newConfig, VPNMetadataConfig)
-	}
+	//if collectVPN {
+	mergeMetadata(newConfig, VPNMetadataConfig)
+	//}
 	return newConfig
 }
 
