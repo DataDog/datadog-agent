@@ -425,7 +425,14 @@ func TestSameInodeRegression(t *testing.T) {
 func TestNoLeaks(t *testing.T) {
 	fooPath1, fooPathID1 := createTempTestFile(t, "foo-libssl.so")
 	fooPath2, fooPathID2 := createTempTestFile(t, "foo2-gnutls.so")
-	pid1, pid2 := uint32(1), uint32(2)
+
+	cmd1, err := testutil.OpenFromAnotherProcess(t, fooPath1)
+	require.NoError(t, err)
+	pid1 := uint32(cmd1.Process.Pid)
+
+	cmd2, err := testutil.OpenFromAnotherProcess(t, fooPath2)
+	require.NoError(t, err)
+	pid2 := uint32(cmd2.Process.Pid)
 
 	registerRecorder := new(CallbackRecorder)
 	unregisterRecorder := &CallbackRecorder{
@@ -477,7 +484,14 @@ func TestNoLeaks(t *testing.T) {
 func TestAlreadyHoldingReferences(t *testing.T) {
 	fooPath1, fooPathID1 := createTempTestFile(t, "foo-libssl.so")
 	fooPath2, fooPathID2 := createTempTestFile(t, "foo2-gnutls.so")
-	pid1, pid2 := uint32(1), uint32(2)
+
+	cmd1, err := testutil.OpenFromAnotherProcess(t, fooPath1)
+	require.NoError(t, err)
+	pid1 := uint32(cmd1.Process.Pid)
+
+	cmd2, err := testutil.OpenFromAnotherProcess(t, fooPath2)
+	require.NoError(t, err)
+	pid2 := uint32(cmd2.Process.Pid)
 
 	registerRecorder := new(CallbackRecorder)
 	unregisterRecorder := new(CallbackRecorder)
