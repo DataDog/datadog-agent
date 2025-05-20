@@ -102,7 +102,7 @@ func (d dwarfInspector) findFunctionsUsingDWARF(functions []string) (map[string]
 		functionMetadataMap[functionName] = metadata
 	}
 
-	if len(functionMetadataMap) == 0 {
+	if len(functionMetadataMap) == 0 && len(functions) > 0 {
 		return nil, fmt.Errorf("failed to inspect all functions: %v", functions)
 	}
 	return functionMetadataMap, nil
@@ -278,7 +278,7 @@ func (d dwarfInspector) findStructOffsets(structFields []FieldIdentifier) (map[F
 		}
 		structOffsets[fieldID] = offset
 	}
-	if len(structOffsets) == 0 {
+	if len(structOffsets) == 0 && len(structFields) > 0 {
 		return nil, fmt.Errorf("failed to find offsets for all struct fields: %v", structFields)
 	}
 	return structOffsets, nil
