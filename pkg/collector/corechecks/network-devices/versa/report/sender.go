@@ -354,7 +354,7 @@ func parseUptimeString(uptime string) (float64, error) {
 func parseDiskUsage(diskUsage string) ([]partition, error) {
 	var partitions []partition
 	entries := strings.Split(diskUsage, ";")
-	if len(entries) == 0 {
+	if diskUsage == "" || len(entries) == 0 {
 		return nil, fmt.Errorf("failed to parse diskUsage string: %s", diskUsage)
 	}
 
@@ -367,6 +367,7 @@ func parseDiskUsage(diskUsage string) ([]partition, error) {
 			kv := strings.SplitN(field, "=", 2)
 			if len(kv) != 2 {
 				partialParseErrs = multierr.Append(partialParseErrs, fmt.Errorf("failed to parse diskUsage partition: %s", field))
+				partialParseErrCount++
 				continue
 			}
 			key, value := kv[0], kv[1]
@@ -374,6 +375,7 @@ func parseDiskUsage(diskUsage string) ([]partition, error) {
 			case "partition":
 				if value == "" {
 					partialParseErrs = multierr.Append(partialParseErrs, fmt.Errorf("failed to parse parition name: %q", value))
+					partialParseErrCount++
 					continue
 				}
 				p.Name = value
@@ -381,6 +383,7 @@ func parseDiskUsage(diskUsage string) ([]partition, error) {
 				size, err := parseSize(value)
 				if err != nil {
 					partialParseErrs = multierr.Append(partialParseErrs, fmt.Errorf("failed to parse disk size: %s", value))
+					partialParseErrCount++
 					continue
 				}
 				p.Size = size
@@ -388,6 +391,7 @@ func parseDiskUsage(diskUsage string) ([]partition, error) {
 				free, err := parseSize(value)
 				if err != nil {
 					partialParseErrs = multierr.Append(partialParseErrs, fmt.Errorf("failed to parse disk free: %s", value))
+					partialParseErrCount++
 					continue
 				}
 				p.Free = free
@@ -395,6 +399,7 @@ func parseDiskUsage(diskUsage string) ([]partition, error) {
 				usedRatio, err := strconv.ParseFloat(value, 64)
 				if err != nil {
 					partialParseErrs = multierr.Append(partialParseErrs, fmt.Errorf("failed to parse disk used ratio: %s", value))
+					partialParseErrCount++
 					continue
 				}
 				p.UsedRatio = usedRatio
@@ -403,7 +408,7 @@ func parseDiskUsage(diskUsage string) ([]partition, error) {
 		partitions = append(partitions, p)
 	}
 	if partialParseErrCount == len(entries) {
-		return nil, fmt.Errorf("no valid partions found in diskUsage string: %s", diskUsage)
+		return nil, fmt.Errorf("no valid partitions found in diskUsage string: %s", diskUsage)
 	}
 
 	return partitions, partialParseErrs

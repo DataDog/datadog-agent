@@ -533,7 +533,7 @@ func TestSendDirectorDeviceMetrics(t *testing.T) {
 					CPULoad:    "50.5",
 					Memory:     "16GiB",
 					MemoryFree: "8GiB",
-					DiskUsage:  "50.5",
+					DiskUsage:  "partition=root,size=50GB,free=10GB,usedRatio=20.0;partition=opt,size=30GB,free=15GB,usedRatio=50.0",
 				},
 				HAConfig: client.DirectorHAConfig{
 					MyVnfManagementIPs: []string{
@@ -556,8 +556,14 @@ func TestSendDirectorDeviceMetrics(t *testing.T) {
 				},
 				{
 					name:  versaMetricPrefix + "disk.usage",
-					value: 50.5,
-					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					value: 20,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default", "partition:root"},
+					ts:    946684800,
+				},
+				{
+					name:  versaMetricPrefix + "disk.usage",
+					value: 50,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default", "partition:opt"},
 					ts:    946684800,
 				},
 			},
@@ -569,7 +575,7 @@ func TestSendDirectorDeviceMetrics(t *testing.T) {
 					CPULoad:    "invalid",
 					Memory:     "16GiB",
 					MemoryFree: "8GiB",
-					DiskUsage:  "50.5",
+					DiskUsage:  "partition=root,size=50GB,free=10GB,usedRatio=20.0;partition=opt,size=30GB,free=15GB,usedRatio=50.0",
 				},
 				HAConfig: client.DirectorHAConfig{
 					MyVnfManagementIPs: []string{
@@ -586,8 +592,14 @@ func TestSendDirectorDeviceMetrics(t *testing.T) {
 				},
 				{
 					name:  versaMetricPrefix + "disk.usage",
-					value: 50.5,
-					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					value: 20,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default", "partition:root"},
+					ts:    946684800,
+				},
+				{
+					name:  versaMetricPrefix + "disk.usage",
+					value: 50,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default", "partition:opt"},
 					ts:    946684800,
 				},
 			},
@@ -599,7 +611,7 @@ func TestSendDirectorDeviceMetrics(t *testing.T) {
 					CPULoad:    "50.5",
 					Memory:     "invalid",
 					MemoryFree: "8GiB",
-					DiskUsage:  "50.5",
+					DiskUsage:  "partition=root,size=50GB,free=10GB,usedRatio=20.0;partition=opt,size=30GB,free=15GB,usedRatio=50.0",
 				},
 				HAConfig: client.DirectorHAConfig{
 					MyVnfManagementIPs: []string{
@@ -616,8 +628,14 @@ func TestSendDirectorDeviceMetrics(t *testing.T) {
 				},
 				{
 					name:  versaMetricPrefix + "disk.usage",
-					value: 50.5,
-					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default"},
+					value: 20,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default", "partition:root"},
+					ts:    946684800,
+				},
+				{
+					name:  versaMetricPrefix + "disk.usage",
+					value: 50,
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default", "partition:opt"},
 					ts:    946684800,
 				},
 			},
@@ -659,7 +677,7 @@ func TestSendDirectorDeviceMetrics(t *testing.T) {
 					CPULoad:    "50.5",
 					Memory:     "16GiB",
 					MemoryFree: "8GiB",
-					DiskUsage:  "50.5",
+					DiskUsage:  "partition=root,size=50GB,free=10GB,usedRatio=20.0;partition=opt,size=30GB,free=15GB,usedRatio=50.0",
 				},
 			},
 			expectedMetrics: []expectedMetric{}, // No metrics should be sent if IP address is invalid
@@ -784,6 +802,145 @@ func TestSendDirectorUptimeMetrics(t *testing.T) {
 
 			// Verify no unexpected metrics were sent
 			mockSender.AssertNumberOfCalls(t, "Gauge", len(tt.expectedMetrics))
+		})
+	}
+}
+
+func TestParseDiskUsage(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []partition
+		errMsg   string
+	}{
+		{
+			name:  "Valid single partition",
+			input: "partition=root,size=50GB,free=10GB,usedRatio=20.0",
+			expected: []partition{
+				{
+					Name:      "root",
+					Size:      50e9, // 50GB
+					Free:      10e9, // 10GB
+					UsedRatio: 20.0,
+				},
+			},
+		},
+		{
+			name:  "Valid multiple partitions",
+			input: "partition=root,size=50GB,free=10GB,usedRatio=20.0;partition=opt,size=30GB,free=15GB,usedRatio=50.0",
+			expected: []partition{
+				{
+					Name:      "root",
+					Size:      50e9, // 50GB
+					Free:      10e9, // 10GB
+					UsedRatio: 20.0,
+				},
+				{
+					Name:      "opt",
+					Size:      30e9, // 30GB
+					Free:      15e9, // 15GB
+					UsedRatio: 50.0,
+				},
+			},
+		},
+		{
+			name:  "Valid partition with different size units",
+			input: "partition=root,size=1024MiB,free=512MiB,usedRatio=50.0",
+			expected: []partition{
+				{
+					Name:      "root",
+					Size:      1024 * 1024 * 1024, // 1024MiB in bytes
+					Free:      512 * 1024 * 1024,  // 512MiB in bytes
+					UsedRatio: 50.0,
+				},
+			},
+		},
+		{
+			name:   "Empty input",
+			input:  "",
+			errMsg: "failed to parse diskUsage string",
+		},
+		{
+			name:   "Random string input",
+			input:  "invalid",
+			errMsg: "no valid partitions found in diskUsage string",
+		},
+		{
+			name:   "Invalid key-value format",
+			input:  "partition=root,size",
+			errMsg: "no valid partitions found in diskUsage string",
+		},
+		{
+			name:   "Missing partition name",
+			input:  "partition=,size=50GB,free=10GB,usedRatio=20.0",
+			errMsg: "no valid partitions found in diskUsage string",
+		},
+		{
+			name:   "Invalid size format",
+			input:  "partition=root,size=invalid,free=10GB,usedRatio=20.0",
+			errMsg: "no valid partitions found in diskUsage string",
+		},
+		{
+			name:   "Invalid free format",
+			input:  "partition=root,size=50GB,free=invalid,usedRatio=20.0",
+			errMsg: "no valid partitions found in diskUsage string",
+		},
+		{
+			name:   "Invalid usedRatio format",
+			input:  "partition=root,size=50GB,free=10GB,usedRatio=invalid",
+			errMsg: "no valid partitions found in diskUsage string",
+		},
+		{
+			name:  "Partial success with some invalid partitions",
+			input: "partition=root,size=50GB,free=10GB,usedRatio=20.0;partition=opt,size=invalid,free=15GB,usedRatio=50.0",
+			expected: []partition{
+				{
+					Name:      "root",
+					Size:      50e9, // 50GB
+					Free:      10e9, // 10GB
+					UsedRatio: 20.0,
+				},
+			},
+			errMsg: "failed to parse disk size",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseDiskUsage(tt.input)
+			if err != nil {
+				if tt.errMsg == "" {
+					t.Errorf("Unexpected error parsing disk usage %s: %v", tt.input, err)
+				} else if !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("Expected error message to contain %q, got %q", tt.errMsg, err.Error())
+				}
+				return
+			}
+
+			if tt.errMsg != "" {
+				t.Errorf("Expected error containing %q but got none", tt.errMsg)
+				return
+			}
+
+			if len(result) != len(tt.expected) {
+				t.Errorf("Expected %d partitions but got %d", len(tt.expected), len(result))
+				return
+			}
+
+			for i, partition := range tt.expected {
+				if result[i].Name != partition.Name {
+					t.Errorf("Partition %d: expected Name %s but got %s", i, partition.Name, result[i].Name)
+				}
+				if result[i].Size != partition.Size {
+					t.Errorf("Partition %d: expected Size %f but got %f", i, partition.Size, result[i].Size)
+				}
+				if result[i].Free != partition.Free {
+					t.Errorf("Partition %d: expected Free %f but got %f", i, partition.Free, result[i].Free)
+				}
+				if result[i].UsedRatio != partition.UsedRatio {
+					t.Errorf("Partition %d: expected UsedRatio %f but got %f", i, partition.UsedRatio, result[i].UsedRatio)
+				}
+			}
 		})
 	}
 }
