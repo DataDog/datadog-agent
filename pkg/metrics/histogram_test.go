@@ -8,7 +8,6 @@ package metrics
 import (
 	"math/rand"
 	"testing"
-	"time"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
@@ -129,9 +128,6 @@ func TestCustomHistogramSampling(t *testing.T) {
 }
 
 func shuffle(slice []float64) {
-	t := time.Now()
-	rand.New(rand.NewSource(int64(t.Nanosecond())))
-
 	for i := len(slice) - 1; i > 0; i-- {
 		j := rand.Intn(i)
 		slice[i], slice[j] = slice[j], slice[i]
