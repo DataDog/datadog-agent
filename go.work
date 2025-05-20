@@ -5,6 +5,9 @@ go 1.24.3
 // This should be revisited for go 1.25.x
 godebug tlsmlkem=0
 
+// rand.Seed is a noop for go 1.24.x, this should restore the previous behavior
+godebug randseednop=0
+
 use (
 	.
 	comp/api/api/def
