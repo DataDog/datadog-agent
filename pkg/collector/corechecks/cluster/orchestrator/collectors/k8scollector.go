@@ -64,14 +64,15 @@ type OrchestratorInformerFactory struct {
 func NewK8sProcessorContext(rcfg *CollectorRunConfig, metadata *CollectorMetadata) *processors.K8sProcessorContext {
 	return &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
-			Cfg:              rcfg.Config,
-			MsgGroupID:       rcfg.MsgGroupRef.Inc(),
-			NodeType:         metadata.NodeType,
-			ManifestProducer: true,
-			ClusterID:        rcfg.ClusterID,
-			Kind:             metadata.Kind,
-			APIVersion:       metadata.Version,
-			ExtraTags:        util.ImmutableTagsJoin(rcfg.Config.ExtraTags, metadata.CollectorTags()),
+			Cfg:                 rcfg.Config,
+			MsgGroupID:          rcfg.MsgGroupRef.Inc(),
+			NodeType:            metadata.NodeType,
+			ManifestProducer:    true,
+			ClusterID:           rcfg.ClusterID,
+			Kind:                metadata.Kind,
+			APIVersion:          metadata.Version,
+			ExtraTags:           util.ImmutableTagsJoin(rcfg.Config.ExtraTags, metadata.CollectorTags()),
+			TerminatedResources: rcfg.TerminatedResources,
 		},
 		APIClient:         rcfg.APIClient,
 		LabelsAsTags:      metadata.LabelsAsTags,

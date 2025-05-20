@@ -68,7 +68,7 @@ dd_mods=$(find . -type f -name "go.mod" -exec dirname {} \; | sort | sed 's/.//'
 
 
 
-# TODO(songy23): remove this once v0.125.0 is brought to Agent
+# TODO(songy23): remove this once v0.126.0 is brought to Agent
 echo "- github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter => github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.124.2-0.20250423140742-52a072f0719b" >> /tmp/otel-ci/builder-config.yaml
 echo "- github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector => github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.124.2-0.20250423140742-52a072f0719b" >> /tmp/otel-ci/builder-config.yaml
 # https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/39586

@@ -1496,6 +1496,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "event.rule.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.BaseEvent.RuleTags
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "event.service":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -5660,6 +5671,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ondemand.name":
 		return &eval.StringEvaluator{
+			OpOverrides: OnDemandNameOverrides,
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -22509,6 +22521,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"event.hostname",
 		"event.origin",
 		"event.os",
+		"event.rule.tags",
 		"event.service",
 		"event.timestamp",
 		"exec.args",
@@ -24105,6 +24118,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "event.origin":
 		return "", reflect.String, "string", nil
 	case "event.os":
+		return "", reflect.String, "string", nil
+	case "event.rule.tags":
 		return "", reflect.String, "string", nil
 	case "event.service":
 		return "", reflect.String, "string", nil
@@ -27729,6 +27744,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "event.os"}
 		}
 		ev.BaseEvent.Os = rv
+		return nil
+	case "event.rule.tags":
+		switch rv := value.(type) {
+		case string:
+			ev.BaseEvent.RuleTags = append(ev.BaseEvent.RuleTags, rv)
+		case []string:
+			ev.BaseEvent.RuleTags = append(ev.BaseEvent.RuleTags, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "event.rule.tags"}
+		}
 		return nil
 	case "event.service":
 		rv, ok := value.(string)

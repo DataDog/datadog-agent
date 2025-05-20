@@ -12,6 +12,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	haagentcomp "github.com/DataDog/datadog-agent/comp/haagent/def"
@@ -19,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // Requires defines the dependencies for the haagentimpl component
@@ -28,6 +28,7 @@ type Requires struct {
 	Config     config.Component
 	Serializer serializer.MetricSerializer
 	HaAgent    haagentcomp.Component
+	Hostname   hostnameinterface.Component
 }
 
 // Provides defines the output of the haagentimpl component
@@ -41,7 +42,7 @@ type Provides struct {
 
 // NewComponent creates a new haagentimpl component
 func NewComponent(reqs Requires) (Provides, error) {
-	hname, _ := hostname.Get(context.Background())
+	hname, _ := reqs.Hostname.Get(context.Background())
 	i := &haagentimpl{
 		conf:     reqs.Config,
 		log:      reqs.Log,
