@@ -8,8 +8,11 @@ package nodetreemodel
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
@@ -95,4 +98,35 @@ func TestCompareIsSet(t *testing.T) {
 	assert.Equal(t, 0, ntmConf.GetInt("port"))
 	assert.Equal(t, false, viperConf.IsSet("port"))
 	assert.Equal(t, false, ntmConf.IsSet("port"))
+}
+
+func TestCompareAllSettingsWithoutDefault(t *testing.T) {
+	dataYaml := `additional_endpoints:
+  0: apple
+  1: banana
+  2: cherry
+`
+	viperConf, ntmConf := constructBothConfigs(dataYaml, true, nil)
+
+	expectedYaml := `additional_endpoints:
+  "0": apple
+  "1": banana
+  "2": cherry
+`
+	yamlConf, err := yaml.Marshal(viperConf.AllSettingsWithoutDefault())
+	assert.NoError(t, err)
+	yamlText := string(yamlConf)
+	assert.Equal(t, expectedYaml, yamlText)
+
+	fmt.Printf("%s\n", ntmConf.Stringify("root"))
+
+	expectedYaml = `additional_endpoints:
+  "0": apple
+  "1": banana
+  "2": cherry
+`
+	yamlConf, err = yaml.Marshal(ntmConf.AllSettingsWithoutDefault())
+	assert.NoError(t, err)
+	yamlText = string(yamlConf)
+	assert.Equal(t, expectedYaml, yamlText)
 }
