@@ -181,7 +181,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			enableObfuscation:                true,
 			enableReceiveResourceSpansV2:     true,
 			enableOperationAndResourceNameV2: true,
-			expected:                         createStatsPayload(agentEnv, agentHost, "svc", "client.request", "sql", "client", "SELECT username FROM users WHERE id = ?", agentHost, agentEnv, "", nil, nil, true, false),
+			expected:                         createStatsPayload(agentEnv, agentHost, "svc", "mssql.query", "sql", "client", "SELECT username FROM users WHERE id = ?", agentHost, agentEnv, "", nil, nil, true, false),
 		},
 		{
 			name:                             "obfuscated redis span",
@@ -191,7 +191,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			enableObfuscation:                true,
 			enableReceiveResourceSpansV2:     true,
 			enableOperationAndResourceNameV2: true,
-			expected:                         createStatsPayload(agentEnv, agentHost, "svc", "client.request", "redis", "client", "SET", "test-host", agentEnv, "", nil, nil, true, false),
+			expected:                         createStatsPayload(agentEnv, agentHost, "svc", "redis.query", "redis", "client", "SET", "test-host", agentEnv, "", nil, nil, true, false),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
