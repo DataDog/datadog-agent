@@ -43,8 +43,8 @@ func (s *dummyService) GetServiceID() string {
 }
 
 // GetADIdentifiers returns dummy identifiers
-func (s *dummyService) GetADIdentifiers() ([]string, error) {
-	return s.ADIdentifiers, nil
+func (s *dummyService) GetADIdentifiers() []string {
+	return s.ADIdentifiers
 }
 
 // GetHosts returns dummy hosts
@@ -83,8 +83,6 @@ func (s *dummyService) IsReady() bool {
 }
 
 // HasFilter returns false
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (s *dummyService) HasFilter(_ containers.FilterType) bool {
 	return false
 }

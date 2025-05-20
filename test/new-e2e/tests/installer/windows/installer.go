@@ -50,6 +50,11 @@ func NewDatadogInstaller(env *environments.WindowsHost, msiURL, outputDir string
 	}
 }
 
+// SetBinaryPath sets the path to the Datadog Installer binary.
+func (d *DatadogInstaller) SetBinaryPath(path string) {
+	d.binaryPath = path
+}
+
 func (d *DatadogInstaller) execute(cmd string, options ...client.ExecuteOption) (string, error) {
 	// Ensure the API key and site are set for telemetry
 	apiKey := os.Getenv("DD_API_KEY")

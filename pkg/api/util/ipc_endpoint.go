@@ -53,7 +53,7 @@ func (end *IPCEndpoint) DoGet(options ...GetOption) ([]byte, error) {
 	res, err := DoGet(end.client, target.String(), conn)
 	if err != nil {
 		var errMap = make(map[string]string)
-		_ = json.Unmarshal(res, &errMap) //nolint:errcheck
+		_ = json.Unmarshal(res, &errMap)
 		// If the error has been marshalled into a json object, check it and return it properly
 		if errStr, found := errMap["error"]; found {
 			return nil, errors.New(errStr)

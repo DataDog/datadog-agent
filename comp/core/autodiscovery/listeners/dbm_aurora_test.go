@@ -245,7 +245,13 @@ func TestDBMAuroraListener(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("autodiscover_aurora_clusters", tc.config)
+			mockConfig.SetWithoutSource("autodiscover_aurora_clusters", map[string]interface{}{
+				"discovery_interval": tc.config.DiscoveryInterval,
+				"query_timeout":      tc.config.QueryTimeout,
+				"region":             tc.config.Region,
+				"tags":               tc.config.Tags,
+				"dbm_tag":            tc.config.DbmTag,
+			})
 			mockAWSClient := aws.NewMockRDSClient(ctrl)
 			tc.rdsClientConfigurer(mockAWSClient)
 			ticks := make(chan time.Time, 1)

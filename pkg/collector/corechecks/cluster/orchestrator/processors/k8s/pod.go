@@ -126,14 +126,15 @@ func (h *PodHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 	}
 
 	return &model.CollectorPod{
-		ClusterName: pctx.Cfg.KubeClusterName,
-		ClusterId:   pctx.ClusterID,
-		GroupId:     pctx.MsgGroupID,
-		GroupSize:   int32(groupSize),
-		HostName:    pctx.HostName,
-		Pods:        models,
-		Tags:        pctx.ExtraTags,
-		Info:        pctx.SystemInfo,
+		ClusterName:  pctx.Cfg.KubeClusterName,
+		ClusterId:    pctx.ClusterID,
+		GroupId:      pctx.MsgGroupID,
+		GroupSize:    int32(groupSize),
+		HostName:     pctx.HostName,
+		Pods:         models,
+		Tags:         pctx.ExtraTags,
+		Info:         pctx.SystemInfo,
+		IsTerminated: ctx.IsTerminatedResources(),
 	}
 }
 

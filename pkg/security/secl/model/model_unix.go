@@ -827,7 +827,7 @@ type PathKey struct {
 // OnDemandEvent identifies an on-demand event generated from on-demand probes
 type OnDemandEvent struct {
 	ID       uint32    `field:"-"`
-	Name     string    `field:"name,handler:ResolveOnDemandName"`
+	Name     string    `field:"name,handler:ResolveOnDemandName" op_override:"OnDemandNameOverrides"`
 	Data     [256]byte `field:"-"`
 	Arg1Str  string    `field:"arg1.str,handler:ResolveOnDemandArg1Str"`
 	Arg1Uint uint64    `field:"arg1.uint,handler:ResolveOnDemandArg1Uint"`
