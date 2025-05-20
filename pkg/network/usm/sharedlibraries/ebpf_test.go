@@ -256,7 +256,8 @@ func (s *EbpfProgramSuite) TestMultipleProgramsReceiveMultipleLibsetEvents() {
 	require.Equal(t, commandCuda.Process.Pid, int(receivedEventCuda.Pid))
 }
 
-func TestIgnoreOpenedForWrite(t *testing.T) {
+func (s *EbpfProgramSuite) TestIgnoreOpenedForWrite() {
+	t := s.T()
 	tests := []struct {
 		syscallType string
 		skipFunc    func(t *testing.T)
@@ -363,7 +364,8 @@ func open(dirfd int, pathname string, how *unix.OpenHow, syscallType string) (in
 	}
 }
 
-func TestLongPathsIgnored(t *testing.T) {
+func (s *EbpfProgramSuite) TestLongPathsIgnored() {
+	t := s.T()
 	const (
 		fileName             = "foo-libssl.so"
 		nullTerminatorLength = len("\x00")
@@ -444,7 +446,8 @@ func zeroPages(data []byte) {
 // The goal is to verify that the presence of the second path does not inadvertently cause the watcher to send to the
 // user mode the first path. Before each iteration, the memory-mapped pages are zeroed to ensure consistent and isolated
 // test conditions.
-func TestValidPathExistsInTheMemory(t *testing.T) {
+func (s *EbpfProgramSuite) TestValidPathExistsInTheMemory() {
+	t := s.T()
 	pageSize := os.Getpagesize()
 
 	// We want to allocate two contiguous pages and ensure that the address
@@ -545,8 +548,11 @@ func TestValidPathExistsInTheMemory(t *testing.T) {
 			// to avoid race conditions.
 			for i := 0; i < 10; i++ {
 				time.Sleep(100 * time.Millisecond)
-				// the 'watcher.libHits' counter is incremented before rule matching and may be > 0, do not check it.
-				assert.Empty(t, receivedEvents)
+				// We can have events from other sources, but none should contain the paths we wrote
+				for _, event := range receivedEvents {
+					assert.NotContains(t, event.String(), soPath)
+					assert.NotContains(t, event.String(), dummyPath)
+				}
 			}
 		})
 	}
