@@ -96,7 +96,7 @@
 
 build_clang_x64:
   extends: .build_clang_common
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   variables:
     ARCH: amd64
@@ -104,7 +104,7 @@ build_clang_x64:
 
 build_clang_arm64:
   extends: .build_clang_common
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   tags: ["arch:arm64"]
   variables:
     ARCH: arm64
@@ -115,7 +115,7 @@ build_processed_btfhub_archive:
     - !reference [.on_scheduled_main]
     - !reference [.manual]
   stage: deps_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/btf-gen$CI_IMAGE_BTF_GEN_SUFFIX:$CI_IMAGE_BTF_GEN
   tags: ["arch:amd64"]
   variables:
     KUBERNETES_CPU_REQUEST: 32

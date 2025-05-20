@@ -7,6 +7,7 @@ package server
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -49,5 +50,49 @@ func TestIsMetricBlocklisted(t *testing.T) {
 				b := newBlocklist(c.blocklist, c.matchPrefix)
 				assert.Equal(t, c.result, b.test(c.name))
 			})
+	}
+}
+
+func randomString(size uint) string {
+	letterBytes := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+	var str string
+	for range size {
+		str += string(letterBytes[rand.Intn(len(letterBytes))])
+	}
+
+	return str
+}
+
+func BenchmarkBlocklist(b *testing.B) {
+	words := []string{
+		"foo",
+		"longer.metric.but.still.small",
+		"very.long.string.with.some.good.amount.of.chars.for.a.metric",
+		"bar",
+	}
+	for i := 1000; i <= 10000; i += 1000 {
+		b.Run(fmt.Sprintf("statsd-blocklist-%d", i), func(b *testing.B) {
+			var values []string
+			for range i {
+				values = append(values, randomString(50))
+			}
+			benchmarkBlocklist(b, words, values)
+		})
+	}
+}
+
+func benchmarkBlocklist(b *testing.B, words, values []string) {
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	// first and last will match
+	words[0] = values[0]
+	words[3] = values[100]
+
+	blocklist := newBlocklist(values, false)
+
+	for n := 0; n < b.N; n++ {
+		blocklist.test(words[n%len(words)])
 	}
 }

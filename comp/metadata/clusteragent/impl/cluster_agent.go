@@ -19,6 +19,7 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	clusteragent "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
@@ -28,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -66,6 +66,7 @@ type Requires struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
+	Hostname   hostnameinterface.Component
 }
 
 type datadogclusteragent struct {
@@ -86,7 +87,7 @@ type Provides struct {
 
 // NewComponent creates a new securityagent metadata Component
 func NewComponent(deps Requires) Provides {
-	hname, err := hostname.Get(context.Background())
+	hname, err := deps.Hostname.Get(context.Background())
 	if err != nil {
 		hname = ""
 	}

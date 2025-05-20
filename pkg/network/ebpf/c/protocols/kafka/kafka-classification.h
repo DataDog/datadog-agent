@@ -83,23 +83,22 @@ static __always_inline bool is_valid_kafka_request_header(const kafka_header_t *
 }
 
 // Checks the given kafka api key (= operation) and api version is supported and wanted by us.
-static __always_inline bool is_supported_kafka_api_version(s16 api_key, s16 api_version) {
+static __always_inline bool is_supported_api_version_for_classification(s16 api_key, s16 api_version) {
     switch (api_key) {
     case KAFKA_FETCH:
-        if (api_version < KAFKA_MIN_SUPPORTED_FETCH_REQUEST_API_VERSION) {
+        if (api_version < KAFKA_CLASSIFICATION_MIN_SUPPORTED_FETCH_REQUEST_API_VERSION) {
             return false;
         }
-        if (api_version > KAFKA_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) {
-            // Fetch request version 13 and above is not supported.
+        if (api_version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) {
             return false;
         }
         break;
     case KAFKA_PRODUCE:
-        if (api_version < KAFKA_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
+        if (api_version < KAFKA_CLASSIFICATION_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
             // We have seen some false positives when both request_api_version and request_api_key are 0,
             // so dropping support for this case
             return false;
-        } else if (api_version > KAFKA_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
+        } else if (api_version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
             return false;
         }
         break;
@@ -404,7 +403,7 @@ static __always_inline bool __is_kafka(pktbuf_t pkt, const char* buf, __u32 buf_
         return false;
     }
 
-    if(!is_supported_kafka_api_version(kafka_header.api_key, kafka_header.api_version)) {
+    if(!is_supported_api_version_for_classification(kafka_header.api_key, kafka_header.api_version)) {
         return false;
     }
 

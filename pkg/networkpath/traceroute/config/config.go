@@ -13,7 +13,7 @@ import (
 )
 
 // Config specifies the configuration of an instance
-// of Traceroute
+// of Traceroute, on the system-probe side
 type Config struct {
 	// TODO: add common configuration
 	// Destination Hostname
@@ -35,4 +35,6 @@ type Config struct {
 	Protocol payload.Protocol
 	// TCPMethod is the method used to run a TCP traceroute.
 	TCPMethod payload.TCPMethod
+	// TCPSynCompatibilityMode makes TCP SYN mimic the tcptraceroute tool as closely as possible
+	TCPSynCompatibilityMode bool
 }

@@ -173,7 +173,7 @@ func (procs DIProcs) CloseUprobe(pid PID, probeID ProbeID) {
 	}
 	err := proc.CloseUprobeLink(probeID)
 	if err != nil {
-		log.Infof("could not close uprobe: %s", err)
+		log.Errorf("could not close uprobe: %s", err)
 	}
 }
 
@@ -302,7 +302,18 @@ type ProcessInfo struct {
 	ProbesByID             *ProbesByID
 	InstrumentationUprobes *InstrumentationUprobesMap
 	InstrumentationObjects *InstrumentationObjectsMap
+	DDTracegoVersion       DDTraceGoVersion
 }
+
+// DDTraceGoVersion is the version of dd-trace-go that is used by the process
+type DDTraceGoVersion byte
+
+const (
+	// DDTraceGoVersionV1 represents that the process is using dd-trace-go v1
+	DDTraceGoVersionV1 DDTraceGoVersion = iota + 1
+	// DDTraceGoVersionV2 represents that the process is using dd-trace-go v2
+	DDTraceGoVersionV2
+)
 
 // SetupConfigUprobe sets the configuration probe for the process
 func (pi *ProcessInfo) SetupConfigUprobe() (*ebpf.Map, error) {
@@ -421,7 +432,7 @@ func (pi *ProcessInfo) DeleteProbe(probeID ProbeID) {
 	}
 	err := pi.CloseUprobeLink(probeID)
 	if err != nil {
-		log.Infof("could not close uprobe link: %s", err)
+		log.Errorf("could not close uprobe link: %s", err)
 	}
 	if pi.ProbesByID != nil {
 		pi.ProbesByID.Delete(probeID)
