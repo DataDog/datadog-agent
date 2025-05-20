@@ -19,8 +19,3 @@ func NewParams(byoc bool) Params {
 	}
 	return params
 }
-
-// NewDefaultParams returns the default params for configsync
-func NewDefaultParams() Params {
-	return Params{}
-}
