@@ -13,7 +13,7 @@
     - export RELEASE_STAGING="true"
     - export DYNAMIC_BUILD_RENDER_RULES="agent-build-only"
     # Job specific variables
-    - export RELEASE_TAG="${BASE_TAG}${RELEASE_TAG_SUFFIX}"
+    - export RELEASE_TAG="${BASE_TAG//\//-}${RELEASE_TAG_SUFFIX}"
     - export TMPL_SRC_IMAGE="v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TMPL_SRC_IMAGE_SUFFIX}"
     # BUILD_TAG is always RELEASE_TAG
     - export BUILD_TAG="${RELEASE_TAG}"
@@ -33,7 +33,7 @@
     matrix:
       # TODO: remove the non-semver tag once we have migrated all the tooling to the semver tag
       - BASE_TAG: $CI_COMMIT_REF_SLUG
-      - BASE_TAG: ${CI_COMMIT_REF_NAME//\//-} # Semver tag with slashes replaced by hyphens
+      - BASE_TAG: $CI_COMMIT_REF_NAME # Semver tag with slashes replaced by hyphens
 
 # -- binary specific variables --
 .agent_variables: &agent_variables
