@@ -8,9 +8,28 @@ package embedded
 
 import (
 	"embed"
+	"path/filepath"
 )
 
-// FS is the embedded filesystem for the installer.
+// ScriptDDCleanup is the embedded dd-cleanup script.
 //
-//go:embed *
-var FS embed.FS
+//go:embed scripts/dd-cleanup
+var ScriptDDCleanup []byte
+
+// ScriptDDContainerInstall is the embedded dd-container-install script.
+//
+//go:embed scripts/dd-container-install
+var ScriptDDContainerInstall []byte
+
+// ScriptDDHostInstall is the embedded dd-host-install script.
+//
+//go:embed scripts/dd-host-install
+var ScriptDDHostInstall []byte
+
+//go:embed templates/generated/*.service
+var systemdUnits embed.FS
+
+// GetSystemdUnit returns the systemd unit for the given name.
+func GetSystemdUnit(name string) ([]byte, error) {
+	return systemdUnits.ReadFile(filepath.Join("templates/generated", name))
+}

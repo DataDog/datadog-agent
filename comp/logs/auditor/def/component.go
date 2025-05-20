@@ -28,3 +28,8 @@ type Component interface {
 	// if the auditor is currently stopped.
 	Channel() chan *message.Payload
 }
+
+// RegistryWriter defines the interface for writing registry data
+type RegistryWriter interface {
+	WriteRegistry(registryPath string, registryDirPath string, registryTmpFile string, data []byte) error
+}

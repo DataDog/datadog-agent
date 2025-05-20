@@ -801,6 +801,40 @@ func TestUnsetForSource(t *testing.T) {
 	assert.Equal(t, expect, txt)
 }
 
+func TestStringifySlice(t *testing.T) {
+	configData := `
+user:
+  name: Bob
+  age:  30
+  tags:
+    hair: black
+  jobs:
+  - plumber
+  - teacher
+`
+	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg.SetTestOnlyDynamicSchema(true)
+	cfg.BuildSchema()
+	err := cfg.ReadConfig(strings.NewReader(configData))
+	require.NoError(t, err)
+
+	txt := cfg.(*ntmConfig).Stringify("root", model.OmitPointerAddr)
+	expect := `tree(#ptr<000000>) source=root
+> user
+  inner(#ptr<000001>)
+  > age
+      leaf(#ptr<000002>), val:30, source:file
+  > jobs
+      leaf(#ptr<000003>), val:[plumber teacher], source:file
+  > name
+      leaf(#ptr<000004>), val:"Bob", source:file
+  > tags
+    inner(#ptr<000005>)
+    > hair
+        leaf(#ptr<000006>), val:"black", source:file`
+	assert.Equal(t, expect, txt)
+}
+
 func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.BindEnv("api_key")
@@ -923,6 +957,15 @@ func TestSetWithoutSource(t *testing.T) {
 
 	assert.Equal(t, 2, cfg.Get("a"))
 	assert.Equal(t, model.SourceUnknown, cfg.GetSource("a"))
+
+	t.Run("panics when passed a struct", func(t *testing.T) {
+		type dummyStruct struct {
+			Field string
+		}
+		assert.Panics(t, func() {
+			cfg.SetWithoutSource("b", dummyStruct{Field: "oops"})
+		}, "SetWithoutSource should panic when passed a struct")
+	})
 }
 
 func TestPanicAfterBuildSchema(t *testing.T) {
