@@ -355,7 +355,7 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 				variableSize := variable.Type.GetByteSize()
 				expr := &ir.RootExpression{
 					Name:   variable.Name,
-					Offset: int(byteSize),
+					Offset: uint32(byteSize),
 					Expression: ir.Expression{
 						Type: variable.Type,
 						Operations: []ir.Op{

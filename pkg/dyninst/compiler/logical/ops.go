@@ -75,6 +75,8 @@ type ExprReadRegisterOp struct {
 
 type ExprDereferencePtrOp struct {
 	baseOp
+	Bias uint32
+	Len  uint32
 }
 
 // Special type processing ops, that evaluate data of a specific type (already
@@ -85,29 +87,34 @@ type ExprDereferencePtrOp struct {
 
 type ProcessPointerOp struct {
 	baseOp
+	Pointee ir.Type
 }
 
 type ProcessArrayPrepOp struct {
 	baseOp
+	Array ir.ArrayType
 }
 
 type ProcessArrayRepeatOp struct {
 	baseOp
+	OffsetShift uint32
 }
 
-type ProcessSliceHeaderOp struct {
+type ProcessSliceOp struct {
+	baseOp
+	SliceData ir.GoSliceDataType
+}
+
+type ProcessSliceDataPrepOp struct {
 	baseOp
 }
 
-type ProcessSlicePrepOp struct {
+type ProcessSliceDataRepeatOp struct {
 	baseOp
+	OffsetShift uint32
 }
 
-type ProcessSliceRepeatOp struct {
-	baseOp
-}
-
-type ProcessStringHeaderOp struct {
+type ProcessStringOp struct {
 	baseOp
 }
 
@@ -121,18 +128,18 @@ type ProcessGoInterfaceOp struct {
 
 type ProcessGoHmapOp struct {
 	baseOp
-}
-
-type ProcessGoHmapBucketsOp struct {
-	baseOp
+	BucketsArray ir.ArrayType
 }
 
 type ProcessGoSwissMapOp struct {
 	baseOp
+	TablePtrSlice ir.GoSliceHeaderType
+	Group         ir.Type
 }
 
-type ProcessGoSwissMapBucketsOp struct {
+type ProcessGoSwissMapGroupsOp struct {
 	baseOp
+	Group ir.Type
 }
 
 // Top level ops.

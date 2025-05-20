@@ -14,9 +14,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
-// Program is the output of the logical encoding.
+// Function is the logical representation of an eBPF stack machine function.
+type Function struct {
+	ID  FunctionID
+	Ops []Op
+}
+
+// Program is the logical representation of an eBPF stack machine program.
 type Program struct {
-	Functions map[FunctionID][]Op
+	Functions []Function
+	Types     []ir.Type
 }
 
 type encoder struct {
@@ -25,7 +32,8 @@ type encoder struct {
 	// Metadata for `ProcessType` functions.
 	typeFuncMetadata map[ir.TypeID]typeFuncMetadata
 
-	functions map[FunctionID][]Op
+	functionReg map[FunctionID]bool
+	functions   []Function
 }
 
 type typeFuncMetadata struct {
@@ -41,7 +49,7 @@ type typeFuncMetadata struct {
 func EncodeProgram(program ir.Program) Program {
 	e := encoder{
 		typeFuncMetadata: make(map[ir.TypeID]typeFuncMetadata, len(program.Types)),
-		functions:        make(map[FunctionID][]Op),
+		functionReg:      make(map[FunctionID]bool),
 	}
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
@@ -54,8 +62,13 @@ func EncodeProgram(program ir.Program) Program {
 		e.addTypeHandler(e.typeQueue[0])
 		e.typeQueue = e.typeQueue[1:]
 	}
+	types := make([]ir.Type, 0, len(program.Types))
+	for _, t := range program.Types {
+		types = append(types, t)
+	}
 	return Program{
 		Functions: e.functions,
+		Types:     types,
 	}
 }
 
@@ -117,13 +130,17 @@ func (e *encoder) addExpressionHandler(injectionPC uint64, rootType *ir.EventRoo
 }
 
 func (e *encoder) addFunction(id FunctionID, ops []Op) {
-	if _, ok := e.functions[id]; ok {
+	if _, ok := e.functionReg[id]; ok {
 		panic("function `" + id.PrettyString() + "` already exists")
 	}
 	if _, ok := ops[len(ops)-1].(ReturnOp); !ok {
 		panic("last op must be a return")
 	}
-	e.functions[id] = ops
+	e.functionReg[id] = true
+	e.functions = append(e.functions, Function{
+		ID:  id,
+		Ops: ops,
+	})
 }
 
 // Generate `ProcessType` function called to process data of a given type,
@@ -189,11 +206,11 @@ func (e *encoder) addTypeHandler(t ir.Type) (FunctionID, bool) {
 		needed = true
 		offsetShift = uint32(t.GetByteSize())
 		ops = []Op{
-			ProcessSlicePrepOp{},
+			ProcessSliceDataPrepOp{},
 			CallOp{
 				FunctionID: elemFunc,
 			},
-			ProcessSliceRepeatOp{},
+			ProcessSliceDataRepeatOp{},
 			ReturnOp{},
 		}
 
@@ -215,7 +232,7 @@ func (e *encoder) addTypeHandler(t ir.Type) (FunctionID, bool) {
 		needed = true
 		offsetShift = 0
 		ops = []Op{
-			ProcessSliceHeaderOp{},
+			ProcessSliceOp{},
 		}
 
 	case *ir.GoStringHeaderType:
@@ -223,7 +240,7 @@ func (e *encoder) addTypeHandler(t ir.Type) (FunctionID, bool) {
 		needed = true
 		offsetShift = 0
 		ops = []Op{
-			ProcessStringHeaderOp{},
+			ProcessStringOp{},
 		}
 
 	case *ir.GoEmptyInterfaceType:
