@@ -10,7 +10,6 @@ package collectorimpl
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
