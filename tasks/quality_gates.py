@@ -159,7 +159,7 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
 
     metric_handler.generate_metric_reports(ctx, branch=branch)
     # We don't need a PR notification nor gate failures on release branches
-    if not is_a_release_branch(branch):
+    if not is_a_release_branch(ctx, branch):
         github = GithubAPI()
         if github.get_pr_for_branch(branch).totalCount > 0:
             display_pr_comment(ctx, final_state == "success", gate_states, metric_handler)
