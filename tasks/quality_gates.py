@@ -121,14 +121,11 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
     gate_states = []
 
     nightly_run = False
-    on_release_branch = False
     branch = os.environ["CI_COMMIT_BRANCH"]
 
     DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")
     if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
         nightly_run = True
-    elif is_a_release_branch(branch):
-        on_release_branch = True
 
     for gate in gate_list:
         gate_inputs = config[gate]
@@ -162,7 +159,7 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
 
     metric_handler.generate_metric_reports(ctx, branch=branch)
     # We don't need a PR notification nor gate failures on release branches
-    if not on_release_branch:
+    if not is_a_release_branch(branch):
         github = GithubAPI()
         if github.get_pr_for_branch(branch).totalCount > 0:
             display_pr_comment(ctx, final_state == "success", gate_states, metric_handler)
