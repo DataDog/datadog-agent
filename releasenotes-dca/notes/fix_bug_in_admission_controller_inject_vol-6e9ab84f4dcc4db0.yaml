@@ -9,5 +9,5 @@
 fixes:
   - |
     Fixes a bug in the admission controller webhook that caused volume mounts to be skipped when other webhooks injected init containers after our own volume mounts had been added.
-    volume mounts when running alongside other webhooks that might inject init containers
+ 
     after having injected volume mounts in the first place on our side. 
