@@ -47,5 +47,5 @@ func init() {
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
 	flag.Var(&logTags, "logtag", "List of log tag")
 
-	rand.New(rand.NewSource(time.Now().UnixNano()))
+	rand.Default = rand.New(rand.NewSource(time.Now().UnixNano()))
 }
