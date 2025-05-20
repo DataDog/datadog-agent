@@ -12,6 +12,9 @@ LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 LABEL org.opencontainers.image.base.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 LABEL org.opencontainers.image.title "Datadog Cluster Agent"
 
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y adduser
+
 WORKDIR /output
 
 COPY datadog-cluster-agent opt/datadog-agent/bin/datadog-cluster-agent
@@ -26,9 +29,7 @@ COPY readsecret.sh readsecret_multiple_providers.sh ./
 # CWS Instrumentation
 COPY --chmod=0755 ./cws-instrumentation/ opt/datadog-agent/bin/datadog-cws-instrumentation/
 
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y adduser \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
     && addgroup --system secret-manager \
     && chmod 755 entrypoint.sh \
     && chown root:secret-manager readsecret.sh readsecret_multiple_providers.sh \
@@ -38,10 +39,10 @@ RUN apt-get update \
     && ln -s /opt/datadog-agent/bin/datadog-cluster-agent opt/datadog-agent/bin/agent
 
 FROM builder AS nosys-seccomp
-COPY nosys-seccomp/nosys.c   /tmp/nosys.c
-COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
+COPY nosys-seccomp/nosys.c   /tmp/nosys.c
+COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c -lseccomp
 
 ####################################
@@ -55,8 +56,6 @@ LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
 LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 
 ARG CIBUILD
-ARG DD_GIT_REPOSITORY_URL
-ARG DD_GIT_COMMIT_SHA
 # NOTE about APT mirrorlists:
 # It seems that this feature could use some improvement. If you just get mirrorlist
 # from mirrors.ubuntu.com/mirrors.txt, it might contain faulty mirrors that either
@@ -72,16 +71,20 @@ RUN if [ "$CIBUILD" = "true" ]; then \
     fi
 
 ENV PATH="/opt/datadog-agent/bin/:$PATH" \
-    DOCKER_DD_AGENT="true" \
-    # Allow User Group to exec the secret backend script.
-    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true" \
-    DD_GIT_REPOSITORY_URL=${DD_GIT_REPOSITORY_URL} \
-    DD_GIT_COMMIT_SHA=${DD_GIT_COMMIT_SHA}
+    DOCKER_DD_AGENT="true"
 
 RUN apt-get update \
     && apt full-upgrade -y \
     && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata adduser\
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+ARG DD_GIT_REPOSITORY_URL
+ARG DD_GIT_COMMIT_SHA
+ENV \
+    # Allow User Group to exec the secret backend script.
+    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true" \
+    DD_GIT_REPOSITORY_URL=${DD_GIT_REPOSITORY_URL} \
+    DD_GIT_COMMIT_SHA=${DD_GIT_COMMIT_SHA}
 
 COPY --from=builder /output /
 
