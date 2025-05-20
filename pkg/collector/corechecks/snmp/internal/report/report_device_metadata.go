@@ -71,6 +71,8 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
 	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
 	vpnTunnels := buildVPNTunnelsMetadata(config.DeviceID, metadataStore)
+
+	fmt.Println("VPN Tunnels:")
 	fmt.Println(vpnTunnels)
 
 	metadataPayloads := devicemetadata.BatchPayloads(integrations.SNMP, config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, topologyLinks, nil, diagnoses)
@@ -639,7 +641,7 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 	for _, strIndex := range endpointIndexes {
 		indexElems := strings.Split(strIndex, ".")
 
-		// The cipSecEndPtEntry index is composed of those 2 elements separate by `.`: cipSecTunIndex, cipSecEndPtIndex
+		// The cipSecEndPtEntry index is composed of those 2 elements separated by `.`: cipSecTunIndex, cipSecEndPtIndex
 		if len(indexElems) != 2 {
 			log.Debugf("Expected 2 index elements, but got %d, index=`%s`", len(indexElems), strIndex)
 			continue
