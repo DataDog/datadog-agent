@@ -24,7 +24,7 @@ type Type interface {
 	// Note that while it is possible to have a type that is larger than 2^32
 	// bytes, the current implementation of the IR will not be able to
 	// represent it.
-	GetByteSize() uint64
+	GetByteSize() uint32
 	// GetGoRuntimeType returns the runtime type of the type, if it is associated
 	// with a Go type.
 	GetGoRuntimeType() (uint32, bool)
@@ -91,7 +91,7 @@ func (t *TypeCommon) GetName() string {
 }
 
 // GetByteSize returns the size of the type in bytes.
-func (t *TypeCommon) GetByteSize() uint64 {
+func (t *TypeCommon) GetByteSize() uint32 {
 	return t.ByteSize
 }
 
@@ -100,9 +100,8 @@ type TypeCommon struct {
 	// ID is the ID of the type.
 	ID TypeID
 	// Name is the name of the type.
-	Name string
-	// ByteSize is the size of the type in bytes.
-	ByteSize uint64
+	Name     string
+	ByteSize uint32
 }
 
 // BaseType is a basic type in the target program.
@@ -153,7 +152,7 @@ type ArrayType struct {
 	GoTypeAttributes
 
 	// Count is the number of elements in the array.
-	Count int
+	Count uint32
 	// HasCount is true if the array has a count.
 	HasCount bool
 	// Element is the type of the element in the array.
@@ -312,7 +311,7 @@ type EventRootType struct {
 
 	// Bitset tracking successful expression evaluation (one bit per
 	// expression).
-	PresenseBitsetSize int
+	PresenseBitsetSize uint32
 	// Expressions is the list of expressions that are used to evaluate the
 	// value of the event.
 	Expressions []*RootExpression
@@ -329,7 +328,7 @@ type RootExpression struct {
 	// in the snapshot to name the variable.
 	Name string
 	// Offset is the offset of the expression in the event output.
-	Offset int
+	Offset uint32
 	// Expression is the logical operations to be evaluated to produce the
 	// value of the event.
 	Expression Expression

@@ -94,7 +94,7 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 		for _, event := range probe.Events {
 			id := typeCatalog.idAlloc
 			typeCatalog.idAlloc++
-			byteSize := uint64(0)
+			byteSize := uint32(0)
 			var expressions []*ir.RootExpression
 			for _, variable := range probe.Subprogram.Variables {
 				if !variable.IsParameter || variable.IsReturn {
@@ -103,7 +103,7 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 				variableSize := variable.Type.GetByteSize()
 				expr := &ir.RootExpression{
 					Name:   variable.Name,
-					Offset: int(byteSize),
+					Offset: uint32(byteSize),
 					Expression: ir.Expression{
 						Type: variable.Type,
 						Operations: []ir.Op{

@@ -117,7 +117,7 @@ func (c *typeCatalog) buildType(
 	common := ir.TypeCommon{
 		ID:       id,
 		Name:     name,
-		ByteSize: uint64(size),
+		ByteSize: uint32(size),
 	}
 	goAttrs, err := getGoTypeAttributes(entry)
 	if err != nil {
@@ -173,7 +173,7 @@ func (c *typeCatalog) buildType(
 		return &ir.ArrayType{
 			TypeCommon:       common,
 			GoTypeAttributes: goAttrs,
-			Count:            int(count),
+			Count:            uint32(count),
 			HasCount:         true,
 			Element:          element,
 		}, nil

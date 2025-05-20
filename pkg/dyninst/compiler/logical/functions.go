@@ -57,7 +57,7 @@ type ProcessExpression struct {
 	baseFunctionID
 	EventRootType *ir.EventRootType
 	// The index of the expression in the event root type.
-	ExprIdx     int
+	ExprIdx     uint32
 	InjectionPC uint64
 }
 
