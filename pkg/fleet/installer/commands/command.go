@@ -165,7 +165,6 @@ func RootCommands() []*cobra.Command {
 		promoteConfigExperimentCommand(),
 		garbageCollectCommand(),
 		purgeCommand(),
-		isInstalledCommand(),
 		apmCommands(),
 		getStateCommand(),
 		statusCommand(),
@@ -181,6 +180,7 @@ func UnprivilegedCommands() []*cobra.Command {
 	return []*cobra.Command{
 		versionCommand(),
 		defaultPackagesCommand(),
+		isInstalledCommand(),
 	}
 }
 

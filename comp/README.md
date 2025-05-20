@@ -646,6 +646,12 @@ Package status implements the core status component information provider interfa
 
 Package updater implements the updater component.
 
+### [comp/updater/installerexec](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/installerexec)
+
+*Datadog Team*: fleet
+
+Package installerexec provides a component to execute installer commands
+
 ### [comp/updater/localapi](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapi)
 
 Package localapi is the updater local api component.
@@ -653,6 +659,12 @@ Package localapi is the updater local api component.
 ### [comp/updater/localapiclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapiclient)
 
 Package localapiclient provides the local API client component.
+
+### [comp/updater/ssistatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/ssistatus)
+
+*Datadog Team*: fleet
+
+Package ssistatus is the ssistatus component.
 
 ### [comp/updater/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/telemetry)
 
