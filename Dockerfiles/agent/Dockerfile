@@ -126,7 +126,7 @@ RUN apt full-upgrade -y \
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libseccomp2 tzdata adduser
+  && apt install -y iproute2 libseccomp2 tzdata adduser gcc
 
 ARG WITH_JMX
 ARG WITH_JMX_FIPS

@@ -2,8 +2,15 @@ import os
 import sys
 
 from invoke import task
+from invoke.exceptions import UnexpectedExit
 
-from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import (
+    DISABLED_TAGS,
+    DYNAMIC_TAGS,
+    filter_incompatible_tags,
+    get_build_tags,
+    get_default_build_tags,
+)
 from tasks.flavor import AgentFlavor
 from tasks.gointegrationtest import TRACE_AGENT_IT_CONF, containerized_integration_tests
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
@@ -63,16 +70,53 @@ def build(
 
     race_opt = "-race" if race else ""
     build_type = "-a" if rebuild else ""
-    go_build_tags = " ".join(build_tags)
     agent_bin = os.path.join(BIN_PATH, bin_name("trace-agent"))
-    cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
-    cmd += f"-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/trace-agent"
 
-    # go generate only works if you are in the module the target file is in, so we
-    # need to move into the pkg/trace module.
-    with ctx.cd("./pkg/trace"):
-        ctx.run(f"go generate -mod={go_mod} {REPO_PATH}/pkg/trace/info", env=env)
-    ctx.run(cmd, env=env)
+    if sys.platform != "linux":
+        go_build_tags = " ".join(build_tags)
+        cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
+        cmd += f"-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/trace-agent"
+
+        # go generate only works if you are in the module the target file is in, so we
+        # need to move into the pkg/trace module.
+        with ctx.cd("./pkg/trace"):
+            ctx.run(f"go generate -mod={go_mod} {REPO_PATH}/pkg/trace/info", env=env)
+        ctx.run(cmd, env=env)
+
+    else:
+        static_tags = set(build_tags) - DYNAMIC_TAGS
+        dynamic_tags = set(build_tags) & DYNAMIC_TAGS
+        dynamic_tags = list(dynamic_tags)
+        dynamic_tags.sort()
+        for i in range(2 ** len(static_tags)):
+            build_tags = static_tags.union({dynamic_tags[j] for j in range(len(dynamic_tags)) if (i & (1 << j)) > 0})
+            build_tags = list(build_tags)
+            build_tags.sort()
+
+            # Speed up the build by not building with the tags not used in the PoC.
+            if not set(build_tags).isdisjoint(DISABLED_TAGS):
+                continue
+
+            # Speed up the build by considering by `kubeapiserver` and `kubelet` are always coming together
+            if "kubeapiserver" in build_tags != "kubelet" in build_tags:
+                continue
+
+            go_build_tags = ",".join(build_tags)
+            cmd = f'go run ./golinkinterceptor/cmd/interceptor/main.go --db link.db -- go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
+            cmd += f'-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/trace-agent'
+
+            # go generate only works if you are in the module the target file is in, so we
+            # need to move into the pkg/trace module.
+            with ctx.cd("./pkg/trace"):
+                ctx.run(f"go generate -mod={go_mod} {REPO_PATH}/pkg/trace/info", env=env)
+            try:
+                ctx.run(cmd, env=env)
+                print(f"Built agent with tags: {build_tags}")
+            except UnexpectedExit:
+                print(f"Failed to build agent with tags: {build_tags}")
+
+        os.unlink(agent_bin)
+        os.link("link_and_exec.sh", agent_bin)
 
 
 @task

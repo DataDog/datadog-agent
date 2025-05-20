@@ -269,6 +269,38 @@ UNIT_TEST_TAGS = {"test"}
 # List of tags to always remove when running unit tests
 UNIT_TEST_EXCLUDE_TAGS = {"datadog.no_waf", "pcap"}
 
+# List of tags that are determined at runtime
+DYNAMIC_TAGS = {
+    "consul",
+    "containerd",  #
+    "cri",  #
+    "crio",
+    "docker",  #
+    "ec2",  #
+    "etcd",
+    "fargateprocess",
+    "kubeapiserver",  #
+    "kubelet",  #
+    "oracle",
+    "orchestrator",
+    "podman",
+    "trivy",
+    "trivy_no_javadb",
+}
+
+# Speed up the build by not including tags not used in the PoC
+DISABLED_TAGS = {
+    "consul",
+    "crio",
+    "etcd",
+    "fargateprocess",
+    "oracle",
+    "orchestrator",
+    "podman",
+    "trivy",
+    "trivy_no_javadb",
+}
+
 # Build type: maps flavor to build tags map
 build_tags = {
     AgentFlavor.base: {

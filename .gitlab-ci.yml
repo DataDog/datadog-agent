@@ -104,6 +104,7 @@ stages:
   - notify
 
 variables:
+  GIT_SUBMODULE_STRATEGY: normal
   # Directory in which we execute the omnibus build.
   # For an unknown reason, it does not go well with
   # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
