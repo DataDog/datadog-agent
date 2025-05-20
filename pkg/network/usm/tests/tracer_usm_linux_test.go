@@ -2625,22 +2625,22 @@ func (s *USMSuite) TestVerifySketches() {
 		name     string
 		testFunc func(t *testing.T, tr *tracer.Tracer)
 	}{
-		//{
-		//	name:     "http",
-		//	testFunc: testHTTPSketches,
-		//},
-		//{
-		//	name:     "http2",
-		//	testFunc: testHTTP2Sketches,
-		//},
-		//{
-		//	name:     "kafka",
-		//	testFunc: testKafkaSketches,
-		//},
-		//{
-		//	name:     "postgres",
-		//	testFunc: testPostgresSketches,
-		//},
+		{
+			name:     "http",
+			testFunc: testHTTPSketches,
+		},
+		{
+			name:     "http2",
+			testFunc: testHTTP2Sketches,
+		},
+		{
+			name:     "kafka",
+			testFunc: testKafkaSketches,
+		},
+		{
+			name:     "postgres",
+			testFunc: testPostgresSketches,
+		},
 		{
 			name:     "redis",
 			testFunc: testRedisSketches,
