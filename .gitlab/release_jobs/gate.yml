@@ -1,0 +1,10 @@
+---
+include:
+  - .gitlab/release_jobs/stages.yml
+
+gate-release-jobs:
+  stage: gate
+  when: manual
+  allow_failure: false
+  script:
+    - echo "Release jobs are being triggered even though the pipeline has failed."

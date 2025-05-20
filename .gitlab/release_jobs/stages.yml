@@ -1,0 +1,9 @@
+---
+stages:
+  - gate
+  - deploy_packages
+  - deploy_cws_instrumentation
+  - deploy_dca
+  - deploy_containers
+  - deploy_mutable_image_tags
+  - trigger_release

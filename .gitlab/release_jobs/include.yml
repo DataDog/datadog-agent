@@ -1,0 +1,11 @@
+
+include:
+  - .gitlab/common/shared.yml
+  - .gitlab/common/variables_and_templates.yml
+  - .gitlab/deploy_packages/winget.yml
+  - .gitlab/deploy_containers/deploy_containers_a7.yml
+  - .gitlab/deploy_containers/deploy_mutable_image_tags.yml
+  - .gitlab/deploy_cws_instrumentation/deploy_cws_instrumentation.yml
+  - .gitlab/deploy_dca/deploy_dca.yml
+  - .gitlab/trigger_release/agent.yml
+  - .gitlab/release_jobs/stages.yml

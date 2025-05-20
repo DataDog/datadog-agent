@@ -179,6 +179,7 @@
 /.gitlab/package_build/windows.yml                   @DataDog/agent-delivery @DataDog/windows-agent
 /.gitlab/package_build/installer.yml                 @DataDog/agent-delivery @DataDog/fleet
 /.gitlab/packaging/                                  @DataDog/agent-delivery
+/.gitlab/release_jobs/                               @DataDog/agent-delivery
 
 /.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
 

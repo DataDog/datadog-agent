@@ -10,10 +10,12 @@ include:
   extends: .docker_publish_job_definition
   stage: deploy_dca
   needs:
-    - job: "docker_build_cluster_agent_amd64"
-      artifacts: false
-    - job: "docker_build_cluster_agent_arm64"
-      artifacts: false
+    # - job: "docker_build_cluster_agent_amd64"
+    #   artifacts: false
+    # - job: "docker_build_cluster_agent_arm64"
+    #   artifacts: false
+    - job: "gate-release-jobs"
+      optional: true
   before_script:
     - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe)" || exit $?; fi
     - if [[ "$CLUSTER_AGENT_REPOSITORY" == "" ]]; then export CLUSTER_AGENT_REPOSITORY="cluster-agent"; fi
@@ -57,10 +59,12 @@ deploy_containers-dca_internal-latest:
   extends: .docker_publish_job_definition
   stage: deploy_dca
   needs:
-    - job: "docker_build_cluster_agent_fips_amd64"
-      artifacts: false
-    - job: "docker_build_cluster_agent_fips_arm64"
-      artifacts: false
+    # - job: "docker_build_cluster_agent_fips_amd64"
+    #   artifacts: false
+    # - job: "docker_build_cluster_agent_fips_arm64"
+    #   artifacts: false
+    - job: "gate-release-jobs"
+      optional: true
   before_script:
     - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe)" || exit $?; fi
     - if [[ "$CLUSTER_AGENT_REPOSITORY" == "" ]]; then export CLUSTER_AGENT_REPOSITORY="cluster-agent"; fi

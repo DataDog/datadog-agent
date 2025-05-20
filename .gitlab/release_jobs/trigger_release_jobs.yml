@@ -1,0 +1,17 @@
+---
+trigger_release_jobs_on_failure:
+  stage: trigger_release_jobs
+  allow_failure: true
+  rules: !reference [.on_deploy_failure]
+  trigger:
+    include:
+      - local: .gitlab/release_jobs/gate.yml
+      - local: .gitlab/release_jobs/include.yml
+
+trigger_release_jobs:
+  stage: trigger_release_jobs
+  allow_failure: true
+  rules: !reference [.on_deploy]
+  trigger:
+    include:
+      - local: .gitlab/release_jobs/include.yml
