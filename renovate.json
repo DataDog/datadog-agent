@@ -28,7 +28,6 @@
         "customType": "regex",
         "fileMatch": [".gitlab-ci.yml"],
         "matchStrings": [
-          "  DATADOG_AGENT_[^:]*: (?<currentValue>v.*)",
           "  CI_IMAGE_[^:]*: (?<currentValue>v.*)"
         ],
         "depNameTemplate": "buildimages",
