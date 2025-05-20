@@ -126,7 +126,7 @@ RUN apt full-upgrade -y \
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libseccomp2 tzdata adduser
+  && apt install -y iproute2 libseccomp2 tzdata adduser gcc
 
 ARG WITH_JMX
 ARG WITH_JMX_FIPS
@@ -253,6 +253,8 @@ COPY --chmod=755 entrypoint.sh /bin/entrypoint.sh
 COPY --chmod=755 entrypoint.d /opt/entrypoints
 
 CMD ["/bin/entrypoint.sh"]
+
+RUN ln -s /usr/bin/gcc /usr/bin/x86_64-unknown-linux-gnu-gcc
 
 FROM release AS test
 COPY --chmod=755 test_image_contents.py /tmp/test_image_contents.py

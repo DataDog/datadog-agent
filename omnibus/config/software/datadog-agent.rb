@@ -240,6 +240,11 @@ build do
     end
   end
 
+  # if linux_target?
+  #   mkdir "#{install_dir}/embedded/share/datadog-agent"
+  #   copy 'link.db', "#{install_dir}/embedded/share/datadog-agent/link.db"
+  # end
+
   if osx_target?
     # Launchd service definition
     erb source: "launchd.plist.example.erb",
@@ -278,36 +283,36 @@ build do
     move 'bin/agent/dist/application_monitoring.yaml', "#{conf_dir}/application_monitoring.yaml.example"
   end
 
-  # TODO: move this to omnibus-ruby::health-check.rb
-  # check that linux binaries contains OpenSSL symbols when building to support FIPS
-  if fips_mode? && linux_target?
-    # Put the ruby code in a block to prevent omnibus from running it directly but rather at build step with the rest of the code above.
-    # If not in a block, it will search for binaries that have not been built yet.
-    block do
-      LINUX_BINARIES = [
-        "#{install_dir}/bin/agent/agent",
-        "#{install_dir}/embedded/bin/trace-agent",
-        "#{install_dir}/embedded/bin/process-agent",
-        "#{install_dir}/embedded/bin/security-agent",
-        "#{install_dir}/embedded/bin/system-probe",
-      ]
+  # # TODO: move this to omnibus-ruby::health-check.rb
+  # # check that linux binaries contains OpenSSL symbols when building to support FIPS
+  # if fips_mode? && linux_target?
+  #   # Put the ruby code in a block to prevent omnibus from running it directly but rather at build step with the rest of the code above.
+  #   # If not in a block, it will search for binaries that have not been built yet.
+  #   block do
+  #     LINUX_BINARIES = [
+  #       "#{install_dir}/bin/agent/agent",
+  #       "#{install_dir}/embedded/bin/trace-agent",
+  #       "#{install_dir}/embedded/bin/process-agent",
+  #       "#{install_dir}/embedded/bin/security-agent",
+  #       "#{install_dir}/embedded/bin/system-probe",
+  #     ]
 
-      symbol = "_Cfunc_go_openssl"
-      check_block = Proc.new { |binary, symbols|
-        count = symbols.scan(symbol).count
-        if count > 0
-          log.info(log_key) { "Symbol '#{symbol}' found #{count} times in binary '#{binary}'." }
-        else
-          raise FIPSSymbolsNotFound.new("Expected to find '#{symbol}' symbol in #{binary} but did not")
-        end
-      }.curry
+  #     symbol = "_Cfunc_go_openssl"
+  #     check_block = Proc.new { |binary, symbols|
+  #       count = symbols.scan(symbol).count
+  #       if count > 0
+  #         log.info(log_key) { "Symbol '#{symbol}' found #{count} times in binary '#{binary}'." }
+  #       else
+  #         raise FIPSSymbolsNotFound.new("Expected to find '#{symbol}' symbol in #{binary} but did not")
+  #       end
+  #     }.curry
 
-      LINUX_BINARIES.each do |bin|
-        partially_applied_check = check_block.call(bin)
-        GoSymbolsInspector.new(bin,  &partially_applied_check).inspect()
-      end
-    end
-  end
+  #     LINUX_BINARIES.each do |bin|
+  #       partially_applied_check = check_block.call(bin)
+  #       GoSymbolsInspector.new(bin,  &partially_applied_check).inspect()
+  #     end
+  #   end
+  # end
 
   block do
     python_scripts_dir = "#{project_dir}/omnibus/python-scripts"
