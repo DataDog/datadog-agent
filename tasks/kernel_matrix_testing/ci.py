@@ -32,7 +32,6 @@ class KMTJob:
         self.gitlab = gitlab or get_gitlab_repo()
         self.job = job
         self.is_retried = False  # set to True if this job has been later retried
-        self.is_retry_job = False  # set to True if this job is a retry of a previous job
         self.kmt_pipeline: KMTPipeline | None = None
         self.kmt_subpipeline: KMTSubPipeline | None = None
 
@@ -259,25 +258,13 @@ class KMTTestRunJob(KMTJob):
             j.status == GitlabJobStatus.FAILED for j in self.setup_job.dependency_upload_jobs
         )
 
-    def get_dependencies_to_retry(self) -> set[KMTJob]:
-        deps: set[KMTJob] = set()
-
-        if self.setup_job is not None:
-            deps.add(self.setup_job)
-            deps.update(self.setup_job.dependency_upload_jobs)
-
-        if self.cleanup_job is not None:
-            deps.add(self.cleanup_job)
-
-        return deps
-
 
 class KMTCleanupJob(KMTJob):
     """Represents a kmt_cleanup_* job, with properties that allow extracting data from
     the job name and output artifacts
     """
 
-    def __init__(self, job: ProjectJob, gitlab: Project | None = None):
+    def __init__(self, job: ProjectPipelineJob, gitlab: Project | None = None):
         super().__init__(job, gitlab)
         self.setup_job: KMTSetupEnvJob | None = None
 
@@ -285,7 +272,7 @@ class KMTCleanupJob(KMTJob):
 class KMTDependencyUploadJob(KMTJob):
     """Represents a job that upload dependencies to KMT hosts"""
 
-    def __init__(self, job: ProjectJob, gitlab: Project | None = None):
+    def __init__(self, job: ProjectPipelineJob, gitlab: Project | None = None):
         super().__init__(job, gitlab)
         self.setup_job: KMTSetupEnvJob | None = None
         self.cleanup_job: KMTCleanupJob | None = None
@@ -367,9 +354,6 @@ class KMTPipeline:
             jobs_by_time = sorted(jobs, key=lambda x: x.job.created_at)
             for job in jobs_by_time[:-1]:  # All the jobs but the last have been retried
                 job.is_retried = True
-
-            for job in jobs_by_time[1:]:  # All the jobs but the first have been retried
-                job.is_retry_job = True
 
         for subpipeline in self.subpipelines.values():
             subpipeline._link_related_jobs()

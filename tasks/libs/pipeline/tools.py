@@ -36,13 +36,13 @@ class GitlabJobStatus(Enum):
     WAITING_FOR_CALLBACK = "waiting_for_callback"  # A job that is waiting for callback.
     WAITING_FOR_RESOURCE = "waiting_for_resource"  # A job that is waiting for resource.
 
-    def has_finished(self) -> bool:
+    def has_finished(self) -> bool:  # noqa
         """Returns whether Gitlab has executed this job to the end, canceled it,
         or skipped it. In other words, this function returns True when this job
         won't be executed anymore unless manually retried."""
         return self in {self.CANCELED, self.CANCELING, self.FAILED, self.SUCCESS, self.SKIPPED}
 
-    def is_pending(self) -> bool:
+    def is_pending(self) -> bool:  # noqa
         """Returns whether Gitlab has not yet executed this job, but will do so at some point"""
         return self in {
             self.CREATED,
@@ -53,11 +53,11 @@ class GitlabJobStatus(Enum):
             self.MANUAL,
         }
 
-    def is_running(self) -> bool:
+    def is_running(self) -> bool:  # noqa
         """Returns whether Gitlab is currently executing this job"""
         return self in {self.RUNNING, self.PREPARING}
 
-    def will_run_automatically(self) -> bool:
+    def will_run_automatically(self) -> bool:  # noqa
         """Returns True if this job isn't running right now but will be
         eventually be executed by Gitlab without manual intervention"""
         return self in {
