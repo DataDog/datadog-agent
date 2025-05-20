@@ -8,7 +8,6 @@ package writer
 import (
 	"compress/gzip"
 	"math"
-	"math/rand"
 	"net/url"
 	"runtime"
 	"sort"
@@ -245,9 +244,7 @@ func TestStatsWriter(t *testing.T) {
 			assert.Equal("agent-version", p.AgentVersion)
 		}
 	})
-
 	t.Run("no-split", func(t *testing.T) {
-		rand.New(rand.NewSource(1))
 		assert := assert.New(t)
 
 		sw, srv := testStatsWriter()
