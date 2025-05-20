@@ -8,7 +8,6 @@ package packages
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -122,18 +121,7 @@ func installFilesystem(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
 	}
 
-	// 2. Ensures the installer is present in the agent package
-	installerPath := filepath.Join(ctx.PackagePath, "embedded", "bin", "installer")
-	if _, err := os.Stat(installerPath); os.IsNotExist(err) {
-		err = installerCopy(installerPath)
-		if err != nil {
-			return fmt.Errorf("failed to copy installer: %w", err)
-		}
-	} else if err != nil {
-		return fmt.Errorf("failed to check installer: %w", err)
-	}
-
-	// 3. Ensure config/log/package directories are created and have the correct permissions
+	// 2. Ensure config/log/package directories are created and have the correct permissions
 	if err = agentDirectories.Ensure(); err != nil {
 		return fmt.Errorf("failed to create directories: %v", err)
 	}
@@ -144,7 +132,7 @@ func installFilesystem(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to set config ownerships: %v", err)
 	}
 
-	// 4. Create symlinks
+	// 3. Create symlinks
 	if err = file.EnsureSymlink(filepath.Join(ctx.PackagePath, "bin/agent/agent"), agentSymlink); err != nil {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
@@ -152,12 +140,12 @@ func installFilesystem(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
 
-	// 5. Set up SELinux permissions
+	// 4. Set up SELinux permissions
 	if err = selinux.SetAgentPermissions("/etc/datadog-agent", ctx.PackagePath); err != nil {
 		log.Warnf("failed to set SELinux permissions: %v", err)
 	}
 
-	// 6. Handle install info
+	// 5. Handle install info
 	if err = installinfo.WriteInstallInfo(string(ctx.PackageType)); err != nil {
 		return fmt.Errorf("failed to write install info: %v", err)
 	}
@@ -193,41 +181,6 @@ func uninstallFilesystem(ctx HookContext) (err error) {
 		if err != nil {
 			return fmt.Errorf("failed to remove installer symlink: %w", err)
 		}
-	}
-	return nil
-}
-
-// installerCopy copies the current executable to the installer path
-func installerCopy(path string) error {
-	currentExecutable, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to get current executable: %w", err)
-	}
-
-	sourceFile, err := os.Open(currentExecutable)
-	if err != nil {
-		return fmt.Errorf("failed to open current executable: %w", err)
-	}
-	defer sourceFile.Close()
-
-	err = os.MkdirAll(filepath.Dir(path), 0755)
-	if err != nil {
-		return fmt.Errorf("failed to create installer directory: %w", err)
-	}
-	destinationFile, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("failed to create destination file: %w", err)
-	}
-	defer destinationFile.Close()
-
-	_, err = io.Copy(destinationFile, sourceFile)
-	if err != nil {
-		return fmt.Errorf("failed to copy executable: %w", err)
-	}
-
-	err = destinationFile.Chmod(0755)
-	if err != nil {
-		return fmt.Errorf("failed to set permissions on destination file: %w", err)
 	}
 	return nil
 }
