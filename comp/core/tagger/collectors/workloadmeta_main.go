@@ -8,6 +8,7 @@ package collectors
 import (
 	"context"
 	"strings"
+	"sync"
 
 	"github.com/gobwas/glob"
 
@@ -68,6 +69,8 @@ type WorkloadMetaCollector struct {
 
 	collectEC2ResourceTags            bool
 	collectPersistentVolumeClaimsTags bool
+
+	tagClusterOnce sync.Once
 }
 
 func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags map[string]string) {

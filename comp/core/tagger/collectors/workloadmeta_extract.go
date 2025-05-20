@@ -512,21 +512,23 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 
 	// globally add cluster tags regardless of ECS type
 	if task.ClusterName != "" {
-		clusterTags := taglist.NewTagList()
+		// only add the global cluster tag(s) once
+		c.tagClusterOnce.Do(func() {
+			clusterTags := taglist.NewTagList()
+			if !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
+				clusterTags.AddLow(tags.ClusterName, task.ClusterName)
+			}
+			clusterTags.AddLow(tags.EcsClusterName, task.ClusterName)
 
-		if !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
-			clusterTags.AddLow(tags.ClusterName, task.ClusterName)
-		}
-		clusterTags.AddLow(tags.EcsClusterName, task.ClusterName)
-
-		low, orch, high, standard := clusterTags.Compute()
-		tagInfos = append(tagInfos, &types.TagInfo{
-			Source:               taskSource,
-			EntityID:             types.GetGlobalEntityID(),
-			HighCardTags:         high,
-			OrchestratorCardTags: orch,
-			LowCardTags:          low,
-			StandardTags:         standard,
+			low, orch, high, standard := clusterTags.Compute()
+			tagInfos = append(tagInfos, &types.TagInfo{
+				Source:               taskSource,
+				EntityID:             types.GetGlobalEntityID(),
+				HighCardTags:         high,
+				OrchestratorCardTags: orch,
+				LowCardTags:          low,
+				StandardTags:         standard,
+			})
 		})
 	}
 
