@@ -262,9 +262,6 @@
     - echo "CI_JOB_STAGE=${CI_JOB_STAGE}" >> $DD_AGENT_TESTING_DIR/job_env.txt
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - !reference [.define_if_collect_complexity]
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
-    - dda inv -- -e kmt.retry-test-job-dependencies --pipeline-id $CI_PIPELINE_ID --job-id $CI_JOB_ID --only-if-job-is-retry
-    - unset GITLAB_TOKEN  # Keep the write-api exported token as little as possible
   script:
     - INSTANCE_IP=$(jq --exit-status --arg ARCH $ARCH -r '.[$ARCH].ip' $CI_PROJECT_DIR/stack.output)
     - !reference [.shared_filters_and_queries]
@@ -298,6 +295,14 @@
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
+
+.suggest_kmt_retry_command:
+  - |
+    if [ "$CI_JOB_STATUS" != "success" ]; then
+      echo "This test job failed. KMT automatically retries tests, so we don't allow direct retries of this job."
+      echo "However, if you're confident that the problem is not related to the tests, you can retry the job by running:"
+      echo "dda inv kmt.retry-failed-pipeline --pipeline-id $CI_PIPELINE_ID"
+    fi
 
 notify_ebpf_complexity_changes:
   extends: .notify-job
