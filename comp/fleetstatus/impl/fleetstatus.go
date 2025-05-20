@@ -32,7 +32,6 @@ type Provides struct {
 
 type statusProvider struct {
 	Config        config.Component
-	RemoteConfig  rcstatus.Component
 	InstallerExec installerexec.Component
 }
 
@@ -40,7 +39,6 @@ type statusProvider struct {
 func NewComponent(reqs Requires) Provides {
 	sp := &statusProvider{
 		Config:        reqs.Config,
-		RemoteConfig:  reqs.RemoteConfig,
 		InstallerExec: reqs.InstallerExec,
 	}
 
