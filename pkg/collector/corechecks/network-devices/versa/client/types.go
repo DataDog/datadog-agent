@@ -38,6 +38,7 @@ type DirectorHAConfig struct {
 	DesignatedMaster               bool     `json:"designatedMaster"`
 	StartupMode                    string   `json:"startupMode"`
 	MyVnfManagementIPs             []string `json:"myVnfManagementIps"`
+	MyAddress                      string   `json:"myAddress"`
 	VDSBInterfaces                 []string `json:"vdsbinterfaces"`
 	StartupModeHA                  bool     `json:"startupModeHA"`
 	MyNcsHaSetAsMaster             bool     `json:"myNcsHaSetAsMaster"`
@@ -341,6 +342,9 @@ type SLAMetrics struct {
 // IPAddress returns the first management IP address of the director
 // or an error if no management IPs are found
 func (d *DirectorStatus) IPAddress() (string, error) {
+	if d.HAConfig.MyAddress != "" {
+		return d.HAConfig.MyAddress, nil
+	}
 	if len(d.HAConfig.MyVnfManagementIPs) == 0 {
 		return "", fmt.Errorf("no management IPs found for director")
 	}
