@@ -130,7 +130,7 @@ def get_current_branch(ctx) -> str:
 def is_a_release_branch(ctx, branch=None) -> bool:
     if not branch:
         branch = get_current_branch(ctx)
-    return re.match(r"7\.[0-9]{2}\.x", branch) is not None
+    return re.match(r"^[0-9]+\.[0-9]+\.x$", branch) is not None
 
 
 def is_agent6(ctx) -> bool:
