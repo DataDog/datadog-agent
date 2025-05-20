@@ -622,7 +622,7 @@ func removeUnits(ctx HookContext, units ...string) error {
 	}
 	for _, unit := range units {
 		err := os.Remove(filepath.Join(unitsPath, unit))
-		if err != nil {
+		if err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("failed to remove unit: %v", err)
 		}
 	}
