@@ -458,7 +458,7 @@ func TestProcessContext(t *testing.T) {
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
 		// force seed to have something we can reproduce
-		rand.New(rand.NewSource(1))
+		rand.Default = rand.New(rand.NewSource(1))
 
 		// number of args overflow
 		nArgs, args := 1024, []string{"-al"}
@@ -508,7 +508,7 @@ func TestProcessContext(t *testing.T) {
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
 		// force seed to have something we can reproduce
-		rand.New(rand.NewSource(1))
+		rand.Default = rand.New(rand.NewSource(1))
 
 		// number of args overflow
 		nArgs, args := 1024, []string{"-al"}
@@ -613,7 +613,7 @@ func TestProcessContext(t *testing.T) {
 		args := []string{"-al"}
 
 		// force seed to have something we can reproduce
-		rand.New(rand.NewSource(1))
+		rand.Default = rand.New(rand.NewSource(1))
 
 		// number of envs overflow
 		nEnvs, envs := 1024, []string{"LD_LIBRARY_PATH=/tmp/lib"}
@@ -673,7 +673,7 @@ func TestProcessContext(t *testing.T) {
 		args := []string{"-al"}
 
 		// force seed to have something we can reproduce
-		rand.New(rand.NewSource(1))
+		rand.Default = rand.New(rand.NewSource(1))
 
 		// number of envs overflow
 		nEnvs, envs := 1024, []string{"LD_LIBRARY_PATH=/tmp/lib"}
