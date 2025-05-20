@@ -436,13 +436,9 @@ func (a *apmInjectorInstaller) addLocalStableConfig(ctx context.Context) (err er
 				hasChanged = true
 				cfg.Default.AppsecScaEnabled = a.envs.InstallScript.AppsecScaEnabled
 			}
-			if a.envs.InstallScript.ProfilingEnabled != nil {
+			if a.envs.InstallScript.ProfilingEnabled != "" {
 				hasChanged = true
-				profEnabled := "false"
-				if *a.envs.InstallScript.ProfilingEnabled {
-					profEnabled = "auto"
-				}
-				cfg.Default.ProfilingEnabled = &profEnabled
+				cfg.Default.ProfilingEnabled = &a.envs.InstallScript.ProfilingEnabled
 			}
 
 			// Avoid creating a .backup file and overwriting the existing file if no changes were made

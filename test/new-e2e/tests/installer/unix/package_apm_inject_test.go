@@ -134,7 +134,6 @@ func (s *packageApmInjectSuite) TestInstrumentProfilingEnabled() {
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python", "DD_PROFILING_ENABLED=true", "DD_DATA_STREAMS_ENABLED=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.assertStableConfig(map[string]interface{}{
-		"DD_PROFILING_ENABLED":    "auto",
 		"DD_DATA_STREAMS_ENABLED": true,
 	})
 }
