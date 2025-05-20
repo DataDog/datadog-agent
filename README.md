@@ -18,7 +18,7 @@ and development, is located under [the docs directory](docs) of the present repo
 ## Getting started
 
 To build the Agent you need:
- * [Go](https://golang.org/doc/install) 1.23. You'll also need to set your `$GOPATH` and have `$GOPATH/bin` in your path.
+ * [Go](https://golang.org/doc/install) 1.24. You'll also need to set your `$GOPATH` and have `$GOPATH/bin` in your path.
  * Python 3.12 along with development libraries for tooling.
  * Python dependencies. You may install these with `pip install dda`.
  * CMake version 3.15 or later and a C++ compiler
