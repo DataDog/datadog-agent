@@ -182,7 +182,7 @@ func (s *Sender) SendDirectorUptimeMetrics(director *client.DirectorStatus) {
 	if err != nil {
 		log.Errorf("error parsing director system uptime: %v", err)
 	} else {
-		s.Gauge(versaMetricPrefix+"device.uptime", sysUptime, "", append(tags, "type:system"))
+		s.Gauge(versaMetricPrefix+"device.uptime", sysUptime, "", append(tags, "type:sys_proc"))
 	}
 }
 

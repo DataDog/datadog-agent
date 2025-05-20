@@ -730,7 +730,7 @@ func TestSendDirectorUptimeMetrics(t *testing.T) {
 				{
 					name:  versaMetricPrefix + "device.uptime",
 					value: float64((10*24*60*60 + 2*60*60 + 3*60 + 4) * 100), // Convert to hundredths of a second
-					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default", "type:system"},
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default", "type:sys_proc"},
 				},
 			},
 		},
@@ -751,7 +751,7 @@ func TestSendDirectorUptimeMetrics(t *testing.T) {
 				{
 					name:  versaMetricPrefix + "device.uptime",
 					value: float64((10*24*60*60 + 2*60*60 + 3*60 + 4) * 100), // Convert to hundredths of a second
-					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default", "type:system"},
+					tags:  []string{"device_ip:192.168.1.1", "device_namespace:default", "type:sys_proc"},
 				},
 			},
 		},
