@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client"
 	ndmsender "github.com/DataDog/datadog-agent/pkg/networkdevice/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/multierr"
 )
 
 const (
@@ -32,11 +33,20 @@ var (
 	versaUptimeRegex = regexp.MustCompile(`(?i)(\S+)\s+(year?|days?|hours?|minutes?|seconds?)`)
 )
 
-// Sender implements methods for sending Versa metrics and metadata
-type Sender struct {
-	ndmsender.Sender
-	namespace string
-}
+type (
+	// Sender implements methods for sending Versa metrics and metadata
+	Sender struct {
+		ndmsender.Sender
+		namespace string
+	}
+
+	partition struct {
+		Name      string
+		Size      float64
+		Free      float64
+		UsedRatio float64
+	}
+)
 
 // NewSender returns a new VersaSender
 func NewSender(sender sender.Sender, namespace string) *Sender {
@@ -227,12 +237,14 @@ func (s *Sender) SendDirectorDeviceMetrics(director *client.DirectorStatus) {
 	}
 
 	// Parse disk metrics
-	diskUsage, err := strconv.ParseFloat(director.SystemDetails.DiskUsage, 64)
+	diskPartitions, err := parseDiskUsage(director.SystemDetails.DiskUsage)
 	if err != nil {
-		log.Warnf("Error parsing DiskUsage %q for director %q: %s", director.SystemDetails.DiskUsage, ipAddress, err)
-		diskUsage = 0
-	} else {
-		s.GaugeWithTimestampWrapper(versaMetricPrefix+"disk.usage", diskUsage, tags, ts)
+		log.Errorf("Error parsing DiskUsage %q for director %q: %s", director.SystemDetails.DiskUsage, ipAddress, err)
+	}
+	// loop over diskPartitions no matter what,
+	// we may have been able to parse some metrics
+	for _, partition := range diskPartitions {
+		s.GaugeWithTimestampWrapper(versaMetricPrefix+"disk.usage", partition.UsedRatio, append(tags, "partition:"+partition.Name), ts)
 	}
 }
 
@@ -334,4 +346,65 @@ func parseUptimeString(uptime string) (float64, error) {
 	}
 
 	return math.Round(float64(total) / float64(time.Millisecond) / 10), nil // In hundredths of a second, to match SNMP
+}
+
+// parseDiskUsage takes a Versa director disk usage string and parses it
+// per parition.
+// e.g. partition=root,size=50GB,free=10GB,usedRatio=20.0;partition=opt,size=30GB,free=15GB,usedRatio=50.0
+func parseDiskUsage(diskUsage string) ([]partition, error) {
+	var partitions []partition
+	entries := strings.Split(diskUsage, ";")
+	if len(entries) == 0 {
+		return nil, fmt.Errorf("failed to parse diskUsage string: %s", diskUsage)
+	}
+
+	var partialParseErrs error
+	partialParseErrCount := 0
+	for _, entry := range entries {
+		fields := strings.Split(entry, ",")
+		p := partition{}
+		for _, field := range fields {
+			kv := strings.SplitN(field, "=", 2)
+			if len(kv) != 2 {
+				partialParseErrs = multierr.Append(partialParseErrs, fmt.Errorf("failed to parse diskUsage partition: %s", field))
+				continue
+			}
+			key, value := kv[0], kv[1]
+			switch key {
+			case "partition":
+				if value == "" {
+					partialParseErrs = multierr.Append(partialParseErrs, fmt.Errorf("failed to parse parition name: %q", value))
+					continue
+				}
+				p.Name = value
+			case "size":
+				size, err := parseSize(value)
+				if err != nil {
+					partialParseErrs = multierr.Append(partialParseErrs, fmt.Errorf("failed to parse disk size: %s", value))
+					continue
+				}
+				p.Size = size
+			case "free":
+				free, err := parseSize(value)
+				if err != nil {
+					partialParseErrs = multierr.Append(partialParseErrs, fmt.Errorf("failed to parse disk free: %s", value))
+					continue
+				}
+				p.Free = free
+			case "usedRatio":
+				usedRatio, err := strconv.ParseFloat(value, 64)
+				if err != nil {
+					partialParseErrs = multierr.Append(partialParseErrs, fmt.Errorf("failed to parse disk used ratio: %s", value))
+					continue
+				}
+				p.UsedRatio = usedRatio
+			}
+		}
+		partitions = append(partitions, p)
+	}
+	if partialParseErrCount == len(entries) {
+		return nil, fmt.Errorf("no valid partions found in diskUsage string: %s", diskUsage)
+	}
+
+	return partitions, partialParseErrs
 }
