@@ -38,7 +38,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
-	fleetfx "github.com/DataDog/datadog-agent/comp/fleetstatus/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
@@ -139,8 +138,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provides the rdnssquerier module
 		rdnsquerierfx.Module(),
-
-		fleetfx.Module(),
 
 		// Provide network path bundle
 		networkpath.Bundle(),
