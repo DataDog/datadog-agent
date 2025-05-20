@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
@@ -185,13 +186,13 @@ func TestLoadLogProcessingRules(t *testing.T) {
 	tests := []struct {
 		name           string
 		envValue       string
-		expectedRules  []common.LogProcessingRule
+		expectedRules  []config.LogProcessingRule
 		expectErrorLog bool
 	}{
 		{
 			name:     "Valid rules",
 			envValue: `[{"type":"exclude_at_match","name":"exclude_health_check","pattern":"GET /health"}]`,
-			expectedRules: []common.LogProcessingRule{
+			expectedRules: []config.LogProcessingRule{
 				{
 					Type:    "exclude_at_match",
 					Name:    "exclude_health_check",
@@ -203,7 +204,7 @@ func TestLoadLogProcessingRules(t *testing.T) {
 		{
 			name:     "Valid rules with single quotes",
 			envValue: `[{'type':'exclude_at_match','name':'exclude_health_check','pattern':'GET /health'}]`,
-			expectedRules: []common.LogProcessingRule{
+			expectedRules: []config.LogProcessingRule{
 				{
 					Type:    "exclude_at_match",
 					Name:    "exclude_health_check",
@@ -237,8 +238,8 @@ func TestLoadLogProcessingRules(t *testing.T) {
 			s := &common.Setup{
 				Span: span,
 				Out:  output,
-				Config: common.Config{
-					DatadogYAML: common.DatadogConfig{},
+				Config: config.Config{
+					DatadogYAML: config.DatadogConfig{},
 				},
 			}
 

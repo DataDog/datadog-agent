@@ -49,7 +49,7 @@ const (
 
 // PythonCheck represents a Python check, implements `Check` interface
 //
-//nolint:revive // TODO(AML) Fix revive linter
+//nolint:revive
 type PythonCheck struct {
 	senderManager  sender.SenderManager
 	id             checkid.ID
@@ -118,7 +118,7 @@ func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 	}
 
 	// grab the warnings and add them to the struct
-	c.lastWarnings = c.getPythonWarnings(gstate)
+	c.lastWarnings = c.getPythonWarnings()
 
 	checkErrStr := C.GoString(cResult)
 	if checkErrStr == "" {
@@ -209,9 +209,7 @@ func (c *PythonCheck) GetWarnings() []error {
 }
 
 // getPythonWarnings grabs the last warnings from the python check
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
+func (c *PythonCheck) getPythonWarnings() []error {
 	/**
 	This function is run with the GIL locked by runCheck
 	**/
@@ -241,9 +239,7 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 }
 
 // Configure the Python check from YAML data
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// Generate check ID
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
 

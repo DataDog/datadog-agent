@@ -33,12 +33,14 @@ from tasks import (
     git,
     github_tasks,
     gitlab_helpers,
+    go,
     go_deps,
     installer,
     invoke_unit_tests,
     issue,
     kmt,
     linter,
+    macos,
     modules,
     msi,
     new_e2e_tests,
@@ -179,8 +181,10 @@ ns.add_collection(dogstatsd)
 ns.add_collection(ebpf)
 ns.add_collection(emacs)
 ns.add_collection(vim)
+ns.add_collection(macos)
 ns.add_collection(epforwarder)
 ns.add_collection(fips)
+ns.add_collection(go)
 ns.add_collection(go_deps)
 ns.add_collection(linter)
 ns.add_collection(msi)

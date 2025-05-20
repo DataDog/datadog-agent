@@ -17,6 +17,7 @@ import (
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
@@ -152,7 +153,7 @@ func testAutoVersionTraces(t *testing.T, c *assert.CollectT, intake *components.
 			imageTag, ok := ctags["image_tag"]
 			assert.True(t, ok, "expected to find image_tag in container tags")
 			t.Logf("Got image Tag: %v", imageTag)
-			assert.Equal(t, "main", imageTag)
+			assert.Equal(t, apps.Version, imageTag)
 		}
 	}
 }
@@ -188,7 +189,7 @@ func testAutoVersionStats(t *testing.T, c *assert.CollectT, intake *components.F
 		for _, s := range p.StatsPayload.Stats {
 			t.Log("Client Payload:", spew.Sdump(s))
 			t.Logf("Got image Tag: %v", s.GetImageTag())
-			assert.Equal(t, "main", s.GetImageTag())
+			assert.Equal(t, apps.Version, s.GetImageTag())
 			t.Logf("Got git commit sha: %v", s.GetGitCommitSha())
 			assert.Equal(t, "abcd1234", s.GetGitCommitSha())
 		}

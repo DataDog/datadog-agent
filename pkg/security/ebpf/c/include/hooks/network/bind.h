@@ -6,16 +6,24 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
+int __attribute__((always_inline)) sys_bind(u64 pid_tgid) {
+    struct syscall_cache_t syscall = {
+        .type = EVENT_BIND,
+        .async = pid_tgid ? 1: 0,
+        .bind = {
+            .pid_tgid = pid_tgid,
+        }
+    };
+    cache_syscall(&syscall);
+    return 0;
+}
+
 HOOK_SYSCALL_ENTRY3(bind, int, socket, struct sockaddr *, addr, unsigned int, addr_len) {
     if (!addr) {
         return 0;
     }
 
-    struct syscall_cache_t syscall = {
-        .type = EVENT_BIND,
-    };
-    cache_syscall(&syscall);
-    return 0;
+    return sys_bind(0);
 }
 
 int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
@@ -36,10 +44,14 @@ int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
         .family = syscall->bind.family,
         .port = syscall->bind.port,
         .protocol = syscall->connect.protocol,
-
     };
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
+    struct proc_cache_t *entry;
+    if (syscall->bind.pid_tgid != 0) {
+        entry = fill_process_context_with_pid_tgid(&event.process, syscall->bind.pid_tgid);
+    } else {
+        entry = fill_process_context(&event.process);
+    }
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
 
@@ -58,6 +70,18 @@ int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
 HOOK_SYSCALL_EXIT(bind) {
     int retval = SYSCALL_PARMRET(ctx);
     return sys_bind_ret(ctx, retval);
+}
+
+HOOK_ENTRY("io_bind")
+int hook_io_bind(ctx_t *ctx) {
+    void *raw_req = (void *)CTX_PARM1(ctx);
+    u64 pid_tgid = get_pid_tgid_from_iouring(raw_req);
+    return sys_bind(pid_tgid);
+}
+
+HOOK_EXIT("io_bind")
+int rethook_io_bind(ctx_t *ctx) {
+    return sys_bind_ret(ctx, CTX_PARMRET(ctx));
 }
 
 HOOK_ENTRY("security_socket_bind")
@@ -95,8 +119,7 @@ int hook_security_socket_bind(ctx_t *ctx) {
     return 0;
 }
 
-SEC("tracepoint/handle_sys_bind_exit")
-int tracepoint_handle_sys_bind_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_bind_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_bind_ret(args, args->ret);
 }
 

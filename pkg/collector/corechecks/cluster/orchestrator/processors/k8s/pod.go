@@ -126,14 +126,15 @@ func (h *PodHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 	}
 
 	return &model.CollectorPod{
-		ClusterName: pctx.Cfg.KubeClusterName,
-		ClusterId:   pctx.ClusterID,
-		GroupId:     pctx.MsgGroupID,
-		GroupSize:   int32(groupSize),
-		HostName:    pctx.HostName,
-		Pods:        models,
-		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
-		Info:        pctx.SystemInfo,
+		ClusterName:  pctx.Cfg.KubeClusterName,
+		ClusterId:    pctx.ClusterID,
+		GroupId:      pctx.MsgGroupID,
+		GroupSize:    int32(groupSize),
+		HostName:     pctx.HostName,
+		Pods:         models,
+		Tags:         pctx.ExtraTags,
+		Info:         pctx.SystemInfo,
+		IsTerminated: ctx.IsTerminatedResources(),
 	}
 }
 
@@ -154,7 +155,7 @@ func (h *PodHandlers) ResourceList(ctx processors.ProcessorContext, list interfa
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources

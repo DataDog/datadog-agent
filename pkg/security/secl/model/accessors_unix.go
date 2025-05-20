@@ -1375,7 +1375,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.DNS.Class)
+				return int(ev.DNS.Question.Class)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1386,7 +1386,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.DNS.Count)
+				return int(ev.DNS.Question.Count)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1397,7 +1397,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.DNS.Size)
+				return int(ev.DNS.Question.Size)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1409,7 +1409,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.DNS.Name
+				return ev.DNS.Question.Name
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1421,7 +1421,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return len(ev.DNS.Name)
+				return len(ev.DNS.Question.Name)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1432,7 +1432,21 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.DNS.Type)
+				return int(ev.DNS.Question.Type)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "dns.response.code":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.DNS.HasResponse() {
+					return 0
+				}
+				return int(ev.DNS.Response.ResponseCode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1477,6 +1491,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.BaseEvent.Os
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "event.rule.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.BaseEvent.RuleTags
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5646,6 +5671,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ondemand.name":
 		return &eval.StringEvaluator{
+			OpOverrides: OnDemandNameOverrides,
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -22490,10 +22516,12 @@ func (ev *Event) GetFields() []eval.Field {
 		"dns.question.name",
 		"dns.question.name.length",
 		"dns.question.type",
+		"dns.response.code",
 		"event.async",
 		"event.hostname",
 		"event.origin",
 		"event.os",
+		"event.rule.tags",
 		"event.service",
 		"event.timestamp",
 		"exec.args",
@@ -24081,6 +24109,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "dns", reflect.Int, "int", nil
 	case "dns.question.type":
 		return "dns", reflect.Int, "int", nil
+	case "dns.response.code":
+		return "dns", reflect.Int, "int", nil
 	case "event.async":
 		return "", reflect.Bool, "bool", nil
 	case "event.hostname":
@@ -24088,6 +24118,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "event.origin":
 		return "", reflect.String, "string", nil
 	case "event.os":
+		return "", reflect.String, "string", nil
+	case "event.rule.tags":
 		return "", reflect.String, "string", nil
 	case "event.service":
 		return "", reflect.String, "string", nil
@@ -27634,7 +27666,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if rv < 0 || rv > math.MaxUint16 {
 			return &eval.ErrValueOutOfRange{Field: "dns.question.class"}
 		}
-		ev.DNS.Class = uint16(rv)
+		ev.DNS.Question.Class = uint16(rv)
 		return nil
 	case "dns.question.count":
 		rv, ok := value.(int)
@@ -27644,7 +27676,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if rv < 0 || rv > math.MaxUint16 {
 			return &eval.ErrValueOutOfRange{Field: "dns.question.count"}
 		}
-		ev.DNS.Count = uint16(rv)
+		ev.DNS.Question.Count = uint16(rv)
 		return nil
 	case "dns.question.length":
 		rv, ok := value.(int)
@@ -27654,14 +27686,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if rv < 0 || rv > math.MaxUint16 {
 			return &eval.ErrValueOutOfRange{Field: "dns.question.length"}
 		}
-		ev.DNS.Size = uint16(rv)
+		ev.DNS.Question.Size = uint16(rv)
 		return nil
 	case "dns.question.name":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "dns.question.name"}
 		}
-		ev.DNS.Name = rv
+		ev.DNS.Question.Name = rv
 		return nil
 	case "dns.question.name.length":
 		return &eval.ErrFieldReadOnly{Field: "dns.question.name.length"}
@@ -27673,7 +27705,17 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if rv < 0 || rv > math.MaxUint16 {
 			return &eval.ErrValueOutOfRange{Field: "dns.question.type"}
 		}
-		ev.DNS.Type = uint16(rv)
+		ev.DNS.Question.Type = uint16(rv)
+		return nil
+	case "dns.response.code":
+		if ev.DNS.Response == nil {
+			ev.DNS.Response = &DNSResponse{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "dns.response.code"}
+		}
+		ev.DNS.Response.ResponseCode = uint8(rv)
 		return nil
 	case "event.async":
 		rv, ok := value.(bool)
@@ -27702,6 +27744,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "event.os"}
 		}
 		ev.BaseEvent.Os = rv
+		return nil
+	case "event.rule.tags":
+		switch rv := value.(type) {
+		case string:
+			ev.BaseEvent.RuleTags = append(ev.BaseEvent.RuleTags, rv)
+		case []string:
+			ev.BaseEvent.RuleTags = append(ev.BaseEvent.RuleTags, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "event.rule.tags"}
+		}
 		return nil
 	case "event.service":
 		rv, ok := value.(string)

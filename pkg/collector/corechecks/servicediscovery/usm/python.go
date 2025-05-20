@@ -211,40 +211,118 @@ func (g gunicornDetector) detect(args []string) (ServiceMetadata, bool) {
 	}
 
 	if name, ok := extractGunicornNameFrom(args); ok {
-		// gunicorn replaces the cmdline with something like "gunicorn: master
-		// [package]", so strip out the square brackets.
-		name = strings.Trim(name, "[]")
 		return NewServiceMetadata(name, CommandLine), true
 	}
 	return NewServiceMetadata("gunicorn", CommandLine), true
 }
 
 func extractGunicornNameFrom(args []string) (string, bool) {
-	skip, capture := false, false
-	for _, a := range args {
-		if capture {
-			return a, true
+	if len(args) == 0 {
+		return "", false
+	}
+
+	// gunicorn sometimes replaces the cmdline with something like "gunicorn: master [package]".
+	lastArg := args[len(args)-1]
+	if len(lastArg) >= 2 && lastArg[0] == '[' && lastArg[len(lastArg)-1] == ']' {
+		// Extract the name between the brackets
+		name := lastArg[1 : len(lastArg)-1]
+		return parseNameFromWsgiApp(name), true
+	}
+
+	// If the command line is not replaced, we need to parse the arguments.
+	// Prefer the --name argument if one exists, otherwise try to find the first
+	// non-flag argument.
+
+	// List of long options that do NOT take an argument.  This list is shorter
+	// than the ones which do take an argument.
+	noArgOptions := map[string]struct{}{
+		"--reload":                            {},
+		"--spew":                              {},
+		"--check-config":                      {},
+		"--print-config":                      {},
+		"--preload":                           {},
+		"--no-sendfile":                       {},
+		"--reuse-port":                        {},
+		"--daemon":                            {},
+		"--initgroups":                        {},
+		"--capture-output":                    {},
+		"--log-syslog":                        {},
+		"--enable-stdio-inheritance":          {},
+		"--disable-redirect-access-to-syslog": {},
+		"--proxy-protocol":                    {},
+		"--suppress-ragged-eofs":              {},
+		"--do-handshake-on-connect":           {},
+		"--strip-header-spaces":               {},
+	}
+
+	nameNext := false
+	skipNext := false
+	candidate := ""
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if nameNext {
+			return arg, true
 		}
-		if skip {
-			skip = false
+		if skipNext {
+			skipNext = false
 			continue
 		}
-		if strings.HasPrefix(a, "-") {
-			if a == "-n" {
-				capture = true
+
+		if strings.HasPrefix(arg, "--name=") {
+			// --name=VALUE
+			return arg[len("--name="):], true
+		} else if arg == "--name" {
+			// --name VALUE
+			nameNext = true
+		} else if strings.HasPrefix(arg, "--") {
+			// Skip --option=value
+			if strings.Contains(arg, "=") {
 				continue
 			}
-			skip = !strings.ContainsRune(a, '=')
-			if skip {
-				continue
+			// Skip the next argument unless we know that the option does not
+			// take an argument
+			if _, ok := noArgOptions[arg]; !ok {
+				skipNext = true
 			}
-			if value, ok := strings.CutPrefix(a, "--name="); ok {
-				return value, true
+		} else if strings.HasPrefix(arg, "-") {
+			// Single letter flags can be grouped together, e.g. "-Rnfoo"
+		INNER:
+			for charidx, char := range arg[1:] {
+				rest := arg[1+charidx+1:]
+				switch char {
+				case 'n':
+					if len(rest) > 0 {
+						// Argument attached here
+						return rest, true
+					}
+					// Argument in separate arg
+					nameNext = true
+				case 'R', 'd':
+					// These are the only single letter flags that do not take an argument
+					continue
+				default:
+					// Flag with argument
+					if len(rest) > 0 {
+						// Argument attached here
+						break INNER
+					}
+
+					// Argument in separate arg
+					skipNext = true
+				}
 			}
-		} else {
-			return parseNameFromWsgiApp(args[len(args)-1]), true
+		} else if candidate == "" {
+			candidate = arg
 		}
 	}
+
+	if len(candidate) > 0 {
+		// We didn't find a name flag, so try to parse the name from the first
+		// potential app/module name.
+		return parseNameFromWsgiApp(candidate), true
+	}
+
 	return "", false
 }
 

@@ -5,11 +5,10 @@
 
 //go:build test
 
-// Package mock is the mock component for the auditor
+// Package mock provides a mock for the auditor component
 package mock
 
 import (
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -17,8 +16,6 @@ import (
 
 // ProvidesMock is the mock component output
 type ProvidesMock struct {
-	compdef.Out
-
 	Comp auditor.Component
 }
 

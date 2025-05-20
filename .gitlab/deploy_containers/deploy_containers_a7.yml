@@ -7,9 +7,6 @@
 #   In particular, blocks defined in the main .gitlab-ci.yml are unavailable.
 # - Dependencies / needs on jobs not defined in this file or the included files cannot be made.
 
-stages:
-  - deploy_containers
-
 include:
   - .gitlab/common/container_publish_job_templates.yml
   - .gitlab/deploy_containers/conditions.yml
@@ -49,7 +46,7 @@ include:
   stage: deploy_containers
   dependencies: []
   before_script:
-    - if [[ -z "$VERSION" ]]; then VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIELINE_ID)-fips" || exit $?; fi
+    - if [[ -z "$VERSION" ]]; then VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)-fips" || exit $?; fi
     - export IMG_SOURCES="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips${JMX}-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips${JMX}-arm64"
     - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${JMX}"
 

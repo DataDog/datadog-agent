@@ -130,20 +130,79 @@ func TestNormalizeName(t *testing.T) {
 			err:        nil,
 		},
 		{
+			name:       "last.underscore_trunc_",
+			normalized: "last.underscore_trunc",
+			err:        nil,
+		},
+		{
+			name:       "last.double_underscore_trunc__",
+			normalized: "last.double_underscore_trunc",
+			err:        nil,
+		},
+		{
 			name:       "Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.",
 			normalized: "Too_Long.Too_Long.Too_Long.Too_Long.Too_Long.Too_Long.Too_Long.Too_Long.Too_Long.Too_Long.",
 			err:        ErrTooLong,
+		},
+		{
+			name:       "double..point",
+			normalized: "double..point",
+			err:        nil,
+		},
+		{
+			name:       "other_^.character^^_than_underscore",
+			normalized: "other.character_than_underscore",
+			err:        nil,
 		},
 		{
 			name:       "bad-name",
 			normalized: "bad_name",
 			err:        nil,
 		},
+		{
+			name:       "^^_.non_alpha.prefix",
+			normalized: "non_alpha.prefix",
+			err:        nil,
+		},
+		{
+			name:       "_",
+			normalized: "unnamed_operation",
+			err:        ErrInvalid,
+		},
 	}
 	for _, testCase := range testCases {
 		out, err := NormalizeName(testCase.name)
 		assert.Equal(t, testCase.normalized, out)
 		assert.Equal(t, testCase.err, err)
+	}
+}
+
+func BenchmarkNormalizeName(b *testing.B) {
+	cases := []struct {
+		caseName string
+		caseVal  string
+	}{
+
+		{
+			caseName: "ok",
+			caseVal:  "good",
+		},
+		{
+			caseName: "truncate",
+			caseVal:  "Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.Too-Long-.",
+		},
+		{
+			caseName: "remap",
+			caseVal:  "bad-name",
+		},
+	}
+	for _, c := range cases {
+		b.Run(c.caseName, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				NormalizeName(c.caseVal)
+			}
+		})
 	}
 }
 

@@ -50,9 +50,9 @@ func (mr *MockRawConnWrapperMockRecorder) Close() *gomock.Call {
 }
 
 // ListenPackets mocks base method.
-func (m *MockRawConnWrapper) ListenPackets(timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, matcherFuncs map[int]common.MatcherFunc) (net.IP, time.Time, error) {
+func (m *MockRawConnWrapper) ListenPackets(timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, icmpPacketID uint16, matcherFuncs map[int]common.MatcherFunc) (net.IP, time.Time, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListenPackets", timeout, localIP, localPort, remoteIP, remotePort, innerIdentifier, matcherFuncs)
+	ret := m.ctrl.Call(m, "ListenPackets", timeout, localIP, localPort, remoteIP, remotePort, innerIdentifier, icmpPacketID, matcherFuncs)
 	ret0, _ := ret[0].(net.IP)
 	ret1, _ := ret[1].(time.Time)
 	ret2, _ := ret[2].(error)
@@ -60,9 +60,9 @@ func (m *MockRawConnWrapper) ListenPackets(timeout time.Duration, localIP net.IP
 }
 
 // ListenPackets indicates an expected call of ListenPackets.
-func (mr *MockRawConnWrapperMockRecorder) ListenPackets(timeout, localIP, localPort, remoteIP, remotePort, innerIdentifier, matcherFuncs interface{}) *gomock.Call {
+func (mr *MockRawConnWrapperMockRecorder) ListenPackets(timeout, localIP, localPort, remoteIP, remotePort, innerIdentifier, icmpPacketID, matcherFuncs interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListenPackets", reflect.TypeOf((*MockRawConnWrapper)(nil).ListenPackets), timeout, localIP, localPort, remoteIP, remotePort, innerIdentifier, matcherFuncs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListenPackets", reflect.TypeOf((*MockRawConnWrapper)(nil).ListenPackets), timeout, localIP, localPort, remoteIP, remotePort, innerIdentifier, icmpPacketID, matcherFuncs)
 }
 
 // ReadFrom mocks base method.

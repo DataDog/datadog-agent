@@ -103,8 +103,8 @@ qa_dca*                                @DataDog/agent-devx
 qa_dogstatsd*                          @DataDog/agent-devx
 
 # Internal image deploy
-docker_trigger_internal*                     @Datadog/agent-delivery
-docker_trigger_cluster_agent_internal*       @Datadog/agent-delivery
+publish_internal_container_image*            @Datadog/agent-delivery
+publish_internal_dca_container_image*        @Datadog/agent-delivery
 
 # Internal kubernetes deploy
 internal_kubernetes_deploy*            @Datadog/agent-delivery
@@ -143,6 +143,7 @@ trace_agent_integration_tests @DataDog/agent-apm
 
 # Functional test
 serverless_cold_start_performance-deb_x64      @DataDog/serverless
+serverless_cold_start_performance-deb_x64_dind @DataDog/agent-devx
 static_quality_gates                           @DataDog/agent-delivery
 manual_gate_threshold_update                   @DataDog/agent-delivery
 oracle*                                        @DataDog/database-monitoring

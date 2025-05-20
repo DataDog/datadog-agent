@@ -323,7 +323,7 @@ func (ku *KubeUtil) addResourcesToContainerList(containerToDevicesMap map[Contai
 		for _, device := range devices {
 			name := device.GetResourceName()
 			for _, id := range device.GetDeviceIds() {
-				container.AllocatedResources = append(container.AllocatedResources, ContainerAllocatedResource{
+				container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, ContainerAllocatedResource{
 					Name: name,
 					ID:   id,
 				})

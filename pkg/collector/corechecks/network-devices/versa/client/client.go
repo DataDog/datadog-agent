@@ -9,11 +9,13 @@ package client
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -27,17 +29,13 @@ const (
 	defaultHTTPScheme  = "https"
 )
 
-// Useful for mocking
-var timeNow = time.Now
-
 // Client is an HTTP Versa client.
 type Client struct {
 	httpClient *http.Client
 	endpoint   string
-	// TODO: remove when OAuth is implemented
-	analyticsEndpoint   string
-	token               string
-	tokenExpiry         time.Time
+	// TODO: add back with OAuth
+	// token               string
+	// tokenExpiry         time.Time
 	username            string
 	password            string
 	authenticationMutex *sync.Mutex
@@ -51,7 +49,7 @@ type Client struct {
 type ClientOptions func(*Client)
 
 // NewClient creates a new Versa HTTP client.
-func NewClient(endpoint, analyticsEndpoint, username, password string, useHTTP bool, options ...ClientOptions) (*Client, error) {
+func NewClient(endpoint, username, password string, useHTTP bool, options ...ClientOptions) (*Client, error) {
 	err := validateParams(endpoint, username, password)
 	if err != nil {
 		return nil, err
@@ -80,7 +78,6 @@ func NewClient(endpoint, analyticsEndpoint, username, password string, useHTTP b
 	client := &Client{
 		httpClient:          httpClient,
 		endpoint:            endpointURL.String(),
-		analyticsEndpoint:   analyticsEndpoint,
 		username:            username,
 		password:            password,
 		authenticationMutex: &sync.Mutex{},
@@ -169,46 +166,79 @@ func WithLookback(lookback time.Duration) ClientOptions {
 	}
 }
 
-// GetAppliancesLite retrieves a list of appliances in a paginated manner
-func (client *Client) GetAppliancesLite() ([]ApplianceLite, error) {
-	var appliances []ApplianceLite
+// GetOrganizations retrieves a list of organizations
+func (client *Client) GetOrganizations() ([]Organization, error) {
+	var organizations []Organization
+	resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get organizations: %v", err)
+	}
+	organizations = append(organizations, resp.Organizations...)
 
+	// Paginate through the appliances
+	maxCount, _ := strconv.Atoi(client.maxCount)
+	totalPages := (resp.TotalCount + maxCount - 1) / maxCount // calculate total pages, rounding up if there's any remainder
+	for i := 1; i < totalPages; i++ {                         // start from 1 to skip the first page
+		params := map[string]string{
+			"limit":  client.maxCount,
+			"offset": strconv.Itoa(i * maxCount),
+		}
+		resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", params)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get organizations: %v", err)
+		}
+		if resp == nil {
+			return nil, errors.New("failed to get organizations: returned nil")
+		}
+		organizations = append(organizations, resp.Organizations...)
+	}
+	if len(organizations) != resp.TotalCount {
+		return nil, fmt.Errorf("failed to get organizations: expected %d, got %d", resp.TotalCount, len(organizations))
+	}
+	return organizations, nil
+}
+
+// GetChildAppliancesDetail retrieves a list of appliances with details
+func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, error) {
+	uri := "/vnms/dashboard/childAppliancesDetail/" + tenant
+	var appliances []Appliance
 	params := map[string]string{
+		"fetch":  "count",
 		"limit":  client.maxCount,
 		"offset": "0",
 	}
 
-	resp, err := get[ApplianceLiteResponse](client, "/versa/ncs-services/vnms/appliance/appliance/lite", params)
+	// Get the total count of appliances
+	totalCount, err := get[int](client, uri, params)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get appliance lite response: %v", err)
+		return nil, fmt.Errorf("failed to get appliance detail response: %v", err)
 	}
-	appliances = resp.Appliances
+	if totalCount == nil {
+		return nil, errors.New("failed to get appliance detail response: returned nil")
+	}
 
-	for len(appliances) < resp.TotalCount {
-		params["offset"] = fmt.Sprintf("%d", len(appliances))
-		resp, err = get[ApplianceLiteResponse](client, "/versa/ncs-services/vnms/appliance/appliance/lite", params)
+	// Paginate through the appliances
+	maxCount, _ := strconv.Atoi(client.maxCount)
+	totalPages := (*totalCount + maxCount - 1) / maxCount // calculate total pages, rounding up if there's any remainder
+	for i := 0; i < totalPages; i++ {
+		params["fetch"] = "all"
+		params["offset"] = fmt.Sprintf("%d", i*maxCount)
+		resp, err := get[[]Appliance](client, uri, params)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get appliance lite response: %v", err)
+			return nil, fmt.Errorf("failed to get appliance detail response: %v", err)
 		}
-		appliances = append(appliances, resp.Appliances...)
+		if resp == nil {
+			return nil, errors.New("failed to get appliance detail response: returned nil")
+		}
+		appliances = append(appliances, *resp...)
 	}
 
 	return appliances, nil
 }
 
-// GetControllerMetadata retrieves the controller metadata
-func (client *Client) GetControllerMetadata() ([]ControllerStatus, error) {
-	resp, err := get[ControllerResponse](client, "/versa/ncs-services/vnms/dashboard/status/headEnds", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get controller metadata: %v", err)
-	}
-
-	return resp.ControllerStatuses, nil
-}
-
 // GetDirectorStatus retrieves the director status
 func (client *Client) GetDirectorStatus() (*DirectorStatus, error) {
-	resp, err := get[DirectorStatus](client, "/versa/ncs-services/vnms/dashboard/status/director", nil)
+	resp, err := get[DirectorStatus](client, "/vnms/dashboard/vdStatus", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get director status: %v", err)
 	}

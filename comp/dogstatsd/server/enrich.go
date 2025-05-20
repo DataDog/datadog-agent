@@ -28,9 +28,11 @@ var (
 // enrichConfig contains static parameters used in various enrichment
 // procedures for metrics, events and service checks.
 type enrichConfig struct {
+	// TODO(remy): this metric prefix / prefix blocklist
+	// is independent from the metric name blocklist, that's
+	// confusing and should be merged in the same implemnetation instead.
 	metricPrefix              string
 	metricPrefixBlacklist     []string
-	metricBlocklist           blocklist
 	defaultHostname           string
 	entityIDPrecedenceEnabled bool
 	serverlessMode            bool
@@ -129,7 +131,7 @@ func tsToFloatForSamples(ts time.Time) float64 {
 	return float64(ts.Unix())
 }
 
-func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig) []metrics.MetricSample {
+func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, blocklist *blocklist) []metrics.MetricSample {
 	metricName := ddSample.name
 	tags, hostnameFromTags, extractedOrigin, metricSource := extractTagsMetadata(ddSample.tags, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
 
@@ -137,7 +139,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		metricName = conf.metricPrefix + metricName
 	}
 
-	if conf.metricBlocklist.test(metricName) {
+	if blocklist != nil && blocklist.test(metricName) {
 		return []metrics.MetricSample{}
 	}
 
