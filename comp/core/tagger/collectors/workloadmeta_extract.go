@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
@@ -116,6 +117,8 @@ var (
 	highCardOrchestratorLabels = map[string]string{
 		"io.rancher.container.name": tags.RancherContainer,
 	}
+
+	tagClusterOnce sync.Once
 )
 
 func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle) {
@@ -513,7 +516,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	// globally add cluster tags regardless of ECS type
 	if task.ClusterName != "" {
 		// only add the global cluster tag(s) once
-		c.tagClusterOnce.Do(func() {
+		tagClusterOnce.Do(func() {
 			clusterTags := taglist.NewTagList()
 			if !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
 				clusterTags.AddLow(tags.ClusterName, task.ClusterName)
