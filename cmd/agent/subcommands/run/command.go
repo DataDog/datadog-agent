@@ -574,10 +574,13 @@ func startAgent(
 	}
 	log.Infof("Hostname is: %s", hostnameDetected)
 
+	fmt.Println("starting agent ....................")
+
 	// start remote configuration management
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		// Subscribe to `AGENT_TASK` product
 		rcclient.SubscribeAgentTask()
+		fmt.Println("Subscribe..................")
 
 		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config

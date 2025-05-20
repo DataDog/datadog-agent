@@ -406,6 +406,7 @@ func WithAgentPollLoopDisabled() func(s *options) {
 
 // NewService instantiates a new remote configuration management service
 func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGetter func() []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...Option) (*CoreAgentService, error) {
+	fmt.Println("hostname is", hostname)
 	options := defaultOptions
 	for _, opt := range opts {
 		opt(&options)

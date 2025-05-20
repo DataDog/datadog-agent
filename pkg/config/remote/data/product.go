@@ -33,6 +33,8 @@ const (
 	ProductContainerAutoscalingSettings = "CONTAINER_AUTOSCALING_SETTINGS"
 	// ProductContainerAutoscalingValues receives values for container autoscaling
 	ProductContainerAutoscalingValues = "CONTAINER_AUTOSCALING_VALUES"
+	// ProductDebug is to test remote config
+	ProductDebug = "DEBUG"
 )
 
 // ProductListToString converts a product list to string list
