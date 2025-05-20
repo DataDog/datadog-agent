@@ -812,6 +812,7 @@ func TestStartRefreshRoutineWithScatter(t *testing.T) {
 		name                   string
 		scatter                bool
 		expectedSubsequentTick time.Duration
+		r                      *rand.Rand
 	}{
 		{
 			name:                   "Without scatter",
@@ -846,7 +847,7 @@ func TestStartRefreshRoutineWithScatter(t *testing.T) {
 
 			if tc.scatter {
 				// Seed the random number generator to make the test deterministic
-				rand.New(rand.NewSource(12345))
+				tc.r = rand.New(rand.NewSource(12345))
 			}
 
 			resolver.cache = map[string]string{
@@ -882,7 +883,7 @@ func TestStartRefreshRoutineWithScatter(t *testing.T) {
 
 			if tc.scatter {
 				// The set random seed has a the scatterDuration is 5.477027098s
-				mockClock.Add(6 * time.Second)
+				mockClock.Add(time.Duration(tc.r.Float64() * float64(10*time.Second)))
 
 				select {
 				case <-refreshCalledChan:
