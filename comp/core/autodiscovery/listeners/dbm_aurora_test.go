@@ -250,7 +250,7 @@ func TestDBMAuroraListener(t *testing.T) {
 				"tags":               tc.config.Tags,
 				"dbm_tag":            tc.config.DbmTag,
 			})
-			mockAWSClient := aws.NewMockRDSClient(ctrl)
+			mockAWSClient := aws.NewMockRdsClient(ctrl)
 			tc.rdsClientConfigurer(mockAWSClient)
 			ticks := make(chan time.Time, 1)
 			l := newDBMAuroraListener(tc.config, mockAWSClient, ticks)
