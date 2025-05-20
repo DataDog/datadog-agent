@@ -160,14 +160,7 @@ static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *co
 
     char upper_case_method[METHOD_LEN];
 
-    #pragma unroll (METHOD_LEN)
-    for (int i = 0; i < METHOD_LEN; i++) {
-        if ('a' <= method[i] && method[i] <= 'z') {
-            upper_case_method[i] = method[i] - 'a' +'A';
-        } else {
-            upper_case_method[i] = method[i];
-        }
-    }
+    get_upper_case_method(method, upper_case_method);
 
     redis_transaction_t transaction = {};
     transaction.tags = tags;
