@@ -16,11 +16,11 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,7 +30,6 @@ import (
 type LogReporter struct {
 	hostname         string
 	pipelineProvider pipeline.Provider
-	auditor          auditor.Auditor
 	logSource        *sources.LogSource
 	logChan          chan *message.Message
 	endpoints        *config.Endpoints
@@ -39,15 +38,11 @@ type LogReporter struct {
 
 // NewLogReporter instantiates a new log LogReporter
 func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext, compression logscompression.Component) *LogReporter {
-	// setup the auditor
-	auditor := auditor.NewNullAuditor()
-	auditor.Start()
-
 	// setup the pipeline provider that provides pairs of processor and sender
 	cfg := pkgconfigsetup.Datadog()
 	pipelineProvider := pipeline.NewProvider(
 		4,
-		auditor,
+		&sender.NoopSink{},
 		&diagnostic.NoopMessageReceiver{},
 		nil, // processingRules
 		endpoints,
@@ -86,7 +81,6 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 	return &LogReporter{
 		hostname:         hostname,
 		pipelineProvider: pipelineProvider,
-		auditor:          auditor,
 		logSource:        logSource,
 		logChan:          logChan,
 		endpoints:        endpoints,
@@ -97,7 +91,6 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 // Stop stops the LogReporter
 func (r *LogReporter) Stop() {
 	r.pipelineProvider.Stop()
-	r.auditor.Stop()
 }
 
 // Endpoints returns the endpoints associated with the log reporter.

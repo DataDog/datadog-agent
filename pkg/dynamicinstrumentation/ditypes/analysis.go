@@ -495,6 +495,10 @@ type FuncByPCEntry struct {
 	Line       int64
 }
 
-// RemoteConfigCallback is the name of the function in dd-trace-go which we hook for retrieving
+// RemoteConfigCallback is the name of the function in dd-trace-go v1 which we hook for retrieving
 // probe configurations
 const RemoteConfigCallback = "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.passProbeConfiguration"
+
+// RemoteConfigCallbackV2 is the name of the function in dd-trace-go v2 which we hook for retrieving
+// probe configurations
+const RemoteConfigCallbackV2 = "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.passProbeConfiguration"
