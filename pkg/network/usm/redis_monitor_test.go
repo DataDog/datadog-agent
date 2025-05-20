@@ -78,16 +78,29 @@ func (s *redisProtocolParsingSuite) TestDecoding() {
 	t := s.T()
 
 	tests := []struct {
-		name  string
-		isTLS bool
+		name            string
+		isTLS           bool
+		protocolVersion int
 	}{
 		{
-			name:  "with TLS",
-			isTLS: true,
+			name:            "with TLS with RESP2",
+			isTLS:           true,
+			protocolVersion: 2,
 		},
 		{
-			name:  "without TLS",
-			isTLS: false,
+			name:            "with TLS with RESP3",
+			isTLS:           true,
+			protocolVersion: 3,
+		},
+		{
+			name:            "without TLS with RESP2",
+			isTLS:           false,
+			protocolVersion: 2,
+		},
+		{
+			name:            "without TLS with RESP3",
+			isTLS:           false,
+			protocolVersion: 3,
 		},
 	}
 	for _, tt := range tests {
@@ -95,14 +108,15 @@ func (s *redisProtocolParsingSuite) TestDecoding() {
 			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 				t.Skip("GoTLS not supported for this setup")
 			}
-			testRedisDecoding(t, tt.isTLS)
+			testRedisDecoding(t, tt.isTLS, tt.protocolVersion)
 		})
 	}
 }
 
-func waitForRedisServer(t *testing.T, serverAddress string, enableTLS bool) {
+func waitForRedisServer(t *testing.T, serverAddress string, enableTLS bool, version int) {
 	dialer := &net.Dialer{}
-	redisClient := redis.NewClient(serverAddress, dialer, enableTLS)
+	redisClient, err := redis.NewClient(serverAddress, dialer, enableTLS, version)
+	require.NoError(t, err)
 	require.NotNil(t, redisClient)
 	defer redisClient.Close()
 	require.Eventually(t, func() bool {
@@ -110,11 +124,11 @@ func waitForRedisServer(t *testing.T, serverAddress string, enableTLS bool) {
 	}, 5*time.Second, 100*time.Millisecond, "couldn't connect to redis server")
 }
 
-func testRedisDecoding(t *testing.T, isTLS bool) {
+func testRedisDecoding(t *testing.T, isTLS bool, version int) {
 	serverHost := "127.0.0.1"
 	serverAddress := net.JoinHostPort(serverHost, redisPort)
 	require.NoError(t, redis.RunServer(t, serverHost, redisPort, isTLS))
-	waitForRedisServer(t, serverAddress, isTLS)
+	waitForRedisServer(t, serverAddress, isTLS, version)
 
 	monitor := setupUSMTLSMonitor(t, getRedisDefaultTestConfiguration(isTLS), useExistingConsumer)
 	if isTLS {
@@ -137,7 +151,8 @@ func testRedisDecoding(t *testing.T, isTLS bool) {
 			name: "set and get commands",
 			preMonitorSetup: func(t *testing.T, ctx redisTestContext) {
 				dialer := &net.Dialer{}
-				redisClient := redis.NewClient(ctx.serverAddress, dialer, isTLS)
+				redisClient, err := redis.NewClient(ctx.serverAddress, dialer, isTLS, version)
+				require.NoError(t, err)
 				require.NotNil(t, redisClient)
 				require.NoError(t, redisClient.Ping(context.Background()).Err())
 				ctx.extras["redis"] = redisClient
