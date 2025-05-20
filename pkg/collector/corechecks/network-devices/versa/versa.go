@@ -130,15 +130,16 @@ func (v *VersaCheck) Run() error {
 		deviceTags[ip] = append(deviceTags[ip], tags...)
 	}
 
-	if *v.config.CollectSLAMetrics {
-		deviceNameToIDMap := generateDeviceNameToIDMap(deviceMetadata)
-		v.metricsSender.SetDeviceTagsMap(deviceTags)
-		slaMetrics, err := c.GetSLAMetrics()
-		if err != nil {
-			log.Warnf("error getting SLA metrics from Versa client: %v", err)
-		}
-		v.metricsSender.SendSLAMetrics(slaMetrics, deviceNameToIDMap)
-	}
+	// Temporarily commenting out the SLA metrics collection until Versa Analytics auth is sorted out
+	//if *v.config.CollectSLAMetrics {
+	//	deviceNameToIDMap := generateDeviceNameToIDMap(deviceMetadata)
+	//	v.metricsSender.SetDeviceTagsMap(deviceTags)
+	//	slaMetrics, err := c.GetSLAMetrics()
+	//	if err != nil {
+	//		log.Warnf("error getting SLA metrics from Versa client: %v", err)
+	//	}
+	//	v.metricsSender.SendSLAMetrics(slaMetrics, deviceNameToIDMap)
+	//}
 
 	// Send the metadata to the metrics sender
 	if *v.config.SendNDMMetadata {
