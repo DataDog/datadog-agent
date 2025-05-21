@@ -97,8 +97,6 @@ build do
     command "touch externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libssl-3.pdb"
     copy "#{install_dir}\\embedded3\\bin\\libcrypto-3-x64.dll", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libcrypto-3.dll"
     command "touch externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libcrypto-3.pdb"
-    # The applink "header"
-    copy "#{install_dir}\\embedded3\\include\\openssl\\applink.c", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\include\\"
     # And finally the headers:
     copy "#{install_dir}\\embedded3\\include\\openssl", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\include\\"
     # Now build python itself...
