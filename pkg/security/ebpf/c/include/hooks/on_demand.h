@@ -45,22 +45,32 @@ enum param_kind_t {
 
 struct on_demand_event_t* __attribute__((always_inline)) get_on_demand_event() {
 	u32 key = 0;
-	return bpf_map_lookup_elem(&on_demand_event_gen, &key);
+	struct on_demand_event_t* evt = bpf_map_lookup_elem(&on_demand_event_gen, &key);
+	if (!evt) {
+		return NULL;
+	}
+
+	u64 synth_id;
+    LOAD_CONSTANT("synth_id", synth_id);
+
+	// make sure the event is clean
+	evt->synth_id = synth_id;
+	for (int i = 0; i < 6; i++) {
+		u64 *ptr = (u64 *)(&evt->data[i * ON_DEMAND_PER_ARG_SIZE]);
+		*ptr = 0;
+	}
+
+	struct proc_cache_t *entry = fill_process_context(&evt->process);
+    fill_container_context(entry, &evt->container);
+    fill_span_context(&evt->span);
+
+	return evt;
 }
 
 HOOK_ON_DEMAND
 int hook_on_demand(ctx_t *ctx) {
-	u64 synth_id;
-    LOAD_CONSTANT("synth_id", synth_id);
-
 	struct on_demand_event_t *event = get_on_demand_event();
 	if (!event) return 0;
-
-	event->synth_id = synth_id;
-
-	struct proc_cache_t *entry = fill_process_context(&event->process);
-    fill_container_context(entry, &event->container);
-    fill_span_context(&event->span);
 
 	char *path;
 	char *buf;
@@ -83,17 +93,8 @@ int hook_on_demand_syscall(ctx_t *ptctx) {
 	struct pt_regs *ctx = (struct pt_regs *) CTX_PARM1(ptctx);
     if (!ctx) return 0;
 
-	u64 synth_id;
-    LOAD_CONSTANT("synth_id", synth_id);
-
 	struct on_demand_event_t *event = get_on_demand_event();
 	if (!event) return 0;
-
-	event->synth_id = synth_id;
-
-	struct proc_cache_t *entry = fill_process_context(&event->process);
-    fill_container_context(entry, &event->container);
-    fill_span_context(&event->span);
 
 	char *path;
 	char *buf;
