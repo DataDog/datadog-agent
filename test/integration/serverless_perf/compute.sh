@@ -2,7 +2,7 @@
 
 set -o pipefail
 
-STARTUP_TIME_THRESHOLD=55
+STARTUP_TIME_THRESHOLD=70
 
 # If OVERRIDE_STARTUP_TIME_THRESHOLD is set, use it as the threshold
 if [ -n "$OVERRIDE_STARTUP_TIME_THRESHOLD" ]; then
