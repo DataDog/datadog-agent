@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 func newTestMessage(content string) *message.Message {
@@ -134,4 +135,48 @@ func TestJSONAggregatorMaxSize(t *testing.T) {
 	// Verify buffer is cleared after size limit flush
 	emptyResult := aggregator.Flush()
 	assert.Equal(t, 0, len(emptyResult), "Expected empty result after size limit flush")
+}
+
+func TestJSONAggregatorTelemetry(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 100)
+	initialTrue := metrics.TlmAutoMultilineJSONAggregatorFlush.WithValues("true").Get()
+	initialFalse := metrics.TlmAutoMultilineJSONAggregatorFlush.WithValues("false").Get()
+
+	// A full single line JSON message should not have the aggregated JSON tag
+	msg1 := newTestMessage(`{"key":"value"}`)
+	result := aggregator.Process(msg1)
+	assert.NotContains(t, result[0].ParsingExtra.Tags, message.AggregatedJSONTag)
+	assert.Equal(t, initialTrue, metrics.TlmAutoMultilineJSONAggregatorFlush.WithValues("true").Get())
+	assert.Equal(t, initialFalse, metrics.TlmAutoMultilineJSONAggregatorFlush.WithValues("false").Get())
+
+	// an aggregated multiline JSON message should have the aggregated JSON tag
+	msg2 := newTestMessage(`{"key":`)
+	msg3 := newTestMessage(`"value"}`)
+	_ = aggregator.Process(msg2)
+	result = aggregator.Process(msg3)
+
+	assert.Contains(t, result[0].ParsingExtra.Tags, message.AggregatedJSONTag)
+	assert.Equal(t, initialTrue+1, metrics.TlmAutoMultilineJSONAggregatorFlush.WithValues("true").Get())
+	assert.Equal(t, initialFalse, metrics.TlmAutoMultilineJSONAggregatorFlush.WithValues("false").Get())
+
+	// Partially valid JSON
+	msg4 := newTestMessage(`{"key":`)
+	_ = aggregator.Process(msg4)
+	msg5 := newTestMessage(`Not a JSON object`)
+	result = aggregator.Process(msg5)
+
+	assert.NotContains(t, result[0].ParsingExtra.Tags, message.AggregatedJSONTag)
+	assert.Equal(t, initialTrue+1, metrics.TlmAutoMultilineJSONAggregatorFlush.WithValues("true").Get())
+	// increment because we had a partially valid JSON object that was later invalidated
+	assert.Equal(t, initialFalse+1, metrics.TlmAutoMultilineJSONAggregatorFlush.WithValues("false").Get())
+
+	// Totally invalid JSON
+	msg6 := newTestMessage(`Not a JSON object`)
+	result = aggregator.Process(msg6)
+
+	assert.NotContains(t, result[0].ParsingExtra.Tags, message.AggregatedJSONTag)
+	assert.Equal(t, initialTrue+1, metrics.TlmAutoMultilineJSONAggregatorFlush.WithValues("true").Get())
+	// Should not increment because we had a totally invalid JSON object
+	assert.Equal(t, initialFalse+1, metrics.TlmAutoMultilineJSONAggregatorFlush.WithValues("false").Get())
+
 }
