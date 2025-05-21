@@ -151,10 +151,28 @@ func TestStatusAutodiscoveryMultipleSubnets(t *testing.T) {
 	}
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("network_devices.autodiscovery", snmp.ListenerConfig{
-		Configs: []snmp.Config{mockSnmpConfig1, mockSnmpConfig2, mockSnmpConfig3},
-		Workers: 1,
-	})
+	mockListenerConfig := map[string]interface{}{
+		"configs": []interface{}{
+			map[string]interface{}{
+				"network":   mockSnmpConfig1.Network,
+				"community": mockSnmpConfig1.Community,
+				"port":      mockSnmpConfig1.Port,
+			},
+			map[string]interface{}{
+				"network":   mockSnmpConfig2.Network,
+				"community": mockSnmpConfig2.Community,
+				"port":      mockSnmpConfig2.Port,
+			},
+			map[string]interface{}{
+				"network":   mockSnmpConfig3.Network,
+				"community": mockSnmpConfig3.Community,
+				"port":      mockSnmpConfig3.Port,
+			},
+		},
+		"workers": 1,
+	}
+
+	mockConfig.SetWithoutSource("network_devices.autodiscovery", mockListenerConfig)
 
 	listenerConfig, _ := snmp.NewListenerConfig()
 
