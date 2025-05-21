@@ -41,7 +41,6 @@ const (
 	metricNameCoreLimit   = gpuMetricsNs + "core.limit"
 	metricNameMemoryUsage = gpuMetricsNs + "memory.usage"
 	metricNameMemoryLimit = gpuMetricsNs + "memory.limit"
-	metricNameDeviceTotal = gpuMetricsNs + "device.total"
 )
 
 // Check represents the GPU check that will be periodically executed via the Run() function
