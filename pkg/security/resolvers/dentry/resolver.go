@@ -673,7 +673,7 @@ func (dr *Resolver) ResolveSrc(pathKey model.PathKey, cache bool) (string, error
 	}
 
 	dr.debugLog.Add(fmt.Sprintf("Resolve() [Out] path = %v, err = %v\n", path, err))
-	fmt.Println("MNTP src=", src)
+	//fmt.Println("MNTP src=", src)
 	return path, err, src
 }
 
