@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2024-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
 //go:build test
 
@@ -404,4 +404,29 @@ const GetDirectorStatus = `
     "sysProcUptime": "230 Days, 17 Hours, 28 Minutes, 46 Seconds.",
     "sysUpTimeDetail": "20:45:35 up 230 days, 17:28,  1 users,  load average: 0.24, 0.16, 0.23"
   }
+}`
+
+// GetSLAMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetSLAMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,Controller-2,INET-1,INET-1,fc_nc",
+            "test-branch-2B",
+            "Controller-2",
+            "INET-1",
+            "INET-1",
+            "fc_nc",
+            101.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+        ]
+    ]
 }`
