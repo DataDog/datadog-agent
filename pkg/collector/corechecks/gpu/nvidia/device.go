@@ -238,7 +238,7 @@ func getTotalEnergyConsumption(dev ddnvml.SafeDevice) (float64, error) {
 func getDeviceCount(dev ddnvml.SafeDevice) (float64, error) {
 	r, err := dev.IsMigDeviceHandle()
 	if r || err != nil {
-		return float64(0), nil
+		return float64(0), err
 	}
 	return float64(1), nil
 }
