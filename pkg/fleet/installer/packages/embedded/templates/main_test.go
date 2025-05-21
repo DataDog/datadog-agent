@@ -17,20 +17,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-//go:embed generated
-var generatedFS embed.FS
+//go:embed gen
+var genFS embed.FS
 
 // TestGenerationIsUpToDate tests that the generated templates are up to date.
 //
 // You can update the templates by running `go generate` in the templates directory.
 func TestGenerationIsUpToDate(t *testing.T) {
-	generated := filepath.Join(os.TempDir(), "generated")
+	generated := filepath.Join(os.TempDir(), "gen")
 	os.MkdirAll(generated, 0755)
 
 	err := generate(generated)
 	assert.NoError(t, err)
 	newGeneratedFS := os.DirFS(generated)
-	currentGeneratedFS, err := fs.Sub(generatedFS, "generated")
+	currentGeneratedFS, err := fs.Sub(genFS, "gen")
 	assert.NoError(t, err)
 
 	fixtures.AssertEqualFS(t, currentGeneratedFS, newGeneratedFS)
