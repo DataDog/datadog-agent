@@ -368,6 +368,20 @@ var (
 			"LISTEN":      "listening",
 			"CLOSING":     "closing",
 		},
+		"psutil": {
+			"ESTABLISHED": "established",
+			"SYN_SENT":    "opening",
+			"SYN_RECV":    "opening",
+			"FIN_WAIT1":   "closing",
+			"FIN_WAIT2":   "closing",
+			"TIME_WAIT":   "time_wait",
+			"CLOSE":       "closing",
+			"CLOSE_WAIT":  "closing",
+			"LAST_ACK":    "closing",
+			"LISTEN":      "listening",
+			"CLOSING":     "closing",
+			"NONE":        "connections", // CONN_NONE is always returned for udp connections
+		},
 	}
 
 	udpStateMetricsSuffixMapping = map[string]string{
