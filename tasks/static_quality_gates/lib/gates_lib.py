@@ -121,7 +121,7 @@ class GateMetricHandler:
         elif value < 0:
             return string_to_latex_color(string_value, "green")
         else:
-            return string_to_latex_color(string_value, "blue")
+            return string_to_latex_color(string_value, "green")
 
     def get_formatted_metric_comparison(self, gate_name, first_metric, limit_metric):
         first_value = self.metrics[gate_name][first_metric]
