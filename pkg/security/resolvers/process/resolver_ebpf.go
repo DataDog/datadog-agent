@@ -146,8 +146,6 @@ func (p *EBPFResolver) NewProcessCacheEntry(pidContext model.PIDContext) *model.
 	entry.PIDContext = pidContext
 	entry.Cookie = utils.NewCookie()
 
-	p.processCacheEntryCount.Inc()
-
 	return entry
 }
 
@@ -577,6 +575,9 @@ func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, source uint64
 
 	p.entryCache[entry.Pid] = entry
 	entry.Retain()
+	// only increment the cache entry count when we first retain the entry,
+	// the count will be decremented once the entry is released
+	p.processCacheEntryCount.Inc()
 
 	if p.cgroupResolver != nil && entry.CGroup.CGroupID != "" {
 		// add the new PID in the right cgroup_resolver bucket
@@ -639,10 +640,6 @@ func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uin
 		// check exec bomb, keep the prev entry and update it
 		if prev.Equals(entry) {
 			prev.ApplyExecTimeOf(entry)
-
-			// entry not sure anymore
-			entry.Release()
-
 			return
 		}
 		prev.Exec(entry)
