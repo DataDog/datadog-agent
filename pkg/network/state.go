@@ -580,7 +580,6 @@ func (ns *networkState) storeClosedConnection(c *ConnectionStats) {
 			}
 			continue
 		}
-
 		client.closed.insert(c, ns.maxClosedConns)
 
 		// Check if the buffer is near capacity using the configured threshold

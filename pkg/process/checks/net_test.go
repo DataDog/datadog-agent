@@ -15,7 +15,6 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
