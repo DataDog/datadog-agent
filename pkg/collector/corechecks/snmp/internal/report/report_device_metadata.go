@@ -657,7 +657,7 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 		localAddrType := store.GetColumnAsString("cisco_ipsec_endpoint.local_inside_ip_type", strIndex)
 		localAddr1 := store.GetColumnAsByteArray("cisco_ipsec_endpoint.local_inside_ip1", strIndex)
 		localAddr2 := store.GetColumnAsByteArray("cisco_ipsec_endpoint.local_inside_ip2", strIndex)
-		localAddrType, localAddr := handleVPNEndpointAddr(localAddrType, localAddr1, localAddr2)
+		localAddrType, localAddr := handleVPNTunnelEndpointAddr(localAddrType, localAddr1, localAddr2)
 		if localAddr == "" {
 			continue
 		}
@@ -665,7 +665,7 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 		remoteAddrType := store.GetColumnAsString("cisco_ipsec_endpoint.remote_inside_ip_type", strIndex)
 		remoteAddr1 := store.GetColumnAsByteArray("cisco_ipsec_endpoint.remote_inside_ip1", strIndex)
 		remoteAddr2 := store.GetColumnAsByteArray("cisco_ipsec_endpoint.remote_inside_ip2", strIndex)
-		remoteAddrType, remoteAddr := handleVPNEndpointAddr(remoteAddrType, remoteAddr1, remoteAddr2)
+		remoteAddrType, remoteAddr := handleVPNTunnelEndpointAddr(remoteAddrType, remoteAddr1, remoteAddr2)
 		if remoteAddr == "" {
 			continue
 		}
@@ -685,7 +685,7 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 	return vpnTunnels
 }
 
-func handleVPNEndpointAddr(addrType string, addr1 []byte, addr2 []byte) (string, string) {
+func handleVPNTunnelEndpointAddr(addrType string, addr1 []byte, addr2 []byte) (string, string) {
 	switch addrType {
 	case ciscoVPNEndpointAddrSingleType:
 		return "single", net.IP(addr1).String()
