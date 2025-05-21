@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
+	"unique"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/prometheus/client_golang/prometheus"
@@ -26,6 +27,10 @@ const (
 	maxProcessListSize     = 3
 	processCacheModuleName = "network_tracer__process_cache"
 	defaultExpiry          = 2 * time.Minute
+)
+
+var (
+	emptyContainerID unique.Handle[string]
 )
 
 var processCacheTelemetry = struct {
@@ -124,7 +129,7 @@ func (pc *processCache) HandleProcessEvent(entry *events.Process) {
 }
 
 func (pc *processCache) processEvent(entry *events.Process) *events.Process {
-	if len(entry.Tags) == 0 && entry.ContainerID == nil {
+	if len(entry.Tags) == 0 && entry.ContainerID == emptyContainerID {
 		return nil
 	}
 

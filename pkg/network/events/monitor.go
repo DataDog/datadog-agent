@@ -17,7 +17,6 @@ import (
 	"unique"
 
 	"go.uber.org/atomic"
-	"go4.org/intern"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -48,7 +47,7 @@ var (
 type Process struct {
 	Pid         uint32
 	Tags        []unique.Handle[string]
-	ContainerID *intern.Value
+	ContainerID unique.Handle[string]
 	StartTime   int64
 	Expiry      int64
 }
@@ -157,7 +156,7 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 	}
 
 	if cid := ev.GetContainerId(); cid != "" {
-		p.ContainerID = intern.GetByString(cid)
+		p.ContainerID = unique.Make(cid)
 	}
 
 	return p

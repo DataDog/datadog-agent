@@ -16,7 +16,6 @@ import (
 	"unique"
 
 	"github.com/dustin/go-humanize"
-	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	networkpayload "github.com/DataDog/datadog-agent/pkg/network/payload"
@@ -256,7 +255,7 @@ type ConnectionStats struct {
 	Via           *Via
 	Tags          []unique.Handle[string]
 	ContainerID   struct {
-		Source, Dest *intern.Value
+		Source, Dest unique.Handle[string]
 	}
 	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
 	// TCPFailures stores the number of failures for a POSIX error code

@@ -8,6 +8,7 @@ package marshal
 import (
 	"maps"
 	"math"
+	"unique"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/twmb/murmur3"
@@ -15,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
+
+var emptyContainerID unique.Handle[string]
 
 const maxRoutes = math.MaxInt32
 
@@ -54,8 +57,8 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	builder.SetPid(int32(conn.Pid))
 
 	var containerID string
-	if conn.ContainerID.Source != nil {
-		containerID = conn.ContainerID.Source.Get().(string)
+	if conn.ContainerID.Source != emptyContainerID {
+		containerID = conn.ContainerID.Source.Value()
 	}
 	builder.SetLaddr(func(w *model.AddrBuilder) {
 		w.SetIp(ipc.Get(conn.Source))
@@ -64,8 +67,8 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	})
 
 	containerID = ""
-	if conn.ContainerID.Dest != nil {
-		containerID = conn.ContainerID.Dest.Get().(string)
+	if conn.ContainerID.Dest != emptyContainerID {
+		containerID = conn.ContainerID.Dest.Value()
 	}
 	builder.SetRaddr(func(w *model.AddrBuilder) {
 		w.SetIp(ipc.Get(conn.Dest))

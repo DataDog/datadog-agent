@@ -349,7 +349,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		return
 	}
 
-	c.ContainerID.Source, c.ContainerID.Dest = nil, nil
+	c.ContainerID.Source, c.ContainerID.Dest = emptyContainerID, emptyContainerID
 
 	ts := t.timeResolver.ResolveMonotonicTimestamp(c.LastUpdateEpoch)
 	p, ok := t.processCache.Get(c.Pid, ts.UnixNano())
@@ -366,7 +366,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		copy(c.Tags, p.Tags)
 	}
 
-	if p.ContainerID != nil {
+	if p.ContainerID != emptyContainerID {
 		c.ContainerID.Source = p.ContainerID
 	}
 }

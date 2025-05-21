@@ -10,8 +10,7 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
-	"go4.org/intern"
+	"unique"
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -1020,7 +1019,7 @@ type aggregationKey struct {
 	connKey    ConnectionTuple
 	direction  ConnectionDirection
 	containers struct {
-		source, dest *intern.Value
+		source, dest unique.Handle[string]
 	}
 }
 

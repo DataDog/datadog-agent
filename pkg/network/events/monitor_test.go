@@ -15,13 +15,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 func TestEventConsumerWrapperCopy(t *testing.T) {
-	Init()
+	require.NoError(t, Init())
 
 	t.Run("test exec process attributes", func(t *testing.T) {
 		now := time.Now()
@@ -61,8 +60,8 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 			unique.Make("service:service"),
 			unique.Make("version:version"),
 		}, p.Tags)
-		assert.NotNil(t, p.ContainerID, "container ID should not be nil")
-		assert.Equal(t, "cid_exec", p.ContainerID.Get().(string), "container id mismatch")
+		assert.NotEqual(t, unique.Handle[string]{}, p.ContainerID, "container ID should not be empty")
+		assert.Equal(t, "cid_exec", p.ContainerID.Value(), "container id mismatch")
 	})
 
 	t.Run("test fork process attributes", func(t *testing.T) {
@@ -98,13 +97,13 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 		p := _p.(*Process)
 		assert.Equal(t, uint32(2244), p.Pid)
 		assert.Equal(t, now.UnixNano(), p.StartTime)
-		assert.EqualValues(t, []*intern.Value{
-			intern.GetByString("env:env"),
-			intern.GetByString("service:service"),
-			intern.GetByString("version:version"),
+		assert.EqualValues(t, []unique.Handle[string]{
+			unique.Make("env:env"),
+			unique.Make("service:service"),
+			unique.Make("version:version"),
 		}, p.Tags)
-		assert.NotNil(t, p.ContainerID, "container ID should not be nil")
-		assert.Equal(t, "cid_fork", p.ContainerID.Get().(string), "container id mismatch")
+		assert.NotEqual(t, unique.Handle[string]{}, p.ContainerID, "container ID should not be empty")
+		assert.Equal(t, "cid_fork", p.ContainerID.Value(), "container id mismatch")
 	})
 
 	t.Run("no container context", func(t *testing.T) {
@@ -112,7 +111,7 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 		evHandler := &eventConsumerWrapper{}
 		p := evHandler.Copy(ev)
 		require.IsType(t, &Process{}, p, "Copy should return a *events.Process")
-		assert.Nil(t, p.(*Process).ContainerID, "container ID should be nil")
+		assert.Equal(t, unique.Handle[string]{}, p.(*Process).ContainerID, "container ID should be empty")
 	})
 
 }

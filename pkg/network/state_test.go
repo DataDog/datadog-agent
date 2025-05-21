@@ -16,11 +16,11 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unique"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
-	"go4.org/intern"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -2127,7 +2127,7 @@ func TestConnectionRollup(t *testing.T) {
 				ReplSrcPort: 53,
 			},
 			SPortIsEphemeral: EphemeralTrue,
-			ContainerID:      struct{ Source, Dest *intern.Value }{intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f"), nil},
+			ContainerID:      struct{ Source, Dest unique.Handle[string] }{Source: unique.Make("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
 			Monotonic: StatCounters{
 				RecvBytes:      342,
 				SentBytes:      156,
@@ -2161,7 +2161,7 @@ func TestConnectionRollup(t *testing.T) {
 				ReplSrcPort: 53,
 			},
 			SPortIsEphemeral: EphemeralTrue,
-			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			ContainerID:      struct{ Source, Dest unique.Handle[string] }{Source: unique.Make("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
 			Monotonic: StatCounters{
 				RecvBytes:      314,
 				SentBytes:      128,
@@ -2195,7 +2195,7 @@ func TestConnectionRollup(t *testing.T) {
 				ReplSrcPort: 53,
 			},
 			SPortIsEphemeral: EphemeralTrue,
-			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			ContainerID:      struct{ Source, Dest unique.Handle[string] }{Source: unique.Make("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
 			Monotonic: StatCounters{
 				RecvBytes:      306,
 				SentBytes:      120,
@@ -2229,7 +2229,7 @@ func TestConnectionRollup(t *testing.T) {
 				ReplSrcPort: 53,
 			},
 			SPortIsEphemeral: EphemeralTrue,
-			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			ContainerID:      struct{ Source, Dest unique.Handle[string] }{Source: unique.Make("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
 			Monotonic: StatCounters{
 				RecvBytes:      288,
 				SentBytes:      118,
@@ -2263,7 +2263,7 @@ func TestConnectionRollup(t *testing.T) {
 				ReplSrcPort: 53,
 			},
 			SPortIsEphemeral: EphemeralTrue,
-			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			ContainerID:      struct{ Source, Dest unique.Handle[string] }{Source: unique.Make("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
 			Monotonic: StatCounters{
 				RecvBytes:      594,
 				SentBytes:      92,
@@ -2288,7 +2288,7 @@ func TestConnectionRollup(t *testing.T) {
 			NetNS:     4026531992,
 			Direction: INCOMING,
 		},
-			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
+			ContainerID:      struct{ Source, Dest unique.Handle[string] }{Source: unique.Make("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
 			SPortIsEphemeral: EphemeralFalse,
 			Monotonic: StatCounters{
 				SentBytes:      0,
@@ -2316,7 +2316,7 @@ func TestConnectionRollup(t *testing.T) {
 			NetNS:     4026531992,
 			Direction: INCOMING,
 		},
-			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
+			ContainerID:      struct{ Source, Dest unique.Handle[string] }{Source: unique.Make("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
 			SPortIsEphemeral: EphemeralFalse,
 			Monotonic: StatCounters{
 				SentBytes:      0,
@@ -2344,7 +2344,7 @@ func TestConnectionRollup(t *testing.T) {
 			NetNS:     4026531992,
 			Direction: INCOMING,
 		},
-			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
+			ContainerID:      struct{ Source, Dest unique.Handle[string] }{Source: unique.Make("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
 			SPortIsEphemeral: EphemeralFalse,
 			Monotonic: StatCounters{
 				SentBytes:      2392,

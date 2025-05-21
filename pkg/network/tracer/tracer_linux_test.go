@@ -39,7 +39,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vnetns "github.com/vishvananda/netns"
-	"go4.org/intern"
 	"golang.org/x/sys/unix"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -2437,7 +2436,7 @@ func BenchmarkAddProcessInfo(b *testing.B) {
 			unique.Make("version:version"),
 			unique.Make("service:service"),
 		},
-		ContainerID: intern.GetByString("container"),
+		ContainerID: unique.Make("container"),
 		StartTime:   time.Now().Unix(),
 		Expiry:      time.Now().Add(5 * time.Minute).Unix(),
 	})

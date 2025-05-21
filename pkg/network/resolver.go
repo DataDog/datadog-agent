@@ -8,8 +8,7 @@ package network
 import (
 	"fmt"
 	"net/netip"
-
-	"go4.org/intern"
+	"unique"
 
 	"github.com/DataDog/datadog-agent/pkg/network/slice"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -57,9 +56,10 @@ func (r LocalResolver) Resolve(conns slice.Chain[ConnectionStats]) {
 		netns        uint32
 	}
 
-	ctrsByConn := make(map[connKey]*intern.Value, conns.Len()/2)
+	var emptyContainerID unique.Handle[string]
+	ctrsByConn := make(map[connKey]unique.Handle[string], conns.Len()/2)
 	conns.Iterate(func(_ int, conn *ConnectionStats) {
-		if conn.ContainerID.Source == nil || len(conn.ContainerID.Source.Get().(string)) == 0 {
+		if conn.ContainerID.Source == emptyContainerID || len(conn.ContainerID.Source.Value()) == 0 {
 			return
 		}
 
@@ -107,15 +107,15 @@ func (r LocalResolver) Resolve(conns slice.Chain[ConnectionStats]) {
 			netns: conn.NetNS,
 		}
 
-		var cid *intern.Value
-		if cid = ctrsByConn[k]; cid == nil {
+		var cid unique.Handle[string]
+		if cid = ctrsByConn[k]; cid == emptyContainerID {
 			if !dest.Addr().IsLoopback() {
 				k.netns = 0
 				cid = ctrsByConn[k]
 			}
 		}
 
-		if cid != nil {
+		if cid != emptyContainerID {
 			conn.ContainerID.Dest = cid
 		}
 	})
