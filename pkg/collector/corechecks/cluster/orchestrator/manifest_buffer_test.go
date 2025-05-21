@@ -36,27 +36,28 @@ func TestOrchestratorManifestBuffer(t *testing.T) {
 	mb := getManifestBuffer(t)
 	mb.Start(getSender(t))
 
-	b := []*model.Manifest{
-		{
-			Type: int32(1),
+	var body model.MessageBody = &model.CollectorManifest{
+		Manifests: []*model.Manifest{
+			{
+				Type: int32(1),
+				Tags: []string{"type:1"},
+			},
+			{
+				Type: int32(2),
+			},
+			{
+				Type: int32(3),
+			},
+			{
+				Type: int32(4),
+			},
+			{
+				Type: int32(5),
+			},
 		},
-		{
-			Type: int32(2),
-		},
-		{
-			Type: int32(3),
-		},
-		{
-			Type: int32(4),
-		},
-		{
-			Type: int32(5),
-		},
+		Tags: []string{"collector:1"},
 	}
-	for _, m := range b {
-		mb.ManifestChan <- m
-	}
-
+	BufferManifestProcessResult([]model.MessageBody{body}, mb)
 	mb.Stop()
 
 	// Buffer size is 2, as we have 5 manifests, the buffer needs to be flushed 3 times
@@ -65,11 +66,13 @@ func TestOrchestratorManifestBuffer(t *testing.T) {
 	assert.EqualValues(t, []*model.Manifest{
 		{
 			Type: int32(1),
+			Tags: []string{"type:1"},
 		},
 		{
 			Type: int32(2),
 		},
 	}, manifestToSend[0].Manifests)
+	assert.EqualValues(t, []string{"extra:tag"}, manifestToSend[0].Tags)
 
 	assert.EqualValues(t, []*model.Manifest{
 		{
@@ -112,6 +115,7 @@ func getManifestBuffer(t *testing.T) *ManifestBuffer {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+	orchCheck.orchestratorConfig.ExtraTags = []string{"extra:tag"}
 	mb := NewManifestBuffer(orchCheck)
 	mb.Cfg.MaxBufferedManifests = 2
 	mb.Cfg.ManifestBufferFlushInterval = 3 * time.Second

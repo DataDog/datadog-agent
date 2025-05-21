@@ -99,6 +99,7 @@ func (cb *ManifestBuffer) flushManifest(sender sender.Sender) {
 				MaxWeightPerMessageBytes: cb.Cfg.MaxWeightPerMessageBytes,
 				ExtraTags:                cb.Cfg.ExtraTags,
 			},
+			ExtraTags: cb.Cfg.ExtraTags,
 			ClusterID: cb.Cfg.ClusterID,
 		},
 	}
