@@ -8,7 +8,6 @@ package agentimpl
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"time"
 
