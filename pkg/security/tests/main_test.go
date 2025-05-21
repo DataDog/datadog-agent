@@ -10,10 +10,8 @@ package tests
 
 import (
 	"flag"
-	"math/rand"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
