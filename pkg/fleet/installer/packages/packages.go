@@ -34,6 +34,10 @@ type hooks struct {
 	postStopExperiment    packageHook
 	prePromoteExperiment  packageHook
 	postPromoteExperiment packageHook
+
+	postStartConfigExperiment   packageHook
+	preStopConfigExperiment     packageHook
+	postPromoteConfigExperiment packageHook
 }
 
 // Hooks is the interface for the hooks.
@@ -48,6 +52,10 @@ type Hooks interface {
 	PostStopExperiment(ctx context.Context, pkg string) error
 	PrePromoteExperiment(ctx context.Context, pkg string) error
 	PostPromoteExperiment(ctx context.Context, pkg string) error
+
+	PostStartConfigExperiment(ctx context.Context, pkg string) error
+	PreStopConfigExperiment(ctx context.Context, pkg string) error
+	PostPromoteConfigExperiment(ctx context.Context, pkg string) error
 }
 
 // NewHooks creates a new Hooks instance that will execute hooks via the CLI.
@@ -106,6 +114,21 @@ func (h *hooksCLI) PrePromoteExperiment(ctx context.Context, pkg string) error {
 // PostPromoteExperiment calls the post-promote-experiment hook for the package.
 func (h *hooksCLI) PostPromoteExperiment(ctx context.Context, pkg string) error {
 	return h.callHook(ctx, true, pkg, "postPromoteExperiment", PackageTypeOCI, false, nil)
+}
+
+// PostStartConfigExperiment calls the post-start-config-experiment hook for the package.
+func (h *hooksCLI) PostStartConfigExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, false, pkg, "postStartConfigExperiment", PackageTypeOCI, false, nil)
+}
+
+// PreStopConfigExperiment calls the pre-stop-config-experiment hook for the package.
+func (h *hooksCLI) PreStopConfigExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, false, pkg, "preStopConfigExperiment", PackageTypeOCI, false, nil)
+}
+
+// PostPromoteConfigExperiment calls the post-promote-config-experiment hook for the package.
+func (h *hooksCLI) PostPromoteConfigExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, false, pkg, "postPromoteConfigExperiment", PackageTypeOCI, false, nil)
 }
 
 // PackageType is the type of package.
@@ -237,6 +260,12 @@ func getHook(pkg string, name string) packageHook {
 		return h.prePromoteExperiment
 	case "postPromoteExperiment":
 		return h.postPromoteExperiment
+	case "postStartConfigExperiment":
+		return h.postStartConfigExperiment
+	case "preStopConfigExperiment":
+		return h.preStopConfigExperiment
+	case "postPromoteConfigExperiment":
+		return h.postPromoteConfigExperiment
 	}
 	return nil
 }

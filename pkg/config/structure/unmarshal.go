@@ -111,6 +111,7 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 		o(fs)
 	}
 	rawval := cfg.Get(key)
+
 	// Don't create a reflect.Value out of nil, just return immediately
 	if rawval == nil {
 		return nil

@@ -147,7 +147,7 @@ func (cm *RCConfigManager) updateProcesses(runningProcs ditypes.DIProcs) {
 
 func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) error {
 	var err error
-	configProbe := newConfigProbe()
+	configProbe := newConfigProbe(procInfo.DDTracegoVersion)
 
 	svcConfigProbe := *configProbe
 	svcConfigProbe.ServiceName = procInfo.ServiceName
@@ -157,6 +157,7 @@ func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) err
 	procInfo.TypeMap = &ditypes.TypeMap{
 		Functions: make(map[string][]*ditypes.Parameter),
 	}
+	procInfo.TypeMap.Functions[ditypes.RemoteConfigCallbackV2] = remoteConfigCallbackTypeMapEntry
 	procInfo.TypeMap.Functions[ditypes.RemoteConfigCallback] = remoteConfigCallbackTypeMapEntry
 
 	err = codegen.GenerateBPFParamsCode(procInfo, configProbe)
@@ -355,8 +356,8 @@ func isReferenceDepthExhaustedAfterDecrementing(probe *ditypes.Probe) bool {
 	return false
 }
 
-func newConfigProbe() *ditypes.Probe {
-	return &ditypes.Probe{
+func newConfigProbe(ddtracegoVersion ditypes.DDTraceGoVersion) *ditypes.Probe {
+	probe := &ditypes.Probe{
 		ID:       ditypes.ConfigBPFProbeID,
 		FuncName: ditypes.RemoteConfigCallback,
 		InstrumentationInfo: &ditypes.InstrumentationInfo{
@@ -370,6 +371,10 @@ func newConfigProbe() *ditypes.Probe {
 		},
 		RateLimiter: ratelimiter.NewSingleEventRateLimiter(0),
 	}
+	if ddtracegoVersion == ditypes.DDTraceGoVersionV2 {
+		probe.FuncName = ditypes.RemoteConfigCallbackV2
+	}
+	return probe
 }
 
 const (
