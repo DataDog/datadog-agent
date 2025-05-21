@@ -11,6 +11,9 @@
 
 char _license[] SEC("license") = "GPL";
 
+extern const probe_params_t probe_params[];
+extern const uint32_t num_probe_params;
+
 SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   uint64_t start = bpf_ktime_get_ns();
 

@@ -87,7 +87,6 @@ typedef struct stack_walk_ctx {
   int16_t idx_shift;
   struct pt_regs regs;
   target_stack_t stack;
-  char g_prefix[RUNTIME_DOT_G_PREFIX_BYTES];
 } stack_walk_ctx_t;
 
 struct {

@@ -448,7 +448,7 @@ Types:
                 - __kind: LocationOp
                   Variable: {subprogram: 1, index: 0, name: m}
                   Offset: 0
-                  Size: 0
+                  ByteSize: 0
     - __kind: EventRootType
       ID: 40
       Name: ProbeEvent
@@ -461,5 +461,5 @@ Types:
                 - __kind: LocationOp
                   Variable: {subprogram: 2, index: 0, name: m}
                   Offset: 0
-                  Size: 0
+                  ByteSize: 0
 MaxTypeID: 40
