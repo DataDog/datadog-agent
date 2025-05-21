@@ -19,44 +19,44 @@ import (
 
 func TestFleetStatus(t *testing.T) {
 	rcMapStatus := expvar.NewMap("remoteConfigStatus")
-	rcEnabled    := expvar.String{}
+	rcEnabled := expvar.String{}
 	rcEnabled.Set("enabled")
 	rcMapStatus.Set("enabled", &rcEnabled)
 
 	tests := []struct {
-		name                string
-		remoteUpdatesConfig bool
-		installerRunning    bool
+		name                   string
+		remoteUpdatesConfig    bool
+		installerRunning       bool
 		fleetAutomationEnabled bool
 	}{
 		{
-			name:                "fleet enabled",
-			remoteUpdatesConfig: true,
-			installerRunning:    true,
+			name:                   "fleet enabled",
+			remoteUpdatesConfig:    true,
+			installerRunning:       true,
 			fleetAutomationEnabled: true,
 		},
 		{
-			name:                "remote updates disabled",
-			remoteUpdatesConfig: false,
-			installerRunning:    true,
+			name:                   "remote updates disabled",
+			remoteUpdatesConfig:    false,
+			installerRunning:       true,
 			fleetAutomationEnabled: false,
 		},
 		{
-			name:                "instaler not running",
-			remoteUpdatesConfig: true,
-			installerRunning:    false,
+			name:                   "instaler not running",
+			remoteUpdatesConfig:    true,
+			installerRunning:       false,
 			fleetAutomationEnabled: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			expectedStatus:= map[string]interface{}{
+			expectedStatus := map[string]interface{}{
 				"fleetAutomationStatus": map[string]interface{}{
 					"remoteManagementEnabled": tt.remoteUpdatesConfig,
 					"remoteConfigEnabled":     true,
 					"installerRunning":        tt.installerRunning,
-					"fleetAutomationEnabled": tt.installerRunning && tt.remoteUpdatesConfig,
+					"fleetAutomationEnabled":  tt.installerRunning && tt.remoteUpdatesConfig,
 				},
 			}
 
@@ -69,7 +69,7 @@ func TestFleetStatus(t *testing.T) {
 			}
 
 			provides := NewComponent(Requires{
-				Config: cfg,
+				Config:        cfg,
 				InstallerExec: installerExec,
 			})
 			statusProvider := provides.Status.Provider
