@@ -42,10 +42,34 @@ func (z *TracerMetadata) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "TracerLanguage")
 				return
 			}
+		case "tracer_version":
+			z.TracerVersion, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "TracerVersion")
+				return
+			}
+		case "hostname":
+			z.Hostname, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "Hostname")
+				return
+			}
 		case "service_name":
 			z.ServiceName, err = dc.ReadString()
 			if err != nil {
 				err = msgp.WrapError(err, "ServiceName")
+				return
+			}
+		case "service_env":
+			z.ServiceEnv, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "ServiceEnv")
+				return
+			}
+		case "service_version":
+			z.ServiceVersion, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "ServiceVersion")
 				return
 			}
 		default:
@@ -61,46 +85,122 @@ func (z *TracerMetadata) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *TracerMetadata) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 4
-	// write "schema_version"
-	err = en.Append(0x84, 0xae, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	// check for omitted fields
+	zb0001Len := uint32(8)
+	var zb0001Mask uint8 /* 8 bits */
+	_ = zb0001Mask
+	if z.RuntimeID == "" {
+		zb0001Len--
+		zb0001Mask |= 0x2
+	}
+	if z.ServiceName == "" {
+		zb0001Len--
+		zb0001Mask |= 0x20
+	}
+	if z.ServiceEnv == "" {
+		zb0001Len--
+		zb0001Mask |= 0x40
+	}
+	if z.ServiceVersion == "" {
+		zb0001Len--
+		zb0001Mask |= 0x80
+	}
+	// variable map header, size zb0001Len
+	err = en.Append(0x80 | uint8(zb0001Len))
 	if err != nil {
 		return
 	}
-	err = en.WriteUint8(z.SchemaVersion)
-	if err != nil {
-		err = msgp.WrapError(err, "SchemaVersion")
-		return
-	}
-	// write "runtime_id"
-	err = en.Append(0xaa, 0x72, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x5f, 0x69, 0x64)
-	if err != nil {
-		return
-	}
-	err = en.WriteString(z.RuntimeID)
-	if err != nil {
-		err = msgp.WrapError(err, "RuntimeID")
-		return
-	}
-	// write "tracer_language"
-	err = en.Append(0xaf, 0x74, 0x72, 0x61, 0x63, 0x65, 0x72, 0x5f, 0x6c, 0x61, 0x6e, 0x67, 0x75, 0x61, 0x67, 0x65)
-	if err != nil {
-		return
-	}
-	err = en.WriteString(z.TracerLanguage)
-	if err != nil {
-		err = msgp.WrapError(err, "TracerLanguage")
-		return
-	}
-	// write "service_name"
-	err = en.Append(0xac, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65)
-	if err != nil {
-		return
-	}
-	err = en.WriteString(z.ServiceName)
-	if err != nil {
-		err = msgp.WrapError(err, "ServiceName")
-		return
+
+	// skip if no fields are to be emitted
+	if zb0001Len != 0 {
+		// write "schema_version"
+		err = en.Append(0xae, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+		if err != nil {
+			return
+		}
+		err = en.WriteUint8(z.SchemaVersion)
+		if err != nil {
+			err = msgp.WrapError(err, "SchemaVersion")
+			return
+		}
+		if (zb0001Mask & 0x2) == 0 { // if not omitted
+			// write "runtime_id"
+			err = en.Append(0xaa, 0x72, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x5f, 0x69, 0x64)
+			if err != nil {
+				return
+			}
+			err = en.WriteString(z.RuntimeID)
+			if err != nil {
+				err = msgp.WrapError(err, "RuntimeID")
+				return
+			}
+		}
+		// write "tracer_language"
+		err = en.Append(0xaf, 0x74, 0x72, 0x61, 0x63, 0x65, 0x72, 0x5f, 0x6c, 0x61, 0x6e, 0x67, 0x75, 0x61, 0x67, 0x65)
+		if err != nil {
+			return
+		}
+		err = en.WriteString(z.TracerLanguage)
+		if err != nil {
+			err = msgp.WrapError(err, "TracerLanguage")
+			return
+		}
+		// write "tracer_version"
+		err = en.Append(0xae, 0x74, 0x72, 0x61, 0x63, 0x65, 0x72, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+		if err != nil {
+			return
+		}
+		err = en.WriteString(z.TracerVersion)
+		if err != nil {
+			err = msgp.WrapError(err, "TracerVersion")
+			return
+		}
+		// write "hostname"
+		err = en.Append(0xa8, 0x68, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65)
+		if err != nil {
+			return
+		}
+		err = en.WriteString(z.Hostname)
+		if err != nil {
+			err = msgp.WrapError(err, "Hostname")
+			return
+		}
+		if (zb0001Mask & 0x20) == 0 { // if not omitted
+			// write "service_name"
+			err = en.Append(0xac, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65)
+			if err != nil {
+				return
+			}
+			err = en.WriteString(z.ServiceName)
+			if err != nil {
+				err = msgp.WrapError(err, "ServiceName")
+				return
+			}
+		}
+		if (zb0001Mask & 0x40) == 0 { // if not omitted
+			// write "service_env"
+			err = en.Append(0xab, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x5f, 0x65, 0x6e, 0x76)
+			if err != nil {
+				return
+			}
+			err = en.WriteString(z.ServiceEnv)
+			if err != nil {
+				err = msgp.WrapError(err, "ServiceEnv")
+				return
+			}
+		}
+		if (zb0001Mask & 0x80) == 0 { // if not omitted
+			// write "service_version"
+			err = en.Append(0xaf, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+			if err != nil {
+				return
+			}
+			err = en.WriteString(z.ServiceVersion)
+			if err != nil {
+				err = msgp.WrapError(err, "ServiceVersion")
+				return
+			}
+		}
 	}
 	return
 }
@@ -108,19 +208,64 @@ func (z *TracerMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *TracerMetadata) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 4
-	// string "schema_version"
-	o = append(o, 0x84, 0xae, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
-	o = msgp.AppendUint8(o, z.SchemaVersion)
-	// string "runtime_id"
-	o = append(o, 0xaa, 0x72, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x5f, 0x69, 0x64)
-	o = msgp.AppendString(o, z.RuntimeID)
-	// string "tracer_language"
-	o = append(o, 0xaf, 0x74, 0x72, 0x61, 0x63, 0x65, 0x72, 0x5f, 0x6c, 0x61, 0x6e, 0x67, 0x75, 0x61, 0x67, 0x65)
-	o = msgp.AppendString(o, z.TracerLanguage)
-	// string "service_name"
-	o = append(o, 0xac, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65)
-	o = msgp.AppendString(o, z.ServiceName)
+	// check for omitted fields
+	zb0001Len := uint32(8)
+	var zb0001Mask uint8 /* 8 bits */
+	_ = zb0001Mask
+	if z.RuntimeID == "" {
+		zb0001Len--
+		zb0001Mask |= 0x2
+	}
+	if z.ServiceName == "" {
+		zb0001Len--
+		zb0001Mask |= 0x20
+	}
+	if z.ServiceEnv == "" {
+		zb0001Len--
+		zb0001Mask |= 0x40
+	}
+	if z.ServiceVersion == "" {
+		zb0001Len--
+		zb0001Mask |= 0x80
+	}
+	// variable map header, size zb0001Len
+	o = append(o, 0x80|uint8(zb0001Len))
+
+	// skip if no fields are to be emitted
+	if zb0001Len != 0 {
+		// string "schema_version"
+		o = append(o, 0xae, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+		o = msgp.AppendUint8(o, z.SchemaVersion)
+		if (zb0001Mask & 0x2) == 0 { // if not omitted
+			// string "runtime_id"
+			o = append(o, 0xaa, 0x72, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x5f, 0x69, 0x64)
+			o = msgp.AppendString(o, z.RuntimeID)
+		}
+		// string "tracer_language"
+		o = append(o, 0xaf, 0x74, 0x72, 0x61, 0x63, 0x65, 0x72, 0x5f, 0x6c, 0x61, 0x6e, 0x67, 0x75, 0x61, 0x67, 0x65)
+		o = msgp.AppendString(o, z.TracerLanguage)
+		// string "tracer_version"
+		o = append(o, 0xae, 0x74, 0x72, 0x61, 0x63, 0x65, 0x72, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+		o = msgp.AppendString(o, z.TracerVersion)
+		// string "hostname"
+		o = append(o, 0xa8, 0x68, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65)
+		o = msgp.AppendString(o, z.Hostname)
+		if (zb0001Mask & 0x20) == 0 { // if not omitted
+			// string "service_name"
+			o = append(o, 0xac, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65)
+			o = msgp.AppendString(o, z.ServiceName)
+		}
+		if (zb0001Mask & 0x40) == 0 { // if not omitted
+			// string "service_env"
+			o = append(o, 0xab, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x5f, 0x65, 0x6e, 0x76)
+			o = msgp.AppendString(o, z.ServiceEnv)
+		}
+		if (zb0001Mask & 0x80) == 0 { // if not omitted
+			// string "service_version"
+			o = append(o, 0xaf, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+			o = msgp.AppendString(o, z.ServiceVersion)
+		}
+	}
 	return
 }
 
@@ -160,10 +305,34 @@ func (z *TracerMetadata) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "TracerLanguage")
 				return
 			}
+		case "tracer_version":
+			z.TracerVersion, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "TracerVersion")
+				return
+			}
+		case "hostname":
+			z.Hostname, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Hostname")
+				return
+			}
 		case "service_name":
 			z.ServiceName, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "ServiceName")
+				return
+			}
+		case "service_env":
+			z.ServiceEnv, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "ServiceEnv")
+				return
+			}
+		case "service_version":
+			z.ServiceVersion, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "ServiceVersion")
 				return
 			}
 		default:
@@ -180,6 +349,6 @@ func (z *TracerMetadata) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *TracerMetadata) Msgsize() (s int) {
-	s = 1 + 15 + msgp.Uint8Size + 11 + msgp.StringPrefixSize + len(z.RuntimeID) + 16 + msgp.StringPrefixSize + len(z.TracerLanguage) + 13 + msgp.StringPrefixSize + len(z.ServiceName)
+	s = 1 + 15 + msgp.Uint8Size + 11 + msgp.StringPrefixSize + len(z.RuntimeID) + 16 + msgp.StringPrefixSize + len(z.TracerLanguage) + 15 + msgp.StringPrefixSize + len(z.TracerVersion) + 9 + msgp.StringPrefixSize + len(z.Hostname) + 13 + msgp.StringPrefixSize + len(z.ServiceName) + 12 + msgp.StringPrefixSize + len(z.ServiceEnv) + 16 + msgp.StringPrefixSize + len(z.ServiceVersion)
 	return
 }

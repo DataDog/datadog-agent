@@ -139,7 +139,7 @@ TAIL_CALL_CLASSIFIER_FNC(dns_response, struct __sk_buff *skb) {
     int len = pkt->payload_len;
 
     if (len > DNS_RECEIVE_MAX_LENGTH) {
-        len = DNS_RECEIVE_MAX_LENGTH;
+        return ACT_OK;
     }
 
     if(len <= sizeof(struct dnshdr)) {

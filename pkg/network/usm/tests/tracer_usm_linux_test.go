@@ -2303,9 +2303,9 @@ func testHTTPLikeSketches(t *testing.T, tr *tracer.Tracer, client *nethttp.Clien
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 
-		requests := conns.HTTP
+		requests := conns.USMData.HTTP
 		if isHTTP2 {
-			requests = conns.HTTP2
+			requests = conns.USMData.HTTP2
 		}
 		if getRequestStats == nil || postRequestsStats == nil {
 			require.True(ct, len(requests) > 0, "no requests")
@@ -2425,8 +2425,7 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 	record1 := &kgo.Record{Topic: topicName1, Value: []byte("Hello Kafka!")}
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
-	require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr(), "record had a produce error while synchronously producing")
-	require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr(), "record had a produce error while synchronously producing")
+	require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record1).FirstErr(), "record had a produce error while synchronously producing")
 
 	record2 := &kgo.Record{Topic: topicName2, Value: []byte("Hello Kafka!")}
 	ctxTimeout, cancel = context.WithTimeout(context.Background(), time.Second*5)
@@ -2438,27 +2437,46 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 	require.Empty(t, fetches.Errors())
 	require.Len(t, fetches.Records(), 1)
 
-	var fetchRequestStats, produceRequestsStats *kafka.RequestStats
+	localhostAddress := util.AddressFromString(localhost)
+	var fetchRequestStats, produceTopic1RequestsStats, produceTopic2RequestsStats *kafka.RequestStats
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 
-		requests := conns.Kafka
-		if fetchRequestStats == nil || produceRequestsStats == nil {
-			require.True(ct, len(requests) > 0, "no requests")
+		requests := conns.USMData.Kafka
+		if fetchRequestStats == nil || produceTopic1RequestsStats == nil || produceTopic2RequestsStats == nil {
+			require.Truef(ct, len(requests) > 0, "no requests; fetch: is nil? %v; produce t1: is nil? %v; produce t2: is nil? %v", fetchRequestStats == nil, produceTopic1RequestsStats == nil, produceTopic2RequestsStats == nil)
 		}
 
 		for key, stats := range requests {
-			if fetchRequestStats != nil && produceRequestsStats != nil {
-				break
+			srcAddr := util.FromLowHigh(key.SrcIPLow, key.SrcIPHigh)
+			if srcAddr != localhostAddress {
+				continue
 			}
 
 			if key.TopicName.Get() == topicName2 && key.RequestAPIKey == kafka.FetchAPIKey {
-				fetchRequestStats = stats
+				if fetchRequestStats == nil {
+					fetchRequestStats = stats
+				} else {
+					fetchRequestStats.CombineWith(stats)
+				}
 				continue
 			}
 			if key.TopicName.Get() == topicName1 && key.RequestAPIKey == kafka.ProduceAPIKey {
-				produceRequestsStats = stats
+				if produceTopic1RequestsStats == nil {
+					produceTopic1RequestsStats = stats
+				} else {
+					produceTopic1RequestsStats.CombineWith(stats)
+				}
+				continue
+			}
+
+			if key.TopicName.Get() == topicName2 && key.RequestAPIKey == kafka.ProduceAPIKey {
+				if produceTopic2RequestsStats == nil {
+					produceTopic2RequestsStats = stats
+				} else {
+					produceTopic2RequestsStats.CombineWith(stats)
+				}
 				continue
 			}
 		}
@@ -2470,13 +2488,20 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 		require.Nil(ct, fetchRequestStats.ErrorCodeToStat[0].Latencies)
 		require.NotZero(ct, fetchRequestStats.ErrorCodeToStat[0].FirstLatencySample)
 
-		require.NotNil(ct, produceRequestsStats)
-		require.Len(ct, produceRequestsStats.ErrorCodeToStat, 1)
-		require.NotNil(ct, produceRequestsStats.ErrorCodeToStat[0])
-		require.Equal(ct, 2, produceRequestsStats.ErrorCodeToStat[0].Count)
-		require.NotNil(ct, produceRequestsStats.ErrorCodeToStat[0].Latencies)
-		require.NotZero(ct, produceRequestsStats.ErrorCodeToStat[0].FirstLatencySample)
-		require.Equal(ct, float64(2), produceRequestsStats.ErrorCodeToStat[0].Latencies.GetCount())
+		require.NotNil(ct, produceTopic1RequestsStats)
+		require.Len(ct, produceTopic1RequestsStats.ErrorCodeToStat, 1)
+		require.NotNil(ct, produceTopic1RequestsStats.ErrorCodeToStat[0])
+		require.Equal(ct, 2, produceTopic1RequestsStats.ErrorCodeToStat[0].Count)
+		require.NotNil(ct, produceTopic1RequestsStats.ErrorCodeToStat[0].Latencies)
+		require.Zero(ct, produceTopic1RequestsStats.ErrorCodeToStat[0].FirstLatencySample) // Since we reported 2 records in the same event, we don't have FirstLatencySample.
+		require.Equal(ct, float64(2), produceTopic1RequestsStats.ErrorCodeToStat[0].Latencies.GetCount())
+
+		require.NotNil(ct, produceTopic2RequestsStats)
+		require.Len(ct, produceTopic2RequestsStats.ErrorCodeToStat, 1)
+		require.NotNil(ct, produceTopic2RequestsStats.ErrorCodeToStat[0])
+		require.Equal(ct, 1, produceTopic2RequestsStats.ErrorCodeToStat[0].Count)
+		require.Nil(ct, produceTopic2RequestsStats.ErrorCodeToStat[0].Latencies)
+		require.NotZero(ct, produceTopic2RequestsStats.ErrorCodeToStat[0].FirstLatencySample) // Since we reported 2 records in the same event, we don't have FirstLatencySample.
 	}, 10*time.Second, 1*time.Second)
 }
 
@@ -2502,7 +2527,7 @@ func testPostgresSketches(t *testing.T, tr *tracer.Tracer) {
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 
-		requests := conns.Postgres
+		requests := conns.USMData.Postgres
 		if insertRequestStats == nil || selectRequestsStats == nil {
 			require.True(ct, len(requests) > 0, "no requests")
 		}

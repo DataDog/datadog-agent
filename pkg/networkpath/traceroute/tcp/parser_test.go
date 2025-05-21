@@ -179,7 +179,9 @@ func Test_MatchTCP(t *testing.T) {
 	for _, test := range tts {
 		t.Run(test.description, func(t *testing.T) {
 			tp := newParser()
-			actualIP, err := tp.MatchTCP(test.header, test.payload, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
+			// packetID is not used for TCP matching
+			packetID := uint16(2222)
+			actualIP, err := tp.MatchTCP(test.header, test.payload, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum, packetID)
 			if test.expectedErrMsg != "" {
 				require.Error(t, err)
 				assert.True(t, strings.Contains(err.Error(), test.expectedErrMsg), fmt.Sprintf("expected %q, got %q", test.expectedErrMsg, err.Error()))
