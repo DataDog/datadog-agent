@@ -17,7 +17,7 @@ import (
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
-//go:generate go run ./main.go ./generated
+//go:generate go run ./main.go ./gen
 
 func main() {
 	if len(os.Args) != 2 {
@@ -32,8 +32,25 @@ func main() {
 }
 
 func generate(outputDir string) error {
-	for unit, content := range systemdUnits {
-		filePath := filepath.Join(outputDir, unit)
+	err := os.MkdirAll(filepath.Join(outputDir, "oci"), 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create directory for oci: %w", err)
+	}
+	err = os.MkdirAll(filepath.Join(outputDir, "debrpm"), 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create directory for deb-rpm: %w", err)
+	}
+	for unit, content := range systemdUnitsOCI {
+		filePath := filepath.Join(outputDir, "oci", unit)
+		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+			return fmt.Errorf("failed to create directory for %s: %w", unit, err)
+		}
+		if err := os.WriteFile(filePath, content, 0644); err != nil {
+			return fmt.Errorf("failed to write %s: %w", unit, err)
+		}
+	}
+	for unit, content := range systemdUnitsDebRpm {
+		filePath := filepath.Join(outputDir, "debrpm", unit)
 		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
 			return fmt.Errorf("failed to create directory for %s: %w", unit, err)
 		}
@@ -68,22 +85,8 @@ func mustReadSystemdUnit(name string, data systemdTemplateData) []byte {
 	return buf.Bytes()
 }
 
-var (
-	stableData = systemdTemplateData{
-		InstallDir:       "/opt/datadog-packages/datadog-agent/stable",
-		EtcDir:           "/etc/datadog-agent",
-		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/stable",
-		Stable:           true,
-	}
-	expData = systemdTemplateData{
-		InstallDir:       "/opt/datadog-packages/datadog-agent/experiment",
-		EtcDir:           "/etc/datadog-agent",
-		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/experiment",
-		Stable:           false,
-	}
-	systemdUnits = map[string][]byte{
-		"datadog-installer.service":           mustReadSystemdUnit("datadog-installer.service", stableData),
-		"datadog-installer-exp.service":       mustReadSystemdUnit("datadog-installer.service", expData),
+func systemdUnits(stableData, expData systemdTemplateData, includeInstaller bool) map[string][]byte {
+	units := map[string][]byte{
 		"datadog-agent.service":               mustReadSystemdUnit("datadog-agent.service", stableData),
 		"datadog-agent-exp.service":           mustReadSystemdUnit("datadog-agent.service", expData),
 		"datadog-agent-installer.service":     mustReadSystemdUnit("datadog-agent-installer.service", stableData),
@@ -97,4 +100,39 @@ var (
 		"datadog-agent-sysprobe.service":      mustReadSystemdUnit("datadog-agent-sysprobe.service", stableData),
 		"datadog-agent-sysprobe-exp.service":  mustReadSystemdUnit("datadog-agent-sysprobe.service", expData),
 	}
+	if includeInstaller {
+		units["datadog-installer.service"] = mustReadSystemdUnit("datadog-installer.service", stableData)
+		units["datadog-installer-exp.service"] = mustReadSystemdUnit("datadog-installer.service", expData)
+	}
+	return units
+}
+
+var (
+	stableDataOCI = systemdTemplateData{
+		InstallDir:       "/opt/datadog-packages/datadog-agent/stable",
+		EtcDir:           "/etc/datadog-agent",
+		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/stable",
+		Stable:           true,
+	}
+	expDataOCI = systemdTemplateData{
+		InstallDir:       "/opt/datadog-packages/datadog-agent/experiment",
+		EtcDir:           "/etc/datadog-agent",
+		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/experiment",
+		Stable:           false,
+	}
+
+	stableDataDebRpm = systemdTemplateData{
+		InstallDir:       "/opt/datadog-agent",
+		EtcDir:           "/etc/datadog-agent",
+		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/stable",
+		Stable:           true,
+	}
+	expDataDebRpm = systemdTemplateData{
+		InstallDir:       "/opt/datadog-agent",
+		EtcDir:           "/etc/datadog-agent",
+		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/experiment",
+		Stable:           false,
+	}
+	systemdUnitsOCI    = systemdUnits(stableDataOCI, expDataOCI, true)
+	systemdUnitsDebRpm = systemdUnits(stableDataDebRpm, expDataDebRpm, false)
 )
