@@ -10,6 +10,7 @@ package probe
 
 import (
 	"encoding/binary"
+	"fmt"
 	"path"
 	"strings"
 	"syscall"
@@ -686,8 +687,8 @@ func (fh *EBPFFieldHandlers) ResolveOnDemandName(_ *model.Event, e *model.OnDema
 }
 
 func resolveOnDemandArgStr(e *model.OnDemandEvent, index int) string {
-	if !(1 <= index && index <= 6) {
-		panic("index must be between 1 and 6")
+	if !(1 <= index && index <= model.OnDemandParsedArgsCount) {
+		panic(fmt.Sprintf("index must be between 1 and %d", model.OnDemandParsedArgsCount))
 	}
 
 	start := (index - 1) * model.OnDemandPerArgSize
@@ -696,8 +697,8 @@ func resolveOnDemandArgStr(e *model.OnDemandEvent, index int) string {
 }
 
 func resolveOnDemandArgUint(e *model.OnDemandEvent, index int) int {
-	if !(1 <= index && index <= 6) {
-		panic("index must be between 1 and 6")
+	if !(1 <= index && index <= model.OnDemandParsedArgsCount) {
+		panic(fmt.Sprintf("index must be between 1 and %d", model.OnDemandParsedArgsCount))
 	}
 
 	start := (index - 1) * model.OnDemandPerArgSize

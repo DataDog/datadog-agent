@@ -1359,7 +1359,7 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *OnDemandEvent) UnmarshalBinary(data []byte) (int, error) {
-	const eventSize = 4 + 6*OnDemandPerArgSize
+	const eventSize = 4 + OnDemandParsedArgsCount*OnDemandPerArgSize
 	if len(data) < eventSize {
 		return 0, ErrNotEnoughData
 	}
