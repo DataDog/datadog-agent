@@ -37,6 +37,10 @@ var datadogAgentPackage = hooks{
 	postPromoteExperiment: postPromoteExperimentDatadogAgent,
 	preStopExperiment:     preStopExperimentDatadogAgent,
 	prePromoteExperiment:  prePromoteExperimentDatadogAgent,
+
+	postStartConfigExperiment:   postStartConfigExperimentDatadogAgent,
+	preStopConfigExperiment:     preStopConfigExperimentDatadogAgent,
+	postPromoteConfigExperiment: postPromoteConfigExperimentDatadogAgent,
 }
 
 const (
@@ -340,6 +344,41 @@ func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 		return err
 	}
 	err = agentService.RestartStable(ctx)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// postStartConfigExperimentDatadogAgent performs post-start steps for the config experiment.
+func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
+	if err := agentService.WriteExperiment(ctx); err != nil {
+		return err
+	}
+	if err := agentService.StartExperiment(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+// preStopConfigExperimentDatadogAgent performs pre-stop steps for the config experiment.
+func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
+	detachedCtx := context.WithoutCancel(ctx.Context)
+	ctx.Context = detachedCtx
+	if err := agentService.StopExperiment(ctx); err != nil {
+		return fmt.Errorf("failed to stop experiment unit: %s", err)
+	}
+	if err := agentService.RemoveExperiment(ctx); err != nil {
+		return fmt.Errorf("failed to remove experiment unit: %s", err)
+	}
+	return nil
+}
+
+// postPromoteConfigExperimentDatadogAgent performs post-promote steps for the config experiment.
+func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
+	detachedCtx := context.WithoutCancel(ctx.Context)
+	ctx.Context = detachedCtx
+	err := agentService.RestartStable(ctx)
 	if err != nil {
 		return err
 	}
