@@ -404,3 +404,20 @@ func TestRepairDirectoryDifferentCasing(t *testing.T) {
 	err := repairDirectory(sourceDir, targetDir)
 	assert.Error(t, err)
 }
+
+func TestDeleteSymlinkedPackage(t *testing.T) {
+	dir := t.TempDir()
+	repository := createTestRepository(t, dir, "v1", nil)
+
+	tmpDir := t.TempDir()
+	err := os.Rename(filepath.Join(repository.rootPath, "v1"), filepath.Join(tmpDir, "v1"))
+	assert.NoError(t, err)
+	err = os.Symlink(filepath.Join(tmpDir, "v1"), filepath.Join(repository.rootPath, "v1"))
+	assert.NoError(t, err)
+
+	err = repository.Delete(context.Background())
+	assert.NoError(t, err)
+	assert.NoDirExists(t, filepath.Join(tmpDir, "v1"))
+	assert.NoFileExists(t, filepath.Join(repository.rootPath, "v1"))
+	assert.NoDirExists(t, filepath.Join(repository.rootPath, "v1"))
+}

@@ -449,8 +449,15 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 		}
 
 		log.Debugf("Removing package %s", pkgRepositoryPath)
+		realPkgRepositoryPath, err := filepath.EvalSymlinks(pkgRepositoryPath)
+		if err != nil {
+			log.Errorf("could not evaluate symlinks for package %s: %v", pkgRepositoryPath, err)
+		}
 		if err := os.RemoveAll(pkgRepositoryPath); err != nil {
 			log.Errorf("could not remove package %s directory, will retry: %v", pkgRepositoryPath, err)
+		}
+		if err := os.RemoveAll(realPkgRepositoryPath); err != nil {
+			log.Errorf("could not remove package %s directory, will retry: %v", realPkgRepositoryPath, err)
 		}
 	}
 
