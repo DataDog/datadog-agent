@@ -32,3 +32,14 @@ func Restart(ctx context.Context, name string) error {
 func Stop(ctx context.Context, name string) error {
 	return telemetry.CommandContext(ctx, "initctl", "stop", name).Run()
 }
+
+// StopAll stops all upstart services using initctl
+func StopAll(ctx context.Context, names ...string) error {
+	for _, name := range names {
+		err := Stop(ctx, name)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

@@ -7,13 +7,10 @@
 package installerexecimpl
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
-
 	installerexec "github.com/DataDog/datadog-agent/comp/updater/installerexec/def"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	iexec "github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // Requires defines the dependencies for the installerexec component
@@ -26,17 +23,7 @@ type Provides struct {
 
 // NewComponent creates a new installerexec component
 func NewComponent(_ Requires) (Provides, error) {
-	agentPath, err := os.Executable()
-	if err != nil {
-		return Provides{}, fmt.Errorf("could not retrieve datadog-agent path: %w", err)
-	}
-
-	installerPath, err := filepath.Rel(agentPath, "/../../embedded/bin/installer")
-	if err != nil {
-		return Provides{}, fmt.Errorf("could not retrieve datadog-installer path: %w", err)
-	}
-
 	return Provides{
-		Comp: iexec.NewInstallerExec(&env.Env{}, installerPath),
+		Comp: iexec.NewInstallerExec(&env.Env{}, defaultpaths.InstallerPath),
 	}, nil
 }

@@ -8,19 +8,19 @@ package commands
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 )
 
 var (
 	// MockInstaller is used for testing
-	MockInstaller installer.Installer
+	MockInstaller installertypes.Installer
 )
 
 type installerMock struct{}
 
 // NewInstallerMock returns a new installerMock.
-func NewInstallerMock() installer.Installer {
+func NewInstallerMock() installertypes.Installer {
 	return &installerMock{}
 }
 

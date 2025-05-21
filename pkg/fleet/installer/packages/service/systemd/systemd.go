@@ -14,18 +14,15 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	// UnitsPath is the path where systemd unit files are stored
-	UnitsPath = "/etc/systemd/system"
+	userUnitsPath = "/etc/systemd/system"
 )
 
 // StopUnits stops multiple systemd units
@@ -83,6 +80,17 @@ func EnableUnit(ctx context.Context, unit string) error {
 	return telemetry.CommandContext(ctx, "systemctl", "enable", unit).Run()
 }
 
+// DisableUnits disables multiple systemd units
+func DisableUnits(ctx context.Context, units ...string) error {
+	for _, unit := range units {
+		err := DisableUnit(ctx, unit)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // DisableUnit disables a systemd unit
 func DisableUnit(ctx context.Context, unit string) error {
 	enabledErr := telemetry.CommandContext(ctx, "systemctl", "is-enabled", "--quiet", unit).Run()
@@ -103,68 +111,17 @@ func DisableUnit(ctx context.Context, unit string) error {
 	return err
 }
 
-// WriteEmbeddedUnitsAndReload writes a systemd unit from embedded resources and reloads the systemd daemon
-func WriteEmbeddedUnitsAndReload(ctx context.Context, units ...string) (err error) {
-	for _, unit := range units {
-		err = WriteEmbeddedUnit(ctx, unit)
-		if err != nil {
-			return err
-		}
-	}
-	return Reload(ctx)
-}
-
-// WriteEmbeddedUnit writes a systemd unit from embedded resources
-func WriteEmbeddedUnit(ctx context.Context, unit string) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "write_embedded_unit")
-	defer func() { span.Finish(err) }()
-	span.SetTag("unit", unit)
-	content, err := embedded.GetSystemdUnit(unit)
-	if err != nil {
-		return fmt.Errorf("error reading embedded unit %s: %w", unit, err)
-	}
-	err = os.MkdirAll(UnitsPath, 0755)
-	if err != nil {
-		return fmt.Errorf("error creating systemd directory: %w", err)
-	}
-	unitPath := filepath.Join(UnitsPath, unit)
-	return os.WriteFile(unitPath, content, 0644)
-}
-
-// RemoveUnits removes multiple systemd units
-func RemoveUnits(ctx context.Context, units ...string) error {
-	for _, unit := range units {
-		err := RemoveUnit(ctx, unit)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// RemoveUnit removes a systemd unit
-func RemoveUnit(ctx context.Context, unit string) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "remove_unit")
-	defer func() { span.Finish(err) }()
-	span.SetTag("unit", unit)
-	err = os.Remove(path.Join(UnitsPath, unit))
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	return nil
-}
-
 // WriteUnitOverride writes a systemd unit override
 func WriteUnitOverride(ctx context.Context, unit string, name string, content string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "write_unit_override")
 	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
 	span.SetTag("name", name)
-	err = os.MkdirAll(filepath.Join(UnitsPath, unit+".d"), 0755)
+	err = os.MkdirAll(filepath.Join(userUnitsPath, unit+".d"), 0755)
 	if err != nil {
 		return fmt.Errorf("error creating systemd directory: %w", err)
 	}
-	overridePath := filepath.Join(UnitsPath, unit+".d", fmt.Sprintf("%s.conf", name))
+	overridePath := filepath.Join(userUnitsPath, unit+".d", fmt.Sprintf("%s.conf", name))
 	return os.WriteFile(overridePath, []byte(content), 0644)
 }
 

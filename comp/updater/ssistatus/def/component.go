@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package ssistatus is the ssistatus component.
+// Package ssistatus is a component to regularly retrieve the status of APM Single Step Instrumentation and
+// add it to the inventoryagent payload.
 package ssistatus
 
 // team: fleet
