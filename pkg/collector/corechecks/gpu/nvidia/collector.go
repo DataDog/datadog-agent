@@ -36,6 +36,7 @@ const (
 	remappedRows CollectorName = "remapped_rows"
 	samples      CollectorName = "samples"
 	nvlink       CollectorName = "nvlink"
+	global       CollectorName = "global"
 )
 
 // Metric represents a single metric collected from the NVML library.
@@ -84,22 +85,39 @@ func BuildCollectors(deps *CollectorDependencies) ([]Collector, error) {
 	return buildCollectors(deps, factory)
 }
 
+// buildCollectors is the internal function that creates all collectors.
 func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
 	var collectors []Collector
+	totalDeviceCount := deps.DeviceCache.Count()
+	if totalDeviceCount == 0 {
+		// No devices, so no collectors (including global) are needed.
+		return collectors, nil
+	}
 
+	// Iterate over all devices to create collectors for each.
 	for _, dev := range deps.DeviceCache.All() {
+		devInfo := dev.GetDeviceInfo() // Get device info once to avoid multiple calls
+
+		// Instantiate standard collectors from the factory (builders map) for this device
 		for name, builder := range builders {
 			c, err := builder(dev)
 			if errors.Is(err, errUnsupportedDevice) {
-				log.Warnf("device %s does not support collector %s", dev.GetDeviceInfo().UUID, name)
+				log.Debugf("device %s does not support collector %s", devInfo.UUID, name)
 				continue
 			} else if err != nil {
-				log.Warnf("failed to create collector %s: %s", name, err)
+				log.Warnf("failed to create collector %s for device %s: %s", name, devInfo.UUID, err)
 				continue
 			}
-
 			collectors = append(collectors, c)
 		}
+
+		// Instantiate and add the global collector for this device context
+		globalCol, err := newGlobalCollector(devInfo.UUID, totalDeviceCount)
+		if err != nil {
+			log.Warnf("Failed to create global collector for device %s: %s", devInfo.UUID, err)
+			continue // Skip adding this global collector instance if creation failed
+		}
+		collectors = append(collectors, globalCol)
 	}
 
 	return collectors, nil

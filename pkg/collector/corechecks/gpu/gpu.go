@@ -41,7 +41,6 @@ const (
 	metricNameCoreLimit   = gpuMetricsNs + "core.limit"
 	metricNameMemoryUsage = gpuMetricsNs + "memory.usage"
 	metricNameMemoryLimit = gpuMetricsNs + "memory.limit"
-	metricNameDeviceTotal = gpuMetricsNs + "device.total"
 )
 
 // Check represents the GPU check that will be periodically executed via the Run() function
@@ -347,51 +346,47 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender, gpuToContainersMap map[string
 		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
 	}
 
+	var multiErr error // To accumulate errors from the loop
 	for _, collector := range c.collectors {
 		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
 		metrics, collectErr := collector.Collect()
 		if collectErr != nil {
 			c.telemetry.collectorErrors.Add(1, string(collector.Name()))
-			err = multierror.Append(err, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("collector '%s' (device UUID: '%s') failed: %w", collector.Name(), collector.DeviceUUID(), collectErr))
+			continue // Continue with other collectors even if one fails
 		}
 
 		var extraTags []string
 		for _, container := range gpuToContainersMap[collector.DeviceUUID()] {
 			entityID := taggertypes.NewEntityID(taggertypes.ContainerID, container.EntityID.ID)
-			tags, err := c.tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
-			if err != nil {
-				log.Warnf("Error collecting container tags for GPU %s: %s", collector.DeviceUUID(), err)
-				continue
+			tags, tagErr := c.tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
+			if tagErr != nil {
+				multiErr = multierror.Append(multiErr, fmt.Errorf("tagger error for GPU (UUID: %s): %w", collector.DeviceUUID(), tagErr))
+				continue // Continue to the next container, but the error is recorded
 			}
-
 			extraTags = append(extraTags, tags...)
 		}
+
+		// Get device-specific tags. If DeviceUUID() is empty, deviceSpecificTags will be nil (no tags).
+		deviceSpecificTags := c.deviceTags[collector.DeviceUUID()]
+		combinedTags := append(deviceSpecificTags, extraTags...)
 
 		for _, metric := range metrics {
 			metricName := gpuMetricsNs + metric.Name
 			switch metric.Type {
 			case ddmetrics.CountType:
-				snd.Count(metricName, metric.Value, "", append(c.deviceTags[collector.DeviceUUID()], extraTags...))
+				snd.Count(metricName, metric.Value, "", combinedTags)
 			case ddmetrics.GaugeType:
-				snd.Gauge(metricName, metric.Value, "", append(c.deviceTags[collector.DeviceUUID()], extraTags...))
+				snd.Gauge(metricName, metric.Value, "", combinedTags)
 			default:
-				return fmt.Errorf("unsupported metric type %s for metric %s", metric.Type, metricName)
+				errMsg := fmt.Errorf("unsupported metric type '%s' for metric '%s' from collector '%s'", metric.Type, metricName, collector.Name())
+				multiErr = multierror.Append(multiErr, errMsg)
+				continue // Process next metric
 			}
 		}
 
 		c.telemetry.metricsSent.Add(float64(len(metrics)), string(collector.Name()))
 	}
 
-	return c.emitGlobalNvmlMetrics(snd)
-}
-
-func (c *Check) emitGlobalNvmlMetrics(snd sender.Sender) error {
-	// Collect global metrics such as device count
-	devCount := c.deviceCache.Count()
-
-	snd.Gauge(metricNameDeviceTotal, float64(devCount), "", nil)
-
-	c.telemetry.metricsSent.Add(1, "global")
-
-	return nil
+	return multiErr // Return accumulated errors from the collector loop
 }
