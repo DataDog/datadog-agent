@@ -14,10 +14,10 @@ enum param_kind_t {
 	switch (param##idx##kind) { \
 	case PARAM_KIND_INTEGER: \
 		value = CTX_PARM##idx(ctx); \
-		bpf_probe_read(&event.data[(idx - 1) * ON_DEMAND_PER_ARG_SIZE], sizeof(value), &value); \
+		bpf_probe_read(&event->data[(idx - 1) * ON_DEMAND_PER_ARG_SIZE], sizeof(value), &value); \
 		break; \
 	case PARAM_KIND_NULL_STR: \
-		buf = &event.data[(idx - 1) * ON_DEMAND_PER_ARG_SIZE]; \
+		buf = &event->data[(idx - 1) * ON_DEMAND_PER_ARG_SIZE]; \
 		path = (char *)CTX_PARM##idx(ctx); \
 		bpf_probe_read_str(buf, ON_DEMAND_PER_ARG_SIZE, path); \
 		break; \
@@ -32,10 +32,10 @@ enum param_kind_t {
                                              \
 	switch (param##idx##kind) { \
 	case PARAM_KIND_INTEGER: \
-		bpf_probe_read(&event.data[(idx - 1) * ON_DEMAND_PER_ARG_SIZE], sizeof(arg##idx), &arg##idx); \
+		bpf_probe_read(&event->data[(idx - 1) * ON_DEMAND_PER_ARG_SIZE], sizeof(arg##idx), &arg##idx); \
 		break; \
 	case PARAM_KIND_NULL_STR: \
-		buf = &event.data[(idx - 1) * ON_DEMAND_PER_ARG_SIZE]; \
+		buf = &event->data[(idx - 1) * ON_DEMAND_PER_ARG_SIZE]; \
 		path = (char *)arg##idx; \
 		bpf_probe_read_str(buf, ON_DEMAND_PER_ARG_SIZE, path); \
 		break; \
@@ -43,18 +43,24 @@ enum param_kind_t {
 
 #define HOOK_ON_DEMAND HOOK_ENTRY("parse_args")
 
+struct on_demand_event_t* __attribute__((always_inline)) get_on_demand_event() {
+	u32 key = 0;
+	return bpf_map_lookup_elem(&on_demand_event_gen, &key);
+}
+
 HOOK_ON_DEMAND
 int hook_on_demand(ctx_t *ctx) {
 	u64 synth_id;
     LOAD_CONSTANT("synth_id", synth_id);
 
-	struct on_demand_event_t event = {
-		.synth_id = synth_id,
-	};
+	struct on_demand_event_t *event = get_on_demand_event();
+	if (!event) return 0;
 
-	struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
-    fill_span_context(&event.span);
+	event->synth_id = synth_id;
+
+	struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_container_context(entry, &event->container);
+    fill_span_context(&event->span);
 
 	char *path;
 	char *buf;
@@ -67,7 +73,7 @@ int hook_on_demand(ctx_t *ctx) {
 	param_parsing_regular(5);
 	param_parsing_regular(6);
 
-	send_event(ctx, EVENT_ON_DEMAND, event);
+	send_event_ptr(ctx, EVENT_ON_DEMAND, event);
 
     return 0;
 }
@@ -80,13 +86,14 @@ int hook_on_demand_syscall(ctx_t *ptctx) {
 	u64 synth_id;
     LOAD_CONSTANT("synth_id", synth_id);
 
-	struct on_demand_event_t event = {
-		.synth_id = synth_id,
-	};
+	struct on_demand_event_t *event = get_on_demand_event();
+	if (!event) return 0;
 
-	struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
-    fill_span_context(&event.span);
+	event->synth_id = synth_id;
+
+	struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_container_context(entry, &event->container);
+    fill_span_context(&event->span);
 
 	char *path;
 	char *buf;
@@ -98,7 +105,7 @@ int hook_on_demand_syscall(ctx_t *ptctx) {
 	param_parsing_syscall(5);
 	param_parsing_syscall(6);
 
-	send_event(ptctx, EVENT_ON_DEMAND, event);
+	send_event_ptr(ptctx, EVENT_ON_DEMAND, event);
 
     return 0;
 }
