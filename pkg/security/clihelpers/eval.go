@@ -105,7 +105,7 @@ func EvalRule(evalArgs EvalRuleParams) error {
 	}
 
 	if !evalArgs.UseWindowsModel {
-		approvers, err := ruleSet.GetApprovers(kfilters.GetCapababilities())
+		approvers, _, err := ruleSet.GetApprovers(kfilters.GetCapababilities())
 		if err != nil {
 			report.Error = err
 		} else {
@@ -300,7 +300,7 @@ func CheckPoliciesLocal(args CheckPoliciesLocalParams, writer io.Writer) error {
 		return err
 	}
 
-	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
+	report, err := kfilters.NewFilterReport(cfg, ruleSet)
 	if err != nil {
 		return err
 	}
