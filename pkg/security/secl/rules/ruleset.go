@@ -35,12 +35,13 @@ type Rule struct {
 	NoDiscarder bool
 }
 
+// DiscarderInvalidReport is a report of an invalid discarder
 type DiscarderInvalidReport struct {
 	RuleID eval.RuleID `json:"rule_id"`
 	Field  eval.Field  `json:"field"`
 }
 
-// DiscarderReport is a report of the discarders in the ruleset
+// DiscardersReport is a report of the discarders in the ruleset
 type DiscardersReport struct {
 	Supported []eval.Field             `json:"supported"`
 	Invalid   []DiscarderInvalidReport `json:"invalid"`
