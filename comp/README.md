@@ -664,7 +664,8 @@ Package localapiclient provides the local API client component.
 
 *Datadog Team*: fleet
 
-Package ssistatus is the ssistatus component.
+Package ssistatus is a component to regularly retrieve the status of APM Single Step Instrumentation and
+add it to the inventoryagent payload.
 
 ### [comp/updater/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/telemetry)
 
