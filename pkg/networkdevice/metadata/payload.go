@@ -44,6 +44,7 @@ type NetworkDevicesMetadata struct {
 	IPAddresses      []IPAddressMetadata      `json:"ip_addresses,omitempty"`
 	Links            []TopologyLinkMetadata   `json:"links,omitempty"`
 	VPNTunnels       []VPNTunnelMetadata      `json:"vpn_tunnels,omitempty"`
+	Routes           []RouteMetadata          `json:"routes,omitempty"`
 	NetflowExporters []NetflowExporter        `json:"netflow_exporters,omitempty"`
 	Diagnoses        []DiagnosisMetadata      `json:"diagnoses,omitempty"`
 	DeviceOIDs       []DeviceOID              `json:"device_oids,omitempty"`
@@ -187,6 +188,16 @@ type VPNTunnelEndpointAddress struct {
 	LocalAddress      string `json:"local_address"`
 	RemoteAddressType string `json:"remote_address_type"`
 	RemoteAddress     string `json:"remote_address"`
+}
+
+// RouteMetadata contains route metadata
+type RouteMetadata struct {
+	DeviceID        string `json:"device_id"`
+	InterfaceID     string `json:"interface_id"`
+	DestinationCidr string `json:"destination_cidr"`
+	NextHopIP       string `json:"next_hop_ip"`
+	RouteType       string `json:"route_type"`
+	Status          string `json:"status"`
 }
 
 // NetflowExporter contains netflow exporters info

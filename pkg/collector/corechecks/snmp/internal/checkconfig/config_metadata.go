@@ -307,6 +307,76 @@ var VPNMetadataConfig = profiledefinition.MetadataConfig{
 	},
 }
 
+// RouteTableMetadataConfig represents the metadata needed for route tables
+var RouteTableMetadataConfig = profiledefinition.MetadataConfig{
+	"ipforward_route_table_obsolete": {
+		Fields: map[string]profiledefinition.MetadataField{
+			"mask": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.24.2.1.2",
+					Name: "ipForwardMask",
+				},
+			},
+			"if_index": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.24.2.1.5",
+					Name: "ipForwardIfIndex",
+				},
+			},
+			"route_type": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.24.2.1.6",
+					Name: "ipForwardType",
+				},
+			},
+		},
+	},
+	"ipforward_route_table_deprecated": {
+		Fields: map[string]profiledefinition.MetadataField{
+			"if_index": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.24.4.1.5",
+					Name: "ipCidrRouteIfIndex",
+				},
+			},
+			"route_type": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.24.4.1.6",
+					Name: "ipCidrRouteType",
+				},
+			},
+			"route_status": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.24.4.1.16",
+					Name: "ipCidrRouteStatus",
+				},
+			},
+		},
+	},
+	"ipforward_route_table": {
+		Fields: map[string]profiledefinition.MetadataField{
+			"if_index": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.24.7.1.7",
+					Name: "inetCidrRouteIfIndex",
+				},
+			},
+			"route_type": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.24.7.1.8",
+					Name: "inetCidrRouteType",
+				},
+			},
+			"route_status": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.24.7.1.17",
+					Name: "inetCidrRouteStatus",
+				},
+			},
+		},
+	},
+}
+
 // updateMetadataDefinitionWithDefaults will add metadata config for resources
 // that does not have metadata definitions
 func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.MetadataConfig, collectTopology bool, collectVPN bool) profiledefinition.MetadataConfig {
@@ -318,6 +388,7 @@ func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.Metad
 	}
 	//if collectVPN {
 	mergeMetadata(newConfig, VPNMetadataConfig)
+	mergeMetadata(newConfig, RouteTableMetadataConfig)
 	//}
 	return newConfig
 }
