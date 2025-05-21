@@ -352,10 +352,10 @@ func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 
 // postStartConfigExperimentDatadogAgent performs post-start steps for the config experiment.
 func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
-	if err := agentServiceOCI.WriteExperiment(ctx); err != nil {
+	if err := agentService.WriteExperiment(ctx); err != nil {
 		return err
 	}
-	if err := agentServiceOCI.StartExperiment(ctx); err != nil {
+	if err := agentService.StartExperiment(ctx); err != nil {
 		return err
 	}
 	return nil
@@ -365,10 +365,10 @@ func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
 func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 	detachedCtx := context.WithoutCancel(ctx.Context)
 	ctx.Context = detachedCtx
-	if err := agentServiceOCI.StopExperiment(ctx); err != nil {
+	if err := agentService.StopExperiment(ctx); err != nil {
 		return fmt.Errorf("failed to stop experiment unit: %s", err)
 	}
-	if err := agentServiceOCI.RemoveExperiment(ctx); err != nil {
+	if err := agentService.RemoveExperiment(ctx); err != nil {
 		return fmt.Errorf("failed to remove experiment unit: %s", err)
 	}
 	return nil
@@ -378,7 +378,7 @@ func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 	detachedCtx := context.WithoutCancel(ctx.Context)
 	ctx.Context = detachedCtx
-	err := agentServiceOCI.RestartStable(ctx)
+	err := agentService.RestartStable(ctx)
 	if err != nil {
 		return err
 	}
