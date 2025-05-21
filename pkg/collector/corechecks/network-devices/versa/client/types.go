@@ -12,7 +12,8 @@ type Content interface {
 		int | // for row counts
 		[]TenantConfig |
 		OrganizationListResponse |
-		DirectorStatus
+		DirectorStatus |
+		SLAMetricsResponse
 }
 
 // DirectorStatus /versa/ncs-services/vnms/dashboard/vdStatus
@@ -306,4 +307,31 @@ type Organization struct {
 	ProviderOrg             bool     `json:"providerOrg"`
 	Depth                   int      `json:"depth"`
 	PushCaConfig            bool     `json:"pushCaConfig"`
+}
+
+// SLAMetricsResponse /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+// with query parameters
+type SLAMetricsResponse struct {
+	QTime                int             `json:"qTime"`
+	SEcho                int             `json:"sEcho"`
+	ITotalDisplayRecords int             `json:"iTotalDisplayRecords"`
+	ITotalRecords        int             `json:"iTotalRecords"`
+	AaData               [][]interface{} `json:"aaData"`
+}
+
+// SLAMetrics represents the columns to parse from the SLAMetricsResponse interface/API call
+type SLAMetrics struct {
+	// TODO: utilize this ordered list of fields for AaData
+	DrillKey            string
+	LocalSite           string
+	RemoteSite          string
+	LocalAccessCircuit  string
+	RemoteAccessCircuit string
+	ForwardingClass     string
+	Delay               float64
+	FwdDelayVar         float64
+	RevDelayVar         float64
+	FwdLossRatio        float64
+	RevLossRatio        float64
+	PDULossRatio        float64
 }
