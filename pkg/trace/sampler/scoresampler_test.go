@@ -31,7 +31,7 @@ func getTestErrorsSampler(tps float64) *ErrorsSampler {
 }
 
 func getTestTrace() (pb.Trace, *pb.Span) {
-	tID := randomTraceID()
+	tID := randomTraceID(rand.NewSource(time.Now().UnixNano()))
 	trace := pb.Trace{
 		&pb.Span{TraceID: tID, SpanID: 1, ParentID: 0, Start: 42, Duration: 1000000, Service: "mcnulty", Type: "web"},
 		&pb.Span{TraceID: tID, SpanID: 2, ParentID: 1, Start: 100, Duration: 200000, Service: "mcnulty", Type: "sql"},

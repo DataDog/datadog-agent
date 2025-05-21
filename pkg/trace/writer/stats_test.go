@@ -8,7 +8,6 @@ package writer
 import (
 	"compress/gzip"
 	"math"
-	"math/rand"
 	"net/url"
 	"runtime"
 	"sort"
@@ -17,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -24,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
-	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
@@ -244,9 +244,7 @@ func TestStatsWriter(t *testing.T) {
 			assert.Equal("agent-version", p.AgentVersion)
 		}
 	})
-
 	t.Run("no-split", func(t *testing.T) {
-		rand.Seed(1)
 		assert := assert.New(t)
 
 		sw, srv := testStatsWriter()
