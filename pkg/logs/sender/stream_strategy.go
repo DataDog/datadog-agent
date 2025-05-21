@@ -46,7 +46,10 @@ func (s *streamStrategy) Start() {
 			}
 
 			unencodedSize := len(msg.GetContent())
-			s.outputChan <- message.NewPayload([]*message.Message{msg}, encodedPayload, s.compression.ContentEncoding(), unencodedSize)
+
+			// Split the metadata from the message content to avoid holding the entire message in memory
+			meta := msg.MessageMetadata
+			s.outputChan <- message.NewPayload([]*message.MessageMetadata{&meta}, encodedPayload, s.compression.ContentEncoding(), unencodedSize)
 		}
 		s.done <- struct{}{}
 	}()

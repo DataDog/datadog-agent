@@ -36,22 +36,22 @@ type testWorkloadmetaListener struct {
 	services map[string]wlmListenerSvc
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
+// Listen is not implemented
 func (l *testWorkloadmetaListener) Listen(_ chan<- Service, _ chan<- Service) {
 	panic("not implemented")
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
+// Stop is not implemented
 func (l *testWorkloadmetaListener) Stop() {
 	panic("not implemented")
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
+// Store returns the workloadmeta store
 func (l *testWorkloadmetaListener) Store() workloadmeta.Component {
 	return l.store
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
+// AddService adds a service
 func (l *testWorkloadmetaListener) AddService(svcID string, svc Service, parentSvcID string) {
 	l.services[svcID] = wlmListenerSvc{
 		service: svc,
@@ -59,7 +59,7 @@ func (l *testWorkloadmetaListener) AddService(svcID string, svc Service, parentS
 	}
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
+// IsExcluded returns if a container should be excluded
 func (l *testWorkloadmetaListener) IsExcluded(ft containers.FilterType, annotations map[string]string, name string, image string, ns string) bool {
 	return l.filters.IsExcluded(ft, annotations, name, image, ns)
 }

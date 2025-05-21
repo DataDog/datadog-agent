@@ -15,6 +15,6 @@ if [ -x ${INSTALL_DIR}/embedded/bin/fipsinstall.sh ]; then
 fi
 
 # Run the postinst. See pkg/fleet/installer/packages/datadog_agent_linux.go
-${INSTALL_DIR}/embedded/bin/installer postinst datadog-agent rpm
+${INSTALL_DIR}/embedded/bin/installer postinst datadog-agent rpm || true
 
 exit 0

@@ -163,6 +163,31 @@ func TestInstallStable(t *testing.T) {
 	})
 }
 
+func TestInstallUpgrade(t *testing.T) {
+	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
+		s := fixtures.NewServer(t)
+		installer := newTestPackageManager(t, s, t.TempDir())
+		defer installer.db.Close()
+
+		preInstallCall := installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false).Return(nil)
+		installer.testHooks.On("PostInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false, mock.Anything).Return(nil).NotBefore(preInstallCall)
+
+		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
+		assert.NoError(t, err)
+
+		preRemoveCall := installer.testHooks.On("PreRemove", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, true).Return(nil)
+		preInstallCall = installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, true).Return(nil).NotBefore(preRemoveCall)
+		installer.testHooks.On("PostInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, true, mock.Anything).Return(nil).NotBefore(preInstallCall)
+
+		err = instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV2), nil)
+		assert.NoError(t, err)
+		r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
+		state, err := r.GetState()
+		assert.NoError(t, err)
+		assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Stable)
+	})
+}
+
 func TestInstallExperiment(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
