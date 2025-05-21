@@ -2592,7 +2592,7 @@ func testRedisSketches(t *testing.T, tr *tracer.Tracer) {
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 
-		requests := conns.Redis
+		requests := conns.USMData.Redis
 		if len(requests) == 0 {
 			require.True(ct, len(requests) > 0, "no requests")
 		}
