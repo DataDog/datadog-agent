@@ -6,11 +6,13 @@
 // Package installerexec provides a component to execute installer commands
 package installerexec
 
-import "github.com/DataDog/datadog-agent/pkg/fleet/installer"
+import (
+	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
+)
 
 // team: fleet
 
 // Component is the component type.
 type Component interface {
-	installer.Installer
+	installertypes.Installer
 }
