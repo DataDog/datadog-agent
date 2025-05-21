@@ -138,22 +138,11 @@ func (s *MetricsStore) Add(obj interface{}) error {
 
 	tags := s.mergedTagsForID(id, newTags)
 	s.tags[id] = tags
-
-	// this means we can propagate the UST tags we find
-	// up to the owner from Pod -> ReplicaSet -> Deployment.
-	// by virtue of the the ID parent reference.
-	//
-	// the other idea is to keep a list of child references per parent
-	// object and find their tags (aggregating them).
-	for _, owner := range o.GetOwnerReferences() {
-		s.tags[owner.UID] = s.mergedTagsForID(owner.UID, tags)
-	}
-
 	return nil
 }
 
-// mergedTagsForID should be called within an aquired lock, does not do
-// writing!
+// mergedTagsForID should be called within an acquired lock.
+// This does not do writing its own.
 func (s *MetricsStore) mergedTagsForID(id types.UID, newTags map[string]string) map[string]string {
 	tags, tagsSet := s.tags[id]
 	if !tagsSet {
@@ -263,7 +252,7 @@ func (s *MetricsStore) Push(familyFilter FamilyAllow, metricFilter MetricAllow) 
 
 	mRes := make(map[string][]DDMetricsFam)
 	for id, metricFamList := range s.metrics {
-		tags, _ := s.tags[id]
+		tags := s.tags[id]
 		for _, metricFam := range metricFamList {
 			if !familyFilter(metricFam) {
 				continue

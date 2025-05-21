@@ -12,10 +12,8 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
@@ -32,7 +30,8 @@ type DeploymentHandlers struct {
 	tagProvider func(*appsv1.Deployment) []string
 }
 
-func NewDeploymentHandlers(_ config.Component, store workloadmeta.Component, tagger tagger.Component) *DeploymentHandlers {
+// NewDeploymentHandlers creates handlers for Kubernetes Deployments given a tagger.
+func NewDeploymentHandlers(tagger tagger.Component) *DeploymentHandlers {
 	h := new(DeploymentHandlers)
 	h.tagProvider = func(d *appsv1.Deployment) []string {
 		entity := taggertypes.NewEntityID(taggertypes.KubernetesDeployment, fmt.Sprintf("%s/%s", d.Namespace, d.Name))

@@ -67,7 +67,7 @@ func NewDeploymentCollector(cfg config.Component, store workloadmeta.Component, 
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(k8sProcessors.NewDeploymentHandlers(cfg, store, tagger)),
+		processor: processors.NewProcessor(k8sProcessors.NewDeploymentHandlers(tagger)),
 	}
 }
 
