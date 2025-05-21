@@ -57,7 +57,7 @@ func TestCreateFresh(t *testing.T) {
 	assert.Equal(t, "v1", state.Stable)
 	assert.False(t, state.HasExperiment())
 	assertLinkTarget(t, repository, stableVersionLink, "v1")
-	assertLinkTarget(t, repository, experimentVersionLink, "v1")
+	assertLinkTarget(t, repository, experimentVersionLink, stableVersionLink)
 }
 
 func TestCreateOverwrite(t *testing.T) {
@@ -403,6 +403,22 @@ func TestRepairDirectoryDifferentCasing(t *testing.T) {
 
 	err := repairDirectory(sourceDir, targetDir)
 	assert.Error(t, err)
+}
+
+func TestStateSymlinkedPackage(t *testing.T) {
+	dir := t.TempDir()
+	repository := createTestRepository(t, dir, "v1", nil)
+
+	tmpDir := t.TempDir()
+	err := os.Rename(filepath.Join(repository.rootPath, "v1"), filepath.Join(tmpDir, "v1"))
+	assert.NoError(t, err)
+	err = os.Symlink(filepath.Join(tmpDir, "v1"), filepath.Join(repository.rootPath, "v1"))
+	assert.NoError(t, err)
+
+	state, err := repository.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, "v1", state.Stable)
+	assert.False(t, state.HasExperiment())
 }
 
 func TestDeleteSymlinkedPackage(t *testing.T) {

@@ -114,3 +114,29 @@ func TestLinkDelete(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, exists)
 }
+
+// The repository supports having a symlink as a "version" that actually points to a directory.
+//
+// We use this for deb/rpm packages:
+// /opt/datadog-agent/
+// /opt/datadog-packages/datadog-agent/
+// ├── stable -> 7.70.0
+// ├── experiment -> 7.70.0
+// └── 7.70.0 -> /opt/datadog-agent
+//
+// readLink is used to resolve the version so if it resolves recursively we'd end up with a version
+// that is "datadog-agent" instead of "7.70.0".
+func TestNoRecursiveEvalSymlinks(t *testing.T) {
+	tmpDir := t.TempDir()
+	link1Path := filepath.Join(tmpDir, "link1")
+	link2Path := filepath.Join(tmpDir, "link2")
+	targetPath := filepath.Join(tmpDir, "target")
+	createTarget(t, targetPath)
+	os.Symlink(targetPath, link1Path)
+
+	createLink(t, link2Path, link1Path)
+
+	link2TargetPath, err := linkRead(link2Path)
+	assert.NoError(t, err)
+	assert.Equal(t, link1Path, link2TargetPath)
+}

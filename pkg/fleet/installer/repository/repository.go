@@ -109,7 +109,7 @@ func (r *Repository) GetState() (State, error) {
 	}
 	stable := repository.stable.Target()
 	experiment := repository.experiment.Target()
-	if experiment == stable {
+	if experiment == stable || experiment == stableVersionLink {
 		experiment = ""
 	}
 	return State{
@@ -271,7 +271,7 @@ func (r *Repository) PromoteExperiment(ctx context.Context) error {
 	if !repository.experiment.Exists() {
 		return fmt.Errorf("experiment link does not exist, invalid state")
 	}
-	if repository.stable.Target() == repository.experiment.Target() {
+	if repository.experiment.Target() == stableVersionLink {
 		return fmt.Errorf("no experiment to promote")
 	}
 	err = repository.stable.Set(*repository.experiment.packagePath)
