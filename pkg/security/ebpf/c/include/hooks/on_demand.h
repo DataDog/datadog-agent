@@ -1,8 +1,6 @@
 #ifndef _HOOKS_ON_DEMAND_H_
 #define _HOOKS_ON_DEMAND_H_
 
-#define PER_ARG_SIZE 64
-
 enum param_kind_t {
 	PARAM_NO_ACTION,
 	PARAM_KIND_INTEGER,
@@ -16,12 +14,12 @@ enum param_kind_t {
 	switch (param##idx##kind) { \
 	case PARAM_KIND_INTEGER: \
 		value = CTX_PARM##idx(ctx); \
-		bpf_probe_read(&event.data[(idx - 1) * PER_ARG_SIZE], sizeof(value), &value); \
+		bpf_probe_read(&event.data[(idx - 1) * ON_DEMAND_PER_ARG_SIZE], sizeof(value), &value); \
 		break; \
 	case PARAM_KIND_NULL_STR: \
-		buf = &event.data[(idx - 1) * PER_ARG_SIZE]; \
+		buf = &event.data[(idx - 1) * ON_DEMAND_PER_ARG_SIZE]; \
 		path = (char *)CTX_PARM##idx(ctx); \
-		bpf_probe_read_str(buf, PER_ARG_SIZE, path); \
+		bpf_probe_read_str(buf, ON_DEMAND_PER_ARG_SIZE, path); \
 		break; \
 	}
 
@@ -34,12 +32,12 @@ enum param_kind_t {
                                              \
 	switch (param##idx##kind) { \
 	case PARAM_KIND_INTEGER: \
-		bpf_probe_read(&event.data[(idx - 1) * PER_ARG_SIZE], sizeof(arg##idx), &arg##idx); \
+		bpf_probe_read(&event.data[(idx - 1) * ON_DEMAND_PER_ARG_SIZE], sizeof(arg##idx), &arg##idx); \
 		break; \
 	case PARAM_KIND_NULL_STR: \
-		buf = &event.data[(idx - 1) * PER_ARG_SIZE]; \
+		buf = &event.data[(idx - 1) * ON_DEMAND_PER_ARG_SIZE]; \
 		path = (char *)arg##idx; \
-		bpf_probe_read_str(buf, PER_ARG_SIZE, path); \
+		bpf_probe_read_str(buf, ON_DEMAND_PER_ARG_SIZE, path); \
 		break; \
 	}
 
@@ -66,6 +64,8 @@ int hook_on_demand(ctx_t *ctx) {
 	param_parsing_regular(2);
 	param_parsing_regular(3);
 	param_parsing_regular(4);
+	param_parsing_regular(5);
+	param_parsing_regular(6);
 
 	send_event(ctx, EVENT_ON_DEMAND, event);
 
@@ -95,6 +95,8 @@ int hook_on_demand_syscall(ctx_t *ptctx) {
 	param_parsing_syscall(2);
 	param_parsing_syscall(3);
 	param_parsing_syscall(4);
+	param_parsing_syscall(5);
+	param_parsing_syscall(6);
 
 	send_event(ptctx, EVENT_ON_DEMAND, event);
 
