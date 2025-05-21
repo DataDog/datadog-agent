@@ -158,7 +158,7 @@ func (r *Resolver) SetMountPoint(ev *model.Event, e *model.Mount) error {
 	}
 
 	if mountPointFromProc != "" && mountPointFromProc != e.MountPointStr {
-		log.Errorf("Different mountpoint detected: From proc: %s. e.MountPointStr=%s | e.MountPointStrSrc=%d", mountPointFromProc, e.MountPointStr, e.MountPointStrSrc)
+		log.Errorf("Different mountpoint detected: From proc: %s. e.MountPointStr=%s | e.MountPointStrSrc=%d | event=%+v | mount =%+v", mountPointFromProc, e.MountPointStr, e.MountPointStrSrc, *ev, *e)
 	}
 
 	if err != nil {
