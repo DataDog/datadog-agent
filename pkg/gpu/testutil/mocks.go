@@ -83,9 +83,21 @@ var DefaultTotalMemory = uint64(1000)
 // DefaultMaxClockRates is an array of Max SM clock and Max Mem Clock rates for the default device
 var DefaultMaxClockRates = [2]uint32{1000, 2000}
 
+// MIGChildrenPerDevice is a map of device index to the number of MIG children for that device.
+var MIGChildrenPerDevice = map[int]int{
+	5: 2,
+	6: 4,
+}
+
+// MIGChildrenUUIDs is a map of device index to the UUIDs of the MIG children for that device.
+var MIGChildrenUUIDs = map[int][]string{
+	5: {"MIG-00000000-1234-1234-1234-123456789012", "MIG-11111111-1234-1234-1234-123456789013"},
+	6: {"MIG-22222222-1234-1234-1234-123456789014", "MIG-33333333-1234-1234-1234-123456789015", "MIG-44444444-1234-1234-1234-123456789016", "MIG-55555555-1234-1234-1234-123456789017"},
+}
+
 // GetDeviceMock returns a mock of the nvml.Device with the given UUID.
-func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
-	return &nvmlmock.Device{
+func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Device {
+	mock := &nvmlmock.Device{
 		GetNumGpuCoresFunc: func() (int, nvml.Return) {
 			return GPUCores[deviceIdx], nvml.SUCCESS
 		},
@@ -105,9 +117,21 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 			return DefaultGPUAttributes, nvml.SUCCESS
 		},
 		GetMigModeFunc: func() (int, int, nvml.Return) {
+			if MIGChildrenPerDevice[deviceIdx] > 0 {
+				return nvml.DEVICE_MIG_ENABLE, 0, nvml.SUCCESS
+			}
 			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
 		},
+		GetMaxMigDeviceCountFunc: func() (int, nvml.Return) {
+			return MIGChildrenPerDevice[deviceIdx], nvml.SUCCESS
+		},
+		GetMigDeviceHandleByIndexFunc: func(index int) (nvml.Device, nvml.Return) {
+			if index >= MIGChildrenPerDevice[deviceIdx] {
+				return nil, nvml.ERROR_INVALID_ARGUMENT
+			}
 
+			return GetMIGDeviceMock(deviceIdx, index, opts...), nvml.SUCCESS
+		},
 		GetComputeRunningProcessesFunc: func() ([]nvml.ProcessInfo, nvml.Return) {
 			return DefaultProcessInfo, nvml.SUCCESS
 		},
@@ -131,51 +155,73 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 			return deviceIdx, nvml.SUCCESS
 		},
 	}
+
+	for _, opt := range opts {
+		opt(mock)
+	}
+
+	return mock
+}
+
+func GetMIGDeviceMock(deviceIdx int, migDeviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Device {
+	// Take the original mock and override only the relevant functions to make it a MIG device.
+	prepareMigDevice := func(d *nvmlmock.Device) {
+		// No MIG children
+		d.GetMigModeFunc = func() (int, int, nvml.Return) {
+			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
+		}
+
+		// Change the UUID
+		d.GetUUIDFunc = func() (string, nvml.Return) {
+			return MIGChildrenUUIDs[deviceIdx][migDeviceIdx], nvml.SUCCESS
+		}
+
+		// Change the name
+		d.GetNameFunc = func() (string, nvml.Return) {
+			return "MIG " + DefaultGPUName, nvml.SUCCESS
+		}
+	}
+
+	opts = append(opts, prepareMigDevice)
+
+	return GetDeviceMock(deviceIdx, opts...)
+}
+
+type nvmlMockOptions struct {
+	deviceOptions  []func(*nvmlmock.Device)
+	extensionsFunc func() nvml.ExtendedInterface
+}
+
+type nvmlMockOption func(*nvmlMockOptions)
+
+func WithMIGDisabled() nvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions = append(o.deviceOptions, func(d *nvmlmock.Device) {
+			d.GetMigModeFunc = func() (int, int, nvml.Return) {
+				return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
+			}
+		})
+	}
 }
 
 // GetBasicNvmlMock returns a mock of the nvml.Interface with a single device with 10 cores,
 // useful for basic tests that need only the basic interaction with NVML to be working.
 func GetBasicNvmlMock() *nvmlmock.Interface {
-	if len(GPUUUIDs) != len(GPUCores) {
-		// Make it really easy to spot errors if we change any of the arrays.
-		panic("GPUUUIDs and GPUCores must have the same length, please fix it")
-	}
-
-	return &nvmlmock.Interface{
-		DeviceGetCountFunc: func() (int, nvml.Return) {
-			return len(GPUUUIDs), nvml.SUCCESS
-		},
-		DeviceGetHandleByIndexFunc: func(index int) (nvml.Device, nvml.Return) {
-			return GetDeviceMock(index), nvml.SUCCESS
-		},
-		DeviceGetCudaComputeCapabilityFunc: func(nvml.Device) (int, int, nvml.Return) {
-			return 7, 5, nvml.SUCCESS
-		},
-		DeviceGetIndexFunc: func(nvml.Device) (int, nvml.Return) {
-			return 0, nvml.SUCCESS
-		},
-		DeviceGetMigModeFunc: func(nvml.Device) (int, int, nvml.Return) {
-			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
-		},
-		DeviceGetComputeRunningProcessesFunc: func(nvml.Device) ([]nvml.ProcessInfo, nvml.Return) {
-			return DefaultProcessInfo, nvml.SUCCESS
-		},
-		DeviceGetMemoryInfoFunc: func(nvml.Device) (nvml.Memory, nvml.Return) {
-			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
-		},
-		SystemGetDriverVersionFunc: func() (string, nvml.Return) {
-			return DefaultNvidiaDriverVersion, nvml.SUCCESS
-		},
-	}
+	return GetBasicNvmlMockWithOptions()
 }
 
 // GetBasicNvmlMockWithOptions returns a mock of the nvml.Interface with a single device with 10 cores,
 // allowing additional configuration through functional options.
 // It's ideal for tests that need custom NVML behavior beyond the defaults.
-func GetBasicNvmlMockWithOptions(options ...func(*nvmlmock.Interface)) *nvmlmock.Interface {
+func GetBasicNvmlMockWithOptions(options ...nvmlMockOption) *nvmlmock.Interface {
 	if len(GPUUUIDs) != len(GPUCores) {
 		// Make it really easy to spot errors if we change any of the arrays.
 		panic("GPUUUIDs and GPUCores must have the same length, please fix it")
+	}
+
+	opts := &nvmlMockOptions{}
+	for _, opt := range options {
+		opt(opts)
 	}
 
 	mockNvml := &nvmlmock.Interface{
@@ -183,31 +229,12 @@ func GetBasicNvmlMockWithOptions(options ...func(*nvmlmock.Interface)) *nvmlmock
 			return len(GPUUUIDs), nvml.SUCCESS
 		},
 		DeviceGetHandleByIndexFunc: func(index int) (nvml.Device, nvml.Return) {
-			return GetDeviceMock(index), nvml.SUCCESS
-		},
-		DeviceGetCudaComputeCapabilityFunc: func(nvml.Device) (int, int, nvml.Return) {
-			return 7, 5, nvml.SUCCESS
-		},
-		DeviceGetIndexFunc: func(nvml.Device) (int, nvml.Return) {
-			return 0, nvml.SUCCESS
-		},
-		DeviceGetMigModeFunc: func(nvml.Device) (int, int, nvml.Return) {
-			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
-		},
-		DeviceGetComputeRunningProcessesFunc: func(nvml.Device) ([]nvml.ProcessInfo, nvml.Return) {
-			return DefaultProcessInfo, nvml.SUCCESS
-		},
-		DeviceGetMemoryInfoFunc: func(nvml.Device) (nvml.Memory, nvml.Return) {
-			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
+			return GetDeviceMock(index, opts.deviceOptions...), nvml.SUCCESS
 		},
 		SystemGetDriverVersionFunc: func() (string, nvml.Return) {
 			return DefaultNvidiaDriverVersion, nvml.SUCCESS
 		},
-	}
-
-	// Apply all provided options
-	for _, opt := range options {
-		opt(mockNvml)
+		ExtensionsFunc: opts.extensionsFunc,
 	}
 
 	return mockNvml
@@ -216,9 +243,9 @@ func GetBasicNvmlMockWithOptions(options ...func(*nvmlmock.Interface)) *nvmlmock
 // WithSymbolsMock returns an option that configures the mock NVML interface with the given symbols available.
 // It takes a map of symbols that should be considered available in the mock.
 // Any symbol not in the map will return an error when looked up.
-func WithSymbolsMock(availableSymbols map[string]struct{}) func(*nvmlmock.Interface) {
-	return func(mockNvml *nvmlmock.Interface) {
-		mockNvml.ExtensionsFunc = func() nvml.ExtendedInterface {
+func WithSymbolsMock(availableSymbols map[string]struct{}) nvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.extensionsFunc = func() nvml.ExtendedInterface {
 			return &nvmlmock.ExtendedInterface{
 				LookupSymbolFunc: func(symbol string) error {
 					if _, ok := availableSymbols[symbol]; ok {
