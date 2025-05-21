@@ -11,6 +11,9 @@ package path
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
@@ -93,8 +96,7 @@ func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDC
 // SetMountRoot set the mount point information
 func (r *Resolver) SetMountRoot(_ *model.Event, e *model.Mount) error {
 	var err error
-
-	e.RootStr, err = r.dentryResolver.Resolve(e.RootPathKey, true)
+	e.RootStr, err, e.RootStrSrc = r.dentryResolver.ResolveSrc(e.RootPathKey, true)
 	if err != nil {
 		return &ErrPathResolutionNotCritical{Err: err}
 	}
@@ -112,10 +114,53 @@ func (r *Resolver) ResolveMountRoot(ev *model.Event, e *model.Mount) (string, er
 }
 
 // SetMountPoint set the mount point information
-func (r *Resolver) SetMountPoint(_ *model.Event, e *model.Mount) error {
+func (r *Resolver) SetMountPoint(ev *model.Event, e *model.Mount) error {
 	var err error
+	r.dentryResolver.SetLogOn()
 
-	e.MountPointStr, err = r.dentryResolver.Resolve(e.ParentPathKey, true)
+	e.MountPointStr, err, e.MountPointStrSrc = r.dentryResolver.ResolveSrc(e.ParentPathKey, true)
+
+	r.dentryResolver.SetLogOff()
+
+	pids, _ := ev.ProcessCacheEntry.GetContainerPIDs()
+
+	pids = append(pids, ev.ProcessCacheEntry.Pid)
+
+	var mountPointFromProc string
+
+	for _, pid := range pids {
+		mounts, err := kernel.ParseMountInfoFile(int32(pid))
+		if err != nil {
+			seclog.Errorf("Parse mount error: %v", err)
+		}
+
+		found := false
+		id := int(e.ParentPathKey.MountID)
+
+		for _, mnt := range mounts {
+			if mnt.ID == id {
+				parentID := mnt.Parent
+				for _, parentMnt := range mounts {
+					if parentMnt.ID == parentID {
+						mountPointFromProc = mnt.Mountpoint
+						found = true
+						break
+					}
+				}
+				break
+			}
+		}
+
+		if found {
+			break
+		}
+
+	}
+
+	if mountPointFromProc != "" && mountPointFromProc != e.MountPointStr {
+		log.Errorf("Different mountpoint detected: %s", mountPointFromProc)
+	}
+
 	if err != nil {
 		return &ErrPathResolutionNotCritical{Err: err}
 	}

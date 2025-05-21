@@ -1972,16 +1972,18 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	// Our dentry resolution of the exec event causes the inode/mount_id to be put in cache,
 	// so we remove all dentry entries belonging to the mountID.
 	p.Resolvers.DentryResolver.DelCacheEntries(m.MountID)
-
+	//fmt.Printf("MNTP SetMountPoint")
 	// Resolve mount point
 	if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
 		return fmt.Errorf("failed to set mount point: %w", err)
 	}
 	// Resolve root
+	//fmt.Printf("MNTP ResolveRoot")
 	if err := p.Resolvers.PathResolver.SetMountRoot(ev, m); err != nil {
 		return fmt.Errorf("failed to set mount root: %w", err)
 	}
 
+	//fmt.Printf("MNTP MountResolver Insert")
 	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
 	if err := p.Resolvers.MountResolver.Insert(*m, 0); err != nil {
 		return fmt.Errorf("failed to insert mount event: %w", err)

@@ -1,14 +1,28 @@
 package debugging
 
-import "sync"
+import (
+	"sync"
+)
 
 type AtomicString struct {
-	mu sync.Mutex
-	s  string
+	mu           sync.Mutex
+	s            string
+	logToConsole bool
+}
+
+func (a *AtomicString) SetLogOn() {
+	a.logToConsole = true
+}
+
+func (a *AtomicString) SetLogOff() {
+	a.logToConsole = false
 }
 
 func (a *AtomicString) Add(str string) {
 	a.mu.Lock()
+	if a.logToConsole {
+		//fmt.Println("MNTP", str)
+	}
 	defer a.mu.Unlock()
 	a.s += str
 }

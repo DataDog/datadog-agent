@@ -486,16 +486,18 @@ type ArgsEnvsEvent struct {
 
 // Mount represents a mountpoint (used by MountEvent and UnshareMountNSEvent)
 type Mount struct {
-	MountID        uint32  `field:"-"`
-	Device         uint32  `field:"-"`
-	ParentPathKey  PathKey `field:"-"`
-	RootPathKey    PathKey `field:"-"`
-	BindSrcMountID uint32  `field:"-"`
-	FSType         string  `field:"fs_type"` // SECLDoc[fs_type] Definition:`Type of the mounted file system`
-	MountPointStr  string  `field:"-"`
-	RootStr        string  `field:"-"`
-	Path           string  `field:"-"`
-	Origin         uint32  `field:"-"`
+	MountID          uint32  `field:"-"`
+	Device           uint32  `field:"-"`
+	ParentPathKey    PathKey `field:"-"`
+	RootPathKey      PathKey `field:"-"`
+	BindSrcMountID   uint32  `field:"-"`
+	FSType           string  `field:"fs_type"` // SECLDoc[fs_type] Definition:`Type of the mounted file system`
+	MountPointStr    string  `field:"-"`
+	MountPointStrSrc uint32  `field:"-"`
+	RootStr          string  `field:"-"`
+	RootStrSrc       uint32  `field:"-"`
+	Path             string  `field:"-"`
+	Origin           uint32  `field:"-"`
 }
 
 // MountEvent represents a mount event

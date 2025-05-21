@@ -341,7 +341,7 @@ func (mr *Resolver) getFromRedemption(mountID uint32) *model.Mount {
 		return nil
 	}
 
-	mr.debugLog.Add(fmt.Sprintf("getFromRedemption() [Out] mountID = %d found. %+v\n", mountID, *entry.mount))
+	mr.debugLog.Add(fmt.Sprintf("getFromRedemption() [Out] mountID = %d found\n", mountID))
 	return entry.mount
 }
 
@@ -351,7 +351,7 @@ func (mr *Resolver) lookupByMountID(mountID uint32) *model.Mount {
 
 	//if mount, ok := mr.pidToMounts.Get(mountID, pid); mount != nil && ok {
 	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
-		mr.debugLog.Add(fmt.Sprintf("lookupByMountID() [Out] mountID = %d found in mounts cache: %+v\n", mountID, *mount))
+		mr.debugLog.Add(fmt.Sprintf("lookupByMountID() [Out] mountID = %d found in mounts cache\n", mountID))
 		return mount
 	}
 
@@ -392,7 +392,7 @@ func (mr *Resolver) lookupMount(mountID uint32, device uint32, pid uint32) (*mod
 
 	mount := mr.lookupByMountID(mountID)
 	if mount != nil {
-		mr.debugLog.Add(fmt.Sprintf("lookupMount() [Out] found by mountID = %d\n", mountID))
+		mr.debugLog.Add(fmt.Sprintf("lookupMount() [Out] found by mountID = %d. %+v\n", mountID, *mount))
 		return mount, model.MountSourceMountID, mount.Origin
 	}
 
@@ -403,7 +403,7 @@ func (mr *Resolver) lookupMount(mountID uint32, device uint32, pid uint32) (*mod
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown
 	}
 
-	mr.debugLog.Add(fmt.Sprintf("lookupMount() [Out] found by device = %d\n", device))
+	mr.debugLog.Add(fmt.Sprintf("lookupMount() [Out] found by device = %d. mount=%+v\n", device, *mount))
 	return mount, model.MountSourceDevice, mount.Origin
 }
 

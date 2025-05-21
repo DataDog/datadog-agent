@@ -14,11 +14,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/debugging"
 	"math/rand"
 	"os"
 	"strings"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/debugging"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	lib "github.com/cilium/ebpf"
@@ -127,6 +128,10 @@ func allERPCRet() []eRPCRet {
 
 func (dr *Resolver) ResetDebugLog() {
 	dr.debugLog.Clear()
+}
+
+func (dr *Resolver) Add(s string) {
+	dr.debugLog.Add(s)
 }
 
 // SendStats sends the dentry resolver metrics
@@ -632,6 +637,44 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 	filename := computeFilenameFromParts(dr.filenameParts)
 	dr.debugLog.Add(fmt.Sprintf("ResolveFromERPC() [Out] filename = %v, err = %v\n", filename, resolutionErr))
 	return filename, resolutionErr
+}
+
+func (dr *Resolver) SetLogOn() {
+	dr.debugLog.SetLogOn()
+}
+
+func (dr *Resolver) SetLogOff() {
+	dr.debugLog.SetLogOff()
+}
+
+// Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
+func (dr *Resolver) ResolveSrc(pathKey model.PathKey, cache bool) (string, error, uint32) {
+	dr.debugLog.Add(fmt.Sprintf("Resolve() [In] pathKey = %+v, cache = %v\n", pathKey, cache))
+	var path string
+	var err = ErrEntryNotFound
+
+	src := uint32(1)
+	if cache {
+		dr.debugLog.Add("ResolveSrc() - Cache: true, will ResolveFromCache()\n")
+		path, err = dr.ResolveFromCache(pathKey)
+		dr.debugLog.Add(fmt.Sprintf("ResolveSrc() - ResolveFromCache() returned path = %v, err = %v\n", path, err))
+	}
+	if err != nil && dr.config.ERPCDentryResolutionEnabled {
+		src = 2
+		dr.debugLog.Add(fmt.Sprintf("ResolveSrc() - will ResolveFromERPC()\n"))
+		path, err = dr.ResolveFromERPC(pathKey, cache)
+		dr.debugLog.Add(fmt.Sprintf("ResolveSrc() - ResolveFromERPC() returned path = %v, err = %v\n", path, err))
+	}
+	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
+		src = 3
+		dr.debugLog.Add(fmt.Sprintf("ResolveSrc() - will ResolveFromMap()\n"))
+		path, err = dr.ResolveFromMap(pathKey, cache)
+		dr.debugLog.Add(fmt.Sprintf("ResolveSrc() - ResolveFromMap() returned path = %v, err = %v\n", path, err))
+	}
+
+	dr.debugLog.Add(fmt.Sprintf("Resolve() [Out] path = %v, err = %v\n", path, err))
+	fmt.Println("MNTP src=", src)
+	return path, err, src
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table

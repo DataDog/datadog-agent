@@ -85,6 +85,7 @@ int __attribute__((always_inline)) handle_dr_request(ctx_t *ctx, void *data, u32
         goto exit;
     }
 
+    bpf_printk("Resolve path key: %d", dr_erpc_key);
     tail_call_dr_progs(ctx, KPROBE_OR_FENTRY_TYPE, dr_erpc_key);
 
 exit:
