@@ -71,7 +71,6 @@ func TestExtract(t *testing.T) {
 				assert.Equal(t, idsToAdd[string(uid)], metric.Labels["node"])
 			}
 		}
-
 	}
 }
 

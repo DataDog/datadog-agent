@@ -8,10 +8,16 @@
 package k8s
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
+	"fmt"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 
@@ -22,6 +28,28 @@ import (
 // DeploymentHandlers implements the Handlers interface for Kubernetes Deployments.
 type DeploymentHandlers struct {
 	common.BaseHandlers
+
+	tagProvider func(*appsv1.Deployment) []string
+}
+
+func NewDeploymentHandlers(_ config.Component, store workloadmeta.Component, tagger tagger.Component) *DeploymentHandlers {
+	h := new(DeploymentHandlers)
+	h.tagProvider = func(d *appsv1.Deployment) []string {
+		entity := taggertypes.NewEntityID(taggertypes.KubernetesDeployment, fmt.Sprintf("%s/%s", d.Namespace, d.Name))
+		tags, err := tagger.Tag(entity, taggertypes.HighCardinality)
+		if err != nil {
+			return nil
+		}
+
+		stags, err := tagger.Standard(entity)
+		if err != nil {
+			return tags
+		}
+
+		return append(tags, stags...)
+	}
+
+	return h
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
@@ -68,7 +96,7 @@ func (h *DeploymentHandlers) BuildMessageBody(ctx processors.ProcessorContext, r
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *DeploymentHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*appsv1.Deployment)
-	return k8sTransformers.ExtractDeployment(ctx, r)
+	return k8sTransformers.ExtractDeployment(ctx, r, h.tagProvider)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

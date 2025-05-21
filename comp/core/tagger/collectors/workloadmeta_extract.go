@@ -329,6 +329,25 @@ func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *tag
 	}
 }
 
+func (c *WorkloadMetaCollector) extractTagsFromPodInstrumentationTarget(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
+	target := pod.EvaluatedInstrumentationWorkloadTarget
+	if target == nil {
+		return
+	}
+
+	if target.Service != "" {
+		tagList.AddStandard(tags.Service, target.Service)
+	}
+
+	if target.Version != "" {
+		tagList.AddStandard(tags.Version, target.Version)
+	}
+
+	if target.Env != "" {
+		tagList.AddStandard(tags.Env, target.Env)
+	}
+}
+
 func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) *types.TagInfo {
 	tagList.AddOrchestrator(tags.KubePod, pod.Name)
 	tagList.AddLow(tags.KubeNamespace, pod.Namespace)
@@ -338,6 +357,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 	tagList.AddLow(tags.KubeRuntimeClass, pod.RuntimeClass)
 
 	c.extractTagsFromPodLabels(pod, tagList)
+	c.extractTagsFromPodInstrumentationTarget(pod, tagList)
 
 	// pod labels as tags
 	for name, value := range pod.Labels {
@@ -424,12 +444,65 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 	return tagInfo
 }
 
+// kubePodOwnerTags attempts to get data about the owner of the given pod
+// and propagates these tags to the pod.
+func (c *WorkloadMetaCollector) kubePodOwnerTags(pod *workloadmeta.KubernetesPod) []*types.TagInfo {
+	target := pod.EvaluatedInstrumentationWorkloadTarget
+	if target == nil {
+		return nil
+	}
+
+	var deploymentName string
+Loop:
+	for _, owner := range pod.Owners {
+		switch owner.Kind {
+		case kubernetes.DeploymentKind:
+			deploymentName = owner.Name
+			break Loop
+		case kubernetes.ReplicaSetKind:
+			deploymentName = kubernetes.ParseDeploymentForReplicaSet(owner.Name)
+			break Loop
+		}
+	}
+
+	if deploymentName == "" {
+		return nil
+	}
+
+	tagsList := taglist.NewTagList()
+	if target.Env != "" {
+		tagsList.AddStandard(tags.Env, target.Env)
+	}
+	if target.Service != "" {
+		tagsList.AddStandard(tags.Service, target.Service)
+	}
+	if target.Version != "" {
+		tagsList.AddStandard(tags.Version, target.Version)
+	}
+
+	_, _, _, standard := tagsList.Compute()
+	if len(standard) == 0 {
+		return nil
+	}
+
+	return []*types.TagInfo{
+		{
+			Source:       podSource,
+			StandardTags: standard,
+			EntityID: common.BuildTaggerEntityID(workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesDeployment,
+				ID:   pod.Namespace + "/" + deploymentName,
+			}),
+		},
+	}
+}
+
 func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.TagInfo {
 	pod := ev.Entity.(*workloadmeta.KubernetesPod)
 	tagList := taglist.NewTagList()
-	tagInfos := []*types.TagInfo{c.extractTagsFromPodEntity(pod, tagList)}
-
-	c.extractTagsFromPodLabels(pod, tagList)
+	tagInfos := []*types.TagInfo{
+		c.extractTagsFromPodEntity(pod, tagList),
+	}
 
 	for _, podContainer := range pod.GetAllContainers() {
 		cTagInfo, err := c.extractTagsFromPodContainer(pod, podContainer, tagList.Copy())
@@ -440,6 +513,8 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 
 		tagInfos = append(tagInfos, cTagInfo)
 	}
+
+	tagInfos = append(tagInfos, c.kubePodOwnerTags(pod)...)
 
 	return tagInfos
 }
@@ -532,6 +607,7 @@ func (c *WorkloadMetaCollector) handleGardenContainer(container *workloadmeta.Co
 
 func (c *WorkloadMetaCollector) handleKubeDeployment(ev workloadmeta.Event) []*types.TagInfo {
 	deployment := ev.Entity.(*workloadmeta.KubernetesDeployment)
+	log.Debugf("deployment %s", deployment.Name)
 
 	groupResource := "deployments.apps"
 
@@ -560,6 +636,8 @@ func (c *WorkloadMetaCollector) handleKubeDeployment(ev workloadmeta.Event) []*t
 	if len(low)+len(orch)+len(high)+len(standard) == 0 {
 		return nil
 	}
+
+	log.Debugf("entityID: %s", common.BuildTaggerEntityID(deployment.EntityID))
 
 	tagInfos := []*types.TagInfo{
 		{
@@ -598,7 +676,6 @@ func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*typ
 	}
 
 	low, orch, high, standard := tagList.Compute()
-
 	if len(low)+len(orch)+len(high)+len(standard) == 0 {
 		return nil
 	}
