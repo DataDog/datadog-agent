@@ -1,10 +1,18 @@
 # Datadog Distribution of the OpenTelemetry Collector
 
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/e1397db0-343e-435b-8232-606adc270ed5" alt="Datadog Logo"/>
+  <img src="https://github.com/user-attachments/assets/e6629ec0-2d19-44d1-b951-7af74088a257" alt="OpenTelemetry Logo"/>
+</p>
+
 ## Overview
 
 The Datadog Distribution of the OpenTelemetry Collector provides a streamlined and optimized way to collect, process, and export observability data (traces, metrics, and logs) from your applications and infrastructure directly to Datadog. Built upon the robust and extensible OpenTelemetry Collector, this distribution offers Datadog-specific configurations and components out-of-the-box, simplifying your telemetry pipeline setup.
 
 This project empowers users to leverage the vendor-agnostic OpenTelemetry standard while benefiting from Datadog's powerful analytics, dashboards, and alerting capabilities. It's an ideal solution to support your OpenTelemetry observability needs while remaining fully integrated with the Datadog Agent and its facilities.
+
+![ddot-collector](https://github.com/user-attachments/assets/e286805f-df95-42d9-8a26-16ac8fd44567)
+
 
 ## Key Features
 
