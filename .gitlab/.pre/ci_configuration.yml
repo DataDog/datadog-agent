@@ -1,10 +1,10 @@
 test_gitlab_configuration:
   stage: .pre
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   rules:
-    - !reference [.except_mergequeue]
-    - !reference [.on_gitlab_changes]
+    - !reference [.on_dev_branches]
+    - when: on_success
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - dda inv -- -e linter.gitlab-ci
@@ -14,7 +14,7 @@ test_gitlab_configuration:
 
 test_gitlab_compare_to:
   stage: .pre
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   rules:
     - !reference [.except_mergequeue]
@@ -31,7 +31,7 @@ test_gitlab_compare_to:
 
 # Computes and uploads the GitLab CI configuration diff as an artifact
 compute_gitlab_ci_config:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   stage: .pre
   needs: []
   tags: ["arch:arm64"]
@@ -52,7 +52,7 @@ compute_gitlab_ci_config:
 
 lint_gitlab_ci:
   stage: .pre
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   tags: ["arch:arm64"]
   needs: [compute_gitlab_ci_config]
   script:
@@ -67,7 +67,7 @@ lint_gitlab_ci:
 
 lint_gitlab_ci_jobs_codeowners:
   stage: .pre
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   tags: ["arch:arm64"]
   needs: []
   script:
@@ -76,7 +76,7 @@ lint_gitlab_ci_jobs_codeowners:
 # TODO(celian): Merge this with lint_gitlab_ci without allow_failure
 lint_gitlab_ci_shellcheck:
   stage: .pre
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   tags: ["arch:arm64"]
   needs: [compute_gitlab_ci_config]
   allow_failure: true
@@ -95,7 +95,7 @@ lint_gitlab_ci_shellcheck:
 
 lint_github_actions_shellcheck:
   stage: .pre
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   tags: ["arch:arm64"]
   needs: []
   rules:

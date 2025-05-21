@@ -37,7 +37,7 @@ def get_build_image_suffix_and_version() -> tuple[str, str]:
         ci_config = yaml.safe_load(f)
 
     ci_vars = ci_config['variables']
-    return ci_vars['DATADOG_AGENT_BUILDIMAGES_SUFFIX'], ci_vars['DATADOG_AGENT_BUILDIMAGES']
+    return ci_vars['CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX'], ci_vars['CI_IMAGE_LINUX_GLIBC_2_17_X64']
 
 
 def get_docker_image_name(ctx: Context, container: str) -> str:

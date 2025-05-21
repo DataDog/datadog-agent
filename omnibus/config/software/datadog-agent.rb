@@ -9,20 +9,27 @@ require 'pathname'
 
 name 'datadog-agent'
 
-# creates required build directories
-dependency 'datadog-agent-prepare'
+# We don't want to build any dependencies in "repackaging mode" so all usual dependencies
+# need to go under this guard.
+unless do_repackage?
+  # creates required build directories
+  dependency 'datadog-agent-prepare'
 
-dependency "python3"
+  dependency "python3"
 
-dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
+  dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
 
-# Alternative memory allocator which has better support for memory allocated by cgo calls,
-# especially at higher thread counts.
-dependency "libjemalloc" if linux_target?
+  # Alternative memory allocator which has better support for memory allocated by cgo calls,
+  # especially at higher thread counts.
+  dependency "libjemalloc" if linux_target?
 
-dependency 'datadog-agent-dependencies'
+  dependency 'datadog-agent-dependencies'
+end
 
-source path: '..'
+source path: '..',
+       options: {
+         exclude: ["**/testdata/**/*"],
+       }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 always_build true
@@ -271,14 +278,6 @@ build do
     command 'swiftc -O -swift-version "5" -target "x86_64-apple-macosx10.10" -Xlinker \'-rpath\' -Xlinker \'@executable_path/../Frameworks\' Sources/*.swift -o gui', cwd: systray_build_dir
     copy "#{systray_build_dir}/gui", "#{app_temp_dir}/MacOS/"
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"
-  end
-
-  # The file below is touched by software builds that don't put anything in the installation
-  # directory (libgcc right now) so that the git_cache gets updated let's remove it from the
-  # final package
-  # Change RPATH from the install_dir to relative RPATH
-  unless windows_target?
-    delete "#{install_dir}/uselessfile"
   end
 
   # TODO: move this to omnibus-ruby::health-check.rb

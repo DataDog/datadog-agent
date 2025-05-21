@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
@@ -49,6 +50,7 @@ func getClusterAgentComp(t *testing.T) *datadogclusteragent {
 		Log:        l,
 		Config:     cfg,
 		Serializer: serializermock.NewMetricSerializer(t),
+		Hostname:   hostnameimpl.NewHostnameService(),
 	}
 
 	comp := NewComponent(r).Comp

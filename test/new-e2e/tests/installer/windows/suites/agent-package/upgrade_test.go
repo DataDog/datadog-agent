@@ -65,6 +65,37 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 	// Assert
 }
 
+// TestUpgradeAgentPackageWithAltDir tests that an Agent installed with the MSI
+// and custom paths maintains those paths when remotely upgraded
+func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
+	// Arrange
+	altConfigRoot := `C:\ddconfig`
+	altInstallPath := `C:\ddinstall`
+	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
+	s.setAgentConfigWithAltDir(altConfigRoot)
+	s.installPreviousAgentVersion(
+		installerwindows.WithMSIArg("PROJECTLOCATION="+altInstallPath),
+		installerwindows.WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
+	)
+
+	// Act
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		NoDirExists(windowsagent.DefaultConfigRoot).
+		NoDirExists(windowsagent.DefaultInstallPath).
+		DirExists(altConfigRoot).
+		DirExists(altInstallPath).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("ConfigRoot", altConfigRoot+`\`).
+		WithValueEqual("InstallPath", altInstallPath+`\`)
+}
+
 // TestUpgradeAgentPackageAfterRollback tests that upgrade works after an initial upgrade failed.
 //
 // This is a regression test for WINA-1469, where the Agent account password and
@@ -144,7 +175,7 @@ func (s *testAgentUpgradeSuite) TestStopExperiment() {
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(consts.BinaryPath).
+		HasDatadogInstaller().
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		})
@@ -167,7 +198,7 @@ func (s *testAgentUpgradeSuite) TestExperimentForNonExistingPackageFails() {
 		s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().PackageVersion())
 	})
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(consts.BinaryPath).
+		HasDatadogInstaller().
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.CurrentAgentVersion().Version())
 		})
@@ -190,7 +221,7 @@ func (s *testAgentUpgradeSuite) TestExperimentCurrentVersionFails() {
 		s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().PackageVersion())
 	})
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(consts.BinaryPath).
+		HasDatadogInstaller().
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.CurrentAgentVersion().Version())
 		})
@@ -209,7 +240,7 @@ func (s *testAgentUpgradeSuite) TestStopWithoutExperiment() {
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(consts.BinaryPath).
+		HasDatadogInstaller().
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.CurrentAgentVersion().Version())
 		})
@@ -232,7 +263,7 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDies() {
 	s.Require().NoError(err)
 	// original version should now be running
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(consts.BinaryPath).
+		HasDatadogInstaller().
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		})
@@ -264,7 +295,7 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 	s.Require().NoError(err)
 	// verify stable version contraints
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(consts.BinaryPath).
+		HasDatadogInstaller().
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		})
@@ -273,6 +304,134 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 		s.Installer().StopExperiment(consts.AgentPackage)
 		s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
 	})
+}
+
+// TestExperimentMSIRollbackMaintainsCustomUserAndAltDir tests that the
+// stable version is reinstalled with the custom user and alt dir when an experiment MSI rolls back.
+// This is a regression test for WINA-1504, where remove-experiment subcommand used the wrong
+// paths and failed to restore the stable version.
+func (s *testAgentUpgradeSuite) TestExperimentMSIRollbackMaintainsCustomUserAndAltDir() {
+	// Arrange
+	altConfigRoot := `C:\ddconfig`
+	altInstallPath := `C:\ddinstall`
+	agentUser := "customuser"
+	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
+	s.setAgentConfigWithAltDir(altConfigRoot)
+	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
+	s.installPreviousAgentVersion(
+		installerwindows.WithOption(installerwindows.WithAgentUser(agentUser)),
+		installerwindows.WithMSIArg("PROJECTLOCATION="+altInstallPath),
+		installerwindows.WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
+	)
+	s.setExperimentMSIArgs([]string{"WIXFAILWHENDEFERRED=1"})
+
+	// Act
+	s.waitForDaemonToStop(func() {
+		s.StartExperimentCurrentVersion()
+		// This returns while the upgrade is still running, so we need to wait for the service to stop
+		// We can't use WaitForInstallerService here because it can be racy with MSI rollback,
+		// the service could stop and then restart before we check the status again.
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 100))
+
+	// wait for upgrade to restart the service
+	// this is racy, we'll either catch the new service running briefly before MSI rollback
+	// triggers, or we'll catch the previous service running after MSI rollback completes
+	// The next set of checks quiesce the race.
+	err := s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
+
+	// Now that the service is running, we know that the stable version has been removed,
+	// so we can wait for the stable version to be placed on disk once again via MSI rollback
+	err = s.waitForInstallerVersion(s.StableAgentVersion().Version())
+	s.Require().NoError(err)
+	// and wait again to ensure the stable service is running
+	err = s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
+
+	// Assert
+
+	// original version should now be running
+	s.Require().Host(s.Env().RemoteHost).
+		HasDatadogInstaller().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.StableAgentVersion().Version())
+		})
+
+	// backend will send stop experiment to the daemon
+	s.assertDaemonStaysRunning(func() {
+		s.Installer().StopExperiment(consts.AgentPackage)
+		s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
+	})
+
+	identity, err := windowscommon.GetIdentityForUser(s.Env().RemoteHost, agentUser)
+	s.Require().NoError(err)
+	s.Require().Host(s.Env().RemoteHost).
+		NoDirExists(windowsagent.DefaultConfigRoot).
+		NoDirExists(windowsagent.DefaultInstallPath).
+		DirExists(altConfigRoot).
+		DirExists(altInstallPath).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedUser", agentUser).
+		WithValueEqual("ConfigRoot", altConfigRoot+`\`).
+		WithValueEqual("InstallPath", altInstallPath+`\`).
+		HasAService("datadogagent").
+		WithIdentity(identity)
+}
+
+// TestExperimentMSIRollbackMaintainsCustomUserAndAltDir tests that the
+// stable version is reinstalled with the custom user and alt dir when an experiment MSI rolls back.
+// This is a regression test for WINA-1504, where remove-experiment subcommand used the wrong
+// paths and failed to restore the stable version.
+func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDiesMaintainsCustomUserAndAltDir() {
+	// Arrange
+	altConfigRoot := `C:\ddconfig`
+	altInstallPath := `C:\ddinstall`
+	agentUser := "customuser"
+	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
+	s.setAgentConfigWithAltDir(altConfigRoot)
+	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
+	s.installPreviousAgentVersion(
+		installerwindows.WithOption(installerwindows.WithAgentUser(agentUser)),
+		installerwindows.WithMSIArg("PROJECTLOCATION="+altInstallPath),
+		installerwindows.WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
+	)
+
+	// Act
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	windowscommon.StopService(s.Env().RemoteHost, consts.ServiceName)
+
+	// Assert
+	err := s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
+	// original version should now be running
+	s.Require().Host(s.Env().RemoteHost).
+		HasDatadogInstaller().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.StableAgentVersion().Version())
+		})
+
+	// backend will send stop experiment to the daemon
+	s.assertDaemonStaysRunning(func() {
+		s.Installer().StopExperiment(consts.AgentPackage)
+		s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
+	})
+
+	identity, err := windowscommon.GetIdentityForUser(s.Env().RemoteHost, agentUser)
+	s.Require().NoError(err)
+	s.Require().Host(s.Env().RemoteHost).
+		NoDirExists(windowsagent.DefaultConfigRoot).
+		NoDirExists(windowsagent.DefaultInstallPath).
+		DirExists(altConfigRoot).
+		DirExists(altInstallPath).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedUser", agentUser).
+		WithValueEqual("ConfigRoot", altConfigRoot+`\`).
+		WithValueEqual("InstallPath", altInstallPath+`\`).
+		HasAService("datadogagent").
+		WithIdentity(identity)
 }
 
 // TestUpgradeWithAgentUser tests that the agent user is preserved across remote upgrades.
@@ -326,7 +485,7 @@ func (s *testAgentUpgradeSuite) installPreviousAgentVersion(opts ...installerwin
 
 	// sanity check: make sure we did indeed install the stable version
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(consts.BinaryPath).
+		HasDatadogInstaller().
 		// Don't check the binary signature because it could have been updated since the last stable was built
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, agentVersion)
@@ -347,7 +506,7 @@ func (s *testAgentUpgradeSuite) installCurrentAgentVersion(opts ...installerwind
 
 	// sanity check: make sure we did indeed install the stable version
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(consts.BinaryPath).
+		HasDatadogInstaller().
 		// Don't check the binary signature because it could have been updated since the last stable was built
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, agentVersion)
@@ -355,8 +514,13 @@ func (s *testAgentUpgradeSuite) installCurrentAgentVersion(opts ...installerwind
 }
 
 func (s *testAgentUpgradeSuite) setAgentConfig() {
-	s.Env().RemoteHost.MkdirAll("C:\\ProgramData\\Datadog")
-	s.Env().RemoteHost.WriteFile(consts.ConfigPath, []byte(`
+	s.setAgentConfigWithAltDir("C:\\ProgramData\\Datadog")
+}
+
+func (s *testAgentUpgradeSuite) setAgentConfigWithAltDir(path string) {
+	s.Env().RemoteHost.MkdirAll(path)
+	configPath := path + `\datadog.yaml`
+	s.Env().RemoteHost.WriteFile(configPath, []byte(`
 api_key: aaaaaaaaa
 remote_updates: true
 `))
@@ -405,6 +569,29 @@ func (s *testAgentUpgradeSuite) assertDaemonStaysRunning(f func()) {
 	s.Require().Equal(originalPID, newPID, "daemon should not have been restarted")
 }
 
+// waitForDaemonToStop waits for the daemon service PID to change after the function is called.
+func (s *testAgentUpgradeSuite) waitForDaemonToStop(f func(), b backoff.BackOff) {
+	s.T().Helper()
+
+	originalPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
+	s.Require().NoError(err)
+	s.Require().Greater(originalPID, 0)
+
+	f()
+
+	err = backoff.Retry(func() error {
+		newPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
+		if err != nil {
+			return err
+		}
+		if newPID == originalPID {
+			return fmt.Errorf("daemon PID %d is still running", newPID)
+		}
+		return nil
+	}, b)
+	s.Require().NoError(err)
+}
+
 type testAgentUpgradeFromGASuite struct {
 	testAgentUpgradeSuite
 }
@@ -431,7 +618,7 @@ func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.Age
 	previousOCI, err := installerwindows.NewPackageConfig(
 		installerwindows.WithName(consts.AgentPackage),
 		installerwindows.WithVersion(previousVersion),
-		installerwindows.WithRegistry("install.datad0g.com"),
+		installerwindows.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
 		installerwindows.WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
@@ -467,4 +654,10 @@ func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.Age
 	s.Require().NoError(err, "Stable agent version was in an incorrect format")
 
 	return agent, nil
+}
+
+// setExperimentMSIArgs stores a list of MSI options for the installer to provide to the MSI when starting an experiment.
+func (s *testAgentUpgradeSuite) setExperimentMSIArgs(args []string) {
+	err := windowscommon.SetRegistryMultiString(s.Env().RemoteHost, `HKLM:SOFTWARE\Datadog\Datadog Agent`, "StartExperimentMSIArgs", args)
+	s.Require().NoError(err)
 }

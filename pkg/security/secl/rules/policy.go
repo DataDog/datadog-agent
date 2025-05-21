@@ -181,8 +181,7 @@ type Policy struct {
 	// multiple macros can have the same ID but different filters (e.g. agent version)
 	macros map[MacroID][]*PolicyMacro
 	// multiple rules can have the same ID but different filters (e.g. agent version)
-	rules              map[RuleID][]*PolicyRule
-	onDemandHookPoints []OnDemandHookPoint
+	rules map[RuleID][]*PolicyRule
 }
 
 // GetAcceptedMacros returns the list of accepted macros that are part of the policy
@@ -303,8 +302,6 @@ RULES:
 			continue
 		}
 	}
-
-	p.onDemandHookPoints = p.Def.OnDemandHookPoints
 
 	return errs.ErrorOrNil()
 }
