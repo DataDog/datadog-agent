@@ -8,7 +8,7 @@ build do
   license :project_license
 
   block do
-    if not linux_target?
+    if not linux_target? or install_dir != '/opt/datadog-agent'
         return
     end
     version = project.build_version
@@ -16,7 +16,7 @@ build do
     link "/opt/datadog-agent", "/opt/datadog-packages/datadog-agent/#{version}"
     link "/opt/datadog-packages/datadog-agent/#{version}", "/opt/datadog-packages/datadog-agent/stable"
     link "/opt/datadog-packages/datadog-agent/#{version}", "/opt/datadog-packages/datadog-agent/experiment"
-    project.extra_package_file '/opt/datadog-packages'
+    project.extra_package_file '/opt/datadog-packages/'
   end
 end
 
