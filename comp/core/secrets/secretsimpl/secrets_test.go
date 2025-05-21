@@ -883,7 +883,7 @@ func TestStartRefreshRoutineWithScatter(t *testing.T) {
 
 			if tc.scatter {
 				// The set random seed has a the scatterDuration is 5.477027098s
-				mockClock.Add(time.Duration(tc.r.Float64() * float64(10*time.Second)))
+				mockClock.Add(6 * time.Second)
 
 				select {
 				case <-refreshCalledChan:
