@@ -362,7 +362,7 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 							&ir.LocationOp{
 								Variable: variable,
 								Offset:   0,
-								Size:     uint32(variableSize),
+								ByteSize: uint32(variableSize),
 							},
 						},
 					},

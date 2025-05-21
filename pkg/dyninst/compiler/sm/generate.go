@@ -445,7 +445,7 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			}
 			// Layout pieces in [layoutIdx, nextLayoutIdx) range correspond to current locPiece.
 			layoutIdx = nextLayoutIdx
-			if op.Offset <= paddedOffset && paddedOffset < op.Offset+op.Size {
+			if op.Offset <= paddedOffset && paddedOffset < op.Offset+op.ByteSize {
 				if outputOffset < paddedOffset {
 					ops = append(ops, IncrementOutputOffsetOp{Value: paddedOffset - outputOffset})
 					outputOffset = paddedOffset
