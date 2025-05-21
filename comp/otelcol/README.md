@@ -9,7 +9,7 @@ This project empowers users to leverage the vendor-agnostic OpenTelemetry standa
 ## Key Features
 
 - Seamless Datadog Integration: Pre-configured with the Datadog Exporter for easy transmission of traces, metrics, and logs to your Datadog account.
-- Optimized Defaults: Includes sensible default configurations for common processors like batch, memory_limiter, and resource detection, tailored for Datadog best practices.
+- Optimized Defaults: Includes sensible default configurations for common components like the DD Exporter, Batch Processor, Datadog connector, etc tailored for Datadog best practices.
 - OpenTelemetry Protocol (OTLP) Support: Ready to receive telemetry data via OTLP over gRPC and HTTP, making it compatible with all OpenTelemetry SDKs.
 - Extensible: As a distribution of the OpenTelemetry Collector, it retains full extensibility, allowing you to add any other OpenTelemetry receivers, processors, or exporters as needed.
 - Kubernetes-Native: Specifically designed and optimized for deployment within Kubernetes environments.
@@ -19,7 +19,7 @@ This project empowers users to leverage the vendor-agnostic OpenTelemetry standa
 
 ### Prerequisites
 
-At the time of this writing only Kubernetes and daemonset (ie. [agent](deployments) in OTel lingo) deployments are supported.
+At the time of this writing only Kubernetes and daemonset (ie. [agent](https://opentelemetry.io/docs/collector/deployment/agent/) in OTel lingo) deployments are supported.
 
 Before you begin, ensure you have:
 - A Datadog API Key. You can find or generate one in your Datadog Organization Settings.
@@ -117,6 +117,30 @@ Please note that you con also bring your OpenTelemetry Collector configuration w
 DDOT ships with a curated and pre-defined set of components defined in the [manifest](https://github.com/DataDog/datadog-agent/blob/main/comp/otelcol/collector-contrib/impl/manifest.yaml) file. We understand that customer's particular use-cases may require additional components not shipping by default. To address these cases we have introduced the BYOC (Bring Your Own Components) workflow.
 
 To learn more about how to build DDOT with support for your custom set of components please read our [documentation](https://docs.datadoghq.com/opentelemetry/setup/ddot_collector/custom_components/).
+
+
+### Development
+
+For developers, building and running the DDOT Collector locally is straight-forward once you have the Datadog Agent development environment set up. You can use our [development documentation](https://datadoghq.dev/datadog-agent/) to learn some more about the development guidelines, and instructions on the environment/tooling setup are available in this [guide](https://datadoghq.dev/datadog-agent/setup/).
+
+Once your development environment is set up, you can build your DDOT collector as follows:
+```
+inv otel-agent.build
+```
+
+The resulting binary will be dropped in the `./bin/otel-agent` directory. The default OTel configuration will be dropped in `./bin/otel-agent/dist/otel-config.yaml`.
+
+The DDOT executable takes in two arguments `--core-config <agent configuration>` and `--config <otel configuration>`:
+- `--core-config`: this is your typical Datadog Agent configuration, it defines some settings that are leveraged by DDOT.
+- `--config`: this is the OpenTelemetry Collector configuration, with the relevant components (receivers, processors, exporters, connectors and extensions) that define your OTel observability pipelines. This file is in the same format as the upstream Collector configuration files.
+
+
+You can run your DDOT local build simply by executing the resulting binary as follows:
+```
+./bin/otel-agent/otel-agent run --core-config <your_datadog_agent_config>.yaml --config ./bin/otel-agent/dist/otel-config.yaml
+```
+
+Of course, feel free to provide and tweak the provided configurations as required.
 
 
 ## Contributing
