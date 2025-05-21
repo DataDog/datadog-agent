@@ -347,12 +347,13 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender, gpuToContainersMap map[string
 		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
 	}
 
+	var multiErr error
 	for _, collector := range c.collectors {
 		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
 		metrics, collectErr := collector.Collect()
 		if collectErr != nil {
 			c.telemetry.collectorErrors.Add(1, string(collector.Name()))
-			err = multierror.Append(err, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
 		}
 
 		var extraTags []string
@@ -360,7 +361,7 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender, gpuToContainersMap map[string
 			entityID := taggertypes.NewEntityID(taggertypes.ContainerID, container.EntityID.ID)
 			tags, err := c.tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
 			if err != nil {
-				log.Warnf("Error collecting container tags for GPU %s: %s", collector.DeviceUUID(), err)
+				multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting container tags for GPU %s: %w", collector.DeviceUUID(), err))
 				continue
 			}
 
@@ -375,23 +376,13 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender, gpuToContainersMap map[string
 			case ddmetrics.GaugeType:
 				snd.Gauge(metricName, metric.Value, "", append(c.deviceTags[collector.DeviceUUID()], extraTags...))
 			default:
-				return fmt.Errorf("unsupported metric type %s for metric %s", metric.Type, metricName)
+				multiErr = multierror.Append(multiErr, fmt.Errorf("unsupported metric type %s for metric %s", metric.Type, metricName))
+				continue
 			}
 		}
 
 		c.telemetry.metricsSent.Add(float64(len(metrics)), string(collector.Name()))
 	}
 
-	return c.emitGlobalNvmlMetrics(snd)
-}
-
-func (c *Check) emitGlobalNvmlMetrics(snd sender.Sender) error {
-	// Collect global metrics such as device count
-	devCount := c.deviceCache.Count()
-
-	snd.Gauge(metricNameDeviceTotal, float64(devCount), "", nil)
-
-	c.telemetry.metricsSent.Add(1, "global")
-
-	return nil
+	return multiErr
 }
