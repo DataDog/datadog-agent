@@ -309,7 +309,8 @@ func loadLogProcessingRules(s *common.Setup) {
 
 // ClusterTags are custom tags from Databricks API response
 type ClusterTags struct {
-	CustomTags map[string]string `json:"custom_tags"`
+	CustomTags   map[string]string `json:"custom_tags"`
+	SparkVersion string            `json:"spark_version"`
 }
 
 // JobTags custom tags from Databricks API response
@@ -405,7 +406,18 @@ func fetchClusterTags(client *http.Client, host, token, clusterID string, s *com
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	return clusterResponse.CustomTags, nil
+	// Create a copy of the custom tags
+	tags := make(map[string]string)
+	for k, v := range clusterResponse.CustomTags {
+		tags[k] = v
+	}
+
+	// Add spark_version as runtime tag if available
+	if clusterResponse.SparkVersion != "" {
+		tags["runtime"] = clusterResponse.SparkVersion
+	}
+
+	return tags, nil
 }
 
 func fetchJobTags(client *http.Client, host, token, jobID string, s *common.Setup) (map[string]string, error) {

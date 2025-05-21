@@ -385,11 +385,12 @@ func TestFetchDatabricksCustomTagsWithMock(t *testing.T) {
 	}()
 
 	tests := []struct {
-		name            string
-		env             map[string]string
-		mockClusterTags map[string]string
-		mockJobTags     map[string]string
-		wantTags        []string
+		name                string
+		env                 map[string]string
+		mockClusterTags     map[string]string
+		mockClusterSparkVer string
+		mockJobTags         map[string]string
+		wantTags            []string
 	}{
 		{
 			name: "successful fetch of cluster tags",
@@ -402,10 +403,30 @@ func TestFetchDatabricksCustomTagsWithMock(t *testing.T) {
 				"environment": "production",
 				"team":        "data-platform",
 			},
-			mockJobTags: nil,
+			mockClusterSparkVer: "",
+			mockJobTags:         nil,
 			wantTags: []string{
 				"environment:production",
 				"team:data-platform",
+			},
+		},
+		{
+			name: "successful fetch of cluster tags with spark version",
+			env: map[string]string{
+				"DATABRICKS_TOKEN": "abc123",
+				"DATABRICKS_HOST":  "https://example.com",
+				"DB_CLUSTER_ID":    "cluster123",
+			},
+			mockClusterTags: map[string]string{
+				"environment": "production",
+				"team":        "data-platform",
+			},
+			mockClusterSparkVer: "15.4.x-scala2.12",
+			mockJobTags:         nil,
+			wantTags: []string{
+				"environment:production",
+				"team:data-platform",
+				"runtime:15.4.x-scala2.12",
 			},
 		},
 		{
@@ -415,7 +436,8 @@ func TestFetchDatabricksCustomTagsWithMock(t *testing.T) {
 				"DATABRICKS_HOST":  "https://example.com",
 				"DB_CLUSTER_NAME":  "job-123-run-456",
 			},
-			mockClusterTags: nil,
+			mockClusterTags:     nil,
+			mockClusterSparkVer: "",
 			mockJobTags: map[string]string{
 				"cost-center": "data-eng",
 				"project":     "analytics",
@@ -426,7 +448,7 @@ func TestFetchDatabricksCustomTagsWithMock(t *testing.T) {
 			},
 		},
 		{
-			name: "successful fetch of both cluster and job tags",
+			name: "successful fetch of both cluster and job tags with spark version",
 			env: map[string]string{
 				"DATABRICKS_TOKEN": "abc123",
 				"DATABRICKS_HOST":  "https://example.com",
@@ -436,12 +458,14 @@ func TestFetchDatabricksCustomTagsWithMock(t *testing.T) {
 			mockClusterTags: map[string]string{
 				"environment": "production",
 			},
+			mockClusterSparkVer: "15.4.x-scala2.12",
 			mockJobTags: map[string]string{
 				"project": "analytics",
 			},
 			wantTags: []string{
 				"environment:production",
 				"project:analytics",
+				"runtime:15.4.x-scala2.12",
 			},
 		},
 	}
@@ -455,7 +479,16 @@ func TestFetchDatabricksCustomTagsWithMock(t *testing.T) {
 
 			// Mock the fetchClusterTags function
 			fetchClusterTagsFunc = func(_ *http.Client, _, _, _ string, _ *common.Setup) (map[string]string, error) {
-				return tt.mockClusterTags, nil
+				tags := make(map[string]string)
+				// Copy the mock cluster tags
+				for k, v := range tt.mockClusterTags {
+					tags[k] = v
+				}
+				// Add spark version as runtime tag if provided
+				if tt.mockClusterSparkVer != "" {
+					tags["runtime"] = tt.mockClusterSparkVer
+				}
+				return tags, nil
 			}
 
 			// Mock the fetchJobTags function
