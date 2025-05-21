@@ -8,12 +8,132 @@
 package compiler
 
 import (
+	"fmt"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/cilium/ebpf"
 )
 
 func TestCompileBPFProgram(t *testing.T) {
-	err := CompileBPFProgram()
+	pointee := &ir.BaseType{
+		TypeCommon: ir.TypeCommon{
+			ID:   4,
+			Name: "int",
+			Size: 4,
+		},
+	}
+	pointer := &ir.PointerType{
+		TypeCommon: ir.TypeCommon{
+			ID:   3,
+			Name: "*int",
+			Size: 8,
+		},
+		Pointee: pointee,
+	}
+	sp := &ir.Subprogram{
+		Name:              "CoolButBuggyFunction",
+		OutOfLinePCRanges: []ir.PCRange{},
+		InlinePCRanges:    [][]ir.PCRange{},
+		Variables: []ir.Variable{
+			{
+				Name: "BadVar",
+				Type: pointer,
+				Locations: []ir.Location{
+					{
+						Range: ir.PCRange{
+							Start: 1000,
+							End:   1200,
+						},
+						Pieces: []bininspect.ParameterPiece{
+							{
+								Size:        8,
+								InReg:       false,
+								StackOffset: 12,
+								Register:    -1,
+							},
+						},
+					},
+				},
+				IsParameter: false,
+			},
+		},
+		Lines: []ir.SubprogramLine{},
+	}
+	p := ir.Program{
+		ID: 123,
+		Probes: []*ir.Probe{
+			{
+				ID:         "UUID1",
+				Type:       ir.ProbeKindLog,
+				Version:    7,
+				Tags:       nil,
+				Subprogram: sp,
+				Events: []ir.Event{
+					{
+						ID: 456,
+						Type: &ir.EventRootType{
+							TypeCommon: ir.TypeCommon{
+								ID:   10,
+								Name: "CoolButBuggyFunction",
+								Size: 0,
+							},
+							PresenseBitsetSize: 0,
+							Expressions: []ir.RootExpression{
+								{
+									Name:   "BadVar",
+									Offset: 0,
+									Expression: ir.Expression{
+										Type: pointee,
+										Operations: []ir.Op{
+											&ir.LocationOp{
+												Variable: &sp.Variables[0],
+												Offset:   0,
+												Size:     4,
+											},
+										},
+									},
+								},
+							},
+						},
+						InjectionPCs: []uint64{1100},
+						Condition:    nil,
+					},
+				},
+			},
+		},
+		Subprograms: []*ir.Subprogram{sp},
+		Types:       []ir.Type{pointer, pointee},
+		MaxTypeID:   132,
+	}
+	obj, err := CompileBPFProgram(p)
 	if err != nil {
 		t.Fatalf("Failed to compile BPF program: %v", err)
 	}
+
+	spec, err := ebpf.LoadCollectionSpecFromReader(obj)
+	if err != nil {
+		t.Fatalf("Failed to load ebpf spec: %v", err)
+	}
+	fmt.Println(spec)
+
+	fmt.Println("Loading...")
+	opts := ebpf.CollectionOptions{
+		Programs: ebpf.ProgramOptions{
+			LogLevel:    (ebpf.LogLevelBranch | ebpf.LogLevelInstruction | ebpf.LogLevelStats),
+			LogDisabled: false,
+		},
+	}
+	bpfObj, err := ebpf.NewCollectionWithOptions(spec, opts)
+	if err != nil {
+		t.Fatalf("Failed to load ebpf obj: %v", err)
+	}
+	fmt.Println(bpfObj)
+
+	prog, ok := bpfObj.Programs["probe_run_with_cookie"]
+	if !ok {
+		t.Fatalf("Failed to find ebpf program: %v", bpfObj)
+	}
+	fmt.Println(prog)
 }

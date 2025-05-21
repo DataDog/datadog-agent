@@ -9,7 +9,7 @@
 
 DEFINE_QUEUE(pointers, data_item_header_t, 128 << 10);
 
-#define MAX_CHASED_POINTERS 128
+#define MAX_CHASED_POINTERS 32
 typedef struct chased_pointers {
   uint32_t n;
   target_ptr_t ptrs[MAX_CHASED_POINTERS];
@@ -87,7 +87,6 @@ typedef struct stack_walk_ctx {
   int16_t idx_shift;
   struct pt_regs regs;
   target_stack_t stack;
-  char g_prefix[RUNTIME_DOT_G_PREFIX_BYTES];
 } stack_walk_ctx_t;
 
 struct {
