@@ -589,7 +589,7 @@ func TestNoPriorRegistrationActiveConnections(t *testing.T) {
 func TestCleanupClient(t *testing.T) {
 	clientID := "1"
 
-	state := NewState(nil, 100*time.Millisecond, 50000, 75000, 75000, 7500, 75000, 75000, 75000, false, false)
+	state := NewState(nil, 100*time.Millisecond, 50000, 1.0, 75000, 75000, 7500, 75000, 75000, 75000, false, false)
 	clients := state.(*networkState).getClients()
 	assert.Equal(t, 0, len(clients))
 
@@ -2613,18 +2613,19 @@ func createTestConnectionStats(cookie StatCookie) *ConnectionStats {
 func TestNearCapacityFlagSetAndCheck(t *testing.T) {
 	// Use a small size for easier testing
 	const maxClosedConns = 10
-	const capacityThreshold = (maxClosedConns * 9) / 10 // Should be 9
+	const closedConnsThresholdRatio = 0.9
+	const capacityThreshold = uint32(float64(maxClosedConns) * closedConnsThresholdRatio)
 
 	// Pass nil for telemetry component
-	ns := NewState(nil, 1*time.Minute, maxClosedConns, 100, 100, 100, 100, 100, 100, false, false).(*networkState) // Cast to access unexported storeClosedConnection
+	ns := NewState(nil, 1*time.Minute, maxClosedConns, closedConnsThresholdRatio, 100, 100, 100, 100, 100, 100, false, false).(*networkState) // Cast to access unexported storeClosedConnection
 	require.NotNil(t, ns)
 
 	clientID := "test-client-flag-set"
 	ns.RegisterClient(clientID) // Register the client
 
 	// Add connections below threshold
-	ns.Lock()                                  // Lock needed as storeClosedConnection assumes lock is held by caller
-	for i := 0; i < capacityThreshold-1; i++ { // Add 8 connections
+	ns.Lock()                                          // Lock needed as storeClosedConnection assumes lock is held by caller
+	for i := 0; uint32(i) < capacityThreshold-1; i++ { // Add 8 connections
 		ns.storeClosedConnection(createTestConnectionStats(StatCookie(i)))
 	}
 	ns.Unlock()
@@ -2651,18 +2652,19 @@ func TestNearCapacityFlagSetAndCheck(t *testing.T) {
 
 func TestNearCapacityFlagResetByGetDelta(t *testing.T) {
 	const maxClosedConns = 10
-	const capacityThreshold = (maxClosedConns * 9) / 10
+	const closedConnsThresholdRatio = 0.9
+	const capacityThreshold = uint32(float64(maxClosedConns) * closedConnsThresholdRatio)
 
 	// Pass nil for telemetry component
-	ns := NewState(nil, 1*time.Minute, maxClosedConns, 100, 100, 100, 100, 100, 100, false, false).(*networkState)
+	ns := NewState(nil, 1*time.Minute, maxClosedConns, closedConnsThresholdRatio, 100, 100, 100, 100, 100, 100, false, false).(*networkState)
 	require.NotNil(t, ns)
 
 	clientID := "test-client-flag-reset"
 	ns.RegisterClient(clientID)
 
 	// Add connections to trigger the flag
-	ns.Lock()                                // Lock needed as storeClosedConnection assumes lock is held by caller
-	for i := 0; i < capacityThreshold; i++ { // Add 9 connections
+	ns.Lock()                                        // Lock needed as storeClosedConnection assumes lock is held by caller
+	for i := 0; uint32(i) < capacityThreshold; i++ { // Add 9 connections
 		ns.storeClosedConnection(createTestConnectionStats(StatCookie(i)))
 	}
 	flagBefore := ns.clients[clientID].closedConnectionsNearCapacity.Load() // Check flag on the client struct
@@ -2679,10 +2681,11 @@ func TestNearCapacityFlagResetByGetDelta(t *testing.T) {
 func TestNearCapacityFlagMultipleClients(t *testing.T) {
 	// Test the behavior with multiple clients and the per-client flag
 	const maxClosedConns = 10
-	const capacityThreshold = (maxClosedConns * 9) / 10
+	const closedConnsThresholdRatio = 0.9
+	const capacityThreshold = uint32(float64(maxClosedConns) * closedConnsThresholdRatio)
 
 	// Pass nil for telemetry component
-	ns := NewState(nil, 1*time.Minute, maxClosedConns, 100, 100, 100, 100, 100, 100, false, false).(*networkState)
+	ns := NewState(nil, 1*time.Minute, maxClosedConns, closedConnsThresholdRatio, 100, 100, 100, 100, 100, 100, false, false).(*networkState)
 	require.NotNil(t, ns)
 
 	client1 := "client-1"
@@ -2695,7 +2698,7 @@ func TestNearCapacityFlagMultipleClients(t *testing.T) {
 	// to directly test the flag's independence, rather than relying on
 	// the side effects of storeClosedConnection iterating over all clients.
 	ns.Lock() // Lock required to access internal client state
-	for i := 0; i < capacityThreshold; i++ {
+	for i := 0; uint32(i) < capacityThreshold; i++ {
 		conn := createTestConnectionStats(StatCookie(i))
 		c1 := ns.getClient(client1)
 		require.NotNil(t, c1, "Client 1 should exist")
@@ -2720,7 +2723,7 @@ func TestNearCapacityFlagMultipleClients(t *testing.T) {
 
 	// Now fill client2's buffer to trigger its flag (similar simulation)
 	ns.Lock() // Lock required to access internal client state
-	for i := 0; i < capacityThreshold; i++ {
+	for i := 0; uint32(i) < capacityThreshold; i++ {
 		conn := createTestConnectionStats(StatCookie(100 + i)) // Use different cookies
 		// Ensure client 1 buffer is not touched
 		_ = ns.getClient(client1)
@@ -2773,8 +2776,9 @@ func latestEpochTime() uint64 {
 }
 
 func newDefaultState() *networkState {
-	// Using values from ebpf.NewConfig()
-	return NewState(nil, 2*time.Minute, 50000, 75000, 75000, 7500, 7500, 7500, 7500, false, false).(*networkState)
+	// Pass nil for telemetry component
+	// Using 0.9 as the default threshold ratio for tests, mirroring the previous hardcoded 9/10
+	return NewState(nil, 1*time.Minute, 10000, 0.9, 65553, 10000, 10000, 10000, 10000, 10000, false, false).(*networkState)
 }
 
 func getIPProtocol(nt ConnectionType) uint8 {
