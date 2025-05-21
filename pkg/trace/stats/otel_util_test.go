@@ -77,7 +77,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 		},
 		{
 			name:     "span with no attributes, everything uses default",
-			expected: createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.unspecified", "custom", "unspecified", "", agentHost, agentEnv, "", nil, nil, true, false),
+			expected: createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.unspecified", "custom", "unspecified", "", agentHost, agentEnv, "", "", nil, nil, true, false),
 		},
 		{
 			name:         "non root span with kind internal does not get stats with new top level rules",
@@ -90,20 +90,20 @@ func TestProcessOTLPTraces(t *testing.T) {
 			parentSpanID: &parentID,
 			spanKind:     ptrace.SpanKindInternal,
 			sattrs:       map[string]any{"_dd.measured": int64(1)},
-			expected:     createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.internal", "custom", "internal", "", agentHost, agentEnv, "", nil, nil, false, true),
+			expected:     createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.internal", "custom", "internal", "", agentHost, agentEnv, "", "", nil, nil, false, true),
 		},
 		{
 			name:         "non root span with kind client gets stats with new top level rules",
 			parentSpanID: &parentID,
 			spanKind:     ptrace.SpanKindClient,
-			expected:     createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.client", "http", "client", "", agentHost, agentEnv, "", nil, nil, false, true),
+			expected:     createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.client", "http", "client", "", agentHost, agentEnv, "", "", nil, nil, false, true),
 		},
 		{
 			name:           "non root span with kind internal does get stats with legacy top level rules",
 			parentSpanID:   &parentID,
 			spanKind:       ptrace.SpanKindInternal,
 			legacyTopLevel: true,
-			expected:       createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.internal", "custom", "internal", "", agentHost, agentEnv, "", nil, nil, false, false),
+			expected:       createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.internal", "custom", "internal", "", agentHost, agentEnv, "", "", nil, nil, false, false),
 		},
 		{
 			name:     "span with name, service, instrumentation scope and span kind",
@@ -111,7 +111,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			rattrs:   map[string]string{"service.name": "svc"},
 			spanKind: ptrace.SpanKindServer,
 			libname:  "spring",
-			expected: createStatsPayload(agentEnv, agentHost, "svc", "spring.server", "web", "server", "spanname", agentHost, agentEnv, "", nil, nil, true, false),
+			expected: createStatsPayload(agentEnv, agentHost, "svc", "spring.server", "web", "server", "spanname", agentHost, agentEnv, "", "", nil, nil, true, false),
 		},
 		{
 			name:     "span with operation name, resource name and env attributes",
@@ -120,7 +120,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			sattrs:   map[string]any{"operation.name": "op", "resource.name": "res"},
 			spanKind: ptrace.SpanKindClient,
 			libname:  "spring",
-			expected: createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "res", agentHost, "tracer-env", "", nil, nil, true, false),
+			expected: createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "res", agentHost, "tracer-env", "", "", nil, nil, true, false),
 		},
 		{
 			name:     "new env convention",
@@ -129,7 +129,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			sattrs:   map[string]any{"operation.name": "op", "resource.name": "res"},
 			spanKind: ptrace.SpanKindClient,
 			libname:  "spring",
-			expected: createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "res", agentHost, "new-env", "", nil, nil, true, false),
+			expected: createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "res", agentHost, "new-env", "", "", nil, nil, true, false),
 		},
 		{
 			name:                   "span operation name from span name with db attribute, peerTagsAggr not enabled",
@@ -137,7 +137,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			rattrs:                 map[string]string{"service.name": "svc", "host.name": "test-host", "db.system": "redis"},
 			spanKind:               ptrace.SpanKindClient,
 			spanNameAsResourceName: true,
-			expected:               createStatsPayload(agentEnv, agentHost, "svc", "spanname3", "cache", "client", "spanname3", "test-host", agentEnv, "", nil, nil, true, false),
+			expected:               createStatsPayload(agentEnv, agentHost, "svc", "spanname3", "cache", "client", "spanname3", "test-host", agentEnv, "", "", nil, nil, true, false),
 		},
 		{
 			name:     "with container tags",
@@ -145,7 +145,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			rattrs:   map[string]string{"service.name": "svc", "db.system": "spanner", semconv.AttributeContainerID: "test_cid"},
 			ctagKeys: []string{semconv.AttributeContainerID},
 			spanKind: ptrace.SpanKindClient,
-			expected: createStatsPayload(agentEnv, agentHost, "svc", "opentelemetry.client", "db", "client", "spanname4", agentHost, agentEnv, "test_cid", []string{"container_id:test_cid", "env:test_env"}, nil, true, false),
+			expected: createStatsPayload(agentEnv, agentHost, "svc", "opentelemetry.client", "db", "client", "spanname4", agentHost, agentEnv, "test_cid", "", []string{"container_id:test_cid", "env:test_env"}, nil, true, false),
 		},
 		{
 			name:               "operation name remapping and resource from http",
@@ -153,7 +153,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			spanKind:           ptrace.SpanKindInternal,
 			sattrs:             map[string]any{semconv.AttributeHTTPMethod: "GET", semconv.AttributeHTTPRoute: "/home"},
 			spanNameRemappings: map[string]string{"opentelemetry.internal": "internal_op"},
-			expected:           createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "internal_op", "custom", "internal", "GET /home", agentHost, agentEnv, "", nil, nil, true, false),
+			expected:           createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "internal_op", "custom", "internal", "GET /home", agentHost, agentEnv, "", "", nil, nil, true, false),
 		},
 		{
 			name:         "with peer tags and peerTagsAggr enabled",
@@ -162,7 +162,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			peerTagsAggr: true,
 			rattrs:       map[string]string{"service.name": "svc", semconv.AttributeDeploymentEnvironment: "tracer-env", "datadog.host.name": "dd-host"},
 			sattrs:       map[string]any{"operation.name": "op", semconv.AttributeRPCMethod: "call", semconv.AttributeRPCService: "rpc_service"},
-			expected:     createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "call rpc_service", "dd-host", "tracer-env", "", nil, []string{"rpc.service:rpc_service"}, true, false),
+			expected:     createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "call rpc_service", "dd-host", "tracer-env", "", "", nil, []string{"rpc.service:rpc_service"}, true, false),
 		},
 
 		{
@@ -181,7 +181,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			enableObfuscation:                true,
 			enableReceiveResourceSpansV2:     true,
 			enableOperationAndResourceNameV2: true,
-			expected:                         createStatsPayload(agentEnv, agentHost, "svc", "mssql.query", "sql", "client", "SELECT username FROM users WHERE id = ?", agentHost, agentEnv, "", nil, nil, true, false),
+			expected:                         createStatsPayload(agentEnv, agentHost, "svc", "mssql.query", "sql", "client", "SELECT username FROM users WHERE id = ?", agentHost, agentEnv, "", "", nil, nil, true, false),
 		},
 		{
 			name:                             "obfuscated redis span",
@@ -191,7 +191,50 @@ func TestProcessOTLPTraces(t *testing.T) {
 			enableObfuscation:                true,
 			enableReceiveResourceSpansV2:     true,
 			enableOperationAndResourceNameV2: true,
-			expected:                         createStatsPayload(agentEnv, agentHost, "svc", "redis.query", "redis", "client", "SET", "test-host", agentEnv, "", nil, nil, true, false),
+			expected:                         createStatsPayload(agentEnv, agentHost, "svc", "redis.query", "redis", "client", "SET", "test-host", agentEnv, "", "", nil, nil, true, false),
+		},
+		{
+			name:     "span vs resource attribute precedence",
+			spanName: "/path",
+			rattrs: map[string]string{
+				"service.name":           "res-service",
+				"deployment.environment": "res-env",
+				"operation.name":         "res-op",
+				"resource.name":          "res-res",
+				"span.type":              "res-type",
+				"http.status_code":       "res-status",
+				"version":                "res-version",
+			},
+			sattrs: map[string]any{
+				"service.name":           "span-service",
+				"deployment.environment": "span-env",
+				"operation.name":         "span-op",
+				"resource.name":          "span-res",
+				"span.type":              "span-type",
+				"http.status_code":       "span-status",
+				"service.version":        "span-service-version",
+			},
+			spanKind:                         ptrace.SpanKindServer,
+			libname:                          "ddtracer",
+			enableOperationAndResourceNameV2: true,
+			enableReceiveResourceSpansV2:     true,
+			expected: createStatsPayload(
+				agentEnv,
+				agentHost,
+				"span-service",
+				"span-op",
+				"span-type",
+				"server",
+				"span-res",
+				agentHost,
+				"span-env",
+				"",
+				"span-service-version",
+				nil,
+				nil,
+				true,
+				false,
+			),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -365,7 +408,7 @@ func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 }
 
 func createStatsPayload(
-	agentEnv, agentHost, svc, operation, typ, kind, resource, tracerHost, env, cid string,
+	agentEnv, agentHost, svc, operation, typ, kind, resource, tracerHost, env, cid, version string,
 	ctags, peerTags []string,
 	root, nonTopLevel bool,
 ) *pb.StatsPayload {
@@ -382,6 +425,7 @@ func createStatsPayload(
 		AgentHostname: agentHost,
 		Stats: []*pb.ClientStatsPayload{{
 			Hostname:    tracerHost,
+			Version:     version,
 			Env:         env,
 			ContainerID: cid,
 			Tags:        ctags,
