@@ -36,6 +36,20 @@ func TestNoop(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
+	defer func() {
+		code := m.Run()
+		os.Exit(code)
+	}()
+
+	// Set
+	// "go.testEnvVars": {
+	// 	"SKIP_TEST_MAIN": "1"
+	//   }
+	// in your settings.json to skip integration test setup
+	if os.Getenv("SKIP_TEST_MAIN") == "1" {
+		return
+	}
+
 	print("Running initdb.d sql files...")
 	// This is a bit of a hack to get a db connection without a testing.T
 	// Ideally we should pull the connection logic out
@@ -88,7 +102,89 @@ func TestMain(m *testing.M) {
 			}
 		}
 	}
+}
 
-	code := m.Run()
-	os.Exit(code)
+func TestCreateDatabaseIdentifier(t *testing.T) {
+	tests := []struct {
+		name           string
+		config         func(c *Check)
+		expectedResult string
+	}{
+		{
+			name: "Basic configuration",
+			config: func(c *Check) {
+				c.config.Server = "test-server"
+				c.config.Port = 1521
+				c.config.ServiceName = "test-service"
+				c.config.DatabaseIdentifier.Template = "$resolved_hostname:$server:$port:$cdb_name:$service_name"
+				c.dbResolvedHostname = "test-hostname"
+				c.cdbName = "test-cdb"
+			},
+			expectedResult: "test-hostname:test-server:1521:test-cdb:test-service",
+		},
+		{
+			name: "Missing hostname",
+			config: func(c *Check) {
+				c.config.Server = "test-server"
+				c.config.Port = 1521
+				c.config.ServiceName = "test-service"
+				c.config.DatabaseIdentifier.Template = "$resolved_hostname:$server:$port:$cdb_name:$service_name"
+				c.dbResolvedHostname = ""
+				c.cdbName = "test-cdb"
+			},
+			expectedResult: "$resolved_hostname:test-server:1521:test-cdb:test-service",
+		},
+		{
+			name: "Custom template",
+			config: func(c *Check) {
+				c.config.Server = "custom-server"
+				c.config.Port = 3306
+				c.config.ServiceName = "custom-service"
+				c.config.DatabaseIdentifier.Template = "$server-$port-$service_name"
+				c.dbResolvedHostname = "custom-hostname"
+				c.cdbName = "custom-cdb"
+			},
+			expectedResult: "custom-server-3306-custom-service",
+		},
+		{
+			name: "Empty template",
+			config: func(c *Check) {
+				c.config.Server = "empty-server"
+				c.config.Port = 5432
+				c.config.ServiceName = "empty-service"
+				c.config.DatabaseIdentifier.Template = ""
+				c.dbResolvedHostname = "empty-hostname"
+				c.cdbName = "empty-cdb"
+			},
+			expectedResult: "",
+		},
+		{
+			name: "Template with missing variables",
+			config: func(c *Check) {
+				c.config.Server = "partial-server"
+				c.config.Port = 1521
+				c.config.ServiceName = "partial-service"
+				c.config.DatabaseIdentifier.Template = "$server:$port:$missing_variable"
+				c.dbResolvedHostname = "partial-hostname"
+				c.cdbName = "partial-cdb"
+			},
+			expectedResult: "partial-server:1521:$missing_variable",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _ := newDbDoesNotExistCheck(t, "", "")
+			defer c.Teardown()
+
+			// Apply test-specific configuration
+			tt.config(&c)
+
+			// Generate the database identifier
+			identifier := c.createDatabaseIdentifier()
+
+			// Assertions
+			assert.Equal(t, tt.expectedResult, identifier, "Database identifier does not match expected value")
+		})
+	}
 }

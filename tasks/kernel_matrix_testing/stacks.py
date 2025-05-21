@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import getpass
 import os
 import platform
 from pathlib import Path
@@ -146,24 +147,24 @@ def check_user_in_group(ctx: Context, group: str) -> bool:
 
 def check_user_in_kvm(ctx: Context) -> None:
     if not check_user_in_group(ctx, "kvm"):
-        error("You must add user '{os.getlogin()}' to group 'kvm'")
-        raise Exit("User '{os.getlogin()}' not in group 'kvm'")
+        error("You must add user '{getpass.getuser()}' to group 'kvm'")
+        raise Exit("User '{getpass.getuser()}' not in group 'kvm'")
 
-    info(f"[+] User '{os.getlogin()}' in group 'kvm'")
+    info(f"[+] User '{getpass.getuser()}' in group 'kvm'")
 
 
 def check_user_in_libvirt(ctx: Context) -> None:
     if not check_user_in_group(ctx, "libvirt"):
-        error("You must add user '{os.getlogin()}' to group 'libvirt'")
-        raise Exit("User '{os.getlogin()}' not in group 'libvirt'")
+        error("You must add user '{getpass.getuser()}' to group 'libvirt'")
+        raise Exit("User '{getpass.getuser()}' not in group 'libvirt'")
 
-    info(f"[+] User '{os.getlogin()}' in group 'libvirt'")
+    info(f"[+] User '{getpass.getuser()}' in group 'libvirt'")
 
 
 def check_libvirt_sock_perms() -> None:
     read_libvirt_sock()
     write_libvirt_sock()
-    info(f"[+] User '{os.getlogin()}' has read/write permissions on libvirt sock")
+    info(f"[+] User '{getpass.getuser()}' has read/write permissions on libvirt sock")
 
 
 def check_env(ctx: Context):
@@ -238,7 +239,7 @@ def launch_stack(
         local,
         provision,
     ]
-    ctx.run(f"{' '.join(env)} {prefix} dda inv -e system-probe.start-microvms {' '.join(args)}")
+    ctx.run(f"{' '.join(env)} {prefix} dda inv -- -e system-probe.start-microvms {' '.join(args)}")
 
     info(f"[+] Stack {stack} successfully setup")
 
@@ -263,7 +264,7 @@ def destroy_stack_pulumi(ctx: Context, stack: str, ssh_key: str | None):
 
     env_vars = ' '.join(env)
     ctx.run(
-        f"{env_vars} {prefix} dda inv system-probe.start-microvms --infra-env=aws/sandbox --stack-name={stack} --destroy --local"
+        f"{env_vars} {prefix} dda inv -- system-probe.start-microvms --infra-env=aws/sandbox --stack-name={stack} --destroy --local"
     )
 
 

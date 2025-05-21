@@ -15,6 +15,7 @@ go_library(
         "//test/fakeintake/client",
         "//test/new-e2e/pkg/components",
         "//test/new-e2e/pkg/utils/e2e/client/agentclient",
+        "@com_github_datadog_test_infra_definitions//components/datadog/apps",
         "@com_github_davecgh_go_spew//spew",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//suite",

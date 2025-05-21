@@ -5,10 +5,13 @@ go_library(
     srcs = ["debugging.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugging",
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/network/dns",
-        "//pkg/network/protocols",
-        "//pkg/network/protocols/http",
-        "//pkg/process/util",
-    ],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/network/dns",
+            "//pkg/network/protocols",
+            "//pkg/network/protocols/http",
+            "//pkg/process/util",
+        ],
+        "//conditions:default": [],
+    }),
 )

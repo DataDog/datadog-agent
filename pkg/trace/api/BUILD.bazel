@@ -43,6 +43,7 @@ go_library(
         "//pkg/trace/telemetry",
         "//pkg/trace/timing",
         "//pkg/trace/traceutil",
+        "//pkg/trace/traceutil/normalize",
         "//pkg/trace/transform",
         "//pkg/trace/watchdog",
         "@com_github_datadog_datadog_go_v5//statsd",

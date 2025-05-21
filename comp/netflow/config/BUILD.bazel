@@ -29,7 +29,6 @@ go_test(
         "//comp/core/log/mock",
         "//comp/netflow/common",
         "//pkg/config/mock",
-        "//pkg/config/setup",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

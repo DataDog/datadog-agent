@@ -13,6 +13,7 @@ go_library(
         "//comp/dogstatsd/constants",
         "//pkg/security/events",
         "//pkg/security/metrics",
+        "//pkg/security/probe/kfilters",
         "//pkg/security/secl/compiler/eval",
         "//pkg/security/secl/containerutils",
         "//pkg/security/secl/model",

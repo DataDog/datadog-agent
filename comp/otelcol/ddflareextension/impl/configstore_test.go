@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector"
 	"go.opentelemetry.io/collector/component/componenttest"
 
 	converterimpl "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
@@ -39,8 +39,10 @@ import (
 // this is only used for config unmarshalling.
 func addFactories(factories otelcol.Factories) {
 	factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(nil, nil, nil, nil, nil, otel.NewDisabledGatewayUsage())
-	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(nil)
-	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
+	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(nil, func(context.Context) (string, error) {
+		return "hostname", nil
+	})
+	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactoryForAgent(nil, nil)
 	factories.Extensions[Type] = NewFactoryForAgent(nil, otelcol.ConfigProviderSettings{})
 }
 

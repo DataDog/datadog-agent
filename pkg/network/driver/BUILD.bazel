@@ -15,8 +15,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//cmd/system-probe/config/types",
             "//comp/core/telemetry",
+            "//pkg/system-probe/config/types",
             "//pkg/telemetry",
             "//pkg/util/log",
             "//pkg/util/winutil",

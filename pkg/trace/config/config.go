@@ -88,6 +88,10 @@ type OTLP struct {
 	// OTLP semantic convention attributes. If it is true, we will only populate a field if its associated "datadog."
 	// OTLP span attribute exists, otherwise we will leave it empty.
 	IgnoreMissingDatadogFields bool `mapstructure:"ignore_missing_datadog_fields"`
+
+	// GrpcMaxRecvMsgSizeMib specifies the max receive message size (in Mib) in OTLP receiver gRPC server in the trace agent binary.
+	// This config only applies to Agent OTLP ingestion. It does not apply to OSS Datadog exporter/connector or DDOT.
+	GrpcMaxRecvMsgSizeMib int `mapstructure:"-"`
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
@@ -272,6 +276,8 @@ type OpenLineageProxy struct {
 	APIKey string `json:"-"` // Never marshal this field
 	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
 	AdditionalEndpoints map[string][]string
+	// APIVersion indicates what version the OpenLineageProxy uses for the DO-intake API.
+	APIVersion int
 }
 
 // InstallSignatureConfig contains the information on how the agent was installed
@@ -605,7 +611,8 @@ func New() *AgentConfig {
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 		OpenLineageProxy: OpenLineageProxy{
-			Enabled: true,
+			Enabled:    true,
+			APIVersion: 2,
 		},
 
 		Features:               make(map[string]struct{}),

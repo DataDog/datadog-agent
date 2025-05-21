@@ -32,6 +32,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -157,7 +158,7 @@ func extractIPv6AddressAndPort(addr net.Addr) (ip [4]uint32, port uint16, err er
 }
 
 func expectedValues(conn net.Conn) (*fieldValues, error) {
-	netns, err := kernel.GetCurrentIno()
+	netns, err := netns.GetCurrentIno()
 	if err != nil {
 		return nil, err
 	}

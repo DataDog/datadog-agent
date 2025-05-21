@@ -73,7 +73,6 @@ go_test(
         "//comp/forwarder/defaultforwarder/transaction",
         "//pkg/config/mock",
         "//pkg/config/model",
-        "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/util/backoff",
         "//pkg/util/fxutil",

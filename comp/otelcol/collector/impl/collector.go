@@ -23,11 +23,11 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -36,6 +36,7 @@ import (
 	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl"
 	ddprofilingextension "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
@@ -58,7 +59,8 @@ type collectorImpl struct {
 type Requires struct {
 	// Lc specifies the compdef lifecycle settings, used for appending startup
 	// and shutdown hooks.
-	Lc compdef.Lifecycle
+	Lc         compdef.Lifecycle
+	Shutdowner compdef.Shutdowner
 
 	CollectorContrib collectorcontrib.Component
 	URIs             []string
@@ -73,6 +75,7 @@ type Requires struct {
 	SourceProvider      serializerexporter.SourceProviderFunc
 	Tagger              tagger.Component
 	StatsdClientWrapper *metricsclient.StatsdClientWrapper
+	Hostname            hostnameinterface.Component
 }
 
 // RequiresNoAgent declares the input types to the constructor with no dependencies on Agent components
@@ -131,20 +134,27 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 	} else {
 		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage)
 	}
-	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger)
-	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
+	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
+	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
 	factories.Extensions[ddprofilingextension.Type] = ddprofilingextension.NewFactoryForAgent(reqs.TraceAgent, reqs.Log)
 }
 
 var buildInfo = component.BuildInfo{
-	Version:     "v0.121.0",
+	Version:     "v0.126.0",
 	Command:     filepath.Base(os.Args[0]),
 	Description: "Datadog Agent OpenTelemetry Collector",
 }
 
 // NewComponent returns a new instance of the collector component with full Agent functionalities.
 func NewComponent(reqs Requires) (Provides, error) {
+	if !reqs.Config.GetBool("otelcollector.enabled") {
+		reqs.Log.Info("*** OpenTelemetry Collector is not enabled, exiting application ***. Set the config option `otelcollector.enabled` or the environment variable `DD_OTELCOLLECTOR_ENABLED` at true to enable it.")
+		// Required to signal that the whole app must stop.
+		_ = reqs.Shutdowner.Shutdown()
+		return Provides{}, nil
+	}
+
 	factories, err := reqs.CollectorContrib.OTelComponentFactories()
 	if err != nil {
 		return Provides{}, err

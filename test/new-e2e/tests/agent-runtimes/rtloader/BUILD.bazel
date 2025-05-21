@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "rtloader_test",
+    srcs = [
+        "multiprocessing_lib_common_test.go",
+        "multiprocessing_lib_nix_test.go",
+        "multiprocessing_lib_win_test.go",
+    ],
+    embedsrcs = [
+        "python-check/multi_pid_check.py",
+        "python-check/multi_pid_check.yaml",
+    ],
+    deps = [
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/provisioners/aws/host",
+        "//test/new-e2e/pkg/testcommon/check",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclient",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams",
+        "@com_github_datadog_test_infra_definitions//components/os",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

@@ -12,5 +12,7 @@ go_library(
         "//pkg/collector/corechecks/cluster/orchestrator/collectors",
         "//pkg/collector/corechecks/cluster/orchestrator/collectors/k8s",
         "//pkg/config/utils",
+        "//pkg/orchestrator",
+        "//pkg/util/log",
     ],
 )

@@ -13,6 +13,7 @@ go_library(
     deps = [
         "//comp/core/workloadmeta/def",
         "//pkg/collector/corechecks/cluster/orchestrator/processors",
+        "//pkg/collector/corechecks/cluster/orchestrator/util",
         "//pkg/orchestrator/config",
         "//pkg/orchestrator/model",
         "//pkg/util/kubernetes/apiserver",

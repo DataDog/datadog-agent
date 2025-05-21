@@ -10,19 +10,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -36,7 +36,8 @@ func getProvides(t *testing.T, confOverrides map[string]any) (provides, error) {
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: confOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			hostnameimpl.MockModule(),
 		),
 	)
 }
@@ -99,10 +100,11 @@ func TestFlareProviderFilename(t *testing.T) {
 }
 
 func TestConfigRefresh(t *testing.T) {
+	cfg := configmock.New(t)
 	io := getTestInventoryPayload(t, nil)
 
 	assert.False(t, io.RefreshTriggered())
-	pkgconfigsetup.Datadog().Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
+	cfg.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
 	assert.True(t, io.RefreshTriggered())
 }
 

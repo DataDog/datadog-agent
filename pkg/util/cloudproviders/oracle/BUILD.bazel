@@ -21,7 +21,7 @@ go_test(
     srcs = ["oracle_test.go"],
     embed = [":oracle"],
     deps = [
-        "//pkg/config/setup",
+        "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

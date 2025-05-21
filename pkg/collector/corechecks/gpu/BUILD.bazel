@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "gpu",
@@ -18,8 +18,6 @@ go_library(
             "//pkg/util/option",
         ],
         "@rules_go//go/platform:android": [
-            "//cmd/system-probe/api/client",
-            "//cmd/system-probe/config",
             "//comp/core/autodiscovery/integration",
             "//comp/core/tagger/def",
             "//comp/core/tagger/types",
@@ -31,12 +29,15 @@ go_library(
             "//pkg/collector/corechecks/gpu/model",
             "//pkg/collector/corechecks/gpu/nvidia",
             "//pkg/config/setup",
+            "//pkg/gpu/safenvml",
             "//pkg/metrics",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
             "//pkg/util/common",
+            "//pkg/util/gpu",
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_hashicorp_go_multierror//:go-multierror",
-            "@com_github_nvidia_go_nvml//pkg/nvml",
             "@in_gopkg_yaml_v2//:yaml_v2",
         ],
         "@rules_go//go/platform:darwin": [
@@ -82,8 +83,6 @@ go_library(
             "//pkg/util/option",
         ],
         "@rules_go//go/platform:linux": [
-            "//cmd/system-probe/api/client",
-            "//cmd/system-probe/config",
             "//comp/core/autodiscovery/integration",
             "//comp/core/tagger/def",
             "//comp/core/tagger/types",
@@ -95,12 +94,15 @@ go_library(
             "//pkg/collector/corechecks/gpu/model",
             "//pkg/collector/corechecks/gpu/nvidia",
             "//pkg/config/setup",
+            "//pkg/gpu/safenvml",
             "//pkg/metrics",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
             "//pkg/util/common",
+            "//pkg/util/gpu",
             "//pkg/util/log",
             "//pkg/util/option",
             "@com_github_hashicorp_go_multierror//:go-multierror",
-            "@com_github_nvidia_go_nvml//pkg/nvml",
             "@in_gopkg_yaml_v2//:yaml_v2",
         ],
         "@rules_go//go/platform:netbsd": [
@@ -151,6 +153,43 @@ go_library(
             "//comp/core/workloadmeta/def",
             "//pkg/collector/check",
             "//pkg/util/option",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "gpu_test",
+    srcs = ["gpu_test.go"],
+    embed = [":gpu"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/core/tagger/fx-mock",
+            "//comp/core/tagger/types",
+            "//comp/core/workloadmeta/def",
+            "//pkg/aggregator/mocksender",
+            "//pkg/collector/corechecks/gpu/model",
+            "//pkg/gpu/safenvml",
+            "//pkg/gpu/testutil",
+            "@com_github_nvidia_go_nvml//pkg/nvml",
+            "@com_github_nvidia_go_nvml//pkg/nvml/mock",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//mock",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/tagger/fx-mock",
+            "//comp/core/tagger/types",
+            "//comp/core/workloadmeta/def",
+            "//pkg/aggregator/mocksender",
+            "//pkg/collector/corechecks/gpu/model",
+            "//pkg/gpu/safenvml",
+            "//pkg/gpu/testutil",
+            "@com_github_nvidia_go_nvml//pkg/nvml",
+            "@com_github_nvidia_go_nvml//pkg/nvml/mock",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//mock",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

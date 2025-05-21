@@ -15,6 +15,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameinterface",
         "//comp/core/status",
         "//pkg/config/setup",
         "//pkg/process/checks",
@@ -118,6 +119,7 @@ go_test(
     deps = [
         "//comp/core/config",
         "//comp/core/flare/helpers",
+        "//comp/core/hostname/hostnameimpl",
         "//pkg/process/checks",
         "//pkg/process/checks/mocks",
         "@com_github_stretchr_testify//assert",

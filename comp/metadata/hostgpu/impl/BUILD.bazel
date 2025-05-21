@@ -9,6 +9,7 @@ go_library(
         "//comp/api/api/def",
         "//comp/core/config",
         "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameinterface",
         "//comp/core/log/def",
         "//comp/core/workloadmeta/def",
         "//comp/metadata/hostgpu/def",
@@ -16,7 +17,6 @@ go_library(
         "//comp/metadata/runner/runnerimpl",
         "//pkg/serializer",
         "//pkg/serializer/marshaler",
-        "//pkg/util/hostname",
         "//pkg/util/http",
         "//pkg/util/uuid",
     ],
@@ -27,6 +27,7 @@ go_test(
     srcs = ["hostgpu_test.go"],
     embed = [":impl"],
     deps = [
+        "//comp/core/hostname/hostnameimpl",
         "//comp/core/log/mock",
         "//comp/core/workloadmeta/def",
         "//pkg/config/mock",

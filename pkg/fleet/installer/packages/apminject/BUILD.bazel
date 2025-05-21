@@ -15,7 +15,8 @@ go_library(
         "@rules_go//go/platform:aix": [
             "//pkg/fleet/installer/env",
             "//pkg/fleet/installer/packages/embedded",
-            "//pkg/fleet/installer/packages/systemd",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/setup/config",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@com_github_shirou_gopsutil_v4//process",
@@ -26,7 +27,8 @@ go_library(
         "@rules_go//go/platform:android": [
             "//pkg/fleet/installer/env",
             "//pkg/fleet/installer/packages/embedded",
-            "//pkg/fleet/installer/packages/systemd",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/setup/config",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@com_github_shirou_gopsutil_v4//process",
@@ -37,7 +39,8 @@ go_library(
         "@rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/env",
             "//pkg/fleet/installer/packages/embedded",
-            "//pkg/fleet/installer/packages/systemd",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/setup/config",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@com_github_shirou_gopsutil_v4//process",
@@ -48,7 +51,8 @@ go_library(
         "@rules_go//go/platform:dragonfly": [
             "//pkg/fleet/installer/env",
             "//pkg/fleet/installer/packages/embedded",
-            "//pkg/fleet/installer/packages/systemd",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/setup/config",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@com_github_shirou_gopsutil_v4//process",
@@ -59,7 +63,8 @@ go_library(
         "@rules_go//go/platform:freebsd": [
             "//pkg/fleet/installer/env",
             "//pkg/fleet/installer/packages/embedded",
-            "//pkg/fleet/installer/packages/systemd",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/setup/config",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@com_github_shirou_gopsutil_v4//process",
@@ -70,7 +75,8 @@ go_library(
         "@rules_go//go/platform:illumos": [
             "//pkg/fleet/installer/env",
             "//pkg/fleet/installer/packages/embedded",
-            "//pkg/fleet/installer/packages/systemd",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/setup/config",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@com_github_shirou_gopsutil_v4//process",
@@ -81,7 +87,8 @@ go_library(
         "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/env",
             "//pkg/fleet/installer/packages/embedded",
-            "//pkg/fleet/installer/packages/systemd",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/setup/config",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@com_github_shirou_gopsutil_v4//process",
@@ -92,7 +99,8 @@ go_library(
         "@rules_go//go/platform:js": [
             "//pkg/fleet/installer/env",
             "//pkg/fleet/installer/packages/embedded",
-            "//pkg/fleet/installer/packages/systemd",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/setup/config",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@com_github_shirou_gopsutil_v4//process",
@@ -103,7 +111,8 @@ go_library(
         "@rules_go//go/platform:linux": [
             "//pkg/fleet/installer/env",
             "//pkg/fleet/installer/packages/embedded",
-            "//pkg/fleet/installer/packages/systemd",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/setup/config",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@com_github_shirou_gopsutil_v4//process",
@@ -114,7 +123,8 @@ go_library(
         "@rules_go//go/platform:netbsd": [
             "//pkg/fleet/installer/env",
             "//pkg/fleet/installer/packages/embedded",
-            "//pkg/fleet/installer/packages/systemd",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/setup/config",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@com_github_shirou_gopsutil_v4//process",
@@ -125,7 +135,8 @@ go_library(
         "@rules_go//go/platform:openbsd": [
             "//pkg/fleet/installer/env",
             "//pkg/fleet/installer/packages/embedded",
-            "//pkg/fleet/installer/packages/systemd",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/setup/config",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@com_github_shirou_gopsutil_v4//process",
@@ -136,7 +147,8 @@ go_library(
         "@rules_go//go/platform:osx": [
             "//pkg/fleet/installer/env",
             "//pkg/fleet/installer/packages/embedded",
-            "//pkg/fleet/installer/packages/systemd",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/setup/config",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@com_github_shirou_gopsutil_v4//process",
@@ -147,7 +159,8 @@ go_library(
         "@rules_go//go/platform:plan9": [
             "//pkg/fleet/installer/env",
             "//pkg/fleet/installer/packages/embedded",
-            "//pkg/fleet/installer/packages/systemd",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/setup/config",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@com_github_shirou_gopsutil_v4//process",
@@ -158,7 +171,8 @@ go_library(
         "@rules_go//go/platform:qnx": [
             "//pkg/fleet/installer/env",
             "//pkg/fleet/installer/packages/embedded",
-            "//pkg/fleet/installer/packages/systemd",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/setup/config",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@com_github_shirou_gopsutil_v4//process",
@@ -169,7 +183,8 @@ go_library(
         "@rules_go//go/platform:solaris": [
             "//pkg/fleet/installer/env",
             "//pkg/fleet/installer/packages/embedded",
-            "//pkg/fleet/installer/packages/systemd",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/setup/config",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
             "@com_github_shirou_gopsutil_v4//process",

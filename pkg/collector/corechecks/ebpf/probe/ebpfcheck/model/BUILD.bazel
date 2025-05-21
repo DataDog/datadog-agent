@@ -5,5 +5,4 @@ go_library(
     srcs = ["types.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_cilium_ebpf//:ebpf"],
 )

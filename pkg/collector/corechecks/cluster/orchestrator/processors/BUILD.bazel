@@ -19,6 +19,8 @@ go_library(
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_json_iterator_go//:go",
         "@com_github_pkg_errors//:errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
         "@io_k8s_apimachinery//pkg/types",
     ],
 )
@@ -30,7 +32,10 @@ go_test(
     deps = [
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//apps/v1:apps",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
     ],
 )

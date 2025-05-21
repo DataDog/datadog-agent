@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 )
 
 func getProcessMonitor(t *testing.T) *ProcessMonitor {
@@ -242,7 +242,7 @@ func (s *processMonitorSuite) TestProcessMonitorInNamespace() {
 	require.NoError(t, err, "could not create network namespace for process monitor")
 	t.Cleanup(func() { monNs.Close() })
 
-	require.NoError(t, kernel.WithNS(monNs, func() error {
+	require.NoError(t, netnsutil.WithNS(monNs, func() error {
 		initializePM(t, pm, s.useEventStream)
 		return nil
 	}), "could not start process monitor in netNS")
@@ -265,7 +265,7 @@ func (s *processMonitorSuite) TestProcessMonitorInNamespace() {
 	defer cmdNs.Close()
 
 	cmd = exec.Command("/bin/sleep", "1")
-	require.NoError(t, kernel.WithNS(cmdNs, cmd.Run), "could not run process in other network namespace")
+	require.NoError(t, netnsutil.WithNS(cmdNs, cmd.Run), "could not run process in other network namespace")
 	pid = uint32(cmd.ProcessState.Pid())
 
 	require.EventuallyWithTf(t, func(ct *assert.CollectT) {

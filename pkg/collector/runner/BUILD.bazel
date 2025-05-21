@@ -35,6 +35,8 @@ go_test(
         "//pkg/collector/check/stub",
         "//pkg/collector/runner/expvars",
         "//pkg/collector/scheduler",
+        "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/config/setup",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

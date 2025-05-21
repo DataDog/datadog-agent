@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 
@@ -59,29 +61,11 @@ var (
 type onDiscarderHandler func(rs *rules.RuleSet, event *model.Event, probe *EBPFProbe, discarder Discarder) (bool, error)
 
 var (
-	allDiscarderHandlers   = make(map[eval.EventType][]onDiscarderHandler)
-	dentryInvalidDiscarder = []string{""}
-	eventZeroDiscarder     = model.NewFakeEvent()
+	allDiscarderHandlers = make(map[eval.EventType][]onDiscarderHandler)
+	eventZeroDiscarder   = model.NewFakeEvent()
 )
 
-// InvalidDiscarders exposes list of values that are not discarders
-var InvalidDiscarders = map[eval.Field][]string{
-	"open.file.path":               dentryInvalidDiscarder,
-	"unlink.file.path":             dentryInvalidDiscarder,
-	"chmod.file.path":              dentryInvalidDiscarder,
-	"chown.file.path":              dentryInvalidDiscarder,
-	"mkdir.file.path":              dentryInvalidDiscarder,
-	"rmdir.file.path":              dentryInvalidDiscarder,
-	"rename.file.path":             dentryInvalidDiscarder,
-	"rename.file.destination.path": dentryInvalidDiscarder,
-	"utimes.file.path":             dentryInvalidDiscarder,
-	"link.file.path":               dentryInvalidDiscarder,
-	"link.file.destination.path":   dentryInvalidDiscarder,
-	"process.file.path":            dentryInvalidDiscarder,
-	"setxattr.file.path":           dentryInvalidDiscarder,
-	"removexattr.file.path":        dentryInvalidDiscarder,
-	"chdir.file.path":              dentryInvalidDiscarder,
-}
+var dnsMask uint16
 
 // bumpDiscardersRevision sends an eRPC request to bump the discarders revisionr
 func bumpDiscardersRevision(e *erpc.ERPC) error {
@@ -474,26 +458,7 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 
 // isInvalidDiscarder returns whether the given value is a valid discarder for the given field
 func isInvalidDiscarder(field eval.Field, value string) bool {
-	return invalidDiscarders[invalidDiscarderEntry{
-		field: field,
-		value: value,
-	}]
-}
-
-// rearrange invalid discarders for fast lookup
-func createInvalidDiscardersCache() map[invalidDiscarderEntry]bool {
-	invalidDiscarders := make(map[invalidDiscarderEntry]bool)
-
-	for field, values := range InvalidDiscarders {
-		for _, value := range values {
-			invalidDiscarders[invalidDiscarderEntry{
-				field: field,
-				value: value,
-			}] = true
-		}
-	}
-
-	return invalidDiscarders
+	return (strings.HasSuffix(field, ".file.path") || strings.HasSuffix(field, ".file.destination.path")) && value == ""
 }
 
 // InodeDiscarderDump describes a dump of an inode discarder
@@ -607,16 +572,7 @@ func dumpDiscarders(resolver *dentry.Resolver, inodeMap, statsFB, statsBB *ebpf.
 	return dump, nil
 }
 
-type invalidDiscarderEntry struct {
-	field eval.Field
-	value string
-}
-
-var invalidDiscarders map[invalidDiscarderEntry]bool
-
 func init() {
-	invalidDiscarders = createInvalidDiscardersCache()
-
 	allDiscarderHandlers["open"] = append(allDiscarderHandlers["open"], filenameDiscarderWrapper(model.FileOpenEventType,
 		func(event *model.Event) (eval.Field, *model.FileEvent, bool) {
 			return "open.file.path", &event.Open.File, false
@@ -688,4 +644,35 @@ func init() {
 			return "chdir.file.path", &event.Open.File, false
 		}))
 	SupportedDiscarders["chdir.file.path"] = true
+
+	allDiscarderHandlers["dns"] = append(allDiscarderHandlers["dns"], func(_ *rules.RuleSet, event *model.Event, probe *EBPFProbe, discarder Discarder) (bool, error) {
+		field := "dns.response.code"
+		dnsResponse := &event.DNS
+
+		if !dnsResponse.HasResponse() {
+			return false, nil
+		}
+
+		if discarder.Field == field {
+			mask := uint16(1)
+			mask <<= dnsResponse.Response.ResponseCode
+			dnsMask |= mask
+
+			bufferSelector, err := managerhelper.Map(probe.Manager, "filtered_dns_rcodes")
+			if err != nil {
+				return false, err
+			}
+
+			err = bufferSelector.Put(uint32(0), dnsMask)
+			if err != nil {
+				return false, err
+			}
+
+			seclog.Tracef("DNS discarder for response code: %d", dnsResponse.Response.ResponseCode)
+			return true, nil
+		}
+
+		return false, nil
+	})
+	SupportedDiscarders["dns.response.code"] = true
 }

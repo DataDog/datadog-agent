@@ -4,7 +4,9 @@ go_library(
     name = "winconn",
     srcs = [
         "doc.go",
+        "mock_winconn_nonraw_windows.go",
         "mock_winconn_windows.go",
+        "winconn_nonraw_windows.go",
         "winconn_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/winconn",
@@ -23,12 +25,16 @@ go_library(
 
 go_test(
     name = "winconn_test",
-    srcs = ["winconn_windows_test.go"],
+    srcs = [
+        "winconn_nonraw_windows_test.go",
+        "winconn_windows_test.go",
+    ],
     embed = [":winconn"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "//pkg/networkpath/traceroute/common",
             "//pkg/networkpath/traceroute/testutils",
+            "@com_github_golang_mock//gomock",
             "@com_github_google_gopacket//layers",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",

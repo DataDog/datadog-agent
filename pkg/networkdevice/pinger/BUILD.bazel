@@ -17,14 +17,14 @@ go_library(
         "@com_github_prometheus_community_pro_bing//:pro-bing",
     ] + select({
         "@rules_go//go/platform:android": [
-            "//cmd/system-probe/api/client",
-            "//cmd/system-probe/config",
             "//pkg/config/setup",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
         ],
         "@rules_go//go/platform:linux": [
-            "//cmd/system-probe/api/client",
-            "//cmd/system-probe/config",
             "//pkg/config/setup",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
         ],
         "//conditions:default": [],
     }),

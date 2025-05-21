@@ -65,8 +65,8 @@ func WithAlias(alias string) PackageOption {
 
 // PackagesConfig is the list of known packages configuration for testing
 var PackagesConfig = []TestPackageConfig{
-	{Name: "datadog-installer", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com"},
-	{Name: "datadog-agent", Alias: "agent-package", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com"},
+	{Name: "datadog-installer", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com.internal.dda-testing.com"},
+	{Name: "datadog-agent", Alias: "agent-package", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com.internal.dda-testing.com"},
 	{Name: "datadog-apm-inject", Version: "latest"},
 	{Name: "datadog-apm-library-java", Version: "latest"},
 	{Name: "datadog-apm-library-ruby", Version: "latest"},
@@ -117,5 +117,18 @@ func InstallScriptEnvWithPackages(arch e2eos.Architecture, packagesConfig []Test
 	env := map[string]string{}
 	installScriptPackageManagerEnv(env, arch)
 	installScriptInstallerEnv(env, packagesConfig)
+	return env
+}
+
+// InstallInstallerScriptEnvWithPackages returns the environment variables for the installer script for the given packages
+func InstallInstallerScriptEnvWithPackages() map[string]string {
+	env := map[string]string{}
+	apiKey := os.Getenv("DD_API_KEY")
+	if apiKey == "" {
+		apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
+	}
+	env["DD_API_KEY"] = apiKey
+	env["DD_SITE"] = "datadoghq.com"
+	installScriptInstallerEnv(env, PackagesConfig)
 	return env
 }

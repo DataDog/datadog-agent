@@ -19,7 +19,6 @@ go_library(
         "doc.go",
         "errors.go",
         "file.go",
-        "memory_controller.go",
         "namespace_linux.go",
         "pid_mapper.go",
         "reader.go",
@@ -37,12 +36,10 @@ go_library(
         "@rules_go//go/platform:android": [
             "//pkg/util/log",
             "//pkg/util/pointer",
-            "@com_github_containerd_cgroups_v3//cgroup1",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/util/log",
             "//pkg/util/pointer",
-            "@com_github_containerd_cgroups_v3//cgroup1",
         ],
         "//conditions:default": [],
     }),

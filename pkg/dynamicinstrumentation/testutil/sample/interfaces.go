@@ -6,6 +6,7 @@
 package sample
 
 import (
+	"errors"
 	"fmt"
 	"unsafe"
 )
@@ -55,7 +56,12 @@ func test_interface(b behavior) string {
 }
 
 //nolint:all
+//go:noinline
+func test_error(e error) {}
+
+//nolint:all
 func ExecuteInterfaceFuncs() {
 	test_interface(firstBehavior{"foo"})
 	test_interface(secondBehavior{42})
+	test_error(errors.New("blah"))
 }

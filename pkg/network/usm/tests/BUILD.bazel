@@ -8,7 +8,6 @@ go_test(
     ],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//cmd/system-probe/config/types",
             "//pkg/config/env",
             "//pkg/ebpf/ebpftest",
             "//pkg/network",
@@ -17,6 +16,7 @@ go_test(
             "//pkg/network/protocols",
             "//pkg/network/tracer",
             "//pkg/network/tracer/testutil",
+            "//pkg/system-probe/config/types",
             "//pkg/util/log",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",

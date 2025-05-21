@@ -45,7 +45,6 @@ go_test(
         "//pkg/clusteragent/clusterchecks/types",
         "//pkg/config/mock",
         "//pkg/config/model",
-        "//pkg/config/setup",
         "//pkg/errors",
         "//pkg/util/log",
         "//pkg/version",

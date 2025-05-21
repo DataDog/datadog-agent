@@ -4,8 +4,14 @@ go_library(
     name = "kubernetes",
     srcs = [
         "docs.go",
+        "kubernetes.go",
         "stub.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/kubernetes",
     visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/env",
+        "//pkg/config/setup",
+        "//pkg/util/kubernetes/hostinfo",
+    ],
 )

@@ -4,6 +4,7 @@ go_library(
     name = "telemetry",
     srcs = [
         "client.go",
+        "cmd_wrapper.go",
         "http_wrapper.go",
         "span.go",
         "telemetry.go",

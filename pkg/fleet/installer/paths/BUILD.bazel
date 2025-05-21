@@ -11,6 +11,7 @@ go_library(
     visibility = ["//pkg/fleet:__subpackages__"],
     deps = select({
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/env",
             "//pkg/util/log",
             "@com_github_microsoft_go_winio//:go-winio",
             "@org_golang_x_sys//windows",

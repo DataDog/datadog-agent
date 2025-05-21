@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "archive.go",
         "archive_docker.go",
+        "archive_k8s.go",
         "archive_linux.go",
         "archive_nix.go",
         "archive_nodocker.go",
@@ -19,7 +20,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/flare",
     visibility = ["//visibility:public"],
     deps = [
-        "//cmd/system-probe/api/client",
         "//comp/core/autodiscovery/integration",
         "//comp/core/flare/helpers",
         "//comp/core/flare/types",
@@ -36,6 +36,7 @@ go_library(
         "//pkg/proto/pbgo/core",
         "//pkg/status/health",
         "//pkg/status/systemprobe",
+        "//pkg/system-probe/api/client",
         "//pkg/util/cloudproviders/network",
         "//pkg/util/containers/metrics",
         "//pkg/util/docker",
@@ -43,6 +44,7 @@ go_library(
         "//pkg/util/filesystem",
         "//pkg/util/grpc",
         "//pkg/util/installinfo",
+        "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
         "//pkg/util/option",
         "@com_github_docker_docker//api/types/container",
@@ -53,10 +55,10 @@ go_library(
         "@org_golang_google_protobuf//types/known/emptypb",
     ] + select({
         "@rules_go//go/platform:android": [
-            "//cmd/system-probe/config",
+            "//pkg/system-probe/config",
         ],
         "@rules_go//go/platform:linux": [
-            "//cmd/system-probe/config",
+            "//pkg/system-probe/config",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/util/winutil",
@@ -78,12 +80,12 @@ go_test(
     ],
     embed = [":flare"],
     deps = [
-        "//comp/api/authtoken",
-        "//comp/api/authtoken/mock",
         "//comp/core",
         "//comp/core/autodiscovery/integration",
         "//comp/core/config",
         "//comp/core/flare/helpers",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
         "//comp/core/secrets/secretsimpl",
         "//comp/core/settings/settingsimpl",
         "//comp/core/status",

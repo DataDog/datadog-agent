@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "collector.go",
         "doc.go",
+        "flare_provider.go",
         "host.go",
         "host_wmi.go",
         "request.go",
@@ -13,9 +14,11 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/flare/types",
         "//comp/core/workloadmeta/def",
         "//pkg/config/env",
         "//pkg/sbom",
+        "//pkg/sbom/scanner",
         "//pkg/sbom/types",
         "//pkg/util/log",
         "//pkg/util/option",

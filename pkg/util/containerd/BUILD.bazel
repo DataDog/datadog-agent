@@ -38,7 +38,7 @@ go_test(
     ],
     embed = [":containerd"],
     deps = [
-        "//pkg/config/setup",
+        "//pkg/config/mock",
         "//pkg/util/containerd/fake",
         "@com_github_containerd_cgroups_v3//cgroup1/stats",
         "@com_github_containerd_containerd//:containerd",

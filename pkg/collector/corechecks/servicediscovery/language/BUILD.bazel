@@ -10,12 +10,16 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//pkg/discovery/tracermetadata",
+            "//pkg/discovery/tracermetadata/language",
             "//pkg/languagedetection",
             "//pkg/languagedetection/languagemodels",
             "//pkg/languagedetection/privileged",
             "//pkg/process/procutil",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/discovery/tracermetadata",
+            "//pkg/discovery/tracermetadata/language",
             "//pkg/languagedetection",
             "//pkg/languagedetection/languagemodels",
             "//pkg/languagedetection/privileged",
@@ -31,10 +35,12 @@ go_test(
     embed = [":language"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//pkg/discovery/tracermetadata",
             "//pkg/languagedetection/privileged",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/discovery/tracermetadata",
             "//pkg/languagedetection/privileged",
             "@com_github_stretchr_testify//require",
         ],

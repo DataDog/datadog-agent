@@ -17,6 +17,7 @@ go_library(
         "//pkg/collector/corechecks",
         "//pkg/collector/corechecks/cluster/orchestrator/collectors",
         "//pkg/collector/corechecks/cluster/orchestrator/collectors/ecs",
+        "//pkg/config/setup",
         "//pkg/orchestrator",
         "//pkg/orchestrator/config",
         "//pkg/process/checks",

@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "k8s",
     srcs = [
+        "cluster.go",
         "clusterrole.go",
         "clusterrolebinding.go",
         "common.go",
@@ -59,6 +60,7 @@ go_library(
 go_test(
     name = "k8s_test",
     srcs = [
+        "cluster_test.go",
         "clusterrole_test.go",
         "clusterrolebinding_test.go",
         "cronjob_v1_test.go",

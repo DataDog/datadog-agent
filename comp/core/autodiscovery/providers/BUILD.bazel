@@ -12,6 +12,7 @@ go_library(
         "consul_nop.go",
         "container.go",
         "container_nop.go",
+        "endpointschecks.go",
         "endpointschecks_nop.go",
         "etcd.go",
         "etcd_nop.go",
@@ -27,6 +28,7 @@ go_library(
         "kube_services_file_nop.go",
         "kube_services_nop.go",
         "prometheus_common.go",
+        "prometheus_pods.go",
         "prometheus_pods_nop.go",
         "prometheus_services.go",
         "prometheus_services_nop.go",
@@ -58,6 +60,7 @@ go_library(
         "//pkg/util/fargate",
         "//pkg/util/hostname",
         "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
         "@com_github_bhmj_jsonslice//:jsonslice",
         "@com_github_hashicorp_consul_api//:api",
@@ -72,6 +75,7 @@ go_library(
         "@io_k8s_client_go//informers/core/v1:core",
         "@io_k8s_client_go//listers/core/v1:core",
         "@io_k8s_client_go//tools/cache",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -127,6 +131,7 @@ go_test(
         "@io_k8s_apimachinery//pkg/types",
         "@io_k8s_client_go//informers",
         "@io_k8s_client_go//kubernetes/fake",
+        "@org_uber_go_atomic//:atomic",
         "@org_uber_go_fx//:fx",
     ],
 )

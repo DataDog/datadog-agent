@@ -43,6 +43,9 @@ const (
 	hostIP  = "hostip"
 	socket  = "socket"
 	service = "service"
+	// csi mode allows mounting datadog sockets using CSI volumes instead of hostpath volumes
+	// in case CSI is disabled globally, the mutator will default to use 'socket' mode instead
+	csi = "csi"
 
 	// DatadogVolumeName is the name of the volume used to mount the sockets when the volume source is a directory
 	DatadogVolumeName = "datadog"
@@ -56,13 +59,13 @@ const (
 	webhookName = "agent_config"
 )
 
-// csiInjectionMode defines the mode of the injected csi volume
-// mode can be either 'socket' or 'local'
-type csiInjectionMode string
+// csiInjectionType defines the type CSI volume to be injected by the CSI driver
+type csiInjectionType string
 
 const (
-	csiModeSocket csiInjectionMode = "socket"
-	csiModeLocal  csiInjectionMode = "local"
+	csiAPMSocket               csiInjectionType = "APMSocket"
+	csiDSDSocket               csiInjectionType = "DSDSocket"
+	csiDatadogSocketsDirectory csiInjectionType = "DatadogSocketsDirectory"
 )
 
 // Webhook is the webhook that injects DD_AGENT_HOST and DD_ENTITY_ID into a pod

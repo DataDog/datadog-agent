@@ -22,7 +22,6 @@ go_library(
         "@com_github_datadog_go_tuf//client",
         "@com_github_datadog_go_tuf//data",
         "@com_github_pkg_errors//:errors",
-        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer",
         "@io_etcd_go_bbolt//:bbolt",
     ],
 )

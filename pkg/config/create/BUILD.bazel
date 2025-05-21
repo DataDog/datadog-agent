@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "create",
+    srcs = ["new.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/create",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/config/nodetreemodel",
+        "//pkg/config/teeconfig",
+        "//pkg/config/viperconfig",
+    ],
+)

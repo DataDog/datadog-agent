@@ -84,6 +84,7 @@ go_test(
     embed = [":file"],
     deps = [
         "//comp/logs/agent/config",
+        "//pkg/config/mock",
         "//pkg/config/setup",
         "//pkg/logs/internal/decoder",
         "//pkg/logs/message",

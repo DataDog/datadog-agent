@@ -12,10 +12,10 @@ go_library(
         "//pkg/config/setup",
     ] + select({
         "@rules_go//go/platform:android": [
-            "//cmd/system-probe/api/client",
+            "//pkg/system-probe/api/client",
         ],
         "@rules_go//go/platform:linux": [
-            "//cmd/system-probe/api/client",
+            "//pkg/system-probe/api/client",
         ],
         "//conditions:default": [],
     }),

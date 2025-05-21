@@ -19,6 +19,7 @@ go_library(
         "//comp/api/api/def",
         "//comp/core/config",
         "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameinterface",
         "//comp/core/log/def",
         "//comp/core/status",
         "//comp/metadata/host",
@@ -30,7 +31,6 @@ go_library(
         "//pkg/gohai",
         "//pkg/serializer",
         "//pkg/util/fxutil",
-        "//pkg/util/hostname",
         "//pkg/util/http",
         "//pkg/util/scrubber",
         "@org_uber_go_fx//:fx",
@@ -76,6 +76,7 @@ go_test(
     deps = [
         "//comp/core/config",
         "//comp/core/flare/helpers",
+        "//comp/core/hostname/hostnameimpl",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/metadata/resources",

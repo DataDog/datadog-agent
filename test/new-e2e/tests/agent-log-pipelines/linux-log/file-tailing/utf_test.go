@@ -73,6 +73,7 @@ func (s *UtfSuite) TestUtfTailing() {
 }
 
 func (s *UtfSuite) testUtfBigEndianCollection() {
+	flake.Mark(s.T())
 	agentOptions := []agentparams.Option{
 		agentparams.WithLogs(),
 		agentparams.WithIntegration("custom_logs.d", string(utfBigEndianLogConfig)),

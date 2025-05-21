@@ -2450,9 +2450,11 @@ func TestConvertStats(t *testing.T) {
 			name:     "containerID feature enabled, no fargate",
 			features: "enable_cid_stats",
 			in: &pb.ClientStatsPayload{
-				Hostname: "tracer_hots",
-				Env:      "tracer_env",
-				Version:  "code_version",
+				Hostname:        "tracer_hots",
+				Env:             "tracer_env",
+				Version:         "code_version",
+				ProcessTags:     "binary_name:bin",
+				ProcessTagsHash: 123456789,
 				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    1,
@@ -2487,12 +2489,14 @@ func TestConvertStats(t *testing.T) {
 			tracerVersion: "v1",
 			containerID:   "abc123",
 			out: &pb.ClientStatsPayload{
-				Hostname:      "tracer_hots",
-				Env:           "tracer_env",
-				Version:       "code_version",
-				Lang:          "java",
-				TracerVersion: "v1",
-				ContainerID:   "abc123",
+				Hostname:        "tracer_hots",
+				Env:             "tracer_env",
+				Version:         "code_version",
+				Lang:            "java",
+				TracerVersion:   "v1",
+				ContainerID:     "abc123",
+				ProcessTags:     "binary_name:bin",
+				ProcessTagsHash: 123456789,
 				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    1,
@@ -3304,13 +3308,6 @@ func TestProcessedTrace(t *testing.T) {
 			Meta:     map[string]string{"env": "test", "version": "v1.0.1"},
 		}
 		chunk := testutil.TraceChunkWithSpan(root)
-		cfg := config.New()
-		cfg.ContainerTags = func(cid string) ([]string, error) {
-			if cid == "1" {
-				return []string{"image_tag:abc", "git.commit.sha:abc123"}, nil
-			}
-			return nil, nil
-		}
 		// Only fill out the relevant fields for processedTrace().
 		apiPayload := &api.Payload{
 			TracerPayload: &pb.TracerPayload{
@@ -3322,7 +3319,7 @@ func TestProcessedTrace(t *testing.T) {
 			},
 			ClientDroppedP0s: 1,
 		}
-		pt := processedTrace(apiPayload, chunk, root, "1", cfg)
+		pt := processedTrace(apiPayload, chunk, root, "abc", "abc123")
 		expectedPt := &traceutil.ProcessedTrace{
 			TraceChunk:             chunk,
 			Root:                   root,
@@ -3347,13 +3344,6 @@ func TestProcessedTrace(t *testing.T) {
 			Meta:     map[string]string{"env": "test", "version": "v1.0.1", "_dd.git.commit.sha": "abc123"},
 		}
 		chunk := testutil.TraceChunkWithSpan(root)
-		cfg := config.New()
-		cfg.ContainerTags = func(cid string) ([]string, error) {
-			if cid == "1" {
-				return []string{"image_tag:abc", "git.commit.sha:def456"}, nil
-			}
-			return nil, nil
-		}
 		// Only fill out the relevant fields for processedTrace().
 		apiPayload := &api.Payload{
 			TracerPayload: &pb.TracerPayload{
@@ -3365,7 +3355,7 @@ func TestProcessedTrace(t *testing.T) {
 			},
 			ClientDroppedP0s: 1,
 		}
-		pt := processedTrace(apiPayload, chunk, root, "1", cfg)
+		pt := processedTrace(apiPayload, chunk, root, "abc", "def456")
 		expectedPt := &traceutil.ProcessedTrace{
 			TraceChunk:             chunk,
 			Root:                   root,
@@ -3405,7 +3395,7 @@ func TestProcessedTrace(t *testing.T) {
 			},
 			ClientDroppedP0s: 1,
 		}
-		pt := processedTrace(apiPayload, chunk, root, "1", cfg)
+		pt := processedTrace(apiPayload, chunk, root, "", "")
 		expectedPt := &traceutil.ProcessedTrace{
 			TraceChunk:             chunk,
 			Root:                   root,

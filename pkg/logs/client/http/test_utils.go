@@ -39,11 +39,11 @@ type TestServer struct {
 
 // NewTestServer creates a new test server
 func NewTestServer(statusCode int, cfg pkgconfigmodel.Reader) *TestServer {
-	return NewTestServerWithOptions(statusCode, 0, true, nil, cfg)
+	return NewTestServerWithOptions(statusCode, 1, true, nil, cfg)
 }
 
 // NewTestServerWithOptions creates a new test server with concurrency and response control
-func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool, respondChan chan int, cfg pkgconfigmodel.Reader) *TestServer {
+func NewTestServerWithOptions(statusCode int, concurrentSends int, retryDestination bool, respondChan chan int, cfg pkgconfigmodel.Reader) *TestServer {
 	statusCodeContainer := &StatusCodeContainer{statusCode: statusCode}
 	var request http.Request
 	var mu = sync.Mutex{}
@@ -76,13 +76,13 @@ func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool
 	destCtx := client.NewDestinationsContext()
 	destCtx.Start()
 
-	endpoint := config.NewEndpoint("test", "", strings.Replace(url[1], "/", "", -1), port, false)
+	endpoint := config.NewEndpoint("test", "", strings.ReplaceAll(url[1], "/", ""), port, false)
 	endpoint.BackoffFactor = 1
-	endpoint.BackoffBase = 1
+	endpoint.BackoffBase = 0.01
 	endpoint.BackoffMax = 10
 	endpoint.RecoveryInterval = 1
 
-	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, retryDestination, client.NewNoopDestinationMetadata(), cfg, metrics.NewNoopPipelineMonitor(""))
+	dest := NewDestination(endpoint, JSONContentType, destCtx, retryDestination, client.NewNoopDestinationMetadata(), cfg, concurrentSends, concurrentSends, metrics.NewNoopPipelineMonitor(""))
 	return &TestServer{
 		httpServer:          ts,
 		DestCtx:             destCtx,

@@ -22,7 +22,6 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.build_tags import compute_build_tags_for_flavor
-from tasks.collector import OCB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
@@ -39,15 +38,16 @@ from tasks.libs.common.utils import (
 )
 from tasks.libs.releasing.json import _get_release_json_value
 from tasks.modules import GoModule, get_module_by_path
-from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
+from tasks.test_core import DEFAULT_TEST_OUTPUT_JSON, TestResult, process_input_args, process_result
 from tasks.testwasher import TestWasher
 from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX, update_file
 
-GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 WINDOWS_MAX_PACKAGES_NUMBER = 150
-TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
+WINDOWS_MAX_CLI_LENGTH = 8000  # Windows has a max command line length of 8192 characters
+TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*", ".gitlab-ci.yml"]
+# TODO(songy23): contrib and OCB versions do not match in 0.122. Revert this once 0.123 is released
 OTEL_UPSTREAM_GO_MOD_PATH = (
-    f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OCB_VERSION}/go.mod"
+    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v0.123.0/go.mod"
 )
 
 
@@ -116,83 +116,84 @@ def test_flavor(
     env: dict[str, str],
     args: dict[str, str],
     junit_tar: str,
-    save_result_json: str,
     test_profiler: TestProfiler,
     coverage: bool = False,
+    result_json: str = DEFAULT_TEST_OUTPUT_JSON,
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
     """
+
+    # Early return if no modules are given
+    # Can happen when --only-impacted-packages or --only-modified-packages is used
+    if not modules:
+        return
+
+    result = TestResult('.')
+
+    # Set default values for args
     args["go_build_tags"] = " ".join(build_tags)
+    args["json_flag"] = ""
+    args["junit_file_flag"] = ""
 
-    args["json_flag"] = "--jsonfile " + GO_TEST_RESULT_TMP_JSON
-    junit_file = f"junit-out-{flavor.name}.xml"
-    junit_file_flag = "--junitfile " + junit_file if junit_tar else ""
-    args["junit_file_flag"] = junit_file_flag
+    # Produce the result json file, which is used to show the failures at the end of the test run
+    if result_json:
+        result.result_json_path = os.path.join(result.path, result_json)
+        args["json_flag"] = "--jsonfile " + result.result_json_path
 
-    def command(test_results, module, module_result):
-        module_path = module.full_path()
-        with ctx.cd(module_path):
-            packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.test_targets)
-            with CodecovWorkaround(ctx, module_path, coverage, packages, args) as cov_test_path:
-                res = ctx.run(
-                    command=cmd.format(
-                        packages=packages,
-                        cov_test_path=cov_test_path,
-                        **args,
-                    ),
-                    env=env,
-                    out_stream=test_profiler,
-                    warn=True,
-                )
-                # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
-                if res is not None and res.exited == 130:
-                    raise KeyboardInterrupt()
+    # Produce the junit file only if a junit tarball needs to be produced
+    if junit_tar:
+        junit_file = f"junit-out-{flavor.name}.xml"
+        result.junit_file_path = os.path.join('.', junit_file)
 
-        module_result.result_json_path = os.path.join(module_path, GO_TEST_RESULT_TMP_JSON)
+        junit_file_flag = "--junitfile " + result.junit_file_path if junit_tar else ""
+        args["junit_file_flag"] = junit_file_flag
 
-        if res.exited is None or res.exited > 0:
-            module_result.failed = True
-        else:
-            lines = res.stdout.splitlines()
-            if lines is not None and 'DONE 0 tests' in lines[-1]:
-                cov_path = os.path.join(module_path, PROFILE_COV)
-                print(color_message(f"No tests were run, skipping coverage report. Removing {cov_path}.", "orange"))
-                try:
-                    os.remove(cov_path)
-                except FileNotFoundError as e:
-                    print(f"Couldn't remove coverage file {cov_path}\n{e}")
-                return
+    # Compute full list of targets to run tests against
+    packages = compute_gotestsum_cli_args(modules)
 
-        if save_result_json:
-            with open(save_result_json, 'ab') as json_file, open(module_result.result_json_path, 'rb') as module_file:
-                json_file.write(module_file.read())
+    with CodecovWorkaround(ctx, result.path, coverage, packages, args) as cov_test_path:
+        res = ctx.run(
+            command=cmd.format(
+                packages=packages,
+                cov_test_path=cov_test_path,
+                **args,
+            ),
+            env=env,
+            out_stream=test_profiler,
+            warn=True,
+        )
+        # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
+        if res is not None and res.exited == 130:
+            raise KeyboardInterrupt()
 
-        if junit_tar:
-            module_result.junit_file_path = os.path.join(module_path, junit_file)
-            enrich_junitxml(module_result.junit_file_path, flavor)
+    if res.exited is None or res.exited > 0:
+        result.failed = True
+    else:
+        lines = res.stdout.splitlines()
+        if lines is not None and 'DONE 0 tests' in lines[-1]:
+            cov_path = os.path.join(result.path, PROFILE_COV)
+            print(color_message(f"No tests were run, skipping coverage report. Removing {cov_path}.", "orange"))
+            try:
+                os.remove(cov_path)
+            except FileNotFoundError as e:
+                print(f"Could not remove coverage file {cov_path}\n{e}")
+            return
 
-        test_results.append(module_result)
+    if junit_tar:
+        enrich_junitxml(result.junit_file_path, flavor)
 
-    return test_core(modules, flavor, ModuleTestResult, "unit tests", command)
+    return result
 
 
-def coverage_flavor(
-    ctx,
-    flavor: AgentFlavor,
-    modules: list[GoModule],
-):
+def coverage_flavor(ctx):
     """
-    Prints the code coverage of all modules for the given flavor.
-    This expects that the coverage files have already been generated by
+    Prints the code coverage for the given flavor.
+    This expects that the coverage file has already been generated by
     dda inv test --coverage.
     """
 
-    def command(_empty_result, module, _module_result):
-        with ctx.cd(module.full_path()):
-            ctx.run(f"go tool cover -func {PROFILE_COV}", warn=True)
-
-    return test_core(modules, flavor, None, "code coverage", command, skip_module_class=True)
+    ctx.run(f"go tool cover -func {PROFILE_COV}", warn=True)
 
 
 def sanitize_env_vars():
@@ -205,17 +206,13 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
+def process_test_result(test_result: TestResult, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
     if junit_tar:
-        junit_files = [
-            module_test_result.junit_file_path
-            for module_test_result in test_results
-            if module_test_result.junit_file_path
-        ]
+        junit_file = test_result.junit_file_path
 
-        produce_junit_tar(junit_files, junit_tar)
+        produce_junit_tar(junit_file, junit_tar)
 
-    success = process_module_results(flavor=flavor, module_results=test_results)
+    success = process_result(flavor=flavor, result=test_result)
 
     if success:
         print(color_message("All tests passed", "green"))
@@ -225,11 +222,11 @@ def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_
         if not test_washer:
             print("Test washer is always enabled in the CI, enforcing it")
 
-        tw = TestWasher()
+        tw = TestWasher(test_output_json_file=test_result.result_json_path)
         print(
             "Processing test results for known flakes. Learn more about flake marker and test washer at https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark"
         )
-        should_succeed = tw.process_module_results(test_results)
+        should_succeed = tw.process_result(test_result)
         if should_succeed:
             print(
                 color_message("All failing tests are known to be flaky, marking the test job as successful", "orange")
@@ -260,7 +257,7 @@ def test(
     timeout=180,
     cache=True,
     test_run_name="",
-    save_result_json=None,
+    result_json=DEFAULT_TEST_OUTPUT_JSON,
     rerun_fails=None,
     go_mod="readonly",
     junit_tar="",
@@ -312,6 +309,7 @@ def test(
     # atomic is quite expensive but it's the only way to run both the coverage and the race detector at the same time without getting false positives from the cover counter
     covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
     build_cpus_opt = f"-p {cpus}" if cpus else ""
+    test_cpus_opt = f"-parallel {cpus}" if cpus else ""
 
     nocache = '-count=1' if not cache else ''
 
@@ -320,11 +318,10 @@ def test(
         with open(os.environ.get("FLAKY_PATTERNS_CONFIG"), 'w') as f:
             f.write("{}")
 
-    if save_result_json and os.path.isfile(save_result_json):
+    if result_json and os.path.isfile(result_json):
         # Remove existing file since we append to it.
-        # We don't need to do that for GO_TEST_RESULT_TMP_JSON since gotestsum overwrites the output.
-        print(f"Removing existing '{save_result_json}' file")
-        os.remove(save_result_json)
+        print(f"Removing existing '{result_json}' file")
+        os.remove(result_json)
 
     test_run_arg = f"-run {test_run_name}" if test_run_name else ""
 
@@ -339,7 +336,7 @@ def test(
         '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt}'
     )
     govet_flags = '-vet=off'
-    gotest_flags = '{verbose} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache}'
+    gotest_flags = '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache}'
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     args = {
         "go_mod": go_mod,
@@ -347,6 +344,7 @@ def test(
         "ldflags": ldflags,
         "race_opt": race_opt,
         "build_cpus": build_cpus_opt,
+        "test_cpus": test_cpus_opt,
         "covermode_opt": covermode_opt,
         "test_run_arg": test_run_arg,
         "timeout": int(timeout),
@@ -375,7 +373,7 @@ def test(
         modules = get_impacted_packages(ctx, build_tags=unit_tests_tags)
 
     with gitlab_section("Running unit tests", collapsed=True):
-        test_results = test_flavor(
+        test_result = test_flavor(
             ctx,
             flavor=flavor,
             build_tags=unit_tests_tags,
@@ -384,27 +382,27 @@ def test(
             env=env,
             args=args,
             junit_tar=junit_tar,
-            save_result_json=save_result_json,
+            result_json=result_json,
             test_profiler=test_profiler,
             coverage=coverage,
         )
 
-    # Output
+    # Output (only if tests ran)
+    if test_result:
+        if coverage and print_coverage:
+            coverage_flavor(ctx)
 
-    if coverage and print_coverage:
-        coverage_flavor(ctx, flavor, modules)
+        # FIXME(AP-1958): this prints nothing in CI. Commenting out the print line
+        # in the meantime to avoid confusion
+        if profile:
+            # print("\n--- Top 15 packages sorted by run time:")
+            test_profiler.print_sorted(15)
 
-    # FIXME(AP-1958): this prints nothing in CI. Commenting out the print line
-    # in the meantime to avoid confusion
-    if profile:
-        # print("\n--- Top 15 packages sorted by run time:")
-        test_profiler.print_sorted(15)
+        success = process_test_result(test_result, junit_tar, flavor, test_washer)
+        if not success:
+            raise Exit(code=1)
 
-    success = process_test_result(test_results, junit_tar, flavor, test_washer)
-    if not success:
-        raise Exit(code=1)
-
-    print(f"Tests final status (including re-runs): {color_message('ALL TESTS PASSED', 'green')}")
+        print(f"Tests final status (including re-runs): {color_message('ALL TESTS PASSED', 'green')}")
 
 
 @task
@@ -446,6 +444,9 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
     go_mod_modified_modules = set()
 
     for modified_file in modified_go_files:
+        if modified_file.endswith(".mod") or modified_file.endswith(".sum"):
+            continue
+
         best_module_path = Path(get_go_module(modified_file))
 
         # Check if the package is in the target list of the module we want to test
@@ -464,12 +465,6 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
 
         # If go mod was modified in the module we run the test for the whole module so we do not need to add modified packages to targets
         if best_module_path in go_mod_modified_modules:
-            continue
-
-        # If we modify the go.mod or go.sum we run the tests for the whole module
-        if modified_file.endswith(".mod") or modified_file.endswith(".sum"):
-            modules_to_test[best_module_path] = get_module_by_path(best_module_path)
-            go_mod_modified_modules.add(best_module_path)
             continue
 
         # If the package has been deleted we do not try to run tests
@@ -503,9 +498,12 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         ):  # With more packages we can reach the limit of the command line length on Windows
             modules_to_test[module].test_targets = default_modules[module].test_targets
 
-    print("Running tests for the following modules:")
-    for module in modules_to_test:
-        print(f"- {module}: {modules_to_test[module].test_targets}")
+    if not modules_to_test:
+        print("No modules to test")
+    else:
+        print("Running tests for the following modules:")
+        for module in modules_to_test:
+            print(f"- {module}: {modules_to_test[module].test_targets}")
 
     return list(modules_to_test.values())
 
@@ -637,11 +635,6 @@ def parse_test_log(log_file):
 
 @task
 def get_impacted_packages(ctx, build_tags=None):
-    if build_tags is None:
-        build_tags = []
-    dependencies = create_dependencies(ctx, build_tags)
-    files = get_go_modified_files(ctx)
-
     # Safeguard to be sure that the files that should trigger all test are not renamed without being updated
     for file in TRIGGER_ALL_TESTS_PATHS:
         if len(glob.glob(file)) == 0:
@@ -654,6 +647,11 @@ def get_impacted_packages(ctx, build_tags=None):
     if should_run_all_tests(ctx, TRIGGER_ALL_TESTS_PATHS):
         print(f"Triggering all tests because a file matching one of the {TRIGGER_ALL_TESTS_PATHS} was modified")
         return get_default_modules().values()
+
+    if build_tags is None:
+        build_tags = []
+    dependencies = create_dependencies(ctx, build_tags)
+    files = get_go_modified_files(ctx)
 
     modified_packages = {f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}" for file in files}
 
@@ -830,9 +828,19 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
     for module in module_to_remove:
         del modules_to_test[module]
 
-    print("Running tests for the following modules:")
-    for module in modules_to_test:
-        print(f"- {module}: {modules_to_test[module].test_targets}")
+    if not modules_to_test:
+        print("No modules to test")
+    else:
+        print("Running tests for the following modules:")
+        for module in modules_to_test:
+            print(f"- {module}: {modules_to_test[module].test_targets}")
+
+    # We need to make sure the CLI length is not too long
+    packages = compute_gotestsum_cli_args(modules_to_test.values())
+    # -1000 because there are ~1000 extra characters in the gotestsum command
+    if sys.platform == "win32" and len(packages) > WINDOWS_MAX_CLI_LENGTH - 1000:
+        print("CLI length is too long, skipping fast tests")
+        return get_default_modules().values()
 
     return modules_to_test.values()
 
@@ -865,6 +873,21 @@ def get_go_modified_files(ctx):
         if file.find("unit_tests/testdata/components_src") == -1
         and (file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum"))
     ]
+
+
+def compute_gotestsum_cli_args(modules: list[GoModule]):
+    targets = []
+    for module in modules:
+        if not module.should_test():
+            continue
+        for target in module.test_targets:
+            target_path = os.path.join(module.path, target)
+            if not target_path.startswith('./'):
+                target_path = f"./{target_path}"
+            targets.append(target_path)
+
+    packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in targets)
+    return packages
 
 
 @task

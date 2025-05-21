@@ -31,7 +31,6 @@ go_test(
         "//comp/logs/agent/config",
         "//pkg/config/mock",
         "//pkg/config/model",
-        "//pkg/config/setup",
         "//pkg/logs/schedulers",
         "//pkg/logs/sources",
         "@com_github_stretchr_testify//assert",

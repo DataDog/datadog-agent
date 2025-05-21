@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface",
         "//comp/core/log/def",
         "//comp/core/tagger/def",
         "//comp/def",
@@ -15,6 +16,7 @@ go_library(
         "//comp/otelcol/ddflareextension/impl",
         "//comp/otelcol/ddprofilingextension/impl",
         "//comp/otelcol/logsagentpipeline",
+        "//comp/otelcol/otlp/components/connector/datadogconnector",
         "//comp/otelcol/otlp/components/exporter/datadogexporter",
         "//comp/otelcol/otlp/components/exporter/serializerexporter",
         "//comp/otelcol/otlp/components/metricsclient",
@@ -25,7 +27,6 @@ go_library(
         "//pkg/util/log/zap",
         "//pkg/util/option",
         "//pkg/util/otel",
-        "@com_github_open_telemetry_opentelemetry_collector_contrib_connector_datadogconnector//:datadogconnector",
         "@io_opentelemetry_go_collector_component//:component",
         "@io_opentelemetry_go_collector_confmap//:confmap",
         "@io_opentelemetry_go_collector_confmap_provider_envprovider//:envprovider",

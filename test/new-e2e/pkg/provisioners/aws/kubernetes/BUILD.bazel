@@ -28,6 +28,7 @@ go_library(
         "@com_github_datadog_test_infra_definitions//components/datadog/agentwithoperatorparams",
         "@com_github_datadog_test_infra_definitions//components/datadog/apps/cpustress",
         "@com_github_datadog_test_infra_definitions//components/datadog/apps/dogstatsd",
+        "@com_github_datadog_test_infra_definitions//components/datadog/apps/etcd",
         "@com_github_datadog_test_infra_definitions//components/datadog/apps/mutatedbyadmissioncontroller",
         "@com_github_datadog_test_infra_definitions//components/datadog/apps/nginx",
         "@com_github_datadog_test_infra_definitions//components/datadog/apps/prometheus",

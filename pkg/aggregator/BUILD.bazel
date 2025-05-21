@@ -126,6 +126,7 @@ go_test(
         "//pkg/collector/check/id",
         "//pkg/config/mock",
         "//pkg/config/setup",
+        "//pkg/config/utils",
         "//pkg/metrics",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",

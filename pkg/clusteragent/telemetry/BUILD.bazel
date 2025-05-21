@@ -18,7 +18,7 @@ go_test(
     srcs = ["collector_test.go"],
     embed = [":telemetry"],
     deps = [
-        "//pkg/config/setup",
+        "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
     ],
 )

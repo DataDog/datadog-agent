@@ -29,7 +29,6 @@ go_test(
     embed = [":gce"],
     deps = [
         "//pkg/config/mock",
-        "//pkg/config/setup",
         "//pkg/util/cache",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

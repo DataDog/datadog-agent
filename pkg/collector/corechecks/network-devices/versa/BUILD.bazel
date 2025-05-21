@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "versa",
@@ -10,10 +10,23 @@ go_library(
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/corechecks",
+        "//pkg/collector/corechecks/network-devices/versa/client",
+        "//pkg/collector/corechecks/network-devices/versa/payload",
         "//pkg/collector/corechecks/network-devices/versa/report",
+        "//pkg/networkdevice/metadata",
         "//pkg/snmp/utils",
         "//pkg/util/log",
         "//pkg/util/option",
         "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "versa_test",
+    srcs = ["versa_test.go"],
+    embed = [":versa"],
+    deps = [
+        "//pkg/collector/corechecks/network-devices/versa/client",
+        "//pkg/networkdevice/metadata",
     ],
 )

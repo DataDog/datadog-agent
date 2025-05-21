@@ -1,0 +1,53 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "external",
+    srcs = [
+        "doc.go",
+        "recommender.go",
+        "recommender_client.go",
+        "recommender_client_testutils.go",
+        "telemetry.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/external",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/clusteragent/autoscaling",
+        "//pkg/clusteragent/autoscaling/workload",
+        "//pkg/clusteragent/autoscaling/workload/model",
+        "//pkg/telemetry",
+        "//pkg/util/kubernetes",
+        "//pkg/util/kubernetes/apiserver/leaderelection/metrics",
+        "//pkg/util/log",
+        "//pkg/util/pointer",
+        "@com_github_datadog_agent_payload_v5//autoscaling/kubernetes",
+        "@com_github_datadog_datadog_operator_api//datadoghq/common",
+        "@org_golang_google_protobuf//encoding/protojson",
+        "@org_golang_google_protobuf//types/known/structpb",
+    ],
+)
+
+go_test(
+    name = "external_test",
+    srcs = [
+        "recommender_client_test.go",
+        "recommender_test.go",
+    ],
+    embed = [":external"],
+    deps = [
+        "//pkg/clusteragent/autoscaling",
+        "//pkg/clusteragent/autoscaling/workload",
+        "//pkg/clusteragent/autoscaling/workload/model",
+        "//pkg/util/pointer",
+        "@com_github_datadog_agent_payload_v5//autoscaling/kubernetes",
+        "@com_github_datadog_datadog_operator_api//datadoghq/common",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha2",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_api//autoscaling/v2:autoscaling",
+        "@io_k8s_api//core/v1:core",
+        "@org_golang_google_protobuf//encoding/protojson",
+        "@org_golang_google_protobuf//types/known/structpb",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

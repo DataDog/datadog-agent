@@ -17,9 +17,9 @@ go_test(
     srcs = ["bundle_test.go"],
     embed = [":remote-config"],
     deps = [
-        "//comp/api/authtoken",
-        "//comp/api/authtoken/mock",
         "//comp/core",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
         "//comp/core/settings/settingsimpl",
         "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",

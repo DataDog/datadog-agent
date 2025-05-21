@@ -41,7 +41,7 @@ go_test(
         "//comp/core/autodiscovery/integration",
         "//pkg/aggregator",
         "//pkg/aggregator/mocksender",
-        "//pkg/config/setup",
+        "//pkg/config/mock",
         "//pkg/metrics/servicecheck",
         "//pkg/util/cloudproviders",
         "@com_github_beevik_ntp//:ntp",

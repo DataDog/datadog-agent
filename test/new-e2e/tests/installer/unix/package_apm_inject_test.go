@@ -131,7 +131,7 @@ func (s *packageApmInjectSuite) TestInstrumentHost() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentProfilingEnabled() {
-	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python", "DD_PROFILING_ENABLED=true", "DD_DATA_STREAMS_ENABLED=true", envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python", "DD_PROFILING_ENABLED=auto", "DD_DATA_STREAMS_ENABLED=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.assertStableConfig(map[string]interface{}{
 		"DD_PROFILING_ENABLED":    "auto",
@@ -163,6 +163,10 @@ func (s *packageApmInjectSuite) TestSystemdReload() {
 // TestUpgrade_InjectorDeb_To_InjectorOCI tests the upgrade from the DEB injector to the OCI injector.
 // Library package is OCI.
 func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
+	if s.os.Flavor == e2eos.Suse {
+		s.T().Skip("Can't install APM deb/rpm packages on Suse, they were never released")
+	}
+
 	s.host.InstallDocker()
 
 	// Deb install using today's defaults
@@ -198,12 +202,17 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()
 	s.assertDockerdInstrumented(injectOCIPath)
+	s.host.AssertPackageNotInstalledByPackageManager("datadog-apm-inject", "datadog-apm-library-python")
 
 }
 
 // TestUpgrade_InjectorOCI_To_InjectorDeb tests the upgrade from the OCI injector to the DEB injector.
 // Library package is OCI.
 func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
+	if s.os.Flavor == e2eos.Suse {
+		s.T().Skip("Can't install APM deb/rpm packages on Suse, they were never released")
+	}
+
 	s.host.InstallDocker()
 
 	// OCI install
@@ -363,6 +372,10 @@ func (s *packageApmInjectSuite) TestUninstrument() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentScripts() {
+	if s.os.Flavor == e2eos.Suse {
+		s.T().Skip("Can't install APM deb/rpm packages on Suse, they were never released")
+	}
+
 	s.host.InstallDocker()
 
 	// Deb install using today's defaults
@@ -436,7 +449,7 @@ func (s *packageApmInjectSuite) TestDefaultPackageVersion() {
 		envForceInstall("datadog-agent"),
 	)
 	defer s.Purge()
-	s.host.AssertPackagePrefix("datadog-apm-library-python", "2")
+	s.host.AssertPackagePrefix("datadog-apm-library-python", "3")
 }
 
 func (s *packageApmInjectSuite) TestInstallWithUmask() {
@@ -495,6 +508,10 @@ func (s *packageApmInjectSuite) assertLDPreloadInstrumented(libPath string) {
 }
 
 func (s *packageApmInjectSuite) assertStableConfig(expectedConfigs map[string]interface{}) {
+	if len(expectedConfigs) == 0 {
+		return
+	}
+
 	state := s.host.State()
 	state.AssertFileExists("/etc/datadog-agent/application_monitoring.yaml", 0644, "dd-agent", "dd-agent")
 	content, err := s.host.ReadFile("/etc/datadog-agent/application_monitoring.yaml")

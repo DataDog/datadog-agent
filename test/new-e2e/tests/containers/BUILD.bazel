@@ -39,6 +39,7 @@ go_test(
         "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
         "@com_github_datadog_agent_payload_v5//gogen",
         "@com_github_datadog_agent_payload_v5//sbom",
+        "@com_github_datadog_test_infra_definitions//components/datadog/apps",
         "@com_github_datadog_test_infra_definitions//components/datadog/kubernetesagentparams",
         "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2",
         "@com_github_datadog_test_infra_definitions//scenarios/aws/ecs",

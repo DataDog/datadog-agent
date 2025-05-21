@@ -1,0 +1,71 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "templates_lib",
+    srcs = ["main.go"],
+    embedsrcs = [
+        "datadog-agent-installer.service.tmpl",
+        "datadog-agent-process.service.tmpl",
+        "datadog-agent-security.service.tmpl",
+        "datadog-agent-sysprobe.service.tmpl",
+        "datadog-agent-trace.service.tmpl",
+        "datadog-agent.service.tmpl",
+        "datadog-installer.service.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded/templates",
+    visibility = ["//visibility:private"],
+    deps = ["//pkg/template/text"],
+)
+
+go_binary(
+    name = "templates",
+    embed = [":templates_lib"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "service_files",
+    srcs = glob([
+        "gen/oci/*.service",
+        "gen/debrpm/*.service",
+    ]),
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "templates_test",
+    srcs = ["main_test.go"],
+    embed = [":templates_lib"],
+    embedsrcs = [
+        "gen/debrpm/datadog-agent-exp.service",
+        "gen/debrpm/datadog-agent-installer-exp.service",
+        "gen/debrpm/datadog-agent-installer.service",
+        "gen/debrpm/datadog-agent-process-exp.service",
+        "gen/debrpm/datadog-agent-process.service",
+        "gen/debrpm/datadog-agent-security-exp.service",
+        "gen/debrpm/datadog-agent-security.service",
+        "gen/debrpm/datadog-agent-sysprobe-exp.service",
+        "gen/debrpm/datadog-agent-sysprobe.service",
+        "gen/debrpm/datadog-agent-trace-exp.service",
+        "gen/debrpm/datadog-agent-trace.service",
+        "gen/debrpm/datadog-agent.service",
+        "gen/oci/datadog-agent-exp.service",
+        "gen/oci/datadog-agent-installer-exp.service",
+        "gen/oci/datadog-agent-installer.service",
+        "gen/oci/datadog-agent-process-exp.service",
+        "gen/oci/datadog-agent-process.service",
+        "gen/oci/datadog-agent-security-exp.service",
+        "gen/oci/datadog-agent-security.service",
+        "gen/oci/datadog-agent-sysprobe-exp.service",
+        "gen/oci/datadog-agent-sysprobe.service",
+        "gen/oci/datadog-agent-trace-exp.service",
+        "gen/oci/datadog-agent-trace.service",
+        "gen/oci/datadog-agent.service",
+        "gen/oci/datadog-installer-exp.service",
+        "gen/oci/datadog-installer.service",
+    ],
+    deps = [
+        "//pkg/fleet/installer/fixtures",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

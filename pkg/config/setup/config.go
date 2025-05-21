@@ -26,12 +26,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
-	"github.com/DataDog/datadog-agent/pkg/config/teeconfig"
-	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -84,7 +82,7 @@ const (
 	DefaultCompressorKind = "zstd"
 
 	// DefaultLogCompressionKind is the default log compressor. Options available are 'zstd' and 'gzip'
-	DefaultLogCompressionKind = "gzip"
+	DefaultLogCompressionKind = "zstd"
 
 	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
 	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially
@@ -254,29 +252,8 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 func init() {
 	osinit()
 
-	// Configure Datadog global configuration
-	envvar := os.Getenv("DD_CONF_NODETREEMODEL")
-	// Possible values for DD_CONF_NODETREEMODEL:
-	// - "enable":    Use the nodetreemodel for the config, instead of viper
-	// - "tee":       Construct both viper and nodetreemodel. Write to both, only read from viper
-	// - "unmarshal": Use viper for the config but the reflection based version of UnmarshalKey which used some of
-	//                nodetreemodel internals
-	// - other:       Use viper for the config
-	if envvar == "enable" {
-		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))          // nolint: forbidigo // legit use case
-		systemProbe = nodetreemodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
-	} else if envvar == "tee" {
-		viperConfig := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
-		nodetreeConfig := nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
-		datadog = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
-
-		viperConfig = viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
-		nodetreeConfig = nodetreemodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
-		systemProbe = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
-	} else {
-		datadog = viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))          // nolint: forbidigo // legit use case
-		systemProbe = viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
-	}
+	datadog = create.NewConfig("datadog")
+	systemProbe = create.NewConfig("system-probe")
 
 	// Configuration defaults
 	initConfig()
@@ -335,6 +312,14 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// If true, Python is loaded when the first Python check is loaded.
 	// Otherwise, Python is loaded when the collector is initialized.
 	config.BindEnvAndSetDefault("python_lazy_loading", true)
+
+	// If true, then new version of disk v2 check will be used.
+	// Otherwise, the old version of disk check will be used (maintaining backward compatibility).
+	config.BindEnvAndSetDefault("use_diskv2_check", false)
+
+	// If true, then new version of network v2 check will be used.
+	// Otherwise, the old version of network check will be used (maintaining backward compatibility).
+	config.BindEnvAndSetDefault("use_networkv2_check", false)
 
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
@@ -459,6 +444,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("network_devices.autodiscovery.ping.interval")
 	config.SetKnown("network_devices.autodiscovery.ping.timeout")
 	config.SetKnown("network_devices.autodiscovery.ping.linux.use_raw_socket")
+	config.SetKnown("network_devices.autodiscovery.use_deduplication")
 
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
@@ -498,6 +484,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.disable_intra_vpc_collection", false)
 	config.BindEnvAndSetDefault("network_path.collector.source_excludes", map[string][]string{})
 	config.BindEnvAndSetDefault("network_path.collector.dest_excludes", map[string][]string{})
+	config.BindEnvAndSetDefault("network_path.collector.tcp_syn_compatibility_mode", false)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// HA Agent
@@ -590,6 +577,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("ec2_prioritize_instance_id_as_hostname", false) // used to bypass the hostname detection logic and force the EC2 instance ID as a hostname.
 	config.BindEnvAndSetDefault("ec2_use_dmi", true)                             // should the agent leverage DMI information to know if it's running on EC2 or not. Enabling this will add the instance ID from DMI to the host alias list.
 	config.BindEnvAndSetDefault("collect_ec2_tags", false)
+	config.BindEnvAndSetDefault("collect_ec2_instance_info", false)
 	config.BindEnvAndSetDefault("collect_ec2_tags_use_imds", false)
 	config.BindEnvAndSetDefault("exclude_ec2_tags", []string{})
 	config.BindEnvAndSetDefault("ec2_imdsv2_transition_payload_enabled", true)
@@ -621,6 +609,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// GPU
 	config.BindEnvAndSetDefault("collect_gpu_tags", false)
+	config.BindEnvAndSetDefault("nvml_lib_path", "")
+	config.BindEnvAndSetDefault("enable_nvml_detection", false)
+
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.poll_interval", 15)
@@ -781,7 +772,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.webhook_name", "datadog-webhook")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_config.endpoint", "/injectconfig")
-	config.BindEnvAndSetDefault("admission_controller.inject_config.mode", "hostip") // possible values: hostip / service / socket
+	config.BindEnvAndSetDefault("admission_controller.inject_config.mode", "hostip") // possible values: hostip / service / socket / csi
 	config.BindEnvAndSetDefault("admission_controller.inject_config.local_service_name", "datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.socket_path", "/var/run/datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.trace_agent_socket", "unix:///var/run/datadog/apm.socket")
@@ -895,6 +886,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.check_disk_usage", true)
 	config.BindEnvAndSetDefault("sbom.container_image.min_available_disk", "1Gb")
 	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_direct_scan", false)
+	config.BindEnvAndSetDefault("sbom.container_image.container_exclude", []string{})
+	config.BindEnvAndSetDefault("sbom.container_image.container_include", []string{})
+	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
 
 	// Container file system SBOM configuration
 	config.BindEnvAndSetDefault("sbom.container.enabled", false)
@@ -998,6 +992,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnv("ol_proxy_config.dd_url")
 	config.BindEnv("ol_proxy_config.api_key")
 	config.BindEnv("ol_proxy_config.additional_endpoints")
+	config.BindEnvAndSetDefault("ol_proxy_config.api_version", 2)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -1043,12 +1038,13 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Installer configuration
 	config.BindEnvAndSetDefault("remote_updates", false)
-	config.BindEnvAndSetDefault("remote_policies", false)
 	config.BindEnvAndSetDefault("installer.mirror", "")
 	config.BindEnvAndSetDefault("installer.registry.url", "")
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
 	config.BindEnvAndSetDefault("installer.registry.username", "")
 	config.BindEnvAndSetDefault("installer.registry.password", "")
+	// Legacy installer configuration
+	config.SetKnown("remote_policies")
 
 	// Data Jobs Monitoring config
 	config.BindEnvAndSetDefault("djm_config.enabled", false)
@@ -1135,12 +1131,14 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("integration_profiling", false)
 	config.BindEnvAndSetDefault("integration_check_status_enabled", false)
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
-	config.BindEnvAndSetDefault("enable_cluster_agent_metadata_collection", false)
+	config.BindEnvAndSetDefault("enable_cluster_agent_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_gohai", true)
 	config.BindEnvAndSetDefault("enable_signing_metadata_collection", true)
 	config.BindEnvAndSetDefault("metadata_provider_stop_timeout", 30*time.Second)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
+	config.BindEnvAndSetDefault("check_system_probe_startup_time", 5*time.Minute)
+	config.BindEnvAndSetDefault("check_system_probe_timeout", 60*time.Second)
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	// used to override the path where the IPC cert/key files are stored/retrieved
 	config.BindEnvAndSetDefault("ipc_cert_file_path", "")
@@ -1192,6 +1190,7 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	// Autoscaling product
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
+	config.BindEnvAndSetDefault("autoscaling.workload.limit", 100)
 	config.BindEnv("autoscaling.failover.metrics")
 }
 
@@ -1215,6 +1214,7 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
 	config.BindEnv("remote_configuration.refresh_interval")
+	config.BindEnvAndSetDefault("remote_configuration.org_status_refresh_interval", 1*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.max_backoff_interval", 5*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.clients.ttl_seconds", 30*time.Second)
 	config.BindEnvAndSetDefault("remote_configuration.clients.cache_bypass_limit", 5)
@@ -1228,8 +1228,6 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 
 func autoconfig(config pkgconfigmodel.Setup) {
 	// Autoconfig
-	// Defaut Timeout in second when talking to storage for configuration (etcd, zookeeper, ...)
-	config.BindEnvAndSetDefault("autoconf_template_url_timeout", 5)
 	// Where to look for check templates if no custom path is defined
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
 	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
@@ -1250,6 +1248,8 @@ func autoconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("container_exclude_logs", []string{})
 	config.BindEnvAndSetDefault("container_exclude_stopped_age", DefaultAuditorTTL-1) // in hours
 	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10))                 // in seconds
+	config.BindEnvAndSetDefault("ad_allowed_env_vars", []string{})
+	config.BindEnvAndSetDefault("ad_disable_env_var_resolution", false)
 	config.BindEnvAndSetDefault("extra_listeners", []string{})
 	config.BindEnvAndSetDefault("extra_config_providers", []string{})
 	config.BindEnvAndSetDefault("ignore_autoconf", []string{})
@@ -1306,7 +1306,7 @@ func debugging(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
 	config.BindEnvAndSetDefault("c_core_dump", false)
 	config.BindEnvAndSetDefault("go_core_dump", false)
-	config.BindEnvAndSetDefault("memtrack_enabled", true)
+	config.BindEnvAndSetDefault("memtrack_enabled", false)
 	config.BindEnvAndSetDefault("tracemalloc_debug", false)
 	config.BindEnvAndSetDefault("tracemalloc_include", "")
 	config.BindEnvAndSetDefault("tracemalloc_exclude", "")
@@ -1340,6 +1340,7 @@ func telemetry(config pkgconfigmodel.Setup) {
 	// ... and overridden by the following two lines - do not switch these 3 lines order
 	config.BindEnvAndSetDefault("agent_telemetry.compression_level", 1)
 	config.BindEnvAndSetDefault("agent_telemetry.use_compression", true)
+	config.BindEnvAndSetDefault("agent_telemetry.startup_trace_sampling", 0)
 }
 
 func serializer(config pkgconfigmodel.Setup) {
@@ -1529,6 +1530,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.container_collect_all", false)
 	// add a socks5 proxy:
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
+	// disable distributed senders
+	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false)
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key")
 
@@ -1555,6 +1558,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnv("logs_config.processing_rules")
 	// enforce the agent to use files to collect container logs on kubernetes environment
 	config.BindEnvAndSetDefault("logs_config.k8s_container_use_file", false)
+	// Tail a container's logs by querying the kubelet's API
+	config.BindEnvAndSetDefault("logs_config.k8s_container_use_kubelet_api", false)
 	// Enable the agent to use files to collect container logs on standalone docker environment, containers
 	// with an existing registry offset will continue to be tailed from the docker socket unless
 	// logs_config.docker_container_force_use_file is set to true.
@@ -1573,6 +1578,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// This field lets you increase the read timeout to prevent the client from
 	// timing out too early in such a situation. Value in seconds.
 	config.BindEnvAndSetDefault("logs_config.docker_client_read_timeout", 30)
+	// Configurable API client timeout while communicating with the kubelet to stream logs. Value in seconds.
+	config.BindEnvAndSetDefault("logs_config.kubelet_api_client_read_timeout", "30s")
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	// DEPRECATED in favor of `logs_config.force_use_http`.
@@ -1594,6 +1601,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.region", "")
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.query_timeout", 10)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.tags", []string{"datadoghq.com/scrape:true"})
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.dbm_tag", "datadoghq.com/dbm:true")
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
@@ -1618,6 +1626,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tokenizer_max_input_bytes", 60)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_max_size", 20)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_match_threshold", 0.75)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_aggregation", true)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tag_aggregated_json", false)
 
 	// Enable the legacy auto multiline detection (v1)
 	config.BindEnvAndSetDefault("logs_config.force_auto_multi_line_detection_v1", false)
@@ -1687,6 +1697,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Control how the stream-logs log file is managed
 	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", DefaultStreamlogsLogFile)
 
+	// If true, then the registry file will be written atomically. This behavior is not supported on ECS Fargate.
+	config.BindEnvAndSetDefault("logs_config.atomic_registry_write", !pkgconfigenv.IsECSFargate())
 }
 
 func vector(config pkgconfigmodel.Setup) {
@@ -2186,7 +2198,7 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 		return nil
 	}
 
-	log.Warnf("(Deprecated) fips-proxy support is deprecated and will be removed in version 7.65 of the agent. Please use the `datadog-fips-agent` instead.")
+	log.Warn("The FIPS Agent (`datadog-fips-agent`) will replace the FIPS Proxy as the FIPS-compliant implementation of the Agent in the future. Please ensure that you transition to `datadog-fips-agent` as soon as possible.")
 
 	const (
 		proxyStats                 = 0

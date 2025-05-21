@@ -12,7 +12,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/config",
     visibility = ["//visibility:public"],
     deps = [
-        "//cmd/system-probe/config",
         "//comp/logs/agent/config",
         "//pkg/config/model",
         "//pkg/config/setup",
@@ -24,6 +23,7 @@ go_library(
         "//pkg/security/secl/model",
         "//pkg/security/seclog",
         "//pkg/security/utils",
+        "//pkg/system-probe/config",
         "//pkg/util/fargate",
     ],
 )

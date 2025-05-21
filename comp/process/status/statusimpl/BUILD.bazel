@@ -8,6 +8,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface",
         "//comp/core/status",
         "//pkg/config/setup",
         "//pkg/process/util/status",
@@ -26,6 +27,7 @@ go_test(
     ],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

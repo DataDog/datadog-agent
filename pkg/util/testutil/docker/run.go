@@ -20,6 +20,7 @@ import (
 // Use NewRunConfig to run a single docker container or NewComposeConfig to spin docker-compose
 // This method is using testing.TB interface to handle cleanup and logging during UTs execution
 func Run(t testing.TB, cfg LifecycleConfig) error {
+	t.Logf("Running %s command. Waiting for %s container to be running", cfg.command(), cfg.Name())
 	var err error
 	var ctx context.Context
 	for i := 0; i < cfg.Retries(); i++ {

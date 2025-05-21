@@ -12,7 +12,7 @@ go_library(
         "@rules_go//go/platform:aix": [
             "//comp/core/tagger/def",
             "//comp/logs/agent/flare",
-            "//pkg/logs/auditor",
+            "//comp/logs/auditor/def",
             "//pkg/logs/launchers",
             "//pkg/logs/pipeline",
             "//pkg/logs/tailers",
@@ -21,7 +21,7 @@ go_library(
             "//comp/core/tagger/def",
             "//comp/logs/agent/config",
             "//comp/logs/agent/flare",
-            "//pkg/logs/auditor",
+            "//comp/logs/auditor/def",
             "//pkg/logs/launchers",
             "//pkg/logs/pipeline",
             "//pkg/logs/sources",
@@ -34,7 +34,7 @@ go_library(
         "@rules_go//go/platform:darwin": [
             "//comp/core/tagger/def",
             "//comp/logs/agent/flare",
-            "//pkg/logs/auditor",
+            "//comp/logs/auditor/def",
             "//pkg/logs/launchers",
             "//pkg/logs/pipeline",
             "//pkg/logs/tailers",
@@ -42,7 +42,7 @@ go_library(
         "@rules_go//go/platform:dragonfly": [
             "//comp/core/tagger/def",
             "//comp/logs/agent/flare",
-            "//pkg/logs/auditor",
+            "//comp/logs/auditor/def",
             "//pkg/logs/launchers",
             "//pkg/logs/pipeline",
             "//pkg/logs/tailers",
@@ -50,7 +50,7 @@ go_library(
         "@rules_go//go/platform:freebsd": [
             "//comp/core/tagger/def",
             "//comp/logs/agent/flare",
-            "//pkg/logs/auditor",
+            "//comp/logs/auditor/def",
             "//pkg/logs/launchers",
             "//pkg/logs/pipeline",
             "//pkg/logs/tailers",
@@ -58,7 +58,7 @@ go_library(
         "@rules_go//go/platform:illumos": [
             "//comp/core/tagger/def",
             "//comp/logs/agent/flare",
-            "//pkg/logs/auditor",
+            "//comp/logs/auditor/def",
             "//pkg/logs/launchers",
             "//pkg/logs/pipeline",
             "//pkg/logs/tailers",
@@ -66,7 +66,7 @@ go_library(
         "@rules_go//go/platform:ios": [
             "//comp/core/tagger/def",
             "//comp/logs/agent/flare",
-            "//pkg/logs/auditor",
+            "//comp/logs/auditor/def",
             "//pkg/logs/launchers",
             "//pkg/logs/pipeline",
             "//pkg/logs/tailers",
@@ -74,7 +74,7 @@ go_library(
         "@rules_go//go/platform:js": [
             "//comp/core/tagger/def",
             "//comp/logs/agent/flare",
-            "//pkg/logs/auditor",
+            "//comp/logs/auditor/def",
             "//pkg/logs/launchers",
             "//pkg/logs/pipeline",
             "//pkg/logs/tailers",
@@ -83,7 +83,7 @@ go_library(
             "//comp/core/tagger/def",
             "//comp/logs/agent/config",
             "//comp/logs/agent/flare",
-            "//pkg/logs/auditor",
+            "//comp/logs/auditor/def",
             "//pkg/logs/launchers",
             "//pkg/logs/pipeline",
             "//pkg/logs/sources",
@@ -96,7 +96,7 @@ go_library(
         "@rules_go//go/platform:netbsd": [
             "//comp/core/tagger/def",
             "//comp/logs/agent/flare",
-            "//pkg/logs/auditor",
+            "//comp/logs/auditor/def",
             "//pkg/logs/launchers",
             "//pkg/logs/pipeline",
             "//pkg/logs/tailers",
@@ -104,7 +104,7 @@ go_library(
         "@rules_go//go/platform:openbsd": [
             "//comp/core/tagger/def",
             "//comp/logs/agent/flare",
-            "//pkg/logs/auditor",
+            "//comp/logs/auditor/def",
             "//pkg/logs/launchers",
             "//pkg/logs/pipeline",
             "//pkg/logs/tailers",
@@ -112,7 +112,7 @@ go_library(
         "@rules_go//go/platform:osx": [
             "//comp/core/tagger/def",
             "//comp/logs/agent/flare",
-            "//pkg/logs/auditor",
+            "//comp/logs/auditor/def",
             "//pkg/logs/launchers",
             "//pkg/logs/pipeline",
             "//pkg/logs/tailers",
@@ -120,7 +120,7 @@ go_library(
         "@rules_go//go/platform:plan9": [
             "//comp/core/tagger/def",
             "//comp/logs/agent/flare",
-            "//pkg/logs/auditor",
+            "//comp/logs/auditor/def",
             "//pkg/logs/launchers",
             "//pkg/logs/pipeline",
             "//pkg/logs/tailers",
@@ -128,7 +128,7 @@ go_library(
         "@rules_go//go/platform:qnx": [
             "//comp/core/tagger/def",
             "//comp/logs/agent/flare",
-            "//pkg/logs/auditor",
+            "//comp/logs/auditor/def",
             "//pkg/logs/launchers",
             "//pkg/logs/pipeline",
             "//pkg/logs/tailers",
@@ -136,7 +136,7 @@ go_library(
         "@rules_go//go/platform:solaris": [
             "//comp/core/tagger/def",
             "//comp/logs/agent/flare",
-            "//pkg/logs/auditor",
+            "//comp/logs/auditor/def",
             "//pkg/logs/launchers",
             "//pkg/logs/pipeline",
             "//pkg/logs/tailers",
@@ -144,7 +144,7 @@ go_library(
         "@rules_go//go/platform:windows": [
             "//comp/core/tagger/def",
             "//comp/logs/agent/flare",
-            "//pkg/logs/auditor",
+            "//comp/logs/auditor/def",
             "//pkg/logs/launchers",
             "//pkg/logs/pipeline",
             "//pkg/logs/tailers",
@@ -161,13 +161,12 @@ go_test(
         "//comp/core/tagger/fx-mock",
         "//comp/logs/agent/config",
         "//comp/logs/agent/flare",
-        "//pkg/logs/auditor",
+        "//comp/logs/auditor/mock",
         "//pkg/logs/launchers",
         "//pkg/logs/pipeline",
         "//pkg/logs/sources",
         "//pkg/logs/tailers",
         "//pkg/logs/tailers/journald",
-        "//pkg/status/health",
         "@com_github_coreos_go_systemd//sdjournal",
         "@com_github_stretchr_testify//assert",
     ],

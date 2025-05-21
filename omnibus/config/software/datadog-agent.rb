@@ -9,20 +9,27 @@ require 'pathname'
 
 name 'datadog-agent'
 
-# creates required build directories
-dependency 'datadog-agent-prepare'
+# We don't want to build any dependencies in "repackaging mode" so all usual dependencies
+# need to go under this guard.
+unless do_repackage?
+  # creates required build directories
+  dependency 'datadog-agent-prepare'
 
-dependency "python3"
+  dependency "python3"
 
-dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
+  dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
 
-# Alternative memory allocator which has better support for memory allocated by cgo calls,
-# especially at higher thread counts.
-dependency "libjemalloc" if linux_target?
+  # Alternative memory allocator which has better support for memory allocated by cgo calls,
+  # especially at higher thread counts.
+  dependency "libjemalloc" if linux_target?
 
-dependency 'datadog-agent-dependencies'
+  dependency 'datadog-agent-dependencies'
+end
 
-source path: '..'
+source path: '..',
+       options: {
+         exclude: ["**/testdata/**/*"],
+       }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 always_build true
@@ -90,26 +97,22 @@ build do
     if not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
       do_windows_sysprobe = "--windows-sysprobe"
     end
-    command "dda inv -e rtloader.clean"
-    command "dda inv -e rtloader.make --install-prefix \"#{windows_safe_path(python_3_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\"\"", :env => env
+    command "dda inv -- -e rtloader.clean"
+    command "dda inv -- -e rtloader.make --install-prefix \"#{windows_safe_path(python_3_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\\\" \\\"-DCMAKE_BUILD_TYPE=RelWithDebInfo\\\"\"", :env => env
     command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
-    command "dda inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
-    command "dda inv -e systray.build --major-version #{major_version_arg}", env: env
+    command "dda inv -- -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
+    command "dda inv -- -e systray.build --major-version #{major_version_arg}", env: env
   else
-    command "dda inv -e rtloader.clean"
-    command "dda inv -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env
-    command "dda inv -e rtloader.install"
+    command "dda inv -- -e rtloader.clean"
+    command "dda inv -- -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env
+    command "dda inv -- -e rtloader.install"
     bundle_arg = bundled_agents.map { |k| "--bundle #{k}" }.join(" ")
 
     include_sds = ""
     if linux_target?
         include_sds = "--include-sds" # we only support SDS on Linux targets for now
     end
-    command "dda inv -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
-
-    if heroku_target?
-      command "dda inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent --bundle agent", env: env
-    end
+    command "dda inv -- -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
   end
 
   if osx_target?
@@ -146,7 +149,7 @@ build do
     command "cp $(bazel cquery --output=files #{target}) bin/trace-agent"
   elsif not ENV["ENABLE_BAZEL"] and not bundled_agents.include? "trace-agent"
     platform = windows_arch_i386? ? "x86" : "x64"
-    command "invoke trace-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+    command "dda inv -- -e trace-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
   end
 
   if windows_target?
@@ -157,7 +160,7 @@ build do
 
   # Process agent
   if not bundled_agents.include? "process-agent"
-    command "invoke -e process-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+    command "dda inv -- -e process-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
   end
 
   if windows_target?
@@ -169,24 +172,24 @@ build do
   end
 
   # System-probe
-  if sysprobe_enabled? || (windows_target? && do_windows_sysprobe != "")
-    if windows_target?
-      command "invoke -e system-probe.build #{fips_args}", env: env
-    elsif linux_target?
-      command "invoke -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: env
+  if sysprobe_enabled? || osx_target? || (windows_target? && do_windows_sysprobe != "")
+    if linux_target?
+      command "dda inv -- -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: env
       command "!(objdump -p ./bin/system-probe/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])')"
+    else
+      command "dda inv -- -e system-probe.build #{fips_args}", env: env
     end
 
     if windows_target?
       copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
-    elsif linux_target?
+    else
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
     end
 
     # Add SELinux policy for system-probe
     if debian_target? || redhat_target?
       mkdir "#{conf_dir}/selinux"
-      command "dda inv -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
+      command "dda inv -- -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
     end
 
   #   move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
@@ -219,7 +222,7 @@ build do
   # Security agent
   secagent_support = (not heroku_target?) and (not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?))
   if secagent_support
-    command "invoke -e security-agent.build #{fips_args} --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
+    command "dda inv -- -e security-agent.build #{fips_args} --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
     else
@@ -231,14 +234,14 @@ build do
   # CWS Instrumentation
   cws_inst_support = !heroku_target? && linux_target?
   if cws_inst_support
-    command "invoke -e cws-instrumentation.build #{fips_args}", :env => env
+    command "dda inv -- -e cws-instrumentation.build #{fips_args}", :env => env
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
   end
 
   # OTel agent - can never be bundled
   if ot_target?
     unless windows_target?
-      command "invoke -e otel-agent.build", :env => env
+      command "dda inv -- -e otel-agent.build", :env => env
       copy 'bin/otel-agent/otel-agent', "#{install_dir}/embedded/bin"
 
       move 'bin/otel-agent/dist/otel-config.yaml', "#{conf_dir}/otel-config.yaml.example"
@@ -248,7 +251,7 @@ build do
   # APM Injection agent
   if windows_target?
     if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-      command "dda inv agent.generate-config --build-type apm-injection --output-file ./bin/agent/dist/apm-inject.yaml", :env => env
+      command "dda inv -- -e agent.generate-config --build-type apm-injection --output-file ./bin/agent/dist/apm-inject.yaml", :env => env
       move 'bin/agent/dist/apm-inject.yaml', "#{conf_dir}/apm-inject.yaml.example"
     end
   end
@@ -259,6 +262,16 @@ build do
         dest: "#{conf_dir}/com.datadoghq.agent.plist.example",
         mode: 0644,
         vars: { install_dir: install_dir }
+
+    erb source: "launchd.sysprobe.plist.example.erb",
+        dest: "#{conf_dir}/com.datadoghq.sysprobe.plist.example",
+        mode: 0644,
+        vars: {
+          # Due to how install_dir actually matches where the Agent is built rather than
+          # its actual final destination, we hardcode here the currently sole supported install location
+          install_dir: "/opt/datadog-agent",
+          conf_dir: "/opt/datadog-agent/etc",
+        }
 
     erb source: "gui.launchd.plist.erb",
         dest: "#{conf_dir}/com.datadoghq.gui.plist.example",
@@ -273,14 +286,6 @@ build do
     command 'swiftc -O -swift-version "5" -target "x86_64-apple-macosx10.10" -Xlinker \'-rpath\' -Xlinker \'@executable_path/../Frameworks\' Sources/*.swift -o gui', cwd: systray_build_dir
     copy "#{systray_build_dir}/gui", "#{app_temp_dir}/MacOS/"
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"
-  end
-
-  # The file below is touched by software builds that don't put anything in the installation
-  # directory (libgcc right now) so that the git_cache gets updated let's remove it from the
-  # final package
-  # Change RPATH from the install_dir to relative RPATH
-  unless windows_target?
-    delete "#{install_dir}/uselessfile"
   end
 
   # TODO: move this to omnibus-ruby::health-check.rb

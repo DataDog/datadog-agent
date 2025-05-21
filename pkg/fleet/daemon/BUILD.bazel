@@ -21,6 +21,7 @@ go_library(
         "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/errors",
         "//pkg/fleet/installer/exec",
+        "//pkg/fleet/installer/paths",
         "//pkg/fleet/installer/repository",
         "//pkg/fleet/installer/telemetry",
         "//pkg/proto/pbgo/core",
@@ -32,7 +33,6 @@ go_library(
         "@io_etcd_go_bbolt//:bbolt",
     ] + select({
         "@rules_go//go/platform:windows": [
-            "//pkg/fleet/installer/paths",
             "@com_github_microsoft_go_winio//:go-winio",
         ],
         "//conditions:default": [],

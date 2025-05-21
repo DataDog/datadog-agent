@@ -19,9 +19,7 @@ ALL_BUILD_TAGS = [
     "jetson",
     "jmx",
     "kubeapiserver",
-    # Currently this tag is uncompatible with kubeapiserver because it creates
-    # a circular dependency
-    #"kubelet",
+    "kubelet",
     # Deferring the linux_bpf tag until we build system-probe, since it requires changing tags in files to make it work
     #"linux_bpf",
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static

@@ -10,6 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/setup",
+        "//pkg/fips",
         "//pkg/util/http",
         "//pkg/util/log",
         "@com_github_aws_aws_sdk_go_v2//aws",

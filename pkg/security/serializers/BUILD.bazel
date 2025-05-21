@@ -18,8 +18,8 @@ go_library(
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/security/events",
-            "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
         ],
         "@rules_go//go/platform:android": [
             "//pkg/security/events",
@@ -30,6 +30,7 @@ go_library(
             "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model",
             "//pkg/security/secl/model/sharedconsts",
+            "//pkg/security/secl/rules",
             "//pkg/security/utils",
             "//pkg/util/scrubber",
             "@com_github_mailru_easyjson//:easyjson",
@@ -39,33 +40,33 @@ go_library(
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/security/events",
-            "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/security/events",
-            "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
         ],
         "@rules_go//go/platform:freebsd": [
             "//pkg/security/events",
-            "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
         ],
         "@rules_go//go/platform:illumos": [
             "//pkg/security/events",
-            "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/security/events",
-            "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
         ],
         "@rules_go//go/platform:js": [
             "//pkg/security/events",
-            "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/events",
@@ -76,6 +77,7 @@ go_library(
             "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model",
             "//pkg/security/secl/model/sharedconsts",
+            "//pkg/security/secl/rules",
             "//pkg/security/utils",
             "//pkg/util/scrubber",
             "@com_github_mailru_easyjson//:easyjson",
@@ -85,33 +87,33 @@ go_library(
         ],
         "@rules_go//go/platform:netbsd": [
             "//pkg/security/events",
-            "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
         ],
         "@rules_go//go/platform:openbsd": [
             "//pkg/security/events",
-            "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
         ],
         "@rules_go//go/platform:osx": [
             "//pkg/security/events",
-            "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
         ],
         "@rules_go//go/platform:plan9": [
             "//pkg/security/events",
-            "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
         ],
         "@rules_go//go/platform:qnx": [
             "//pkg/security/events",
-            "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
         ],
         "@rules_go//go/platform:solaris": [
             "//pkg/security/events",
-            "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/security/events",
@@ -119,6 +121,7 @@ go_library(
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
             "//pkg/security/secl/model/sharedconsts",
+            "//pkg/security/secl/rules",
             "//pkg/security/utils",
             "//pkg/util/scrubber",
         ],

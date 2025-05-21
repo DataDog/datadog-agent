@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "clihelpers",
+    srcs = ["eval.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/clihelpers",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/config",
+            "//pkg/security/probe/config",
+            "//pkg/security/probe/kfilters",
+            "//pkg/security/rules/filtermodel",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
+            "//pkg/security/seclog",
+            "//pkg/security/seclwin/model",
+            "//pkg/security/utils",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/config",
+            "//pkg/security/probe/config",
+            "//pkg/security/probe/kfilters",
+            "//pkg/security/rules/filtermodel",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
+            "//pkg/security/seclog",
+            "//pkg/security/seclwin/model",
+            "//pkg/security/utils",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/security/config",
+            "//pkg/security/probe/config",
+            "//pkg/security/probe/kfilters",
+            "//pkg/security/rules/filtermodel",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
+            "//pkg/security/seclog",
+            "//pkg/security/seclwin/model",
+            "//pkg/security/utils",
+        ],
+        "//conditions:default": [],
+    }),
+)

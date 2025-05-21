@@ -31,11 +31,10 @@ go_test(
     embed = [":metadata"],
     deps = [
         "//pkg/config/env",
-        "//pkg/config/setup",
+        "//pkg/config/mock",
         "//pkg/util/cache",
         "//pkg/util/docker",
         "//pkg/util/ecs/metadata/testutil",
-        "@com_github_docker_docker//api/types",
         "@com_github_docker_docker//api/types/container",
         "@com_github_docker_docker//api/types/network",
         "@com_github_stretchr_testify//assert",

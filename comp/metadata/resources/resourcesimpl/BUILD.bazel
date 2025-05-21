@@ -17,21 +17,21 @@ go_library(
     ] + select({
         "@rules_go//go/platform:android": [
             "//comp/core/config",
+            "//comp/core/hostname/hostnameinterface",
             "//comp/core/log/def",
             "//comp/metadata/runner/runnerimpl",
             "//pkg/config/utils",
             "//pkg/gohai/processes",
             "//pkg/serializer",
-            "//pkg/util/hostname",
         ],
         "@rules_go//go/platform:darwin": [
             "//comp/core/config",
+            "//comp/core/hostname/hostnameinterface",
             "//comp/core/log/def",
             "//comp/metadata/runner/runnerimpl",
             "//pkg/config/utils",
             "//pkg/gohai/processes",
             "//pkg/serializer",
-            "//pkg/util/hostname",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//comp/core/config",
@@ -43,21 +43,21 @@ go_library(
         ],
         "@rules_go//go/platform:ios": [
             "//comp/core/config",
+            "//comp/core/hostname/hostnameinterface",
             "//comp/core/log/def",
             "//comp/metadata/runner/runnerimpl",
             "//pkg/config/utils",
             "//pkg/gohai/processes",
             "//pkg/serializer",
-            "//pkg/util/hostname",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/config",
+            "//comp/core/hostname/hostnameinterface",
             "//comp/core/log/def",
             "//comp/metadata/runner/runnerimpl",
             "//pkg/config/utils",
             "//pkg/gohai/processes",
             "//pkg/serializer",
-            "//pkg/util/hostname",
         ],
         "@rules_go//go/platform:netbsd": [
             "//comp/core/config",
@@ -91,6 +91,7 @@ go_test(
     ] + select({
         "@rules_go//go/platform:android": [
             "//comp/core/config",
+            "//comp/core/hostname/hostnameimpl",
             "//comp/core/log/def",
             "//comp/core/log/mock",
             "//pkg/config/utils",
@@ -103,6 +104,7 @@ go_test(
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/config",
+            "//comp/core/hostname/hostnameimpl",
             "//comp/core/log/def",
             "//comp/core/log/mock",
             "//pkg/config/utils",

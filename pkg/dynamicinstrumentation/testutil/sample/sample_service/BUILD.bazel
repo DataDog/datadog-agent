@@ -7,8 +7,7 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/dynamicinstrumentation/testutil/sample",
-        "//pkg/util/log",
-        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer",
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
     ],
 )
 

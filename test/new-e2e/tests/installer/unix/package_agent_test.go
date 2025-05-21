@@ -67,6 +67,8 @@ func (s *packageAgentSuite) TestInstall() {
 	state.AssertFileExists(path.Join(agentDir, "embedded/share/system-probe/ebpf/dns.o"), 0644, "root", "root")
 
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentDir, "root", "root")
+	state.AssertSymlinkExists("/usr/bin/datadog-agent", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", "root", "root")
+	state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer", "root", "root")
 	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
 }
 
@@ -141,9 +143,9 @@ func (s *packageAgentSuite) TestUpgrade_Agent_OCI_then_DebRpm() {
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
 
 	state = s.host.State()
-	s.assertUnits(state, false)
+	s.assertUnits(state, true)
 	state.AssertDirExists("/opt/datadog-agent", 0755, "dd-agent", "dd-agent")
-	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.AssertPackageNotInstalledByInstaller("datadog-agent")
 }
 
 func (s *packageAgentSuite) TestExperimentTimeout() {

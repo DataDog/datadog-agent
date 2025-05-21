@@ -26,7 +26,6 @@ go_library(
         "@com_github_datadog_go_tuf//util",
         "@com_github_masterminds_semver//:semver",
         "@com_github_secure_systems_lab_go_securesystemslib//cjson",
-        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer",
         "@io_etcd_go_bbolt//:bbolt",
         "@io_etcd_go_bbolt//errors",
         "@org_golang_google_grpc//codes",

@@ -2,17 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "ebpfcheck",
-    srcs = [
-        "c_types_linux.go",
-        "probe_stub.go",
-    ],
+    srcs = ["c_types_linux.go"],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck",
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/collector/corechecks/ebpf/probe/ebpfcheck/model",
-        "//pkg/ebpf",
-    ],
 )
 
 go_test(

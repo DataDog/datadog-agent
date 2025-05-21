@@ -34,7 +34,7 @@ func TestDownloadCommand(t *testing.T) {
 			check: func(_ *downloadPolicyCliParams, params core.BundleParams) {
 				// Verify logger defaults
 				require.Equal(t, "SYS-PROBE", params.LoggerName(), "logger name not matching")
-				require.Equal(t, "info", params.LogLevelFn(nil), "log level not matching")
+				require.Equal(t, "off", params.LogLevelFn(nil), "log level not matching")
 			},
 		},
 	}
@@ -51,33 +51,35 @@ func TestDownloadCommand(t *testing.T) {
 
 func newMockRSClient(t *testing.T) secagent.SecurityModuleClientWrapper {
 	m := mocks.NewSecurityModuleClientWrapper(t)
-	m.On("GetRuleSetReport").Return(&api.GetRuleSetReportResultMessage{
+	m.On("GetRuleSetReport").Return(&api.GetRuleSetReportMessage{
 		RuleSetReportMessage: &api.RuleSetReportMessage{
-			Policies: []*api.EventTypePolicy{
-				{
-					EventType: "exec",
-					Mode:      1,
-					Approvers: nil,
-				},
-				{
-					EventType: "open",
-					Mode:      2,
-					Approvers: &api.Approvers{
-						ApproverDetails: []*api.ApproverDetails{
-							{
-								Field: "open.file.path",
-								Value: "/etc/gshadow",
-								Type:  1,
-							},
-							{
-								Field: "open.file.path",
-								Value: "/etc/shadow",
-								Type:  1,
-							},
-							{
-								Field: "open.flags",
-								Value: "64",
-								Type:  1,
+			Filters: &api.FilterReport{
+				Approvers: []*api.ApproverReport{
+					{
+						EventType: "exec",
+						Mode:      1,
+						Approvers: nil,
+					},
+					{
+						EventType: "open",
+						Mode:      2,
+						Approvers: &api.Approvers{
+							ApproverDetails: []*api.ApproverDetails{
+								{
+									Field: "open.file.path",
+									Value: "/etc/gshadow",
+									Type:  1,
+								},
+								{
+									Field: "open.file.path",
+									Value: "/etc/shadow",
+									Type:  1,
+								},
+								{
+									Field: "open.flags",
+									Value: "64",
+									Type:  1,
+								},
 							},
 						},
 					},
@@ -108,34 +110,30 @@ func Test_checkPoliciesLoaded(t *testing.T) {
 				client: newMockRSClient(t),
 			},
 			reportFromSysProbe: `{
-	"Policies": {
-		"exec": {
-			"Mode": "accept",
-			"Approvers": null
-		},
+	"approvers": {
 		"open": {
-			"Mode": "deny",
-			"Approvers": {
+			"mode": "deny",
+			"approvers": {
 				"open.file.path": [
 					{
-						"Field": "open.file.path",
-						"Value": "/etc/gshadow",
-						"Type": "scalar",
-						"Mode": 0
+						"field": "open.file.path",
+						"value": "/etc/gshadow",
+						"type": "scalar",
+						"mode": 0
 					},
 					{
-						"Field": "open.file.path",
-						"Value": "/etc/shadow",
-						"Type": "scalar",
-						"Mode": 0
+						"field": "open.file.path",
+						"value": "/etc/shadow",
+						"type": "scalar",
+						"mode": 0
 					}
 				],
 				"open.flags": [
 					{
-						"Field": "open.flags",
-						"Value": 64,
-						"Type": "scalar",
-						"Mode": 0
+						"field": "open.flags",
+						"value": 64,
+						"type": "scalar",
+						"mode": 0
 					}
 				]
 			}

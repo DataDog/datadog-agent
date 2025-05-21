@@ -28,15 +28,15 @@ class CodecovWorkaround:
     We use the --raw-command flag to tell each `go test` iteration to write coverage in a different file.
     """
 
-    def __init__(self, ctx: Context, module_path: str, coverage: bool, packages: str, args: dict[str, str]):
+    def __init__(self, ctx: Context, base_path: str, coverage: bool, packages: str, args: dict[str, str]):
         self.ctx = ctx
-        self.module_path = module_path
+        self.base_path = base_path
         self.coverage = coverage
         self.packages = packages
         self.args = args
-        self.cov_test_path_sh = os.path.join(self.module_path, GO_COV_TEST_PATH) + ".sh"
-        self.cov_test_path_ps1 = os.path.join(self.module_path, GO_COV_TEST_PATH) + ".ps1"
-        self.call_ps1_from_bat = os.path.join(self.module_path, GO_COV_TEST_PATH) + ".bat"
+        self.cov_test_path_sh = os.path.join(self.base_path, GO_COV_TEST_PATH) + ".sh"
+        self.cov_test_path_ps1 = os.path.join(self.base_path, GO_COV_TEST_PATH) + ".ps1"
+        self.call_ps1_from_bat = os.path.join(self.base_path, GO_COV_TEST_PATH) + ".bat"
         self.cov_test_path = self.cov_test_path_sh if platform.system() != 'Windows' else self.cov_test_path_ps1
 
     def __enter__(self):
@@ -79,18 +79,18 @@ powershell.exe -executionpolicy Bypass -file {GO_COV_TEST_PATH}.ps1 %*"""
                 )
             # Merging the unit tests reruns coverage files, keeping only the merged file.
             files_to_delete = [
-                os.path.join(self.module_path, f)
-                for f in os.listdir(self.module_path)
+                os.path.join(self.base_path, f)
+                for f in os.listdir(self.base_path)
                 if f.startswith(f"{TMP_PROFILE_COV_PREFIX}.")
             ]
             if not files_to_delete:
                 print(
-                    f"Error: Could not find coverage files starting with '{TMP_PROFILE_COV_PREFIX}.' in {self.module_path}",
+                    f"Error: Could not find coverage files starting with '{TMP_PROFILE_COV_PREFIX}.' in {self.base_path}",
                     file=sys.stderr,
                 )
             else:
                 self.ctx.run(
-                    f"gocovmerge {' '.join(files_to_delete)} > \"{os.path.join(self.module_path, PROFILE_COV)}\""
+                    f"gocovmerge {' '.join(files_to_delete)} > \"{os.path.join(self.base_path, PROFILE_COV)}\""
                 )
                 for f in files_to_delete:
                     os.remove(f)

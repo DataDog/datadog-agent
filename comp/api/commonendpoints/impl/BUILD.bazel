@@ -8,8 +8,8 @@ go_library(
     deps = [
         "//cmd/agent/common/signals",
         "//comp/api/api/def",
+        "//comp/core/hostname/hostnameinterface",
         "//pkg/api/version",
-        "//pkg/util/hostname",
         "//pkg/util/log",
     ],
 )
@@ -20,7 +20,7 @@ go_test(
     embed = [":impl"],
     deps = [
         "//cmd/agent/common/signals",
-        "//pkg/util/hostname",
+        "//comp/core/hostname/hostnameimpl",
         "@com_github_stretchr_testify//require",
     ],
 )

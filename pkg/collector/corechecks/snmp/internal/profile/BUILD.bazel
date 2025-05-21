@@ -32,6 +32,7 @@ go_library(
 go_test(
     name = "profile_test",
     srcs = [
+        "profile_initconfig_test.go",
         "profile_resolver_test.go",
         "profile_test.go",
         "profile_yaml_test.go",
@@ -42,7 +43,7 @@ go_test(
     ],
     embed = [":profile"],
     deps = [
-        "//pkg/config/setup",
+        "//pkg/config/mock",
         "//pkg/networkdevice/profile/profiledefinition",
         "//pkg/remoteconfig/state",
         "//pkg/util/log",

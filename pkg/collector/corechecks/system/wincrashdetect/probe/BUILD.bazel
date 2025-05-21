@@ -22,7 +22,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//cmd/system-probe/config/types",
+            "//pkg/system-probe/config/types",
             "//pkg/util/log",
             "//pkg/util/winutil",
             "@org_golang_x_sys//windows/registry",

@@ -55,7 +55,7 @@ go_test(
         "//pkg/aggregator/mocksender",
         "//pkg/collector/corechecks",
         "//pkg/collector/corechecks/containers/generic",
-        "//pkg/config/setup",
+        "//pkg/config/mock",
         "//pkg/metrics/event",
         "//pkg/util/containerd",
         "//pkg/util/containerd/fake",

@@ -10,6 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface",
         "//comp/core/log/def",
         "//comp/metadata/clusteragent/def",
         "//comp/metadata/internal/util",
@@ -19,7 +20,6 @@ go_library(
         "//pkg/serializer",
         "//pkg/serializer/marshaler",
         "//pkg/util/flavor",
-        "//pkg/util/hostname",
         "//pkg/util/http",
         "//pkg/util/installinfo",
         "//pkg/util/kubernetes/apiserver",
@@ -40,6 +40,7 @@ go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
         "//comp/core/log/mock",
         "//pkg/config/model",
         "//pkg/serializer/mocks",

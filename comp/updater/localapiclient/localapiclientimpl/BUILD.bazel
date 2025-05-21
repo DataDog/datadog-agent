@@ -6,7 +6,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/updater/localapiclient/localapiclientimpl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
         "//comp/updater/localapiclient",
         "//pkg/fleet/daemon",
         "//pkg/util/fxutil",

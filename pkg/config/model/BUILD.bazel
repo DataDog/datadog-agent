@@ -6,6 +6,7 @@ go_library(
         "config_overrides.go",
         "config_overrides_test_helpers.go",
         "doc.go",
+        "stringify.go",
         "types.go",
         "warnings.go",
     ],

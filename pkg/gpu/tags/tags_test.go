@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,9 +22,9 @@ func TestGetTags(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Override procFSRoot to use our temporary directory
-	originalProcFSRoot := procFSRoot
-	procFSRoot = func() string { return tmpDir }
-	defer func() { procFSRoot = originalProcFSRoot }()
+	originalProcFSRoot := kernel.ProcFSRoot
+	kernel.ProcFSRoot = func() string { return tmpDir }
+	defer func() { kernel.ProcFSRoot = originalProcFSRoot }()
 
 	tests := []struct {
 		name     string

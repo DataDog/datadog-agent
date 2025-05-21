@@ -6,6 +6,8 @@ go_library(
         "gomemlimit.go",
         "gomemlimit_linux.go",
         "runtime.go",
+        "thp_linux.go",
+        "thp_unsupported.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/runtime",
     visibility = ["//visibility:public"],
@@ -15,9 +17,11 @@ go_library(
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/util/cgroups",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/util/cgroups",
+            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),

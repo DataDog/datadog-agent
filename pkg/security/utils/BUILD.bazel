@@ -31,6 +31,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/logs/agent/config",
+        "//pkg/template/text",
         "//pkg/version",
         "@com_github_hashicorp_golang_lru_v2//simplelru",
         "@com_github_mailru_easyjson//:easyjson",

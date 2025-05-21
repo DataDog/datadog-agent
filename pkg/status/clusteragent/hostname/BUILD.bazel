@@ -8,6 +8,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface",
         "//comp/core/status",
         "//comp/metadata/host/hostimpl/utils",
     ],

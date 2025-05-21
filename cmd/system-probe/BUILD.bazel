@@ -78,9 +78,9 @@ go_library(
         "@rules_go//go/platform:windows": [
             "//cmd/internal/runcmd",
             "//cmd/system-probe/command",
-            "//cmd/system-probe/config",
             "//cmd/system-probe/subcommands",
             "//cmd/system-probe/subcommands/run",
+            "//pkg/system-probe/config",
             "//pkg/util/log",
             "//pkg/util/winutil/servicemain",
         ],

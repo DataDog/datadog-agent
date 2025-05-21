@@ -8,6 +8,7 @@ go_library(
         "config_keys.go",
         "constants.go",
         "endpoints.go",
+        "endpoints_mock.go",
         "integration_config.go",
         "messages.go",
         "parser.go",

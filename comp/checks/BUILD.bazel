@@ -20,8 +20,6 @@ go_test(
     embed = [":checks"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//comp/api/authtoken",
-            "//comp/api/authtoken/mock",
             "//comp/core",
             "//comp/core/agenttelemetry/fx",
             "//comp/core/tagger/def",

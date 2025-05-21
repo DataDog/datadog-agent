@@ -74,6 +74,8 @@ go_library(
         "//comp/logs/agent/config",
         "//comp/metadata/host/hostimpl/utils",
         "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/fleet/installer/telemetry",
         "//pkg/util/http",
         "//pkg/util/scrubber",
         "//pkg/version",

@@ -10,7 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/telemetry",
-        "@com_github_open_policy_agent_opa//metrics",
+        "@com_github_open_policy_agent_opa//v1/metrics",
         "@com_github_prometheus_client_golang//prometheus",
         "@com_github_spf13_cast//:cast",
     ],

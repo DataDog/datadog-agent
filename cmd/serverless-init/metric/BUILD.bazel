@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/metric",
     visibility = ["//visibility:public"],
     deps = [
+        "//cmd/serverless-init/cloudservice",
         "//pkg/aggregator",
         "//pkg/metrics",
         "//pkg/util/log",
@@ -17,6 +18,7 @@ go_test(
     srcs = ["metric_test.go"],
     embed = [":metric"],
     deps = [
+        "//cmd/serverless-init/cloudservice",
         "//comp/aggregator/demultiplexer",
         "//comp/aggregator/demultiplexer/demultiplexerimpl",
         "//comp/core/hostname/hostnameimpl",
@@ -24,6 +26,7 @@ go_test(
         "//comp/core/log/mock",
         "//comp/serializer/logscompression/fx-mock",
         "//comp/serializer/metricscompression/fx-mock",
+        "//pkg/metrics",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
         "@org_uber_go_fx//:fx",

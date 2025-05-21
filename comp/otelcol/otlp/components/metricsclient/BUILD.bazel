@@ -26,6 +26,8 @@ go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel_metric//:metric",
+        "@io_opentelemetry_go_otel_metric//embedded",
         "@io_opentelemetry_go_otel_sdk_metric//:metric",
         "@io_opentelemetry_go_otel_sdk_metric//metricdata",
         "@io_opentelemetry_go_otel_sdk_metric//metricdata/metricdatatest",

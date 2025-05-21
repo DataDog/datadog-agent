@@ -82,19 +82,6 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 			})
 		},
 	}
-	startInstallerExperimentCmd := &cobra.Command{
-		Use:     "start-installer-experiment package version",
-		Aliases: []string{"start-installer"},
-		Short:   "Starts an Installer experiment",
-		Args:    cobra.ExactArgs(2),
-		RunE: func(_ *cobra.Command, args []string) error {
-			return experimentFxWrapper(startInstaller, &cliParams{
-				GlobalParams: *global,
-				pkg:          args[0],
-				version:      args[1],
-			})
-		},
-	}
 	stopExperimentCmd := &cobra.Command{
 		Use:     "stop-experiment package",
 		Aliases: []string{"stop"},
@@ -169,7 +156,6 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{
 		setCatalogCmd,
 		startExperimentCmd,
-		startInstallerExperimentCmd,
 		stopExperimentCmd,
 		promoteExperimentCmd,
 		installCmd,
@@ -208,15 +194,6 @@ func start(params *cliParams, client localapiclient.Component) error {
 	err := client.StartExperiment(params.pkg, params.version)
 	if err != nil {
 		fmt.Println("Error starting experiment:", err)
-		return err
-	}
-	return nil
-}
-
-func startInstaller(params *cliParams, client localapiclient.Component) error {
-	err := client.StartInstallerExperiment(params.pkg, params.version)
-	if err != nil {
-		fmt.Println("Error starting installer experiment:", err)
 		return err
 	}
 	return nil

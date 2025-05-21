@@ -22,7 +22,7 @@ go_test(
     srcs = ["remoteconfig_test.go"],
     embed = [":remoteconfig"],
     deps = [
-        "//pkg/config/setup",
+        "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
     ],
 )

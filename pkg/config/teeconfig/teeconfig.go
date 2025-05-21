@@ -46,6 +46,12 @@ func (t *teeConfig) OnUpdate(callback model.NotificationReceiver) {
 	t.compare.OnUpdate(callback)
 }
 
+// SetTestOnlyDynamicSchema allows more flexible usage of the config, should only be used by tests
+func (t *teeConfig) SetTestOnlyDynamicSchema(allow bool) {
+	t.baseline.SetTestOnlyDynamicSchema(allow)
+	t.compare.SetTestOnlyDynamicSchema(allow)
+}
+
 // Set wraps Viper for concurrent access
 func (t *teeConfig) Set(key string, newValue interface{}, source model.Source) {
 	t.baseline.Set(key, newValue, source)
@@ -500,8 +506,8 @@ func (t *teeConfig) Object() model.Reader {
 }
 
 // Stringify stringifies the config
-func (t *teeConfig) Stringify(source model.Source) string {
-	return t.baseline.Stringify(source)
+func (t *teeConfig) Stringify(source model.Source, opts ...model.StringifyOption) string {
+	return t.baseline.Stringify(source, opts...)
 }
 
 func (t *teeConfig) GetProxies() *model.Proxy {

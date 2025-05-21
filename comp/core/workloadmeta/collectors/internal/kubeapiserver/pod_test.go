@@ -20,6 +20,7 @@ import (
 )
 
 func Test_PodsFakeKubernetesClient(t *testing.T) {
+	t.Parallel()
 	objectMeta := metav1.ObjectMeta{
 		Name:   "test-pod",
 		Labels: map[string]string{"test-label": "test-value"},

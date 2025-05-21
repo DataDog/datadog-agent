@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build docker
+//go:build kubelet || docker
 
 package container
 
@@ -17,7 +17,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -43,7 +43,7 @@ func TestStartStop(t *testing.T) {
 
 	sp := launchers.NewMockSourceProvider()
 	pl := pipeline.NewMockProvider()
-	reg := auditor.New("/run", "agent", 0, nil)
+	reg := auditorMock.NewMockRegistry()
 	tailerTracker := tailers.NewTailerTracker()
 	l.Start(sp, pl, reg, tailerTracker)
 

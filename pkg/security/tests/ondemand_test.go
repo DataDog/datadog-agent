@@ -24,22 +24,6 @@ import (
 func TestOnDemandOpen(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	onDemands := []rules.OnDemandHookPoint{
-		{
-			Name: "do_sys_openat2",
-			Args: []rules.HookPointArg{
-				{
-					N:    1,
-					Kind: "uint",
-				},
-				{
-					N:    2,
-					Kind: "null-terminated-string",
-				},
-			},
-		},
-	}
-
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_open",
@@ -47,7 +31,7 @@ func TestOnDemandOpen(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModuleWithOnDemandProbes(t, onDemands, nil, ruleDefs, withStaticOpts(testOpts{disableOnDemandRateLimiter: true}))
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{disableOnDemandRateLimiter: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,27 +69,14 @@ func TestOnDemandOpen(t *testing.T) {
 func TestOnDemandChdir(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	onDemands := []rules.OnDemandHookPoint{
-		{
-			Name:      "chdir",
-			IsSyscall: true,
-			Args: []rules.HookPointArg{
-				{
-					N:    1,
-					Kind: "null-terminated-string",
-				},
-			},
-		},
-	}
-
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_chdir",
-			Expression: `ondemand.name == "chdir" && process.file.name == "testsuite"`,
+			Expression: `ondemand.name == "syscall:chdir" && ondemand.arg1.str != "" && process.file.name == "testsuite"`,
 		},
 	}
 
-	test, err := newTestModuleWithOnDemandProbes(t, onDemands, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,30 +105,14 @@ func TestOnDemandChdir(t *testing.T) {
 func TestOnDemandMprotect(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	onDemands := []rules.OnDemandHookPoint{
-		{
-			Name: "security_file_mprotect",
-			Args: []rules.HookPointArg{
-				{
-					N:    2,
-					Kind: "uint",
-				},
-				{
-					N:    3,
-					Kind: "uint",
-				},
-			},
-		},
-	}
-
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_mprotect",
-			Expression: `ondemand.name == "security_file_mprotect" && (ondemand.arg3.uint & (VM_READ|VM_WRITE)) == (VM_READ|VM_WRITE) && process.file.name == "testsuite"`,
+			Expression: `ondemand.name == "security_file_mprotect" && (ondemand.arg3.uint & (PROT_READ|PROT_WRITE)) == (PROT_READ|PROT_WRITE) && process.file.name == "testsuite"`,
 		},
 	}
 
-	test, err := newTestModuleWithOnDemandProbes(t, onDemands, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,6 +128,11 @@ func TestOnDemandMprotect(t *testing.T) {
 		if err = unix.Mprotect(data, unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC); err != nil {
 			return fmt.Errorf("couldn't mprotect segment: %w", err)
 		}
+
+		if err := unix.Munmap(data); err != nil {
+			return fmt.Errorf("couldn't unmap segment: %w", err)
+		}
+
 		return nil
 	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "ondemand", event.GetType(), "wrong event type")

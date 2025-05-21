@@ -12,12 +12,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface",
         "//comp/core/log/def",
         "//comp/haagent/def",
         "//comp/haagent/helpers",
         "//comp/remote-config/rcclient/types",
         "//pkg/remoteconfig/state",
-        "//pkg/util/hostname",
         "@org_uber_go_atomic//:atomic",
     ],
 )
@@ -31,10 +31,13 @@ go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/haagent/def",
         "//pkg/remoteconfig/state",
         "//pkg/util/fxutil",
+        "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",

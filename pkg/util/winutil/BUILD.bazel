@@ -38,6 +38,7 @@ go_library(
 go_test(
     name = "winutil_test",
     srcs = [
+        "process_test.go",
         "scmmonitor_test.go",
         "service_test.go",
         "time_test.go",

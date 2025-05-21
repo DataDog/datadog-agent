@@ -12,6 +12,7 @@ go_library(
         "//comp/api/api/def",
         "//comp/core/config",
         "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameinterface",
         "//comp/core/log/def",
         "//comp/metadata/host/hostimpl/utils",
         "//comp/metadata/internal/util",
@@ -27,7 +28,6 @@ go_library(
         "//pkg/util/cloudproviders",
         "//pkg/util/dmi",
         "//pkg/util/fxutil",
-        "//pkg/util/hostname",
         "//pkg/util/http",
         "//pkg/util/uuid",
         "//pkg/version",
@@ -41,6 +41,7 @@ go_test(
     embed = [":inventoryhostimpl"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/metadata/host/hostimpl/utils",

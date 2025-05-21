@@ -11,7 +11,6 @@ go_library(
         "//cmd/agent/subcommands/streamlogs",
         "//comp/aggregator/diagnosesendermanager",
         "//comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl",
-        "//comp/api/authtoken/fetchonlyimpl",
         "//comp/collector/collector",
         "//comp/core",
         "//comp/core/autodiscovery",
@@ -24,6 +23,7 @@ go_library(
         "//comp/core/flare",
         "//comp/core/flare/helpers",
         "//comp/core/flare/types",
+        "//comp/core/ipc/fx",
         "//comp/core/log/def",
         "//comp/core/profiler/def",
         "//comp/core/profiler/fx",
@@ -82,14 +82,10 @@ go_test(
         "//comp/core/sysprobeconfig/sysprobeconfigimpl",
         "//pkg/config/mock",
         "//pkg/config/model",
+        "//pkg/system-probe/api/server/testutil",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
         "@org_uber_go_fx//:fx",
-    ] + select({
-        "@rules_go//go/platform:windows": [
-            "//cmd/system-probe/api/server",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )

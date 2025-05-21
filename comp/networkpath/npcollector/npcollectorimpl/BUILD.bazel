@@ -37,6 +37,7 @@ go_library(
         "//pkg/networkpath/traceroute/config",
         "//pkg/util/cloudproviders/network",
         "//pkg/util/fxutil",
+        "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//require",

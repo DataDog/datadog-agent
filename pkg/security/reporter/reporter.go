@@ -13,11 +13,11 @@ import (
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	seccommon "github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -46,13 +46,22 @@ func NewCWSReporter(hostname string, stopper startstop.Stopper, endpoints *logsc
 }
 
 func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext, compression compression.Component) (seccommon.RawReporter, error) {
-	// setup the auditor
-	auditor := auditor.NewNullAuditor()
-	auditor.Start()
-	stopper.Add(auditor)
-
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(4, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, context, &seccommon.NoopStatusProvider{}, hostnameimpl.NewHostnameService(), pkgconfigsetup.Datadog(), compression)
+	cfg := pkgconfigsetup.Datadog()
+	pipelineProvider := pipeline.NewProvider(
+		4,
+		&sender.NoopSink{},
+		&diagnostic.NoopMessageReceiver{},
+		nil,
+		endpoints,
+		context,
+		&seccommon.NoopStatusProvider{},
+		hostnameimpl.NewHostnameService(),
+		cfg,
+		compression,
+		cfg.GetBool("logs_config.disable_distributed_senders"),
+		false, // serverless
+	)
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)
 

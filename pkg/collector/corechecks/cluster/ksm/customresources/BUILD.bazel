@@ -40,7 +40,7 @@ go_library(
         "@io_k8s_apimachinery//pkg/runtime",
         "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_apimachinery//pkg/watch",
-        "@io_k8s_autoscaler_vertical_pod_autoscaler//pkg/apis/autoscaling.k8s.io/v1beta2",
+        "@io_k8s_autoscaler_vertical_pod_autoscaler//pkg/apis/autoscaling.k8s.io/v1:autoscaling_k8s_io",
         "@io_k8s_autoscaler_vertical_pod_autoscaler//pkg/client/clientset/versioned",
         "@io_k8s_client_go//dynamic",
         "@io_k8s_client_go//kubernetes",

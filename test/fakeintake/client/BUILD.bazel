@@ -37,6 +37,7 @@ go_test(
         "fixtures/api_v2_series_response",
         "fixtures/api_v2_telemetry_response",
         "fixtures/api_v2_netpath_response",
+        "fixtures/api_v2_ndm_response",
     ],
     deps = [
         "//test/fakeintake/aggregator",

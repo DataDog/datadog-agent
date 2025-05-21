@@ -34,6 +34,7 @@ go_test(
     embed = [":networkpath"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//pkg/config/mock",
         "//pkg/config/setup",
         "//pkg/networkpath/payload",
         "@com_github_stretchr_testify//assert",

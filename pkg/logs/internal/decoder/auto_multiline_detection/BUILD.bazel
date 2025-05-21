@@ -4,6 +4,8 @@ go_library(
     name = "auto_multiline_detection",
     srcs = [
         "aggregator.go",
+        "incremental_json_validator.go",
+        "json_aggregator.go",
         "json_detector.go",
         "labeler.go",
         "pattern_table.go",
@@ -29,6 +31,8 @@ go_test(
     name = "auto_multiline_detection_test",
     srcs = [
         "aggregator_test.go",
+        "incremental_json_validator_test.go",
+        "json_aggregator_test.go",
         "json_detector_test.go",
         "labeler_test.go",
         "pattern_table_test.go",
@@ -41,9 +45,9 @@ go_test(
     embed = [":auto_multiline_detection"],
     deps = [
         "//pkg/config/mock",
-        "//pkg/config/setup",
         "//pkg/logs/internal/decoder/auto_multiline_detection/tokens",
         "//pkg/logs/message",
+        "//pkg/logs/metrics",
         "//pkg/logs/status/utils",
         "@com_github_stretchr_testify//assert",
     ],

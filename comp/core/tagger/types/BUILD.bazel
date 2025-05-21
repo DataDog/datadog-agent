@@ -16,6 +16,7 @@ go_library(
 go_test(
     name = "types_test",
     srcs = [
+        "entity_id_test.go",
         "filter_builder_test.go",
         "filters_test.go",
     ],

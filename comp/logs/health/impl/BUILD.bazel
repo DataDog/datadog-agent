@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["health.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs/health/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/health/def",
+        "//pkg/status/health",
+    ],
+)

@@ -15,6 +15,7 @@ go_library(
         "//comp/api/api/def",
         "//comp/core/config",
         "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameinterface",
         "//comp/core/log/def",
         "//comp/metadata/internal/util",
         "//comp/metadata/packagesigning",
@@ -23,7 +24,6 @@ go_library(
         "//pkg/serializer",
         "//pkg/serializer/marshaler",
         "//pkg/util/fxutil",
-        "//pkg/util/hostname",
         "//pkg/util/http",
         "//pkg/util/installinfo",
         "//pkg/util/uuid",
@@ -45,6 +45,7 @@ go_test(
     deps = select({
         "@rules_go//go/platform:android": [
             "//comp/core/config",
+            "//comp/core/hostname/hostnameimpl",
             "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/metadata/packagesigning/utils",
@@ -56,6 +57,7 @@ go_test(
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/config",
+            "//comp/core/hostname/hostnameimpl",
             "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/metadata/packagesigning/utils",

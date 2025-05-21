@@ -29,6 +29,7 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 )
 
 func TestConntrackers(t *testing.T) {
@@ -133,7 +134,7 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntra
 		family = network.AFINET6
 	}
 
-	curNs, err := kernel.GetCurrentIno()
+	curNs, err := netnsutil.GetCurrentIno()
 	require.NoError(t, err)
 	t.Logf("ns: %d", curNs)
 
@@ -217,7 +218,7 @@ func testConntrackerCrossNamespace(t *testing.T, ct netlink.Conntracker) {
 	testNs, err := netns.GetFromName(ns)
 	require.NoError(t, err)
 	defer testNs.Close()
-	testIno, err := kernel.GetInoForNs(testNs)
+	testIno, err := netnsutil.GetInoForNs(testNs)
 	require.NoError(t, err)
 	t.Logf("test ns: %d", testIno)
 
@@ -265,7 +266,7 @@ func testConntrackerCrossNamespaceNATonRoot(t *testing.T, ct netlink.Conntracker
 		testNS, err := netns.GetFromName(ns)
 		require.NoError(t, err)
 
-		testIno, err = kernel.GetInoForNs(testNS)
+		testIno, err = netnsutil.GetInoForNs(testNS)
 		require.NoError(t, err)
 
 		defer netns.Set(originalNS)

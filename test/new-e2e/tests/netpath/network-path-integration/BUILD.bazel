@@ -15,6 +15,7 @@ go_test(
         "fake-traceroute/network_path.yaml",
         "fake-traceroute/router_setup.sh",
         "fake-traceroute/router_teardown.sh",
+        "fixtures/network_path_windows.yaml",
     ],
     deps = [
         "//pkg/networkpath/payload",

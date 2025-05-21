@@ -16,7 +16,6 @@ go_library(
             "//pkg/util/fxutil",
             "@com_github_nvidia_go_nvml//pkg/nvml",
             "@com_github_nvidia_go_nvml//pkg/nvml/mock",
-            "@com_github_stretchr_testify//require",
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:linux": [
@@ -29,7 +28,6 @@ go_library(
             "//pkg/util/fxutil",
             "@com_github_nvidia_go_nvml//pkg/nvml",
             "@com_github_nvidia_go_nvml//pkg/nvml/mock",
-            "@com_github_stretchr_testify//require",
             "@org_uber_go_fx//:fx",
         ],
         "//conditions:default": [],

@@ -55,14 +55,20 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 		return nil, err
 	}
 
-	eventForwarderOpts := createParams(deps.Config, deps.Logger, queueBytes, eventsAPIEndpoints)
+	eventForwarderOpts, err := createParams(deps.Config, deps.Logger, queueBytes, eventsAPIEndpoints)
+	if err != nil {
+		return nil, err
+	}
 
 	processAPIEndpoints, err := endpoint.GetAPIEndpoints(config)
 	if err != nil {
 		return nil, err
 	}
 
-	processForwarderOpts := createParams(deps.Config, deps.Logger, queueBytes, processAPIEndpoints)
+	processForwarderOpts, err := createParams(deps.Config, deps.Logger, queueBytes, processAPIEndpoints)
+	if err != nil {
+		return nil, err
+	}
 
 	return &forwardersComp{
 		eventForwarder:       createForwarder(deps, eventForwarderOpts),
@@ -76,11 +82,15 @@ func createForwarder(deps dependencies, options *defaultforwarder.Options) defau
 	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, options).Comp
 }
 
-func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) *defaultforwarder.Options {
-	forwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(endpoints)))
+func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) (*defaultforwarder.Options, error) {
+	resolver, err := resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(endpoints))
+	if err != nil {
+		return nil, err
+	}
+	forwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver)
 	forwarderOpts.DisableAPIKeyChecking = true
 	forwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	return forwarderOpts
+	return forwarderOpts, nil
 }
 
 func (f *forwardersComp) GetEventForwarder() defaultforwarder.Component {

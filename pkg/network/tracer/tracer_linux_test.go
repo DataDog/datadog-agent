@@ -41,7 +41,7 @@ import (
 	"go4.org/intern"
 	"golang.org/x/sys/unix"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -62,6 +62,7 @@ import (
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
@@ -694,9 +695,10 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 		m.EXPECT().IsAWS().Return(true)
 		network.Cloud = m
 
-		clouds := pkgconfigsetup.Datadog().Get("cloud_provider_metadata")
-		pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{})
-		defer pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", clouds)
+		mockConfig := configmock.New(t)
+		clouds := mockConfig.Get("cloud_provider_metadata")
+		mockConfig.SetWithoutSource("cloud_provider_metadata", []string{})
+		defer mockConfig.SetWithoutSource("cloud_provider_metadata", clouds)
 
 		tr := setupTracer(t, cfg)
 		require.Nil(t, tr.gwLookup)
@@ -916,7 +918,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 	// run tcp server in test1 net namespace
 	var server *tracertestutil.TCPServer
-	err = kernel.WithNS(test1Ns, func() error {
+	err = netns.WithNS(test1Ns, func() error {
 		server = tracertestutil.NewTCPServerOnAddress("2.2.2.2:0", func(_ net.Conn) {})
 		return server.Run()
 	})
@@ -954,7 +956,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		defer test2Ns.Close()
 
 		var c net.Conn
-		err = kernel.WithNS(test2Ns, func() error {
+		err = netns.WithNS(test2Ns, func() error {
 			var err error
 			c, err = server.Dial()
 			return err
@@ -986,7 +988,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		var clientIP string
 		var clientPort int
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
-			kernel.WithNS(test2Ns, func() error {
+			netns.WithNS(test2Ns, func() error {
 				clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{"google.com"}, dnsAddr, "udp")
 				return nil
 			})
@@ -1964,7 +1966,7 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 	tr := setupTracer(t, cfg)
 
 	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
-		t.Skip("skipped on Fargate")
+		t.Skip("skipped on fentry")
 	}
 
 	cmd := []string{"curl", "-k", "-o/dev/null", "example.com"}

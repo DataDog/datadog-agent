@@ -8,7 +8,6 @@ go_library(
     deps = [
         "//comp/core/tagger/def",
         "//comp/core/tagger/origindetection",
-        "//comp/core/tagger/telemetry",
         "//comp/core/tagger/types",
         "//pkg/tagger/types",
         "//pkg/tagset",

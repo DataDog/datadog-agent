@@ -8,5 +8,7 @@ go_library(
     deps = [
         "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/setup/common",
+        "//pkg/fleet/installer/setup/config",
+        "//pkg/version",
     ],
 )

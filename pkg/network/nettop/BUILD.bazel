@@ -5,12 +5,15 @@ go_library(
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/nettop",
     visibility = ["//visibility:private"],
-    deps = [
-        "//pkg/config/setup",
-        "//pkg/network",
-        "//pkg/network/config",
-        "//pkg/network/tracer",
-    ],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/config/setup",
+            "//pkg/network",
+            "//pkg/network/config",
+            "//pkg/network/tracer",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 go_binary(

@@ -63,6 +63,7 @@ const (
 	MetricSourceCloudFoundry
 	MetricSourceJenkins
 	MetricSourceGPU
+	MetricSourceWlan
 
 	// Python Checks
 	MetricSourceZenohRouter
@@ -313,6 +314,17 @@ const (
 	MetricSourceVelero
 	MetricSourceCelery
 	MetricSourceInfiniband
+	MetricSourceSilverstripeCMS
+	MetricSourceAnecdote
+	MetricSourceSonatypeNexus
+	MetricSourceAltairPBSPro
+	MetricSourceFalco
+	MetricSourceKrakenD
+	MetricSourceKuma
+	MetricSourceLiteLLM
+	MetricSourceLustre
+	MetricSourceProxmox
+	MetricSourceResilience4j
 
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
@@ -358,6 +370,21 @@ const (
 	MetricSourceOpenTelemetryCollectorBigipReceiver
 	MetricSourceOpenTelemetryCollectorChronyReceiver
 	MetricSourceOpenTelemetryCollectorCouchdbReceiver
+
+	// Serverless
+	MetricSourceServerless
+	MetricSourceAwsLambdaCustom
+	MetricSourceAwsLambdaEnhanced
+	MetricSourceAwsLambdaRuntime
+	MetricSourceAzureContainerAppCustom
+	MetricSourceAzureContainerAppEnhanced
+	MetricSourceAzureContainerAppRuntime
+	MetricSourceAzureAppServiceCustom
+	MetricSourceAzureAppServiceEnhanced
+	MetricSourceAzureAppServiceRuntime
+	MetricSourceGoogleCloudRunCustom
+	MetricSourceGoogleCloudRunEnhanced
+	MetricSourceGoogleCloudRunRuntime
 )
 
 // String returns a string representation of MetricSource
@@ -939,6 +966,22 @@ func (ms MetricSource) String() string {
 		return "celery"
 	case MetricSourceInfiniband:
 		return "infiniband"
+	case MetricSourceAltairPBSPro:
+		return "altair_pbs_pro"
+	case MetricSourceFalco:
+		return "falco"
+	case MetricSourceKrakenD:
+		return "krakend"
+	case MetricSourceKuma:
+		return "kuma"
+	case MetricSourceLiteLLM:
+		return "lite_llm"
+	case MetricSourceLustre:
+		return "lustre"
+	case MetricSourceProxmox:
+		return "proxmox"
+	case MetricSourceResilience4j:
+		return "resilience4j"
 	case MetricSourceOpenTelemetryCollectorUnknown:
 		return "opentelemetry_collector_unknown"
 	case MetricSourceOpenTelemetryCollectorDockerstatsReceiver:
@@ -1025,6 +1068,34 @@ func (ms MetricSource) String() string {
 		return "opentelemetry_collector_chronyreceiver"
 	case MetricSourceOpenTelemetryCollectorCouchdbReceiver:
 		return "opentelemetry_collector_couchdbreceiver"
+	case MetricSourceServerless:
+		return "serverless"
+	case MetricSourceAwsLambdaCustom:
+		return "aws_lambda_custom"
+	case MetricSourceAwsLambdaEnhanced:
+		return "aws_lambda_enhanced"
+	case MetricSourceAwsLambdaRuntime:
+		return "aws_lambda_runtime"
+	case MetricSourceAzureContainerAppCustom:
+		return "azure_container_app_custom"
+	case MetricSourceAzureContainerAppEnhanced:
+		return "azure_container_app_enhanced"
+	case MetricSourceAzureContainerAppRuntime:
+		return "azure_container_app_runtime"
+	case MetricSourceAzureAppServiceCustom:
+		return "azure_app_service_custom"
+	case MetricSourceAzureAppServiceEnhanced:
+		return "azure_app_service_enhanced"
+	case MetricSourceAzureAppServiceRuntime:
+		return "azure_app_service_runtime"
+	case MetricSourceGoogleCloudRunCustom:
+		return "google_cloud_run_custom"
+	case MetricSourceGoogleCloudRunEnhanced:
+		return "google_cloud_run_enhanced"
+	case MetricSourceGoogleCloudRunRuntime:
+		return "google_cloud_run_runtime"
+	case MetricSourceWlan:
+		return "wlan"
 	default:
 		return "<unknown>"
 	}
@@ -1033,6 +1104,8 @@ func (ms MetricSource) String() string {
 // CheckNameToMetricSource returns a MetricSource given the name
 func CheckNameToMetricSource(name string) MetricSource {
 	switch name {
+	case "anecdote":
+		return MetricSourceAnecdote
 	case "container":
 		return MetricSourceContainer
 	case "containerd":
@@ -1321,10 +1394,14 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceScylla
 	case "silk":
 		return MetricSourceSilk
+	case "silverstripe_cms":
+		return MetricSourceSilverstripeCMS
 	case "singlestore":
 		return MetricSourceSinglestore
 	case "snowflake":
 		return MetricSourceSnowflake
+	case "sonatype_nexus":
+		return MetricSourceSonatypeNexus
 	case "spark":
 		return MetricSourceSpark
 	case "sqlserver":
@@ -1573,6 +1650,22 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceQuarkus
 	case "velero":
 		return MetricSourceVelero
+	case "altair_pbs_pro":
+		return MetricSourceAltairPBSPro
+	case "falco":
+		return MetricSourceFalco
+	case "krakend":
+		return MetricSourceKrakenD
+	case "kuma":
+		return MetricSourceKuma
+	case "lite_llm":
+		return MetricSourceLiteLLM
+	case "lustre":
+		return MetricSourceLustre
+	case "proxmox":
+		return MetricSourceProxmox
+	case "resilience4j":
+		return MetricSourceResilience4j
 	case "opentelemetry_collector_unknown":
 		return MetricSourceOpenTelemetryCollectorUnknown
 	case "opentelemetry_collector_dockerstatsreceiver":
@@ -1659,6 +1752,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceOpenTelemetryCollectorChronyReceiver
 	case "opentelemetry_collector_couchdbreceiver":
 		return MetricSourceOpenTelemetryCollectorCouchdbReceiver
+	case "wlan":
+		return MetricSourceWlan
 	default:
 		return MetricSourceUnknown
 	}

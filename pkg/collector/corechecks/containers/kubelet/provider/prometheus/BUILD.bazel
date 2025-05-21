@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "prometheus",
+    srcs = ["provider.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/aggregator/sender",
+        "//pkg/collector/corechecks/containers/kubelet/common",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/log",
+        "//pkg/util/prometheus",
+        "@com_github_prometheus_common//model",
+    ],
+)

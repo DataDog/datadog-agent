@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/api/authtoken/mock",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/api/authtoken",
         "//pkg/api/util",
+        "@com_github_datadog_datadog_agent_comp_api_authtoken//:go_default_library",
     ],
 )

@@ -12,6 +12,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/hostname/hostnameinterface",
         "//comp/metadata/host/hostimpl/hosttags",
         "//comp/otelcol/otlp/configcheck",
         "//pkg/collector/python",
@@ -116,6 +117,7 @@ go_test(
     embed = [":utils"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
         "//pkg/collector/python",
         "//pkg/config/mock",
         "//pkg/config/model",

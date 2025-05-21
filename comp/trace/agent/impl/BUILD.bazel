@@ -14,7 +14,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/trace-agent/config/remote",
-        "//comp/api/authtoken",
+        "//comp/core/ipc/def",
         "//comp/core/secrets",
         "//comp/core/tagger/def",
         "//comp/dogstatsd/statsd",

@@ -24,8 +24,8 @@ go_test(
     srcs = ["workloadmeta_test.go"],
     embed = [":workloadmeta"],
     deps = [
-        "//comp/api/authtoken/mock",
         "//comp/core",
+        "//comp/core/ipc/mock",
         "//comp/core/workloadmeta/collectors/internal/remote",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",

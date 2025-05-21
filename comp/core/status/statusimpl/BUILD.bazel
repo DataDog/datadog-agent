@@ -23,6 +23,8 @@ go_library(
         "//comp/core/status",
         "//pkg/config/setup",
         "//pkg/fips",
+        "//pkg/template/html",
+        "//pkg/template/text",
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "//pkg/version",

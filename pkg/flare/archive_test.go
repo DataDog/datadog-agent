@@ -23,11 +23,11 @@ import (
 
 	procmodel "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -100,8 +100,8 @@ func setupProcessAPIServer(t *testing.T, port int) {
 		taggerfx.Module(),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
-		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 		secretsimpl.MockModule(),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	))
 }
 
@@ -286,7 +286,9 @@ func TestProcessAgentChecks(t *testing.T) {
 
 	t.Run("without process-agent running", func(t *testing.T) {
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
-		getChecksFromProcessAgent(mock, func() (string, error) { return "fake:1337", nil })
+		// Use a hostname that will fail to resolve even with AppGate enabled,
+		// otherwise this test will timeout
+		getChecksFromProcessAgent(mock, func() (string, error) { return "[invalid][host]:1337", nil })
 		mock.AssertFileContentMatch("error collecting data for 'process_discovery_check_output.json': .*", "process_discovery_check_output.json")
 	})
 	t.Run("with process-agent running", func(t *testing.T) {
@@ -310,7 +312,7 @@ func TestProcessAgentChecks(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		at := authtokenmock.New(t)
+		at := ipcmock.New(t)
 
 		srv := at.NewMockServer(http.HandlerFunc(handler))
 		setupIPCAddress(t, configmock.New(t), srv.URL)

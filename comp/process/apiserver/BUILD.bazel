@@ -10,7 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/process-agent/api",
-        "//comp/api/authtoken",
+        "//comp/core/ipc/def",
         "//comp/core/log/def",
         "//pkg/api/util",
         "//pkg/config/setup",
@@ -26,10 +26,10 @@ go_test(
     srcs = ["apiserver_test.go"],
     embed = [":apiserver"],
     deps = [
-        "//comp/api/authtoken",
-        "//comp/api/authtoken/mock",
         "//comp/core",
         "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
         "//comp/core/secrets/secretsimpl",
         "//comp/core/settings/settingsimpl",
         "//comp/core/status",

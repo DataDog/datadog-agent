@@ -92,12 +92,12 @@ go_test(
     embed = [":wincrashdetect"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//cmd/system-probe/api/server",
-            "//cmd/system-probe/utils",
             "//pkg/aggregator/mocksender",
             "//pkg/collector/corechecks/system/wincrashdetect/probe",
             "//pkg/config/mock",
             "//pkg/metrics/event",
+            "//pkg/system-probe/api/server",
+            "//pkg/system-probe/utils",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//windows/registry",

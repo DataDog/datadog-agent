@@ -145,7 +145,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			rattrs:   map[string]string{"service.name": "svc", "db.system": "spanner", semconv.AttributeContainerID: "test_cid"},
 			ctagKeys: []string{semconv.AttributeContainerID},
 			spanKind: ptrace.SpanKindClient,
-			expected: createStatsPayload(agentEnv, agentHost, "svc", "opentelemetry.client", "db", "client", "spanname4", agentHost, agentEnv, "test_cid", []string{"container_id:test_cid"}, nil, true, false),
+			expected: createStatsPayload(agentEnv, agentHost, "svc", "opentelemetry.client", "db", "client", "spanname4", agentHost, agentEnv, "test_cid", []string{"container_id:test_cid", "env:test_env"}, nil, true, false),
 		},
 		{
 			name:               "operation name remapping and resource from http",
@@ -241,14 +241,19 @@ func TestProcessOTLPTraces(t *testing.T) {
 			conf.PeerTagsAggregation = tt.peerTagsAggr
 			conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 			conf.OTLPReceiver.SpanNameAsResourceName = tt.spanNameAsResourceName
-			if conf.OTLPReceiver.SpanNameAsResourceName || tt.enableOperationAndResourceNameV2 {
-				// Verify that while EnableOperationAndResourceNamesV2 is in alpha, SpanNameAsResourceName overrides it
-				conf.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
+			if !tt.enableOperationAndResourceNameV2 {
+				conf.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 			}
 			conf.OTLPReceiver.SpanNameRemappings = tt.spanNameRemappings
 			conf.Ignore["resource"] = tt.ignoreRes
 			if !tt.legacyTopLevel {
 				conf.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
+			}
+			conf.ContainerTags = func(cid string) ([]string, error) {
+				if cid == "test_cid" {
+					return []string{"env:test_env"}, nil
+				}
+				return nil, nil
 			}
 
 			concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
@@ -319,6 +324,7 @@ func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 	conf.Hostname = agentHost
 	conf.DefaultEnv = agentEnv
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
+	conf.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 
 	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
 	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil)

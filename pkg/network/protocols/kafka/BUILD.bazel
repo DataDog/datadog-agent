@@ -4,7 +4,6 @@ go_library(
     name = "kafka",
     srcs = [
         "client.go",
-        "model_windows.go",
         "server.go",
         "stats.go",
         "stats_testutil.go",

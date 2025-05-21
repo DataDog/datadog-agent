@@ -67,11 +67,12 @@ const (
 
 func Test_ConsumeMetrics_Tags(t *testing.T) {
 	tests := []struct {
-		name           string
-		genMetrics     func(t *testing.T) pmetric.Metrics
-		wantSketchTags tagset.CompositeTags
-		wantSerieTags  tagset.CompositeTags
-		extraTags      []string
+		name                               string
+		genMetrics                         func(t *testing.T) pmetric.Metrics
+		wantSketchTags                     tagset.CompositeTags
+		wantSerieTags                      tagset.CompositeTags
+		extraTags                          []string
+		instrumentationScopeMetadataAsTags bool
 	}{
 		{
 			name: "no tags",
@@ -176,6 +177,31 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				nil,
 			),
 		},
+		{
+			name: "instrumentation scope metadata as tags",
+			genMetrics: func(_ *testing.T) pmetric.Metrics {
+				h := pmetric.NewHistogramDataPoint()
+				h.BucketCounts().FromRaw([]uint64{100})
+				h.SetCount(100)
+				h.SetSum(0)
+
+				n := pmetric.NewNumberDataPoint()
+				n.SetIntValue(777)
+				md := newMetrics(histogramMetricName, h, numberMetricName, n)
+				scope := md.ResourceMetrics().At(0).ScopeMetrics().At(0).Scope()
+				scope.SetName("my_library")
+				scope.SetVersion("v1.0.0")
+				return md
+			},
+			extraTags: []string{},
+			wantSketchTags: tagset.NewCompositeTags([]string{
+				"instrumentation_scope:my_library", "instrumentation_scope_version:v1.0.0",
+			}, nil),
+			wantSerieTags: tagset.NewCompositeTags([]string{
+				"instrumentation_scope:my_library", "instrumentation_scope_version:v1.0.0",
+			}, nil),
+			instrumentationScopeMetadataAsTags: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -183,8 +209,9 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			ctx := context.Background()
 			f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, nil, otel.NewDisabledGatewayUsage())
+			}, nil, otel.NewDisabledGatewayUsage())
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
+			cfg.Metrics.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags = tt.instrumentationScopeMetadataAsTags
 			cfg.Metrics.Tags = strings.Join(tt.extraTags, ",")
 			exp, err := f.CreateMetrics(
 				ctx,
@@ -299,7 +326,7 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 			ctx := context.Background()
 			f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, nil, otel.NewDisabledGatewayUsage())
+			}, nil, otel.NewDisabledGatewayUsage())
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			exp, err := f.CreateMetrics(
 				ctx,
@@ -350,7 +377,7 @@ func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName s
 	ctx := context.Background()
 	f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 		return "", nil
-	}, nil, nil, otel.NewDisabledGatewayUsage())
+	}, nil, otel.NewDisabledGatewayUsage())
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
 		ctx,

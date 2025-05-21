@@ -38,5 +38,6 @@ go_test(
         "//pkg/fleet/installer/packages",
         "//pkg/fleet/installer/repository",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
     ],
 )

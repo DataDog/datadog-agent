@@ -21,11 +21,6 @@ jobs:
       with:
         ref: ${{ github.head_ref }}
         persist-credentials: false
-    - name: Install python
-      uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
-      with:
-        python-version-file: .python-version
-        cache: "pip"
     - name: Install dda
       uses: ./.github/actions/install-dda
       with:
@@ -37,4 +32,4 @@ jobs:
         SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
         VERSION: ${{ github.event.inputs.version }}
       run: |
-        dda inv -e release.chase-release-managers --version "$VERSION"
+        dda inv -- -e release.chase-release-managers --version "$VERSION"

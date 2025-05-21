@@ -11,6 +11,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/diagnose/connectivity",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/config",
         "//comp/core/diagnose/def",
         "//comp/core/flare/helpers",
         "//comp/core/log/def",
@@ -36,7 +37,7 @@ go_test(
         "//comp/core/log/mock",
         "//comp/forwarder/defaultforwarder",
         "//comp/forwarder/defaultforwarder/endpoints",
-        "//pkg/config/setup",
+        "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
     ],
 )

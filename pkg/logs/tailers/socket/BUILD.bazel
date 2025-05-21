@@ -22,7 +22,7 @@ go_test(
     embed = [":socket"],
     deps = [
         "//comp/logs/agent/config",
-        "//pkg/config/setup",
+        "//pkg/config/mock",
         "//pkg/logs/message",
         "//pkg/logs/sources",
         "@com_github_stretchr_testify//assert",

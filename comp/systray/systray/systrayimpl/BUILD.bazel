@@ -27,6 +27,7 @@ go_library(
             "//pkg/api/util",
             "//pkg/config/setup",
             "//pkg/diagnose/connectivity",
+            "//pkg/diagnose/firewallscanner",
             "//pkg/diagnose/ports",
             "//pkg/util/fxutil",
             "//pkg/util/log",

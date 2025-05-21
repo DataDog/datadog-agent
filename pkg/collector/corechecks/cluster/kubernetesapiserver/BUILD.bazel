@@ -62,7 +62,6 @@ go_test(
         "//pkg/aggregator/mocksender",
         "//pkg/collector/corechecks",
         "//pkg/config/mock",
-        "//pkg/config/setup",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
         "//pkg/tagset",

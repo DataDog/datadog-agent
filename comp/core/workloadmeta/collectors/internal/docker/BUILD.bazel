@@ -28,7 +28,6 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/pointer",
         "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
-        "@com_github_docker_docker//api/types",
         "@com_github_docker_docker//api/types/container",
         "@com_github_docker_docker//api/types/events",
         "@com_github_docker_docker//api/types/image",
@@ -45,7 +44,6 @@ go_test(
     embed = [":docker"],
     deps = [
         "//comp/core/workloadmeta/def",
-        "@com_github_docker_docker//api/types",
         "@com_github_docker_docker//api/types/image",
         "@com_github_opencontainers_image_spec//specs-go/v1:specs-go",
         "@com_github_stretchr_testify//assert",

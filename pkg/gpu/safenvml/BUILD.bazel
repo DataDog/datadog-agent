@@ -1,0 +1,57 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "safenvml",
+    srcs = [
+        "cache.go",
+        "device.go",
+        "device_impl.go",
+        "errors.go",
+        "lib.go",
+        "lib_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gpu/safenvml",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/config/setup",
+            "//pkg/gpu/config/consts",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+            "@com_github_nvidia_go_nvml//pkg/nvml",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/setup",
+            "//pkg/gpu/config/consts",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+            "@com_github_nvidia_go_nvml//pkg/nvml",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "safenvml_test",
+    srcs = [
+        "cache_test.go",
+        "device_impl_test.go",
+        "lib_test.go",
+    ],
+    embed = [":safenvml"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/gpu/testutil",
+            "@com_github_nvidia_go_nvml//pkg/nvml",
+            "@com_github_nvidia_go_nvml//pkg/nvml/mock",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/gpu/testutil",
+            "@com_github_nvidia_go_nvml//pkg/nvml",
+            "@com_github_nvidia_go_nvml//pkg/nvml/mock",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

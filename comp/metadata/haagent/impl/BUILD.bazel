@@ -17,6 +17,7 @@ go_library(
         "//comp/api/api/def",
         "//comp/core/config",
         "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameinterface",
         "//comp/core/log/def",
         "//comp/core/status",
         "//comp/haagent/def",
@@ -25,7 +26,6 @@ go_library(
         "//comp/metadata/runner/runnerimpl",
         "//pkg/serializer",
         "//pkg/serializer/marshaler",
-        "//pkg/util/hostname",
         "//pkg/util/http",
     ],
 )
@@ -36,6 +36,7 @@ go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
         "//comp/core/log/mock",
         "//comp/haagent/mock",
         "//pkg/serializer/mocks",

@@ -6,7 +6,6 @@ go_library(
         "connection_rollup.go",
         "debugger.go",
         "debugger_testutils.go",
-        "debugger_windows.go",
         "file_registry.go",
         "path_identifier.go",
         "testutils.go",
@@ -15,10 +14,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "//cmd/system-probe/utils",
             "//pkg/network/config",
             "//pkg/network/go/binversion",
             "//pkg/network/protocols/telemetry",
+            "//pkg/system-probe/utils",
             "//pkg/util/kernel",
             "//pkg/util/log",
             "//pkg/util/safeelf",
@@ -29,10 +28,10 @@ go_library(
             "@org_uber_go_atomic//:atomic",
         ],
         "@rules_go//go/platform:linux": [
-            "//cmd/system-probe/utils",
             "//pkg/network/config",
             "//pkg/network/go/binversion",
             "//pkg/network/protocols/telemetry",
+            "//pkg/system-probe/utils",
             "//pkg/util/kernel",
             "//pkg/util/log",
             "//pkg/util/safeelf",

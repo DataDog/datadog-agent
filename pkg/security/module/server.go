@@ -45,7 +45,14 @@ import (
 )
 
 const (
-	maxRetry   = 10
+	// events delay is used for 2 actions: hash and kills:
+	// - for hash actions, the reports will be marked as resolved after MAX 5 sec (so
+	//   it doesn't matter if this retry period lasts for longer)
+	// - for kill actions:
+	//   . a kill can be queued up to the end of the first disarmer period (1min by default)
+	//   . so, we set the server retry period to 1min and 2sec (+2sec to have the
+	//     time to trigger the kill and wait to catch the process exit)
+	maxRetry   = 62
 	retryDelay = time.Second
 )
 
@@ -99,12 +106,16 @@ func (p *pendingMsg) toJSON() ([]byte, error) {
 		return nil, err
 	}
 
-	return mergeJSON(backendEventJSON, eventJSON), nil
+	return mergeJSON(backendEventJSON, eventJSON)
 }
 
-func mergeJSON(j1, j2 []byte) []byte {
+func mergeJSON(j1, j2 []byte) ([]byte, error) {
+	if len(j1) == 0 || len(j2) == 0 {
+		return nil, errors.New("malformed json")
+	}
+
 	data := append(j1[:len(j1)-1], ',')
-	return append(data, j2[1:]...)
+	return append(data, j2[1:]...), nil
 }
 
 // APIServer represents a gRPC server in charge of receiving events sent by
@@ -231,10 +242,21 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 	})
 }
 
-func (a *APIServer) updateMsgTags(msg *api.SecurityEventMessage, includeGlobalTags bool) {
-	// on fargate, append global tags
-	if includeGlobalTags && fargate.IsFargateInstance() {
-		for _, tag := range a.getGlobalTags() {
+func (a *APIServer) updateMsgService(msg *api.SecurityEventMessage) {
+	// look for the service tag if we don't have one yet
+	if len(msg.Service) == 0 {
+		for _, tag := range msg.Tags {
+			if strings.HasPrefix(tag, "service:") {
+				msg.Service = strings.TrimPrefix(tag, "service:")
+				break
+			}
+		}
+	}
+}
+
+func (a *APIServer) updateCustomEventTags(msg *api.SecurityEventMessage) {
+	appendTagsIfNotPresent := func(toAdd []string) {
+		for _, tag := range toAdd {
 			key, _, _ := strings.Cut(tag, ":")
 			if !slices.ContainsFunc(msg.Tags, func(t string) bool {
 				return strings.HasPrefix(t, key+":")
@@ -244,14 +266,15 @@ func (a *APIServer) updateMsgTags(msg *api.SecurityEventMessage, includeGlobalTa
 		}
 	}
 
-	// look for the service tag if we don't have one yet
-	if len(msg.Service) == 0 {
-		for _, tag := range msg.Tags {
-			if strings.HasPrefix(tag, "service:") {
-				msg.Service = strings.TrimPrefix(tag, "service:")
-				break
-			}
-		}
+	// on fargate, append global tags on custom events
+	if fargate.IsFargateInstance() {
+		appendTagsIfNotPresent(a.getGlobalTags())
+	}
+
+	// add agent tags on custom events
+	acc := a.probe.GetAgentContainerContext()
+	if acc != nil && acc.ContainerID != "" {
+		appendTagsIfNotPresent(a.probe.GetEventTags(acc.ContainerID))
 	}
 }
 
@@ -291,7 +314,7 @@ func (a *APIServer) start(ctx context.Context) {
 					Service: msg.service,
 					Tags:    msg.tags,
 				}
-				a.updateMsgTags(m, false)
+				a.updateMsgService(m)
 
 				a.msgSender.Send(m, a.expireEvent)
 
@@ -334,12 +357,9 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			Origin:        a.probe.Origin(),
 			KernelVersion: a.kernelVersion,
 			Distribution:  a.distribution,
+			PolicyName:    rule.Policy.Name,
+			PolicyVersion: rule.Policy.Version,
 		},
-	}
-
-	if policy := rule.Policy; policy != nil {
-		backendEvent.AgentContext.PolicyName = policy.Name
-		backendEvent.AgentContext.PolicyVersion = policy.Def.Version
 	}
 
 	seclog.Tracef("Prepare event message for rule `%s`", rule.ID)
@@ -376,7 +396,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		msg := &pendingMsg{
 			ruleID:          ruleID,
 			backendEvent:    backendEvent,
-			eventSerializer: serializers.NewEventSerializer(ev, rule.Opts),
+			eventSerializer: serializers.NewEventSerializer(ev, rule),
 			extTagsCb:       extTagsCb,
 			service:         service,
 			sendAfter:       time.Now().Add(retention),
@@ -403,12 +423,16 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			}
 		} else {
 			if eventJSON, err = json.Marshal(event); err != nil {
-				seclog.Errorf("failed to marshal event: %v", err)
+				seclog.Errorf("failed to marshal event: %v : %+v", err, event)
 				return
 			}
 		}
 
-		data := mergeJSON(backendEventJSON, eventJSON)
+		data, err := mergeJSON(backendEventJSON, eventJSON)
+		if err != nil {
+			seclog.Errorf("failed to merge event json: %v", err)
+			return
+		}
 
 		seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", ruleID, string(data))
 
@@ -418,7 +442,8 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			Service: service,
 			Tags:    tags,
 		}
-		a.updateMsgTags(m, true)
+		a.updateCustomEventTags(m)
+		a.updateMsgService(m)
 
 		a.msgSender.Send(m, a.expireEvent)
 	}
@@ -441,7 +466,12 @@ func (a *APIServer) expireEvent(msg *api.SecurityEventMessage) {
 func (a *APIServer) expireDump(dump *api.ActivityDumpStreamMessage) {
 	// update metric
 	a.expiredDumps.Inc()
-	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", dump.GetDump().GetMetadata().GetName())
+
+	selectorStr := "<unknown>"
+	if sel := dump.GetSelector(); sel != nil {
+		selectorStr = fmt.Sprintf("%s:%s", sel.GetName(), sel.GetTag())
+	}
+	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", selectorStr)
 }
 
 // GetStats returns a map indexed by ruleIDs that describes the amount of events
@@ -483,7 +513,7 @@ func (a *APIServer) ReloadPolicies(_ context.Context, _ *api.ReloadPoliciesParam
 }
 
 // GetRuleSetReport reports the ruleset loaded
-func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportParams) (*api.GetRuleSetReportResultMessage, error) {
+func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportParams) (*api.GetRuleSetReportMessage, error) {
 	if a.cwsConsumer == nil || a.cwsConsumer.ruleEngine == nil {
 		return nil, errors.New("no rule engine")
 	}
@@ -500,13 +530,13 @@ func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportP
 		PIDCacheSize:        a.probe.Config.Probe.PIDCacheSize,
 	}
 
-	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
+	report, err := kfilters.NewFilterReport(cfg, ruleSet)
 	if err != nil {
 		return nil, err
 	}
 
-	return &api.GetRuleSetReportResultMessage{
-		RuleSetReportMessage: api.FromKFiltersToProtoRuleSetReport(report),
+	return &api.GetRuleSetReportMessage{
+		RuleSetReportMessage: api.FromFilterReportToProtoRuleSetReportMessage(report),
 	}, nil
 }
 

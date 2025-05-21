@@ -48,7 +48,6 @@ go_test(
         "//pkg/clusteragent/autoscaling/custommetrics",
         "//pkg/config/mock",
         "//pkg/config/model",
-        "//pkg/config/setup",
         "//pkg/util/kubernetes/apiserver/leaderelection/metrics",
         "//pkg/util/pointer",
         "@com_github_datadog_watermarkpodautoscaler_apis//datadoghq/v1alpha1",

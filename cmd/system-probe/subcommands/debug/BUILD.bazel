@@ -6,7 +6,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/debug",
     visibility = ["//visibility:public"],
     deps = [
-        "//cmd/system-probe/api/client",
         "//cmd/system-probe/command",
         "//comp/core",
         "//comp/core/config",
@@ -14,6 +13,7 @@ go_library(
         "//comp/core/sysprobeconfig",
         "//comp/core/sysprobeconfig/sysprobeconfigimpl",
         "//pkg/api/util",
+        "//pkg/system-probe/api/client",
         "//pkg/util/fxutil",
         "@com_github_spf13_cobra//:cobra",
         "@org_uber_go_fx//:fx",

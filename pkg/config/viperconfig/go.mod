@@ -16,19 +16,20 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/fsnotify/fsnotify v1.8.0 // indirect
+	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
-	github.com/magiconair/properties v1.8.7 // indirect
+	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
+	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/spf13/afero v1.11.0 // indirect
-	github.com/spf13/cast v1.7.1 // indirect
+	github.com/spf13/afero v1.14.0 // indirect
+	github.com/spf13/cast v1.8.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/text v0.25.0 // indirect
+	golang.org/x/time v0.11.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
@@ -37,12 +38,15 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/api/authtoken => ../../../comp/api/authtoken
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../comp/core/hostname/hostnameinterface
+	github.com/DataDog/datadog-agent/comp/core/ipc/def => ../../../comp/core/ipc/def
+	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers => ../../../comp/core/ipc/httphelpers
+	github.com/DataDog/datadog-agent/comp/core/ipc/impl => ../../../comp/core/ipc/impl
+	github.com/DataDog/datadog-agent/comp/core/ipc/mock => ../../../comp/core/ipc/mock
 	github.com/DataDog/datadog-agent/comp/core/log/def => ../../../comp/core/log/def
 	github.com/DataDog/datadog-agent/comp/core/log/fx => ../../../comp/core/log/fx
 	github.com/DataDog/datadog-agent/comp/core/log/impl => ../../../comp/core/log/impl
@@ -78,6 +82,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl => ../../../comp/otelcol/ddprofilingextension/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../../comp/otelcol/logsagentpipeline
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ../../../comp/otelcol/logsagentpipeline/logsagentpipelineimpl
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector => ../../../comp/otelcol/otlp/components/connector/datadogconnector
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter => ../../../comp/otelcol/otlp/components/exporter/datadogexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ../../../comp/otelcol/otlp/components/exporter/logsagentexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ../../../comp/otelcol/otlp/components/exporter/serializerexporter
@@ -96,6 +101,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/create => ../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../pkg/config/model
@@ -139,6 +145,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../../pkg/tagset
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../pkg/telemetry
+	github.com/DataDog/datadog-agent/pkg/template => ../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest => ../../../pkg/trace/stats/oteltest
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../pkg/util/backoff

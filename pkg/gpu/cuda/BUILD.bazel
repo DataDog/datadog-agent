@@ -8,29 +8,59 @@ go_library(
         "elf.go",
         "fatbin.go",
         "fatbin_string.go",
+        "kernel_cache.go",
         "symbols.go",
+        "testutil.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/gpu/cuda",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/safeelf",
         "@com_github_pierrec_lz4_v4//:lz4",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//comp/core/telemetry",
+            "//pkg/gpu/config/consts",
+            "//pkg/security/utils",
+            "@com_github_prometheus_procfs//:procfs",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/telemetry",
+            "//pkg/gpu/config/consts",
+            "//pkg/security/utils",
+            "@com_github_prometheus_procfs//:procfs",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 go_test(
     name = "cuda_test",
-    srcs = ["elf_test.go"],
+    srcs = [
+        "elf_test.go",
+        "kernel_cache_test.go",
+        "symbols_test.go",
+    ],
     embed = [":cuda"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//pkg/gpu/cuda/testutil",
+            "//pkg/gpu/testutil",
             "//pkg/network/protocols/http/testutil",
+            "//pkg/util/kernel",
             "//pkg/util/safeelf",
+            "@com_github_prometheus_procfs//:procfs",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/gpu/cuda/testutil",
+            "//pkg/gpu/testutil",
             "//pkg/network/protocols/http/testutil",
+            "//pkg/util/kernel",
             "//pkg/util/safeelf",
+            "@com_github_prometheus_procfs//:procfs",
             "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],

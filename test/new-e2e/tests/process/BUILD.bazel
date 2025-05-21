@@ -39,7 +39,6 @@ go_test(
     embed = [":process"],
     embedsrcs = ["config/helm-template.tmpl"],
     deps = [
-        "//pkg/util/testutil/flake",
         "//test/fakeintake/aggregator",
         "//test/new-e2e/pkg/components",
         "//test/new-e2e/pkg/e2e",
@@ -52,6 +51,7 @@ go_test(
         "//test/new-e2e/pkg/runner",
         "//test/new-e2e/pkg/utils/e2e/client/agentclient",
         "//test/new-e2e/tests/agent-configuration/secretsutils",
+        "@com_github_datadog_agent_payload_v5//process",
         "@com_github_datadog_test_infra_definitions//common/config",
         "@com_github_datadog_test_infra_definitions//components/datadog/agentparams",
         "@com_github_datadog_test_infra_definitions//components/datadog/apps/cpustress",

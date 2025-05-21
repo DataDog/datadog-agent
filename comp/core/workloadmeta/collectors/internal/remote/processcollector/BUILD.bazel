@@ -29,9 +29,9 @@ go_test(
     srcs = ["process_collector_test.go"],
     embed = [":processcollector"],
     deps = [
-        "//comp/api/authtoken/mock",
         "//comp/core",
         "//comp/core/config",
+        "//comp/core/ipc/mock",
         "//comp/core/workloadmeta/collectors/internal/remote",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",

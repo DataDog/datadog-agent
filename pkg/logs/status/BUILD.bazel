@@ -27,7 +27,7 @@ go_test(
     embed = [":status"],
     deps = [
         "//comp/logs/agent/config",
-        "//pkg/config/setup",
+        "//pkg/config/mock",
         "//pkg/logs/metrics",
         "//pkg/logs/sources",
         "//pkg/logs/util/testutils",

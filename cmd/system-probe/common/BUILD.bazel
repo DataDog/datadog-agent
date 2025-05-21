@@ -10,5 +10,5 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/common",
     visibility = ["//visibility:public"],
-    deps = ["//cmd/system-probe/utils"],
+    deps = ["//pkg/system-probe/utils"],
 )

@@ -15,6 +15,7 @@ go_library(
         "metadataAggregator.go",
         "metricAggregator.go",
         "metricAggregatorV1.go",
+        "ndmAggregator.go",
         "ndmflowAggregator.go",
         "netpathAggregator.go",
         "orchestratorAggregator.go",
@@ -60,6 +61,7 @@ go_test(
         "metadataAggregator_test.go",
         "metricAggregatorV1_test.go",
         "metricAggregator_test.go",
+        "ndmAggregator_test.go",
         "ndmflowAggregator_test.go",
         "netpathAggregator_test.go",
         "orchestratorAggregator_test.go",
@@ -90,6 +92,7 @@ go_test(
         "fixtures/servicediscovery_bytes",
         "fixtures/event_json_bytes",
         "fixtures/netpath_bytes",
+        "fixtures/ndm_bytes",
     ],
     deps = [
         "//pkg/metrics/event",

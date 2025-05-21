@@ -158,10 +158,8 @@ func TestProxyWithSecret(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			// CircleCI sets NO_PROXY, so unset it for this test
-			unsetEnvForTest(t, "NO_PROXY")
 
-			config := newTestConf()
+			config := newTestConf(t)
 			config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
 
 			path := t.TempDir()

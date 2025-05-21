@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mock",
+    srcs = ["kubelet.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/kubernetes/kubelet",
+        "@io_k8s_kubelet//pkg/apis/stats/v1alpha1",
+    ],
+)

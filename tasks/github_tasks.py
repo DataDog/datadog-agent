@@ -4,7 +4,7 @@ import json
 import os
 import re
 import time
-from collections import Counter, defaultdict
+from collections import Counter
 from functools import lru_cache
 
 from invoke.context import Context
@@ -17,8 +17,8 @@ from tasks.libs.ciproviders.github_actions_tools import (
     follow_workflow_run,
     print_failed_jobs_logs,
     print_workflow_conclusion,
-    trigger_buildenv_workflow,
     trigger_macos_workflow,
+    trigger_windows_bump_workflow,
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH
@@ -28,7 +28,8 @@ from tasks.libs.common.utils import get_git_pretty_ref
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
-from tasks.libs.releasing.version import current_version
+from tasks.libs.releasing.version import RELEASE_JSON_DEPENDENCIES, current_version
+from tasks.libs.types.types import PermissionCheck
 from tasks.release import _get_release_json_value
 
 ALL_TEAMS = '@datadog/agent-all'
@@ -45,8 +46,8 @@ def concurrency_key():
     return current_ref
 
 
-def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_interval=0, **kwargs):
-    github_action_ref = _get_release_json_value(f'{release}::MACOS_BUILD_VERSION')
+def _trigger_macos_workflow(destination=None, retry_download=0, retry_interval=0, **kwargs):
+    github_action_ref = _get_release_json_value(f'{RELEASE_JSON_DEPENDENCIES}::MACOS_BUILD_VERSION')
 
     run = trigger_macos_workflow(
         github_action_ref=github_action_ref,
@@ -72,7 +73,6 @@ def trigger_macos(
     _,
     workflow_type="build",
     datadog_agent_ref=None,
-    release_version="nightly",
     major_version="7",
     destination=".",
     version_cache=None,
@@ -89,16 +89,11 @@ def trigger_macos(
 
     if workflow_type == "build":
         conclusion = _trigger_macos_workflow(
-            # Provide the release version to be able to fetch the associated
-            # macos-build branch from release.json for all workflows...
-            release_version,
             destination,
             retry_download,
             retry_interval,
             workflow_name="macos.yaml",
             datadog_agent_ref=datadog_agent_ref,
-            # ... And provide the release version as a workflow input when needed
-            release_version=release_version,
             major_version=major_version,
             # Send pipeline id and bucket branch so that the package version
             # can be constructed properly for nightlies.
@@ -113,17 +108,30 @@ def trigger_macos(
         raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
 
 
-def _update_windows_runner_version(new_version=None, buildenv_ref="master"):
+def _update_windows_runner_version(new_version=None, repo="buildenv"):
     if new_version is None:
-        raise Exit(message="Buildenv workflow need the 'new_version' field value to be not None")
+        raise Exit(message="workflow needs the 'new_version' field value to be not None")
+    args_per_repo = {
+        "buildenv": {
+            "workflow_name": "runner-bump.yml",
+            "github_action_ref": "master",
+        },
+        "ci-platform-machine-images": {
+            "workflow_name": "windows-runner-agent-bump.yml",
+            "github_action_ref": "main",
+        },
+    }
 
-    run = trigger_buildenv_workflow(
-        workflow_name="runner-bump.yml",
-        github_action_ref=buildenv_ref,
+    run = trigger_windows_bump_workflow(
+        repo=repo,
+        workflow_name=args_per_repo[repo]["workflow_name"],
+        github_action_ref=args_per_repo[repo]["github_action_ref"],
         new_version=new_version,
     )
-    # We are only waiting 0.5min between each status check because buildenv is much faster than macOS builds
-    workflow_conclusion, workflow_url = follow_workflow_run(run, "DataDog/buildenv", 0.5)
+    # We are only waiting 0.5min between each status check because buildenv
+    # or ci-platform-machine-images are much faster than macOS builds
+    full_repo = f"DataDog/{repo}"
+    workflow_conclusion, workflow_url = follow_workflow_run(run, full_repo, 0.5)
 
     if workflow_conclusion != "success":
         if workflow_conclusion == "failure":
@@ -132,7 +140,7 @@ def _update_windows_runner_version(new_version=None, buildenv_ref="master"):
 
     print_workflow_conclusion(workflow_conclusion, workflow_url)
 
-    download_with_retry(download_artifacts, run, ".", 3, 5, "DataDog/buildenv")
+    download_with_retry(download_artifacts, run, ".", 3, 5, full_repo)
 
     with open("PR_URL_ARTIFACT") as f:
         PR_URL = f.read().strip()
@@ -153,17 +161,17 @@ def _update_windows_runner_version(new_version=None, buildenv_ref="master"):
 def update_windows_runner_version(
     ctx,
     new_version=None,
-    buildenv_ref="master",
 ):
     """
-    Trigger a workflow on the buildenv repository to bump windows gitlab runner
+    Trigger a workflow on the buildenv and ci-platform-machine-images repositories to bump windows gitlab runner
     """
     if new_version is None:
         new_version = str(current_version(ctx, "7"))
 
-    conclusion = _update_windows_runner_version(new_version, buildenv_ref)
-    if conclusion != "success":
-        raise Exit(message=f"Buildenv workflow {conclusion}", code=1)
+    for repo in ["buildenv", "ci-platform-machine-images"]:
+        conclusion = _update_windows_runner_version(new_version, repo)
+        if conclusion != "success":
+            raise Exit(message=f"Windows runner bump workflow {conclusion} for {repo}", code=1)
 
 
 @task
@@ -679,86 +687,72 @@ query {
 
 
 @task
-def check_permissions(_, repo: str, channel: str = "agent-devx-help"):
+def check_permissions(_, name: str, check: PermissionCheck = PermissionCheck.REPO, channel: str = "agent-devx-ops"):
     """
-    Check the permissions on a given repository
-    - list members without any contribution in the last 6 months
-    - list teams with not any contributors
+    Check the permissions on a given repository or team.
+      - list contributing teams on the repository or subteams
+      - list teams with not any contributors
+      - list members without any contribution in the last period
+
     """
     from tasks.libs.ciproviders.github_api import GithubAPI
+    from tasks.libs.common.slack import format_teams, header_block, markdown_block
+    from tasks.libs.notify.permissions import list_permissions
 
-    gh = GithubAPI(f"datadog/{repo}")
-    all_teams = gh.find_all_teams(
-        gh._repository,
-        exclude_teams=['Dev', 'apm', 'agent-supply-chain', 'agent-platform'],
-        exclude_permissions=['pull'],
-    )
-    print(f"Found {len(all_teams)} teams")
-    idle_teams = []
-    idle_contributors = defaultdict(set)
-    active_users = gh.get_active_users(duration_days=90)
-    print(f"Checking permissions for {repo}, {len(active_users)} active users")
-    for team in all_teams:
-        members = gh.get_direct_team_members(team.slug)
-        has_contributors = False
-        for member in members:
-            if member not in active_users:
-                idle_contributors[team.name].add(member)
-            else:
-                has_contributors = True
-        if not has_contributors:
-            idle_teams.append((team.name, team.html_url))
-
-    print(f"Idle teams: {idle_teams}, idle contributors {idle_contributors}")
-    if idle_teams or idle_contributors:
-        from slack_sdk import WebClient
-
-        client = WebClient(token=os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
-        header = f":github: {repo} permissions check\n"
-        blocks = [
-            {
-                "type": "header",
-                "text": {"type": "plain_text", "text": header},
-            },
+    if check == PermissionCheck.TEAM:
+        gh = GithubAPI()
+        root = gh.get_team(name)
+        depth = None
+        admins = root.get_members(role='maintainer')
+    else:
+        gh = GithubAPI(f"datadog/{name}")
+        root = gh._repository
+        depth = 1
+        admins = [
+            c for c in root.get_collaborators(affiliation='direct') if root.get_collaborator_permission(c) == 'admin'
         ]
-        message = header
-        if idle_teams:
-            teams = [f" - <{team[1]}|{team[0]}>\n" for team in idle_teams]
-            message += f"Teams:\n{''.join(teams)}"
-            blocks.append(
-                {
-                    "type": "section",
-                    "text": {"type": "mrkdwn", "text": f"Teams with no contributors:\n{''.join(teams)}"},
-                }
-            )
-        if idle_contributors:
-            message += f"Contributors: {idle_contributors}\n"
-            blocks.append(
-                {
-                    "type": "section",
-                    "text": {"type": "mrkdwn", "text": "Users with no contribution:\n"},
-                }
-            )
-            for team, members in idle_contributors.items():
-                blocks.append(
-                    {
-                        "type": "section",
-                        "text": {
-                            "type": "mrkdwn",
-                            "text": f" - <https://github.com/orgs/DataDog/teams/{team}|{team}>: {', '.join(members)}",
-                        },
-                    }
-                )
-        blocks.append(
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"Please check the `{repo}` <https://github.com/DataDog/{repo}/settings/access|settings>.",
-                },
-            }
-        )
-        MAX_BLOCKS = 50
-        for idx in range(0, len(blocks), MAX_BLOCKS):
-            client.chat_postMessage(channel=channel, blocks=blocks[idx : idx + MAX_BLOCKS], text=message)
-        print("Message sent to slack")
+
+    all_teams = gh.find_teams(
+        root,
+        depth=depth,
+    )
+
+    # List information of teams in <name>
+    blocks = [header_block(f":github: {name} permissions check\n")]
+    blocks.extend(format_teams(name, check, all_teams))
+
+    # Add admins
+    if len(admins) > 0:
+        admins = [f" - <{admin.html_url}|{admin.login}>\n" for admin in admins]
+        block = f"Admins:\n{''.join(admins)}"
+        blocks.append(markdown_block(block))
+
+    if check == PermissionCheck.TEAM:
+        # For agent-all, list non contributors (team or members) to remove or look at.
+        contributors = 'agent-contributors'
+        non_contributing_teams, contributors_to_remove, membership = list_permissions(gh, name, all_teams, contributors)
+
+        if len(non_contributing_teams) > 0:
+            teams = [f" - {team}\n" for team in non_contributing_teams]
+            block = f"Non contributing teams:\n{''.join(teams)}"
+            blocks.append(markdown_block(block))
+
+        if len(contributors_to_remove) > 0:
+            block = f"Non contributors to remove from <https://github.com/orgs/DataDog/teams/{contributors}|{contributors}> team:\n{','.join(contributors_to_remove)}"
+            blocks.append(markdown_block(block))
+
+        if len(membership) > 0:
+            block = "Non contributors to assess:\n"
+            blocks.append(markdown_block(block))
+            for member, teams in membership.items():
+                block = f" - {member}: [{', '.join(teams)}]\n"
+                blocks.append(markdown_block(block))
+    # Send message to slack
+    from slack_sdk import WebClient
+
+    client = WebClient(token=os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
+    message = ''.join(b['text']['text'] for b in blocks)
+    print(message)
+    MAX_BLOCKS = 50
+    for idx in range(0, len(blocks), MAX_BLOCKS):
+        client.chat_postMessage(channel=channel, blocks=blocks[idx : idx + MAX_BLOCKS], text=message)

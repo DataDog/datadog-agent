@@ -7,10 +7,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/agent/command",
-        "//comp/api/authtoken",
-        "//comp/api/authtoken/fetchonlyimpl",
         "//comp/core",
         "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/fx",
         "//comp/core/log/def",
         "//pkg/config/setup",
         "//pkg/flare",

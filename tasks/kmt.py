@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import getpass
 import io
 import itertools
 import json
@@ -61,7 +62,7 @@ from tasks.system_probe import (
     check_for_ninja,
     get_ebpf_build_dir,
     get_ebpf_runtime_dir,
-    get_sysprobe_buildtags,
+    get_sysprobe_test_buildtags,
     get_test_timeout,
     go_package_dirs,
     ninja_generate,
@@ -96,8 +97,8 @@ ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
 DEFAULT_VCPU = "4"
 DEFAULT_MEMORY = "8192"
 
-CLANG_PATH_CI = Path("/tmp/clang-bpf")
-LLC_PATH_CI = Path("/tmp/llc-bpf")
+CLANG_PATH_CI = Path("/opt/datadog-agent/embedded/bin/clang-bpf")
+LLC_PATH_CI = Path("/opt/datadog-agent/embedded/bin/llc-bpf")
 
 
 @task
@@ -286,7 +287,7 @@ def gen_config_from_ci_pipeline(
         ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
     )
     info("[+] You can run the following command to execute only packages with failed tests")
-    print(f"dda inv kmt.test --packages=\"{','.join(failed_packages)}\" --run='^{'|'.join(failed_tests)}$'")
+    print(f"dda inv -- kmt.test --packages=\"{','.join(failed_packages)}\" --run='^{'|'.join(failed_tests)}$'")
 
 
 @task
@@ -348,18 +349,27 @@ def ls(_, distro=True, custom=False):
     if tabulate is None:
         raise Exit("tabulate module is not installed, please install it to continue")
 
+    print("\nAll Available Images:")
     print(tabulate(vmconfig.get_image_list(distro, custom), headers='firstrow', tablefmt='fancy_grid'))
+
+    print("\nLocally Downloaded Images:")
+    print(tabulate(vmconfig.get_local_image_list(distro, custom), headers='firstrow', tablefmt='fancy_grid'))
 
 
 @task(
     help={
         "lite": "If set, then do not download any VM images locally",
-        "images": "Comma separated list of images to update, instead of everything. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
+        "images": "Comma separated list of images to download. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>. This parameter is required unless --lite or --all-images is specified.",
+        "all-images": "Download all available VM images for the current architecture. This is equivalent to the previous default behavior.",
     }
 )
-def init(ctx: Context, lite=False, images: str | None = None):
+def init(ctx: Context, lite=False, images: str | None = None, all_images=False):
+    if not lite and not all_images and images is None:
+        raise Exit(
+            "The --images parameter is required unless --lite or --all-images is specified. Use 'dda inv kmt.ls' to see available images."
+        )
     try:
-        init_kernel_matrix_testing_system(ctx, lite, images)
+        init_kernel_matrix_testing_system(ctx, lite, images, all_images)
     except Exception as e:
         error(f"[-] Error initializing kernel matrix testing system: {e}")
         raise e
@@ -524,8 +534,15 @@ def download_gotestsum(ctx: Context, arch: Arch, fgotestsum: PathOrStr):
 
     cc = get_compiler(ctx)
     target_path = CONTAINER_AGENT_PATH / paths.tools.relative_to(paths.repo_root) / "gotestsum"
+    env = {
+        "GOARCH": arch.go_arch,
+        "CC": "\\$DD_CC_CROSS" if arch.is_cross_compiling() else "\\$DD_CC",
+        "CXX": "\\$DD_CXX_CROSS" if arch.is_cross_compiling() else "\\$DD_CXX",
+    }
+
+    env_str = " ".join(f"{key}={value}" for key, value in env.items())
     cc.exec(
-        f"cd {TOOLS_PATH} && GOARCH={arch.go_arch} go build -o {target_path} {GOTESTSUM}",
+        f"cd {TOOLS_PATH} && {env_str} go build -o {target_path} {GOTESTSUM}",
     )
 
     ctx.run(f"cp {paths.tools}/gotestsum {fgotestsum}")
@@ -639,7 +656,7 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
             "go": go_path,
             "chdir": "true",
             "env": env_str,
-            "tags": f"-tags=\"{','.join(get_sysprobe_buildtags(False, False))}\"",
+            "tags": f"-tags=\"{','.join(get_sysprobe_test_buildtags(False, False))}\"",
         },
     )
 
@@ -768,9 +785,6 @@ def _prepare(
     if not ci:
         cc = get_compiler(ctx)
 
-        if arch_obj.is_cross_compiling():
-            cc.ensure_ready_for_cross_compile()
-
     pkgs = ""
     if packages:
         pkgs = f"--packages {packages}"
@@ -783,7 +797,7 @@ def _prepare(
             kmt_secagent_prepare(ctx, stack, arch_obj, packages, verbose, ci)
         else:
             cc.exec(
-                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv {inv_echo} kmt.kmt-secagent-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
+                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-secagent-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
             )
     elif component == "system-probe":
@@ -791,7 +805,7 @@ def _prepare(
             kmt_sysprobe_prepare(ctx, arch_obj, ci=True)
         else:
             cc.exec(
-                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv {inv_echo} kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
+                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
             )
     else:
@@ -896,7 +910,8 @@ def build_target_packages(filter_packages: list[str], build_tags: list[str]):
 
 
 def build_object_files(ctx, fp, arch: Arch):
-    info("[+] Generating eBPF object files...")
+    setup_runtime_clang(ctx)
+    info(f"[+] Generating eBPF object files... {fp}")
     ninja_generate(ctx, fp, arch=arch)
     ctx.run(f"ninja -d explain -f {fp}")
 
@@ -968,7 +983,7 @@ def kmt_sysprobe_prepare(
     build_object_files(ctx, f"{kmt_paths.arch_dir}/kmt-object-files.ninja", arch)
 
     info("[+] Computing Go dependencies for test packages...")
-    build_tags = get_sysprobe_buildtags(False, False)
+    build_tags = get_sysprobe_test_buildtags(False, False)
     target_packages = build_target_packages(filter_pkgs, build_tags)
     pkg_deps = compute_package_dependencies(ctx, target_packages, build_tags)
 
@@ -989,7 +1004,7 @@ def kmt_sysprobe_prepare(
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(nw, "system-probe", kmt_paths, arch)
 
-        build_tags = get_sysprobe_buildtags(False, False)
+        build_tags = get_sysprobe_test_buildtags(False, False)
         for pkg in target_packages:
             pkg_name = os.path.relpath(pkg, os.getcwd())
             target_path = os.path.join(kmt_paths.sysprobe_tests, pkg_name)
@@ -1315,11 +1330,8 @@ def build(
     cc = get_compiler(ctx)
 
     inv_echo = "-e" if ctx.config.run["echo"] else ""
-    cc.exec(f"cd {CONTAINER_AGENT_PATH} && dda inv {inv_echo} system-probe.object-files")
-
-    build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
     cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv {inv_echo} {component}.{build_task} --arch={arch_obj.name}",
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} {component}.build --arch={arch_obj.name}",
     )
 
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
@@ -1331,7 +1343,7 @@ def build(
 
     domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
     if alien_vms is not None:
-        err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
+        err_msg = f"no alien VMs discovered from provided profile {alien_vms}."
     else:
         err_msg = f"no vms found from list {vms}. Run `dda inv -e kmt.status` to see all VMs in current stack"
 
@@ -2248,7 +2260,7 @@ def install_ddagent(
         # setup datadog yaml
         if datadog_yaml is not None:
             # hostnames with '_' are not accepted according to RFC1123
-            ddyaml["hostname"] = f"{os.getlogin()}_{d.tag}".replace("_", "-")
+            ddyaml["hostname"] = f"{getpass.getuser()}_{d.tag}".replace("_", "-")
             ddyaml["api_key"] = api_key
             with tempfile.NamedTemporaryFile(mode='w') as tmp:
                 yaml.dump(ddyaml, tmp, Dumper=IndentedDumper, default_flow_style=False)
@@ -2277,8 +2289,8 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, k
 
     for pipeline_id in pipeline_ids:
         pipeline = gitlab.pipelines.get(pipeline_id)
-        if pipeline.source != "push":
-            print(f"Ignoring pipeline {pipeline_id}, only using push pipelines")
+        if pipeline.source != "push" and pipeline.source != "api":
+            print(f"Ignoring pipeline {pipeline_id} with source {pipeline.source}, only using push/api pipelines")
             continue
 
         _, test_jobs = get_all_jobs_for_pipeline(pipeline_id)

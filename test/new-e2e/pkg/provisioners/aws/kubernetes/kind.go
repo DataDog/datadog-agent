@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/etcd"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
@@ -230,6 +231,10 @@ agents:
 		}
 
 		if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&awsEnv, kubeProvider, "workload-mutated", "workload-mutated-lib-injection", dependsOnDDAgent /* for admission */); err != nil {
+			return err
+		}
+
+		if _, err := etcd.K8sAppDefinition(&awsEnv, kubeProvider); err != nil {
 			return err
 		}
 

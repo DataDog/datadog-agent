@@ -10,9 +10,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/gpu/config",
     visibility = ["//visibility:public"],
     deps = [
-        "//cmd/system-probe/config",
         "//pkg/config/setup",
         "//pkg/ebpf",
+        "//pkg/gpu/config/consts",
+        "//pkg/system-probe/config",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/util/kernel",

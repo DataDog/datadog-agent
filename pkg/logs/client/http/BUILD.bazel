@@ -6,6 +6,7 @@ go_library(
         "destination.go",
         "sync_destination.go",
         "test_utils.go",
+        "worker_pool.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/client/http",
     visibility = ["//visibility:public"],
@@ -26,14 +27,21 @@ go_library(
 
 go_test(
     name = "http_test",
-    srcs = ["destination_test.go"],
+    srcs = [
+        "destination_test.go",
+        "worker_pool_test.go",
+    ],
     embed = [":http"],
     deps = [
+        "//comp/core/telemetry",
+        "//comp/core/telemetry/telemetryimpl",
         "//comp/logs/agent/config",
         "//pkg/config/mock",
         "//pkg/logs/client",
         "//pkg/logs/message",
         "//pkg/logs/metrics",
+        "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

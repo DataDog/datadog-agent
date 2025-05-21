@@ -117,6 +117,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options)
 		return nil, fmt.Errorf("failed to get map '%s': %w", oomMapName, err)
 	}
 	ebpf.AddNameMappings(m, "oom_kill")
+	ebpf.AddProbeFDMappings(m)
 
 	return &Probe{
 		m:      m,

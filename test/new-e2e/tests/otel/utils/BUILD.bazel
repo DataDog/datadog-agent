@@ -17,6 +17,7 @@ go_library(
         "//test/fakeintake/client",
         "//test/fakeintake/client/flare",
         "//test/new-e2e/pkg/environments",
+        "@com_github_datadog_test_infra_definitions//components/datadog/apps",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_gopkg_yaml_v3//:yaml_v3",

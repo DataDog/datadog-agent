@@ -5,7 +5,6 @@ default_version "3.12.9"
 unless windows?
   dependency "libxcrypt"
   dependency "libffi"
-  dependency "ncurses"
   dependency "zlib"
   dependency "bzip2"
   dependency "libsqlite3"
@@ -29,7 +28,8 @@ build do
     env = with_standard_compiler_flags(with_embedded_path)
     python_configure_options = [
       "--without-readline",  # Disables readline support
-      "--with-ensurepip=yes" # We upgrade pip later, in the pip3 software definition
+      "--with-ensurepip=yes", # We upgrade pip later, in the pip3 software definition
+      "--without-static-libpython" # We only care about the shared library
     ]
 
     if mac_os_x?

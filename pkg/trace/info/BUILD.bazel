@@ -11,6 +11,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/info",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/template/text",
         "//pkg/trace/config",
         "//pkg/trace/log",
         "//pkg/trace/sampler",

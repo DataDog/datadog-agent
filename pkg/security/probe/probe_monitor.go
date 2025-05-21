@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/approver"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/dns"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/syscalls"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
@@ -33,6 +34,7 @@ type EBPFMonitors struct {
 	cgroupsMonitor     *cgroups.Monitor
 	approverMonitor    *approver.Monitor
 	syscallsMonitor    *syscalls.Monitor
+	dnsMonitor         *dns.Monitor
 }
 
 // NewEBPFMonitors returns a new instance of a ProbeMonitor
@@ -74,6 +76,13 @@ func (m *EBPFMonitors) Init() error {
 	}
 
 	m.cgroupsMonitor = cgroups.NewCgroupsMonitor(p.statsdClient, p.Resolvers.CGroupResolver)
+
+	if p.config.Probe.DNSResolutionEnabled {
+		m.dnsMonitor, err = dns.NewDNSMonitor(p.Manager, p.statsdClient)
+		if err != nil {
+			return fmt.Errorf("couldn't create the DNS monitor: %w", err)
+		}
+	}
 
 	return nil
 }
@@ -119,6 +128,10 @@ func (m *EBPFMonitors) SendStats() error {
 		}
 
 		if m.ebpfProbe.config.Probe.DNSResolutionEnabled {
+			if err := m.dnsMonitor.SendStats(); err != nil {
+				return fmt.Errorf("failed to send dns monitor stats: %w", err)
+			}
+
 			if err := resolvers.DNSResolver.SendStats(); err != nil {
 				return fmt.Errorf("failed to send process_resolver stats: %w", err)
 			}

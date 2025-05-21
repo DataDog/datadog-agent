@@ -39,6 +39,7 @@ go_library(
 go_test(
     name = "decoder_test",
     srcs = [
+        "auto_multiline_handler_test.go",
         "decoder_test.go",
         "line_handler_benchmark_test.go",
         "line_handler_test.go",
@@ -48,6 +49,7 @@ go_test(
     embed = [":decoder"],
     deps = [
         "//comp/logs/agent/config",
+        "//pkg/config/mock",
         "//pkg/config/setup",
         "//pkg/logs/internal/framer",
         "//pkg/logs/internal/parsers",

@@ -10,6 +10,7 @@ go_library(
         "//pkg/collector/corechecks/cluster/orchestrator/processors",
         "//pkg/collector/corechecks/cluster/orchestrator/processors/common",
         "//pkg/collector/corechecks/cluster/orchestrator/transformers/ecs",
+        "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//process",
         "@io_k8s_apimachinery//pkg/types",
     ],

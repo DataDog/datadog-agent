@@ -16,6 +16,8 @@ go_test(
         "//pkg/util/testutil/flake",
         "//test/new-e2e/pkg/e2e",
         "//test/new-e2e/pkg/provisioners/aws/host/windows",
+        "//test/new-e2e/pkg/runner",
+        "//test/new-e2e/pkg/runner/parameters",
         "//test/new-e2e/tests/installer/unix",
         "//test/new-e2e/tests/installer/windows",
         "//test/new-e2e/tests/installer/windows/consts",

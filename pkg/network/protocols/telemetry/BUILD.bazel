@@ -17,7 +17,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry",
     visibility = ["//visibility:public"],
     deps = [
-        "//cmd/system-probe/utils",
+        "//pkg/system-probe/utils",
         "//pkg/telemetry",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@io_k8s_apimachinery//pkg/util/sets",

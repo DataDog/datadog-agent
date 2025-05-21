@@ -1,0 +1,56 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "wlan",
+    srcs = [
+        "wlan.go",
+        "wlan_darwin.go",
+        "wlan_darwin.h",
+        "wlan_darwin.m",
+        "wlan_nix.go",
+        "wlan_windows.go",
+    ],
+    cgo = True,
+    clinkopts = select({
+        "@rules_go//go/platform:darwin": [
+            "-framework CoreWLAN -framework CoreLocation -framework Foundation",
+        ],
+        "@rules_go//go/platform:ios": [
+            "-framework CoreWLAN -framework CoreLocation -framework Foundation",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = select({
+        "@rules_go//go/platform:darwin": [
+            "-I pkg/collector/corechecks/net/wlan",
+        ],
+        "@rules_go//go/platform:ios": [
+            "-I pkg/collector/corechecks/net/wlan",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/wlan",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/util/log",
+        "//pkg/util/option",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "wlan_test",
+    srcs = ["wlan_test.go"],
+    embed = [":wlan"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/mocksender",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

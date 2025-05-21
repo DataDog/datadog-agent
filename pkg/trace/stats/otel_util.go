@@ -80,6 +80,15 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		var ctags []string
 		if cid != "" {
 			ctags = traceutil.GetOTelContainerTags(otelres.Attributes(), containerTagKeys)
+			if conf.ContainerTags != nil {
+				tags, err := conf.ContainerTags(cid)
+				if err != nil {
+					log.Debugf("Failed to get container tags for container %q: %v", cid, err)
+				} else {
+					log.Tracef("Getting container tags for ID %q: %v", cid, tags)
+					ctags = append(ctags, tags...)
+				}
+			}
 			if ctags != nil {
 				// Make sure container tags are sorted per APM stats intake requirement
 				if !slices.IsSorted(ctags) {

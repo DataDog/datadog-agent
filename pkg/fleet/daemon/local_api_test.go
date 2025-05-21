@@ -50,11 +50,6 @@ func (m *testDaemon) StartExperiment(ctx context.Context, url string) error {
 	return args.Error(0)
 }
 
-func (m *testDaemon) StartInstallerExperiment(ctx context.Context, url string) error {
-	args := m.Called(ctx, url)
-	return args.Error(0)
-}
-
 func (m *testDaemon) StopExperiment(ctx context.Context, pkg string) error {
 	args := m.Called(ctx, pkg)
 	return args.Error(0)
@@ -184,23 +179,6 @@ func TestAPIStartExperiment(t *testing.T) {
 	api.i.On("StartExperiment", mock.Anything, testPackage.URL).Return(nil)
 
 	err := api.c.StartExperiment(testPackage.Name, testPackage.Version)
-
-	assert.NoError(t, err)
-}
-
-func TestAPIStartInstallerExperiment(t *testing.T) {
-	api := newTestLocalAPI(t)
-	defer api.Stop()
-
-	testPackage := Package{
-		Name:    "test-package",
-		Version: "1.0.0",
-		URL:     "oci://example.com/test-package@5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
-	}
-	api.i.On("GetPackage", testPackage.Name, testPackage.Version).Return(testPackage, nil)
-	api.i.On("StartInstallerExperiment", mock.Anything, testPackage.URL).Return(nil)
-
-	err := api.c.StartInstallerExperiment(testPackage.Name, testPackage.Version)
 
 	assert.NoError(t, err)
 }

@@ -5,4 +5,5 @@ go_library(
     srcs = ["model.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model",
     visibility = ["//visibility:public"],
+    deps = ["//pkg/discovery/tracermetadata"],
 )

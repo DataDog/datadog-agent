@@ -15,6 +15,7 @@ go_library(
         "//cmd/installer/command",
         "//comp/core",
         "//comp/core/config",
+        "//comp/core/ipc/fx",
         "//comp/core/log/def",
         "//comp/core/pid/pidimpl",
         "//comp/core/secrets",

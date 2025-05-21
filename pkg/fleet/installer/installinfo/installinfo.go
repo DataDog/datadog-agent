@@ -12,23 +12,34 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v2"
 )
 
-const (
-	installInfoFile = "/etc/datadog-agent/install_info"
-	installSigFile  = "/etc/datadog-agent/install.json"
+var (
+	installInfoFile string
+	installSigFile  string
+)
 
+const (
 	toolInstaller = "installer"
 	execTimeout   = 30 * time.Second
 )
+
+func init() {
+	// TODO(WINA-1429): The data dir should be configurable on Windows
+	installInfoFile = filepath.Join(paths.DatadogDataDir, "install_info")
+	installSigFile = filepath.Join(paths.DatadogDataDir, "install.json")
+}
 
 // WriteInstallInfo writes install info and signature files.
 func WriteInstallInfo(installType string) error {

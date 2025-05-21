@@ -74,7 +74,7 @@ class TestSetTag(unittest.TestCase):
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1515"})
     @patch.dict("os.environ", {"CI_PIPELINE_SOURCE": "putsch"})
     def test_default(self):
-        tags = junit.set_tags("agent-devx-infra", "base", "", {}, "")
+        tags = junit.set_tags("agent-devx", "base", "", {}, "")
         self.assertEqual(len(tags), 18)
         self.assertIn("slack_channel:agent-devx-ops", tags)
 
@@ -82,7 +82,7 @@ class TestSetTag(unittest.TestCase):
     @patch.dict("os.environ", {"CI_PIPELINE_SOURCE": "beer"})
     def test_flag(self):
         tags = junit.set_tags(
-            "agent-devx-infra",
+            "agent-devx",
             "base",
             'kitchen-e2e',
             ["upload_option.os_version_from_name"],
@@ -96,7 +96,7 @@ class TestSetTag(unittest.TestCase):
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1789"})
     @patch.dict("os.environ", {"CI_PIPELINE_SOURCE": "revolution"})
     def test_additional_tags(self):
-        tags = junit.set_tags("agent-devx-infra", "base", "", ["--tags", "simple:basique"], "")
+        tags = junit.set_tags("agent-devx", "base", "", ["--tags", "simple:basique"], "")
         self.assertEqual(len(tags), 20)
         self.assertIn("simple:basique", tags)
 
@@ -104,7 +104,7 @@ class TestSetTag(unittest.TestCase):
     @patch.dict("os.environ", {"CI_PIPELINE_SOURCE": "revolution"})
     def test_additional_tags_from_method(self):
         tags = junit.set_tags(
-            "agent-devx-infra", "base", "", junit.read_additional_tags(Path("tasks/unit_tests/testdata")), ""
+            "agent-devx", "base", "", junit.read_additional_tags(Path("tasks/unit_tests/testdata")), ""
         )
         self.assertEqual(len(tags), 18)
 
@@ -119,6 +119,9 @@ class TestJUnitUploadFromTGZ(unittest.TestCase):
         mock_instance.communicate.return_value = (b"stdout", b"")
         mock_popen.return_value = mock_instance
         mock_which.side_effect = lambda cmd: f"/usr/local/bin/{cmd}"
-        junit.junit_upload_from_tgz("tasks/unit_tests/testdata/testjunit-tests_deb-x64-py3.tgz")
+        junit.junit_upload_from_tgz(
+            "tasks/unit_tests/testdata/testjunit-tests_deb-x64-py3.tgz",
+            "tasks/unit_tests/testdata/test_output_no_failure.json",
+        )
         mock_popen.assert_called()
         self.assertEqual(mock_popen.call_count, 30)

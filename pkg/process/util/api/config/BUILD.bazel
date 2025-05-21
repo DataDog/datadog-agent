@@ -5,6 +5,7 @@ go_library(
     srcs = ["endpoint.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/process/util/api/config",
     visibility = ["//visibility:public"],
+    deps = ["//pkg/config/utils"],
 )
 
 go_test(
@@ -12,6 +13,7 @@ go_test(
     srcs = ["endpoint_test.go"],
     embed = [":config"],
     deps = [
+        "//pkg/config/utils",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

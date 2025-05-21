@@ -12,6 +12,7 @@ import (
 	"net"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -37,7 +38,7 @@ type Rule struct {
 // RuleSetListener describes the methods implemented by an object used to be
 // notified of events on a rule set.
 type RuleSetListener interface {
-	RuleMatch(rule *Rule, event eval.Event) bool
+	RuleMatch(ctx *eval.Context, rule *Rule, event eval.Event) bool
 	EventDiscarderFound(rs *RuleSet, event eval.Event, field eval.Field, eventType eval.EventType)
 }
 
@@ -58,14 +59,12 @@ type RuleSet struct {
 	globalVariables  *eval.Variables
 	scopedVariables  map[Scope]VariableProvider
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
-	fields []string
+	fields []eval.Field
 	logger log.Logger
 	pool   *eval.ContextPool
 
 	// event collector, used for tests
 	eventCollector EventCollector
-
-	OnDemandHookPoints []OnDemandHookPoint
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -83,8 +82,120 @@ func (rs *RuleSet) GetRules() map[eval.RuleID]*Rule {
 }
 
 // GetOnDemandHookPoints gets the on-demand hook points
-func (rs *RuleSet) GetOnDemandHookPoints() []OnDemandHookPoint {
-	return rs.OnDemandHookPoints
+func (rs *RuleSet) GetOnDemandHookPoints() ([]OnDemandHookPoint, error) {
+	onDemandBucket := rs.GetBucket(model.OnDemandEventType.String())
+	if onDemandBucket == nil {
+		return nil, nil
+	}
+
+	var hookPoints []OnDemandHookPoint
+
+	for _, rule := range onDemandBucket.rules {
+		hooks := rule.GetFieldValues("ondemand.name")
+		if len(hooks) != 1 {
+			return nil, fmt.Errorf("invalid number of hooks for rule %s: %d", rule.ID, len(hooks))
+		}
+		hook := hooks[0]
+		if hook.Type != eval.ScalarValueType {
+			return nil, fmt.Errorf("invalid hook type for rule %s: %s, expected scalar", rule.ID, hook.Type)
+		}
+		hookName, ok := hook.Value.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid hook value for rule %s: %s, expected string", rule.ID, hook.Value)
+		}
+		isSyscall := false
+
+		probeType, probeName, found := strings.Cut(hookName, ":")
+		if found {
+			if probeType == "syscall" {
+				isSyscall = true
+				hookName = probeName
+			} else {
+				return nil, fmt.Errorf("invalid hook type for rule %s: %s, expected syscall or nothing", rule.ID, probeType)
+			}
+		}
+
+		var args []HookPointArg
+		for _, field := range rule.GetFields() {
+			if !strings.HasPrefix(field, "ondemand.arg") {
+				continue
+			}
+
+			_, argPart, found := strings.Cut(field, ".")
+			if !found {
+				return nil, fmt.Errorf("invalid hook argument field %s", field)
+			}
+
+			argN, kind, found := strings.Cut(argPart, ".")
+			if !found {
+				return nil, fmt.Errorf("invalid hook argument field %s", field)
+			}
+
+			switch kind {
+			case "str":
+				kind = "null-terminated-string"
+			}
+
+			n, err := strconv.Atoi(strings.TrimPrefix(argN, "arg"))
+			if err != nil {
+				return nil, fmt.Errorf("invalid hook argument field %s: %w", field, err)
+			}
+
+			args = append(args, HookPointArg{
+				N:    n,
+				Kind: kind,
+			})
+		}
+
+		hookPoints = append(hookPoints, OnDemandHookPoint{
+			Name:      hookName,
+			IsSyscall: isSyscall,
+			Args:      args,
+		})
+	}
+
+	return sanitizeHookPoints(hookPoints)
+}
+
+func sanitizeHookPoints(hookPoints []OnDemandHookPoint) ([]OnDemandHookPoint, error) {
+	type pair struct {
+		name    string
+		syscall bool
+	}
+
+	mapping := make(map[pair]map[int]string)
+	for _, hook := range hookPoints {
+		key := pair{name: hook.Name, syscall: hook.IsSyscall}
+		if _, ok := mapping[key]; !ok {
+			mapping[key] = make(map[int]string)
+		}
+
+		for _, arg := range hook.Args {
+			if old, ok := mapping[key][arg.N]; ok && old != arg.Kind {
+				return nil, fmt.Errorf("conflicting argument %d for hook %s: %s != %s", arg.N, hook.Name, old, arg.Kind)
+			}
+			mapping[key][arg.N] = arg.Kind
+		}
+	}
+
+	var result []OnDemandHookPoint
+
+	for key, args := range mapping {
+		hp := OnDemandHookPoint{
+			Name:      key.name,
+			IsSyscall: key.syscall,
+			Args:      make([]HookPointArg, 0, len(args)),
+		}
+		for n, kind := range args {
+			hp.Args = append(hp.Args, HookPointArg{
+				N:    n,
+				Kind: kind,
+			})
+		}
+		result = append(result, hp)
+	}
+
+	return result, nil
 }
 
 // ListMacroIDs returns the list of MacroIDs from the ruleset
@@ -349,7 +460,6 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 	if _, exists := rs.rules[pRule.Def.ID]; exists {
 		return "", nil
 	}
-	pRule.UsedBy = append(pRule.UsedBy, pRule.Policy)
 
 	var tags []string
 	for k, v := range pRule.Def.Tags {
@@ -424,7 +534,7 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 		if action.Def.Set != nil {
 			if field := action.Def.Set.Field; field != "" {
 				if _, found := rs.fieldEvaluators[field]; !found {
-					evaluator, err := rs.model.GetEvaluator(field, "")
+					evaluator, err := rs.model.GetEvaluator(field, "", 0)
 					if err != nil {
 						return "", err
 					}
@@ -464,12 +574,12 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 }
 
 // NotifyRuleMatch notifies all the ruleset listeners that an event matched a rule
-func (rs *RuleSet) NotifyRuleMatch(rule *Rule, event eval.Event) {
+func (rs *RuleSet) NotifyRuleMatch(ctx *eval.Context, rule *Rule, event eval.Event) {
 	rs.listenersLock.RLock()
 	defer rs.listenersLock.RUnlock()
 
 	for _, listener := range rs.listeners {
-		if !listener.RuleMatch(rule, event) {
+		if !listener.RuleMatch(ctx, rule, event) {
 			break
 		}
 	}
@@ -511,31 +621,36 @@ func (rs *RuleSet) GetBucket(eventType eval.EventType) *RuleBucket {
 }
 
 // GetApprovers returns all approvers
-func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) (map[eval.EventType]Approvers, error) {
+func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) (map[eval.EventType]Approvers, map[eval.EventType]*Rule, error) {
 	approvers := make(map[eval.EventType]Approvers)
+	rules := make(map[eval.EventType]*Rule)
+
 	for _, eventType := range rs.GetEventTypes() {
 		caps, exists := fieldCaps[eventType]
 		if !exists {
 			continue
 		}
 
-		eventTypeApprovers, err := rs.GetEventTypeApprovers(eventType, caps)
+		eventTypeApprovers, rule, err := rs.GetEventTypeApprovers(eventType, caps)
 		if err != nil || len(eventTypeApprovers) == 0 {
+			// report the first rule avoiding to generate an approver
+			rules[eventType] = rule
 			continue
 		}
 		approvers[eventType] = eventTypeApprovers
 	}
 
-	return approvers, nil
+	return approvers, rules, nil
 }
 
 // GetEventTypeApprovers returns approvers for the given event type and the fields
-func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, error) {
+func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, *Rule, error) {
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
-		return nil, ErrNoEventTypeBucket{EventType: eventType}
+		return nil, nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
+	// all the rules needs to be of the same type
 	return getApprovers(bucket.rules, rs.newFakeEvent(), fieldCaps)
 }
 
@@ -694,8 +809,14 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 
 	result := false
 
+	resetEventEvalCtx := func() {
+		event.(*model.Event).RuleTags = nil
+	}
+	defer resetEventEvalCtx()
+
 	for _, rule := range bucket.rules {
 		utils.PprofDoWithoutContext(rule.GetPprofLabels(), func() {
+			event.(*model.Event).RuleTags = rule.PolicyRule.Def.ProductTags
 			if rule.GetEvaluator().Eval(ctx) {
 
 				if rs.logger.IsTracing() {
@@ -710,9 +831,10 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 					rs.logger.Errorf("Error while executing 'log' actions: %s", err)
 				}
 
-				rs.NotifyRuleMatch(rule, event)
+				rs.NotifyRuleMatch(ctx, rule, event)
 				result = true
 			}
+			ctx.PerEvalReset()
 		})
 	}
 
@@ -881,17 +1003,15 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 		for _, rule := range policy.GetAcceptedRules() {
 			if existingRule := rulesIndex[rule.Def.ID]; existingRule != nil {
 				existingRule.UsedBy = append(existingRule.UsedBy, rule.Policy)
-
 				if err := existingRule.MergeWith(rule); err != nil {
 					errs = multierror.Append(errs, err)
 				}
 			} else {
+				rule.UsedBy = append(rule.UsedBy, rule.Policy)
 				rulesIndex[rule.Def.ID] = rule
 				allRules = append(allRules, rule)
 			}
 		}
-
-		rs.OnDemandHookPoints = append(rs.OnDemandHookPoints, policy.onDemandHookPoints...)
 	}
 
 	if err := rs.AddMacros(parsingContext, allMacros); err.ErrorOrNil() != nil {
@@ -928,6 +1048,17 @@ func (rs *RuleSet) newFakeEvent() eval.Event {
 	return model.NewFakeEvent()
 }
 
+// CleanupExpiredVariables cleans up all epxired variables in the ruleset
+func (rs *RuleSet) CleanupExpiredVariables() {
+	if rs.globalVariables != nil {
+		rs.globalVariables.CleanupExpiredVariables()
+	}
+
+	for _, variableProvider := range rs.scopedVariables {
+		variableProvider.CleanupExpiredVariables()
+	}
+}
+
 // NewRuleSet returns a new ruleset for the specified data model
 func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalOpts *eval.Opts) *RuleSet {
 	logger := log.OrNullLogger(opts.Logger)
@@ -953,4 +1084,11 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		scopedVariables:  make(map[Scope]VariableProvider),
 		globalVariables:  eval.NewVariables(),
 	}
+}
+
+// NewFakeRuleSet returns a fake and empty ruleset
+func NewFakeRuleSet(rule *Rule) *RuleSet {
+	rs := NewRuleSet(nil, nil, &Opts{}, &eval.Opts{})
+	rs.rules[rule.Rule.ID] = rule
+	return rs
 }

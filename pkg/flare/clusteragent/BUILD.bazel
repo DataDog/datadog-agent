@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "clusteragent",
@@ -36,5 +36,17 @@ go_library(
         "@io_k8s_apimachinery//pkg/labels",
         "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_sigs_yaml//:yaml",
+    ],
+)
+
+go_test(
+    name = "clusteragent_test",
+    srcs = ["archive_dca_test.go"],
+    embed = [":clusteragent"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

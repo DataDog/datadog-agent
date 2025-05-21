@@ -24,13 +24,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Python3
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
-        with:
-          python-version-file: .python-version
-          cache: "pip"
-          cache-dependency-path: '.dda/version'
-
       - name: Install dda
         uses: ./.github/actions/install-dda
         with:
@@ -40,4 +33,4 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          dda inv -e github.pr-merge-dd-event-sender -p "$PR_NUMBER"
+          dda inv -- -e github.pr-merge-dd-event-sender -p "$PR_NUMBER"

@@ -78,7 +78,7 @@ var collectorNameReplacement = map[string]string{
 	"customresourcedefinitions": "apiextensions.k8s.io/v1, Resource=customresourcedefinitions",
 	// verticalpodautoscalers were removed from the built-in KSM metrics in KSM 2.9, and the changes made to
 	// the KSM builder in KSM 2.9 result in the detected custom resource store name being different.
-	"verticalpodautoscalers": "autoscaling.k8s.io/v1beta2, Resource=verticalpodautoscalers",
+	"verticalpodautoscalers": "autoscaling.k8s.io/v1, Resource=verticalpodautoscalers",
 }
 
 var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
@@ -670,7 +670,9 @@ func (k *KSMCheck) Run() error {
 // Cancel is called when the check is unscheduled, it stops the informers used by the metrics store
 func (k *KSMCheck) Cancel() {
 	log.Infof("Shutting down informers used by the check '%s'", k.ID())
-	k.cancel()
+	if k.cancel != nil {
+		k.cancel()
+	}
 }
 
 // processMetrics attaches tags and forwards metrics to the aggregator

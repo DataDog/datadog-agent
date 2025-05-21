@@ -18,7 +18,6 @@ from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_defau
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.gointegrationtest import (
-    CORE_AGENT_LINUX_IT_CONF,
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
@@ -90,6 +89,7 @@ AGENT_CORECHECKS = [
     "network_path",
     "service_discovery",
     "gpu",
+    "wlan",
 ]
 
 WINDOWS_CORECHECKS = [
@@ -98,6 +98,7 @@ WINDOWS_CORECHECKS = [
     "windows_registry",
     "winkmem",
     "wincrashdetect",
+    "windows_certificate",
     "winproc",
     "win32_event_log",
 ]
@@ -146,6 +147,7 @@ def build(
     bundle_ebpf=False,
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
+    glibc=True,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -216,6 +218,9 @@ def build(
 
             all_tags |= set(build_tags)
         build_tags = list(all_tags)
+
+    if not glibc:
+        build_tags = list(set(build_tags).difference({"nvml"}))
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
@@ -332,7 +337,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
 
     # System probe not supported on windows
-    if sys.platform.startswith('linux') or windows_sysprobe:
+    if sys.platform != 'win32' or windows_sysprobe:
         shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
@@ -457,6 +462,7 @@ def hacky_dev_image_build(
     process_agent=False,
     trace_agent=False,
     push=False,
+    race=False,
     signed_pull=False,
 ):
     if base_image is None:
@@ -488,6 +494,7 @@ def hacky_dev_image_build(
         )
         build(
             ctx,
+            race=race,
             cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
         )
         ctx.run(
@@ -577,7 +584,7 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
+def integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
     """
     Run integration tests for the Agent
     """
@@ -585,14 +592,6 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", t
         return containerized_integration_tests(
             ctx, CORE_AGENT_WINDOWS_IT_CONF, race=race, go_mod=go_mod, timeout=timeout
         )
-    return containerized_integration_tests(
-        ctx,
-        CORE_AGENT_LINUX_IT_CONF,
-        race=race,
-        remote_docker=remote_docker,
-        go_mod=go_mod,
-        timeout=timeout,
-    )
 
 
 def check_supports_python_version(check_dir, python):

@@ -16,6 +16,7 @@ go_test(
         "//test/new-e2e/pkg/provisioners/aws/docker",
         "//test/new-e2e/pkg/provisioners/aws/kubernetes",
         "//test/new-e2e/tests/otel/utils",
+        "@com_github_datadog_test_infra_definitions//components/datadog/apps",
         "@com_github_datadog_test_infra_definitions//components/datadog/dockeragentparams",
         "@com_github_datadog_test_infra_definitions//components/datadog/kubernetesagentparams",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",

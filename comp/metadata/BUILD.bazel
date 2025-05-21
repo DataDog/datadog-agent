@@ -27,10 +27,10 @@ go_test(
     srcs = ["bundle_test.go"],
     embed = [":metadata"],
     deps = [
-        "//comp/api/authtoken",
-        "//comp/api/authtoken/mock",
         "//comp/collector/collector/collectorimpl",
         "//comp/core",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/haagent/mock",

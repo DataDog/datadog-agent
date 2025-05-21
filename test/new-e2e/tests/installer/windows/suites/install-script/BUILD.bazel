@@ -4,6 +4,7 @@ go_test(
     name = "install-script_test",
     srcs = [
         "agent-user_test.go",
+        "domain_test.go",
         "install_test.go",
     ],
     deps = [
@@ -13,6 +14,7 @@ go_test(
         "//test/new-e2e/tests/installer/windows/consts",
         "//test/new-e2e/tests/windows/common",
         "//test/new-e2e/tests/windows/common/agent",
+        "@com_github_datadog_test_infra_definitions//components/activedirectory",
         "@com_github_stretchr_testify//require",
     ],
 )

@@ -8,7 +8,7 @@ go_library(
     deps = [
         "//pkg/collector/corechecks/servicediscovery/language",
         "//pkg/collector/corechecks/servicediscovery/usm",
-        "//pkg/trace/traceutil",
+        "//pkg/trace/traceutil/normalize",
     ],
 )
 

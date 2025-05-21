@@ -23,7 +23,6 @@ go_test(
     embed = [":snmp"],
     deps = [
         "//pkg/config/mock",
-        "//pkg/config/setup",
         "//pkg/snmp/snmpintegration",
         "@com_github_gosnmp_gosnmp//:gosnmp",
         "@com_github_stretchr_testify//assert",

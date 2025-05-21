@@ -52,7 +52,7 @@ go_test(
         "//pkg/collector/corechecks/snmp/internal/report",
         "//pkg/collector/corechecks/snmp/internal/session",
         "//pkg/collector/externalhost",
-        "//pkg/config/setup",
+        "//pkg/config/mock",
         "//pkg/metrics/servicecheck",
         "//pkg/networkdevice/utils",
         "//pkg/snmp/gosnmplib",

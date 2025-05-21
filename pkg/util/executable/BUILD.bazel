@@ -5,7 +5,6 @@ go_library(
     srcs = ["executable.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/executable",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_kardianos_osext//:osext"],
 )
 
 go_test(

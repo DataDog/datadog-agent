@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testutils",
+    srcs = ["resource.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/internal/testutils",
+    visibility = ["//pkg/opentelemetry-mapping-go/inframetadata:__subpackages__"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+    ],
+)

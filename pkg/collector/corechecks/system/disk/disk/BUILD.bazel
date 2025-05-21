@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "disk.go",
         "disk_nix.go",
+        "docs.go",
         "stub.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk",

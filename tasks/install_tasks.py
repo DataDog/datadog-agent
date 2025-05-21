@@ -22,6 +22,7 @@ TOOL_LIST = [
     'gotest.tools/gotestsum',
     'github.com/vektra/mockery/v2',
     'github.com/wadey/gocovmerge',
+    'github.com/uber-go/gopatch',
 ]
 
 TOOL_LIST_PROTO = [
@@ -51,7 +52,12 @@ def download_tools(ctx):
 def install_tools(ctx: Context, max_retry: int = 3):
     """Install all Go tools for testing."""
     with gitlab_section("Installing Go tools", collapsed=True):
-        with environ({'GO111MODULE': 'on'}):
+        env = {'GO111MODULE': 'on'}
+        if os.getenv('DD_CC'):
+            env['CC'] = os.getenv('DD_CC')
+        if os.getenv('DD_CXX'):
+            env['CXX'] = os.getenv('DD_CXX')
+        with environ(env):
             for path, tools in TOOLS.items():
                 with ctx.cd(path):
                     for tool in tools:

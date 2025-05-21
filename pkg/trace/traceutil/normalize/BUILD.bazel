@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "normalize",
+    srcs = [
+        "normalize.go",
+        "truncate.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "normalize_test",
+    srcs = [
+        "fuzz_test.go",
+        "normalize_test.go",
+        "truncate_test.go",
+    ],
+    embed = [":normalize"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

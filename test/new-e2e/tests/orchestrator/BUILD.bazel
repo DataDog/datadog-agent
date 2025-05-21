@@ -11,11 +11,15 @@ go_test(
     name = "orchestrator_test",
     srcs = [
         "ecs_test.go",
+        "k8s_api_key_test.go",
         "k8s_test.go",
         "util_test.go",
     ],
     embed = [":orchestrator"],
-    embedsrcs = ["agent_values.yaml"],
+    embedsrcs = [
+        "agent_values.yaml",
+        "agent_api_key_values.yaml",
+    ],
     deps = [
         "//test/fakeintake/aggregator",
         "//test/fakeintake/client",
@@ -31,7 +35,10 @@ go_test(
         "@com_github_datadog_test_infra_definitions//resources/aws",
         "@com_github_datadog_test_infra_definitions//scenarios/aws/ecs",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_gopkg_yaml_v3//:yaml_v3",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ],
 )

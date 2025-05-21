@@ -33,6 +33,20 @@ go_library(
 
 go_test(
     name = "api_test",
-    srcs = ["clusterchecks_test.go"],
+    srcs = [
+        "clusterchecks_test.go",
+        "kubernetes_metadata_test.go",
+    ],
     embed = [":api"],
+    deps = [
+        "//comp/core",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
+        "//pkg/config/mock",
+        "//pkg/util/fxutil",
+        "@com_github_gorilla_mux//:mux",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
 )

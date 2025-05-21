@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/eventmonitor/config",
     visibility = ["//visibility:public"],
     deps = [
-        "//cmd/system-probe/config",
         "//pkg/config/setup",
+        "//pkg/system-probe/config",
         "//pkg/util/log",
     ],
 )

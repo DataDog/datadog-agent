@@ -72,7 +72,6 @@ go_test(
     deps = [
         "//pkg/config/env",
         "//pkg/config/mock",
-        "//pkg/config/setup",
         "//pkg/util/cache",
         "//pkg/util/cloudproviders/azure",
         "//pkg/util/cloudproviders/gce",

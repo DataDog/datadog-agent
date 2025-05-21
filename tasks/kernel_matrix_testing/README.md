@@ -38,20 +38,17 @@ This will download all the resources required to launch the VMs, and install all
 > This step should be done only once.
 
 ```bash
-dda inv -e kmt.init
-```
-
-> You may significantly speed up this part by only downloading specific VM images. Refer to [Listing possible VMs](#Listing Possible VMs) to see how to list available images and how to provide their names.
-
-```bash
+# Initialize with specific VM images
 dda inv -e kmt.init --images=ubuntu_22.04,debian_10
-```
 
-> You may skip the downloading part if you are not setting up VMs locally.
+# Initialize with all available VM images
+dda inv -e kmt.init --all-images
 
-```bash
+# Or initialize without downloading any images (lite mode)
 dda inv -e kmt.init --lite
 ```
+
+The `--images` parameter is required unless `--lite` or `--all-images` is specified. You can use `dda inv -e kmt.ls` to see available images.
 
 This command will also ask you for the default SSH key to use, so it does not need to be provided every time. You can configure the SSH key again at any time running `dda inv -e kmt.config-ssh-key`. See more details below
 

@@ -8,14 +8,13 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"math"
 	"math/rand"
 	"net"
-	"os"
+	"net/netip"
+	"slices"
 	"time"
-
-	"github.com/vishvananda/netns"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -24,11 +23,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/sack"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/tcp"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	cloudprovidersnetwork "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -157,20 +156,89 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 	return pathResult, nil
 }
 
+func makeSackParams(target net.IP, targetPort uint16, maxTTL uint8, timeout time.Duration) (sack.Params, error) {
+	targetAddr, ok := netip.AddrFromSlice(target)
+	if !ok {
+		return sack.Params{}, fmt.Errorf("invalid target IP")
+	}
+	parallelParams := common.TracerouteParallelParams{
+		MinTTL:            DefaultMinTTL,
+		MaxTTL:            maxTTL,
+		TracerouteTimeout: timeout,
+		PollFrequency:     100 * time.Millisecond,
+		SendDelay:         10 * time.Millisecond,
+	}
+	params := sack.Params{
+		Target:           netip.AddrPortFrom(targetAddr, targetPort),
+		HandshakeTimeout: timeout,
+		FinTimeout:       500 * time.Second,
+		ParallelParams:   parallelParams,
+		LoosenICMPSrc:    true,
+	}
+	return params, nil
+}
+
+var sackFallbackLimit = log.NewLogLimit(10, 5*time.Minute)
+
+type tracerouteImpl func() (*common.Results, error)
+
+func performTCPFallback(tcpMethod payload.TCPMethod, doSyn, doSack, doSynSocket tracerouteImpl) (*common.Results, error) {
+	if tcpMethod == "" {
+		tcpMethod = payload.TCPDefaultMethod
+	}
+	switch tcpMethod {
+	case payload.TCPConfigSYN:
+		return doSyn()
+	case payload.TCPConfigSACK:
+		return doSack()
+	case payload.TCPConfigSYNSocket:
+		return doSynSocket()
+	case payload.TCPConfigPreferSACK:
+		results, err := doSack()
+		var sackNotSupportedErr *sack.NotSupportedError
+		if errors.As(err, &sackNotSupportedErr) {
+			if sackFallbackLimit.ShouldLog() {
+				log.Infof("SACK traceroute not supported, falling back to SYN: %s", err)
+			}
+			return doSyn()
+		}
+		if err != nil {
+			return nil, fmt.Errorf("SACK traceroute failed fatally, not falling back: %w", err)
+		}
+		return results, nil
+	default:
+		return nil, fmt.Errorf("unexpected TCPMethod: %s", tcpMethod)
+	}
+}
+
 func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL uint8, timeout time.Duration) (payload.NetworkPath, error) {
 	destPort := cfg.DestPort
 	if destPort == 0 {
 		destPort = 80 // TODO: is this the default we want?
 	}
 
-	tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout)
+	doSyn := func() (*common.Results, error) {
+		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout, cfg.TCPSynCompatibilityMode)
+		return tr.TracerouteSequential()
+	}
+	doSack := func() (*common.Results, error) {
+		params, err := makeSackParams(target, destPort, maxTTL, timeout)
+		if err != nil {
+			return nil, fmt.Errorf("failed to make sack params: %w", err)
+		}
+		return sack.RunSackTraceroute(context.TODO(), params)
+	}
+	doSynSocket := func() (*common.Results, error) {
+		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout, cfg.TCPSynCompatibilityMode)
+		return tr.TracerouteSequentialSocket()
+	}
 
-	results, err := tr.TracerouteSequential()
+	results, err := performTCPFallback(cfg.TCPMethod, doSyn, doSack, doSynSocket)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}
 
-	pathResult, err := r.processResults(results, payload.ProtocolTCP, hname, cfg.DestHostname)
+	pathResult, err := r.processResults(results, payload.ProtocolTCP, hname, cfg.DestHostname, cfg.DestPort)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}
@@ -179,7 +247,7 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 	return pathResult, nil
 }
 
-func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, hname string, destinationHost string) (payload.NetworkPath, error) {
+func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, hname string, destinationHost string, destinationPort uint16) (payload.NetworkPath, error) {
 	if res == nil {
 		return payload.NetworkPath{}, nil
 	}
@@ -195,9 +263,10 @@ func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, 
 		},
 		Destination: payload.NetworkPathDestination{
 			Hostname:  destinationHost,
-			Port:      res.DstPort,
+			Port:      destinationPort,
 			IPAddress: res.Target.String(),
 		},
+		Tags: slices.Clone(res.Tags),
 	}
 
 	// get hardware interface info
@@ -256,26 +325,6 @@ func getPorts(configDestPort uint16) (uint16, uint16, bool) {
 	}
 	srcPort = DefaultSourcePort + uint16(rand.Intn(10000))
 	return destPort, srcPort, useSourcePort
-}
-
-func createGatewayLookup(telemetryComp telemetryComponent.Component) (network.GatewayLookup, uint32, error) {
-	rootNs, err := rootNsLookup()
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to look up root network namespace: %w", err)
-	}
-	defer rootNs.Close()
-
-	nsIno, err := kernel.GetInoForNs(rootNs)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get inode number: %w", err)
-	}
-
-	gatewayLookup := network.NewGatewayLookup(rootNsLookup, math.MaxUint32, telemetryComp)
-	return gatewayLookup, nsIno, nil
-}
-
-func rootNsLookup() (netns.NsHandle, error) {
-	return netns.GetFromPid(os.Getpid())
 }
 
 // retryGetNetworkID attempts to get the network ID from the cloud provider or config with a few retries

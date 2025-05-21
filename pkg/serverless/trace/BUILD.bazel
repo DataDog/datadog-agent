@@ -12,8 +12,8 @@ go_library(
     deps = [
         "//cmd/serverless-init/cloudservice",
         "//cmd/trace-agent/config/remote",
-        "//comp/api/authtoken/noneimpl",
         "//comp/core/config",
+        "//comp/core/ipc/impl-none",
         "//comp/core/tagger/def",
         "//comp/trace/compression/impl-zstd",
         "//comp/trace/config",

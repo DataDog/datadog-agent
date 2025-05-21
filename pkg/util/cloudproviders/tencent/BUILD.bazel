@@ -21,7 +21,7 @@ go_test(
     srcs = ["tencent_test.go"],
     embed = [":tencent"],
     deps = [
-        "//pkg/config/setup",
+        "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

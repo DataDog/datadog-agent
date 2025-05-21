@@ -47,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -133,7 +134,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			jmxlogger jmxlogger.Component,
 			settings settings.Component,
 			_ option.Option[gui.Component],
-			_ agenttelemetry.Component,
+			agenttelemetryComponent agenttelemetry.Component,
+			hostname hostnameinterface.Component,
 		) error {
 			defer StopAgentWithDefaults()
 
@@ -162,6 +164,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				cloudfoundrycontainer,
 				jmxlogger,
 				settings,
+				agenttelemetryComponent,
+				hostname,
 			)
 			if err != nil {
 				return err

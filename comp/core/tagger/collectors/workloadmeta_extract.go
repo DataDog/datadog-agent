@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
@@ -456,7 +455,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	taskTags.AddLow(tags.TaskName, task.Family)
 	taskTags.AddLow(tags.TaskFamily, task.Family)
 	taskTags.AddLow(tags.TaskVersion, task.Version)
-	taskTags.AddLow(tags.AwsAccount, strconv.Itoa(task.AWSAccountID))
+	taskTags.AddLow(tags.AwsAccount, task.AWSAccountID)
 	taskTags.AddLow(tags.Region, task.Region)
 	taskTags.AddOrchestrator(tags.TaskARN, task.ID)
 
@@ -623,9 +622,9 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 
 	tagList := taglist.NewTagList()
 
-	tagList.AddLow(tags.KubeGPUVendor, gpu.Vendor)
-	tagList.AddLow(tags.KubeGPUDevice, gpu.Device)
-	tagList.AddLow(tags.KubeGPUUUID, gpu.ID)
+	tagList.AddLow(tags.KubeGPUVendor, strings.ToLower(gpu.Vendor))
+	tagList.AddLow(tags.KubeGPUDevice, strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")))
+	tagList.AddLow(tags.KubeGPUUUID, strings.ToLower(gpu.ID))
 	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
 
 	low, orch, high, standard := tagList.Compute()

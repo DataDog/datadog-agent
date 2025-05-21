@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "install-exe_test",
+    srcs = ["install_test.go"],
+    deps = [
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/provisioners/aws/host/windows",
+        "//test/new-e2e/tests/installer/windows",
+    ],
+)

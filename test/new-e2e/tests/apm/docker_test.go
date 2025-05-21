@@ -160,9 +160,14 @@ func (s *DockerFakeintakeSuite) testStatsForService(enableClientSideStats bool) 
 		addSpanTags:           addSpanTags,
 		enableClientSideStats: enableClientSideStats,
 	})()
+
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testStatsForService(s.T(), c, service, expectPeerTag, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		testStatsHaveContainerTags(s.T(), c, service, s.Env().FakeIntake)
+	}, 2*time.Minute, 10*time.Second, "Failed finding container ID on stats")
 }
 
 func (s *DockerFakeintakeSuite) TestBasicTrace() {

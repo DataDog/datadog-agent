@@ -6,6 +6,7 @@ go_library(
         "const.go",
         "doc.go",
         "pod_autoscaler.go",
+        "pod_autoscaler_string.go",
         "pod_autoscaler_test_utils.go",
         "rc_schema.go",
         "recommendations.go",
@@ -14,7 +15,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/util/pointer",
         "@com_github_datadog_agent_payload_v5//autoscaling/kubernetes",
         "@com_github_datadog_datadog_operator_api//datadoghq/common",
         "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",

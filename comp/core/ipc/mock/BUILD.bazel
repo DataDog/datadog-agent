@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mock",
+    srcs = [
+        "doc.go",
+        "mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/ipc/mock",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//pkg/api/util",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//require",
+    ],
+)

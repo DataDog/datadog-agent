@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "report",
@@ -11,8 +11,16 @@ go_library(
     deps = [
         "//comp/forwarder/eventplatform",
         "//pkg/aggregator/sender",
+        "//pkg/collector/corechecks/network-devices/versa/client",
         "//pkg/networkdevice/integrations",
         "//pkg/networkdevice/metadata",
+        "//pkg/networkdevice/sender",
         "//pkg/util/log",
     ],
+)
+
+go_test(
+    name = "report_test",
+    srcs = ["sender_test.go"],
+    embed = [":report"],
 )
