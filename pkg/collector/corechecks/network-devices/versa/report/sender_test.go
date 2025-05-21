@@ -944,3 +944,94 @@ func TestParseDiskUsage(t *testing.T) {
 		})
 	}
 }
+
+func TestSendDeviceStatusMetrics(t *testing.T) {
+	tts := []struct {
+		name            string
+		input           map[string]float64
+		expectedMetrics []expectedMetric
+	}{
+		{
+			name: "single reachable device",
+			input: map[string]float64{
+				"192.168.1.2": 1.0,
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "device.reachable",
+					value: 1.0,
+					tags:  []string{"device_ip:192.168.1.2", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "device.unreachable",
+					value: 0.0,
+					tags:  []string{"device_ip:192.168.1.2", "device_namespace:default"},
+				},
+			},
+		},
+		{
+			name: "single unreachable device",
+			input: map[string]float64{
+				"192.168.1.2": 0.0,
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "device.reachable",
+					value: 0.0,
+					tags:  []string{"device_ip:192.168.1.2", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "device.unreachable",
+					value: 1.0,
+					tags:  []string{"device_ip:192.168.1.2", "device_namespace:default"},
+				},
+			},
+		},
+		{
+			name: "multiple devices",
+			input: map[string]float64{
+				"192.168.1.2": 0.0,
+				"10.0.0.1":    1.0,
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "device.reachable",
+					value: 0.0,
+					tags:  []string{"device_ip:192.168.1.2", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "device.unreachable",
+					value: 1.0,
+					tags:  []string{"device_ip:192.168.1.2", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "device.reachable",
+					value: 1.0,
+					tags:  []string{"device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "device.unreachable",
+					value: 0.0,
+					tags:  []string{"device_ip:10.0.0.1", "device_namespace:default"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSender := mocksender.NewMockSender("testID")
+			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			s := NewSender(mockSender, "default")
+			s.SendDeviceStatusMetrics(tt.input)
+
+			for _, metric := range tt.expectedMetrics {
+				mockSender.AssertMetric(t, "Gauge", metric.name, metric.value, "", metric.tags)
+			}
+
+			// Verify no unexpected metrics were sent
+			mockSender.AssertNumberOfCalls(t, "Gauge", len(tt.expectedMetrics))
+		})
+	}
+}
