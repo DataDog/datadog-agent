@@ -65,7 +65,7 @@ func osinit() {
 	}
 
 	// Fleet Automation
-	pkgconfigmodel.AddOverrideFunc(fleetConfigOverride)
+	pkgconfigmodel.AddOverrideFunc(FleetConfigOverride)
 }
 
 // fleetConfigOverride sets the fleet_policies_dir config value to the value set in the registry.
@@ -75,7 +75,7 @@ func osinit() {
 // Linux sets this option with an environment variable in the experiment's systemd unit file,
 // so we need a different approach for Windows. After the viper migration is complete, we can
 // consider replacing this override with a Windows Registry config source.
-func fleetConfigOverride(config pkgconfigmodel.Config) {
+func FleetConfigOverride(config pkgconfigmodel.Config) {
 	// Prioritize the value set in the config file / env var
 	if config.IsConfigured("fleet_policies_dir") {
 		return

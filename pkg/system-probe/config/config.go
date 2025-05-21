@@ -65,7 +65,7 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 		pkgconfigsetup.SystemProbe().AddConfigPath(defaultConfigDir)
 	}
 	// load the configuration
-	err := pkgconfigsetup.LoadSystemProbeCustom(pkgconfigsetup.SystemProbe(), pkgconfigsetup.Datadog().GetEnvVars())
+	err := pkgconfigsetup.LoadCustom(pkgconfigsetup.SystemProbe(), pkgconfigsetup.Datadog().GetEnvVars())
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message
@@ -81,15 +81,9 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 		}
 	}
 
-	// Load the remote configuration
-	if fleetPoliciesDirPath == "" {
-		fleetPoliciesDirPath = pkgconfigsetup.SystemProbe().GetString("fleet_policies_dir")
-	}
+	// if fleetPoliciesDirPath was provided in the command line, copy it to the config
 	if fleetPoliciesDirPath != "" {
-		err := pkgconfigsetup.SystemProbe().MergeFleetPolicy(path.Join(fleetPoliciesDirPath, "system-probe.yaml"))
-		if err != nil {
-			return nil, err
-		}
+		pkgconfigsetup.SystemProbe().Set("fleet_policies_dir", fleetPoliciesDirPath, pkgconfigmodel.SourceAgentRuntime)
 	}
 
 	return load()

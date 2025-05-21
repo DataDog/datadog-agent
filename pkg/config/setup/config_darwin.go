@@ -42,6 +42,6 @@ const (
 func osinit() {
 }
 
-func fleetConfigOverride(config pkgconfigmodel.Config) {
+func FleetConfigOverride(config pkgconfigmodel.Config) {
 	// no-op on not Windows
 }

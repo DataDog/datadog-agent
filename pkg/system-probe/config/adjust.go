@@ -49,6 +49,7 @@ func Adjust(cfg model.Config) {
 	adjustNetwork(cfg)
 	adjustUSM(cfg)
 	adjustSecurity(cfg)
+	adjustFleet(cfg)
 
 	if cfg.GetBool(spNS("process_service_inference", "enabled")) &&
 		!usmEnabled &&

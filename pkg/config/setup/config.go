@@ -2131,18 +2131,6 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 	return warnings, setupFipsEndpoints(config)
 }
 
-// LoadSystemProbeCustom loads the system-probe config in the given config
-func LoadSystemProbeCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
-	// Apply config overrides after config is loaded, and regardless of whether config load was successful or not
-	// This is meant to mimic pkgconfigmodel.ApplyOverrideFuncs, which we shouldn't use directly here as
-	// most overrides appear specific to the Agent configuration.
-	defer func() {
-		fleetConfigOverride(config)
-	}()
-
-	return LoadCustom(config, additionalKnownEnvVars)
-}
-
 // LoadCustom reads config into the provided config object
 func LoadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
 	log.Info("Starting to load the configuration")
