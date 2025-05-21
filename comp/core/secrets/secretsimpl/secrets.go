@@ -231,7 +231,7 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	r.refreshInterval = time.Duration(params.RefreshInterval) * time.Second
 	r.refreshIntervalScatter = params.RefreshIntervalScatter
 	if r.refreshInterval != 0 {
-		r.startRefreshRoutine()
+		r.startRefreshRoutine(nil)
 	}
 
 	r.commandAllowGroupExec = params.GroupExecPerm
@@ -255,13 +255,19 @@ func isEnc(str string) (bool, string) {
 	return false, ""
 }
 
-func (r *secretResolver) startRefreshRoutine() {
+func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
 	if r.ticker != nil || r.refreshInterval == 0 {
 		return
 	}
 
 	if r.refreshIntervalScatter {
-		r.scatterDuration = time.Duration(rand.Int63n(int64(r.refreshInterval))) / time.Second * time.Second
+		var int63 int64
+		if rd == nil {
+			int63 = rand.Int63n(int64(r.refreshInterval))
+		} else {
+			int63 = rd.Int63n(int64(r.refreshInterval))
+		}
+		r.scatterDuration = time.Duration(int63) / time.Second * time.Second
 		log.Infof("first secret refresh will happen in %s", r.scatterDuration)
 	} else {
 		r.scatterDuration = r.refreshInterval

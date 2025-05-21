@@ -8,7 +8,6 @@ package agentimpl
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"time"
 
@@ -46,8 +45,6 @@ func runAgentSidekicks(ag component) error {
 	if err := coredump.Setup(pkgconfigsetup.Datadog()); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
-
-	rand.Seed(time.Now().UTC().UnixNano())
 
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		cf, err := newConfigFetcher(ag.ipc)
