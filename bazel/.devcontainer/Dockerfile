@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=linux-glibc-2-17-x64
-FROM registry.ddbuild.io/ci/datadog-agent-buildimages/${BASE_IMAGE}:v60428782-34a49350
+FROM registry.ddbuild.io/ci/datadog-agent-buildimages/${BASE_IMAGE}:v65307386-1b9b5175
 
 RUN curl -LO https://github.com/bazelbuild/bazelisk/releases/download/v1.20.0/bazelisk-linux-$(dpkg --print-architecture) \
     && chmod +x /bazelisk-linux-$(dpkg --print-architecture) \
