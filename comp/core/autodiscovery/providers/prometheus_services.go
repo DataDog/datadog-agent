@@ -136,9 +136,7 @@ func (p *PrometheusServicesConfigProvider) String() string {
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (p *PrometheusServicesConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
+func (p *PrometheusServicesConfigProvider) Collect(_ context.Context) ([]integration.Config, error) {
 	services, err := p.api.ListServices()
 	if err != nil {
 		return nil, err
@@ -197,9 +195,7 @@ func (p *PrometheusServicesConfigProvider) setUpToDate(v bool) {
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (p *PrometheusServicesConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
+func (p *PrometheusServicesConfigProvider) IsUpToDate(_ context.Context) (bool, error) {
 	p.RLock()
 	defer p.RUnlock()
 	return p.upToDate, nil
@@ -261,8 +257,7 @@ func (p *PrometheusServicesConfigProvider) invalidateIfChanged(old, obj interfac
 	}
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
-func (p *PrometheusServicesConfigProvider) invalidateIfAddedEndpoints(obj interface{}) {
+func (p *PrometheusServicesConfigProvider) invalidateIfAddedEndpoints(_ interface{}) {
 	// An endpoint can be added after a service is created, in which case we need to re-run Collect
 	p.setUpToDate(false)
 }

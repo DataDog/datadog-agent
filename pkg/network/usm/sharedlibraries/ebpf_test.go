@@ -8,8 +8,9 @@
 package sharedlibraries
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
-
 	"sync"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
 type EbpfProgramSuite struct {
@@ -247,4 +249,21 @@ func (s *EbpfProgramSuite) TestMultipleProgramsReceiveMultipleLibsetEvents() {
 
 	require.Equal(t, fooPathCuda, receivedEventCuda.String())
 	require.Equal(t, commandCuda.Process.Pid, int(receivedEventCuda.Pid))
+}
+
+func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier) {
+	fullPath := filepath.Join(t.TempDir(), name)
+
+	f, err := os.Create(fullPath)
+	f.WriteString("foobar")
+	require.NoError(t, err)
+	f.Close()
+	t.Cleanup(func() {
+		os.RemoveAll(fullPath)
+	})
+
+	pathID, err := utils.NewPathIdentifier(fullPath)
+	require.NoError(t, err)
+
+	return fullPath, pathID
 }

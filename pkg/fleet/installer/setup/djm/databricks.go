@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	databricksInjectorVersion   = "0.36.0-1"
+	databricksInjectorVersion   = "0.39.1-1"
 	databricksJavaTracerVersion = "1.49.0-1"
 	databricksAgentVersion      = "7.63.3-1"
 )
@@ -82,7 +82,6 @@ var (
 
 // SetupDatabricks sets up the Databricks environment
 func SetupDatabricks(s *common.Setup) error {
-	s.Packages.InstallInstaller()
 	s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
 	s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, databricksJavaTracerVersion)
@@ -298,6 +297,7 @@ func loadLogProcessingRules(s *common.Setup) {
 			logsConfig := config.LogsConfig{ProcessingRules: processingRules}
 			s.Config.DatadogYAML.LogsConfig = logsConfig
 			s.Out.WriteString(fmt.Sprintf("Loaded %d log processing rule(s) from DD_LOGS_CONFIG_PROCESSING_RULES\n", len(processingRules)))
+			s.Span.SetTag("host_tag_set.log_rules", len(processingRules))
 		}
 	}
 }
