@@ -226,7 +226,7 @@ func TestMigrateRepositoryWithoutExperiment(t *testing.T) {
 	err = repository.Cleanup(context.Background())
 	assert.NoError(t, err)
 	assertLinkTarget(t, repository, stableVersionLink, "v1")
-	assertLinkTarget(t, repository, experimentVersionLink, "v1")
+	assertLinkTarget(t, repository, experimentVersionLink, stableVersionLink)
 }
 
 func TestDelete(t *testing.T) {
