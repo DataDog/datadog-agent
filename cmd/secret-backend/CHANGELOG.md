@@ -1,5 +1,15 @@
 # CHANGELOG - datadog-secret-backend
 
+## 0.2.3 / 2025-05-20
+
+* Bump go-git/go-git/v5 to `v5.13.0`
+* Bump golang-jwt/jwt/v4 to `v4.5.2`
+* Bump golang-jwt/jwt/v5 to `v5.2.2`
+* Bump hashicorp/vault to `v1.19.3`
+* Bump go-jose/go-jose/v3 to `v3.0.4`
+* Bump go-jose/go-jose/v4 to `v4.0.5`
+* Limiting workflow permissions to `contents: read` and `pull-requests: write`
+
 ## 0.2.2 / 2025-05-19
 
 * Bump hashicorp/vault/api from `v1.15.0` to `v1.16.0`
