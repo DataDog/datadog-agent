@@ -13,6 +13,7 @@ import (
 	"net/netip"
 	"strings"
 	"time"
+	"unique"
 
 	"github.com/dustin/go-humanize"
 	"go4.org/intern"
@@ -253,7 +254,7 @@ type ConnectionStats struct {
 	// move pointer fields first to reduce number of bytes GC has to scan
 	IPTranslation *IPTranslation
 	Via           *Via
-	Tags          []*intern.Value
+	Tags          []unique.Handle[string]
 	ContainerID   struct {
 		Source, Dest *intern.Value
 	}

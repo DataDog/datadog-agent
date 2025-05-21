@@ -11,6 +11,7 @@ package events
 import (
 	"testing"
 	"time"
+	"unique"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,10 +56,10 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 		p := _p.(*Process)
 		assert.Equal(t, uint32(2233), p.Pid)
 		assert.Equal(t, now.UnixNano(), p.StartTime)
-		assert.EqualValues(t, []*intern.Value{
-			intern.GetByString("env:env"),
-			intern.GetByString("service:service"),
-			intern.GetByString("version:version"),
+		assert.EqualValues(t, []unique.Handle[string]{
+			unique.Make("env:env"),
+			unique.Make("service:service"),
+			unique.Make("version:version"),
 		}, p.Tags)
 		assert.NotNil(t, p.ContainerID, "container ID should not be nil")
 		assert.Equal(t, "cid_exec", p.ContainerID.Get().(string), "container id mismatch")

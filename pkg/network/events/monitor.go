@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"unique"
 
 	"go.uber.org/atomic"
 	"go4.org/intern"
@@ -46,7 +47,7 @@ var (
 // Process is a process
 type Process struct {
 	Pid         uint32
-	Tags        []*intern.Value
+	Tags        []unique.Handle[string]
 	ContainerID *intern.Value
 	StartTime   int64
 	Expiry      int64
@@ -136,12 +137,12 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 
 	envs := model.FilterEnvs(ev.GetProcessEnvp(), envFilter)
 	if len(envs) > 0 {
-		p.Tags = make([]*intern.Value, 0, len(envs))
+		p.Tags = make([]unique.Handle[string], 0, len(envs))
 		for _, env := range envs {
 			k, v, _ := strings.Cut(env, "=")
 			if len(v) > 0 {
 				if t := envTagNames[k]; t != "" {
-					p.Tags = append(p.Tags, intern.GetByString(t+":"+v))
+					p.Tags = append(p.Tags, unique.Make(t+":"+v))
 					tagsFound[k] = struct{}{}
 				}
 			}

@@ -16,8 +16,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
-
-	"go4.org/intern"
+	"unique"
 
 	"golang.org/x/sys/windows"
 
@@ -365,7 +364,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	}
 
 	if len(p.Tags) > 0 {
-		c.Tags = make([]*intern.Value, len(p.Tags))
+		c.Tags = make([]unique.Handle[string], len(p.Tags))
 		copy(c.Tags, p.Tags)
 	}
 

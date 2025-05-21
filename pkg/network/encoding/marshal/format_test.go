@@ -8,10 +8,10 @@ package marshal
 import (
 	"runtime"
 	"testing"
+	"unique"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/require"
-	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
@@ -95,10 +95,10 @@ func BenchmarkConnectionReset(b *testing.B) {
 func BenchmarkFormatTags(b *testing.B) {
 	tagSet := network.NewTagsSet()
 	var c network.ConnectionStats
-	c.Tags = []*intern.Value{
-		intern.GetByString("env:env"),
-		intern.GetByString("version:version"),
-		intern.GetByString("service:service"),
+	c.Tags = []unique.Handle[string]{
+		unique.Make("env:env"),
+		unique.Make("version:version"),
+		unique.Make("service:service"),
 	}
 	b.ReportAllocs()
 	b.ResetTimer()

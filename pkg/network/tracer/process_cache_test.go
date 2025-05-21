@@ -10,6 +10,7 @@ package tracer
 import (
 	"fmt"
 	"testing"
+	"unique"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,7 +49,7 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 	})
 
 	t.Run("without container id, with tags", func(t *testing.T) {
-		entry := events.Process{Pid: 1234, Tags: []*intern.Value{intern.GetByString("foo"), intern.GetByString("bar")}}
+		entry := events.Process{Pid: 1234, Tags: []unique.Handle[string]{unique.Make("foo"), unique.Make("bar")}}
 
 		testFunc(t, t.Name(), &entry)
 	})
@@ -57,7 +58,7 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 		entry := events.Process{
 			Pid:         1234,
 			ContainerID: intern.GetByString("container"),
-			Tags:        []*intern.Value{intern.GetByString("foo"), intern.GetByString("bar")},
+			Tags:        []unique.Handle[string]{unique.Make("foo"), unique.Make("bar")},
 		}
 
 		testFunc(t, t.Name(), &entry)
@@ -205,7 +206,7 @@ func TestProcessCacheAdd(t *testing.T) {
 		pc.add(&events.Process{
 			Pid:       1234,
 			StartTime: 1,
-			Tags:      []*intern.Value{intern.GetByString("foo:bar")},
+			Tags:      []unique.Handle[string]{unique.Make("foo:bar")},
 		})
 
 		p, ok := pc.Get(1234, 1)
@@ -213,12 +214,12 @@ func TestProcessCacheAdd(t *testing.T) {
 		require.NotNil(t, p)
 		assert.Equal(t, uint32(1234), p.Pid)
 		assert.Equal(t, int64(1), p.StartTime)
-		assert.Contains(t, p.Tags, intern.GetByString("foo:bar"))
+		assert.Contains(t, p.Tags, unique.Make("foo:bar"))
 
 		pc.add(&events.Process{
 			Pid:       1234,
 			StartTime: 1,
-			Tags:      []*intern.Value{intern.GetByString("bar:foo")},
+			Tags:      []unique.Handle[string]{unique.Make("bar:foo")},
 		})
 
 		p, ok = pc.Get(1234, 1)
@@ -226,8 +227,8 @@ func TestProcessCacheAdd(t *testing.T) {
 		require.NotNil(t, p)
 		assert.Equal(t, uint32(1234), p.Pid)
 		assert.Equal(t, int64(1), p.StartTime)
-		assert.Contains(t, p.Tags, intern.GetByString("bar:foo"))
-		assert.NotContains(t, p.Tags, intern.GetByString("foo:bar"))
+		assert.Contains(t, p.Tags, unique.Make("bar:foo"))
+		assert.NotContains(t, p.Tags, unique.Make("foo:bar"))
 	})
 }
 

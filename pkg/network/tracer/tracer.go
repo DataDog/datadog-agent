@@ -14,11 +14,11 @@ import (
 	"io"
 	"sync"
 	"time"
+	"unique"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
-	"go4.org/intern"
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -362,7 +362,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	}
 
 	if len(p.Tags) > 0 {
-		c.Tags = make([]*intern.Value, len(p.Tags))
+		c.Tags = make([]unique.Handle[string], len(p.Tags))
 		copy(c.Tags, p.Tags)
 	}
 

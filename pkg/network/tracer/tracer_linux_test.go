@@ -29,6 +29,7 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unique"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -2431,10 +2432,10 @@ func BenchmarkAddProcessInfo(b *testing.B) {
 	c.LastUpdateEpoch = uint64(ts)
 	tr.processCache.add(&events.Process{
 		Pid: 1,
-		Tags: []*intern.Value{
-			intern.GetByString("env:env"),
-			intern.GetByString("version:version"),
-			intern.GetByString("service:service"),
+		Tags: []unique.Handle[string]{
+			unique.Make("env:env"),
+			unique.Make("version:version"),
+			unique.Make("service:service"),
 		},
 		ContainerID: intern.GetByString("container"),
 		StartTime:   time.Now().Unix(),

@@ -285,7 +285,7 @@ func formatTags(c network.ConnectionStats, tagsSet *network.TagsSet, connDynamic
 
 	// other tags, e.g., from process env vars like DD_ENV, etc.
 	for _, tag := range c.Tags {
-		t := tag.Get().(string)
+		t := tag.Value()
 		checksum ^= murmur3.StringSum32(t)
 		tagsIdx = append(tagsIdx, tagsSet.Add(t))
 	}

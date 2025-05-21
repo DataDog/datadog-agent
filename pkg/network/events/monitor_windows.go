@@ -11,8 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
-	"go4.org/intern"
+	"unique"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,23 +26,23 @@ func getProcessStartTime(ev *model.Event) time.Time {
 	return time.Time{}
 }
 
-func makeTagsSlice(already map[string]struct{}, apmtags iisconfig.APMTags) []*intern.Value {
-	tags := make([]*intern.Value, 0, 3)
+func makeTagsSlice(already map[string]struct{}, apmtags iisconfig.APMTags) []unique.Handle[string] {
+	tags := make([]unique.Handle[string], 0, 3)
 	if _, found := already["DD_SERVICE"]; !found {
 		if len(apmtags.DDService) > 0 {
-			tags = append(tags, intern.GetByString("service"+":"+apmtags.DDService))
+			tags = append(tags, unique.Make("service"+":"+apmtags.DDService))
 			already["DD_SERVICE"] = struct{}{}
 		}
 	}
 	if _, found := already["DD_ENV"]; !found {
 		if len(apmtags.DDEnv) > 0 {
-			tags = append(tags, intern.GetByString("env"+":"+apmtags.DDEnv))
+			tags = append(tags, unique.Make("env"+":"+apmtags.DDEnv))
 			already["DD_ENV"] = struct{}{}
 		}
 	}
 	if _, found := already["DD_VERSION"]; !found {
 		if len(apmtags.DDVersion) > 0 {
-			tags = append(tags, intern.GetByString("version"+":"+apmtags.DDVersion))
+			tags = append(tags, unique.Make("version"+":"+apmtags.DDVersion))
 			already["DD_VERSION"] = struct{}{}
 		}
 	}
@@ -53,14 +52,14 @@ func makeTagsSlice(already map[string]struct{}, apmtags iisconfig.APMTags) []*in
 	return tags
 }
 
-func getAPMTags(already map[string]struct{}, filename string) []*intern.Value {
+func getAPMTags(already map[string]struct{}, filename string) []unique.Handle[string] {
 
 	dir := filepath.Dir(filename)
 	if dir == "" {
 		return nil
 	}
 
-	tags := make([]*intern.Value, 0, 3)
+	tags := make([]unique.Handle[string], 0, 3)
 	// see if there's an app.config in the directory
 	appConfig := filename + ".config"
 	ddJSON := filepath.Join(dir, "datadog.json")
