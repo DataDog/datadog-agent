@@ -101,6 +101,17 @@ func (h *RoleHandlers) ResourceVersion(ctx processors.ProcessorContext, resource
 	return resource.(*rbacv1.Role).ResourceVersion
 }
 
+// GetMetadataTags returns the tags in the metadata model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *RoleHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
+	m, ok := resourceMetadataModel.(*model.Role)
+	if !ok {
+		return nil
+	}
+	return m.Tags
+}
+
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
 //

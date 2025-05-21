@@ -163,8 +163,8 @@ type Handlers interface {
 	// ResourceVersion returns the resource Version.
 	ResourceVersion(ctx ProcessorContext, resource, resourceModel interface{}) string
 
-	// ResourceTaggerTags returns the resource tags.
-	ResourceTaggerTags(ctx ProcessorContext, resource interface{}) []string
+	// GetMetadataTags returns the resource tags with the metadata
+	GetMetadataTags(ctx ProcessorContext, resourceMetadataModel interface{}) []string
 
 	// ScrubBeforeExtraction replaces sensitive information in the resource
 	// before resource extraction.
@@ -273,7 +273,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 			Version:         "v1",
 			ContentType:     "json",
 			// include collector tags as buffered Manifests share types, and only ExtraTags should be included in CollectorManifests
-			Tags:         util.ImmutableTagsJoin(ctx.GetCollectorTags(), p.h.ResourceTaggerTags(ctx, resource)),
+			Tags:         util.ImmutableTagsJoin(ctx.GetCollectorTags(), p.h.GetMetadataTags(ctx, resourceMetadataModel)),
 			IsTerminated: ctx.IsTerminatedResources(),
 		})
 	}

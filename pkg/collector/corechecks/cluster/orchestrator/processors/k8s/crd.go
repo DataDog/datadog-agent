@@ -96,6 +96,13 @@ func (crd *CRDHandlers) ResourceVersion(ctx processors.ProcessorContext, resourc
 	return resource.(*v1.CustomResourceDefinition).ResourceVersion
 }
 
+// GetMetadataTags returns the tags in the metadata model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (crd *CRDHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
+	return nil
+}
+
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
 //
