@@ -196,10 +196,15 @@ func TestGetMetricsWithNonExistingEntityDoesNotPanic(t *testing.T) {
 		},
 	}
 
-
 	assert.NotPanics(t, func() {
 		queryResult := store.GetMetricsRaw("container.cpu.usage", "test-ns", "test-pod", "")
+		assert.Equal(t, 0, len(queryResult.Results))
+	})
 
+	// add to key2ValuesMap but with nil entity
+	store.key2ValuesMap[1] = nil
+	assert.NotPanics(t, func() {
+		queryResult := store.GetMetricsRaw("container.cpu.usage", "test-ns", "test-pod", "")
 		assert.Equal(t, 0, len(queryResult.Results))
 	})
 }

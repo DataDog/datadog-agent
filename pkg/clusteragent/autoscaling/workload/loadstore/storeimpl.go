@@ -170,7 +170,8 @@ func (es *EntityStore) GetMetricsRaw(metricName string,
 					continue
 				}
 
-				if entity, ok := es.key2ValuesMap[entityHash]; ok {
+				entity, exists := es.key2ValuesMap[entityHash]
+				if exists && entity != nil {
 					podList.ContainerValues[containerNameKey] = convertsToEntityValueSlice(entity.valueQueue.data)
 				}
 			}
