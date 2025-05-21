@@ -267,37 +267,37 @@ var VPNMetadataConfig = profiledefinition.MetadataConfig{
 	},
 	"cisco_ipsec_endpoint": {
 		Fields: map[string]profiledefinition.MetadataField{
-			"local_inside_ip_type": {
+			"local_addr_type": {
 				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.4.1.9.9.171.1.3.3.1.3",
 					Name: "cipSecEndPtLocalType",
 				},
 			},
-			"local_inside_ip1": {
+			"local_addr1": {
 				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.4.1.9.9.171.1.3.3.1.4",
 					Name: "cipSecEndPtLocalAddr1",
 				},
 			},
-			"local_inside_ip2": {
+			"local_addr2": {
 				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.4.1.9.9.171.1.3.3.1.5",
 					Name: "cipSecEndPtLocalAddr2",
 				},
 			},
-			"remote_inside_ip_type": {
+			"remote_addr_type": {
 				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.4.1.9.9.171.1.3.3.1.9",
 					Name: "cipSecEndPtRemoteType",
 				},
 			},
-			"remote_inside_ip1": {
+			"remote_addr1": {
 				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.4.1.9.9.171.1.3.3.1.10",
 					Name: "cipSecEndPtRemoteAddr1",
 				},
 			},
-			"remote_inside_ip2": {
+			"remote_addr2": {
 				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.4.1.9.9.171.1.3.3.1.11",
 					Name: "cipSecEndPtRemoteAddr2",
