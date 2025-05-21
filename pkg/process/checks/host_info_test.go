@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
+	ipcclientmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -33,8 +34,9 @@ func TestGetHostname(t *testing.T) {
 		t.Skip("TestGetHostname is known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
 	cfg := configmock.New(t)
+	ipc := ipcclientmock.New(t)
 	ctx := context.Background()
-	h, err := getHostname(ctx, cfg.GetString("process_config.dd_agent_bin"), 0)
+	h, err := getHostname(ctx, cfg.GetString("process_config.dd_agent_bin"), 0, ipc)
 	assert.Nil(t, err)
 	// verify we fall back to getting os hostname
 	expectedHostname, _ := os.Hostname()
@@ -55,10 +57,10 @@ func TestGetHostnameFromGRPC(t *testing.T) {
 
 	t.Run("hostname returns from grpc", func(t *testing.T) {
 		hostname, err := getHostnameFromGRPC(ctx,
-			func(_ context.Context, _, _ string, _ func() *tls.Config, _ ...grpc.DialOption) (pb.AgentClient, error) {
+			func(_ context.Context, _, _ string, _ *tls.Config, _ ...grpc.DialOption) (pb.AgentClient, error) {
 				return mockClient, nil
 			},
-			func() *tls.Config { return &tls.Config{} },
+			&tls.Config{},
 			pkgconfigsetup.DefaultGRPCConnectionTimeoutSecs*time.Second)
 
 		assert.Nil(t, err)
@@ -68,10 +70,10 @@ func TestGetHostnameFromGRPC(t *testing.T) {
 	t.Run("grpc client is unavailable", func(t *testing.T) {
 		grpcErr := errors.New("no grpc client")
 		hostname, err := getHostnameFromGRPC(ctx,
-			func(_ context.Context, _, _ string, _ func() *tls.Config, _ ...grpc.DialOption) (pb.AgentClient, error) {
+			func(_ context.Context, _, _ string, _ *tls.Config, _ ...grpc.DialOption) (pb.AgentClient, error) {
 				return nil, grpcErr
 			},
-			func() *tls.Config { return &tls.Config{} },
+			&tls.Config{},
 			pkgconfigsetup.DefaultGRPCConnectionTimeoutSecs*time.Second)
 
 		assert.NotNil(t, err)
@@ -100,6 +102,7 @@ func TestResolveHostname(t *testing.T) {
 	}
 	osHostname, err := os.Hostname()
 	require.NoError(t, err, "failed to get hostname from OS")
+	ipc := ipcclientmock.New(t)
 
 	testCases := []struct {
 		name        string
@@ -168,7 +171,7 @@ func TestResolveHostname(t *testing.T) {
 				coreAgentGetHostname = tc.coreAgentHostname
 			}
 
-			hostName, err := resolveHostName(cfg)
+			hostName, err := resolveHostName(cfg, ipc)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedHostname, hostName)
 		})

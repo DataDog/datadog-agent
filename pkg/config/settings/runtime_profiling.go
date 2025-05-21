@@ -9,9 +9,6 @@ import (
 	"fmt"
 
 	"github.com/fatih/color"
-
-	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // ProfilingOpts defines the options used for profiling
@@ -24,10 +21,6 @@ type ProfilingOpts struct {
 
 // ExecWithRuntimeProfilingSettings runs the callback func with the given runtime profiling settings
 func ExecWithRuntimeProfilingSettings(callback func(), opts ProfilingOpts, settingsClient Client) error {
-	if err := util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
-		return fmt.Errorf("unable to set up authentication token: %v", err)
-	}
-
 	prev := make(map[string]interface{})
 	defer resetRuntimeProfilingSettings(prev, settingsClient)
 
