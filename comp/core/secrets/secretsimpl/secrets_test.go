@@ -873,7 +873,7 @@ func TestStartRefreshRoutineWithScatter(t *testing.T) {
 					"test-handle": fmt.Sprintf("updated-value-%d", refreshCalls),
 				}, nil
 			}
-			resolver.startRefreshRoutine()
+			resolver.startRefreshRoutine(tc.r)
 
 			changeDetected := make(chan struct{}, 3)
 			resolver.SubscribeToChanges(func(_, _ string, _ []string, _, _ any) {
