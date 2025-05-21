@@ -17,7 +17,7 @@ import (
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 // newRequest creates a new request for this client.
 func (client *Client) newRequest(method, uri string, body io.Reader) (*http.Request, error) {
-	return http.NewRequest(method, client.endpoint+uri, body)
+	return http.NewRequest(method, client.directorEndpoint+uri, body)
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
@@ -93,6 +93,65 @@ func (client *Client) get(endpoint string, params map[string]string) ([]byte, er
 // get wraps client.get with generic type content and unmarshalling (methods can't use generics)
 func get[T Content](client *Client, endpoint string, params map[string]string) (*T, error) {
 	bytes, err := client.get(endpoint, params)
+	if err != nil {
+		return nil, err
+	}
+
+	var data T
+
+	err = json.Unmarshal(bytes, &data)
+	if err != nil {
+		log.Tracef("Failed to unmarshal response: %s", err)
+		// Log the response body for debugging
+		log.Tracef("Response body: %s", string(bytes))
+		return nil, err
+	}
+
+	return &data, nil
+}
+
+// TODO: remove this, trying this out for testing
+func (client *Client) getAnalytics(endpoint string, params map[string]string) ([]byte, error) {
+	req, err := http.NewRequest("GET", "https://"+client.directorURL.Hostname()+endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// use token auth
+	req.Header.Add("X-CSRF-TOKEN", client.token)
+
+	query := req.URL.Query()
+	for key, value := range params {
+		query.Add(key, value)
+	}
+	req.URL.RawQuery = query.Encode()
+
+	var bytes []byte
+	var statusCode int
+
+	for attempts := 0; attempts < client.maxAttempts; attempts++ {
+		// TODO: uncomment when OAuth is implemented
+		// currently BASIC Auth is being used
+		// err = client.authenticate()
+		// if err != nil {
+		// 	return nil, err
+		// }
+
+		bytes, statusCode, err = client.do(req)
+
+		if err == nil && isValidStatusCode(statusCode) {
+			// Got a valid response, stop retrying
+			return bytes, nil
+		}
+	}
+
+	return nil, fmt.Errorf("%s http responded with %d code", endpoint, statusCode)
+}
+
+// TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
+// get wraps client.get with generic type content and unmarshalling (methods can't use generics)
+func getAnalytics[T Content](client *Client, endpoint string, params map[string]string) (*T, error) {
+	bytes, err := client.getAnalytics(endpoint, params)
 	if err != nil {
 		return nil, err
 	}

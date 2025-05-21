@@ -29,13 +29,18 @@ const (
 	defaultHTTPScheme  = "https"
 )
 
+// Useful for mocking
+var timeNow = time.Now
+
 // Client is an HTTP Versa client.
 type Client struct {
-	httpClient *http.Client
-	endpoint   string
-	// TODO: add back with OAuth
-	// token               string
-	// tokenExpiry         time.Time
+	httpClient        *http.Client
+	directorURL       url.URL // TODO: remove this, testing with csrf auth
+	directorEndpoint  string
+	analyticsEndpoint string
+	// TODO: replace with OAuth
+	token               string
+	tokenExpiry         time.Time
 	username            string
 	password            string
 	authenticationMutex *sync.Mutex
@@ -49,8 +54,8 @@ type Client struct {
 type ClientOptions func(*Client)
 
 // NewClient creates a new Versa HTTP client.
-func NewClient(endpoint, username, password string, useHTTP bool, options ...ClientOptions) (*Client, error) {
-	err := validateParams(endpoint, username, password)
+func NewClient(directorEndpoint, analyticsEndpoint, username, password string, useHTTP bool, options ...ClientOptions) (*Client, error) {
+	err := validateParams(directorEndpoint, analyticsEndpoint, username, password)
 	if err != nil {
 		return nil, err
 	}
@@ -70,14 +75,21 @@ func NewClient(endpoint, username, password string, useHTTP bool, options ...Cli
 		scheme = "http"
 	}
 
-	endpointURL := url.URL{
+	directorEndpointURL := url.URL{
 		Scheme: scheme,
-		Host:   endpoint,
+		Host:   directorEndpoint,
+	}
+
+	analyticsEndpointURL := url.URL{
+		Scheme: scheme,
+		Host:   analyticsEndpoint,
 	}
 
 	client := &Client{
 		httpClient:          httpClient,
-		endpoint:            endpointURL.String(),
+		directorURL:         directorEndpointURL,
+		directorEndpoint:    directorEndpointURL.String(),
+		analyticsEndpoint:   analyticsEndpointURL.String(),
 		username:            username,
 		password:            password,
 		authenticationMutex: &sync.Mutex{},
@@ -94,9 +106,12 @@ func NewClient(endpoint, username, password string, useHTTP bool, options ...Cli
 	return client, nil
 }
 
-func validateParams(endpoint, username, password string) error {
-	if endpoint == "" {
-		return fmt.Errorf("invalid endpoint")
+func validateParams(directorEndpoint, analyticsEndpoint, username, password string) error {
+	if directorEndpoint == "" {
+		return fmt.Errorf("invalid director endpoint")
+	}
+	if analyticsEndpoint == "" {
+		return fmt.Errorf("invalid analytics endpoint")
 	}
 	if username == "" {
 		return fmt.Errorf("invalid username")
@@ -294,6 +309,11 @@ func parseAaData(data [][]interface{}) ([]SLAMetrics, error) {
 
 // GetSLAMetrics retrieves SLA metrics from the Versa Analytics API
 func (client *Client) GetSLAMetrics() ([]SLAMetrics, error) {
+	// TODO: move analytics auth to versa.go, this is just for testing
+	err := client.login()
+	if err != nil {
+		return nil, fmt.Errorf("failed to log in to Versa Analytics: %v", err)
+	}
 	analyticsURL := buildAnalyticsPath("datadog", "SDWAN", "15minutesAgo", "slam(localsite,remotesite,localaccckt,remoteaccckt,fc)", "tableData", []string{
 		"delay",
 		"fwdDelayVar",
@@ -303,7 +323,7 @@ func (client *Client) GetSLAMetrics() ([]SLAMetrics, error) {
 		"pduLossRatio",
 	})
 
-	resp, err := get[SLAMetricsResponse](client, analyticsURL, nil)
+	resp, err := getAnalytics[SLAMetricsResponse](client, analyticsURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get SLA metrics: %v", err)
 	}
