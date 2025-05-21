@@ -67,9 +67,7 @@ func (z *ZookeeperConfigProvider) String() string {
 
 // Collect retrieves templates from Zookeeper, builds Config objects and returns them
 // TODO: cache templates and last-modified index to avoid future full crawl if no template changed.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (z *ZookeeperConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
+func (z *ZookeeperConfigProvider) Collect(_ context.Context) ([]integration.Config, error) {
 	configs := make([]integration.Config, 0)
 	identifiers, err := z.getIdentifiers(z.templateDir)
 	if err != nil {
@@ -88,9 +86,7 @@ func (z *ZookeeperConfigProvider) Collect(ctx context.Context) ([]integration.Co
 }
 
 // IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Zookeeper's data.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (z *ZookeeperConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
+func (z *ZookeeperConfigProvider) IsUpToDate(_ context.Context) (bool, error) {
 
 	identifiers, err := z.getIdentifiers(z.templateDir)
 	if err != nil {

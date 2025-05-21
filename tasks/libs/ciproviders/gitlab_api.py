@@ -1295,8 +1295,8 @@ def update_gitlab_config(file_path, tag, images="", test=True, update=True):
     yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
     gitlab_ci = yaml.safe_load("".join(file_content))
     variables = gitlab_ci['variables']
-    # Select the buildimages prefixed with CI_IMAGE matchins input images list + buildimages prefixed with DATADOG_AGENT_
-    images_to_update = list(find_buildimages(variables, images, "CI_IMAGE_")) + list(find_buildimages(variables))
+    # Select the buildimages prefixed with CI_IMAGE matchins input images list
+    images_to_update = list(find_buildimages(variables, images))
     if update:
         output = update_image_tag(file_content, tag, images_to_update, test=test)
         with open(file_path, "w") as gl:
@@ -1304,10 +1304,10 @@ def update_gitlab_config(file_path, tag, images="", test=True, update=True):
     return images_to_update
 
 
-def find_buildimages(variables, images="", prefix="DATADOG_AGENT_"):
+def find_buildimages(variables, images="", prefix="CI_IMAGE_"):
     """
     Select the buildimages variables to update.
-    With default values, the former DATADOG_AGENT_ variables are updated.
+    With default values, the former CI_IMAGE_ variables are updated.
     """
     suffix = "_SUFFIX"
     for variable in variables:
