@@ -71,9 +71,12 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
 	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
 	vpnTunnels := buildVPNTunnelsMetadata(config.DeviceID, metadataStore)
+	routes := buildRoutesMetadata(config.DeviceID, metadataStore)
 
 	fmt.Println("VPN Tunnels:")
 	fmt.Println(vpnTunnels)
+	fmt.Println("Routes:")
+	fmt.Println(routes)
 
 	metadataPayloads := devicemetadata.BatchPayloads(integrations.SNMP, config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, topologyLinks, nil, diagnoses)
 
@@ -698,4 +701,89 @@ func handleVPNTunnelEndpointAddr(addrType string, addr1 []byte, addr2 []byte) (s
 	}
 
 	return "", ""
+}
+
+func buildRoutesMetadata(deviceID string, store *metadata.Store) []devicemetadata.RouteMetadata {
+	if store == nil {
+		// it's expected that the value store is nil if we can't reach the device
+		// in that case, we just return a nil slice.
+		return nil
+	}
+	routeObsoleteIndexes := store.GetColumnIndexes("ipforward_route_table_obsolete.if_index")
+	routeDeprecatedIndexes := store.GetColumnIndexes("ipforward_route_table_deprecated.if_index")
+	routeIndexes := store.GetColumnIndexes("ipforward_route_table.if_index")
+	if len(routeObsoleteIndexes) == 0 && len(routeDeprecatedIndexes) == 0 && len(routeIndexes) == 0 {
+		log.Debugf("Unable to build routes metadata: no ipforward_route_table_obsolete.if_index, ipforward_route_table_deprecated.if_index, and ipforward_route_table.if_index found")
+		return nil
+	}
+
+	var routes []devicemetadata.RouteMetadata
+
+	for _, strIndex := range routeObsoleteIndexes {
+		indexElems := strings.Split(strIndex, ".")
+		if len(indexElems) != 10 {
+			// We expect the index to be 10 elements:
+			// 4 ipForwardDest
+			// 1 ipForwardProto
+			// 1 ipForwardPolicy
+			// 4 ipForwardNextHop
+			continue
+		}
+
+		routeDestination := strings.Join(indexElems[0:4], ".")
+		nextHopIP := strings.Join(indexElems[6:10], ".")
+
+		routeMask := store.GetColumnAsString("ipforward_route_table_obsolete.route_mask", strIndex)
+		ifIndex := store.GetColumnAsString("ipforward_route_table_obsolete.if_index", strIndex)
+		routeType := store.GetColumnAsString("ipforward_route_table_obsolete.route_type", strIndex)
+
+		routes = append(routes, devicemetadata.RouteMetadata{
+			DeviceID:        deviceID,
+			InterfaceID:     deviceID + ":" + ifIndex,
+			DestinationCidr: fmt.Sprintf("%s/%d", routeDestination, netmaskToPrefixlen(routeMask)),
+			NextHopIP:       nextHopIP,
+			RouteType:       routeType,
+			Status:          "active",
+		})
+	}
+
+	for _, strIndex := range routeDeprecatedIndexes {
+		indexElems := strings.Split(strIndex, ".")
+		if len(indexElems) != 13 {
+			// We expect the index to be 13 elements:
+			// 4 ipCidrRouteDest
+			// 4 ipCidrRouteMask
+			// 1 ipCidrRouteTos
+			// 4 ipCidrRouteNextHop
+			continue
+		}
+
+		routeDestination := strings.Join(indexElems[0:4], ".")
+		routeMask := strings.Join(indexElems[4:8], ".")
+		nextHopIP := strings.Join(indexElems[9:13], ".")
+
+		ifIndex := store.GetColumnAsString("ipforward_route_table_deprecated.if_index", strIndex)
+		routeType := store.GetColumnAsString("ipforward_route_table_deprecated.route_type", strIndex)
+		status := store.GetColumnAsString("ipforward_route_table_deprecated.status", strIndex)
+		if status == "1" {
+			status = "active"
+		} else {
+			status = "inactive"
+		}
+
+		routes = append(routes, devicemetadata.RouteMetadata{
+			DeviceID:        deviceID,
+			InterfaceID:     deviceID + ":" + ifIndex,
+			DestinationCidr: fmt.Sprintf("%s/%d", routeDestination, netmaskToPrefixlen(routeMask)),
+			NextHopIP:       nextHopIP,
+			RouteType:       routeType,
+			Status:          status,
+		})
+	}
+
+	//for _, strIndex := range routeIndexes {
+	//	indexElems := strings.Split(strIndex, ".")
+	//}
+
+	return routes
 }

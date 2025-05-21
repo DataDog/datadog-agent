@@ -311,7 +311,7 @@ var VPNMetadataConfig = profiledefinition.MetadataConfig{
 var RouteTableMetadataConfig = profiledefinition.MetadataConfig{
 	"ipforward_route_table_obsolete": {
 		Fields: map[string]profiledefinition.MetadataField{
-			"mask": {
+			"route_mask": {
 				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.2.1.4.24.2.1.2",
 					Name: "ipForwardMask",
@@ -345,7 +345,7 @@ var RouteTableMetadataConfig = profiledefinition.MetadataConfig{
 					Name: "ipCidrRouteType",
 				},
 			},
-			"route_status": {
+			"status": {
 				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.2.1.4.24.4.1.16",
 					Name: "ipCidrRouteStatus",
@@ -367,7 +367,7 @@ var RouteTableMetadataConfig = profiledefinition.MetadataConfig{
 					Name: "inetCidrRouteType",
 				},
 			},
-			"route_status": {
+			"status": {
 				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.2.1.4.24.7.1.17",
 					Name: "inetCidrRouteStatus",
