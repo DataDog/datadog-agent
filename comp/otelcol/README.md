@@ -42,7 +42,7 @@ For detailed instructions on how to deploy DDOT in your environment please check
 
 ### Configuration
 
-The supported deployment methods, Datadog Helm and Operator, provide a sample OpenTelemetry Collector configuration that you can use as a starting point with some pre-defined defaults. This section walks you through the predefined pipelines and included OpenTelemetry components:
+The supported deployment methods, Datadog Helm and Operator, provide a sample OpenTelemetry Collector configuration that you can use as a starting point with some pre-defined defaults. Below you may find this default, predefined, pipeline configuration provided with DDOT:
 
 ```
 extensions:
