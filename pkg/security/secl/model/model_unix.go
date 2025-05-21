@@ -824,19 +824,26 @@ type PathKey struct {
 	PathID  uint32 `field:"-"`
 }
 
+// OnDemandPerArgSize is the size of each argument in Data in the on-demand event
+const OnDemandPerArgSize = 64
+
 // OnDemandEvent identifies an on-demand event generated from on-demand probes
 type OnDemandEvent struct {
-	ID       uint32    `field:"-"`
-	Name     string    `field:"name,handler:ResolveOnDemandName" op_override:"OnDemandNameOverrides"`
-	Data     [256]byte `field:"-"`
-	Arg1Str  string    `field:"arg1.str,handler:ResolveOnDemandArg1Str"`
-	Arg1Uint uint64    `field:"arg1.uint,handler:ResolveOnDemandArg1Uint"`
-	Arg2Str  string    `field:"arg2.str,handler:ResolveOnDemandArg2Str"`
-	Arg2Uint uint64    `field:"arg2.uint,handler:ResolveOnDemandArg2Uint"`
-	Arg3Str  string    `field:"arg3.str,handler:ResolveOnDemandArg3Str"`
-	Arg3Uint uint64    `field:"arg3.uint,handler:ResolveOnDemandArg3Uint"`
-	Arg4Str  string    `field:"arg4.str,handler:ResolveOnDemandArg4Str"`
-	Arg4Uint uint64    `field:"arg4.uint,handler:ResolveOnDemandArg4Uint"`
+	ID       uint32                       `field:"-"`
+	Name     string                       `field:"name,handler:ResolveOnDemandName" op_override:"OnDemandNameOverrides"`
+	Data     [6 * OnDemandPerArgSize]byte `field:"-"`
+	Arg1Str  string                       `field:"arg1.str,handler:ResolveOnDemandArg1Str"`
+	Arg1Uint uint64                       `field:"arg1.uint,handler:ResolveOnDemandArg1Uint"`
+	Arg2Str  string                       `field:"arg2.str,handler:ResolveOnDemandArg2Str"`
+	Arg2Uint uint64                       `field:"arg2.uint,handler:ResolveOnDemandArg2Uint"`
+	Arg3Str  string                       `field:"arg3.str,handler:ResolveOnDemandArg3Str"`
+	Arg3Uint uint64                       `field:"arg3.uint,handler:ResolveOnDemandArg3Uint"`
+	Arg4Str  string                       `field:"arg4.str,handler:ResolveOnDemandArg4Str"`
+	Arg4Uint uint64                       `field:"arg4.uint,handler:ResolveOnDemandArg4Uint"`
+	Arg5Str  string                       `field:"arg5.str,handler:ResolveOnDemandArg5Str"`
+	Arg5Uint uint64                       `field:"arg5.uint,handler:ResolveOnDemandArg5Uint"`
+	Arg6Str  string                       `field:"arg5.str,handler:ResolveOnDemandArg5Str"`
+	Arg6Uint uint64                       `field:"arg5.uint,handler:ResolveOnDemandArg5Uint"`
 }
 
 // LoginUIDWriteEvent is used to propagate login UID updates to user space
