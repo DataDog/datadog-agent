@@ -35,9 +35,9 @@ const topologyLinkSourceTypeLLDP = "lldp"
 const topologyLinkSourceTypeCDP = "cdp"
 const ciscoNetworkProtocolIPv4 = "1"
 const ciscoNetworkProtocolIPv6 = "20"
-const ciscoVPNEndpointAddrSingleType = "1"
-const ciscoVPNEndpointAddrRangeType = "2"
-const ciscoVPNEndpointAddrCidrType = "3"
+const ciscoVPNTunnelEndpointAddrSingleType = "1"
+const ciscoVPNTunnelEndpointAddrRangeType = "2"
+const ciscoVPNTunnelEndpointAddrCidrType = "3"
 
 var supportedDeviceTypes = map[string]bool{
 	"access_point":  true,
@@ -687,11 +687,11 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 
 func handleVPNTunnelEndpointAddr(addrType string, addr1 []byte, addr2 []byte) (string, string) {
 	switch addrType {
-	case ciscoVPNEndpointAddrSingleType:
+	case ciscoVPNTunnelEndpointAddrSingleType:
 		return "single", net.IP(addr1).String()
-	case ciscoVPNEndpointAddrRangeType:
+	case ciscoVPNTunnelEndpointAddrRangeType:
 		return "range", fmt.Sprintf("%s - %s", net.IP(addr1).String(), net.IP(addr2).String())
-	case ciscoVPNEndpointAddrCidrType:
+	case ciscoVPNTunnelEndpointAddrCidrType:
 		mask := net.IPMask(addr2)
 		ones, _ := mask.Size()
 		return "cidr", fmt.Sprintf("%s/%d", net.IP(addr1).String(), ones)
