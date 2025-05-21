@@ -154,9 +154,8 @@ func (s *Sender) SendSLAMetrics(slaMetrics []client.SLAMetrics, deviceNameToIDMa
 			fmt.Sprintf("remote_access_circuit:%s", slaMetricsResponse.RemoteAccessCircuit),
 			fmt.Sprintf("forwarding_class:%s", slaMetricsResponse.ForwardingClass),
 		}
-		if deviceID, ok := deviceNameToIDMap[slaMetricsResponse.LocalSite]; ok {
-			tags = s.GetDeviceTags(defaultIPTag, slaMetricsResponse.LocalSite)
-			tags = append(tags, fmt.Sprintf("%s:%s", defaultIPTag, deviceID))
+		if deviceIP, ok := deviceNameToIDMap[slaMetricsResponse.LocalSite]; ok {
+			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 		s.Gauge(versaMetricPrefix+"sla.delay", slaMetricsResponse.Delay, "", tags)
 		s.Gauge(versaMetricPrefix+"sla.fwd_delay_var", slaMetricsResponse.FwdDelayVar, "", tags)
