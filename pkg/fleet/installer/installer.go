@@ -741,9 +741,9 @@ func (i *installerImpl) initPackageConfig(ctx context.Context, pkg string) (err 
 	span, _ := telemetry.StartSpanFromContext(ctx, "configure_package")
 	defer func() { span.Finish(err) }()
 	// TODO: Windows support
-	if runtime.GOOS == "windows" {
-		return nil
-	}
+	// if runtime.GOOS == "windows" {
+	// 	return nil
+	// }
 	state, err := i.configs.GetState(pkg)
 	if err != nil {
 		return fmt.Errorf("could not get config repository state: %w", err)
@@ -800,7 +800,10 @@ func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
 		return fmt.Errorf("could not unmarshal config files: %w", err)
 	}
 	for _, file := range files {
-		file.Path = filepath.Clean(file.Path)
+		// TODO: i think this is screwy on windows
+		if runtime.GOOS != "windows" {
+			file.Path = filepath.Clean(file.Path)
+		}
 		if !configNameAllowed(file.Path) {
 			return fmt.Errorf("config file %s is not allowed", file)
 		}

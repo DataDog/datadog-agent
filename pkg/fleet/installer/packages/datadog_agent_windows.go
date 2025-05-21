@@ -551,3 +551,101 @@ func getStartExperimentMSIArgs() []string {
 
 	return args
 }
+
+// preStartConfigExperimentDatadogAgent runs pre start scripts for a config experiment.
+func preStartConfigExperimentDatadogAgent(ctx HookContext) error {
+	// For Windows, we need to stop the agent service before applying the new config
+	err := winutil.StopService("datadogagent")
+	if err != nil {
+		return fmt.Errorf("failed to stop agent service: %w", err)
+	}
+	return nil
+}
+
+// preStopConfigExperimentDatadogAgent runs pre stop scripts for a config experiment.
+func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
+	// For Windows, we need to stop the agent service before restoring the stable config
+	err := winutil.StopService("datadogagent")
+	if err != nil {
+		return fmt.Errorf("failed to stop agent service: %w", err)
+	}
+	return nil
+}
+
+// prePromoteConfigExperimentDatadogAgent runs pre promote scripts for a config experiment.
+func prePromoteConfigExperimentDatadogAgent(ctx HookContext) error {
+	// For Windows, we need to stop the agent service before promoting the config
+	err := winutil.StopService("datadogagent")
+	if err != nil {
+		return fmt.Errorf("failed to stop agent service: %w", err)
+	}
+	return nil
+}
+
+// setFleetPoliciesDir sets the fleet_policies_dir registry value to the given path.
+func setFleetPoliciesDir(path string) error {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		"SOFTWARE\\Datadog\\Datadog Agent",
+		registry.ALL_ACCESS)
+	if err != nil {
+		return fmt.Errorf("failed to open registry key: %w", err)
+	}
+	defer k.Close()
+
+	err = k.SetStringValue("fleet_policies_dir", path)
+	if err != nil {
+		return fmt.Errorf("failed to set fleet_policies_dir registry key: %w", err)
+	}
+	return nil
+}
+
+// postStartConfigExperimentDatadogAgent runs post start scripts for a config experiment.
+func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
+	// Set the registry key to point to the experiment config
+	experimentPath := filepath.Join(paths.ConfigsPath, "datadog-agent", "experiment")
+	err := setFleetPoliciesDir(experimentPath)
+	if err != nil {
+		return err
+	}
+
+	// Start the agent service to pick up the new config
+	err = winutil.StartService("datadogagent")
+	if err != nil {
+		return fmt.Errorf("failed to start agent service: %w", err)
+	}
+	return nil
+}
+
+// postStopConfigExperimentDatadogAgent runs post stop scripts for a config experiment.
+func postStopConfigExperimentDatadogAgent(ctx HookContext) error {
+	// Set the registry key to point to the stable config
+	stablePath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
+	err := setFleetPoliciesDir(stablePath)
+	if err != nil {
+		return err
+	}
+
+	// Start the agent service to pick up the stable config
+	err = winutil.StartService("datadogagent")
+	if err != nil {
+		return fmt.Errorf("failed to start agent service: %w", err)
+	}
+	return nil
+}
+
+// postPromoteConfigExperimentDatadogAgent runs post promote scripts for a config experiment.
+func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
+	// Set the registry key to point to the stable config (which now contains the promoted experiment)
+	stablePath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
+	err := setFleetPoliciesDir(stablePath)
+	if err != nil {
+		return err
+	}
+
+	// Start the agent service to pick up the promoted config
+	err = winutil.StartService("datadogagent")
+	if err != nil {
+		return fmt.Errorf("failed to start agent service: %w", err)
+	}
+	return nil
+}
