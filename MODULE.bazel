@@ -73,7 +73,7 @@ git_override(
 
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
 
-GO_VERSION = "1.23.8"
+GO_VERSION = "1.24.3"
 
 MSGO_PATCH = "1"
 
@@ -219,6 +219,7 @@ use_repo(
     "com_github_datadog_agent_payload_v5",
     "com_github_datadog_appsec_internal_go",
     "com_github_datadog_datadog_agent_comp_api_api_def",
+    "com_github_datadog_datadog_agent_comp_api_authtoken",
     "com_github_datadog_datadog_agent_comp_core_config",
     "com_github_datadog_datadog_agent_comp_core_configsync",
     "com_github_datadog_datadog_agent_comp_core_flare_builder",

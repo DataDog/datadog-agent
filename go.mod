@@ -423,7 +423,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.64.1
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.65.1
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.65.1
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.64.0-devel
@@ -557,13 +557,14 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/DataDog/agent-payload/v5 v5.0.150
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.61.0
-	github.com/DataDog/datadog-agent/comp/core/config v0.64.1
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.64.1
+	github.com/DataDog/datadog-agent/comp/api/authtoken v0.65.1
+	github.com/DataDog/datadog-agent/comp/core/config v0.65.1
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.65.1
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.65.1
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace v0.59.0
-	github.com/DataDog/datadog-agent/comp/core/log/mock v0.64.0-devel
+	github.com/DataDog/datadog-agent/comp/core/log/mock v0.65.1
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.65.1
 	github.com/DataDog/datadog-agent/comp/core/status v0.63.0
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.56.0-rc.3
@@ -571,7 +572,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.65.1
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.64.1
-	github.com/DataDog/datadog-agent/comp/def v0.64.1
+	github.com/DataDog/datadog-agent/comp/def v0.65.1
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.64.0-rc.3
@@ -595,7 +596,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.59.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/api v0.63.0
+	github.com/DataDog/datadog-agent/pkg/api v0.65.1
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.65.1
 	github.com/DataDog/datadog-agent/pkg/config/create v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/env v0.65.1
@@ -603,7 +604,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.65.1
 	github.com/DataDog/datadog-agent/pkg/config/remote v0.59.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.65.1
-	github.com/DataDog/datadog-agent/pkg/config/utils v0.64.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/utils v0.65.1
 	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.64.0-rc.12
@@ -635,12 +636,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.65.1
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.65.1
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.64.1
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.65.1
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.65.1
 	github.com/DataDog/datadog-agent/pkg/util/http v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/json v0.59.0
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.65.1
 	github.com/DataDog/datadog-agent/pkg/util/option v0.65.1
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.64.1
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.64.0-rc.3

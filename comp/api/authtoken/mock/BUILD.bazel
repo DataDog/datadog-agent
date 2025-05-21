@@ -7,6 +7,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/api/util",
-        "@com_github_datadog_datadog_agent_comp_api_authtoken//:go_default_library",
+        "@com_github_datadog_datadog_agent_comp_api_authtoken//:authtoken",
     ],
 )
