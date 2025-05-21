@@ -64,6 +64,7 @@ docker_build_agent7:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7
     BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-amd64.tar.xz
+  timeout: 2h
 
 # TODO: Move this job to .gitlab/deploy_containers/deploy_containers_a7.yml.
 # This cannot be done now because of the following reasons:
@@ -97,6 +98,7 @@ docker_build_agent7_arm64:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7
     BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-arm64.tar.xz
+  timeout: 2h
 
 # build agent7 fips image
 docker_build_fips_agent7:
@@ -111,6 +113,7 @@ docker_build_fips_agent7:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-fips
     BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-amd64.tar.xz
+  timeout: 2h
 
 docker_build_fips_agent7_arm64:
   extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
@@ -124,6 +127,7 @@ docker_build_fips_agent7_arm64:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-fips
     BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-arm64.tar.xz
+  timeout: 2h
 
 # build agent7 jmx image
 docker_build_agent7_jmx:
@@ -138,6 +142,7 @@ docker_build_agent7_jmx:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-jmx
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-amd64.tar.xz
+  timeout: 2h
 
 docker_build_agent7_jmx_arm64:
   extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
@@ -151,6 +156,7 @@ docker_build_agent7_jmx_arm64:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-jmx
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-arm64.tar.xz
+  timeout: 2h
 
 docker_build_fips_agent7_jmx:
   extends: [.docker_build_job_definition_amd64, .docker_build_artifact]
@@ -164,6 +170,7 @@ docker_build_fips_agent7_jmx:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-fips-jmx
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-amd64.tar.xz
+  timeout: 2h
 
 docker_build_fips_agent7_arm64_jmx:
   extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
@@ -177,6 +184,7 @@ docker_build_fips_agent7_arm64_jmx:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-fips-jmx
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-arm64.tar.xz
+  timeout: 2h
 
 # agent base image: future agent images will be based on this image
 .docker_build_base_image:
@@ -237,6 +245,7 @@ docker_build_agent7_full:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-full
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-amd64.tar.xz
+  timeout: 2h
 
 docker_build_agent7_full_arm64:
   extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
@@ -251,6 +260,7 @@ docker_build_agent7_full_arm64:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-full
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-arm64.tar.xz
+  timeout: 2h
 
 # build the cluster-agent image
 docker_build_cluster_agent_amd64:
