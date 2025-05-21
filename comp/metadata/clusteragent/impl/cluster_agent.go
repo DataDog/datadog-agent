@@ -40,11 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-var (
-	// for testing
-	installinfoGet = installinfo.Get
-)
-
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
 	Clustername string                 `json:"clustername"`
@@ -132,26 +127,19 @@ func (dca *datadogclusteragent) getPayload() marshaler.JSONMarshaler {
 	}
 }
 
-func scrub(s string) string {
-	// Errors come from internal use of a Reader interface. Since we are reading from a buffer, no errors
-	// are possible.
-	scrubString, _ := scrubber.ScrubString(s)
-	return scrubString
-}
-
 func (dca *datadogclusteragent) initMetadata() {
 	tool := "undefined"
 	toolVersion := ""
 	installerVersion := ""
 
-	install, err := installinfoGet(dca.conf)
+	install, err := installinfo.Get(dca.conf)
 	if err == nil {
 		tool = install.Tool
 		toolVersion = install.ToolVersion
 		installerVersion = install.InstallerVersion
 	}
 	dca.metadata["cluster_id_error"] = dca.clusteridErr
-	dca.metadata["install_method_tool"] = scrub(tool)
+	dca.metadata["install_method_tool"] = tool
 	dca.metadata["install_method_tool_version"] = toolVersion
 	dca.metadata["install_method_installer_version"] = installerVersion
 	dca.metadata["agent_version"] = version.AgentVersion

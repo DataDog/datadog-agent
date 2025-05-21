@@ -169,7 +169,7 @@ func (ia *inventoryagent) initData() {
 		toolVersion = install.ToolVersion
 		installerVersion = install.InstallerVersion
 	}
-	ia.data["install_method_tool"] = scrub(tool)
+	ia.data["install_method_tool"] = tool
 	ia.data["install_method_tool_version"] = toolVersion
 	ia.data["install_method_installer_version"] = installerVersion
 

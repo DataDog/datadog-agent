@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
@@ -135,24 +134,16 @@ func newPackageSigningProvider(deps dependencies) provides {
 	}
 }
 
-func scrub(s string) string {
-	// Errors come from internal use of a Reader interface. Since we are reading from a buffer, no errors
-	// are possible.
-	scrubString, _ := scrubber.ScrubString(s)
-	return scrubString
-}
-
 func isPackageSigningEnabled(conf config.Reader, logger log.Component) bool {
-	installInfo, err := installinfo.Get(conf)
+	installTool, err := installinfo.Get(conf)
 	if err != nil {
 		logger.Debugf("Failed to get install_info file information: %v", err)
 		return false
 	}
-	installTool := scrub(installInfo.Tool)
 	isInConfigurationFile := conf.GetBool("enable_signing_metadata_collection")
-	isEnabled := isInConfigurationFile && runtime.GOOS == "linux" && isAllowedInstallationTool(installTool)
+	isEnabled := isInConfigurationFile && runtime.GOOS == "linux" && isAllowedInstallationTool(installTool.Tool)
 	if !isEnabled {
-		logger.Debugf("Package-signing metadata collection disabled: config %t, OS %s, install tool %s", isInConfigurationFile, runtime.GOOS, installTool)
+		logger.Debugf("Package-signing metadata collection disabled: config %t, OS %s, install tool %s", isInConfigurationFile, runtime.GOOS, installTool.Tool)
 		logger.Debug("Package-signing metadata must be enabled in datadog.yaml, and running on a non-containerized Linux system to collect data")
 	} else {
 		logger.Debug("Package-signing metadata collection enabled")
