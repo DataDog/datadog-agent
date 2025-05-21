@@ -37,7 +37,6 @@ var (
 func SetupDataproc(s *common.Setup) error {
 
 	metadataClient := metadata.NewClient(nil)
-	s.Packages.InstallInstaller()
 	s.Packages.Install(common.DatadogAgentPackage, dataprocAgentVersion)
 	s.Packages.Install(common.DatadogAPMInjectPackage, dataprocInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, dataprocJavaTracerVersion)
