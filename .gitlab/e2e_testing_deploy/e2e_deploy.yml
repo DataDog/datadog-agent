@@ -118,7 +118,9 @@ deploy_rpm_testing-a7_x64:
   script:
     - *setup_rpm_signing_key
     - set +x
-    - echo "$RPM_SIGNING_PASSPHRASE" | python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-7.*x86_64.rpm
+    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh ci.datadog-agent.test-key-58FB522F)" | gpg --import --batch
+    - RPM_GPG_KEY_ID=58FB522F
+    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-7.*x86_64.rpm
 
 deploy_rpm_testing-a7_arm64:
   rules:
@@ -131,7 +133,9 @@ deploy_rpm_testing-a7_arm64:
   script:
     - *setup_rpm_signing_key
     - set +x
-    - echo "$RPM_SIGNING_PASSPHRASE" | python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-7.*aarch64.rpm
+    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh ci.datadog-agent.test-key-58FB522F)" | gpg --import --batch
+    - RPM_GPG_KEY_ID=58FB522F
+    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-7.*aarch64.rpm
 
 deploy_suse_rpm_testing_x64-a7:
   rules:
@@ -157,7 +161,9 @@ deploy_suse_rpm_testing_x64-a7:
   script:
     - *setup_rpm_signing_key
     - set +x
-    - echo "$RPM_SIGNING_PASSPHRASE" | python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*x86_64.rpm
+    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh ci.datadog-agent.test-key-58FB522F)" | gpg --import --batch
+    - RPM_GPG_KEY_ID=58FB522F
+    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*x86_64.rpm
 
 deploy_suse_rpm_testing_arm64-a7:
   rules:
@@ -175,7 +181,9 @@ deploy_suse_rpm_testing_arm64-a7:
   script:
     - *setup_rpm_signing_key
     - set +x
-    - echo "$RPM_SIGNING_PASSPHRASE" | python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $RPM_GPG_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*aarch64.rpm
+    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh ci.datadog-agent.test-key-58FB522F)" | gpg --import --batch
+    - RPM_GPG_KEY_ID=58FB522F
+    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $RPM_GPG_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*aarch64.rpm
 
 deploy_windows_testing-a7:
   rules:
