@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Add support for Autodicovery for RDS Postgres and MySQL databases.
+    Add support for Autodiscovery for RDS Postgres and MySQL databases.
