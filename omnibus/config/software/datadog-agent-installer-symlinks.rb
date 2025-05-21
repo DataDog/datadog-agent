@@ -13,9 +13,9 @@ build do
     end
     version = project.build_version
     mkdir '/opt/datadog-packages/datadog-agent'
-    link "/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/datadog-agent/#{version}"
-    link "/opt/datadog-packages/datadog-agent/experiment", "/opt/datadog-packages/datadog-agent/#{version}"
-    link "/opt/datadog-packages/datadog-agent/#{version}", "/opt/datadog-agent"
+    link "/opt/datadog-agent", "/opt/datadog-packages/datadog-agent/#{version}"
+    link "/opt/datadog-packages/datadog-agent/#{version}", "/opt/datadog-packages/datadog-agent/stable"
+    link "/opt/datadog-packages/datadog-agent/#{version}", "/opt/datadog-packages/datadog-agent/experiment"
     project.extra_package_file '/opt/datadog-packages'
   end
 end
