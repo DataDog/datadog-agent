@@ -5,7 +5,7 @@ go 1.23.0
 retract v0.46.0-devel
 
 require (
-	github.com/DataDog/datadog-agent/pkg/trace v0.66.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/trace v0.66.0
 	github.com/golang/mock v1.7.0-rc.1
 	github.com/golang/protobuf v1.5.4
 	github.com/google/gofuzz v1.2.0
