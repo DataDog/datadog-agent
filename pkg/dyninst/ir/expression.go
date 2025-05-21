@@ -35,7 +35,7 @@ type LocationOp struct {
 	Offset uint32
 
 	// The size of the data to extract in bytes.
-	Size uint32
+	ByteSize uint32
 }
 
 func (*LocationOp) irOp() {}
