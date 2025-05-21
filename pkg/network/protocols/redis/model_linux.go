@@ -24,6 +24,9 @@ type EventWrapper struct {
 	keyName    string
 	commandSet bool
 	command    CommandType
+
+	errorSet bool
+	error    RedisErrorType
 }
 
 // NewEventWrapper creates a new EventWrapper from an ebpf event.
@@ -80,6 +83,15 @@ func (e *EventWrapper) RequestLatency() float64 {
 	return protocols.NSTimestampToFloat(e.Tx.Response_last_seen - e.Tx.Request_started)
 }
 
+// ErrorName returns the error name as a string, extracted from the null-terminated Error field.
+func (e *EventWrapper) ErrorName() RedisErrorType {
+	if !e.errorSet {
+		e.error = fromEbpfErrorType(errorType(e.Tx.Error))
+		e.errorSet = true
+	}
+	return e.error
+}
+
 const template = `
 ebpfTx{
 	Command: %s,
@@ -96,6 +108,74 @@ func (e *EventWrapper) String() string {
 	}
 	output.WriteString(fmt.Sprintf(template, e.CommandType(), e.KeyName(), truncatedPath, e.RequestLatency()))
 	return output.String()
+}
+
+func fromEbpfErrorType(e errorType) RedisErrorType {
+	// Map kernel-space error types to user-space RedisErrorType
+	switch e {
+	case noErr:
+		return RedisNoErr
+	case unknownErr:
+		return RedisErrUnknown
+	case err:
+		return RedisErrErr
+	case wrongType:
+		return RedisErrWrongType
+	case noAuth:
+		return RedisErrNoAuth
+	case noPerm:
+		return RedisErrNoPerm
+	case busy:
+		return RedisErrBusy
+	case noScript:
+		return RedisErrNoScript
+	case loading:
+		return RedisErrLoading
+	case readOnly:
+		return RedisErrReadOnly
+	case execAbort:
+		return RedisErrExecAbort
+	case masterDown:
+		return RedisErrMasterDown
+	case misconf:
+		return RedisErrMisconf
+	case crossSlot:
+		return RedisErrCrossSlot
+	case tryAgain:
+		return RedisErrTryAgain
+	case ask:
+		return RedisErrAsk
+	case moved:
+		return RedisErrMoved
+	case clusterDown:
+		return RedisErrClusterDown
+	case noReplicas:
+		return RedisErrNoReplicas
+	case oom:
+		return RedisErrOom
+	case noQuorum:
+		return RedisErrNoQuorum
+	case busyKey:
+		return RedisErrBusyKey
+	case unblocked:
+		return RedisErrUnblocked
+	case unsupported:
+		return RedisErrUnsupported
+	case syntax:
+		return RedisErrSyntax
+	case clientClosed:
+		return RedisErrClientClosed
+	case proxy:
+		return RedisErrProxy
+	case wrongPass:
+		return RedisErrWrongPass
+	case invalid:
+		return RedisErrInvalid
+	case deprecated:
+		return RedisErrDeprecated
+	default:
+		return RedisErrUnknown
+	}
 }
 
 // String returns a string representation of Command

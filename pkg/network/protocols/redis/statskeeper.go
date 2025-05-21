@@ -55,7 +55,7 @@ func (s *StatsKeeper) Process(event *EventWrapper) {
 		s.stats[key] = requestStats
 	}
 	count := 1 // We process one event at a time
-	requestStats.AddRequest(event.Tx.Is_error, count, uint64(event.Tx.Tags), event.RequestLatency())
+	requestStats.AddRequest(event.error, count, uint64(event.Tx.Tags), event.RequestLatency())
 }
 
 // GetAndResetAllStats returns all the records and resets the statskeeper

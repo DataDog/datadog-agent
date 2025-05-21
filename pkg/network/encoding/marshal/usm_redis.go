@@ -73,17 +73,13 @@ func (e *redisEncoder) encodeData(connectionData *USMConnectionData[redis.Key, *
 				aggregationBuilder.SetTruncated(key.Truncated)
 				aggregationBuilder.SetKeyName(key.KeyName)
 
-				for isErr, stats := range errorToStats.ErrorToStats {
+				for err, stats := range errorToStats.ErrorToStats {
 					if stats.Count == 0 {
 						continue
 					}
 					staticTags |= stats.StaticTags
 					aggregationBuilder.AddErrorToStats(func(errorToStatsBuilder *model.RedisStats_ErrorToStatsEntryBuilder) {
-						if !isErr {
-							errorToStatsBuilder.SetKey(int32(model.RedisErrorType_RedisNoError))
-						} else {
-							errorToStatsBuilder.SetKey(int32(model.RedisErrorType_RedisErrorTypeUnknown))
-						}
+						errorToStatsBuilder.SetKey(mapRedisErrorType(err))
 						errorToStatsBuilder.SetValue(func(statsBuilder *model.RedisStatsEntryBuilder) {
 							statsBuilder.SetCount(uint32(stats.Count))
 							if latencies := stats.Latencies; latencies != nil {
@@ -109,4 +105,71 @@ func (e *redisEncoder) Close() {
 	}
 
 	e.byConnection.Close()
+}
+
+func mapRedisErrorType(err redis.RedisErrorType) int32 {
+	switch err {
+	case redis.RedisNoErr:
+		return int32(model.RedisErrorType_RedisNoError)
+	case redis.RedisErrUnknown:
+		return int32(model.RedisErrorType_RedisErrorTypeUnknown)
+	case redis.RedisErrErr:
+		return int32(model.RedisErrorType_RedisErrErr)
+	case redis.RedisErrWrongType:
+		return int32(model.RedisErrorType_RedisErrWrongType)
+	case redis.RedisErrNoAuth:
+		return int32(model.RedisErrorType_RedisErrNoAuth)
+	case redis.RedisErrNoPerm:
+		return int32(model.RedisErrorType_RedisErrNoPerm)
+	case redis.RedisErrBusy:
+		return int32(model.RedisErrorType_RedisErrBusy)
+	case redis.RedisErrNoScript:
+		return int32(model.RedisErrorType_RedisErrNoScript)
+	case redis.RedisErrLoading:
+		return int32(model.RedisErrorType_RedisErrLoading)
+	case redis.RedisErrReadOnly:
+		return int32(model.RedisErrorType_RedisErrReadOnly)
+	case redis.RedisErrExecAbort:
+		return int32(model.RedisErrorType_RedisErrExecAbort)
+	case redis.RedisErrMasterDown:
+		return int32(model.RedisErrorType_RedisErrMasterDown)
+	case redis.RedisErrMisconf:
+		return int32(model.RedisErrorType_RedisErrMisconf)
+	case redis.RedisErrCrossSlot:
+		return int32(model.RedisErrorType_RedisErrCrossSlot)
+	case redis.RedisErrTryAgain:
+		return int32(model.RedisErrorType_RedisErrTryAgain)
+	case redis.RedisErrAsk:
+		return int32(model.RedisErrorType_RedisErrAsk)
+	case redis.RedisErrMoved:
+		return int32(model.RedisErrorType_RedisErrMoved)
+	case redis.RedisErrClusterDown:
+		return int32(model.RedisErrorType_RedisErrClusterDown)
+	case redis.RedisErrNoReplicas:
+		return int32(model.RedisErrorType_RedisErrNoReplicas)
+	case redis.RedisErrOom:
+		return int32(model.RedisErrorType_RedisErrOom)
+	case redis.RedisErrNoQuorum:
+		return int32(model.RedisErrorType_RedisErrNoQuorum)
+	case redis.RedisErrBusyKey:
+		return int32(model.RedisErrorType_RedisErrBusyKey)
+	case redis.RedisErrUnblocked:
+		return int32(model.RedisErrorType_RedisErrUnblocked)
+	case redis.RedisErrUnsupported:
+		return int32(model.RedisErrorType_RedisErrUnsupported)
+	case redis.RedisErrSyntax:
+		return int32(model.RedisErrorType_RedisErrSyntax)
+	case redis.RedisErrClientClosed:
+		return int32(model.RedisErrorType_RedisErrClientClosed)
+	case redis.RedisErrProxy:
+		return int32(model.RedisErrorType_RedisErrProxy)
+	case redis.RedisErrWrongPass:
+		return int32(model.RedisErrorType_RedisErrWrongPass)
+	case redis.RedisErrInvalid:
+		return int32(model.RedisErrorType_RedisErrInvalid)
+	case redis.RedisErrDeprecated:
+		return int32(model.RedisErrorType_RedisErrDeprecated)
+	default:
+		return int32(model.RedisErrorType_RedisErrorTypeUnknown)
+	}
 }

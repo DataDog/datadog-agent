@@ -17,13 +17,11 @@ import (
 
 func TestAddRequest(t *testing.T) {
 	stats := NewRequestStats()
-	stats.AddRequest(false, 10, 1, 10.0)
-	stats.AddRequest(false, 15, 2, 15.0)
-	stats.AddRequest(false, 20, 3, 20.0)
+	stats.AddRequest(RedisNoErr, 10, 1, 10.0)
+	stats.AddRequest(RedisNoErr, 15, 2, 15.0)
+	stats.AddRequest(RedisNoErr, 20, 3, 20.0)
 
-	// Check we don't have stats for error: true
-	assert.Nil(t, stats.ErrorToStats[true])
-	s := stats.ErrorToStats[false]
+	s := stats.ErrorToStats[RedisNoErr]
 
 	if assert.NotNil(t, s) {
 		assert.Equal(t, 45, s.Count)
@@ -43,17 +41,15 @@ func TestCombineWith(t *testing.T) {
 	stats3 := NewRequestStats()
 	stats4 := NewRequestStats()
 
-	stats2.AddRequest(false, 10, 1, 10.0)
-	stats3.AddRequest(false, 15, 2, 15.0)
-	stats4.AddRequest(false, 20, 3, 20.0)
+	stats2.AddRequest(RedisNoErr, 10, 1, 10.0)
+	stats3.AddRequest(RedisNoErr, 15, 2, 15.0)
+	stats4.AddRequest(RedisNoErr, 20, 3, 20.0)
 
 	stats.CombineWith(stats2)
 	stats.CombineWith(stats3)
 	stats.CombineWith(stats4)
 
-	// Check we don't have stats for error: true
-	assert.Nil(t, stats.ErrorToStats[true])
-	s := stats.ErrorToStats[false]
+	s := stats.ErrorToStats[RedisNoErr]
 
 	if assert.NotNil(t, s) {
 		assert.Equal(t, 45, s.Count)
@@ -81,7 +77,7 @@ func benchmarkRequestStatsPool(b *testing.B, reqNum int) {
 	for i := 0; i < b.N; i++ {
 		stats := NewRequestStats()
 		for j := 0; j < reqNum; j++ {
-			stats.AddRequest(false, 1, 1, 1)
+			stats.AddRequest(RedisNoErr, 1, 1, 1)
 		}
 		stats.Close()
 	}

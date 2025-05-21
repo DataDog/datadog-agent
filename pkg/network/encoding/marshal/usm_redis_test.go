@@ -84,17 +84,17 @@ func (s *RedisSuite) TestFormatRedisStats() {
 			{
 				DbStats: &model.DatabaseStats_Redis{
 					Redis: &model.RedisStats{
-						Command:   model.RedisCommand_RedisGetCommand,
+						Command:   model.RedisCommand(int32(dummyKey.Command)),
 						KeyName:   dummyKey.KeyName,
 						Truncated: dummyKey.Truncated,
 						ErrorToStats: map[int32]*model.RedisStatsEntry{
 							0: {
-								FirstLatencySample: in.USMData.Redis[dummyKey].ErrorToStats[false].FirstLatencySample,
-								Count:              uint32(in.USMData.Redis[dummyKey].ErrorToStats[false].Count),
+								FirstLatencySample: in.Redis[dummyKey].ErrorToStats[""].FirstLatencySample,
+								Count:              uint32(in.Redis[dummyKey].ErrorToStats[""].Count),
 							},
 							1: {
-								FirstLatencySample: in.USMData.Redis[dummyKey].ErrorToStats[false].FirstLatencySample,
-								Count:              uint32(in.USMData.Redis[dummyKey].ErrorToStats[false].Count),
+								FirstLatencySample: in.Redis[dummyKey].ErrorToStats[""].FirstLatencySample,
+								Count:              uint32(in.Redis[dummyKey].ErrorToStats[""].Count),
 							},
 						},
 					},
@@ -205,6 +205,7 @@ func (s *RedisSuite) TestRedisLocalhostScenario() {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
+
 		USMData: network.USMProtocolsData{
 			Redis: map[redis.Key]*redis.RequestStats{
 				redisKey: {
@@ -277,7 +278,7 @@ func generateBenchMarkPayloadRedis(sourcePortsMax, destPortsMax uint16) network.
 				redis.GetCommand,
 				"dummyKey",
 				false,
-			)] = &redis.RequestStats{ErrorToStats: map[bool]*redis.RequestStat{false: {Count: 10}}}
+			)] = &redis.RequestStats{ErrorToStats: map[string]*redis.RequestStat{"": {Count: 10}}}
 		}
 	}
 

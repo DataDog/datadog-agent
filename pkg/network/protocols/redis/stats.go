@@ -40,7 +40,7 @@ func NewKey(saddr, daddr util.Address, sport, dport uint16, command CommandType,
 // We include the error here and not in the Key to avoid duplicating keys when we observe both successful and
 // erroneous transactions for the same key.
 type RequestStats struct {
-	ErrorToStats map[bool]*RequestStat
+	ErrorToStats map[RedisErrorType]*RequestStat
 }
 
 // RequestStat represents a group of Redis transactions stats.
@@ -55,7 +55,7 @@ type RequestStat struct {
 // NewRequestStats creates a new RequestStats object.
 func NewRequestStats() *RequestStats {
 	return &RequestStats{
-		ErrorToStats: make(map[bool]*RequestStat),
+		ErrorToStats: make(map[RedisErrorType]*RequestStat),
 	}
 }
 
@@ -78,24 +78,24 @@ func (r *RequestStat) close() {
 // CombineWith merges the data in 2 RequestStats objects
 // newStats is kept as it is, while the method receiver gets mutated
 func (r *RequestStats) CombineWith(newStats *RequestStats) {
-	for isErr, newRequests := range newStats.ErrorToStats {
+	for err, newRequests := range newStats.ErrorToStats {
 		if newRequests.Count == 0 {
 			continue
 		}
 		if newRequests.Latencies == nil {
-			r.AddRequest(isErr, newRequests.Count, newRequests.StaticTags, newRequests.FirstLatencySample)
+			r.AddRequest(err, newRequests.Count, newRequests.StaticTags, newRequests.FirstLatencySample)
 		} else {
-			r.mergeRequests(isErr, newRequests)
+			r.mergeRequests(err, newRequests)
 		}
 	}
 }
 
 // mergeRequests adds a RequestStat to the given RequestStats. Only called when newStats has Latencies.
-func (r *RequestStats) mergeRequests(isErr bool, newStats *RequestStat) {
-	stats, exists := r.ErrorToStats[isErr]
+func (r *RequestStats) mergeRequests(err RedisErrorType, newStats *RequestStat) {
+	stats, exists := r.ErrorToStats[err]
 	if !exists {
 		stats = &RequestStat{}
-		r.ErrorToStats[isErr] = stats
+		r.ErrorToStats[err] = stats
 	}
 	// The other bucket (newStats) has a DDSketch object
 	// We first ensure that the bucket we're merging to have a DDSketch object
@@ -119,11 +119,11 @@ func (r *RequestStats) mergeRequests(isErr bool, newStats *RequestStat) {
 }
 
 // AddRequest adds information about a Redis transaction to the request stats
-func (r *RequestStats) AddRequest(isError bool, count int, staticTags uint64, latency float64) {
-	stats, exists := r.ErrorToStats[isError]
+func (r *RequestStats) AddRequest(err RedisErrorType, count int, staticTags uint64, latency float64) {
+	stats, exists := r.ErrorToStats[err]
 	if !exists {
 		stats = &RequestStat{}
-		r.ErrorToStats[isError] = stats
+		r.ErrorToStats[err] = stats
 	}
 	originalCount := stats.Count
 	stats.Count += count

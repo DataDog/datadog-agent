@@ -25,7 +25,7 @@ func BenchmarkStatKeeperSameTX(b *testing.B) {
 	sk := NewStatsKeeper(cfg)
 
 	sourceIP, destIP, sourcePort, destPort := generateAddresses()
-	tx := generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, uint8(GetCommand), "keyName", false, 500)
+	tx := generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, getCommand, "keyName", false, 500)
 
 	eventWrapper := NewEventWrapper(tx)
 
@@ -54,7 +54,7 @@ func TestProcessRedisTransactions(t *testing.T) {
 				isErr = true
 			}
 			latency := time.Duration(j%2+1) * time.Millisecond
-			tx := NewEventWrapper(generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, uint8(GetCommand), keyName, isErr, latency))
+			tx := NewEventWrapper(generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, getCommand, keyName, isErr, latency))
 			sk.Process(tx)
 		}
 	}
@@ -64,7 +64,7 @@ func TestProcessRedisTransactions(t *testing.T) {
 	assert.Equal(t, numOfKeys, len(stats))
 	for key, stats := range stats {
 		assert.Equal(t, keyPrefix, key.KeyName[:len(keyPrefix)])
-		errors := []bool{false, true}
+		errors := []RedisErrorType{RedisNoErr, RedisErrWrongType}
 		for i, isErr := range errors {
 			s := stats.ErrorToStats[isErr]
 			require.NotNil(t, s)
