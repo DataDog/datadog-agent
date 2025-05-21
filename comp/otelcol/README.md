@@ -118,7 +118,7 @@ service:
       exporters: [datadog]
 ```
 
-Please note that you con also bring your OpenTelemetry Collector configuration with your predefined pipelines. DDOT will enrich the provided configuration to seamlessly integrate with the Datadog Agent and Fleet Automation, and enable relevant troubleshooting and debug options.
+Please note that you can also bring your OpenTelemetry Collector configuration with your predefined pipelines. DDOT will enrich the provided configuration to seamlessly integrate with the Datadog Agent and Fleet Automation, and enable relevant troubleshooting and debug options.
 
 ### BYOC
 
