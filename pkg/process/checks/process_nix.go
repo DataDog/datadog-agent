@@ -95,6 +95,7 @@ func calculatePct(deltaProc, deltaTime, numCPU float64) float32 {
 
 // warnECSFargateMisconfig pidMode is currently not supported on fargate windows, see docs: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#task_definition_pidmode
 func warnECSFargateMisconfig(containers []*model.Container) {
+	log.Warnf("is fargate instance: %t", fargate.IsFargateInstance())
 	if fargate.IsFargateInstance() && !isECSFargatePidModeSetToTask(containers) {
 		log.Warn(`Process collection may be misconfigured. Please ensure your task definition has "pidMode":"task" set. See https://docs.datadoghq.com/integrations/ecs_fargate/#process-collection for more information.`)
 	}
@@ -104,7 +105,10 @@ func warnECSFargateMisconfig(containers []*model.Container) {
 func isECSFargatePidModeSetToTask(containers []*model.Container) bool {
 	// aws-fargate-pause container only exists when "pidMode" is set to "task" on ecs fargate
 	ecsContainerNameTag := fmt.Sprintf("%s:%s", tags.EcsContainerName, "aws-fargate-pause")
+	log.Warnf("containers len %d, array: %+v\n", len(containers), containers)
 	for _, c := range containers {
+		log.Warnf("container being checked %+v\n", c)
+		log.Warnf("container tags %+v\n", c.Tags)
 		// container fields are not yet populated with information from tags at this point, so we need to check the tags
 		if slices.Contains(c.Tags, ecsContainerNameTag) {
 			return true
