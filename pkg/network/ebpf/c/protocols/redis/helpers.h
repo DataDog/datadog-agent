@@ -29,7 +29,7 @@ static __always_inline bool check_supported_ascii_and_crlf(const char* buf, __u3
     return found_cr && i + 1 < buf_size && i + 1 < CLASSIFICATION_MAX_BUFFER && buf[i + 1] == '\n';
 }
 
-static __always_inline void convert_method_to_upper_case(char* method) {
+static __always_inline __maybe_unused void convert_method_to_upper_case(char* method) {
     #pragma unroll (METHOD_LEN)
     for (int i = 0; i < METHOD_LEN; i++) {
         if ('a' <= method[i] && method[i] <= 'z') {
