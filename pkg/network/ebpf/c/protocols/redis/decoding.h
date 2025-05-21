@@ -158,15 +158,14 @@ static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *co
         return;
     }
 
-    char upper_case_method[METHOD_LEN];
-    get_upper_case_method(method, upper_case_method);
+    convert_method_to_upper_case(method);
 
     redis_transaction_t transaction = {};
     transaction.tags = tags;
     transaction.request_started = bpf_ktime_get_ns();
-    if (bpf_memcmp(upper_case_method, REDIS_CMD_SET, METHOD_LEN) == 0) {
+    if (bpf_memcmp(method, REDIS_CMD_SET, METHOD_LEN) == 0) {
         transaction.command = REDIS_SET;
-    } else if (bpf_memcmp(upper_case_method, REDIS_CMD_GET, METHOD_LEN) == 0) {
+    } else if (bpf_memcmp(method, REDIS_CMD_GET, METHOD_LEN) == 0) {
         transaction.command = REDIS_GET;
     } else {
         return;
