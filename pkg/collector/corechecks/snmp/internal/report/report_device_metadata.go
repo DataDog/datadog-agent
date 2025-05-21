@@ -35,9 +35,9 @@ const topologyLinkSourceTypeLLDP = "lldp"
 const topologyLinkSourceTypeCDP = "cdp"
 const ciscoNetworkProtocolIPv4 = "1"
 const ciscoNetworkProtocolIPv6 = "20"
-const ciscoVPNEndpointAddrSingleType = "1"
-const ciscoVPNEndpointAddrRangeType = "2"
-const ciscoVPNEndpointAddrCidrType = "3"
+const ciscoVPNTunnelEndpointAddrSingleType = "1"
+const ciscoVPNTunnelEndpointAddrRangeType = "2"
+const ciscoVPNTunnelEndpointAddrCidrType = "3"
 
 var supportedDeviceTypes = map[string]bool{
 	"access_point":  true,
@@ -638,7 +638,7 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 		}
 	}
 
-	endpointIndexes := store.GetColumnIndexes("cisco_ipsec_endpoint.local_inside_ip_type")
+	endpointIndexes := store.GetColumnIndexes("cisco_ipsec_endpoint.local_addr_type")
 	for _, strIndex := range endpointIndexes {
 		indexElems := strings.Split(strIndex, ".")
 
@@ -654,18 +654,18 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 			continue
 		}
 
-		localAddrType := store.GetColumnAsString("cisco_ipsec_endpoint.local_inside_ip_type", strIndex)
-		localAddr1 := store.GetColumnAsByteArray("cisco_ipsec_endpoint.local_inside_ip1", strIndex)
-		localAddr2 := store.GetColumnAsByteArray("cisco_ipsec_endpoint.local_inside_ip2", strIndex)
-		localAddrType, localAddr := handleVPNEndpointAddr(localAddrType, localAddr1, localAddr2)
+		localAddrType := store.GetColumnAsString("cisco_ipsec_endpoint.local_addr_type", strIndex)
+		localAddr1 := store.GetColumnAsByteArray("cisco_ipsec_endpoint.local_addr1", strIndex)
+		localAddr2 := store.GetColumnAsByteArray("cisco_ipsec_endpoint.local_addr2", strIndex)
+		localAddrType, localAddr := handleVPNTunnelEndpointAddr(localAddrType, localAddr1, localAddr2)
 		if localAddr == "" {
 			continue
 		}
 
-		remoteAddrType := store.GetColumnAsString("cisco_ipsec_endpoint.remote_inside_ip_type", strIndex)
-		remoteAddr1 := store.GetColumnAsByteArray("cisco_ipsec_endpoint.remote_inside_ip1", strIndex)
-		remoteAddr2 := store.GetColumnAsByteArray("cisco_ipsec_endpoint.remote_inside_ip2", strIndex)
-		remoteAddrType, remoteAddr := handleVPNEndpointAddr(remoteAddrType, remoteAddr1, remoteAddr2)
+		remoteAddrType := store.GetColumnAsString("cisco_ipsec_endpoint.remote_addr_type", strIndex)
+		remoteAddr1 := store.GetColumnAsByteArray("cisco_ipsec_endpoint.remote_addr1", strIndex)
+		remoteAddr2 := store.GetColumnAsByteArray("cisco_ipsec_endpoint.remote_addr2", strIndex)
+		remoteAddrType, remoteAddr := handleVPNTunnelEndpointAddr(remoteAddrType, remoteAddr1, remoteAddr2)
 		if remoteAddr == "" {
 			continue
 		}
@@ -685,13 +685,13 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 	return vpnTunnels
 }
 
-func handleVPNEndpointAddr(addrType string, addr1 []byte, addr2 []byte) (string, string) {
+func handleVPNTunnelEndpointAddr(addrType string, addr1 []byte, addr2 []byte) (string, string) {
 	switch addrType {
-	case ciscoVPNEndpointAddrSingleType:
+	case ciscoVPNTunnelEndpointAddrSingleType:
 		return "single", net.IP(addr1).String()
-	case ciscoVPNEndpointAddrRangeType:
+	case ciscoVPNTunnelEndpointAddrRangeType:
 		return "range", fmt.Sprintf("%s - %s", net.IP(addr1).String(), net.IP(addr2).String())
-	case ciscoVPNEndpointAddrCidrType:
+	case ciscoVPNTunnelEndpointAddrCidrType:
 		mask := net.IPMask(addr2)
 		ones, _ := mask.Size()
 		return "cidr", fmt.Sprintf("%s/%d", net.IP(addr1).String(), ones)
