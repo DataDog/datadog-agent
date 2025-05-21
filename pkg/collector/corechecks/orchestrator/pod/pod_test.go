@@ -205,9 +205,7 @@ func (suite *PodTestSuite) TestPodCheck() {
 
 func sorted(l ...string) []string {
 	var s []string
-	for _, v := range l {
-		s = append(s, v)
-	}
+	s = append(s, l...)
 	sort.Strings(s)
 	return s
 }
