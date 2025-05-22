@@ -9,8 +9,6 @@ package types
 
 import (
 	"context"
-
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
 // Installer is a package manager that installs and uninstalls packages.
@@ -18,10 +16,10 @@ type Installer interface {
 	IsInstalled(ctx context.Context, pkg string) (bool, error)
 
 	AvailableDiskSpace() (uint64, error)
-	State(ctx context.Context, pkg string) (repository.State, error)
-	States(ctx context.Context) (map[string]repository.State, error)
-	ConfigState(ctx context.Context, pkg string) (repository.State, error)
-	ConfigStates(ctx context.Context) (map[string]repository.State, error)
+	State(ctx context.Context, pkg string) (State, error)
+	States(ctx context.Context) (map[string]State, error)
+	ConfigState(ctx context.Context, pkg string) (State, error)
+	ConfigStates(ctx context.Context) (map[string]State, error)
 
 	Install(ctx context.Context, url string, args []string) error
 	ForceInstall(ctx context.Context, url string, args []string) error

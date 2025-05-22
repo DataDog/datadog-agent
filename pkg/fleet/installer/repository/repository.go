@@ -19,6 +19,7 @@ import (
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -58,24 +59,8 @@ type Repository struct {
 
 // PackageStates contains the state all installed packages
 type PackageStates struct {
-	States       map[string]State `json:"states"`
-	ConfigStates map[string]State `json:"config_states"`
-}
-
-// State is the state of the repository.
-type State struct {
-	Stable     string `json:"stable"`
-	Experiment string `json:"experiment"`
-}
-
-// HasStable returns true if the repository has a stable package.
-func (s *State) HasStable() bool {
-	return s.Stable != ""
-}
-
-// HasExperiment returns true if the repository has an experiment package.
-func (s *State) HasExperiment() bool {
-	return s.Experiment != ""
+	States       map[string]installertypes.State `json:"states"`
+	ConfigStates map[string]installertypes.State `json:"config_states"`
 }
 
 // StableFS returns the stable package fs.
@@ -99,20 +84,20 @@ func (r *Repository) ExperimentPath() string {
 }
 
 // GetState returns the state of the repository.
-func (r *Repository) GetState() (State, error) {
+func (r *Repository) GetState() (installertypes.State, error) {
 	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if errors.Is(err, errRepositoryNotCreated) {
-		return State{}, nil
+		return installertypes.State{}, nil
 	}
 	if err != nil {
-		return State{}, err
+		return installertypes.State{}, err
 	}
 	stable := repository.stable.Target()
 	experiment := repository.experiment.Target()
 	if experiment == stable {
 		experiment = ""
 	}
-	return State{
+	return installertypes.State{
 		Stable:     stable,
 		Experiment: experiment,
 	}, nil

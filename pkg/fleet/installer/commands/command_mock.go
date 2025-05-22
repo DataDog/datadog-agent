@@ -8,7 +8,6 @@ package commands
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 )
 
@@ -32,18 +31,18 @@ func (m *installerMock) AvailableDiskSpace() (uint64, error) {
 	return 0, nil
 }
 
-func (m *installerMock) State(_ context.Context, pkg string) (repository.State, error) {
+func (m *installerMock) State(_ context.Context, pkg string) (installertypes.State, error) {
 	if pkg == "datadog-agent" {
-		return repository.State{
+		return installertypes.State{
 			Stable:     "7.31.0",
 			Experiment: "7.32.0",
 		}, nil
 	}
-	return repository.State{}, nil
+	return installertypes.State{}, nil
 }
 
-func (m *installerMock) States(_ context.Context) (map[string]repository.State, error) {
-	return map[string]repository.State{
+func (m *installerMock) States(_ context.Context) (map[string]installertypes.State, error) {
+	return map[string]installertypes.State{
 		"datadog-agent": {
 			Stable:     "7.31.0",
 			Experiment: "7.32.0",
@@ -51,18 +50,18 @@ func (m *installerMock) States(_ context.Context) (map[string]repository.State, 
 	}, nil
 }
 
-func (m *installerMock) ConfigState(_ context.Context, pkg string) (repository.State, error) {
+func (m *installerMock) ConfigState(_ context.Context, pkg string) (installertypes.State, error) {
 	if pkg == "datadog-agent" {
-		return repository.State{
+		return installertypes.State{
 			Stable:     "abc-def-hij",
 			Experiment: "",
 		}, nil
 	}
-	return repository.State{}, nil
+	return installertypes.State{}, nil
 }
 
-func (m *installerMock) ConfigStates(_ context.Context) (map[string]repository.State, error) {
-	return map[string]repository.State{
+func (m *installerMock) ConfigStates(_ context.Context) (map[string]installertypes.State, error) {
+	return map[string]installertypes.State{
 		"datadog-agent": {
 			Stable:     "abc-def-hij",
 			Experiment: "",
