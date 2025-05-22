@@ -293,11 +293,22 @@ docker_build_agent7_full_arm64:
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-arm64.tar.xz
 
 # build the cluster-agent image
-docker_build_cluster_agent_amd64:
-  extends: [.docker_build_job_definition_amd64]
+.docker_build_cluster_agent:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
+    BUILD_CONTEXT: Dockerfiles/cluster-agent
+    ARTIFACTS_BUILD_CONTEXT: /tmp/build_artifacts
+  before_script:
+    - mkdir -p ${ARTIFACTS_BUILD_CONTEXT}
+    - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $ARTIFACTS_BUILD_CONTEXT/
+    - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $ARTIFACTS_BUILD_CONTEXT/
+    - mv -vf Dockerfiles/agent/nosys-seccomp $BUILD_CONTEXT/
+
+docker_build_cluster_agent_amd64:
+  extends: [.docker_build_job_definition_amd64, .docker_build_cluster_agent]
   needs:
     - job: cluster_agent-build_amd64
       artifacts: true
@@ -305,19 +316,9 @@ docker_build_cluster_agent_amd64:
       artifacts: true
     - job: cws_instrumentation-build_arm64
       artifacts: true
-  variables:
-    IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
-    BUILD_CONTEXT: Dockerfiles/cluster-agent
-  before_script:
-    - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
-    - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $BUILD_CONTEXT/
-    - mv -vf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
 
 docker_build_cluster_agent_arm64:
-  extends: [.docker_build_job_definition_arm64]
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
+  extends: [.docker_build_job_definition_arm64, .docker_build_cluster_agent]
   needs:
     - job: cluster_agent-build_arm64
       artifacts: true
@@ -325,19 +326,25 @@ docker_build_cluster_agent_arm64:
       artifacts: true
     - job: cws_instrumentation-build_arm64
       artifacts: true
-  variables:
-    IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
-    BUILD_CONTEXT: Dockerfiles/cluster-agent
-  before_script:
-    - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
-    - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $BUILD_CONTEXT/
-    - mv -vf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
 
-docker_build_cluster_agent_fips_amd64:
-  extends: [.docker_build_job_definition_amd64]
+.docker_build_cluster_agent_fips:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
+    BUILD_CONTEXT: Dockerfiles/cluster-agent
+    TAG_SUFFIX: -fips
+    ARTIFACTS_BUILD_CONTEXT: /tmp/build_artifacts
+  before_script:
+    - mkdir -p ${ARTIFACTS_BUILD_CONTEXT}
+    - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $ARTIFACTS_BUILD_CONTEXT/
+    - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $ARTIFACTS_BUILD_CONTEXT/
+    - mv -vf Dockerfiles/agent/nosys-seccomp $BUILD_CONTEXT/
+    - go tool nm ${ARTIFACTS_BUILD_CONTEXT}/datadog-cluster-agent | grep '_Cfunc__goboringcrypto_'
+
+docker_build_cluster_agent_fips_amd64:
+  extends: [.docker_build_job_definition_amd64, .docker_build_cluster_agent_fips]
   needs:
     - job: cluster_agent_fips-build_amd64
       artifacts: true
@@ -345,21 +352,9 @@ docker_build_cluster_agent_fips_amd64:
       artifacts: true
     - job: cws_instrumentation-build_arm64
       artifacts: true
-  variables:
-    IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
-    BUILD_CONTEXT: Dockerfiles/cluster-agent
-    TAG_SUFFIX: -fips
-  before_script:
-    - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
-    - mv -vf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
-    - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $BUILD_CONTEXT/
-    - go tool nm ${BUILD_CONTEXT}/datadog-cluster-agent | grep '_Cfunc__goboringcrypto_'
 
 docker_build_cluster_agent_fips_arm64:
-  extends: [.docker_build_job_definition_arm64]
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
+  extends: [.docker_build_job_definition_arm64, .docker_build_cluster_agent_fips]
   needs:
     - job: cluster_agent_fips-build_arm64
       artifacts: true
@@ -367,15 +362,6 @@ docker_build_cluster_agent_fips_arm64:
       artifacts: true
     - job: cws_instrumentation-build_arm64
       artifacts: true
-  variables:
-    IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
-    BUILD_CONTEXT: Dockerfiles/cluster-agent
-    TAG_SUFFIX: -fips
-  before_script:
-    - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
-    - mv -vf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
-    - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $BUILD_CONTEXT/
-    - go tool nm ${BUILD_CONTEXT}/datadog-cluster-agent | grep '_Cfunc__goboringcrypto_'
 
 # build the cws-instrumentation image
 docker_build_cws_instrumentation_amd64:

@@ -15,28 +15,7 @@ LABEL org.opencontainers.image.title "Datadog Cluster Agent"
 RUN apt-get update \
     && apt-get install --no-install-recommends -y adduser
 
-WORKDIR /output
-
-COPY datadog-cluster-agent opt/datadog-agent/bin/datadog-cluster-agent
-COPY ./conf.d etc/datadog-agent/conf.d
-COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
-COPY ./security-agent-policies/compliance/containers/cis-kubernetes*.yaml etc/datadog-agent/compliance.d/
-COPY ./security-agent-policies/compliance/containers/*.rego etc/datadog-agent/compliance.d/
-COPY ./install_info etc/datadog-agent/install_info
-COPY entrypoint.sh .
-COPY readsecret.sh readsecret_multiple_providers.sh ./
-
-# CWS Instrumentation
-COPY --chmod=0755 ./cws-instrumentation/ opt/datadog-agent/bin/datadog-cws-instrumentation/
-
-RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
-    && addgroup --system secret-manager \
-    && chmod 755 entrypoint.sh \
-    && chown root:secret-manager readsecret.sh readsecret_multiple_providers.sh \
-    && chmod 550 readsecret.sh readsecret_multiple_providers.sh \
-    && chmod g+r,g+w,g+X -R etc/datadog-agent/ \
-    && chmod +x opt/datadog-agent/bin/datadog-cluster-agent \
-    && ln -s /opt/datadog-agent/bin/datadog-cluster-agent opt/datadog-agent/bin/agent
+RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 FROM builder AS nosys-seccomp
 ENV DEBIAN_FRONTEND=noninteractive
@@ -78,6 +57,14 @@ RUN apt-get update \
     && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata adduser\
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
+COPY ./conf.d /etc/datadog-agent/conf.d
+COPY ./datadog-cluster.yaml /etc/datadog-agent/datadog-cluster.yaml
+COPY ./security-agent-policies/compliance/containers/cis-kubernetes*.yaml /etc/datadog-agent/compliance.d/
+COPY ./security-agent-policies/compliance/containers/*.rego /etc/datadog-agent/compliance.d/
+COPY ./install_info etc/datadog-agent/install_info
+COPY entrypoint.sh .
+COPY readsecret.sh readsecret_multiple_providers.sh ./
+
 ARG DD_GIT_REPOSITORY_URL
 ARG DD_GIT_COMMIT_SHA
 ENV \
@@ -86,7 +73,17 @@ ENV \
     DD_GIT_REPOSITORY_URL=${DD_GIT_REPOSITORY_URL} \
     DD_GIT_COMMIT_SHA=${DD_GIT_COMMIT_SHA}
 
-COPY --from=builder /output /
+COPY --from=artifacts datadog-cluster-agent /opt/datadog-agent/bin/datadog-cluster-agent
+# CWS Instrumentation
+COPY --from=artifacts --chmod=0755 ./cws-instrumentation/ /opt/datadog-agent/bin/datadog-cws-instrumentation/
+
+RUN addgroup --system secret-manager \
+    && chmod 755 entrypoint.sh \
+    && chown root:secret-manager readsecret.sh readsecret_multiple_providers.sh \
+    && chmod 550 readsecret.sh readsecret_multiple_providers.sh \
+    && chmod g+r,g+w,g+X -R /etc/datadog-agent/ \
+    && chmod +x /opt/datadog-agent/bin/datadog-cluster-agent \
+    && ln -s /opt/datadog-agent/bin/datadog-cluster-agent /opt/datadog-agent/bin/agent
 
 # Allow running as an unprivileged user:
 # - General case is the dd-agent user
