@@ -93,7 +93,6 @@ func (client *Client) runJSpringSecurityCheck(authPayload *url.Values) error {
 	// GET request, then perform analytics login
 
 	// Request to /j_spring_security_check to obtain CSRF token and session cookie
-	// TODO: use scheme from config, this is for testing
 	req, err := client.newRequest("POST", "/versa/j_spring_security_check", strings.NewReader(authPayload.Encode()), true)
 	if err != nil {
 		return err
