@@ -225,7 +225,7 @@ func testHTTPSLibrary(t *testing.T, cfg *config.Config, fetchCmd, prefetchLibs [
 			return false
 		}
 		for key, stats := range stats {
-			if key.Path.Content.Get() != "/200/foobar" {
+			if key.Path.Content.Value() != "/200/foobar" {
 				continue
 			}
 			req, exists := stats.Data[200]
@@ -455,7 +455,7 @@ func simpleGetRequestsGenerator(t *testing.T, targetAddr string) (*nethttp.Clien
 func isRequestIncluded(allStats map[http.Key]*http.RequestStats, req *nethttp.Request) bool {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	for key, stats := range allStats {
-		if key.Path.Content.Get() != req.URL.Path {
+		if key.Path.Content.Value() != req.URL.Path {
 			continue
 		}
 		if requests, exists := stats.Data[expectedStatus]; exists && requests.Count > 0 {
@@ -605,7 +605,7 @@ func TestOldConnectionRegression(t *testing.T) {
 		require.True(t, ok)
 		assert.Condition(t, func() bool {
 			for key := range httpStats {
-				if key.Path.Content.Get() == httpPath {
+				if key.Path.Content.Value() == httpPath {
 					return true
 				}
 			}
@@ -660,7 +660,7 @@ func TestLimitListenerRegression(t *testing.T) {
 		require.True(t, ok)
 		assert.Condition(t, func() bool {
 			for key := range httpStats {
-				if key.Path.Content.Get() == httpPath {
+				if key.Path.Content.Value() == httpPath {
 					return true
 				}
 			}
@@ -837,7 +837,7 @@ func countRequestsOccurrences(t *testing.T, conns map[http.Key]*http.RequestStat
 			}
 
 			expectedStatus := testutil.StatusFromPath(req.URL.Path)
-			if key.Path.Content.Get() != req.URL.Path {
+			if key.Path.Content.Value() != req.URL.Path {
 				continue
 			}
 			if requests, exists := stats.Data[expectedStatus]; exists && requests.Count > 0 {

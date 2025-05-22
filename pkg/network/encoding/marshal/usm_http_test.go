@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"runtime"
 	"testing"
+	"unique"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/sketches-go/ddsketch"
@@ -57,7 +58,7 @@ func TestFormatHTTPStats(t *testing.T) {
 
 	httpKey2 := httpKey1
 	httpKey2.Path = http.Path{
-		Content:  http.Interner.GetString("/testpath-2"),
+		Content:  unique.Make("/testpath-2"),
 		FullPath: true,
 	}
 	httpStats2 := http.NewRequestStats()

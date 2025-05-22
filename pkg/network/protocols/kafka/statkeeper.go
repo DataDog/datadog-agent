@@ -9,9 +9,10 @@ package kafka
 
 import (
 	"sync"
+	"unique"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -21,10 +22,6 @@ type StatKeeper struct {
 	statsMutex sync.RWMutex
 	maxEntries int
 	telemetry  *Telemetry
-
-	// topicNames stores interned versions of the all topics currently stored in
-	// the `StatKeeper`
-	topicNames *intern.StringInterner
 }
 
 // NewStatkeeper creates a new StatKeeper
@@ -33,7 +30,6 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
 		stats:      make(map[Key]*RequestStats),
 		maxEntries: c.MaxKafkaStatsBuffered,
 		telemetry:  telemetry,
-		topicNames: intern.NewStringInterner(),
 	}
 }
 
@@ -79,7 +75,7 @@ func (statKeeper *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	return ret
 }
 
-func (statKeeper *StatKeeper) extractTopicName(tx *KafkaTransaction) *intern.StringValue {
+func (statKeeper *StatKeeper) extractTopicName(tx *KafkaTransaction) unique.Handle[string] {
 	// Limit tx.Topic_name_size to not exceed the actual length of tx.Topic_name
 	if uint16(tx.Topic_name_size) > uint16(len(tx.Topic_name)) {
 		log.Debugf("Topic name size was changed from %d, to size: %d", tx.Topic_name_size, len(tx.Topic_name))
@@ -87,5 +83,6 @@ func (statKeeper *StatKeeper) extractTopicName(tx *KafkaTransaction) *intern.Str
 	}
 	b := tx.Topic_name[:tx.Topic_name_size]
 
-	return statKeeper.topicNames.Get(b)
+	// workaround for lack of compiler optimization in Go <1.25: https://github.com/golang/go/issues/71926
+	return unique.Make(unsafe.String(&b[0], len(b)))
 }

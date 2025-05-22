@@ -1706,7 +1706,7 @@ func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kaf
 		if hasTLSTag != validation.tlsEnabled {
 			continue
 		}
-		assert.Equal(t, topicName[:min(len(topicName), 80)], kafkaKey.TopicName.Get())
+		assert.Equal(t, topicName[:min(len(topicName), 80)], kafkaKey.TopicName.Value())
 		if requestStats.Count == 1 {
 			assert.Greater(t, requestStats.FirstLatencySample, float64(1))
 		} else {
@@ -1734,7 +1734,7 @@ func validateProduceFetchCountWithErrorCodes(t *assert.CollectT, kafkaStats map[
 	produceRequests := make(map[int32]int, len(validation.expectedNumberOfProduceRequests))
 	fetchRequests := make(map[int32]int, len(validation.expectedNumberOfFetchRequests))
 	for kafkaKey, kafkaStat := range kafkaStats {
-		assert.Equal(t, topicName[:min(len(topicName), 80)], kafkaKey.TopicName.Get())
+		assert.Equal(t, topicName[:min(len(topicName), 80)], kafkaKey.TopicName.Value())
 		switch kafkaKey.RequestAPIKey {
 		case kafka.ProduceAPIKey:
 			assert.Equal(t, uint16(validation.expectedAPIVersionProduce), kafkaKey.RequestVersion)

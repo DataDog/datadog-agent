@@ -7,18 +7,16 @@ package http
 
 import (
 	"errors"
+	"unique"
+	"unsafe"
 
 	"github.com/DataDog/sketches-go/ddsketch"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// Interner is used to intern strings to save memory allocations.
-var Interner = intern.NewStringInterner()
 
 // Method is the type used to represent HTTP request methods
 type Method uint8
@@ -70,7 +68,7 @@ func (m Method) String() string {
 
 // Path represents the HTTP path
 type Path struct {
-	Content  *intern.StringValue
+	Content  unique.Handle[string]
 	FullPath bool
 }
 
@@ -84,7 +82,7 @@ type Key struct {
 
 // String returns a string representation of the Key
 func (k Key) String() string {
-	return "{IP: " + k.ConnectionKey.String() + ", Method: " + k.Method.String() + ", Path: " + k.Path.Content.Get() + "}"
+	return "{IP: " + k.ConnectionKey.String() + ", Method: " + k.Method.String() + ", Path: " + k.Path.Content.Value() + "}"
 }
 
 // NewKey generates a new Key
@@ -97,7 +95,8 @@ func NewKeyWithConnection(connKey types.ConnectionKey, path []byte, fullPath boo
 	return Key{
 		ConnectionKey: connKey,
 		Path: Path{
-			Content:  Interner.Get(path),
+			// workaround for lack of compiler optimization in Go <1.25: https://github.com/golang/go/issues/71926
+			Content:  unique.Make(unsafe.String(&path[0], len(path))),
 			FullPath: fullPath,
 		},
 		Method: method,

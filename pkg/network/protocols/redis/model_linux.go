@@ -10,10 +10,11 @@ package redis
 import (
 	"fmt"
 	"strings"
+	"unique"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
-	"github.com/DataDog/datadog-agent/pkg/util/intern"
 )
 
 // EventWrapper wraps an ebpf event and provides additional methods to extract information from it.
@@ -22,7 +23,7 @@ type EventWrapper struct {
 	*EbpfEvent
 
 	keyNameSet bool
-	keyName    *intern.StringValue
+	keyName    unique.Handle[string]
 	commandSet bool
 	command    CommandType
 }
@@ -56,9 +57,11 @@ func getFragment(e *EbpfTx) []byte {
 }
 
 // KeyName returns the key name of the key.
-func (e *EventWrapper) KeyName() *intern.StringValue {
+func (e *EventWrapper) KeyName() unique.Handle[string] {
 	if !e.keyNameSet {
-		e.keyName = Interner.Get(getFragment(&e.Tx))
+		frag := getFragment(&e.Tx)
+		// workaround for lack of compiler optimization in Go <1.25: https://github.com/golang/go/issues/71926
+		e.keyName = unique.Make(unsafe.String(&frag[0], len(frag)))
 		e.keyNameSet = true
 	}
 	return e.keyName
@@ -95,7 +98,7 @@ func (e *EventWrapper) String() string {
 	if e.Tx.Truncated {
 		truncatedPath = " (truncated)"
 	}
-	output.WriteString(fmt.Sprintf(template, e.CommandType(), e.KeyName().Get(), truncatedPath, e.RequestLatency()))
+	output.WriteString(fmt.Sprintf(template, e.CommandType(), e.KeyName().Value(), truncatedPath, e.RequestLatency()))
 	return output.String()
 }
 

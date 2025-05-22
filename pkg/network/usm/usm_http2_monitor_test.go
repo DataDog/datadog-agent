@@ -24,6 +24,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unique"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -161,7 +162,7 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 
 	require.Eventuallyf(t, func() bool {
 		for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
-			if (key.DstPort == srvPort || key.SrcPort == srvPort) && key.Method == usmhttp.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
+			if (key.DstPort == srvPort || key.SrcPort == srvPort) && key.Method == usmhttp.MethodPost && strings.HasPrefix(key.Path.Content.Value(), "/test") {
 				matches.Add(stat.Data[200].Count)
 			}
 		}
@@ -231,7 +232,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 			},
 			expectedEndpoints: map[usmhttp.Key]captureRange{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/")},
+					Path:   usmhttp.Path{Content: unique.Make("/")},
 					Method: usmhttp.MethodPost,
 				}: {
 					lower: 999,
@@ -253,7 +254,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 			},
 			expectedEndpoints: map[usmhttp.Key]captureRange{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/index.html")},
+					Path:   usmhttp.Path{Content: unique.Make("/index.html")},
 					Method: usmhttp.MethodPost,
 				}: {
 					lower: 999,
@@ -320,7 +321,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 				if t.Failed() {
 					for key := range tt.expectedEndpoints {
 						if _, ok := res[key]; !ok {
-							t.Logf("key: %v was not found in res", key.Path.Content.Get())
+							t.Logf("key: %v was not found in res", key.Path.Content.Value())
 						}
 					}
 					ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, usmhttp2.InFlightMap)
@@ -557,11 +558,11 @@ func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 	seenRequests := map[string]int{}
 	assert.Eventuallyf(t, func() bool {
 		for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
-			if (key.DstPort == srvPort || key.SrcPort == srvPort) && key.Method == usmhttp.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
-				if _, ok := seenRequests[key.Path.Content.Get()]; !ok {
-					seenRequests[key.Path.Content.Get()] = 0
+			if (key.DstPort == srvPort || key.SrcPort == srvPort) && key.Method == usmhttp.MethodPost && strings.HasPrefix(key.Path.Content.Value(), "/test") {
+				if _, ok := seenRequests[key.Path.Content.Value()]; !ok {
+					seenRequests[key.Path.Content.Value()] = 0
 				}
-				seenRequests[key.Path.Content.Get()] += stat.Data[200].Count
+				seenRequests[key.Path.Content.Value()] += stat.Data[200].Count
 				matches.Add(stat.Data[200].Count)
 			}
 		}
@@ -625,7 +626,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 1,
 			},
@@ -667,7 +668,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 119,
 			},
@@ -692,7 +693,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/" + strings.Repeat("a", defaultDynamicTableSize))},
+					Path:   usmhttp.Path{Content: unique.Make("/" + strings.Repeat("a", defaultDynamicTableSize))},
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
@@ -716,7 +717,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
@@ -748,7 +749,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
@@ -774,7 +775,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
@@ -802,7 +803,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
@@ -846,47 +847,47 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/200")},
+					Path:   usmhttp.Path{Content: unique.Make("/status/200")},
 					Method: usmhttp.MethodPost,
 				}: 3,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/201")},
+					Path:   usmhttp.Path{Content: unique.Make("/status/201")},
 					Method: usmhttp.MethodPost,
 				}: 3,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/204")},
+					Path:   usmhttp.Path{Content: unique.Make("/status/204")},
 					Method: usmhttp.MethodPost,
 				}: 3,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/206")},
+					Path:   usmhttp.Path{Content: unique.Make("/status/206")},
 					Method: usmhttp.MethodPost,
 				}: 3,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/300")},
+					Path:   usmhttp.Path{Content: unique.Make("/status/300")},
 					Method: usmhttp.MethodPost,
 				}: 3,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/304")},
+					Path:   usmhttp.Path{Content: unique.Make("/status/304")},
 					Method: usmhttp.MethodPost,
 				}: 3,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/400")},
+					Path:   usmhttp.Path{Content: unique.Make("/status/400")},
 					Method: usmhttp.MethodPost,
 				}: 3,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/401")},
+					Path:   usmhttp.Path{Content: unique.Make("/status/401")},
 					Method: usmhttp.MethodPost,
 				}: 3,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/404")},
+					Path:   usmhttp.Path{Content: unique.Make("/status/404")},
 					Method: usmhttp.MethodPost,
 				}: 3,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/500")},
+					Path:   usmhttp.Path{Content: unique.Make("/status/500")},
 					Method: usmhttp.MethodPost,
 				}: 3,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/504")},
+					Path:   usmhttp.Path{Content: unique.Make("/status/504")},
 					Method: usmhttp.MethodPost,
 				}: 3,
 			},
@@ -914,31 +915,31 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodGet,
 				}: 2,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 2,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodHead,
 				}: 2,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodDelete,
 				}: 2,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPut,
 				}: 2,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPatch,
 				}: 2,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodOptions,
 				}: 2,
 			},
@@ -973,31 +974,31 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodGet,
 				}: 1,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 1,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodHead,
 				}: 1,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodDelete,
 				}: 1,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPut,
 				}: 1,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPatch,
 				}: 1,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodOptions,
 				}: 1,
 			},
@@ -1028,11 +1029,11 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodGet,
 				}: 1,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 1,
 			},
@@ -1088,7 +1089,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 1,
 			},
@@ -1109,7 +1110,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 1,
 			},
@@ -1133,7 +1134,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/")},
+					Path:   usmhttp.Path{Content: unique.Make("/")},
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
@@ -1159,7 +1160,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/")},
+					Path:   usmhttp.Path{Content: unique.Make("/")},
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
@@ -1185,7 +1186,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 2,
 			},
@@ -1212,7 +1213,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 1,
 			},
@@ -1241,7 +1242,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 2,
 			},
@@ -1310,11 +1311,11 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 1,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/bbb")},
+					Path:   usmhttp.Path{Content: unique.Make("/bbb")},
 					Method: usmhttp.MethodPost,
 				}: 1,
 			},
@@ -1339,7 +1340,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			if t.Failed() {
 				for key := range tt.expectedEndpoints {
 					if _, ok := res[key]; !ok {
-						t.Logf("key: %v was not found in res", key.Path.Content.Get())
+						t.Logf("key: %v was not found in res", key.Path.Content.Value())
 					}
 				}
 				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap, "http2_dynamic_table")
@@ -1386,7 +1387,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 10,
 			},
@@ -1418,7 +1419,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 			if t.Failed() {
 				for key := range tt.expectedEndpoints {
 					if _, ok := res[key]; !ok {
-						t.Logf("key: %v was not found in res", key.Path.Content.Get())
+						t.Logf("key: %v was not found in res", key.Path.Content.Value())
 					}
 				}
 				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap)
@@ -1535,11 +1536,11 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Path:   usmhttp.Path{Content: unique.Make(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
 				}: 1,
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/a")},
+					Path:   usmhttp.Path{Content: unique.Make("/a")},
 					Method: usmhttp.MethodPost,
 				}: 1,
 			},
@@ -1574,7 +1575,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 			if t.Failed() {
 				for key := range tt.expectedEndpoints {
 					if _, ok := res[key]; !ok {
-						t.Logf("key: %v was not found in res", key.Path.Content.Get())
+						t.Logf("key: %v was not found in res", key.Path.Content.Value())
 					}
 				}
 				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap)
@@ -1617,7 +1618,7 @@ func TestHTTP2InFlightMapCleaner(t *testing.T) {
 func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]int, isTLS bool) bool {
 	for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
 		if key.DstPort == srvPort || key.SrcPort == srvPort {
-			statusCode := testutil.StatusFromPath(key.Path.Content.Get())
+			statusCode := testutil.StatusFromPath(key.Path.Content.Value())
 			// statusCode 0 represents an error returned from the function, which means the URL is not in the special
 			// form which contains the expected status code (form - `/status/{statusCode}`). So by default we use
 			// 200 as the status code.
@@ -1883,7 +1884,7 @@ func getExpectedOutcomeForPathWithRepeatedChars() map[usmhttp.Key]captureRange {
 	for i := 1; i < 100; i++ {
 		expected[usmhttp.Key{
 			Path: usmhttp.Path{
-				Content: usmhttp.Interner.GetString(fmt.Sprintf("/%s", strings.Repeat("a", i))),
+				Content: unique.Make(fmt.Sprintf("/%s", strings.Repeat("a", i))),
 			},
 			Method: usmhttp.MethodPost,
 		}] = captureRange{

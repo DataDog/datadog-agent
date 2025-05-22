@@ -63,7 +63,7 @@ func Kafka(stats map[kafka.Key]*kafka.RequestStats) []RequestSummary {
 			},
 
 			Operation: operationName,
-			TopicName: key.TopicName.Get(),
+			TopicName: key.TopicName.Value(),
 			ByStatus:  make(map[int8]Stats, len(requestStat.ErrorCodeToStat)),
 		}
 

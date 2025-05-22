@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+var emptyContainerID unique.Handle[string]
+
 func TestResolveLocalConnections(t *testing.T) {
 	conns := []ConnectionStats{
 		{ConnectionTuple: ConnectionTuple{
@@ -397,10 +399,10 @@ func TestResolveLoopbackConnections(t *testing.T) {
 	for i, te := range tests {
 		t.Run(te.name, func(t *testing.T) {
 			if te.expectedRaddrID == "" {
-				assert.Nil(t, conns[i].ContainerID.Dest, "raddr container id does not match expected value")
+				assert.Equal(t, emptyContainerID, conns[i].ContainerID.Dest, "raddr container id does not match expected value")
 				return
 			}
-			require.NotNil(t, conns[i].ContainerID.Dest, "expected: %s", te.expectedRaddrID)
+			require.NotEqual(t, emptyContainerID, conns[i].ContainerID.Dest, "expected: %s", te.expectedRaddrID)
 			assert.Equal(t, te.expectedRaddrID, conns[i].ContainerID.Dest.Value(), "raddr container id does not match expected value")
 		})
 	}

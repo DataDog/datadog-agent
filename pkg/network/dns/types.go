@@ -7,28 +7,31 @@
 package dns
 
 import (
+	"unique"
+	"unsafe"
+
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/intern"
 )
 
-var si = intern.NewStringInterner()
-
 // Hostname represents a DNS hostname (aka domain name)
-type Hostname = *intern.StringValue
+type Hostname = unique.Handle[string]
 
 // ToString converts a dns.Hostname to a string
 func ToString(h Hostname) string {
-	return h.Get()
+	return h.Value()
 }
 
 // HostnameFromBytes converts a byte slice representing a hostname to a dns.Hostname
 func HostnameFromBytes(b []byte) Hostname {
-	return si.Get(b)
+	// the compiler will correctly prevent the string allocation in the line below in Go 1.25+
+	// return unique.Make(string(b))
+	// until then, we must use this workaround
+	return unique.Make(unsafe.String(&b[0], len(b)))
 }
 
 // ToHostname converts from a string to a dns.Hostname
 func ToHostname(s string) Hostname {
-	return si.GetString(s)
+	return unique.Make(s)
 }
 
 // QueryType is the DNS record type

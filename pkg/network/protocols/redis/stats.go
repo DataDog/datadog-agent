@@ -9,23 +9,20 @@ package redis
 
 import (
 	"errors"
+	"unique"
 
 	"github.com/DataDog/sketches-go/ddsketch"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
-	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// Interner is used to intern strings to save memory allocations.
-var Interner = intern.NewStringInterner()
 
 // Key is an identifier for a group of Redis transactions
 type Key struct {
 	types.ConnectionKey
 	Command   CommandType
-	KeyName   *intern.StringValue
+	KeyName   unique.Handle[string]
 	Truncated bool
 }
 

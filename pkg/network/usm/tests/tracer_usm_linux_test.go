@@ -2312,7 +2312,7 @@ func testHTTPLikeSketches(t *testing.T, tr *tracer.Tracer, client *nethttp.Clien
 		}
 
 		for key, stats := range requests {
-			if key.Path.Content.Get() != parsedURL.Path {
+			if key.Path.Content.Value() != parsedURL.Path {
 				continue
 			}
 			if key.Method.String() == "GET" {
@@ -2454,7 +2454,7 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 				continue
 			}
 
-			if key.TopicName.Get() == topicName2 && key.RequestAPIKey == kafka.FetchAPIKey {
+			if key.TopicName.Value() == topicName2 && key.RequestAPIKey == kafka.FetchAPIKey {
 				if fetchRequestStats == nil {
 					fetchRequestStats = stats
 				} else {
@@ -2462,7 +2462,7 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 				}
 				continue
 			}
-			if key.TopicName.Get() == topicName1 && key.RequestAPIKey == kafka.ProduceAPIKey {
+			if key.TopicName.Value() == topicName1 && key.RequestAPIKey == kafka.ProduceAPIKey {
 				if produceTopic1RequestsStats == nil {
 					produceTopic1RequestsStats = stats
 				} else {
@@ -2471,7 +2471,7 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 				continue
 			}
 
-			if key.TopicName.Get() == topicName2 && key.RequestAPIKey == kafka.ProduceAPIKey {
+			if key.TopicName.Value() == topicName2 && key.RequestAPIKey == kafka.ProduceAPIKey {
 				if produceTopic2RequestsStats == nil {
 					produceTopic2RequestsStats = stats
 				} else {
@@ -2602,11 +2602,11 @@ func testRedisSketches(t *testing.T, tr *tracer.Tracer) {
 				break
 			}
 
-			if key.KeyName.Get() == keyName && key.Command == redis.GetCommand {
+			if key.KeyName.Value() == keyName && key.Command == redis.GetCommand {
 				getRequestStats = stats
 				continue
 			}
-			if key.KeyName.Get() == keyName && key.Command == redis.SetCommand {
+			if key.KeyName.Value() == keyName && key.Command == redis.SetCommand {
 				setRequestStats = stats
 				continue
 			}

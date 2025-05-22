@@ -12,6 +12,7 @@ import (
 	"io"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
@@ -66,7 +67,7 @@ func (e *http2Encoder) encodeData(connectionData *USMConnectionData[http.Key, *h
 			key := kvPair.Key
 			stats := kvPair.Value
 
-			http2StatsBuilder.SetPath(key.Path.Content.Get())
+			http2StatsBuilder.SetPath(key.Path.Content.Value())
 			http2StatsBuilder.SetFullPath(key.Path.FullPath)
 			http2StatsBuilder.SetMethod(uint64(model.HTTPMethod(key.Method)))
 

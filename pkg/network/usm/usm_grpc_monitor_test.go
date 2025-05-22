@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"testing"
 	"time"
+	"unique"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -139,7 +140,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]captureRange{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
+					Path:   http.Path{Content: unique.Make("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: {
 					lower: 999,
@@ -158,14 +159,14 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]captureRange{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
+					Path:   http.Path{Content: unique.Make("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: {
 					lower: 2,
 					upper: 2,
 				},
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
+					Path:   http.Path{Content: unique.Make("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: {
 					lower: 1,
@@ -185,14 +186,14 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]captureRange{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
+					Path:   http.Path{Content: unique.Make("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: {
 					lower: 2,
 					upper: 2,
 				},
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
+					Path:   http.Path{Content: unique.Make("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: {
 					lower: 2,
@@ -212,14 +213,14 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]captureRange{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
+					Path:   http.Path{Content: unique.Make("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: {
 					lower: 2,
 					upper: 2,
 				},
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
+					Path:   http.Path{Content: unique.Make("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: {
 					lower: 2,
@@ -239,7 +240,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]captureRange{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/protobuf.Math/Max")},
+					Path:   http.Path{Content: unique.Make("/protobuf.Math/Max")},
 					Method: http.MethodPost,
 				}: {
 					lower: 25,
@@ -259,14 +260,14 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]captureRange{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/protobuf.Math/Max")},
+					Path:   http.Path{Content: unique.Make("/protobuf.Math/Max")},
 					Method: http.MethodPost,
 				}: {
 					lower: 2,
 					upper: 2,
 				},
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
+					Path:   http.Path{Content: unique.Make("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: {
 					lower: 2,
@@ -295,14 +296,14 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]captureRange{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
+					Path:   http.Path{Content: unique.Make("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: {
 					lower: 2,
 					upper: 2,
 				},
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
+					Path:   http.Path{Content: unique.Make("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: {
 					lower: 2,
@@ -332,14 +333,14 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]captureRange{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
+					Path:   http.Path{Content: unique.Make("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: {
 					lower: 2,
 					upper: 2,
 				},
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
+					Path:   http.Path{Content: unique.Make("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: {
 					lower: 2,
@@ -369,7 +370,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]captureRange{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
+					Path:   http.Path{Content: unique.Make("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: {
 					lower: 1,
@@ -402,14 +403,14 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]captureRange{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
+					Path:   http.Path{Content: unique.Make("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: {
 					lower: 2,
 					upper: 2,
 				},
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
+					Path:   http.Path{Content: unique.Make("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: {
 					lower: 1,
@@ -475,7 +476,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]captureRange{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
+					Path:   http.Path{Content: unique.Make("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: {
 					// incident-27158: We have a wide range here as the test is flaky due to TCP out of order packets.
@@ -498,14 +499,14 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 			},
 			expectedEndpoints: map[http.Key]captureRange{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
+					Path:   http.Path{Content: unique.Make("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
 				}: {
 					lower: 2,
 					upper: 2,
 				},
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
+					Path:   http.Path{Content: unique.Make("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: {
 					lower: 1,
