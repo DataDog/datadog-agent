@@ -173,12 +173,12 @@ func TestGenerateDeviceNameToIDMap(t *testing.T) {
 			description: "Multiple devices with names",
 			devices: []metadata.DeviceMetadata{
 				{
-					ID:   "1",
-					Name: "branch1",
+					IPAddress: "1",
+					Name:      "branch1",
 				},
 				{
-					ID:   "2",
-					Name: "branch2",
+					IPAddress: "2",
+					Name:      "branch2",
 				},
 			},
 			expectedMap: map[string]string{
