@@ -10,8 +10,10 @@ package process
 
 import (
 	"context"
+	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/benbjohnson/clock"
 	"go.uber.org/fx"
 
@@ -31,29 +33,48 @@ type collector struct {
 	store   workloadmeta.Component
 	catalog workloadmeta.AgentType ``
 
-	collectionClock clock.Clock
+	// generates clock ticker for collection interval
+	clock clock.Clock
 
-	// TODO: update to actual type used
-	processEventsCh <-chan int
-	// TODO: add any other fields you need
+	// fetches process data
+	processProbe procutil.Probe
+
+	// channel for async processing of events
+	processEventsCh chan *ProcessEvent
+
+	// cache of last collect processes for diff generation
+	lastCollectedProcesses map[int32]*procutil.Process
+}
+
+type ProcessEvent struct {
+	Created []*workloadmeta.Process
+	Deleted []*workloadmeta.Process
+}
+
+func newProcessCollector(id string, store workloadmeta.Component, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe, processEventsCh chan *ProcessEvent, lastCollectedProcesses map[int32]*procutil.Process) collector {
+	return collector{
+		id:                     id,
+		store:                  store,
+		catalog:                catalog,
+		clock:                  clock,
+		processProbe:           processProbe,
+		processEventsCh:        processEventsCh,
+		lastCollectedProcesses: lastCollectedProcesses,
+	}
 }
 
 // NewProcessCollector returns a new process collector provider and an error.
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
-func NewProcessCollector() (workloadmeta.CollectorProvider, error) {
+func NewProcessCollectorProvider() (workloadmeta.CollectorProvider, error) {
+	collector := newProcessCollector(collectorID, nil, workloadmeta.NodeAgent, clock.New(), procutil.NewProcessProbe(), make(chan *ProcessEvent), make(map[int32]*procutil.Process))
 	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:              collectorID,
-			catalog:         workloadmeta.NodeAgent,
-			collectionClock: clock.New(),
-			// TODO: add any other fields you need
-		},
+		Collector: &collector,
 	}, nil
 }
 
 // GetFxOptions returns the FX framework options for the collector
 func GetFxOptions() fx.Option {
-	return fx.Provide(NewProcessCollector)
+	return fx.Provide(NewProcessCollectorProvider)
 }
 
 // isEnabled returns a boolean indicating if the process collector is enabled and what collection interval to use if it is.
@@ -68,9 +89,26 @@ func (c *collector) isEnabled() (bool, time.Duration) {
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	// TODO: implement the start-up logic for the process collector
 	// Once setup logic is complete, start collection and streaming goroutines
+	enabled, collectionInterval := c.isEnabled()
+
+	if enabled {
+		c.store = store
+		go c.collect(ctx, c.clock.Ticker(collectionInterval))
+		go c.stream(ctx)
+	}
+
 	return nil
 }
 
+// start used for testing purposes while we wait for configuration logic to be sorted out
+func (c *collector) start(ctx context.Context, store workloadmeta.Component, collectionInterval time.Duration) error {
+	c.store = store
+	go c.collect(ctx, c.clock.Ticker(collectionInterval))
+	go c.stream(ctx)
+	return nil
+}
+
+// collect captures all the required process data for the process check
 func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker) {
 	// TODO: implement the full collection logic for the process collector. Once collection is done, submit events.
 	ctx, cancel := context.WithCancel(ctx)
@@ -79,7 +117,59 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 	for {
 		select {
 		case <-collectionTicker.C:
-			// Fetch process data and submit events
+			// Fetch process data and submit events to streaming channel for asynchronous processing
+			procs, err := c.processProbe.ProcessesByPID(time.Now(), false)
+			if err != nil {
+				log.Errorf("Error getting processes by pid: %v", err)
+				return
+			}
+
+			// categorize the processes into storable events
+			var createdProcesses []*workloadmeta.Process
+			var deletedProcesses []*workloadmeta.Process
+
+			// determine new processes
+			for pid, proc := range procs {
+				if proc == nil {
+					log.Warnf("collected process %d was nil", pid)
+					continue
+				}
+				oldProc, exists := c.lastCollectedProcesses[pid]
+
+				// new process
+				if !exists {
+					createdProcesses = append(createdProcesses, processToWorkloadMetaProcess(proc))
+				} else if exists && oldProc.Stats.CreateTime != proc.Stats.CreateTime {
+					// new process but same PID
+					createdProcesses = append(createdProcesses, processToWorkloadMetaProcess(proc))
+				}
+			}
+
+			// determine deleted processes
+			for pid, oldProc := range c.lastCollectedProcesses {
+				if oldProc == nil {
+					log.Warnf("last stored process %d was nil", pid)
+					continue
+				}
+				proc, exists := procs[pid]
+
+				// old process was deleted
+				if !exists {
+					deletedProcesses = append(deletedProcesses, processToWorkloadMetaProcess(oldProc))
+				} else if exists && oldProc.Stats.CreateTime != proc.Stats.CreateTime {
+					// old process but same PID
+					deletedProcesses = append(deletedProcesses, processToWorkloadMetaProcess(oldProc))
+				}
+			}
+
+			// send these events to the channel
+			c.processEventsCh <- &ProcessEvent{
+				Created: createdProcesses,
+				Deleted: deletedProcesses,
+			}
+
+			// store latest collected processes
+			c.lastCollectedProcesses = procs
 		case <-ctx.Done():
 			log.Infof("The %s collector has stopped", collectorID)
 			return
@@ -87,6 +177,7 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 	}
 }
 
+// stream processes events sent from data collection and notifies WorkloadMeta that updates have occurred
 func (c *collector) stream(ctx context.Context) {
 	// TODO: implement the full streaming logic for the process collector
 	health := health.RegisterLiveness(componentName)
@@ -96,9 +187,31 @@ func (c *collector) stream(ctx context.Context) {
 		select {
 		case <-health.C:
 
-		case <-c.processEventsCh:
-		// TODO: implement the logic to handle events
-		// c.store.Notify(events)
+		case processEvent := <-c.processEventsCh:
+			if processEvent == nil {
+				log.Warn("sent process event was nil")
+				continue
+			}
+
+			// TODO: implement the logic to handle events
+			var events []workloadmeta.CollectorEvent
+			for _, proc := range processEvent.Created {
+				events = append(events, workloadmeta.CollectorEvent{
+					Type:   workloadmeta.EventTypeSet,
+					Entity: proc,
+					Source: workloadmeta.SourceProcessCollector,
+				})
+			}
+
+			for _, proc := range processEvent.Deleted {
+				events = append(events, workloadmeta.CollectorEvent{
+					Type:   workloadmeta.EventTypeUnset,
+					Entity: proc,
+					Source: workloadmeta.SourceProcessCollector,
+				})
+			}
+
+			c.store.Notify(events)
 
 		case <-ctx.Done():
 			err := health.Deregister()
@@ -107,6 +220,31 @@ func (c *collector) stream(ctx context.Context) {
 			}
 			return
 		}
+	}
+}
+
+// processToWorkloadMetaProcess maps a procutil process to a workloadmeta process
+func processToWorkloadMetaProcess(process *procutil.Process) *workloadmeta.Process {
+	if process == nil {
+		return nil
+	}
+
+	return &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   strconv.Itoa(int(process.Pid)),
+		},
+		Pid:          process.Pid,
+		NsPid:        process.NsPid,
+		Ppid:         process.Ppid,
+		Name:         process.Name,
+		Cwd:          process.Cwd,
+		Exe:          process.Exe,
+		Comm:         process.Comm,
+		Cmdline:      process.Cmdline,
+		Uids:         process.Uids,
+		Gids:         process.Gids,
+		CreationTime: time.UnixMilli(process.Stats.CreateTime).UTC(),
 	}
 }
 
