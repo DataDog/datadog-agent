@@ -3,7 +3,7 @@
 trigger_distribution:
   stage: trigger_distribution
   allow_failure: true
-  rules: !reference [.on_deploy]
+  rules: !reference [.on_deploy_success]
   trigger:
     include:
       - local: .gitlab/trigger_distribution/include.yml
@@ -11,8 +11,7 @@ trigger_distribution:
 trigger_distribution_on_failure:
   stage: trigger_distribution
   allow_failure: true
-  rules: !reference [.on_deploy]
-  when: manual
+  rules: !reference [.on_deploy_manual]
   trigger:
     include:
       - local: .gitlab/trigger_distribution/include.yml

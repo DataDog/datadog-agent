@@ -337,8 +337,16 @@ workflow:
 .on_deploy:
   - <<: *if_deploy
 
+.on_deploy_manual:
+  - <<: *if_deploy
+    when: manual
+
 .on_deploy_installer:
   - <<: *if_deploy_installer
+
+.on_deploy_success:
+  - <<: *if_deploy
+    when: on_success
 
 .on_deploy_failure:
   - <<: *if_deploy
