@@ -36,18 +36,22 @@ type Store[T any] struct {
 	lock          sync.RWMutex
 	observers     map[storeOperation][]ObserverFunc
 	observersLock sync.RWMutex
+	indexMap      map[any][]string
+	getIndexKey   func(*T) any
 }
 
 type storeOperation int
 
 // NewStore creates a new NewStore
-func NewStore[T any]() *Store[T] {
+func NewStore[T any](getIndexKey func(*T) any) *Store[T] {
 	return &Store[T]{
 		store: make(map[string]T),
 		observers: map[storeOperation][]ObserverFunc{
 			setOperation:    make([]ObserverFunc, 0),
 			deleteOperation: make([]ObserverFunc, 0),
 		},
+		indexMap:    make(map[any][]string),
+		getIndexKey: getIndexKey,
 	}
 }
 
@@ -98,6 +102,26 @@ func (s *Store[T]) GetFiltered(filter func(T) bool) []T {
 	return objects
 }
 
+// GetFilteredByOwner returns a copy of all store values matched by the owner index key
+func (s *Store[T]) GetFilteredByOwner(indexKey any) []T {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	ids, ok := s.indexMap[indexKey]
+	if !ok || len(ids) == 0 {
+		return nil
+	}
+
+	objects := make([]T, 0, len(ids))
+	for _, id := range ids {
+		if obj, exists := s.store[id]; exists {
+			objects = append(objects, obj)
+		}
+	}
+
+	return objects
+}
+
 // Update updates all objects in the store with the result of the `updator` function.
 // Updator func is expected to return the new object and a boolean indicating if the object has changed.
 // The object is updated only if boolean is true, observers are notified only for updated objects after all objects have been updated.
@@ -131,6 +155,13 @@ func (s *Store[T]) Count() int {
 func (s *Store[T]) Set(id string, obj T, sender string) {
 	s.lock.Lock()
 	s.store[id] = obj
+
+	// Add to index if we have an index key function
+	if s.getIndexKey != nil {
+		indexKey := s.getIndexKey(&obj)
+		s.addIDToIndex(indexKey, id)
+	}
+
 	s.lock.Unlock()
 
 	s.notify(setOperation, id, sender)
@@ -139,7 +170,15 @@ func (s *Store[T]) Set(id string, obj T, sender string) {
 // Delete object corresponding to id if present
 func (s *Store[T]) Delete(id, sender string) {
 	s.lock.Lock()
-	_, exists := s.store[id]
+
+	obj, exists := s.store[id]
+
+	// Remove from index if we have an index key function
+	if exists && s.getIndexKey != nil {
+		indexKey := s.getIndexKey(&obj)
+		s.removeIDFromIndex(indexKey, id)
+	}
+
 	delete(s.store, id)
 	s.lock.Unlock()
 
@@ -196,5 +235,40 @@ func (s *Store[T]) notify(operationType storeOperation, key, sender string) {
 
 	for _, observer := range s.observers[operationType] {
 		observer(key, sender)
+	}
+}
+
+// Helper to add an ID to an index key
+func (s *Store[T]) addIDToIndex(key any, id string) {
+	if key == nil {
+		return
+	}
+	s.indexMap[key] = append(s.indexMap[key], id)
+}
+
+// Helper to remove an ID from an index key
+func (s *Store[T]) removeIDFromIndex(key any, id string) {
+	if key == nil {
+		return
+	}
+
+	ids, exists := s.indexMap[key]
+	if !exists {
+		return
+	}
+
+	// Find and remove the ID
+	for i, existingID := range ids {
+		if existingID == id {
+			// Remove by swapping with last element and truncating
+			ids[i] = ids[len(ids)-1]
+			s.indexMap[key] = ids[:len(ids)-1]
+
+			// If empty, remove the key
+			if len(s.indexMap[key]) == 0 {
+				delete(s.indexMap, key)
+			}
+			break
+		}
 	}
 }

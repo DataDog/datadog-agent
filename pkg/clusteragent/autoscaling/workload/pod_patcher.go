@@ -154,14 +154,21 @@ func (pa podPatcher) findAutoscaler(pod *corev1.Pod) (*model.PodAutoscalerIntern
 	}
 
 	// TODO: Implementation is slow
-	podAutoscalers := pa.store.GetFiltered(func(podAutoscaler model.PodAutoscalerInternal) bool {
-		if podAutoscaler.Namespace() == pod.Namespace &&
-			podAutoscaler.Spec().TargetRef.Name == ownerRef.Name &&
-			podAutoscaler.Spec().TargetRef.Kind == ownerRef.Kind &&
-			podAutoscaler.Spec().TargetRef.APIVersion == ownerRef.APIVersion {
-			return true
-		}
-		return false
+	// podAutoscalers := pa.store.GetFiltered(func(podAutoscaler model.PodAutoscalerInternal) bool {
+	// 	if podAutoscaler.Namespace() == pod.Namespace &&
+	// 		podAutoscaler.Spec().TargetRef.Name == ownerRef.Name &&
+	// 		podAutoscaler.Spec().TargetRef.Kind == ownerRef.Kind &&
+	// 		podAutoscaler.Spec().TargetRef.APIVersion == ownerRef.APIVersion {
+	// 		return true
+	// 	}
+	// 	return false
+	// })
+
+	podAutoscalers := pa.store.GetFilteredByOwner(model.OwnerReference{
+		Namespace:  pod.Namespace,
+		Name:       ownerRef.Name,
+		Kind:       ownerRef.Kind,
+		APIVersion: ownerRef.APIVersion,
 	})
 
 	if len(podAutoscalers) == 0 {
