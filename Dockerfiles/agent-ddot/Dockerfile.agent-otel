@@ -30,8 +30,8 @@ RUN apt-get update && \
 # We can't get tarballs for dev branches, so we can't just pull the tarball from github.
 # Instead we make a treeless clone at the reference provided, and build from the repo.
 # We also have to use the repo clone because some invoke tasks rely on git coommands unavailable
-# in repo tarball archives.
-RUN git clone --branch ${AGENT_BRANCH} --filter=tree:0 --depth 1 https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_BRANCH}
+# in repo tarball archives. For the same reason a shallow clone will also not work.
+RUN git clone --branch ${AGENT_BRANCH} --filter=tree:0 https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_BRANCH}
 
 # Set the working directory to the source code
 WORKDIR /workspace/datadog-agent-${AGENT_BRANCH}
