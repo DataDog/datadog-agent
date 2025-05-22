@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	databricksInjectorVersion   = "0.39.1-1"
+	databricksInjectorVersion   = "0.40.0-1"
 	databricksJavaTracerVersion = "1.49.0-1"
 	databricksAgentVersion      = "7.63.3-1"
 )
