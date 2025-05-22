@@ -42,13 +42,8 @@ typedef enum {
     REDIS_ERR_NOQUORUM = 20,
     REDIS_ERR_BUSYKEY = 21,
     REDIS_ERR_UNBLOCKED = 22,
-    REDIS_ERR_UNSUPPORTED = 23,
-    REDIS_ERR_SYNTAX = 24,
-    REDIS_ERR_CLIENT_CLOSED = 25,
-    REDIS_ERR_PROXY = 26,
-    REDIS_ERR_WRONGPASS = 27,
-    REDIS_ERR_INVALID = 28,
-    REDIS_ERR_DEPRECATED = 29
+    REDIS_ERR_WRONGPASS = 23,
+    REDIS_ERR_INVALIDOBJ = 24
 } __attribute__ ((packed)) redis_error_t;
 
 // Redis in-flight transaction info

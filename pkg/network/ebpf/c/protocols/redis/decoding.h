@@ -253,13 +253,8 @@ static __always_inline redis_error_t map_redis_error_prefix(const char *prefix) 
     if (bpf_memcmp(prefix, "NOQUORUM", 8) == 0) return REDIS_ERR_NOQUORUM;
     if (bpf_memcmp(prefix, "BUSYKEY", 7) == 0) return REDIS_ERR_BUSYKEY;
     if (bpf_memcmp(prefix, "UNBLOCKED", 9) == 0) return REDIS_ERR_UNBLOCKED;
-    if (bpf_memcmp(prefix, "UNSUPPORTED", 11) == 0) return REDIS_ERR_UNSUPPORTED;
-    if (bpf_memcmp(prefix, "SYNTAX", 6) == 0) return REDIS_ERR_SYNTAX;
-    if (bpf_memcmp(prefix, "CLIENT_CLOSED", 13) == 0) return REDIS_ERR_CLIENT_CLOSED;
-    if (bpf_memcmp(prefix, "PROXY", 5) == 0) return REDIS_ERR_PROXY;
     if (bpf_memcmp(prefix, "WRONGPASS", 9) == 0) return REDIS_ERR_WRONGPASS;
-    if (bpf_memcmp(prefix, "INVALID", 7) == 0) return REDIS_ERR_INVALID;
-    if (bpf_memcmp(prefix, "DEPRECATED", 10) == 0) return REDIS_ERR_DEPRECATED;
+    if (bpf_memcmp(prefix, "INVALIDOBJ", 7) == 0) return REDIS_ERR_INVALIDOBJ;
     return REDIS_ERR_UNKNOWN;
 }
 

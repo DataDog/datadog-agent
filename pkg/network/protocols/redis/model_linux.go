@@ -26,7 +26,7 @@ type EventWrapper struct {
 	command    CommandType
 
 	errorSet bool
-	error    RedisErrorType
+	error    ErrorType
 }
 
 // NewEventWrapper creates a new EventWrapper from an ebpf event.
@@ -84,9 +84,9 @@ func (e *EventWrapper) RequestLatency() float64 {
 }
 
 // ErrorName returns the error name as a string, extracted from the null-terminated Error field.
-func (e *EventWrapper) ErrorName() RedisErrorType {
+func (e *EventWrapper) ErrorName() ErrorType {
 	if !e.errorSet {
-		e.error = fromEbpfErrorType(errorType(e.Tx.Error))
+		e.error = ErrorType(e.Tx.Error)
 		e.errorSet = true
 	}
 	return e.error
@@ -110,74 +110,6 @@ func (e *EventWrapper) String() string {
 	return output.String()
 }
 
-func fromEbpfErrorType(e errorType) RedisErrorType {
-	// Map kernel-space error types to user-space RedisErrorType
-	switch e {
-	case noErr:
-		return RedisNoErr
-	case unknownErr:
-		return RedisErrUnknown
-	case err:
-		return RedisErrErr
-	case wrongType:
-		return RedisErrWrongType
-	case noAuth:
-		return RedisErrNoAuth
-	case noPerm:
-		return RedisErrNoPerm
-	case busy:
-		return RedisErrBusy
-	case noScript:
-		return RedisErrNoScript
-	case loading:
-		return RedisErrLoading
-	case readOnly:
-		return RedisErrReadOnly
-	case execAbort:
-		return RedisErrExecAbort
-	case masterDown:
-		return RedisErrMasterDown
-	case misconf:
-		return RedisErrMisconf
-	case crossSlot:
-		return RedisErrCrossSlot
-	case tryAgain:
-		return RedisErrTryAgain
-	case ask:
-		return RedisErrAsk
-	case moved:
-		return RedisErrMoved
-	case clusterDown:
-		return RedisErrClusterDown
-	case noReplicas:
-		return RedisErrNoReplicas
-	case oom:
-		return RedisErrOom
-	case noQuorum:
-		return RedisErrNoQuorum
-	case busyKey:
-		return RedisErrBusyKey
-	case unblocked:
-		return RedisErrUnblocked
-	case unsupported:
-		return RedisErrUnsupported
-	case syntax:
-		return RedisErrSyntax
-	case clientClosed:
-		return RedisErrClientClosed
-	case proxy:
-		return RedisErrProxy
-	case wrongPass:
-		return RedisErrWrongPass
-	case invalid:
-		return RedisErrInvalid
-	case deprecated:
-		return RedisErrDeprecated
-	default:
-		return RedisErrUnknown
-	}
-}
-
 // String returns a string representation of Command
 func (c CommandType) String() string {
 	switch c {
@@ -187,5 +119,62 @@ func (c CommandType) String() string {
 		return "SET"
 	default:
 		return "UNKNOWN"
+	}
+}
+
+func (e ErrorType) String() string {
+	switch e {
+	case NoErr:
+		return "NO_ERR"
+	case UnknownErr:
+		return "ERR_UNKNOWN"
+	case GenericErr:
+		return "ERR"
+	case WrongType:
+		return "ERR_WRONGTYPE"
+	case NoAuth:
+		return "ERR_NOAUTH"
+	case NoPerm:
+		return "ERR_NOPERM"
+	case Busy:
+		return "ERR_BUSY"
+	case NoScript:
+		return "ERR_NOSCRIPT"
+	case Loading:
+		return "ERR_LOADING"
+	case ReadOnly:
+		return "ERR_READONLY"
+	case ExecAbort:
+		return "ERR_EXECABORT"
+	case MasterDown:
+		return "ERR_MASTERDOWN"
+	case Misconf:
+		return "ERR_MISCONF"
+	case CrossSlot:
+		return "ERR_CROSSSLOT"
+	case TryAgain:
+		return "ERR_TRYAGAIN"
+	case Ask:
+		return "ERR_ASK"
+	case Moved:
+		return "ERR_MOVED"
+	case ClusterDown:
+		return "ERR_CLUSTERDOWN"
+	case NoReplicas:
+		return "ERR_NOREPLICAS"
+	case Oom:
+		return "ERR_OOM"
+	case NoQuorum:
+		return "ERR_NOQUORUM"
+	case BusyKey:
+		return "ERR_BUSYKEY"
+	case Unblocked:
+		return "ERR_UNBLOCKED"
+	case WrongPass:
+		return "ERR_WRONGPASS"
+	case InvalidObj:
+		return "ERR_INVALIDOBJ"
+	default:
+		return "ERR_UNKNOWN"
 	}
 }

@@ -39,7 +39,7 @@ type RequestSummary struct {
 	Command      string
 	KeyName      string
 	Truncated    bool
-	ErrorToStats map[redis.RedisErrorType]Stats
+	ErrorToStats map[string]Stats
 }
 
 // Redis returns a debug-friendly representation of map[redis.Key]redis.RequestStats
@@ -68,11 +68,11 @@ func Redis(stats map[redis.Key]*redis.RequestStats) []RequestSummary {
 					Port: k.DstPort,
 				},
 			},
-			ErrorToStats: make(map[redis.RedisErrorType]Stats, len(stats[k].ErrorToStats)),
+			ErrorToStats: make(map[string]Stats, len(stats[k].ErrorToStats)),
 		}
 
 		for err, stat := range stats[k].ErrorToStats {
-			requestSummary.ErrorToStats[err] = Stats{
+			requestSummary.ErrorToStats[err.String()] = Stats{
 				Count:              stat.Count,
 				FirstLatencySample: stat.FirstLatencySample,
 				LatencyP50:         protocols.GetSketchQuantile(stat.Latencies, 0.5),
