@@ -285,3 +285,16 @@ func (s *baseIISSuite) StopTrustedInstaller() {
 	output, err := s.Env().RemoteHost.Execute("sc stop TrustedInstaller")
 	s.Require().NoErrorf(err, "failed to stop TrustedInstaller: %s", output)
 }
+
+// DisableRotationOnConfigChange disables recycling of application pools when configuration changes
+func (s *baseIISSuite) DisableRotationOnConfigChange() {
+	script := `
+Import-Module WebAdministration
+Get-ChildItem IIS:\AppPools | ForEach-Object {
+    $_.recycling.disallowRotationOnConfigChange = $true
+    $_ | Set-Item
+}
+`
+	output, err := s.Env().RemoteHost.Execute(script)
+	s.Require().NoErrorf(err, "failed to disable rotation on config change: %s", output)
+}

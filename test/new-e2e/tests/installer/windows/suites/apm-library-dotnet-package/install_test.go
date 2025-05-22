@@ -66,10 +66,11 @@ func (s *testDotnetLibraryInstallSuite) TestReinstall() {
 func (s *testDotnetLibraryInstallSuite) TestUpdate() {
 	const (
 		oldVersion = "3.13.0-pipeline.58926677.beta.sha-af5a1fab-1"
-		newVersion = "5ef369a60fffb854b257177e027f360c5586960b"
+		newVersion = "3.13.0-pipeline.58951229.beta.sha-af5a1fab-1"
 	)
 	// s.baseIISSuite.StopTrustedInstaller()
 	// flake.Mark(s.T())
+	s.baseIISSuite.DisableRotationOnConfigChange()
 	s.baseIISSuite.WriteSvcHostTasks("svc-host-tasks.txt")
 	s.baseIISSuite.EnableProcessAudit()
 	s.baseIISSuite.EnableIISConfigurationLog()
@@ -186,7 +187,8 @@ func (s *testDotnetLibraryInstallSuite) installDotnetAPMLibraryWithVersionFromHa
 	// TODO remove override once image is published in prod
 	output, err := s.Installer().InstallPackage("datadog-apm-library-dotnet",
 		installer.WithVersion(version),
-		installer.WithRegistry("installtesting.datad0g.com"),
+		installer.WithRegistry("install.datad0g.com"),
+		// installer.WithRegistry("installtesting.datad0g.com"),
 	)
 	s.Require().NoErrorf(err, "failed to install the dotnet library package: %s", output)
 }
