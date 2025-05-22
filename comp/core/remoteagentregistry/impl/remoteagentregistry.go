@@ -17,6 +17,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	"google.golang.org/protobuf/types/known/structpb"
+
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -92,11 +94,18 @@ func newRemoteAgent(reqs Requires) *remoteAgentRegistry {
 // remoteAgentRegistry is the main registry for remote agents. It tracks which remote agents are currently registered, when
 // they were last seen, and handles collecting status and flare data from them on request.
 type remoteAgentRegistry struct {
-	conf         config.Component
-	agentMap     map[string]*remoteAgentDetails
-	agentMapMu   sync.Mutex
-	shutdownChan chan struct{}
-	telemetry    telemetry.Component
+	conf              config.Component
+	agentMap          map[string]*remoteAgentDetails
+	agentMapMu        sync.Mutex
+	shutdownChan      chan struct{}
+	telemetry         telemetry.Component
+	configUpdatesChan chan *settingsUpdate
+}
+
+type settingsUpdate struct {
+	setting  string
+	oldValue any
+	newValue any
 }
 
 // RegisterRemoteAgent registers a remote agent with the registry.
@@ -125,6 +134,20 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 		// This won't try and connect to the given gRPC endpoint immediately, but will instead surface any errors with
 		// connecting when we try to query the remote agent for status or flare data.
 		details, err := newRemoteAgentDetails(registration)
+		if err != nil {
+			return 0, err
+		}
+
+		// Send the initial configuration to the remote agent.
+		allSettings := ra.conf.AllSettings()
+		protoStruct, err := structpb.NewStruct(allSettings)
+		if err != nil {
+			return 0, err
+		}
+		err = details.configStream.stream.Send(&pb.ConfigUpdate{
+			Payload: protoStruct,
+		})
+
 		if err != nil {
 			return 0, err
 		}
@@ -160,6 +183,13 @@ func (ra *remoteAgentRegistry) registerCollector() {
 func (ra *remoteAgentRegistry) start() {
 	remoteAgentIdleTimeout := ra.conf.GetDuration("remote_agent_registry.idle_timeout")
 	ra.registerCollector()
+	ra.conf.OnUpdate(func(setting string, oldValue, newValue any) {
+		ra.configUpdatesChan <- &settingsUpdate{
+			setting:  setting,
+			oldValue: oldValue,
+			newValue: newValue,
+		}
+	})
 
 	go func() {
 		log.Info("Remote Agent registry started.")
@@ -172,60 +202,40 @@ func (ra *remoteAgentRegistry) start() {
 			case <-ra.shutdownChan:
 				log.Info("Remote Agent registry stopped.")
 				return
+			case update := <-ra.configUpdatesChan:
+				ra.agentMapMu.Lock()
+				for agentID, details := range ra.agentMap {
+					// TODO: process the update
+					_ = update
+					request := &pb.ConfigUpdate{}
+					err := details.configStream.stream.Send(request)
+					if err != nil {
+						log.Warnf("Failed to send config update to remote agent '%s': %v", agentID, err)
+					} else {
+						log.Debugf("Successfully sent config update to remote agent '%s'", agentID)
+					}
+				}
+				ra.agentMapMu.Unlock()
 			case <-ticker.C:
 				ra.agentMapMu.Lock()
-
 				agentsToRemove := make([]string, 0)
 				for id, details := range ra.agentMap {
 					if time.Since(details.lastSeen) > remoteAgentIdleTimeout {
 						agentsToRemove = append(agentsToRemove, id)
 					}
 				}
-
 				for _, id := range agentsToRemove {
 					details, ok := ra.agentMap[id]
 					if ok {
-						if details.configStream != nil && details.configStream.stream != nil {
-							details.configStream.streamCancel()
-						}
+						details.configStream.streamCancel()
 						delete(ra.agentMap, id)
 						log.Infof("Remote agent '%s' deregistered after being idle for %s.", id, remoteAgentIdleTimeout)
 					}
 				}
-
 				ra.agentMapMu.Unlock()
 			}
 		}
 	}()
-	go ra.sendConfigUpdatesLoop()
-}
-
-func (ra *remoteAgentRegistry) sendConfigUpdatesLoop() {
-	log.Info("Remote Agent config update loop started.")
-
-	for {
-
-		// TODO: Implement config update loop
-
-		// ra.agentMapMu.Lock()
-
-		// for agentID, details := range ra.agentMap {
-		// 	request := &pb.PushedConfig{}
-
-		// 	if details.stream == nil {
-		// 		log.Warnf("Stream for remote agent '%s' is nil, skipping config update.", agentID)
-		// 		continue
-		// 	}
-
-		// 	err := details.stream.Send(request)
-		// 	if err != nil {
-		// 		log.Warnf("Failed to send config update to remote agent '%s': %v", agentID, err)
-		// 	} else {
-		// 		log.Debugf("Successfully sent config update to remote agent '%s'", agentID)
-		// 	}
-		// }
-		// ra.agentMapMu.Unlock()
-	}
 }
 
 type registryCollector struct {
@@ -536,7 +546,7 @@ type remoteAgentDetails struct {
 	displayName  string
 	apiEndpoint  string
 	client       pb.RemoteAgentClient
-	configStream *configStream
+	configStream configStream
 }
 
 type configStream struct {
@@ -560,7 +570,7 @@ func newRemoteAgentDetails(registration *remoteagentregistry.RegistrationData) (
 		displayName: registration.DisplayName,
 		apiEndpoint: registration.APIEndpoint,
 		client:      client,
-		configStream: &configStream{
+		configStream: configStream{
 			stream:       stream,
 			streamCancel: streamCancel,
 		},

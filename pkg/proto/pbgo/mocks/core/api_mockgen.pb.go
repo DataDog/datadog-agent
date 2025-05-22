@@ -1519,7 +1519,7 @@ func (mr *MockRemoteAgent_StreamConfigUpdatesClientMockRecorder) RecvMsg(m inter
 }
 
 // Send mocks base method.
-func (m *MockRemoteAgent_StreamConfigUpdatesClient) Send(arg0 *core.PushedConfig) error {
+func (m *MockRemoteAgent_StreamConfigUpdatesClient) Send(arg0 *core.ConfigUpdate) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Send", arg0)
 	ret0, _ := ret[0].(error)
@@ -1680,10 +1680,10 @@ func (mr *MockRemoteAgent_StreamConfigUpdatesServerMockRecorder) Context() *gomo
 }
 
 // Recv mocks base method.
-func (m *MockRemoteAgent_StreamConfigUpdatesServer) Recv() (*core.PushedConfig, error) {
+func (m *MockRemoteAgent_StreamConfigUpdatesServer) Recv() (*core.ConfigUpdate, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Recv")
-	ret0, _ := ret[0].(*core.PushedConfig)
+	ret0, _ := ret[0].(*core.ConfigUpdate)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

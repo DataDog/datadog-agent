@@ -201,5 +201,5 @@ service RemoteAgent {
 
 
   // Streams config updates to the remote agent.
-  rpc StreamConfigUpdates(stream datadog.remoteagent.PushedConfig) returns (google.protobuf.Empty);
+  rpc StreamConfigUpdates(stream datadog.remoteagent.ConfigUpdate) returns (google.protobuf.Empty);
 }

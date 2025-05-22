@@ -7,6 +7,7 @@
 package core
 
 import (
+	_struct "github.com/golang/protobuf/ptypes/struct"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -489,28 +490,28 @@ type GetTelemetryResponse_PromText struct {
 
 func (*GetTelemetryResponse_PromText) isGetTelemetryResponse_Payload() {}
 
-type PushedConfig struct {
+type ConfigUpdate struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Config payload.
-	Payload       []byte `protobuf:"bytes,1,opt,name=payload,proto3" json:"payload,omitempty"`
+	Payload       *_struct.Struct `protobuf:"bytes,1,opt,name=payload,proto3" json:"payload,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *PushedConfig) Reset() {
-	*x = PushedConfig{}
+func (x *ConfigUpdate) Reset() {
+	*x = ConfigUpdate{}
 	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *PushedConfig) String() string {
+func (x *ConfigUpdate) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PushedConfig) ProtoMessage() {}
+func (*ConfigUpdate) ProtoMessage() {}
 
-func (x *PushedConfig) ProtoReflect() protoreflect.Message {
+func (x *ConfigUpdate) ProtoReflect() protoreflect.Message {
 	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -522,12 +523,12 @@ func (x *PushedConfig) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PushedConfig.ProtoReflect.Descriptor instead.
-func (*PushedConfig) Descriptor() ([]byte, []int) {
+// Deprecated: Use ConfigUpdate.ProtoReflect.Descriptor instead.
+func (*ConfigUpdate) Descriptor() ([]byte, []int) {
 	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *PushedConfig) GetPayload() []byte {
+func (x *ConfigUpdate) GetPayload() *_struct.Struct {
 	if x != nil {
 		return x.Payload
 	}
@@ -538,7 +539,7 @@ var File_datadog_remoteagent_remoteagent_proto protoreflect.FileDescriptor
 
 const file_datadog_remoteagent_remoteagent_proto_rawDesc = "" +
 	"\n" +
-	"%datadog/remoteagent/remoteagent.proto\x12\x13datadog.remoteagent\"\x92\x01\n" +
+	"%datadog/remoteagent/remoteagent.proto\x12\x13datadog.remoteagent\x1a\x1cgoogle/protobuf/struct.proto\"\x92\x01\n" +
 	"\rStatusSection\x12F\n" +
 	"\x06fields\x18\x01 \x03(\v2..datadog.remoteagent.StatusSection.FieldsEntryR\x06fields\x1a9\n" +
 	"\vFieldsEntry\x12\x10\n" +
@@ -569,9 +570,9 @@ const file_datadog_remoteagent_remoteagent_proto_rawDesc = "" +
 	"\x13GetTelemetryRequest\"@\n" +
 	"\x14GetTelemetryResponse\x12\x1d\n" +
 	"\tprom_text\x18\x01 \x01(\tH\x00R\bpromTextB\t\n" +
-	"\apayload\"(\n" +
-	"\fPushedConfig\x12\x18\n" +
-	"\apayload\x18\x01 \x01(\fR\apayloadB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
+	"\apayload\"A\n" +
+	"\fConfigUpdate\x121\n" +
+	"\apayload\x18\x01 \x01(\v2\x17.google.protobuf.StructR\apayloadB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
 
 var (
 	file_datadog_remoteagent_remoteagent_proto_rawDescOnce sync.Once
@@ -596,22 +597,24 @@ var file_datadog_remoteagent_remoteagent_proto_goTypes = []any{
 	(*GetFlareFilesResponse)(nil),       // 6: datadog.remoteagent.GetFlareFilesResponse
 	(*GetTelemetryRequest)(nil),         // 7: datadog.remoteagent.GetTelemetryRequest
 	(*GetTelemetryResponse)(nil),        // 8: datadog.remoteagent.GetTelemetryResponse
-	(*PushedConfig)(nil),                // 9: datadog.remoteagent.PushedConfig
+	(*ConfigUpdate)(nil),                // 9: datadog.remoteagent.ConfigUpdate
 	nil,                                 // 10: datadog.remoteagent.StatusSection.FieldsEntry
 	nil,                                 // 11: datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntry
 	nil,                                 // 12: datadog.remoteagent.GetFlareFilesResponse.FilesEntry
+	(*_struct.Struct)(nil),              // 13: google.protobuf.Struct
 }
 var file_datadog_remoteagent_remoteagent_proto_depIdxs = []int32{
 	10, // 0: datadog.remoteagent.StatusSection.fields:type_name -> datadog.remoteagent.StatusSection.FieldsEntry
 	0,  // 1: datadog.remoteagent.GetStatusDetailsResponse.main_section:type_name -> datadog.remoteagent.StatusSection
 	11, // 2: datadog.remoteagent.GetStatusDetailsResponse.named_sections:type_name -> datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntry
 	12, // 3: datadog.remoteagent.GetFlareFilesResponse.files:type_name -> datadog.remoteagent.GetFlareFilesResponse.FilesEntry
-	0,  // 4: datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntry.value:type_name -> datadog.remoteagent.StatusSection
-	5,  // [5:5] is the sub-list for method output_type
-	5,  // [5:5] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	13, // 4: datadog.remoteagent.ConfigUpdate.payload:type_name -> google.protobuf.Struct
+	0,  // 5: datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntry.value:type_name -> datadog.remoteagent.StatusSection
+	6,  // [6:6] is the sub-list for method output_type
+	6,  // [6:6] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_datadog_remoteagent_remoteagent_proto_init() }

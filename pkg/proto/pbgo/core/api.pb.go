@@ -51,7 +51,7 @@ const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\x10GetStatusDetails\x12,.datadog.remoteagent.GetStatusDetailsRequest\x1a-.datadog.remoteagent.GetStatusDetailsResponse\x12f\n" +
 	"\rGetFlareFiles\x12).datadog.remoteagent.GetFlareFilesRequest\x1a*.datadog.remoteagent.GetFlareFilesResponse\x12c\n" +
 	"\fGetTelemetry\x12(.datadog.remoteagent.GetTelemetryRequest\x1a).datadog.remoteagent.GetTelemetryResponse\x12R\n" +
-	"\x13StreamConfigUpdates\x12!.datadog.remoteagent.PushedConfig\x1a\x16.google.protobuf.Empty(\x01B\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
+	"\x13StreamConfigUpdates\x12!.datadog.remoteagent.ConfigUpdate\x1a\x16.google.protobuf.Empty(\x01B\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
 
 var file_datadog_api_v1_api_proto_goTypes = []any{
 	(*HostnameRequest)(nil),                           // 0: datadog.model.v1.HostnameRequest
@@ -68,7 +68,7 @@ var file_datadog_api_v1_api_proto_goTypes = []any{
 	(*GetStatusDetailsRequest)(nil),                   // 11: datadog.remoteagent.GetStatusDetailsRequest
 	(*GetFlareFilesRequest)(nil),                      // 12: datadog.remoteagent.GetFlareFilesRequest
 	(*GetTelemetryRequest)(nil),                       // 13: datadog.remoteagent.GetTelemetryRequest
-	(*PushedConfig)(nil),                              // 14: datadog.remoteagent.PushedConfig
+	(*ConfigUpdate)(nil),                              // 14: datadog.remoteagent.ConfigUpdate
 	(*HostnameReply)(nil),                             // 15: datadog.model.v1.HostnameReply
 	(*StreamTagsResponse)(nil),                        // 16: datadog.model.v1.StreamTagsResponse
 	(*GenerateContainerIDFromOriginInfoResponse)(nil), // 17: datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
@@ -103,7 +103,7 @@ var file_datadog_api_v1_api_proto_depIdxs = []int32{
 	11, // 14: datadog.api.v1.RemoteAgent.GetStatusDetails:input_type -> datadog.remoteagent.GetStatusDetailsRequest
 	12, // 15: datadog.api.v1.RemoteAgent.GetFlareFiles:input_type -> datadog.remoteagent.GetFlareFilesRequest
 	13, // 16: datadog.api.v1.RemoteAgent.GetTelemetry:input_type -> datadog.remoteagent.GetTelemetryRequest
-	14, // 17: datadog.api.v1.RemoteAgent.StreamConfigUpdates:input_type -> datadog.remoteagent.PushedConfig
+	14, // 17: datadog.api.v1.RemoteAgent.StreamConfigUpdates:input_type -> datadog.remoteagent.ConfigUpdate
 	15, // 18: datadog.api.v1.Agent.GetHostname:output_type -> datadog.model.v1.HostnameReply
 	16, // 19: datadog.api.v1.AgentSecure.TaggerStreamEntities:output_type -> datadog.model.v1.StreamTagsResponse
 	17, // 20: datadog.api.v1.AgentSecure.TaggerGenerateContainerIDFromOriginInfo:output_type -> datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
@@ -1048,7 +1048,7 @@ func (c *remoteAgentClient) StreamConfigUpdates(ctx context.Context, opts ...grp
 }
 
 type RemoteAgent_StreamConfigUpdatesClient interface {
-	Send(*PushedConfig) error
+	Send(*ConfigUpdate) error
 	CloseAndRecv() (*empty.Empty, error)
 	grpc.ClientStream
 }
@@ -1057,7 +1057,7 @@ type remoteAgentStreamConfigUpdatesClient struct {
 	grpc.ClientStream
 }
 
-func (x *remoteAgentStreamConfigUpdatesClient) Send(m *PushedConfig) error {
+func (x *remoteAgentStreamConfigUpdatesClient) Send(m *ConfigUpdate) error {
 	return x.ClientStream.SendMsg(m)
 }
 
@@ -1165,7 +1165,7 @@ func _RemoteAgent_StreamConfigUpdates_Handler(srv interface{}, stream grpc.Serve
 
 type RemoteAgent_StreamConfigUpdatesServer interface {
 	SendAndClose(*empty.Empty) error
-	Recv() (*PushedConfig, error)
+	Recv() (*ConfigUpdate, error)
 	grpc.ServerStream
 }
 
@@ -1177,8 +1177,8 @@ func (x *remoteAgentStreamConfigUpdatesServer) SendAndClose(m *empty.Empty) erro
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *remoteAgentStreamConfigUpdatesServer) Recv() (*PushedConfig, error) {
-	m := new(PushedConfig)
+func (x *remoteAgentStreamConfigUpdatesServer) Recv() (*ConfigUpdate, error) {
+	m := new(ConfigUpdate)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}

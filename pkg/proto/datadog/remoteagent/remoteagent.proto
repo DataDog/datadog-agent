@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package datadog.remoteagent;
 
+import "google/protobuf/struct.proto";
+
 option go_package = "pkg/proto/pbgo/core"; // golang
 
 message StatusSection {
@@ -85,7 +87,7 @@ message GetTelemetryResponse {
   }
 }
 
-message PushedConfig {
+message ConfigUpdate {
   // Config payload.
-  bytes payload = 1;
+  google.protobuf.Struct payload = 1;
 }
