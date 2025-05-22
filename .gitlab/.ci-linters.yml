@@ -23,7 +23,6 @@ needs-rules:
     - deploy_containers-cws-instrumentation-rc-mutable
     - deploy_containers-cws-instrumentation-rc-versioned
     - dogstatsd_x64_size_test
-    - gate-release-jobs
     - go_mod_tidy_check
     - golang_deps_send_count_metrics
     - lint_flavor_dogstatsd_linux-x64
@@ -47,8 +46,8 @@ needs-rules:
     - tests_windows_sysprobe_x64
     - trigger_auto_staging_release
     - trigger_manual_prod_release
-    - trigger_release_jobs
-    - trigger_release_jobs_on_failure
+    - trigger_distribution
+    - trigger_distribution_on_failure
     - installer_trigger_auto_staging_release
     - installer_trigger_auto_staging_release_on_failure
     - installer_trigger_manual_prod_release

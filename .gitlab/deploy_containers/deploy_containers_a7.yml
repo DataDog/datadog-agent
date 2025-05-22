@@ -19,9 +19,6 @@ include:
 #
 .deploy_containers-a7-base:
   extends: .docker_publish_job_definition
-  needs:
-    - job: "gate-release-jobs"
-      optional: true
   stage: deploy_containers
   dependencies: []
   before_script:
@@ -34,9 +31,6 @@ include:
 
 .deploy_containers-a7_win_only_image:
   extends: .docker_publish_job_definition
-  needs:
-    - job: "gate-release-jobs"
-      optional: true
   stage: deploy_containers
   dependencies: []
   before_script:
@@ -49,9 +43,6 @@ include:
 
 .deploy_containers-a7-base-fips:
   extends: .docker_publish_job_definition
-  needs:
-    - job: "gate-release-jobs"
-      optional: true
   stage: deploy_containers
   dependencies: []
   before_script:
@@ -61,9 +52,6 @@ include:
 
 .deploy_containers-a7-full-base:
   extends: .docker_publish_job_definition
-  needs:
-    - job: "gate-release-jobs"
-      optional: true
   stage: deploy_containers
   dependencies: []
   before_script:
@@ -166,9 +154,6 @@ deploy_containers-a7-fips-rc:
 deploy_containers-dogstatsd:
   extends: .docker_publish_job_definition
   stage: deploy_containers
-  needs:
-    - job: "gate-release-jobs"
-      optional: true
   rules:
     !reference [.manual_on_deploy_auto_on_rc]
   dependencies: []
@@ -218,9 +203,6 @@ deploy_containers-a7-fips_internal-rc:
 deploy_containers_latest-a7:
   extends: .docker_publish_job_definition
   stage: deploy_containers
-  needs:
-    - job: "gate-release-jobs"
-      optional: true
   rules:
     !reference [.on_final]
   dependencies: []
@@ -265,9 +247,6 @@ deploy_containers_latest-a7:
 deploy_containers_latest-a7_internal:
   extends: .docker_publish_job_definition
   stage: deploy_containers
-  needs:
-    - job: "gate-release-jobs"
-      optional: true
   rules:
     !reference [.on_internal_final]
   dependencies: []
@@ -288,9 +267,6 @@ deploy_containers_latest-a7_internal:
 deploy_containers_latest-dogstatsd:
   extends: .docker_publish_job_definition
   stage: deploy_containers
-  needs:
-    - job: "gate-release-jobs"
-      optional: true
   rules:
     !reference [.on_final]
   dependencies: []

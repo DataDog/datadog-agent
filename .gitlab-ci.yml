@@ -33,7 +33,7 @@ include:
   - .gitlab/package_deps_build/package_deps_build.yml
   - .gitlab/pkg_metrics/pkg_metrics.yml
   - .gitlab/post_rc_build/post_rc_tasks.yml
-  - .gitlab/release_jobs/trigger_release_jobs.yml
+  - .gitlab/trigger_distribution/trigger_distribution.yml
   - .gitlab/setup/setup.yml
   - .gitlab/source_test/include.yml
   - .gitlab/trigger_release/installer.yml
@@ -55,7 +55,7 @@ default:
 
 stages:
   - .pre
-  - trigger_release_jobs
+  - trigger_distribution
   - setup
   - maintenance_jobs
   - deps_build

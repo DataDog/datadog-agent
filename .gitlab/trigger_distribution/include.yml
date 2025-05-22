@@ -8,4 +8,4 @@ include:
   - .gitlab/deploy_cws_instrumentation/deploy_cws_instrumentation.yml
   - .gitlab/deploy_dca/deploy_dca.yml
   - .gitlab/trigger_release/agent.yml
-  - .gitlab/release_jobs/stages.yml
+  - .gitlab/trigger_distribution/stages.yml

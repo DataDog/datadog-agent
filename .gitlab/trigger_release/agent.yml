@@ -4,9 +4,6 @@
 
 .agent_release_management_trigger:
   stage: trigger_release
-  needs:
-    - job: "gate-release-jobs"
-      optional: true
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   # We don't directly depend/need the package deploy jobs, because
