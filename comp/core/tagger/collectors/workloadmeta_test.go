@@ -1593,6 +1593,8 @@ func TestHandleECSTask(t *testing.T) {
 						"task_arn:foobar",
 					},
 					LowCardTags: []string{
+						"cluster_name:ecs-cluster",
+						"ecs_cluster_name:ecs-cluster",
 						"task_family:datadog-agent",
 						"task_name:datadog-agent",
 						"task_version:1",
@@ -1600,17 +1602,6 @@ func TestHandleECSTask(t *testing.T) {
 						"availability-zone:us-east-1c",
 						"region:us-east-1",
 						"aws_account:1234567891234",
-					},
-					StandardTags: []string{},
-				},
-				{
-					Source:               taskSource,
-					EntityID:             types.GetGlobalEntityID(),
-					HighCardTags:         []string{},
-					OrchestratorCardTags: []string{},
-					LowCardTags: []string{
-						"cluster_name:ecs-cluster",
-						"ecs_cluster_name:ecs-cluster",
 					},
 					StandardTags: []string{},
 				},

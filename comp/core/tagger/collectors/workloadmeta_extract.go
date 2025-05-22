@@ -462,6 +462,15 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	taskTags.AddLow(tags.Region, task.Region)
 	taskTags.AddOrchestrator(tags.TaskARN, task.ID)
 
+	clusterTags := taglist.NewTagList()
+	if task.ClusterName != "" {
+		if !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
+			clusterTags.AddLow(tags.ClusterName, task.ClusterName)
+		}
+		clusterTags.AddLow(tags.EcsClusterName, task.ClusterName)
+	}
+	clusterLow, clusterOrch, clusterHigh, clusterStandard := clusterTags.Compute()
+
 	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
 		taskTags.AddLow(tags.AvailabilityZoneDeprecated, task.AvailabilityZone) // Deprecated
 		taskTags.AddLow(tags.AvailabilityZone, task.AvailabilityZone)
@@ -475,6 +484,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	}
 
 	tagInfos := make([]*types.TagInfo, 0, len(task.Containers))
+
 	for _, taskContainer := range task.Containers {
 		container, err := c.store.GetContainer(taskContainer.ID)
 		if err != nil {
@@ -508,29 +518,23 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 			EntityID:             types.GetGlobalEntityID(),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
-			LowCardTags:          low,
+			LowCardTags:          append(low, clusterLow...),
 			StandardTags:         standard,
 		})
 	}
 
-	// globally add cluster tags regardless of ECS type
-	if task.ClusterName != "" {
-		// only add the global cluster tag(s) once
+	if task.LaunchType == workloadmeta.ECSLaunchTypeEC2 {
+		// because there can be multiple tasks on the same EC2 instance
+		// we only add the global cluster name once, not once fo eachs
+		// task discovered
 		tagClusterOnce.Do(func() {
-			clusterTags := taglist.NewTagList()
-			if !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
-				clusterTags.AddLow(tags.ClusterName, task.ClusterName)
-			}
-			clusterTags.AddLow(tags.EcsClusterName, task.ClusterName)
-
-			low, orch, high, standard := clusterTags.Compute()
 			tagInfos = append(tagInfos, &types.TagInfo{
 				Source:               taskSource,
 				EntityID:             types.GetGlobalEntityID(),
-				HighCardTags:         high,
-				OrchestratorCardTags: orch,
-				LowCardTags:          low,
-				StandardTags:         standard,
+				HighCardTags:         clusterHigh,
+				OrchestratorCardTags: clusterOrch,
+				LowCardTags:          clusterLow,
+				StandardTags:         clusterStandard,
 			})
 		})
 	}
