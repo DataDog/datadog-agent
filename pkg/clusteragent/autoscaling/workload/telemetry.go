@@ -15,11 +15,13 @@ import (
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
 )
 
@@ -31,7 +33,7 @@ const (
 var (
 	autoscalingQueueMetricsProvider = workqueuetelemetry.NewQueueMetricsProvider()
 	commonOpts                      = telemetry.Options{NoDoubleUnderscoreSep: true}
-	validRecommendationSources      = []datadoghqcommon.DatadogPodAutoscalerValueSource{datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource, datadoghqcommon.DatadogPodAutoscalerLocalValueSource}
+	validRecommendationSourcesNames = []string{string(datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource), string(datadoghqcommon.DatadogPodAutoscalerExternalValueSource), string(datadoghqcommon.DatadogPodAutoscalerLocalValueSource), string(datadoghqcommon.DatadogPodAutoscalerManualValueSource)}
 
 	// telemetryHorizontalScaleActions tracks the number of horizontal scaling attempts
 	telemetryHorizontalScaleActions = telemetry.NewCounterWithOpts(
@@ -112,6 +114,18 @@ func trackPodAutoscalerStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 	}
 }
 
+func deletePodAutoscalerTelemetry(ns, targetName, autoscalerName string) {
+	log.Debugf("Deleting pod autoscaler telemetry for %s/%s", ns, autoscalerName)
+	// unset horizontal scaling data
+	unsetHorizontalScaleAppliedRecommendations(ns, targetName, autoscalerName)
+	unsetHorizontalScaleReceivedRecommendations(ns, targetName, autoscalerName)
+	// unset vertical scaling data
+	unsetVerticalScaleReceivedRecommendationsLimits(ns, targetName, autoscalerName)
+	unsetVerticalScaleReceivedRecommendationsRequests(ns, targetName, autoscalerName)
+	// clear the status
+	unsetAutoscalerStatusConditions(ns, autoscalerName)
+}
+
 func trackLocalFallbackEnabled(currentSource datadoghqcommon.DatadogPodAutoscalerValueSource, podAutoscalerInternal model.PodAutoscalerInternal) {
 	var value float64
 	if currentSource == datadoghqcommon.DatadogPodAutoscalerLocalValueSource {
@@ -137,15 +151,45 @@ func setHorizontalScaleAppliedRecommendations(toReplicas float64, ns, targetName
 }
 
 func unsetHorizontalScaleAppliedRecommendations(ns, targetName, autoscalerName string) {
-	for _, source := range validRecommendationSources {
-		telemetryHorizontalScaleAppliedRecommendations.Delete(
-			ns,
-			targetName,
-			autoscalerName,
-			string(source),
-			le.JoinLeaderValue,
-		)
-	}
+	unsetHorizontalTelemetry(ns, targetName, autoscalerName, telemetryHorizontalScaleAppliedRecommendations)
+}
+
+func unsetHorizontalScaleReceivedRecommendations(ns, targetName, autoscalerName string) {
+	unsetHorizontalTelemetry(ns, targetName, autoscalerName, telemetryHorizontalScaleReceivedRecommendations)
+}
+
+func unsetHorizontalTelemetry(ns, targetName, autoscalerName string, metric telemetry.Gauge) {
+	metric.DeletePartialMatch(prometheus.Labels{
+		"namespace":        ns,
+		"target_name":      targetName,
+		"autoscaler_name":  autoscalerName,
+		le.JoinLeaderLabel: le.JoinLeaderValue,
+	})
+}
+
+func unsetVerticalScaleReceivedRecommendationsLimits(ns, targetName, autoscalerName string) {
+	unsetVerticalTelemetry(ns, targetName, autoscalerName, telemetryVerticalScaleReceivedRecommendationsLimits)
+}
+
+func unsetVerticalScaleReceivedRecommendationsRequests(ns, targetName, autoscalerName string) {
+	unsetVerticalTelemetry(ns, targetName, autoscalerName, telemetryVerticalScaleReceivedRecommendationsRequests)
+}
+
+func unsetVerticalTelemetry(ns, targetName, autoscalerName string, metric telemetry.Gauge) {
+	metric.DeletePartialMatch(prometheus.Labels{
+		"namespace":        ns,
+		"target_name":      targetName,
+		"autoscaler_name":  autoscalerName,
+		le.JoinLeaderLabel: le.JoinLeaderValue,
+	})
+}
+
+func unsetAutoscalerStatusConditions(ns, autoscalerName string) {
+	autoscalingStatusConditions.DeletePartialMatch(prometheus.Labels{
+		"namespace":        ns,
+		"autoscaler_name":  autoscalerName,
+		le.JoinLeaderLabel: le.JoinLeaderValue,
+	})
 }
 
 func startLocalTelemetry(ctx context.Context, sender sender.Sender, tags []string) {
