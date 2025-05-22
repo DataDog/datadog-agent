@@ -35,7 +35,7 @@ func TestExtractECSTask(t *testing.T) {
 				Name: "12345678-1234-1234-1234-123456789012",
 			},
 			ClusterName:   "ecs-cluster",
-			AWSAccountID:  123456789012,
+			AWSAccountID:  "123456789012",
 			Region:        "us-east-1",
 			LaunchType:    workloadmeta.ECSLaunchTypeEC2,
 			Family:        "redis",

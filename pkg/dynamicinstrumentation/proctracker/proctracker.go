@@ -58,6 +58,7 @@ func NewProcessTracker(pm process.Subscriber, callback processTrackerCallback) *
 // aware of new processes that may need to be instrumented or instrumented processes
 // that should no longer be instrumented
 func (pt *ProcessTracker) Start() error {
+	log.Infof("Starting process tracker")
 	unsubscribeExec := pt.pm.SubscribeExec(pt.handleProcessStart)
 	unsubscribeExit := pt.pm.SubscribeExit(pt.handleProcessStop)
 
@@ -67,14 +68,22 @@ func (pt *ProcessTracker) Start() error {
 
 // Stop unsubscribes from exec and exit events
 func (pt *ProcessTracker) Stop() {
+	log.Infof("Stopping process tracker")
 	for _, unsubscribe := range pt.unsubscribe {
 		unsubscribe()
 	}
 }
 
 func (pt *ProcessTracker) handleProcessStart(pid uint32) {
+	go pt.HandleProcessStartSync(pid)
+}
+
+// HandleProcessStartSync inspects the binary executable of the incoming pid on the same goroutine
+// used by Go DI testing infra
+func (pt *ProcessTracker) HandleProcessStartSync(pid uint32) {
 	exePath := kernel.HostProc(strconv.Itoa(int(pid)), "exe")
-	go pt.inspectBinary(exePath, pid)
+	log.Tracef("Handling process start for %d %s", pid, exePath)
+	pt.inspectBinaryForRegistration(exePath, pid)
 }
 
 func (pt *ProcessTracker) handleProcessStop(pid uint32) {
@@ -112,25 +121,35 @@ func remoteConfigCallback(_ delve.GoVersion, goarch string) ([]bininspect.Parame
 		}}, nil
 }
 
-func (pt *ProcessTracker) inspectBinary(exePath string, pid uint32) {
+func (pt *ProcessTracker) inspectBinaryForRegistration(exePath string, pid uint32) {
+	log.Tracef("Inspecting binary for %d %s", pid, exePath)
+	// Avoid self-inspection.
+	if int(pid) == os.Getpid() {
+		log.Infof("Skipping self-inspection for %d %s", pid, exePath)
+		return
+	}
+
 	serviceName, diEnabled := getEnvVars(pid)
 	if serviceName == "" || !diEnabled {
+		log.Tracef("Skipping binary inspection for %d %s", pid, exePath)
 		// if the expected env vars are not set we don't inspect the binary
 		return
 	}
+
+	log.Infof("Inspecting binary for %d %s", pid, exePath)
 	// TODO: switch to using exePath for the demo, use conditional logic above moving forward
 	binPath := exePath
 	f, err := os.Open(exePath)
 	if err != nil {
 		// this should be a debug log, but we want to know if this happens
-		log.Infof("could not open file %s, %s", binPath, err)
+		log.Errorf("could not open file for %s: %s, %s", serviceName, binPath, err)
 		return
 	}
 	defer f.Close()
 
 	elfFile, err := safeelf.NewFile(f)
 	if err != nil {
-		log.Infof("file %s could not be parsed as an ELF file: %s", binPath, err)
+		log.Errorf("binary file could not be parsed as an ELF file for %d %s: %s, %s", pid, serviceName, binPath, err)
 		return
 	}
 	noStructs := make(map[bininspect.FieldIdentifier]bininspect.StructLookupFunction)
@@ -140,15 +159,29 @@ func (pt *ProcessTracker) inspectBinary(exePath string, pid uint32) {
 			ParamLookupFunction:    remoteConfigCallback,
 		},
 	}
+
+	var ddtracegoVersion = ditypes.DDTraceGoVersionV1
 	_, err = bininspect.InspectNewProcessBinary(elfFile, functionsConfig, noStructs)
 	if err != nil {
-		log.Infof("error reading exe: %s", err)
-		return
+		log.Errorf("error reading binary for %d %s: %s, %s", pid, serviceName, binPath, err)
+
+		// Since dd-trace-go v2 has a different import path (therefore different symbol name) for the remote config callback, we need to handle both cases.
+		functionsConfig[ditypes.RemoteConfigCallbackV2] = bininspect.FunctionConfiguration{
+			IncludeReturnLocations: false,
+			ParamLookupFunction:    remoteConfigCallback,
+		}
+		delete(functionsConfig, ditypes.RemoteConfigCallback)
+		_, err = bininspect.InspectNewProcessBinary(elfFile, functionsConfig, noStructs)
+		if err != nil {
+			log.Errorf("error reading binary for %d %s: %s, %s", pid, serviceName, binPath, err)
+			return
+		}
+		ddtracegoVersion = ditypes.DDTraceGoVersionV2
 	}
 
 	var stat syscall.Stat_t
 	if err = syscall.Stat(binPath, &stat); err != nil {
-		log.Infof("could not stat binary path %s: %s", binPath, err)
+		log.Errorf("error stating binary for %d %s: %s, %s", pid, serviceName, binPath, err)
 		return
 	}
 	binID := binaryID{
@@ -156,11 +189,11 @@ func (pt *ProcessTracker) inspectBinary(exePath string, pid uint32) {
 		Id_minor: unix.Minor(stat.Dev),
 		Ino:      stat.Ino,
 	}
-	log.Info("Found instrumentation candidate", serviceName)
-	pt.registerProcess(binID, pid, stat.Mtim, binPath, serviceName)
+	log.Infof("Found instrumentation candidate for %d %s", pid, serviceName)
+	pt.registerProcess(binID, pid, stat.Mtim, binPath, serviceName, ddtracegoVersion)
 }
 
-func (pt *ProcessTracker) registerProcess(binID binaryID, pid pid, mTime syscall.Timespec, binaryPath string, serviceName string) {
+func (pt *ProcessTracker) registerProcess(binID binaryID, pid pid, mTime syscall.Timespec, binaryPath string, serviceName string, ddtracegoVersion ditypes.DDTraceGoVersion) {
 	pt.lock.Lock()
 	defer pt.lock.Unlock()
 
@@ -171,11 +204,12 @@ func (pt *ProcessTracker) registerProcess(binID binaryID, pid pid, mTime syscall
 	} else {
 
 		pt.binaries[binID] = &runningBinary{
-			binID:        binID,
-			mTime:        mTime,
-			processCount: 1,
-			binaryPath:   binaryPath,
-			serviceName:  serviceName,
+			binID:            binID,
+			mTime:            mTime,
+			processCount:     1,
+			binaryPath:       binaryPath,
+			serviceName:      serviceName,
+			ddtracegoVersion: ddtracegoVersion,
 		}
 	}
 	state := pt.currentState()
@@ -234,6 +268,7 @@ func (pt *ProcessTracker) currentState() map[ditypes.PID]*ditypes.ProcessInfo {
 			ProbesByID:             ditypes.NewProbesByID(),
 			InstrumentationUprobes: ditypes.NewInstrumentationUprobesMap(),
 			InstrumentationObjects: ditypes.NewInstrumentationObjectsMap(),
+			DDTracegoVersion:       bin.ddtracegoVersion,
 		}
 	}
 	return state

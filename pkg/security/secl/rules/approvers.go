@@ -204,7 +204,7 @@ func bitmaskCombinations(bitmasks []int) []int {
 //     * open.file.name in ["123", "456"] && open.file.name != "4.*" && open.file.name != "888"
 //     reason:
 //     * event will be approved kernel side and will be rejected userspace side
-func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) (Approvers, error) {
+func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) (Approvers, *Rule, error) {
 	approvers := make(Approvers)
 
 	ctx := eval.NewContext(event)
@@ -238,7 +238,7 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 				case eval.ScalarValueType, eval.PatternValueType, eval.GlobValueType, eval.RangeValueType:
 					isAnApprover, approverValueType, approverValue, err := isAnApprover(event, ctx, rule, fieldCap, value.Type, value.Value)
 					if err != nil {
-						return nil, err
+						return nil, rule, err
 					}
 					if isAnApprover {
 						filterValue := FilterValue{Field: field, Value: approverValue, Type: approverValueType, Mode: fieldCap.FilterMode}
@@ -255,7 +255,7 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 			for _, bitmask := range bitmaskCombinations(bitmasks) {
 				isAnApprover, _, _, err := isAnApprover(event, ctx, rule, fieldCap, eval.BitmaskValueType, bitmask)
 				if err != nil {
-					return nil, err
+					return nil, rule, err
 				}
 
 				if isAnApprover {
@@ -281,11 +281,11 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 
 		// no filter value for a rule thus no approver for the event type
 		if bestFilterValues == nil {
-			return nil, nil
+			return nil, rule, nil
 		}
 
-		// this rule as an approver in ApproverOnly mode. Disable to rule from being used by the discarder mechanism.
-		// the goal is to have approver that are good enough to filter properly the events used by rule that would break the
+		// this rule as an approver in ApproverOnly mode. Disable the rule from being used by the discarder mechanism.
+		// the goal is to have approvers that are good enough to filter properly the events used by rule that would break the
 		// discarder discovery.
 		// ex: open.file.name != "" && process.auid == 1000 # this rule avoid open.file.path discarder discovery, but with a ApproverOnly on process.auid the problem disappear
 		//     open.file.filename == "/etc/passwd"
@@ -293,8 +293,8 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 			rule.NoDiscarder = true
 		}
 
-		approvers[bestFilterField] = append(approvers[bestFilterField], bestFilterValues...)
+		approvers[bestFilterField] = approvers[bestFilterField].Merge(bestFilterValues...)
 	}
 
-	return approvers, nil
+	return approvers, nil, nil
 }

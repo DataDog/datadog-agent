@@ -469,3 +469,23 @@ func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg4Str(_ *model.Event, _ *model
 func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg4Uint(_ *model.Event, _ *model.OnDemandEvent) int {
 	return 0
 }
+
+// ResolveOnDemandArg5Str resolves the string value of the fifth argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg5Str(_ *model.Event, _ *model.OnDemandEvent) string {
+	return ""
+}
+
+// ResolveOnDemandArg5Uint resolves the uint value of the fifth argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg5Uint(_ *model.Event, _ *model.OnDemandEvent) int {
+	return 0
+}
+
+// ResolveOnDemandArg6Str resolves the string value of the sixth argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg6Str(_ *model.Event, _ *model.OnDemandEvent) string {
+	return ""
+}
+
+// ResolveOnDemandArg6Uint resolves the uint value of the sixth argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg6Uint(_ *model.Event, _ *model.OnDemandEvent) int {
+	return 0
+}

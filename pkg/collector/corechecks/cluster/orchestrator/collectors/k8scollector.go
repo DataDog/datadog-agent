@@ -15,7 +15,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 )
 
 // K8sCollector is an interface that represents the collection process for a k8s resource type.
@@ -64,14 +63,15 @@ type OrchestratorInformerFactory struct {
 func NewK8sProcessorContext(rcfg *CollectorRunConfig, metadata *CollectorMetadata) *processors.K8sProcessorContext {
 	return &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
-			Cfg:              rcfg.Config,
-			MsgGroupID:       rcfg.MsgGroupRef.Inc(),
-			NodeType:         metadata.NodeType,
-			ManifestProducer: true,
-			ClusterID:        rcfg.ClusterID,
-			Kind:             metadata.Kind,
-			APIVersion:       metadata.Version,
-			ExtraTags:        util.ImmutableTagsJoin(rcfg.Config.ExtraTags, metadata.CollectorTags()),
+			Cfg:                 rcfg.Config,
+			MsgGroupID:          rcfg.MsgGroupRef.Inc(),
+			NodeType:            metadata.NodeType,
+			ManifestProducer:    true,
+			ClusterID:           rcfg.ClusterID,
+			Kind:                metadata.Kind,
+			APIVersion:          metadata.Version,
+			CollectorTags:       metadata.CollectorTags(),
+			TerminatedResources: rcfg.TerminatedResources,
 		},
 		APIClient:         rcfg.APIClient,
 		LabelsAsTags:      metadata.LabelsAsTags,
