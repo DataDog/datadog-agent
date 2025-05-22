@@ -14,14 +14,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func init() {
-	rand.Seed(10)
-}
-
 func TestRandomBetween(t *testing.T) {
+	r := rand.New(rand.NewSource(10))
 	getRandomMinMax := func() (float64, float64) {
-		a := float64(rand.Intn(10))
-		b := float64(rand.Intn(10))
+		a := float64(r.Intn(10))
+		b := float64(r.Intn(10))
 		min := math.Min(a, b)
 		max := math.Max(a, b)
 		return min, max
@@ -29,7 +26,7 @@ func TestRandomBetween(t *testing.T) {
 
 	for i := 1; i < 100; i++ {
 		min, max := getRandomMinMax()
-		between := randomBetween(min, max)
+		between := randomBetween(r, min, max)
 
 		assert.True(t, min <= between)
 		assert.True(t, max >= between)
