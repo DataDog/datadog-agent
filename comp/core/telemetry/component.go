@@ -43,7 +43,7 @@ type Component interface {
 	NewSimpleGaugeWithOpts(subsystem, name, help string, opts Options) SimpleGauge
 
 	// NewHistogram creates a Histogram with default options for telemetry purpose.
-	NewHistogram(subsystem, name string, tags []string, help string, buckets []float64) Histogram
+	NewHistogram(subsystem, name string, tags []string, help string, buckets []float64) Histogram // JMWJMW
 	// NewHistogramWithOpts creates a Histogram with the given options for telemetry purpose.
 	NewHistogramWithOpts(subsystem, name string, tags []string, help string, buckets []float64, opts Options) Histogram
 

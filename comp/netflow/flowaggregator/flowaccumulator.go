@@ -49,7 +49,8 @@ func newFlowContext(flow *common.Flow) flowContext {
 	now := timeNow()
 	return flowContext{
 		flow:      flow,
-		nextFlush: now,
+		nextFlush: now, // JMW this is causing the first flush for a new flow to be within 10 seconds (the next time flushFlowsToSendInterval triggers)
+		// JMW add a config option, number of seconds to wait before flushing a new flow (set nextFlush to now + this config option)
 	}
 }
 
@@ -87,6 +88,8 @@ func (f *flowAccumulator) flush() []*common.Flow {
 		if flowCtx.flow == nil && (flowCtx.lastSuccessfulFlush.Add(f.flowContextTTL).Before(now)) {
 			f.logger.Tracef("Delete flow context (key=%d, lastSuccessfulFlush=%s, nextFlush=%s)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String())
 			// delete flowCtx wrapper if there is no successful flushes since `flowContextTTL`
+			// JMW add metric for this to see how many flow contexts are not reused
+			f.logger.Infof("JMW Delete flow context (key=%d, lastSuccessfulFlush=%s, nextFlush=%s)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String())
 			delete(f.flows, key)
 			continue
 		}
@@ -131,12 +134,15 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	}
 	if aggFlow.flow == nil {
 		// flowToAdd is for the same hash as an aggregated flow that has been flushed
+		// JMW add metric for this to see how many flow contexts are reused
+		f.logger.Infof("JMW Reusing flow (key=%d, lastSuccessfulFlush=%s, nextFlush=%s)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String())
 		aggFlow.flow = flowToAdd
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 	} else {
 		// use go routine for hash collision detection to avoid blocking critical path
 		go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
 
+		// JMW add metric for this - add to flow - when flushing flow track/log total number of flows that have been aggreagated into the flow being flushed
 		// accumulate flowToAdd with existing flow(s) with same hash
 		aggFlow.flow.Bytes += flowToAdd.Bytes
 		aggFlow.flow.Packets += flowToAdd.Packets
@@ -233,7 +239,7 @@ func (f *flowAccumulator) addRDNSEnrichment(aggHash uint64, srcAddr []byte, dstA
 	}
 }
 
-func (f *flowAccumulator) getFlowContextCount() int {
+func (f *flowAccumulator) getFlowContextCount() int { // JMW split this into two functions, one for active flows and one for previously flushed flows for which flowCtx.flow == nil, and track metric for both
 	f.flowsMutex.Lock()
 	defer f.flowsMutex.Unlock()
 

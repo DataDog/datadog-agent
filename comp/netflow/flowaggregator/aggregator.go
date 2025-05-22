@@ -137,7 +137,10 @@ func (agg *FlowAggregator) run() {
 }
 
 func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) {
-	for _, flow := range flows {
+	for key, flow := range flows {
+		// JMW for each flow to flush, observe a histogram metric for duration of the flow (end time - start time), and/or current time - lastFlush
+		agg.logger.Infof("JMW Sending flow (key=%d, lastSuccessfulFlush=%s, nextFlush=%s), duration of flow: %d seconds", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String(), flow.EndTimestamp-flow.StartTimestamp)
+
 		flowPayload := buildPayload(flow, agg.hostname, flushTime)
 
 		// Calling MarshalJSON directly as it's faster than calling json.Marshall
@@ -294,7 +297,7 @@ func (agg *FlowAggregator) flush() int {
 	// We increase `flushedFlowCount` at the end to be sure that the metrics are submitted before hand.
 	// Tests will wait for `flushedFlowCount` to be increased before asserting the metrics.
 	agg.flushedFlowCount.Add(uint64(flushCount))
-	return len(flowsToFlush)
+	return len(flowsToFlush) // JMW --> return flushCount OR skip returning the number, it isn't used
 }
 
 // getSequenceDelta return the delta of current sequence number compared to previously saved sequence number

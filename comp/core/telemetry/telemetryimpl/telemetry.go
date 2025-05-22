@@ -194,7 +194,7 @@ func (t *telemetryImpl) NewSimpleGaugeWithOpts(subsystem, name, help string, opt
 	return pc
 }
 
-func (t *telemetryImpl) NewHistogram(subsystem, name string, tags []string, help string, buckets []float64) telemetry.Histogram {
+func (t *telemetryImpl) NewHistogram(subsystem, name string, tags []string, help string, buckets []float64) telemetry.Histogram { // JMW use this?
 	return t.NewHistogramWithOpts(subsystem, name, tags, help, buckets, telemetry.DefaultOptions)
 }
 
@@ -211,6 +211,13 @@ func (t *telemetryImpl) NewHistogramWithOpts(subsystem, name string, tags []stri
 				Name:      name,
 				Help:      help,
 				Buckets:   buckets,
+				//JMWJMW
+				// DefBuckets are the default Histogram buckets. The default buckets are
+				// tailored to broadly measure the response time (in seconds) of a network
+				// service. Most likely, however, you will be required to define buckets
+				// customized to your use case.
+				//var DefBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+				//JMWJMW try var DefBuckets = []float64{5, 10, 30, 60, 150, 300, 450, 600}
 			},
 			tags,
 		),
@@ -221,6 +228,7 @@ func (t *telemetryImpl) NewHistogramWithOpts(subsystem, name string, tags []stri
 	return h
 }
 
+// JMWJMW use this instead, I don't care about having a vector of histograms based on tags, just one histogram for the aggregator
 func (t *telemetryImpl) NewSimpleHistogram(subsystem, name, help string, buckets []float64) telemetry.SimpleHistogram {
 	return t.NewSimpleHistogramWithOpts(subsystem, name, help, buckets, telemetry.DefaultOptions)
 }

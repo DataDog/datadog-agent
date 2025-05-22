@@ -20,7 +20,7 @@ const (
 	// MetricSubsystem is the subsystem for the metric
 	MetricSubsystem = "api_server"
 	// MetricName is the name of the metric
-	MetricName = "request_duration_seconds"
+	MetricName = "request_duration_seconds" // JMWJMW
 	metricHelp = "Request duration distribution by server, method, path, and status (in seconds)."
 )
 
@@ -55,15 +55,15 @@ func (th *telemetryMiddlewareFactory) Middleware(serverName string) mux.Middlewa
 
 			auth := th.authTagGetter(r)
 
-			th.requestDuration.Observe(durationSeconds, serverName, strconv.Itoa(statusCode), r.Method, path, auth)
+			th.requestDuration.Observe(durationSeconds, serverName, strconv.Itoa(statusCode), r.Method, path, auth) // JMWJMW
 		})
 	}
 }
 
 func newTelemetryMiddlewareFactory(telemetry telemetry.Component, clock clock.Clock, authTagGetter func(r *http.Request) string) TelemetryMiddlewareFactory {
 	tags := []string{"servername", "status_code", "method", "path", "auth"}
-	var buckets []float64 // use default buckets
-	requestDuration := telemetry.NewHistogram(MetricSubsystem, MetricName, tags, metricHelp, buckets)
+	var buckets []float64                                                                             // use default buckets
+	requestDuration := telemetry.NewHistogram(MetricSubsystem, MetricName, tags, metricHelp, buckets) // JMWJMW
 
 	return &telemetryMiddlewareFactory{
 		requestDuration,

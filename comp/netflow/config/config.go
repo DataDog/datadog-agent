@@ -29,7 +29,7 @@ type NetflowConfig struct {
 	AggregatorPortRollupThreshold int              `mapstructure:"aggregator_port_rollup_threshold"`
 	AggregatorPortRollupDisabled  bool             `mapstructure:"aggregator_port_rollup_disabled"`
 
-	// AggregatorRollupTrackerRefreshInterval is useful to speed up testing to avoid wait for 1h default
+	// AggregatorRollupTrackerRefreshInterval is useful to speed up testing to avoid wait for 1h default // JMW interval is actually 5m
 	AggregatorRollupTrackerRefreshInterval uint `mapstructure:"aggregator_rollup_tracker_refresh_interval"`
 
 	PrometheusListenerAddress string `mapstructure:"prometheus_listener_address"` // Example `localhost:9090`
