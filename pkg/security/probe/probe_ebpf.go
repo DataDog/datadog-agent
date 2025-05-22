@@ -837,7 +837,31 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			execPath := utils.ProcExePath(event.ProcessContext.Pid)
 			var fileStats unix.Statx_t
 			if err := unix.Statx(unix.AT_FDCWD, execPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStats); err == nil {
-				event.Debug = fmt.Sprintf("Mount id: %d", fileStats.Mnt_id)
+				event.Debug = fmt.Sprintf("Mount id: %d | ino: %d", fileStats.Mnt_id, fileStats.Ino)
+
+				mounts, err := utilkernel.ParseMountInfoFile(int32(event.ProcessContext.Pid))
+				if err != nil {
+					seclog.Errorf("Parse mount error: %v", err)
+				}
+
+				getMountInfo := func(mountid int) *mountinfo.Info {
+					for _, mnt := range mounts {
+						if mountid == mnt.ID {
+							return mnt
+						}
+					}
+
+					return nil
+				}
+
+				cur := getMountInfo(int(fileStats.Mnt_id))
+				event.Debug += fmt.Sprintf("\n cur mount: %+v", cur)
+
+				if cur != nil {
+					parent := getMountInfo(cur.Parent)
+					event.Debug += fmt.Sprintf("\n parent mount: %+v", parent)
+				}
+
 			} else {
 				event.Debug = fmt.Sprintf("Mount id: err %v. ExecPath is %v", err, execPath)
 			}
