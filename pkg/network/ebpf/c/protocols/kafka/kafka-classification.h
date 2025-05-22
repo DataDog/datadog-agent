@@ -292,18 +292,15 @@ static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible,
     offset += sizeof(topic_id);
 
     // The UUID version (13th digit 4 MSB) must be 4
-    if ((topic_id[6] & 0x40) != 0x40) {
+    __u8 uuid_version = topic_id[6] >> 4;
+    if (uuid_version != 4) {
         // The UUID version is not 4
         return false;
     }
 
     // The UUID variant (17th digit) may be 0x8, 0x9, 0xA or 0xB
-    if ((topic_id[8] >> 4) != 0x8 && (topic_id[8] >> 4) != 0x9 && (topic_id[8] >> 4) != 0xA && (topic_id[8] >> 4) != 0xB) {
-        // The UUID variant is not 2 or 6
-        return false;
-    }
-
-    return true;
+    __u8 uuid_variant = topic_id[8] >> 4;
+    return 0x8 <= uuid_variant && uuid_variant <= 0xB;
 }
 
 // Flexible API version can have an arbitrary number of tagged fields.  We don't
