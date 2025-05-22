@@ -96,6 +96,9 @@ type LogsConfig struct {
 	// AutoMultiLineOptions provides detailed configuration for auto multi-line detection specific to this source.
 	// It maps to the 'auto_multi_line' key in the YAML configuration.
 	AutoMultiLineOptions *SourceAutoMultiLineOptions `mapstructure:"auto_multi_line" json:"auto_multi_line" yaml:"auto_multi_line"`
+	// CustomSamples holds the raw string content of the 'auto_multi_line_detection_custom_samples' YAML block.
+	// Downstream code will be responsible for parsing this string.
+	AutoMultiLineCustomSamples interface{} `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
 }
 
 // SourceAutoMultiLineOptions defines per-source auto multi-line detection overrides.

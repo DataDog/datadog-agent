@@ -22,7 +22,7 @@ logs_config:
 `
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
 
-	samples := NewUserSamples(mockConfig)
+	samples := NewUserSamples(mockConfig, nil)
 	assert.Equal(t, 0, len(samples.samples))
 }
 
@@ -36,7 +36,7 @@ logs_config:
 `
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
 
-	samples := NewUserSamples(mockConfig)
+	samples := NewUserSamples(mockConfig, nil)
 	assert.Equal(t, 0, len(samples.samples))
 }
 
@@ -51,7 +51,7 @@ logs_config:
 `
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
 
-	samples := NewUserSamples(mockConfig)
+	samples := NewUserSamples(mockConfig, nil)
 	assert.Equal(t, expectedOutput, samples.samples[0].tokens)
 	assert.Equal(t, defaultMatchThreshold, samples.samples[0].matchThreshold)
 	assert.Equal(t, startGroup, samples.samples[0].label)
@@ -73,7 +73,7 @@ logs_config:
 `
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
 
-	samples := NewUserSamples(mockConfig)
+	samples := NewUserSamples(mockConfig, nil)
 	assert.Equal(t, 3, len(samples.samples))
 	assert.Equal(t, startGroup, samples.samples[0].label)
 	assert.Equal(t, noAggregate, samples.samples[1].label)
@@ -85,7 +85,7 @@ func TestUserPatternsJSON(t *testing.T) {
 	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_custom_samples", `[{"sample": "1", "label": "start_group"}, {"regex": "\\d\\w", "label": "no_aggregate"}, {"sample": "3", "match_threshold": 0.1}]`)
 
-	samples := NewUserSamples(mockConfig)
+	samples := NewUserSamples(mockConfig, nil)
 	assert.Equal(t, 3, len(samples.samples))
 	assert.Equal(t, startGroup, samples.samples[0].label)
 	assert.Equal(t, "1", samples.samples[0].Sample)
@@ -100,7 +100,7 @@ func TestUserPatternsJSONEnv(t *testing.T) {
 	mockConfig := mock.New(t)
 	t.Setenv("DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION_CUSTOM_SAMPLES", `[{"sample": "1", "label": "start_group"}, {"regex": "\\d\\w", "label": "no_aggregate"}, {"sample": "3", "match_threshold": 0.1}]`)
 
-	samples := NewUserSamples(mockConfig)
+	samples := NewUserSamples(mockConfig, nil)
 	assert.Equal(t, 3, len(samples.samples))
 	assert.Equal(t, startGroup, samples.samples[0].label)
 	assert.Equal(t, "1", samples.samples[0].Sample)
@@ -129,7 +129,7 @@ logs_config:
 `
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
 
-	samples := NewUserSamples(mockConfig)
+	samples := NewUserSamples(mockConfig, nil)
 	assert.Equal(t, 2, len(samples.samples))
 	assert.Equal(t, defaultMatchThreshold, samples.samples[0].matchThreshold)
 	assert.Equal(t, 0.1234, samples.samples[1].matchThreshold)
@@ -144,7 +144,7 @@ logs_config:
 `
 
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
-	samples := NewUserSamples(mockConfig)
+	samples := NewUserSamples(mockConfig, nil)
 	tokenizer := NewTokenizer(60)
 
 	tests := []struct {
@@ -183,7 +183,7 @@ logs_config:
 `
 
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
-	samples := NewUserSamples(mockConfig)
+	samples := NewUserSamples(mockConfig, nil)
 	tokenizer := NewTokenizer(60)
 
 	tests := []struct {
@@ -222,7 +222,7 @@ logs_config:
 `
 
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
-	samples := NewUserSamples(mockConfig)
+	samples := NewUserSamples(mockConfig, nil)
 	tokenizer := NewTokenizer(60)
 
 	tests := []struct {
@@ -260,7 +260,7 @@ logs_config:
 `
 
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
-	samples := NewUserSamples(mockConfig)
+	samples := NewUserSamples(mockConfig, nil)
 	tokenizer := NewTokenizer(60)
 
 	tests := []struct {
@@ -295,7 +295,7 @@ logs_config:
 `
 
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
-	samples := NewUserSamples(mockConfig)
+	samples := NewUserSamples(mockConfig, nil)
 	tokenizer := NewTokenizer(60)
 
 	tests := []struct {
