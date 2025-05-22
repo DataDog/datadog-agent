@@ -12,8 +12,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 )
 
 func newTestRepositories(t *testing.T) *Repositories {
@@ -44,8 +42,8 @@ func TestRepositories(t *testing.T) {
 	state, err := repositories.GetStates()
 	assert.NoError(t, err)
 	assert.Len(t, state, 2)
-	assert.Equal(t, state["repo1"], installertypes.State{Stable: "v1", Experiment: "v2"})
-	assert.Equal(t, state["repo2"], installertypes.State{Stable: "v1.0"})
+	assert.Equal(t, state["repo1"], State{Stable: "v1", Experiment: "v2"})
+	assert.Equal(t, state["repo2"], State{Stable: "v1.0"})
 }
 
 func TestRepositoriesReopen(t *testing.T) {
@@ -60,8 +58,8 @@ func TestRepositoriesReopen(t *testing.T) {
 	state, err := repositories.GetStates()
 	assert.NoError(t, err)
 	assert.Len(t, state, 2)
-	assert.Equal(t, state["repo1"], installertypes.State{Stable: "v1"})
-	assert.Equal(t, state["repo2"], installertypes.State{Stable: "v1"})
+	assert.Equal(t, state["repo1"], State{Stable: "v1"})
+	assert.Equal(t, state["repo2"], State{Stable: "v1"})
 }
 
 func TestLoadRepositories(t *testing.T) {

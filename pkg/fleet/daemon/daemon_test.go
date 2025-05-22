@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -48,24 +49,24 @@ func (m *testPackageManager) AvailableDiskSpace() (uint64, error) {
 	return args.Get(0).(uint64), args.Error(1)
 }
 
-func (m *testPackageManager) State(ctx context.Context, pkg string) (installertypes.State, error) {
+func (m *testPackageManager) State(ctx context.Context, pkg string) (repository.State, error) {
 	args := m.Called(ctx, pkg)
-	return args.Get(0).(installertypes.State), args.Error(1)
+	return args.Get(0).(repository.State), args.Error(1)
 }
 
-func (m *testPackageManager) States(ctx context.Context) (map[string]installertypes.State, error) {
+func (m *testPackageManager) States(ctx context.Context) (map[string]repository.State, error) {
 	args := m.Called(ctx)
-	return args.Get(0).(map[string]installertypes.State), args.Error(1)
+	return args.Get(0).(map[string]repository.State), args.Error(1)
 }
 
-func (m *testPackageManager) ConfigState(ctx context.Context, pkg string) (installertypes.State, error) {
+func (m *testPackageManager) ConfigState(ctx context.Context, pkg string) (repository.State, error) {
 	args := m.Called(ctx, pkg)
-	return args.Get(0).(installertypes.State), args.Error(1)
+	return args.Get(0).(repository.State), args.Error(1)
 }
 
-func (m *testPackageManager) ConfigStates(ctx context.Context) (map[string]installertypes.State, error) {
+func (m *testPackageManager) ConfigStates(ctx context.Context) (map[string]repository.State, error) {
 	args := m.Called(ctx)
-	return args.Get(0).(map[string]installertypes.State), args.Error(1)
+	return args.Get(0).(map[string]repository.State), args.Error(1)
 }
 
 func (m *testPackageManager) Install(ctx context.Context, url string, installArgs []string) error {
@@ -228,8 +229,8 @@ func newTestInstaller(t *testing.T) *testInstaller {
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
-	pm.On("States", mock.Anything).Return(map[string]installertypes.State{}, nil)
-	pm.On("ConfigStates", mock.Anything).Return(map[string]installertypes.State{}, nil)
+	pm.On("States", mock.Anything).Return(map[string]repository.State{}, nil)
+	pm.On("ConfigStates", mock.Anything).Return(map[string]repository.State{}, nil)
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
 	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
@@ -368,8 +369,8 @@ func TestRemoteRequest(t *testing.T) {
 		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, StableConfig: testStablePackage.Version},
 		Params:        versionParamsJSON,
 	}
-	i.pm.On("State", mock.Anything, testStablePackage.Name).Return(installertypes.State{Stable: testStablePackage.Version}, nil).Once()
-	i.pm.On("ConfigState", mock.Anything, testStablePackage.Name).Return(installertypes.State{Stable: testStablePackage.Version}, nil).Once()
+	i.pm.On("State", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
+	i.pm.On("ConfigState", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
 	i.bm.On("InstallExperiment", mock.Anything, mock.Anything, testExperimentPackage.URL).Return(nil).Once()
 	i.rcc.SubmitRequest(testRequest)
 	i.requestsWG.Wait()
@@ -380,8 +381,8 @@ func TestRemoteRequest(t *testing.T) {
 		Package:       testExperimentPackage.Name,
 		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version, StableConfig: testStablePackage.Version},
 	}
-	i.pm.On("State", mock.Anything, testStablePackage.Name).Return(installertypes.State{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version}, nil).Once()
-	i.pm.On("ConfigState", mock.Anything, testStablePackage.Name).Return(installertypes.State{Stable: testStablePackage.Version}, nil).Once()
+	i.pm.On("State", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version}, nil).Once()
+	i.pm.On("ConfigState", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
 	i.pm.On("RemoveExperiment", mock.Anything, testExperimentPackage.Name).Return(nil).Once()
 	i.rcc.SubmitRequest(testRequest)
 	i.requestsWG.Wait()
@@ -392,8 +393,8 @@ func TestRemoteRequest(t *testing.T) {
 		Package:       testExperimentPackage.Name,
 		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version, StableConfig: testStablePackage.Version},
 	}
-	i.pm.On("State", mock.Anything, testStablePackage.Name).Return(installertypes.State{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version}, nil).Once()
-	i.pm.On("ConfigState", mock.Anything, testStablePackage.Name).Return(installertypes.State{Stable: testStablePackage.Version}, nil).Once()
+	i.pm.On("State", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version}, nil).Once()
+	i.pm.On("ConfigState", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
 	i.pm.On("PromoteExperiment", mock.Anything, testExperimentPackage.Name).Return(nil).Once()
 	i.rcc.SubmitRequest(testRequest)
 	i.requestsWG.Wait()

@@ -23,7 +23,6 @@ import (
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 )
 
 // InstallerExec is an implementation of the Installer interface that uses the installer binary.
@@ -272,16 +271,16 @@ func (i *InstallerExec) getStates(ctx context.Context) (repo *repository.Package
 }
 
 // State returns the state of a package.
-func (i *InstallerExec) State(ctx context.Context, pkg string) (installertypes.State, error) {
+func (i *InstallerExec) State(ctx context.Context, pkg string) (repository.State, error) {
 	states, err := i.States(ctx)
 	if err != nil {
-		return installertypes.State{}, err
+		return repository.State{}, err
 	}
 	return states[pkg], nil
 }
 
 // States returns the states of all packages.
-func (i *InstallerExec) States(ctx context.Context) (map[string]installertypes.State, error) {
+func (i *InstallerExec) States(ctx context.Context) (map[string]repository.State, error) {
 	allStates, err := i.getStates(ctx)
 	if err != nil {
 		return nil, err
@@ -290,16 +289,16 @@ func (i *InstallerExec) States(ctx context.Context) (map[string]installertypes.S
 }
 
 // ConfigState returns the state of a package's configuration.
-func (i *InstallerExec) ConfigState(ctx context.Context, pkg string) (installertypes.State, error) {
+func (i *InstallerExec) ConfigState(ctx context.Context, pkg string) (repository.State, error) {
 	configStates, err := i.ConfigStates(ctx)
 	if err != nil {
-		return installertypes.State{}, err
+		return repository.State{}, err
 	}
 	return configStates[pkg], nil
 }
 
 // ConfigStates returns the states of all packages' configurations.
-func (i *InstallerExec) ConfigStates(ctx context.Context) (map[string]installertypes.State, error) {
+func (i *InstallerExec) ConfigStates(ctx context.Context) (map[string]repository.State, error) {
 	allStates, err := i.getStates(ctx)
 	if err != nil {
 		return nil, err

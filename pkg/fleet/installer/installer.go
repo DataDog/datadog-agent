@@ -111,22 +111,22 @@ func (i *installerImpl) AvailableDiskSpace() (uint64, error) {
 }
 
 // State returns the state of a package.
-func (i *installerImpl) State(_ context.Context, pkg string) (installertypes.State, error) {
+func (i *installerImpl) State(_ context.Context, pkg string) (repository.State, error) {
 	return i.packages.GetState(pkg)
 }
 
 // States returns the states of all packages.
-func (i *installerImpl) States(_ context.Context) (map[string]installertypes.State, error) {
+func (i *installerImpl) States(_ context.Context) (map[string]repository.State, error) {
 	return i.packages.GetStates()
 }
 
 // ConfigState returns the state of a package.
-func (i *installerImpl) ConfigState(_ context.Context, pkg string) (installertypes.State, error) {
+func (i *installerImpl) ConfigState(_ context.Context, pkg string) (repository.State, error) {
 	return i.configs.GetState(pkg)
 }
 
 // ConfigStates returns the states of all packages.
-func (i *installerImpl) ConfigStates(_ context.Context) (map[string]installertypes.State, error) {
+func (i *installerImpl) ConfigStates(_ context.Context) (map[string]repository.State, error) {
 	return i.configs.GetStates()
 }
 

@@ -10,12 +10,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/spf13/cobra"
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
-	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -61,7 +60,7 @@ func TestStates(t *testing.T) {
 	res, err := installer.States(context.TODO())
 	assert.NoError(t, err)
 
-	expected := map[string]installertypes.State{
+	expected := map[string]repository.State{
 		"datadog-agent": {
 			Stable:     "7.31.0",
 			Experiment: "7.32.0",
@@ -82,7 +81,7 @@ func TestState(t *testing.T) {
 	res, err := installer.State(context.TODO(), "datadog-agent")
 	assert.NoError(t, err)
 
-	expected := installertypes.State{
+	expected := repository.State{
 		Stable:     "7.31.0",
 		Experiment: "7.32.0",
 	}
@@ -101,7 +100,7 @@ func TestConfigStates(t *testing.T) {
 	res, err := installer.ConfigStates(context.TODO())
 	assert.NoError(t, err)
 
-	expected := map[string]installertypes.State{
+	expected := map[string]repository.State{
 		"datadog-agent": {
 			Stable:     "abc-def-hij",
 			Experiment: "",
@@ -122,7 +121,7 @@ func TestConfigState(t *testing.T) {
 	res, err := installer.ConfigState(context.TODO(), "datadog-agent")
 	assert.NoError(t, err)
 
-	expected := installertypes.State{
+	expected := repository.State{
 		Stable:     "abc-def-hij",
 		Experiment: "",
 	}

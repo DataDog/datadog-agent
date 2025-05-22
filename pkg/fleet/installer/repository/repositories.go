@@ -13,8 +13,6 @@ import (
 	"strings"
 
 	"github.com/shirou/gopsutil/v4/disk"
-
-	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 )
 
 const (
@@ -98,8 +96,8 @@ func (r *Repositories) Delete(ctx context.Context, pkg string) error {
 }
 
 // GetStates returns the state of all repositories.
-func (r *Repositories) GetStates() (map[string]installertypes.State, error) {
-	state := make(map[string]installertypes.State)
+func (r *Repositories) GetStates() (map[string]State, error) {
+	state := make(map[string]State)
 	repositories, err := r.loadRepositories()
 	if err != nil {
 		return nil, fmt.Errorf("could not load repositories: %w", err)
@@ -114,7 +112,7 @@ func (r *Repositories) GetStates() (map[string]installertypes.State, error) {
 }
 
 // GetState returns the state of the given package.
-func (r *Repositories) GetState(pkg string) (installertypes.State, error) {
+func (r *Repositories) GetState(pkg string) (State, error) {
 	repo := r.newRepository(pkg)
 	return repo.GetState()
 }

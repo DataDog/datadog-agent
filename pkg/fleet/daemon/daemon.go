@@ -28,6 +28,7 @@ import (
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -52,8 +53,8 @@ var (
 
 // PackageState represents a package state.
 type PackageState struct {
-	Version installertypes.State
-	Config  installertypes.State
+	Version repository.State
+	Config  repository.State
 }
 
 // Daemon is the fleet daemon in charge of remote install, updates and configuration.
@@ -164,7 +165,7 @@ func (d *daemonImpl) GetState(ctx context.Context) (map[string]PackageState, err
 		return nil, err
 	}
 
-	var configStates map[string]installertypes.State
+	var configStates map[string]repository.State
 	configStates, err = d.installer(d.env).ConfigStates(ctx)
 	if err != nil {
 		return nil, err
