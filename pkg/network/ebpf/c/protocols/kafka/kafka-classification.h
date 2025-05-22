@@ -217,7 +217,7 @@ static __always_inline s16 read_nullable_string_size(pktbuf_t pkt, bool flexible
         return 0;
     }
 
-    pktbuf_load_bytes(pkt, *offset, &topic_name_size_raw, sizeof(topic_name_size_raw));
+    pktbuf_load_bytes_with_telemetry(pkt, *offset, &topic_name_size_raw, sizeof(topic_name_size_raw));
 
     s16 topic_name_size = 0;
     if (flexible) {
