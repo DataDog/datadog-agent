@@ -8,7 +8,10 @@ package automultilinedetection
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
+
+	"github.com/mitchellh/mapstructure"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -64,11 +67,13 @@ func NewUserSamples(config model.Reader, rawSourceSamples interface{}) *UserSamp
 	}
 
 	if rawSourceSamples != nil {
+		log.Info("rawSourceSamples", rawSourceSamples)
 		t := make([]*UserSample, 0)
+
 		if str, ok := rawSourceSamples.(string); ok && str != "" {
 			err = json.Unmarshal([]byte(str), &t)
 		} else {
-			err = structure.UnmarshalKey(config, "logs_config.auto_multi_line_detection_custom_samples", &s)
+			err = unmarshalSliceFromInterface(rawSourceSamples, &t)
 		}
 
 		if err != nil {
@@ -160,4 +165,30 @@ func (j *UserSamples) ProcessAndContinue(context *messageContext) bool {
 		}
 	}
 	return true
+}
+
+// Function to unmarshal a []interface{} into a slice of structs using mapstructure
+func unmarshalSliceFromInterface(inputData interface{}, targetSlice interface{}) error {
+	// targetSlice must be a pointer to a slice of your target struct type
+	// e.g., if you want []MyItemStruct, pass *[]MyItemStruct
+
+	// Configure the decoder
+	decoderConfig := &mapstructure.DecoderConfig{
+		Result:           targetSlice,
+		WeaklyTypedInput: true,
+		TagName:          "yaml", // Or "mapstructure", "json" based on your struct tags
+		// ErrorUnused:      true, // Optional: if items in the slice are maps and have unused keys
+	}
+
+	decoder, err := mapstructure.NewDecoder(decoderConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create mapstructure decoder: %w", err)
+	}
+
+	// Perform the decoding
+	// mapstructure can handle decoding a slice of interfaces into a typed slice
+	if err := decoder.Decode(inputData); err != nil {
+		return fmt.Errorf("mapstructure failed to decode data: %w", err)
+	}
+	return nil
 }
