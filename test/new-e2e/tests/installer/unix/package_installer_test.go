@@ -131,6 +131,10 @@ func (s *packageInstallerSuite) TestReInstall() {
 }
 
 func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
+	if s.installMethod == InstallMethodAnsible {
+		s.T().Skip("Not supported on Ansible")
+	}
+
 	// Install prod
 	err := s.RunInstallScriptProdOci(
 		"DD_REMOTE_UPDATES=true",
