@@ -122,43 +122,45 @@ func (r *Resolver) SetMountPoint(ev *model.Event, e *model.Mount) error {
 
 	r.dentryResolver.SetLogOff()
 
-	pids, _ := ev.ProcessCacheEntry.GetContainerPIDs()
+	if ev.ProcessCacheEntry != nil {
+		pids, _ := ev.ProcessCacheEntry.GetContainerPIDs()
 
-	pids = append(pids, ev.ProcessCacheEntry.Pid)
+		pids = append(pids, ev.ProcessCacheEntry.Pid)
 
-	var mountPointFromProc string
+		var mountPointFromProc string
 
-	for _, pid := range pids {
-		mounts, err := kernel.ParseMountInfoFile(int32(pid))
-		if err != nil {
-			seclog.Errorf("Parse mount error: %v", err)
-		}
+		for _, pid := range pids {
+			mounts, err := kernel.ParseMountInfoFile(int32(pid))
+			if err != nil {
+				seclog.Errorf("Parse mount error: %v", err)
+			}
 
-		found := false
-		id := int(e.ParentPathKey.MountID)
+			found := false
+			id := int(e.ParentPathKey.MountID)
 
-		for _, mnt := range mounts {
-			if mnt.ID == id {
-				parentID := mnt.Parent
-				for _, parentMnt := range mounts {
-					if parentMnt.ID == parentID {
-						mountPointFromProc = mnt.Mountpoint
-						found = true
-						break
+			for _, mnt := range mounts {
+				if mnt.ID == id {
+					parentID := mnt.Parent
+					for _, parentMnt := range mounts {
+						if parentMnt.ID == parentID {
+							mountPointFromProc = mnt.Mountpoint
+							found = true
+							break
+						}
 					}
+					break
 				}
+			}
+
+			if found {
 				break
 			}
+
 		}
 
-		if found {
-			break
+		if mountPointFromProc != "" && mountPointFromProc != e.MountPointStr {
+			log.Errorf("Different mountpoint detected: From proc: %s. e.MountPointStr=%s | e.MountPointStrSrc=%d | event=%+v | mount =%+v", mountPointFromProc, e.MountPointStr, e.MountPointStrSrc, *ev, *e)
 		}
-
-	}
-
-	if mountPointFromProc != "" && mountPointFromProc != e.MountPointStr {
-		log.Errorf("Different mountpoint detected: From proc: %s. e.MountPointStr=%s | e.MountPointStrSrc=%d | event=%+v | mount =%+v", mountPointFromProc, e.MountPointStr, e.MountPointStrSrc, *ev, *e)
 	}
 
 	if err != nil {
