@@ -9,8 +9,9 @@ package versa
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client"
 )
@@ -188,7 +189,7 @@ func TestGenerateDeviceNameToIDMap(t *testing.T) {
 	}
 	for _, test := range tts {
 		t.Run(test.description, func(t *testing.T) {
-			actualMap := generateDeviceNameToIDMap(test.devices)
+			actualMap := generateDeviceNameToIPMap(test.devices)
 			if fmt.Sprint(actualMap) != fmt.Sprint(test.expectedMap) {
 				t.Errorf("Expected map %v, got %v", test.expectedMap, actualMap)
 			}

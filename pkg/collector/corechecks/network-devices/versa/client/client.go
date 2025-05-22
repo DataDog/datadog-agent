@@ -35,8 +35,8 @@ var timeNow = time.Now
 // Client is an HTTP Versa client.
 type Client struct {
 	httpClient        *http.Client
-	directorURL       url.URL // TODO: remove this, testing with csrf auth
 	directorEndpoint  string
+	directorAPIPort   int
 	analyticsEndpoint string
 	// TODO: replace with OAuth
 	token               string
@@ -87,8 +87,8 @@ func NewClient(directorEndpoint, analyticsEndpoint, username, password string, u
 
 	client := &Client{
 		httpClient:          httpClient,
-		directorURL:         directorEndpointURL,
 		directorEndpoint:    directorEndpointURL.String(),
+		directorAPIPort:     9182, // TODO: make configurable based on auth type
 		analyticsEndpoint:   analyticsEndpointURL.String(),
 		username:            username,
 		password:            password,
@@ -184,7 +184,7 @@ func WithLookback(lookback time.Duration) ClientOptions {
 // GetOrganizations retrieves a list of organizations
 func (client *Client) GetOrganizations() ([]Organization, error) {
 	var organizations []Organization
-	resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", nil)
+	resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", nil, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get organizations: %v", err)
 	}
@@ -198,7 +198,7 @@ func (client *Client) GetOrganizations() ([]Organization, error) {
 			"limit":  client.maxCount,
 			"offset": strconv.Itoa(i * maxCount),
 		}
-		resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", params)
+		resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", params, false)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get organizations: %v", err)
 		}
@@ -224,7 +224,7 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 	}
 
 	// Get the total count of appliances
-	totalCount, err := get[int](client, uri, params)
+	totalCount, err := get[int](client, uri, params, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get appliance detail response: %v", err)
 	}
@@ -238,7 +238,7 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 	for i := 0; i < totalPages; i++ {
 		params["fetch"] = "all"
 		params["offset"] = fmt.Sprintf("%d", i*maxCount)
-		resp, err := get[[]Appliance](client, uri, params)
+		resp, err := get[[]Appliance](client, uri, params, false)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get appliance detail response: %v", err)
 		}
@@ -253,7 +253,7 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 
 // GetDirectorStatus retrieves the director status
 func (client *Client) GetDirectorStatus() (*DirectorStatus, error) {
-	resp, err := get[DirectorStatus](client, "/vnms/dashboard/vdStatus", nil)
+	resp, err := get[DirectorStatus](client, "/vnms/dashboard/vdStatus", nil, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get director status: %v", err)
 	}
@@ -309,11 +309,6 @@ func parseAaData(data [][]interface{}) ([]SLAMetrics, error) {
 
 // GetSLAMetrics retrieves SLA metrics from the Versa Analytics API
 func (client *Client) GetSLAMetrics() ([]SLAMetrics, error) {
-	// TODO: move analytics auth to versa.go, this is just for testing
-	err := client.login()
-	if err != nil {
-		return nil, fmt.Errorf("failed to log in to Versa Analytics: %v", err)
-	}
 	analyticsURL := buildAnalyticsPath("datadog", "SDWAN", "15minutesAgo", "slam(localsite,remotesite,localaccckt,remoteaccckt,fc)", "tableData", []string{
 		"delay",
 		"fwdDelayVar",
@@ -323,7 +318,7 @@ func (client *Client) GetSLAMetrics() ([]SLAMetrics, error) {
 		"pduLossRatio",
 	})
 
-	resp, err := getAnalytics[SLAMetricsResponse](client, analyticsURL, nil)
+	resp, err := get[SLAMetricsResponse](client, analyticsURL, nil, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get SLA metrics: %v", err)
 	}

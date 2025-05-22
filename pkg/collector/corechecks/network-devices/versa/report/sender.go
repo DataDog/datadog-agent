@@ -200,7 +200,7 @@ func (s *Sender) SendDirectorStatus(director *client.DirectorStatus) {
 	tags := s.GetDeviceTags(defaultIPTag, ipAddress)
 
 	s.Gauge(versaMetricPrefix+"device.reachable", 1, "", tags)
-	s.Gauge(versaMetricPrefix+"device.unreachable", 0, "", tags) // flip device reachability with math
+	s.Gauge(versaMetricPrefix+"device.unreachable", 0, "", tags)
 }
 
 // SendDirectorDeviceMetrics sends director device metrics like CPU, memory, and disk usage

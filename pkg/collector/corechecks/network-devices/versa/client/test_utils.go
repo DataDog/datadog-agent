@@ -40,7 +40,7 @@ func serverURL(server *httptest.Server) string {
 }
 
 func testClient(server *httptest.Server) (*Client, error) {
-	return NewClient(serverURL(server), "testuser", "testpass", true)
+	return NewClient(serverURL(server), "https://10.0.0.1:8443", "testuser", "testpass", true)
 }
 
 //	type handler struct {
