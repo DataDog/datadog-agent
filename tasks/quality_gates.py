@@ -180,15 +180,15 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
 
     # We don't need a PR notification nor gate failures on release branches
     if not is_a_release_branch(ctx, branch):
-      github = GithubAPI()
-      if github.get_pr_for_branch(branch).totalCount > 0:
-          ancestor = get_common_ancestor(ctx, "HEAD")
-          metric_handler.generate_relative_size(ctx, ancestor=ancestor)
-          display_pr_comment(ctx, final_state == "success", gate_states, metric_handler, ancestor)
+        github = GithubAPI()
+        if github.get_pr_for_branch(branch).totalCount > 0:
+            ancestor = get_common_ancestor(ctx, "HEAD")
+            metric_handler.generate_relative_size(ctx, ancestor=ancestor)
+            display_pr_comment(ctx, final_state == "success", gate_states, metric_handler, ancestor)
 
-      # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
-      if final_state != "success" and not nightly_run:
-          raise Exit(code=1)
+        # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
+        if final_state != "success" and not nightly_run:
+            raise Exit(code=1)
 
 
 def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_handler, exception_bump=False):
