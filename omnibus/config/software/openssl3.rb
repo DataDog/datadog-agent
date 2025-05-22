@@ -76,6 +76,7 @@ build do
     "shared",
     "no-ssl3",
     "no-gost",
+    "no-uplink",
   ]
 
   if windows?
@@ -109,6 +110,5 @@ build do
     delete "#{install_dir}/embedded/lib/libcrypto.a"
     delete "#{install_dir}/embedded/lib/libssl.a"
   else
-    copy "ms/applink.c", "#{install_dir}/embedded3/include/openssl"
   end
 end
