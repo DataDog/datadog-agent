@@ -106,7 +106,7 @@ func (t *tcpResponse) Match(localIP net.IP, localPort uint16, remoteIP net.IP, r
 	// the destination can return a RST instead of a RSTACK.
 	// in that case, usually the ackNum is 0 and there's nothing we can do to check it.
 	// it still will check the IP/ports match.
-	ackMatches := (seqNum == t.AckNum-1) || !t.ACK
+	ackMatches := (seqNum == t.AckNum-1) || (t.RST && !t.ACK)
 
 	return remoteIP.Equal(t.SrcIP) &&
 		remotePort == sourcePort &&
