@@ -484,7 +484,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.disable_intra_vpc_collection", false)
 	config.BindEnvAndSetDefault("network_path.collector.source_excludes", map[string][]string{})
 	config.BindEnvAndSetDefault("network_path.collector.dest_excludes", map[string][]string{})
-	config.BindEnvAndSetDefault("network_path.collector.tcp_syn_compatibility_mode", false)
+	config.BindEnvAndSetDefault("network_path.collector.tcp_syn_paris_traceroute_mode", false)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// HA Agent
