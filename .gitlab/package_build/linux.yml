@@ -1,3 +1,32 @@
+# Temporary jobs to build the base image with Bazel
+# TODO: Move to buildimages
+.docker_build_job_definition_bazel:
+  stage: setup
+  needs: []
+  script:
+    - |
+      docker buildx build --push --pull \
+      --platform linux/$ARCH \
+      --build-arg BASE_IMAGE=${BASE_IMAGE} \
+      --tag registry.ddbuild.io/ci/datadog-agent/bazel-devcontainer-${ARCH}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} \
+      bazel/.devcontainer
+
+docker_build_image_bazel_amd64:
+  extends: .docker_build_job_definition_bazel
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  tags: ["arch:amd64"]
+  variables:
+    BASE_IMAGE: linux-glibc-2-17-x64
+    ARCH: amd64
+
+docker_build_image_bazel_arm64:
+  extends: .docker_build_job_definition_bazel
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_arm64$CI_IMAGE_DOCKER_ARM64_SUFFIX:$CI_IMAGE_DOCKER_ARM64
+  tags: ["arch:arm64"]
+  variables:
+    BASE_IMAGE: linux-glibc-2-23-arm64
+    ARCH: arm64
+
 .agent_build_script:
   - !reference [.retrieve_linux_go_deps]
   - !reference [.cache_omnibus_ruby_deps, setup]
@@ -34,9 +63,9 @@
     - !reference [.cache_omnibus_ruby_deps, cache]
 
 .agent_build_x86:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent/bazel-devcontainer-amd64:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
   tags: ["arch:amd64"]
-  needs: ["build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
+  needs: ["build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64", "docker_build_image_bazel_amd64"]
   variables:
     PACKAGE_ARCH: amd64
     DD_CC: "x86_64-unknown-linux-gnu-gcc"
@@ -44,10 +73,10 @@
     DD_CMAKE_TOOLCHAIN: "/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake"
 
 .agent_build_arm64:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent/bazel-devcontainer-arm64:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
   tags: ["arch:arm64"]
   needs:
-    ["build_system-probe-arm64", "go_deps", "generate_minimized_btfs_arm64"]
+    ["build_system-probe-arm64", "go_deps", "generate_minimized_btfs_arm64", "docker_build_image_bazel_arm64"]
   variables:
     PACKAGE_ARCH: arm64
     DD_CC: "aarch64-unknown-linux-gnu-gcc"
@@ -57,6 +86,7 @@
 .agent_7_build:
   variables:
     FLAVOR: base
+    OMNIBUS_USE_BAZEL: true
 
 .agent_fips_build:
   variables:
@@ -72,10 +102,12 @@ datadog-agent-7-arm64:
 
 # build Agent 7 binaries for x86_64 with FIPS
 datadog-agent-7-x64-fips:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   extends: [.agent_build_common, .agent_build_x86, .agent_fips_build]
 
 # build Agent 7 binaries for arm64 with FIPS
 datadog-agent-7-arm64-fips:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   extends: [.agent_build_common, .agent_build_arm64, .agent_fips_build]
 
 .iot-agent-common:

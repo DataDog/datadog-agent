@@ -12,5 +12,3 @@ RUN rm -f /.cargo/config.toml
 # Make Bazel output stuff to a volume we're mounting
 RUN echo "startup --output_user_root=/tmp/bazel/build_output" > /etc/bazel.bazelrc
 
-# Run forever so that we can interact with the container via `docker exec`
-ENTRYPOINT ["tail", "-f", "/dev/null"]
