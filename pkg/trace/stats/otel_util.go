@@ -73,10 +73,25 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		if _, exists := ignoreResNames[resourceName]; exists {
 			continue
 		}
-		env := traceutil.GetOTelEnv(otelspan, otelres)
-		hostname := traceutil.GetOTelHostname(otelspan, otelres, conf.OTLPReceiver.AttributesTranslator, conf.Hostname)
-		version := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeServiceVersion)
-		cid := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
+
+		sattr := otelspan.Attributes()
+		rattr := otelres.Attributes()
+		env := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, transform.KeyDatadogEnvironment)
+		if env == "" && !conf.OTLPReceiver.IgnoreMissingDatadogFields {
+			env = traceutil.GetOTelEnv(otelspan, otelres)
+		}
+		hostname := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, transform.KeyDatadogHost)
+		if hostname == "" && !conf.OTLPReceiver.IgnoreMissingDatadogFields {
+			hostname = traceutil.GetOTelHostname(otelspan, otelres, conf.OTLPReceiver.AttributesTranslator, conf.Hostname)
+		}
+		version := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, transform.KeyDatadogVersion)
+		if version == "" && !conf.OTLPReceiver.IgnoreMissingDatadogFields {
+			version = traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, semconv.AttributeServiceVersion)
+		}
+		cid := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, transform.KeyDatadogContainerID)
+		if cid == "" && !conf.OTLPReceiver.IgnoreMissingDatadogFields {
+			cid = traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
+		}
 		var ctags []string
 		if cid != "" {
 			ctags = traceutil.GetOTelContainerTags(otelres.Attributes(), containerTagKeys)

@@ -268,11 +268,12 @@ func OtelSpanToDDSpan(
 	}
 	ddspan := OtelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil)
 
-	// Span attributes take precedence over resource attributes in the event of key collisions; so, use span attributes first
+	// 1) DD namespaced keys take precedence over OTLP keys, so use them first
+	// 2) Span attributes take precedence over resource attributes in the event of key collisions; so, use span attributes first
 
-	// DD namespaced keys take precedence over OTLP keys, so use them first
 	for ddNamespacedKey, apmConventionKey := range ddNamespacedKeysToAPMConventionKeys {
 		copyAttrToMapIfExists(otelspan.Attributes(), ddNamespacedKey, ddspan.Meta, apmConventionKey)
+		copyAttrToMapIfExists(otelres.Attributes(), ddNamespacedKey, ddspan.Meta, apmConventionKey)
 	}
 
 	otelspan.Attributes().Range(func(k string, v pcommon.Value) bool {
@@ -287,10 +288,6 @@ func OtelSpanToDDSpan(
 
 		return true
 	})
-
-	for ddNamespacedKey, apmConventionKey := range ddNamespacedKeysToAPMConventionKeys {
-		copyAttrToMapIfExists(otelres.Attributes(), ddNamespacedKey, ddspan.Meta, apmConventionKey)
-	}
 
 	traceID := otelspan.TraceID()
 	ddspan.Meta["otel.trace_id"] = hex.EncodeToString(traceID[:])
