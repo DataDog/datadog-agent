@@ -321,3 +321,33 @@ logs_config:
 		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
 	}
 }
+
+func TestUserPatternsWithJSONIntegrationSamples(t *testing.T) {
+	expectedOutput, _ := NewTokenizer(0).tokenize([]byte("sample"))
+
+	jsonSamples := `
+        [
+            {"sample": "sample"}
+        ]
+`
+
+	mockConfig := mock.NewFromYAML(t, "")
+
+	samples := NewUserSamples(mockConfig, jsonSamples)
+	assert.Equal(t, expectedOutput, samples.samples[0].tokens)
+	assert.Equal(t, defaultMatchThreshold, samples.samples[0].matchThreshold)
+	assert.Equal(t, startGroup, samples.samples[0].label)
+}
+
+func TestUserPatternsWithIntegrationSamples(t *testing.T) {
+	expectedOutput, _ := NewTokenizer(0).tokenize([]byte("sample"))
+	rawSamples := []interface{}{
+		map[string]interface{}{"sample": "sample"},
+	}
+
+	mockConfig := mock.NewFromYAML(t, "")
+
+	samples := NewUserSamples(mockConfig, rawSamples)
+	assert.Equal(t, expectedOutput, samples.samples[0].tokens)
+	assert.Equal(t, defaultMatchThreshold, samples.samples[0].matchThreshold)
+}
