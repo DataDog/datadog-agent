@@ -146,6 +146,36 @@ Other Notes
   This is used to detect potential issues with an ongoing change in the status rendering.
 
 
+.. _Release Notes_7.65.2:
+
+7.65.2
+======
+
+.. _Release Notes_7.65.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-05-13
+
+- Please refer to the `7.65.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7652>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.65.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- (datadog-fips-agent)  Ensure the post-install script always rebuilds fipsmodule.cnf in case the embedded OpenSSL is updated.
+
+- The embedded OpenSSL on Windows no longer links against zlib (which wasn't included),
+  preventing errors related to accidentally loading a version of zlib installed on the
+  host.
+
+- On Windows, restarting the ``datadogagent`` service now also restarts the ``Datadog Installer``
+  service to ensure configuration changes take effect.
+
+
 .. _Release Notes_7.65.1:
 
 7.65.1
