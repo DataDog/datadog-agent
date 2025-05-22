@@ -28,18 +28,12 @@ New Features
 
 - Tag resources from Cluster Agent Orchestrator check with all static tags.
 
-
-.. _Release Notes_7.66.0_Known Issues:
-
-Known Issues
-------------
-
-- Fix major data races in the orchestrator check for the Kubernetes resource collection.
-
 .. _Release Notes_7.66.0_Bug Fixes:
 
 Bug Fixes
 ---------
+
+- Fix major data races in the orchestrator check for the Kubernetes resource collection.
 
 - Fix data race in autodiscovery cluster checks provider.
 
