@@ -279,7 +279,7 @@ class KMTDependencyUploadJob(KMTJob):
 
 
 class KMTPipeline:
-    """MAnages all the KMT jobs for a given Gitlab CI pipeline"""
+    """Manages all the KMT jobs for a given Gitlab CI pipeline"""
 
     def __init__(self, pipeline_id: int | str):
         self.pipeline_id = pipeline_id
