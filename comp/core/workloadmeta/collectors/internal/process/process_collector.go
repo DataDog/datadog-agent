@@ -40,18 +40,19 @@ type collector struct {
 	processProbe procutil.Probe
 
 	// channel for async processing of events
-	processEventsCh chan *ProcessEvent
+	processEventsCh chan *Event
 
 	// cache of last collect processes for diff generation
 	lastCollectedProcesses map[int32]*procutil.Process
 }
 
-type ProcessEvent struct {
+// Event is a message type used to communicate with the stream function asynchronously
+type Event struct {
 	Created []*workloadmeta.Process
 	Deleted []*workloadmeta.Process
 }
 
-func newProcessCollector(id string, store workloadmeta.Component, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe, processEventsCh chan *ProcessEvent, lastCollectedProcesses map[int32]*procutil.Process) collector {
+func newProcessCollector(id string, store workloadmeta.Component, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe, processEventsCh chan *Event, lastCollectedProcesses map[int32]*procutil.Process) collector {
 	return collector{
 		id:                     id,
 		store:                  store,
@@ -63,10 +64,10 @@ func newProcessCollector(id string, store workloadmeta.Component, catalog worklo
 	}
 }
 
-// NewProcessCollector returns a new process collector provider and an error.
+// NewProcessCollectorProvider returns a new process collector provider and an error.
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
 func NewProcessCollectorProvider() (workloadmeta.CollectorProvider, error) {
-	collector := newProcessCollector(collectorID, nil, workloadmeta.NodeAgent, clock.New(), procutil.NewProcessProbe(), make(chan *ProcessEvent), make(map[int32]*procutil.Process))
+	collector := newProcessCollector(collectorID, nil, workloadmeta.NodeAgent, clock.New(), procutil.NewProcessProbe(), make(chan *Event), make(map[int32]*procutil.Process))
 	return workloadmeta.CollectorProvider{
 		Collector: &collector,
 	}, nil
@@ -163,7 +164,7 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 			}
 
 			// send these events to the channel
-			c.processEventsCh <- &ProcessEvent{
+			c.processEventsCh <- &Event{
 				Created: createdProcesses,
 				Deleted: deletedProcesses,
 			}
@@ -189,7 +190,7 @@ func (c *collector) stream(ctx context.Context) {
 
 		case processEvent := <-c.processEventsCh:
 			if processEvent == nil {
-				log.Warn("sent process event was nil")
+				log.Warn("sent process Event was nil")
 				continue
 			}
 

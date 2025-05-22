@@ -48,7 +48,7 @@ func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}) co
 
 	mockClock := clock.NewMock()
 	mockProbe := mocks.NewProbe(t)
-	processEventCh := make(chan *ProcessEvent)
+	processEventCh := make(chan *Event)
 	processCollector := newProcessCollector(collectorID, mockStore, workloadmeta.NodeAgent, mockClock, mockProbe, processEventCh, make(map[int32]*procutil.Process))
 
 	return collectorTest{&processCollector, mockProbe, mockClock, mockStore}
