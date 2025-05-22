@@ -29,18 +29,17 @@ jobs:
         version: "0.13.0"
         features: legacy-tasks
 
-    - name: Build image
-      run: |
-        git clone https://github.com/DataDog/datadog-agent-buildimages.git
-        cd datadog-agent-buildimages
-        dda run build devcontainer --tag legacy-devenv
-
     - name: Create Dev Container config
-      run: dda inv -- devcontainer.setup --image legacy-devenv
+      run: dda inv -- devcontainer.setup --image datadog/agent-dev-env-linux
 
     - name: Ensure mount paths exist
       run: |
         mkdir -p ~/.ssh
+
+    - name: Free up some disk space
+      run: |
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /usr/share/dotnet
 
     - name: Install Dev Container CLI
       run: npm install -g @devcontainers/cli
