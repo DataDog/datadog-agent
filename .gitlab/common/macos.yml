@@ -11,7 +11,7 @@
     fi
   # Remove inactive versions
   - |
-    if true; then
+    if [ "$((RANDOM%20))" -eq 0 ]; then
       echo Trying to remove inactive versions
       dda inv -- -e macos.remove-inactive-versions -l python -t "$PYTHON_VERSION" || true
       dda inv -- -e macos.remove-inactive-versions -l go -t "$(cat .go-version)" || true
