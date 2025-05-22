@@ -23,9 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type SeenType struct {
-	Offset dwarf.Offset
-	Count  uint8
+type seenType struct {
+	offset dwarf.Offset
+	count  uint8
 }
 
 func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
@@ -179,7 +179,7 @@ entryLoop:
 					return nil, err
 				}
 				// Initialize seenTypes map for this specific top-level type expansion.
-				seenTypes := make(map[dwarf.Offset]*SeenType)
+				seenTypes := make(map[dwarf.Offset]*seenType)
 				typeFields, err = expandTypeData(typeEntry.Offset, dwarfData, seenTypes)
 				if err != nil {
 					return nil, fmt.Errorf("error while parsing debug information: %w", err)
@@ -208,22 +208,23 @@ entryLoop:
 // expandTypeData recursively expands DWARF type information starting from a given offset.
 // It handles basic types, structs, arrays, pointers, and typedefs.
 // It handles logic for cycle/depth detection.
-func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dwarf.Offset]*SeenType) (*ditypes.Parameter, error) {
-	seenType, ok := seenTypes[offset]
+func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dwarf.Offset]*seenType) (*ditypes.Parameter, error) {
+	seenEntry, ok := seenTypes[offset]
 	if !ok {
-		seenType = &SeenType{
-			Offset: offset,
+		seenEntry = &seenType{
+			offset: offset,
 		}
+		seenTypes[offset] = seenEntry
 	}
-	seenType.Count++
-	if seenType.Count > 4 {
+	seenEntry.count++
+	if seenEntry.count > 4 {
 		return &ditypes.Parameter{Type: "<cycle/depth limit>"}, nil
 	}
 
 	// Ensure the count is decremented when this function returns
 	defer func() {
-		seenType.Count--
-		if seenType.Count == 0 {
+		seenEntry.count--
+		if seenEntry.count == 0 {
 			delete(seenTypes, offset)
 		}
 	}()
@@ -290,7 +291,7 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dw
 
 // getIndividualArrayElements expands information about array types, including element type and length.
 // It recursively calls expandTypeData for the element type, passing the seenTypes map for cycle/depth detection.
-func getIndividualArrayElements(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dwarf.Offset]*SeenType) ([]*ditypes.Parameter, error) {
+func getIndividualArrayElements(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dwarf.Offset]*seenType) ([]*ditypes.Parameter, error) {
 	log.Infof("Starting getIndividualArrayElements for offset %x", offset)
 	savedArrayEntryOffset := offset
 	typeReader := dwarfData.Reader()
@@ -366,7 +367,7 @@ func getIndividualArrayElements(offset dwarf.Offset, dwarfData *dwarf.Data, seen
 
 // getStructFields expands information about struct types, collecting information about each field.
 // It recursively calls expandTypeData for field types, passing the seenTypes map for cycle/depth detection.
-func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dwarf.Offset]*SeenType) ([]*ditypes.Parameter, error) {
+func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dwarf.Offset]*seenType) ([]*ditypes.Parameter, error) {
 	inOrderReader := dwarfData.Reader()
 	typeReader := dwarfData.Reader()
 
@@ -452,7 +453,7 @@ func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[d
 // getPointerLayers is used to populate the underlying type of pointers. The returned slice of parameters
 // would contain a single element which represents the entire type tree that the pointer points to.
 // It recursively calls expandTypeData for the pointed-to type, passing the seenTypes map for cycle/depth detection.
-func getPointerLayers(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dwarf.Offset]*SeenType) ([]*ditypes.Parameter, error) {
+func getPointerLayers(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dwarf.Offset]*seenType) ([]*ditypes.Parameter, error) {
 	typeReader := dwarfData.Reader()
 	typeReader.Seek(offset)
 	pointerEntry, err := typeReader.Next()
@@ -544,23 +545,23 @@ func followType(outerType *dwarf.Entry, reader *dwarf.Reader) (*dwarf.Entry, err
 // which points to the actual type, which is what this function 'resolves'.
 // Typedef's are used in for structs, pointers, maps, and likely other types.
 // seenOffsets tracks offsets visited in *this specific resolution chain* to detect cycles.
-func resolveTypedefToRealType(outerType *dwarf.Entry, reader *dwarf.Reader, seenOffsets map[dwarf.Offset]*SeenType) (*dwarf.Entry, error) {
+func resolveTypedefToRealType(outerType *dwarf.Entry, reader *dwarf.Reader, seenOffsets map[dwarf.Offset]*seenType) (*dwarf.Entry, error) {
 	followedType := outerType
 	var err error
 
 	for followedType.Tag == dwarf.TagTypedef {
-		seenType, ok := seenOffsets[followedType.Offset]
+		seenEntry, ok := seenOffsets[followedType.Offset]
 		if !ok {
-			seenType = &SeenType{
-				Offset: followedType.Offset,
+			seenEntry = &seenType{
+				offset: followedType.Offset,
 			}
-			seenOffsets[followedType.Offset] = seenType
+			seenOffsets[followedType.Offset] = seenEntry
 		}
-		if seenType.Count > 4 {
+		if seenEntry.count > 4 {
 			log.Infof("Typedef cycle detected at offset %x", followedType.Offset)
 			return outerType, nil
 		}
-		seenType.Count++
+		seenEntry.count++
 		followedType, err = followType(followedType, reader)
 		if err != nil {
 			log.Infof("Error following type at offset %x: %v", followedType.Offset, err)
