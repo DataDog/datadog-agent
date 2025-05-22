@@ -152,7 +152,6 @@ func (v *VersaCheck) Run() error {
 		v.metricsSender.SendDirectorStatus(directorStatus)
 	}
 
-	// Temporarily commenting out the SLA metrics collection until Versa Analytics auth is sorted out
 	if *v.config.CollectSLAMetrics {
 		deviceNameToIDMap := generateDeviceNameToIPMap(deviceMetadata)
 		slaMetrics, err := c.GetSLAMetrics()
