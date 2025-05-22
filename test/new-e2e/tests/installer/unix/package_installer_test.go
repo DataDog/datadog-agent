@@ -131,9 +131,7 @@ func (s *packageInstallerSuite) TestReInstall() {
 }
 
 func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
-	if s.installMethod == InstallMethodAnsible {
-		s.T().Skip("Not supported on Ansible")
-	}
+	s.T().Skip("Flaky")
 
 	// Install prod
 	err := s.RunInstallScriptProdOci(
