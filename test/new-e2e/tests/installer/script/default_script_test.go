@@ -35,7 +35,7 @@ func testDefaultScript(os e2eos.Descriptor, arch e2eos.Architecture) installerSc
 }
 
 func (s *installScriptDefaultSuite) RunInstallScript(url string, params ...string) {
-	params = append(params, "DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE=installtesting.datad0g.com")
+	params = append(params, "DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE=installtesting.datad0g.com.internal.dda-testing.com")
 	s.installerScriptBaseSuite.RunInstallScript(url, params...)
 }
 
@@ -123,7 +123,7 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 	if s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version {
 		s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
 	}
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(map[string]string{
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(map[string]string{
 		"DD_API_KEY":               s.getAPIKey(),
 		"TESTING_KEYS_URL":         "keys.datadoghq.com",
 		"TESTING_APT_URL":          "apttesting.datad0g.com",
@@ -166,11 +166,11 @@ func (s *installScriptDefaultSuite) TestUpgradeInstallerAgent() {
 		"DD_API_KEY=" + s.getAPIKey(),
 		"DD_REMOTE_UPDATES=true",
 		"DD_AGENT_MAJOR_VERSION=7",
-		"DD_AGENT_MINOR_VERSION=60.0",
+		"DD_AGENT_MINOR_VERSION=65.0",
 	}
 
 	// 1. Install installer / agent as separate packages using older agent 7 install script & an older agent version (7.60)
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh?versionId=c0vg6qmhxYnt3he9iRph2BsRN0p026pf)"`, strings.Join(params, " ")))
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh?versionId=c0vg6qmhxYnt3he9iRph2BsRN0p026pf)"`, strings.Join(params, " ")))
 	require.NoErrorf(s.T(), err, "installer / agent not properly installed through agent 7 install script")
 
 	// 2. Run the installer install script with the same older agent version (7.60)
@@ -196,12 +196,12 @@ func (s *installScriptDefaultSuite) TestInstallIgnoreMajorMinor() {
 		"DD_API_KEY=" + s.getAPIKey(),
 		"DD_REMOTE_UPDATES=true",
 		"DD_AGENT_MAJOR_VERSION=7",
-		"DD_AGENT_MINOR_VERSION=60.0",
+		"DD_AGENT_MINOR_VERSION=65.0",
 	}
 	defer s.Purge()
 	s.RunInstallScript(s.url, params...)
 
 	// Check the agent version is the latest one
 	installedVersion := s.host.AgentStableVersion()
-	assert.NotEqual(s.T(), "7.60.0", installedVersion, "agent version should not be 7.60.0")
+	assert.NotEqual(s.T(), "7.65.0", installedVersion, "agent version should not be 7.65.0")
 }

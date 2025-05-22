@@ -18,15 +18,15 @@ import (
 // ScalingValues represents the scaling values (horizontal and vertical) for a target
 type ScalingValues struct {
 	// HorizontalError refers to an error encountered by Datadog while computing the horizontal scaling values
-	HorizontalError error
+	HorizontalError error                    `json:"-"`
 	Horizontal      *HorizontalScalingValues `json:"horizontal"`
 
 	// VerticalError refers to an error encountered by Datadog while computing the vertical scaling values
-	VerticalError error
+	VerticalError error                  `json:"-"`
 	Vertical      *VerticalScalingValues `json:"vertical"`
 
 	// Error refers to a general error encountered by Datadog while computing the scaling values
-	Error error
+	Error error `json:"-"`
 }
 
 // HorizontalScalingValues holds the horizontal scaling values for a target
