@@ -47,7 +47,9 @@ func StartWorkloadAutoscaling(
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "datadog-workload-autoscaler"})
 
-	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	store := autoscaling.NewStore[model.PodAutoscalerInternal](func(obj *model.PodAutoscalerInternal) any {
+		return obj.GetOwnerReference()
+	})
 	workload.InitDumper(store)
 
 	podPatcher := workload.NewPodPatcher(store, isLeaderFunc, apiCl.DynamicCl, eventRecorder)
