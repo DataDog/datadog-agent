@@ -247,7 +247,11 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityProbeKfilters(
 				in.Skip()
 			} else {
 				in.Delim('{')
-				out.ApproverReports = make(map[string]*kfilters.ApproverReport)
+				if !in.IsDelim('}') {
+					out.ApproverReports = make(map[string]*kfilters.ApproverReport)
+				} else {
+					out.ApproverReports = nil
+				}
 				for !in.IsDelim('}') {
 					key := string(in.String())
 					in.WantColon()
@@ -290,12 +294,11 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityProbeKfilters(
 	out.RawByte('{')
 	first := true
 	_ = first
-	{
+	if len(in.ApproverReports) != 0 {
 		const prefix string = ",\"approvers\":"
+		first = false
 		out.RawString(prefix[1:])
-		if in.ApproverReports == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
-			out.RawString(`null`)
-		} else {
+		{
 			out.RawByte('{')
 			v5First := true
 			for v5Name, v5Value := range in.ApproverReports {
@@ -315,14 +318,15 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityProbeKfilters(
 			out.RawByte('}')
 		}
 	}
-	{
+	if in.DiscardersReport != nil {
 		const prefix string = ",\"discarders\":"
-		out.RawString(prefix)
-		if in.DiscardersReport == nil {
-			out.RawString("null")
+		if first {
+			first = false
+			out.RawString(prefix[1:])
 		} else {
-			easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecuritySeclRules(out, *in.DiscardersReport)
+			out.RawString(prefix)
 		}
+		easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecuritySeclRules(out, *in.DiscardersReport)
 	}
 	out.RawByte('}')
 }
