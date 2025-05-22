@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -788,6 +789,12 @@ func configNameAllowed(file string) bool {
 	return false
 }
 
+func cleanConfigName(p string) string {
+	// intentionally not using filepath.Clean so that the
+	// path maintains forward slashes on Windows
+	return path.Clean(p)
+}
+
 type configFile struct {
 	Path     string          `json:"path"`
 	Contents json.RawMessage `json:"contents"`
@@ -800,10 +807,7 @@ func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
 		return fmt.Errorf("could not unmarshal config files: %w", err)
 	}
 	for _, file := range files {
-		// TODO: i think this is screwy on windows
-		if runtime.GOOS != "windows" {
-			file.Path = filepath.Clean(file.Path)
-		}
+		file.Path = cleanConfigName(file.Path)
 		if !configNameAllowed(file.Path) {
 			return fmt.Errorf("config file %s is not allowed", file)
 		}
