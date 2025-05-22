@@ -353,7 +353,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		return
 	}
 
-	c.ContainerID.Source, c.ContainerID.Dest = nil, nil
+	c.ContainerID.Source, c.ContainerID.Dest = emptyContainerID, emptyContainerID
 
 	// on windows, cLastUpdateEpoch is already set as
 	// ns since unix epoch.
@@ -368,7 +368,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		copy(c.Tags, p.Tags)
 	}
 
-	if p.ContainerID != nil {
+	if p.ContainerID != emptyContainerID {
 		c.ContainerID.Source = p.ContainerID
 	}
 }
