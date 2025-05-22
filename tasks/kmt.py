@@ -2405,16 +2405,15 @@ def retry_failed_pipeline(ctx: Context, pipeline_id: int, component: str | None 
         info(f"[+] No test jobs to retry in pipeline {pipeline_id}")
         return
 
-    info(f"[+] Found {len(jobs_to_retry)} candidates to retry in pipeline {pipeline_id}(https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id}):")
+    info(
+        f"[+] Found {len(jobs_to_retry)} candidates to retry in pipeline {pipeline_id}(https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id}):"
+    )
     for job in jobs_to_retry:
         info(f"[+] {job.name} (status: {job.status})")
 
         if job.kmt_subpipeline is None:
             raise Exit(f"[-] Job {job.name} has no associated subpipeline")
 
-    info(
-        f"[+] We will retry {len(jobs_to_retry)} jobs in pipeline {pipeline_id} (https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id})"
-    )
     warn("[!] Retrying KMT tests means re-creating some metal instances. This is not free and will take a while.")
     warn(
         "[!] KMT jobs already re-try failed tests internally. Please only retry failed test jobs if you think this was an infra issue. Don't retry to try and fix flaky tests."

@@ -22,19 +22,19 @@ PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
 
 # Reference: https://docs.gitlab.com/api/graphql/reference/#cijobstatus
 class GitlabJobStatus(Enum):
-    CANCELED = "canceled"  # A job that is canceled.
-    CANCELING = "canceling"  # A job that is canceling.
-    CREATED = "created"  # A job that is created.
-    FAILED = "failed"  # A job that is failed.
-    MANUAL = "manual"  # A job that is manual.
-    PENDING = "pending"  # A job that is pending.
-    PREPARING = "preparing"  # A job that is preparing.
-    RUNNING = "running"  # A job that is running.
-    SCHEDULED = "scheduled"  # A job that is scheduled.
-    SKIPPED = "skipped"  # A job that is skipped.
-    SUCCESS = "success"  # A job that is success.
-    WAITING_FOR_CALLBACK = "waiting_for_callback"  # A job that is waiting for callback.
-    WAITING_FOR_RESOURCE = "waiting_for_resource"  # A job that is waiting for resource.
+    CANCELED = "canceled"
+    CANCELING = "canceling"
+    CREATED = "created"
+    FAILED = "failed"
+    MANUAL = "manual"
+    PENDING = "pending"
+    PREPARING = "preparing"
+    RUNNING = "running"
+    SCHEDULED = "scheduled"
+    SKIPPED = "skipped"
+    SUCCESS = "success"
+    WAITING_FOR_CALLBACK = "waiting_for_callback"
+    WAITING_FOR_RESOURCE = "waiting_for_resource"
 
     def has_finished(self) -> bool:  # noqa
         """Returns whether Gitlab has executed this job to the end, canceled it,
