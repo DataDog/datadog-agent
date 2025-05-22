@@ -576,6 +576,10 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveOnDemandArg3Uint(ev, &ev.OnDemand)
 		_ = ev.FieldHandlers.ResolveOnDemandArg4Str(ev, &ev.OnDemand)
 		_ = ev.FieldHandlers.ResolveOnDemandArg4Uint(ev, &ev.OnDemand)
+		_ = ev.FieldHandlers.ResolveOnDemandArg5Str(ev, &ev.OnDemand)
+		_ = ev.FieldHandlers.ResolveOnDemandArg5Uint(ev, &ev.OnDemand)
+		_ = ev.FieldHandlers.ResolveOnDemandArg6Str(ev, &ev.OnDemand)
+		_ = ev.FieldHandlers.ResolveOnDemandArg6Uint(ev, &ev.OnDemand)
 	case "open":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Open.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Open.File.FileFields)
@@ -1162,6 +1166,10 @@ type FieldHandlers interface {
 	ResolveOnDemandArg3Uint(ev *Event, e *OnDemandEvent) int
 	ResolveOnDemandArg4Str(ev *Event, e *OnDemandEvent) string
 	ResolveOnDemandArg4Uint(ev *Event, e *OnDemandEvent) int
+	ResolveOnDemandArg5Str(ev *Event, e *OnDemandEvent) string
+	ResolveOnDemandArg5Uint(ev *Event, e *OnDemandEvent) int
+	ResolveOnDemandArg6Str(ev *Event, e *OnDemandEvent) string
+	ResolveOnDemandArg6Uint(ev *Event, e *OnDemandEvent) int
 	ResolveOnDemandName(ev *Event, e *OnDemandEvent) string
 	ResolvePackageName(ev *Event, e *FileEvent) string
 	ResolvePackageSourceVersion(ev *Event, e *FileEvent) string
@@ -1312,6 +1320,18 @@ func (dfh *FakeFieldHandlers) ResolveOnDemandArg4Str(ev *Event, e *OnDemandEvent
 }
 func (dfh *FakeFieldHandlers) ResolveOnDemandArg4Uint(ev *Event, e *OnDemandEvent) int {
 	return int(e.Arg4Uint)
+}
+func (dfh *FakeFieldHandlers) ResolveOnDemandArg5Str(ev *Event, e *OnDemandEvent) string {
+	return string(e.Arg5Str)
+}
+func (dfh *FakeFieldHandlers) ResolveOnDemandArg5Uint(ev *Event, e *OnDemandEvent) int {
+	return int(e.Arg5Uint)
+}
+func (dfh *FakeFieldHandlers) ResolveOnDemandArg6Str(ev *Event, e *OnDemandEvent) string {
+	return string(e.Arg6Str)
+}
+func (dfh *FakeFieldHandlers) ResolveOnDemandArg6Uint(ev *Event, e *OnDemandEvent) int {
+	return int(e.Arg6Uint)
 }
 func (dfh *FakeFieldHandlers) ResolveOnDemandName(ev *Event, e *OnDemandEvent) string {
 	return string(e.Name)

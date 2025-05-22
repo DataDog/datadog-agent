@@ -66,6 +66,7 @@ var bpfMapNames = []string{
 	"netns_cache",
 	"network_flow_mo",
 	"ns_flow_to_netw",
+	"on_demand_event",
 	"open_flags_appr",
 	"packets",
 	"path_id",
