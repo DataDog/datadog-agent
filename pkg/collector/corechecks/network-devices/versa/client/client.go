@@ -245,3 +245,98 @@ func (client *Client) GetDirectorStatus() (*DirectorStatus, error) {
 
 	return resp, nil
 }
+
+// TODO: clean this up to be more generalizable
+func parseAaData(data [][]interface{}) ([]SLAMetrics, error) {
+	var rows []SLAMetrics
+	for _, row := range data {
+		m := SLAMetrics{}
+		if len(row) != 12 {
+			return nil, fmt.Errorf("expected 12 columns, got %d", len(row))
+		}
+		// Type assertions for each value
+		var ok bool
+		if m.DrillKey, ok = row[0].(string); !ok {
+			return nil, fmt.Errorf("expected string for CombinedKey")
+		}
+		if m.LocalSite, ok = row[1].(string); !ok {
+			return nil, fmt.Errorf("expected string for LocalSite")
+		}
+		if m.RemoteSite, ok = row[2].(string); !ok {
+			return nil, fmt.Errorf("expected string for RemoteSite")
+		}
+		if m.LocalAccessCircuit, ok = row[3].(string); !ok {
+			return nil, fmt.Errorf("expected string for LocalCircuit")
+		}
+		if m.RemoteAccessCircuit, ok = row[4].(string); !ok {
+			return nil, fmt.Errorf("expected string for RemoteCircuit")
+		}
+		if m.ForwardingClass, ok = row[5].(string); !ok {
+			return nil, fmt.Errorf("expected string for ForwardingClass")
+		}
+
+		// Floats from index 6–11
+		floatFields := []*float64{
+			&m.Delay, &m.FwdDelayVar, &m.RevDelayVar,
+			&m.FwdLossRatio, &m.RevLossRatio, &m.PDULossRatio,
+		}
+		for i, ptr := range floatFields {
+			if val, ok := row[i+6].(float64); ok {
+				*ptr = val
+			} else {
+				return nil, fmt.Errorf("expected float64 at index %d", i+6)
+			}
+		}
+		rows = append(rows, m)
+	}
+	return rows, nil
+}
+
+// GetSLAMetrics retrieves SLA metrics from the Versa Analytics API
+func (client *Client) GetSLAMetrics() ([]SLAMetrics, error) {
+	analyticsURL := buildAnalyticsPath("datadog", "SDWAN", "15minutesAgo", "slam(localsite,remotesite,localaccckt,remoteaccckt,fc)", "tableData", []string{
+		"delay",
+		"fwdDelayVar",
+		"revDelayVar",
+		"fwdLossRatio",
+		"revLossRatio",
+		"pduLossRatio",
+	})
+
+	resp, err := get[SLAMetricsResponse](client, analyticsURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get SLA metrics: %v", err)
+	}
+	aaData := resp.AaData
+	metrics, err := parseAaData(aaData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse SLA metrics: %v", err)
+	}
+	return metrics, nil
+}
+
+// buildAnalyticsPath constructs a Versa Analytics query path in a cleaner way so multiple metrics can be added.
+//
+// Parameters:
+//   - tenant: tenant name within the environment (e.g., "datadog")
+//   - feature: category of analytics metrics (e.g., "SDWAN, "SYSTEM", "CGNAT", etc.).
+//   - startDate: relative start date (e.g., "15minutesAgo", "1h", "24h").
+//   - query: Versa query expression (e.g., "slam(...columns...)").
+//   - queryType: type of query (e.g., "tableData", "table", "summary").
+//   - metrics: list of metric strings (e.g., "delay", "fwdLossRatio").
+//
+// Returns the full encoded URL string.
+func buildAnalyticsPath(tenant string, feature string, startDate string, query string, queryType string, metrics []string) string {
+	baseAnalyticsPath := "/versa/analytics/v1.0.0/data/provider"
+	path := fmt.Sprintf("%s/tenants/%s/features/%s", baseAnalyticsPath, tenant, feature)
+	params := url.Values{
+		"start-date": []string{startDate},
+		"qt":         []string{queryType},
+		"q":          []string{query},
+		"ds":         []string{"aggregate"}, // this seems to be the only datastore supported (from docs)
+	}
+	for _, m := range metrics {
+		params.Add("metrics", m)
+	}
+	return path + "?" + params.Encode()
+}

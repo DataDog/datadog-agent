@@ -225,7 +225,7 @@ static __always_inline s16 read_nullable_string_size(pktbuf_t pkt, bool flexible
         return 0;
     }
 
-    pktbuf_load_bytes(pkt, *offset, &topic_name_size_raw, sizeof(topic_name_size_raw));
+    pktbuf_load_bytes_with_telemetry(pkt, *offset, &topic_name_size_raw, sizeof(topic_name_size_raw));
 
     s16 topic_name_size = 0;
     if (flexible) {
@@ -280,11 +280,12 @@ static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexibl
 // verifies if it is a valid UUID version 4
 static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible, u32 offset) {
     // The topic id is a UUID, which is 16 bytes long.
+    // It is in network byte order (big-endian)
     u8 topic_id[16] = {};
 
     // Skipping number of entries for now
     if (flexible) {
-        if (get_varint_number_of_topics(pkt, &offset) > NUM_TOPICS_MAX) {
+        if (!skip_varint_number_of_topics(pkt, &offset)) {
             return false;
         }
     } else {
@@ -295,11 +296,11 @@ static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible,
         return false;
     }
 
-    pktbuf_load_bytes(pkt, offset, topic_id, sizeof(topic_id));
+    pktbuf_load_bytes_with_telemetry(pkt, offset, topic_id, sizeof(topic_id));
     offset += sizeof(topic_id);
 
-    // The UUID version (13th digit)
-    if (topic_id[6] >> 4 != 0x4) {
+    // The UUID version (13th digit 4 MSB) must be 4
+    if ((topic_id[6] & 0x40) != 0x40) {
         // The UUID version is not 4
         return false;
     }

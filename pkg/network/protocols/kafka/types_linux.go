@@ -11,7 +11,7 @@ const (
 	DecodingMaxSupportedProduceRequestApiVersion           = 0xc
 	ClassificationMaxSupportedFetchRequestApiVersion       = 0x11
 	ClassificationMinSupportedFetchRequestApiVersion       = 0x0
-	DecodingMaxSupportedFetchRequestApiVersion             = 0x11
+	DecodingMaxSupportedFetchRequestApiVersion             = 0xc
 	ClassificationMinSupportedAPIVersionsRequestApiVersion = 0x3
 	ClassificationMaxSupportedAPIVersionsRequestApiVersion = 0x4
 )

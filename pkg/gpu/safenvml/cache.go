@@ -19,21 +19,27 @@ type DeviceCache interface {
 	GetByUUID(uuid string) (Device, bool)
 	// GetByIndex returns a device by its index
 	GetByIndex(index int) (Device, error)
-	// Count returns the number of devices in the cache
+	// Count returns the number of physical devices in the cache
 	Count() int
 	// SMVersionSet returns a set of all SM versions in the cache
 	SMVersionSet() map[uint32]struct{}
 	// All returns all devices in the cache
 	All() []Device
+	// AllPhysicalDevices returns all root devices in the cache
+	AllPhysicalDevices() []Device
+	// AllMigDevices returns all MIG children in the cache
+	AllMigDevices() []Device
 	// Cores returns the number of cores for a device with a given UUID. Returns an error if the device is not found.
 	Cores(uuid string) (uint64, error)
 }
 
 // deviceCache is an implementation of DeviceCache
 type deviceCache struct {
-	allDevices   []Device
-	uuidToDevice map[string]Device
-	smVersionSet map[uint32]struct{}
+	allDevices         []Device
+	allPhysicalDevices []Device
+	allMigDevices      []Device
+	uuidToDevice       map[string]Device
+	smVersionSet       map[uint32]struct{}
 }
 
 // NewDeviceCache creates a new DeviceCache
@@ -75,7 +81,14 @@ func NewDeviceCacheWithOptions(lib SafeNVML) (DeviceCache, error) {
 
 		cache.uuidToDevice[dev.UUID] = dev
 		cache.allDevices = append(cache.allDevices, dev)
+		cache.allPhysicalDevices = append(cache.allPhysicalDevices, dev)
 		cache.smVersionSet[dev.SMVersion] = struct{}{}
+
+		for _, migChild := range dev.MIGChildren {
+			cache.uuidToDevice[migChild.UUID] = migChild
+			cache.allDevices = append(cache.allDevices, migChild)
+			cache.allMigDevices = append(cache.allMigDevices, migChild)
+		}
 	}
 
 	return cache, nil
@@ -96,9 +109,9 @@ func (c *deviceCache) GetByIndex(index int) (Device, error) {
 	return c.allDevices[index], nil
 }
 
-// Count returns the number of devices in the cache
+// Count returns the number of physical devices in the cache
 func (c *deviceCache) Count() int {
-	return len(c.allDevices)
+	return len(c.allPhysicalDevices)
 }
 
 // SMVersionSet returns a set of all SM versions in the cache
@@ -109,6 +122,16 @@ func (c *deviceCache) SMVersionSet() map[uint32]struct{} {
 // All returns all devices in the cache
 func (c *deviceCache) All() []Device {
 	return c.allDevices
+}
+
+// AllPhysicalDevices returns all physical devices in the cache
+func (c *deviceCache) AllPhysicalDevices() []Device {
+	return c.allPhysicalDevices
+}
+
+// AllMigDevices returns all MIG children in the cache
+func (c *deviceCache) AllMigDevices() []Device {
+	return c.allMigDevices
 }
 
 // Cores returns the number of cores for a device with a given UUID. Returns an error if the device is not found.

@@ -449,7 +449,7 @@ func (s *packageApmInjectSuite) TestDefaultPackageVersion() {
 		envForceInstall("datadog-agent"),
 	)
 	defer s.Purge()
-	s.host.AssertPackagePrefix("datadog-apm-library-python", "2")
+	s.host.AssertPackagePrefix("datadog-apm-library-python", "3")
 }
 
 func (s *packageApmInjectSuite) TestInstallWithUmask() {
@@ -508,6 +508,10 @@ func (s *packageApmInjectSuite) assertLDPreloadInstrumented(libPath string) {
 }
 
 func (s *packageApmInjectSuite) assertStableConfig(expectedConfigs map[string]interface{}) {
+	if len(expectedConfigs) == 0 {
+		return
+	}
+
 	state := s.host.State()
 	state.AssertFileExists("/etc/datadog-agent/application_monitoring.yaml", 0644, "dd-agent", "dd-agent")
 	content, err := s.host.ReadFile("/etc/datadog-agent/application_monitoring.yaml")

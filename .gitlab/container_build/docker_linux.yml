@@ -39,14 +39,14 @@
 
 .docker_build_job_definition_amd64:
   extends: .docker_build_job_definition
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64"]
   variables:
     ARCH: amd64
 
 .docker_build_job_definition_arm64:
   extends: .docker_build_job_definition
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_arm64$CI_IMAGE_DOCKER_ARM64_SUFFIX:$CI_IMAGE_DOCKER_ARM64
   tags: ["arch:arm64"]
   variables:
     ARCH: arm64
@@ -196,6 +196,10 @@ docker_build_base_image_arm64:
   extends: [.docker_build_base_image, .docker_build_job_definition_arm64]
 
 .docker_build_ot_agent_standalone:
+  before_script:
+    - cp bin/otel-agent/otel-agent $BUILD_CONTEXT/
+    - cp cmd/otel-agent/dist/otel-config.yaml $BUILD_CONTEXT/
+    - ls -l $BUILD_CONTEXT/
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -211,12 +215,14 @@ docker_build_ot_agent_standalone_amd64:
     [.docker_build_ot_agent_standalone, .docker_build_job_definition_amd64]
   needs:
     - job: docker_build_base_image_amd64
+    - job: build_otel_agent_binary_x64
 
 docker_build_ot_agent_standalone_arm64:
   extends:
     [.docker_build_ot_agent_standalone, .docker_build_job_definition_arm64]
   needs:
     - job: docker_build_base_image_arm64
+    - job: build_otel_agent_binary_arm64
 
 docker_build_agent7_full:
   extends: [.docker_build_job_definition_amd64, .docker_build_artifact]
@@ -307,7 +313,7 @@ docker_build_cluster_agent_fips_amd64:
     - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
     - mv -vf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
     - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $BUILD_CONTEXT/
-    - nm --defined-only ${BUILD_CONTEXT}/datadog-cluster-agent | grep boringssl_fips_self_test
+    - go tool nm ${BUILD_CONTEXT}/datadog-cluster-agent | grep '_Cfunc__goboringcrypto_'
 
 docker_build_cluster_agent_fips_arm64:
   extends: [.docker_build_job_definition_arm64]
@@ -329,7 +335,7 @@ docker_build_cluster_agent_fips_arm64:
     - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
     - mv -vf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
     - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $BUILD_CONTEXT/
-    - nm --defined-only ${BUILD_CONTEXT}/datadog-cluster-agent | grep boringssl_fips_self_test
+    - go tool nm ${BUILD_CONTEXT}/datadog-cluster-agent | grep '_Cfunc__goboringcrypto_'
 
 # build the cws-instrumentation image
 docker_build_cws_instrumentation_amd64:
