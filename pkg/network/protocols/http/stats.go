@@ -66,6 +66,8 @@ func (m Method) String() string {
 	}
 }
 
+var emptyPathContent = unique.Make("")
+
 // Path represents the HTTP path
 type Path struct {
 	Content  unique.Handle[string]
@@ -92,11 +94,18 @@ func NewKey(saddr, daddr util.Address, sport, dport uint16, path []byte, fullPat
 
 // NewKeyWithConnection generates a new Key with a given connection tuple
 func NewKeyWithConnection(connKey types.ConnectionKey, path []byte, fullPath bool, method Method) Key {
+	var content unique.Handle[string]
+	if len(path) == 0 {
+		content = emptyPathContent
+	} else {
+		// workaround for lack of compiler optimization in Go <1.25: https://github.com/golang/go/issues/71926
+		content = unique.Make(unsafe.String(&path[0], len(path)))
+	}
+
 	return Key{
 		ConnectionKey: connKey,
 		Path: Path{
-			// workaround for lack of compiler optimization in Go <1.25: https://github.com/golang/go/issues/71926
-			Content:  unique.Make(unsafe.String(&path[0], len(path))),
+			Content:  content,
 			FullPath: fullPath,
 		},
 		Method: method,

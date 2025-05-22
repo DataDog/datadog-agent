@@ -56,12 +56,18 @@ func getFragment(e *EbpfTx) []byte {
 	return e.Buf[:e.Buf_len]
 }
 
+var emptyKeyName = unique.Make("")
+
 // KeyName returns the key name of the key.
 func (e *EventWrapper) KeyName() unique.Handle[string] {
 	if !e.keyNameSet {
 		frag := getFragment(&e.Tx)
-		// workaround for lack of compiler optimization in Go <1.25: https://github.com/golang/go/issues/71926
-		e.keyName = unique.Make(unsafe.String(&frag[0], len(frag)))
+		if len(frag) == 0 {
+			e.keyName = emptyKeyName
+		} else {
+			// workaround for lack of compiler optimization in Go <1.25: https://github.com/golang/go/issues/71926
+			e.keyName = unique.Make(unsafe.String(&frag[0], len(frag)))
+		}
 		e.keyNameSet = true
 	}
 	return e.keyName

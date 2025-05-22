@@ -75,6 +75,8 @@ func (statKeeper *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	return ret
 }
 
+var emptyTopicName = unique.Make("")
+
 func (statKeeper *StatKeeper) extractTopicName(tx *KafkaTransaction) unique.Handle[string] {
 	// Limit tx.Topic_name_size to not exceed the actual length of tx.Topic_name
 	if uint16(tx.Topic_name_size) > uint16(len(tx.Topic_name)) {
@@ -82,7 +84,9 @@ func (statKeeper *StatKeeper) extractTopicName(tx *KafkaTransaction) unique.Hand
 		tx.Topic_name_size = uint8(len(tx.Topic_name))
 	}
 	b := tx.Topic_name[:tx.Topic_name_size]
-
+	if len(b) == 0 {
+		return emptyTopicName
+	}
 	// workaround for lack of compiler optimization in Go <1.25: https://github.com/golang/go/issues/71926
 	return unique.Make(unsafe.String(&b[0], len(b)))
 }

@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+var emptyHostname = unique.Make("")
+
 // Hostname represents a DNS hostname (aka domain name)
 type Hostname = unique.Handle[string]
 
@@ -23,6 +25,9 @@ func ToString(h Hostname) string {
 
 // HostnameFromBytes converts a byte slice representing a hostname to a dns.Hostname
 func HostnameFromBytes(b []byte) Hostname {
+	if len(b) == 0 {
+		return emptyHostname
+	}
 	// the compiler will correctly prevent the string allocation in the line below in Go 1.25+
 	// return unique.Make(string(b))
 	// until then, we must use this workaround
