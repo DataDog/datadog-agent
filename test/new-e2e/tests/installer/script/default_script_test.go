@@ -166,7 +166,7 @@ func (s *installScriptDefaultSuite) TestUpgradeInstallerAgent() {
 		"DD_API_KEY=" + s.getAPIKey(),
 		"DD_REMOTE_UPDATES=true",
 		"DD_AGENT_MAJOR_VERSION=7",
-		"DD_AGENT_MINOR_VERSION=60.0",
+		"DD_AGENT_MINOR_VERSION=65.0",
 	}
 
 	// 1. Install installer / agent as separate packages using older agent 7 install script & an older agent version (7.60)
@@ -196,12 +196,12 @@ func (s *installScriptDefaultSuite) TestInstallIgnoreMajorMinor() {
 		"DD_API_KEY=" + s.getAPIKey(),
 		"DD_REMOTE_UPDATES=true",
 		"DD_AGENT_MAJOR_VERSION=7",
-		"DD_AGENT_MINOR_VERSION=60.0",
+		"DD_AGENT_MINOR_VERSION=65.0",
 	}
 	defer s.Purge()
 	s.RunInstallScript(s.url, params...)
 
 	// Check the agent version is the latest one
 	installedVersion := s.host.AgentStableVersion()
-	assert.NotEqual(s.T(), "7.60.0", installedVersion, "agent version should not be 7.60.0")
+	assert.NotEqual(s.T(), "7.65.0", installedVersion, "agent version should not be 7.65.0")
 }
