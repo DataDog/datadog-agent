@@ -288,11 +288,11 @@ static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible,
         return false;
     }
 
-    pktbuf_load_bytes(pkt, offset, topic_id, sizeof(topic_id));
+    pktbuf_load_bytes_with_telemetry(pkt, offset, topic_id, sizeof(topic_id));
     offset += sizeof(topic_id);
 
-    // The UUID version (13th digit)
-    if (topic_id[6] >> 4 != 0x4) {
+    // The UUID version (13th digit 4 MSB) must be 4
+    if (topic_id[6] & 0x40 != 0x40) {
         // The UUID version is not 4
         return false;
     }
