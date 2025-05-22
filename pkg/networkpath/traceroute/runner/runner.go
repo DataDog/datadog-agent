@@ -218,7 +218,7 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 	}
 
 	doSyn := func() (*common.Results, error) {
-		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout, cfg.TCPSynCompatibilityMode)
+		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout, cfg.TCPSynParisTracerouteMode)
 		return tr.TracerouteSequential()
 	}
 	doSack := func() (*common.Results, error) {
@@ -229,7 +229,7 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 		return sack.RunSackTraceroute(context.TODO(), params)
 	}
 	doSynSocket := func() (*common.Results, error) {
-		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout, cfg.TCPSynCompatibilityMode)
+		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout, cfg.TCPSynParisTracerouteMode)
 		return tr.TracerouteSequentialSocket()
 	}
 
