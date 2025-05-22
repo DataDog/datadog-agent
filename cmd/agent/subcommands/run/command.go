@@ -32,7 +32,7 @@ import (
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
-	installerexecfx "github.com/DataDog/datadog-agent/comp/updater/installerexec/fx"
+	installerexec "github.com/DataDog/datadog-agent/comp/updater/installerexec/fx"
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 
 	fleetfx "github.com/DataDog/datadog-agent/comp/fleetstatus/fx"
@@ -422,6 +422,7 @@ func getSharedFxOption() fx.Option {
 		rcservicemrfimpl.Module(),
 		remoteconfig.Bundle(),
 		fleetfx.Module(),
+		installerexec.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		autodiscoveryimpl.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
@@ -509,7 +510,7 @@ func getSharedFxOption() fx.Option {
 		metricscompressorfx.Module(),
 		diagnosefx.Module(),
 		ipcfx.ModuleReadWrite(),
-		installerexecfx.Module(),
+		installerexec.Module(),
 		ssistatusfx.Module(),
 	)
 }
