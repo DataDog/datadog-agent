@@ -401,6 +401,9 @@
               "description": "Duration in nanoseconds"
             }
           ]
+        },
+        "private": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
