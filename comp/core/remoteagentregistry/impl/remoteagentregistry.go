@@ -183,14 +183,49 @@ func (ra *remoteAgentRegistry) start() {
 				}
 
 				for _, id := range agentsToRemove {
-					delete(ra.agentMap, id)
-					log.Infof("Remote agent '%s' deregistered after being idle for %s.", id, remoteAgentIdleTimeout)
+					details, ok := ra.agentMap[id]
+					if ok {
+						if details.configStream != nil && details.configStream.stream != nil {
+							details.configStream.streamCancel()
+						}
+						delete(ra.agentMap, id)
+						log.Infof("Remote agent '%s' deregistered after being idle for %s.", id, remoteAgentIdleTimeout)
+					}
 				}
 
 				ra.agentMapMu.Unlock()
 			}
 		}
 	}()
+	go ra.sendConfigUpdatesLoop()
+}
+
+func (ra *remoteAgentRegistry) sendConfigUpdatesLoop() {
+	log.Info("Remote Agent config update loop started.")
+
+	for {
+
+		// TODO: Implement config update loop
+
+		// ra.agentMapMu.Lock()
+
+		// for agentID, details := range ra.agentMap {
+		// 	request := &pb.PushedConfig{}
+
+		// 	if details.stream == nil {
+		// 		log.Warnf("Stream for remote agent '%s' is nil, skipping config update.", agentID)
+		// 		continue
+		// 	}
+
+		// 	err := details.stream.Send(request)
+		// 	if err != nil {
+		// 		log.Warnf("Failed to send config update to remote agent '%s': %v", agentID, err)
+		// 	} else {
+		// 		log.Debugf("Successfully sent config update to remote agent '%s'", agentID)
+		// 	}
+		// }
+		// ra.agentMapMu.Unlock()
+	}
 }
 
 type registryCollector struct {
@@ -497,10 +532,16 @@ func newRemoteAgentClient(registration *remoteagentregistry.RegistrationData) (p
 }
 
 type remoteAgentDetails struct {
-	lastSeen    time.Time
-	displayName string
-	apiEndpoint string
-	client      pb.RemoteAgentClient
+	lastSeen     time.Time
+	displayName  string
+	apiEndpoint  string
+	client       pb.RemoteAgentClient
+	configStream *configStream
+}
+
+type configStream struct {
+	stream       pb.RemoteAgent_StreamConfigUpdatesClient
+	streamCancel context.CancelFunc
 }
 
 func newRemoteAgentDetails(registration *remoteagentregistry.RegistrationData) (*remoteAgentDetails, error) {
@@ -509,10 +550,20 @@ func newRemoteAgentDetails(registration *remoteagentregistry.RegistrationData) (
 		return nil, err
 	}
 
+	streamCtx, streamCancel := context.WithCancel(context.Background())
+	stream, err := client.StreamConfigUpdates(streamCtx)
+	if err != nil {
+		return nil, err
+	}
+
 	return &remoteAgentDetails{
 		displayName: registration.DisplayName,
 		apiEndpoint: registration.APIEndpoint,
 		client:      client,
-		lastSeen:    time.Now(),
+		configStream: &configStream{
+			stream:       stream,
+			streamCancel: streamCancel,
+		},
+		lastSeen: time.Now(),
 	}, nil
 }

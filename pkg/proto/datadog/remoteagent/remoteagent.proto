@@ -84,3 +84,8 @@ message GetTelemetryResponse {
     string prom_text = 1;
   }
 }
+
+message PushedConfig {
+  // Config payload.
+  bytes payload = 1;
+}
