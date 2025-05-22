@@ -292,7 +292,7 @@ static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible,
     offset += sizeof(topic_id);
 
     // The UUID version (13th digit 4 MSB) must be 4
-    if (topic_id[6] & 0x40 != 0x40) {
+    if ((topic_id[6] & 0x40) != 0x40) {
         // The UUID version is not 4
         return false;
     }
