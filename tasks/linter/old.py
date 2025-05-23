@@ -34,8 +34,8 @@ from tasks.libs.ciproviders.gitlab_api import (
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
-from tasks.libs.common.git import get_default_branch, get_file_modifications, get_staged_files
-from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
+from tasks.libs.common.git import get_file_modifications, get_staged_files
+from tasks.libs.common.utils import gitlab_section, is_pr_context
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.modules import GoModule
@@ -46,32 +46,6 @@ from tasks.update_go import _update_go_mods, _update_references
 # - SC2016 corresponds to avoid using '$VAR' inside single quotes since it doesn't expand.
 # - SC2046 corresponds to avoid using $(...) to prevent word splitting.
 DEFAULT_SHELLCHECK_EXCLUDES = 'SC2059,SC2028,SC2086,SC2016,SC2046'
-
-
-@task
-def python(ctx):
-    """Lints Python files.
-
-    See 'setup.cfg' and 'pyproject.toml' file for configuration.
-    If running locally, you probably want to use the pre-commit instead.
-    """
-
-    print(
-        f"""Remember to set up pre-commit to lint your files before committing:
-    https://github.com/DataDog/datadog-agent/blob/{get_default_branch()}/docs/dev/agent_dev_env.md#pre-commit-hooks"""
-    )
-
-    if running_in_ci():
-        # We want to the CI to fail if there are any issues
-        ctx.run("ruff format --check .")
-        ctx.run("ruff check .")
-    else:
-        # Otherwise we just need to format the files
-        ctx.run("ruff format .")
-        ctx.run("ruff check --fix .")
-
-    ctx.run("vulture")
-    ctx.run("mypy")
 
 
 @task
