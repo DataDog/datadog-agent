@@ -15,7 +15,6 @@ import (
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
@@ -116,7 +115,7 @@ func trackPodAutoscalerStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 func deletePodAutoscalerTelemetry(ns, autoscalerName string) {
 	log.Debugf("Deleting pod autoscaler telemetry for %s/%s", ns, autoscalerName)
 	// unset horizontal scaling data
-	labels := prometheus.Labels{
+	tags := map[string]string{
 		"namespace":        ns,
 		"autoscaler_name":  autoscalerName,
 		le.JoinLeaderLabel: le.JoinLeaderValue,
@@ -131,7 +130,7 @@ func deletePodAutoscalerTelemetry(ns, autoscalerName string) {
 	}
 
 	for _, metric := range metrics {
-		metric.DeletePartialMatch(labels)
+		metric.DeletePartialMatch(tags)
 	}
 }
 
@@ -160,14 +159,14 @@ func setHorizontalScaleAppliedRecommendations(toReplicas float64, ns, targetName
 }
 
 func unsetHorizontalScaleAppliedRecommendations(ns, targetName, autoscalerName string) {
-	labels := prometheus.Labels{
+	tags := map[string]string{
 		"namespace":        ns,
 		"target_name":      targetName,
 		"autoscaler_name":  autoscalerName,
 		le.JoinLeaderLabel: le.JoinLeaderValue,
 	}
 
-	telemetryHorizontalScaleAppliedRecommendations.DeletePartialMatch(labels)
+	telemetryHorizontalScaleAppliedRecommendations.DeletePartialMatch(tags)
 }
 
 func startLocalTelemetry(ctx context.Context, sender sender.Sender, tags []string) {

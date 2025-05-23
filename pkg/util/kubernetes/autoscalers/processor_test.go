@@ -675,5 +675,8 @@ func (m *mockGauge) Delete(tagsValue ...string) {
 	delete(m.values, strings.Join(tagsValue, ","))
 }
 
+// DeletePartialMatch does nothing
+func (m *mockGauge) DeletePartialMatch(_ map[string]string) {}
+
 func (*mockGauge) WithValues(_ ...string) telemetryComponent.SimpleGauge       { return nil }
 func (*mockGauge) WithTags(_ map[string]string) telemetryComponent.SimpleGauge { return nil }

@@ -37,7 +37,7 @@ func (g *promGauge) Delete(tagsValue ...string) {
 }
 
 // DeletePartialMatch deletes all metrics where the variable labels contain all of those
-func (g *promGauge) DeletePartialMatch(tagsValue prometheus.Labels) {
+func (g *promGauge) DeletePartialMatch(tagsValue map[string]string) {
 	g.pg.DeletePartialMatch(tagsValue)
 }
 

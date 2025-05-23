@@ -5,8 +5,6 @@
 
 package telemetry
 
-import "github.com/prometheus/client_golang/prometheus"
-
 // Gauge tracks the value of one health metric of the Agent.
 type Gauge interface {
 	// Set stores the value for the given tags.
@@ -22,7 +20,7 @@ type Gauge interface {
 	// Delete deletes the value for the Gauge with the given tags.
 	Delete(tagsValue ...string)
 	// DeletePartialMatch deletes all metrics where the variable labels contain all of those
-	DeletePartialMatch(tagsValue prometheus.Labels)
+	DeletePartialMatch(tags map[string]string)
 	// WithValues returns SimpleGauge for this metric with the given tag values.
 	WithValues(tagsValue ...string) SimpleGauge
 	// WithTags returns SimpleGauge for this metric with the given tag values.
