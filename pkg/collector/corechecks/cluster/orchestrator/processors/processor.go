@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
@@ -38,6 +39,7 @@ type ProcessorContext interface {
 	GetKind() string
 	GetAPIVersion() string
 	IsTerminatedResources() bool
+	GetCollectorTags() []string
 }
 
 // BaseProcessorContext is the base context for all processors
@@ -49,7 +51,7 @@ type BaseProcessorContext struct {
 	ManifestProducer    bool
 	Kind                string
 	APIVersion          string
-	ExtraTags           []string
+	CollectorTags       []string
 	TerminatedResources bool
 }
 
@@ -86,6 +88,11 @@ func (c *BaseProcessorContext) GetKind() string {
 // GetAPIVersion returns the version
 func (c *BaseProcessorContext) GetAPIVersion() string {
 	return c.APIVersion
+}
+
+// GetCollectorTags returns the CollectorTags
+func (c *BaseProcessorContext) GetCollectorTags() []string {
+	return c.CollectorTags
 }
 
 // IsTerminatedResources returns true if resources are terminated
@@ -156,8 +163,8 @@ type Handlers interface {
 	// ResourceVersion returns the resource Version.
 	ResourceVersion(ctx ProcessorContext, resource, resourceModel interface{}) string
 
-	// ResourceTaggerTags returns the resource tags.
-	ResourceTaggerTags(ctx ProcessorContext, resource interface{}) []string
+	// GetMetadataTags returns the resource tags with the metadata
+	GetMetadataTags(ctx ProcessorContext, resourceMetadataModel interface{}) []string
 
 	// ScrubBeforeExtraction replaces sensitive information in the resource
 	// before resource extraction.
@@ -265,8 +272,9 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 			Content:         yaml,
 			Version:         "v1",
 			ContentType:     "json",
-			Tags:            p.h.ResourceTaggerTags(ctx, resource),
-			IsTerminated:    ctx.IsTerminatedResources(),
+			// include collector tags as buffered Manifests share types, and only ExtraTags should be included in CollectorManifests
+			Tags:         util.ImmutableTagsJoin(ctx.GetCollectorTags(), p.h.GetMetadataTags(ctx, resourceMetadataModel)),
+			IsTerminated: ctx.IsTerminatedResources(),
 		})
 	}
 

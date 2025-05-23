@@ -23,9 +23,6 @@ import (
 // noSmVersion is used when the SM version is not available
 const noSmVersion uint32 = 0
 
-// logLimitStreams is used to limit the number of times we log messages about streams, as that can be very verbose
-var logLimitStreams = log.NewLogLimit(20, 5*time.Minute)
-
 // streamLimits contains configurable limits for a stream
 type streamLimits struct {
 	maxKernelLaunches int
@@ -185,7 +182,7 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 	// Trigger the background kernel data loading, we don't care about the result here
 	_, err := enrichedLaunch.getKernelData()
 	if err != nil && !errors.Is(err, cuda.ErrKernelNotProcessedYet) && !errors.Is(err, errFatbinParsingDisabled) { // Only log the error if it's not the retryable error
-		if logLimitStreams.ShouldLog() {
+		if logLimitProbe.ShouldLog() {
 			log.Warnf("Error attaching kernel data for PID %d: %v", sh.metadata.pid, err)
 		}
 	}
@@ -214,7 +211,7 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 	// We only support alloc and free events for now, so if it's not alloc it's free.
 	alloc, ok := sh.memAllocEvents.Get(event.Addr)
 	if !ok {
-		if logLimitStreams.ShouldLog() {
+		if logLimitProbe.ShouldLog() {
 			log.Warnf("Invalid free event: %v", event)
 		}
 		sh.telemetry.invalidFreeEvents.Inc()
@@ -282,7 +279,7 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 
 		kernel, err := launch.getKernelData()
 		if err != nil {
-			if !errors.Is(err, errFatbinParsingDisabled) && logLimitStreams.ShouldLog() {
+			if !errors.Is(err, errFatbinParsingDisabled) && logLimitProbe.ShouldLog() {
 				log.Warnf("Error getting kernel data for PID %d: %v", sh.metadata.pid, err)
 			}
 		} else if kernel != nil {
