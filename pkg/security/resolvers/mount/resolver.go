@@ -11,6 +11,7 @@ package mount
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"path"
 	"slices"
 	"strings"
@@ -435,7 +436,7 @@ func (mr *Resolver) _getMountPath(mountID uint32, device uint32, pid uint32, cac
 
 	// avoid infinite loop
 	if _, exists := cache[mountID]; exists {
-		mr.debugLog.Add(fmt.Sprintf("_getMountPath() [Out] loop detected for mountID = %d\n", mountID))
+		seclog.Errorf("_getMountPath() [Out] loop detected for mountID = %d\n", mountID)
 		return "", source, mount.Origin, ErrMountLoop
 	}
 	cache[mountID] = true
