@@ -485,14 +485,18 @@ Loop:
 		return nil
 	}
 
+	deploymentID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesDeployment,
+		ID:   pod.Namespace + "/" + deploymentName,
+	}
+
+	c.registerChild(pod.EntityID, deploymentID)
+
 	return []*types.TagInfo{
 		{
 			Source:       podSource,
 			StandardTags: standard,
-			EntityID: common.BuildTaggerEntityID(workloadmeta.EntityID{
-				Kind: workloadmeta.KindKubernetesDeployment,
-				ID:   pod.Namespace + "/" + deploymentName,
-			}),
+			EntityID:     common.BuildTaggerEntityID(deploymentID),
 		},
 	}
 }
