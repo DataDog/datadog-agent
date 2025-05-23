@@ -97,10 +97,6 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 func getProcessCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB map[int32]*procutil.Process) []*procutil.Process {
 	var newProcs []*procutil.Process
 	for pid, procA := range procCacheA {
-		if procA == nil {
-			log.Warnf("collected process %d was nil", pid)
-			continue
-		}
 		procB, exists := procCacheB[pid]
 
 		// new process
@@ -168,11 +164,6 @@ func (c *collector) stream(ctx context.Context) {
 		case <-health.C:
 
 		case processEvent := <-c.processEventsCh:
-			if processEvent == nil {
-				log.Warn("sent process Event was nil")
-				continue
-			}
-
 			var events []workloadmeta.CollectorEvent
 			for _, proc := range processEvent.Deleted {
 				events = append(events, workloadmeta.CollectorEvent{
