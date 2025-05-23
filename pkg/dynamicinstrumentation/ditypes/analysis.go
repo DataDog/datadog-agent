@@ -98,7 +98,7 @@ func (s SpecialKind) String() string {
 }
 
 func (l LocationExpression) String() string {
-	return fmt.Sprintf("Opcode: %s Args: [%d, %d, %d] Label: %s Collection ID: %s\n",
+	return fmt.Sprintf("Opcode: %s Args: [%d, %d, %d] Label: %d Collection ID: %d\n",
 		l.Opcode.String(),
 		l.Arg1,
 		l.Arg2,
