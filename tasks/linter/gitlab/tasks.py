@@ -1,5 +1,3 @@
-"""Linting-related tasks for files related to Gitlab CI"""
-
 from __future__ import annotations
 
 import os
@@ -9,13 +7,11 @@ from collections import defaultdict
 from fnmatch import fnmatch
 from glob import glob
 
-import yaml
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.libs.ciproviders.ci_config import CILintersConfig
 from tasks.libs.ciproviders.gitlab_api import (
-    MultiGitlabCIDiff,
     full_config_get_all_leaf_jobs,
     full_config_get_all_stages,
     generate_gitlab_full_configuration,
@@ -33,9 +29,104 @@ from tasks.libs.common.git import get_file_modifications
 from tasks.libs.common.utils import gitlab_section
 from tasks.libs.owners.parsing import read_owners
 
-from .shell import DEFAULT_SHELLCHECK_EXCLUDES, flatten_script, shellcheck_linter
+from ..shell import DEFAULT_SHELLCHECK_EXCLUDES, flatten_script, shellcheck_linter
+from .helpers import (
+    _gitlab_ci_jobs_codeowners_lint,
+    _gitlab_ci_jobs_owners_lint,
+    get_gitlab_ci_lintable_jobs,
+    list_get_parameter_calls,
+)
 
 
+## === Main linter tasks === ##
+@task
+def gitlab_ci(ctx, test="all", custom_context=None, input_file=".gitlab-ci.yml"):
+    """Lints Gitlab CI files in the datadog-agent repository.
+
+    This will lint the main gitlab ci file with different
+    variable contexts and lint other triggered gitlab ci configs.
+
+    Args:
+        test: The context preset to test the gitlab ci file with containing environment variables.
+        custom_context: A custom context to test the gitlab ci file with.
+    """
+    print(f'{color_message("info", Color.BLUE)}: Fetching Gitlab CI configurations...')
+    configs = get_all_gitlab_ci_configurations(ctx, input_file=input_file, with_lint=False)
+
+    for entry_point, input_config in configs.items():
+        with gitlab_section(f"Testing {entry_point}", echo=True):
+            # Only the main config should be tested with all contexts
+            if entry_point == ".gitlab-ci.yml":
+                all_contexts = []
+                if custom_context:
+                    all_contexts = load_context(custom_context)
+                else:
+                    all_contexts = get_preset_contexts(test)
+
+                print(f'{color_message("info", Color.BLUE)}: We will test {len(all_contexts)} contexts')
+                for context in all_contexts:
+                    print("Test gitlab configuration with context: ", context)
+                    test_gitlab_configuration(ctx, entry_point, input_config, dict(context))
+            else:
+                test_gitlab_configuration(ctx, entry_point, input_config)
+
+
+@task
+def gitlab_ci_shellcheck(
+    ctx,
+    diff_file=None,
+    config_file=None,
+    exclude=DEFAULT_SHELLCHECK_EXCLUDES,
+    shellcheck_args="",
+    fail_fast=False,
+    verbose=False,
+    use_bat=None,
+    only_errors=False,
+):
+    """Verifies that shell scripts with gitlab config are valid.
+
+    Args:
+        diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config.
+        config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config.
+    """
+
+    # Used by the CI to skip linting if no changes
+    if diff_file and not os.path.exists(diff_file):
+        print('No diff file found, skipping lint')
+        return
+
+    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
+
+    # No change, info already printed in get_gitlab_ci_lintable_jobs
+    if not full_config:
+        return
+
+    scripts = {}
+    for job, content in jobs:
+        # Skip jobs that are not executed
+        if not is_leaf_job(job, content):
+            continue
+
+        # Shellcheck is only for bash like scripts
+        is_powershell = any(
+            'powershell' in flatten_script(content.get(keyword, ''))
+            for keyword in ('before_script', 'script', 'after_script')
+        )
+        if is_powershell:
+            continue
+
+        if verbose:
+            print('Verifying job:', job)
+
+        # Lint scripts
+        for keyword in ('before_script', 'script', 'after_script'):
+            if keyword in content:
+                scripts[f'{job}.{keyword}'] = f'#!/bin/bash\n{flatten_script(content[keyword]).strip()}\n'
+
+    shellcheck_linter(ctx, scripts, exclude, shellcheck_args, fail_fast, use_bat, only_errors)
+
+
+## === SSM-related === ##
 @task
 def list_parameters(_, type):
     """
@@ -99,127 +190,25 @@ def ssm_parameters(ctx, mode="all", folders=None):
     print(f"[{color_message('OK', Color.GREEN)}] All files are correctly using wrapper for secret parameters.")
 
 
-class SSMParameterCall:
-    def __init__(self, file, line_nb, with_wrapper=False, with_env_var=False):
-        """
-        Initialize an SSMParameterCall instance.
-
-        Args:
-            file (str): The name of the file where the SSM parameter call is located.
-            line_nb (int): The line number in the file where the SSM parameter call is located.
-            with_wrapper (bool, optional): If the call is using the wrapper. Defaults to False.
-            with_env_var (bool, optional): If the call is using an environment variable defined in .gitlab-ci.yml. Defaults to False.
-        """
-        self.file = file
-        self.line_nb = line_nb
-        self.with_wrapper = with_wrapper
-        self.with_env_var = with_env_var
-
-    def __str__(self):
-        message = ""
-        if not self.with_wrapper:
-            message += "Please use the dedicated `fetch_secret.(sh|ps1)`."
-        if not self.with_env_var:
-            message += " Save your parameter name as environment variable in .gitlab-ci.yml file."
-        return f"{self.file}:{self.line_nb + 1}. {message}"
-
-    def __repr__(self):
-        return str(self)
-
-
-def list_get_parameter_calls(file):
-    aws_ssm_call = re.compile(r"^.+ssm get-parameter.+--name +(?P<param>[^ ]+).*$")
-    # remove the first letter of the script name because '\f' is badly interpreted for windows paths
-    wrapper_call = re.compile(r"^.+etch_secret.(sh|ps1)[\"]? (-parameterName )?+(?P<param>[^ )]+).*$")
-    calls = []
-    with open(file) as f:
-        try:
-            for nb, line in enumerate(f):
-                m = aws_ssm_call.match(line.strip())
-                if m:
-                    # Remove possible quotes
-                    param = m["param"].replace('"', '').replace("'", "")
-                    calls.append(
-                        SSMParameterCall(file, nb, with_env_var=(param.startswith("$") or "os.environ" in param))
-                    )
-                m = wrapper_call.match(line.strip())
-                param = m["param"].replace('"', '').replace("'", "") if m else None
-                if m and not (param.startswith("$") or "os.environ" in param):
-                    calls.append(SSMParameterCall(file, nb, with_wrapper=True))
-        except UnicodeDecodeError:
-            pass
-    return calls
+## === Job structure rules === ##
 
 
 @task
-def gitlab_ci(ctx, test="all", custom_context=None, input_file=".gitlab-ci.yml"):
-    """Lints Gitlab CI files in the datadog-agent repository.
+def gitlab_change_paths(ctx):
+    """Verifies that rules: changes: paths match existing files in the repository."""
 
-    This will lint the main gitlab ci file with different
-    variable contexts and lint other triggered gitlab ci configs.
-
-    Args:
-        test: The context preset to test the gitlab ci file with containing environment variables.
-        custom_context: A custom context to test the gitlab ci file with.
-    """
-    print(f'{color_message("info", Color.BLUE)}: Fetching Gitlab CI configurations...')
-    configs = get_all_gitlab_ci_configurations(ctx, input_file=input_file, with_lint=False)
-
-    for entry_point, input_config in configs.items():
-        with gitlab_section(f"Testing {entry_point}", echo=True):
-            # Only the main config should be tested with all contexts
-            if entry_point == ".gitlab-ci.yml":
-                all_contexts = []
-                if custom_context:
-                    all_contexts = load_context(custom_context)
-                else:
-                    all_contexts = get_preset_contexts(test)
-
-                print(f'{color_message("info", Color.BLUE)}: We will test {len(all_contexts)} contexts')
-                for context in all_contexts:
-                    print("Test gitlab configuration with context: ", context)
-                    test_gitlab_configuration(ctx, entry_point, input_config, dict(context))
-            else:
-                test_gitlab_configuration(ctx, entry_point, input_config)
-
-
-def get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=False):
-    """Retrieves the jobs from full gitlab ci configuration file or from a diff file.
-
-    Args:
-        diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config.
-        config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config.
-    """
-
-    assert diff_file or config_file and not (diff_file and config_file), (
-        "You must provide either a diff file or a config file and not both"
-    )
-
-    # Load all the jobs from the files
-    if config_file:
-        with open(config_file) as f:
-            full_config = yaml.safe_load(f)
-            jobs = [
-                (job, job_contents)
-                for contents in full_config.values()
-                for job, job_contents in contents.items()
-                if is_leaf_job(job, job_contents)
-            ]
-    else:
-        with open(diff_file) as f:
-            diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
-
-        full_config = diff.after
-        jobs = [(job, contents) for _, job, contents, _ in diff.iter_jobs(added=True, modified=True, only_leaves=True)]
-
-    if not jobs:
-        print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
-        return [], {}
-
-    if only_names:
-        jobs = [job for job, _ in jobs]
-
-    return jobs, full_config
+    # Read gitlab config
+    config = generate_gitlab_full_configuration(ctx, ".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
+    error_paths = []
+    for path in set(retrieve_all_paths(config)):
+        files = glob(path, recursive=True)
+        if len(files) == 0:
+            error_paths.append(path)
+    if error_paths:
+        raise Exit(
+            f"{color_message('No files found for paths', Color.RED)}:\n{chr(10).join(' - ' + path for path in error_paths)}"
+        )
+    print(f"All rule:changes:paths from gitlab-ci are {color_message('valid', Color.GREEN)}.")
 
 
 @task
@@ -442,91 +431,7 @@ def job_change_path(ctx, job_files=None):
         print(color_message("success: All tests contain a change paths rule or are allow-listed", "green"))
 
 
-@task
-def gitlab_change_paths(ctx):
-    """Verifies that rules: changes: paths match existing files in the repository."""
-
-    # Read gitlab config
-    config = generate_gitlab_full_configuration(ctx, ".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
-    error_paths = []
-    for path in set(retrieve_all_paths(config)):
-        files = glob(path, recursive=True)
-        if len(files) == 0:
-            error_paths.append(path)
-    if error_paths:
-        raise Exit(
-            f"{color_message('No files found for paths', Color.RED)}:\n{chr(10).join(' - ' + path for path in error_paths)}"
-        )
-    print(f"All rule:changes:paths from gitlab-ci are {color_message('valid', Color.GREEN)}.")
-
-
-def _gitlab_ci_jobs_owners_lint(jobs, jobowners, ci_linters_config, path_jobowners):
-    error_jobs = []
-    n_ignored = 0
-    for job in jobs:
-        owners = [name for (kind, name) in jobowners.of(job) if kind == 'TEAM']
-        if not owners:
-            if job in ci_linters_config.job_owners_jobs:
-                n_ignored += 1
-            else:
-                error_jobs.append(job)
-
-    if n_ignored:
-        print(
-            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs defined in {ci_linters_config.path}:job-owners)'
-        )
-
-    if error_jobs:
-        error_jobs = '\n'.join(f'- {job}' for job in sorted(error_jobs))
-        raise Exit(
-            f"{color_message('Error', Color.RED)}: These jobs are not defined in {path_jobowners}:\n{error_jobs}"
-        )
-    else:
-        print(f'{color_message("Success", Color.GREEN)}: All jobs have owners defined in {path_jobowners}')
-
-
-@task
-def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.gitlab/JOBOWNERS'):
-    """Verifies that each job is defined within JOBOWNERS files.
-
-    Args:
-        diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config
-        config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config
-        path_jobowners: Path to the JOBOWNERS file
-    """
-
-    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=True)
-
-    # No change, info already printed in get_gitlab_ci_lintable_jobs
-    if not full_config:
-        return
-
-    ci_linters_config = CILintersConfig(
-        lint=True,
-        all_jobs=full_config_get_all_leaf_jobs(full_config),
-        all_stages=full_config_get_all_stages(full_config),
-    )
-
-    jobowners = read_owners(path_jobowners, remove_default_pattern=True)
-
-    _gitlab_ci_jobs_owners_lint(jobs, jobowners, ci_linters_config, path_jobowners)
-
-
-def _gitlab_ci_jobs_codeowners_lint(path_codeowners, modified_yml_files, gitlab_owners):
-    error_files = []
-    for path in modified_yml_files:
-        teams = [team for kind, team in gitlab_owners.of(path) if kind == 'TEAM']
-        if not teams:
-            error_files.append(path)
-
-    if error_files:
-        error_files = '\n'.join(f'- {path}' for path in sorted(error_files))
-
-        raise Exit(
-            f"{color_message('Error', Color.RED)}: These files should have specific CODEOWNERS rules within {path_codeowners} starting with '/.gitlab/<stage_name>'):\n{error_files}"
-        )
-    else:
-        print(f'{color_message("Success", Color.GREEN)}: All files have CODEOWNERS rules within {path_codeowners}')
+## === Job ownership === ##
 
 
 @task
@@ -560,55 +465,27 @@ def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_fil
 
 
 @task
-def gitlab_ci_shellcheck(
-    ctx,
-    diff_file=None,
-    config_file=None,
-    exclude=DEFAULT_SHELLCHECK_EXCLUDES,
-    shellcheck_args="",
-    fail_fast=False,
-    verbose=False,
-    use_bat=None,
-    only_errors=False,
-):
-    """Verifies that shell scripts with gitlab config are valid.
+def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.gitlab/JOBOWNERS'):
+    """Verifies that each job is defined within JOBOWNERS files.
 
     Args:
-        diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config.
-        config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config.
+        diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config
+        config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config
+        path_jobowners: Path to the JOBOWNERS file
     """
 
-    # Used by the CI to skip linting if no changes
-    if diff_file and not os.path.exists(diff_file):
-        print('No diff file found, skipping lint')
-        return
-
-    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
+    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=True)
 
     # No change, info already printed in get_gitlab_ci_lintable_jobs
     if not full_config:
         return
 
-    scripts = {}
-    for job, content in jobs:
-        # Skip jobs that are not executed
-        if not is_leaf_job(job, content):
-            continue
+    ci_linters_config = CILintersConfig(
+        lint=True,
+        all_jobs=full_config_get_all_leaf_jobs(full_config),
+        all_stages=full_config_get_all_stages(full_config),
+    )
 
-        # Shellcheck is only for bash like scripts
-        is_powershell = any(
-            'powershell' in flatten_script(content.get(keyword, ''))
-            for keyword in ('before_script', 'script', 'after_script')
-        )
-        if is_powershell:
-            continue
+    jobowners = read_owners(path_jobowners, remove_default_pattern=True)
 
-        if verbose:
-            print('Verifying job:', job)
-
-        # Lint scripts
-        for keyword in ('before_script', 'script', 'after_script'):
-            if keyword in content:
-                scripts[f'{job}.{keyword}'] = f'#!/bin/bash\n{flatten_script(content[keyword]).strip()}\n'
-
-    shellcheck_linter(ctx, scripts, exclude, shellcheck_args, fail_fast, use_bat, only_errors)
+    _gitlab_ci_jobs_owners_lint(jobs, jobowners, ci_linters_config, path_jobowners)
