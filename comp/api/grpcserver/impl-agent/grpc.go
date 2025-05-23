@@ -9,11 +9,11 @@ package agentimpl
 import (
 	"context"
 	"crypto/subtle"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net/http"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
@@ -82,14 +82,32 @@ type server struct {
 }
 
 func (s *server) BuildServer() http.Handler {
-	authInterceptor := grpcutil.AuthInterceptor(parseToken)
+	// Create a client certificate validator function
+	certValidator := func(cert *x509.Certificate) error {
+		serverTLSConfig := s.IPC.GetTLSServerConfig()
+		// Read the IPC certificate from the server TLS config
+		if serverTLSConfig == nil || len(serverTLSConfig.Certificates) == 0 || len(serverTLSConfig.Certificates[0].Certificate) == 0 {
+			return fmt.Errorf("no certificates found in server TLS config")
+		}
+
+		serverCert, err := x509.ParseCertificate(serverTLSConfig.Certificates[0].Certificate[0])
+		if err != nil {
+			return fmt.Errorf("error parsing IPC certificate: %v", err)
+		}
+
+		if !cert.Equal(serverCert) {
+			return fmt.Errorf("client certificate does not match server certificate")
+		}
+
+		return nil
+	}
 
 	maxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
 	opts := []googleGrpc.ServerOption{
 		googleGrpc.Creds(credentials.NewTLS(s.IPC.GetTLSServerConfig())),
-		googleGrpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
-		googleGrpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
+		googleGrpc.StreamInterceptor(grpcutil.ClientCertStreamValidator(certValidator)),
+		googleGrpc.UnaryInterceptor(grpcutil.ClientCertValidator(certValidator)),
 		googleGrpc.MaxRecvMsgSize(maxMessageSize),
 		googleGrpc.MaxSendMsgSize(maxMessageSize),
 	}
