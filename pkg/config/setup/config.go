@@ -1178,7 +1178,7 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	// Autoscaling product
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
-	config.BindEnvAndSetDefault("autoscaling.workload.limit", 100)
+	config.BindEnvAndSetDefault("autoscaling.workload.limit", 1000)
 	config.BindEnv("autoscaling.failover.metrics")
 }
 
