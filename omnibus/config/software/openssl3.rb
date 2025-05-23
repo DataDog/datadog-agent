@@ -70,6 +70,7 @@ build do
 
   configure_args << [
     "--libdir=lib",
+    "--prefix=#{install_dir}/embedded",
     "no-idea",
     "no-mdc2",
     "no-rc5",
@@ -97,7 +98,9 @@ build do
   # the crazy platform specific compiler flags at the end.
   configure_args << env["CFLAGS"] << env["LDFLAGS"]
 
-  configure(*configure_args, bin: configure_cmd, env: env, no_build_triplet: true)
+  # We don't use the regular configure wrapper function here since openssl's configure
+  # is not the usual autoconf configure but something handmade written in perl
+  command "#{configure_cmd} #{configure_args.join(' ')}", env: env
 
   command "make depend", env: env
   command "make -j #{workers}", env: env
