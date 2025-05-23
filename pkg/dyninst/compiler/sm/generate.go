@@ -5,8 +5,8 @@
 
 //go:build linux_bpf
 
-// Package logical implements the logical encoding of the IR program into eBPF stack machine program.
-package logical
+// Package sm implements the eBPF program stack machine representation and generation.
+package sm
 
 import (
 	"fmt"
@@ -14,19 +14,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
-// Function is the logical representation of an eBPF stack machine function.
+// Function represents stack machine function.
 type Function struct {
 	ID  FunctionID
 	Ops []Op
 }
 
-// Program is the logical representation of an eBPF stack machine program.
+// Program represents stack machine program.
 type Program struct {
 	Functions []Function
 	Types     []ir.Type
 }
 
-type encoder struct {
+type generator struct {
 	// Queue of interesting types that need a `ProcessType` function.
 	typeQueue []ir.Type
 	// Metadata for `ProcessType` functions.
@@ -45,29 +45,33 @@ type typeFuncMetadata struct {
 	offsetShift uint32
 }
 
-// EncodeProgram encodes the IR program into a logical eBPF stack machine program.
-func EncodeProgram(program ir.Program) Program {
-	e := encoder{
+// GenerateProgram generates stack machine program for a given IR program.
+func GenerateProgram(program ir.Program) Program {
+	g := generator{
 		typeFuncMetadata: make(map[ir.TypeID]typeFuncMetadata, len(program.Types)),
 		functionReg:      make(map[FunctionID]bool),
 	}
+	g.addFunction(ChasePointers{}, []Op{
+		ChasePointersOp{},
+		ReturnOp{},
+	})
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
 			for _, injectionPC := range event.InjectionPCs {
-				e.addEventHandler(injectionPC, event.Type)
+				g.addEventHandler(injectionPC, event.Type)
 			}
 		}
 	}
-	for len(e.typeQueue) > 0 {
-		e.addTypeHandler(e.typeQueue[0])
-		e.typeQueue = e.typeQueue[1:]
+	for len(g.typeQueue) > 0 {
+		g.addTypeHandler(g.typeQueue[0])
+		g.typeQueue = g.typeQueue[1:]
 	}
 	types := make([]ir.Type, 0, len(program.Types))
 	for _, t := range program.Types {
 		types = append(types, t)
 	}
 	return Program{
-		Functions: e.functions,
+		Functions: g.functions,
 		Types:     types,
 	}
 }
@@ -75,7 +79,7 @@ func EncodeProgram(program ir.Program) Program {
 // Generates a function called when a probe (represented by the root type)
 // is triggered with a particular event (injectionPC). The function
 // dispatches expression handlers.
-func (e *encoder) addEventHandler(injectionPC uint64, rootType *ir.EventRootType) {
+func (g *generator) addEventHandler(injectionPC uint64, rootType *ir.EventRootType) {
 	id := ProcessEvent{
 		EventRootType: rootType,
 		InjectionPC:   injectionPC,
@@ -85,18 +89,18 @@ func (e *encoder) addEventHandler(injectionPC uint64, rootType *ir.EventRootType
 		EventRootType: rootType,
 	})
 	for i := range rootType.Expressions {
-		exprFunctionID := e.addExpressionHandler(injectionPC, rootType, uint32(i))
+		exprFunctionID := g.addExpressionHandler(injectionPC, rootType, uint32(i))
 		ops = append(ops, CallOp{
 			FunctionID: exprFunctionID,
 		})
 	}
 	ops = append(ops, ReturnOp{})
-	e.addFunction(id, ops)
+	g.addFunction(id, ops)
 }
 
 // Generates a function that evaluates an expression (at exprIdx in the root type)
 // at specific user program counter (injectionPC).
-func (e *encoder) addExpressionHandler(injectionPC uint64, rootType *ir.EventRootType, exprIdx uint32) FunctionID {
+func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventRootType, exprIdx uint32) FunctionID {
 	id := ProcessExpression{
 		EventRootType: rootType,
 		ExprIdx:       exprIdx,
@@ -109,7 +113,7 @@ func (e *encoder) addExpressionHandler(injectionPC uint64, rootType *ir.EventRoo
 	for _, op := range expr.Operations {
 		switch op := op.(type) {
 		case *ir.LocationOp:
-			ops = e.EncodeLocationOp(injectionPC, op, ops)
+			ops = g.EncodeLocationOp(injectionPC, op, ops)
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation: %#v", op))
 		}
@@ -118,26 +122,26 @@ func (e *encoder) addExpressionHandler(injectionPC uint64, rootType *ir.EventRoo
 		EventRootType: rootType,
 		ExprIdx:       exprIdx,
 	})
-	typeFunctionID, needed := e.addTypeHandler(expr.Type)
+	typeFunctionID, needed := g.addTypeHandler(expr.Type)
 	if needed {
 		ops = append(ops, CallOp{
 			FunctionID: typeFunctionID,
 		})
 	}
 	ops = append(ops, ReturnOp{})
-	e.addFunction(id, ops)
+	g.addFunction(id, ops)
 	return id
 }
 
-func (e *encoder) addFunction(id FunctionID, ops []Op) {
-	if _, ok := e.functionReg[id]; ok {
-		panic("function `" + id.PrettyString() + "` already exists")
+func (g *generator) addFunction(id FunctionID, ops []Op) {
+	if _, ok := g.functionReg[id]; ok {
+		panic("function `" + id.String() + "` already exists")
 	}
 	if _, ok := ops[len(ops)-1].(ReturnOp); !ok {
 		panic("last op must be a return")
 	}
-	e.functionReg[id] = true
-	e.functions = append(e.functions, Function{
+	g.functionReg[id] = true
+	g.functions = append(g.functions, Function{
 		ID:  id,
 		Ops: ops,
 	})
@@ -148,11 +152,11 @@ func (e *encoder) addFunction(id FunctionID, ops []Op) {
 // there is something to do with the data of the given type (e.g. pointers
 // that have to be chased). Returns function ID or nil and whether the
 // function was generated.
-func (e *encoder) addTypeHandler(t ir.Type) (FunctionID, bool) {
+func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool) {
 	fid := ProcessType{
 		Type: t,
 	}
-	if m, ok := e.typeFuncMetadata[t.GetID()]; ok {
+	if m, ok := g.typeFuncMetadata[t.GetID()]; ok {
 		return fid, m.needed
 	}
 	// Note we will recursively encode embedded types, which is guaranteed not
@@ -168,7 +172,7 @@ func (e *encoder) addTypeHandler(t ir.Type) (FunctionID, bool) {
 	case *ir.StructureType:
 		ops = make([]Op, 0, 2*len(t.Fields))
 		for _, field := range t.Fields {
-			elemFunc, elemNeeded := e.addTypeHandler(field.Type)
+			elemFunc, elemNeeded := g.addTypeHandler(field.Type)
 			if !elemNeeded {
 				continue
 			}
@@ -177,13 +181,14 @@ func (e *encoder) addTypeHandler(t ir.Type) (FunctionID, bool) {
 				ops = append(ops, IncrementOutputOffsetOp{Value: field.Offset - offsetShift})
 			}
 			ops = append(ops, CallOp{FunctionID: elemFunc})
-			offsetShift = field.Offset + e.typeFuncMetadata[field.Type.GetID()].offsetShift
+			offsetShift = field.Offset + g.typeFuncMetadata[field.Type.GetID()].offsetShift
 		}
+		ops = append(ops, ReturnOp{})
 
 	// Sequential containers
 
 	case *ir.ArrayType:
-		elemFunc, elemNeeded := e.addTypeHandler(t.Element)
+		elemFunc, elemNeeded := g.addTypeHandler(t.Element)
 		if !elemNeeded {
 			break
 		}
@@ -199,7 +204,7 @@ func (e *encoder) addTypeHandler(t ir.Type) (FunctionID, bool) {
 		}
 
 	case *ir.GoSliceDataType:
-		elemFunc, elemNeeded := e.addTypeHandler(t.Element)
+		elemFunc, elemNeeded := g.addTypeHandler(t.Element)
 		if !elemNeeded {
 			break
 		}
@@ -220,27 +225,32 @@ func (e *encoder) addTypeHandler(t ir.Type) (FunctionID, bool) {
 	// Pointer or fat pointer types.
 
 	case *ir.PointerType:
-		e.typeQueue = append(e.typeQueue, t.Pointee)
+		g.typeQueue = append(g.typeQueue, t.Pointee)
 		needed = true
 		offsetShift = 0
 		ops = []Op{
-			ProcessPointerOp{},
+			ProcessPointerOp{
+				Pointee: t.Pointee,
+			},
+			ReturnOp{},
 		}
 
 	case *ir.GoSliceHeaderType:
-		e.typeQueue = append(e.typeQueue, t.Data)
+		g.typeQueue = append(g.typeQueue, t.Data)
 		needed = true
 		offsetShift = 0
 		ops = []Op{
 			ProcessSliceOp{},
+			ReturnOp{},
 		}
 
 	case *ir.GoStringHeaderType:
-		e.typeQueue = append(e.typeQueue, t.Data)
+		g.typeQueue = append(g.typeQueue, t.Data)
 		needed = true
 		offsetShift = 0
 		ops = []Op{
 			ProcessStringOp{},
+			ReturnOp{},
 		}
 
 	case *ir.GoEmptyInterfaceType:
@@ -269,12 +279,12 @@ func (e *encoder) addTypeHandler(t ir.Type) (FunctionID, bool) {
 		panic(fmt.Sprintf("unexpected ir.Type: %#v", t))
 	}
 
-	e.typeFuncMetadata[t.GetID()] = typeFuncMetadata{
+	g.typeFuncMetadata[t.GetID()] = typeFuncMetadata{
 		needed:      needed,
 		offsetShift: offsetShift,
 	}
 	if needed {
-		e.addFunction(fid, ops)
+		g.addFunction(fid, ops)
 	}
 	return fid, needed
 }
@@ -288,8 +298,8 @@ type memoryLayoutPiece struct {
 // Breaks down a type memory into (data size, padding size) pairs. Padding size
 // may be zero, and consecutive data pieces with zero padding may not be
 // coalesced. Only supports data that may be stored in registers and on stack.
-func (e *encoder) typeMemoryLayout(t ir.Type) []memoryLayoutPiece {
-	pieces := make([]memoryLayoutPiece, 0)
+func (g *generator) typeMemoryLayout(t ir.Type) []memoryLayoutPiece {
+	var pieces []memoryLayoutPiece
 	var collectPieces func(t ir.Type, offset uint32)
 	collectPieces = func(t ir.Type, offset uint32) {
 		switch t := t.(type) {
@@ -359,9 +369,9 @@ func (e *encoder) typeMemoryLayout(t ir.Type) []memoryLayoutPiece {
 }
 
 // `ops` is used as an output buffer for the encoded instructions.
-func (e *encoder) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) []Op {
+func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) []Op {
 	for _, loclist := range op.Variable.Locations {
-		if pc < loclist.Range[0] || pc >= loclist.Range[1] {
+		if pc < loclist.Range[0] || pc >= loclist.Range[0] {
 			continue
 		}
 		// NOTE: Tricky.
@@ -373,7 +383,7 @@ func (e *encoder) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) []Op 
 		// in different registers and/or stack (represented with multiple loclist pieces) are not padded.
 		// Consecutive pieces of data stored in the same loclist piece are padded (this only happens when
 		// the location is a stack, Go never packs multiple data pieces into same register).
-		layoutPieces := e.typeMemoryLayout(op.Variable.Type)
+		layoutPieces := g.typeMemoryLayout(op.Variable.Type)
 		layoutIdx := 0
 		outputOffset := op.Offset
 		for _, locPiece := range loclist.Pieces {
