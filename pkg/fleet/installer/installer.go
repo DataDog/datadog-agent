@@ -741,10 +741,6 @@ func (i *installerImpl) ensurePackagesAreConfigured(ctx context.Context) (err er
 func (i *installerImpl) initPackageConfig(ctx context.Context, pkg string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "configure_package")
 	defer func() { span.Finish(err) }()
-	// TODO: Windows support
-	// if runtime.GOOS == "windows" {
-	// 	return nil
-	// }
 	state, err := i.configs.GetState(pkg)
 	if err != nil {
 		return fmt.Errorf("could not get config repository state: %w", err)
