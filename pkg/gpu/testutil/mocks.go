@@ -40,7 +40,8 @@ var GPUUUIDs = []string{
 
 // GPUCores is a list of number of cores for the devices returned by the mock,
 // should be the same length as GPUUUIDs. If not, GetBasicNvmlMock will panic.
-var GPUCores = []int{DefaultGpuCores, 20, 30, 40, 50, 60, 70}
+// Note: it is important to keep the cores count divisible by 4, to allow proper calculations for MIG children cores
+var GPUCores = []int{DefaultGpuCores, 20, 40, 60, 80, 100, 120}
 
 // DefaultGpuUUID is the UUID for the default device returned by the mock
 var DefaultGpuUUID = GPUUUIDs[0]
@@ -117,7 +118,7 @@ func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Devi
 			return DefaultGPUAttributes, nvml.SUCCESS
 		},
 		GetMigModeFunc: func() (int, int, nvml.Return) {
-			if MIGChildrenPerDevice[deviceIdx] > 0 {
+			if children, ok := MIGChildrenPerDevice[deviceIdx]; ok && children > 0 {
 				return nvml.DEVICE_MIG_ENABLE, 0, nvml.SUCCESS
 			}
 			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
@@ -154,6 +155,9 @@ func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Devi
 		GetIndexFunc: func() (int, nvml.Return) {
 			return deviceIdx, nvml.SUCCESS
 		},
+		IsMigDeviceHandleFunc: func() (bool, nvml.Return) {
+			return false, nvml.SUCCESS
+		},
 	}
 
 	for _, opt := range opts {
@@ -179,6 +183,31 @@ func GetMIGDeviceMock(deviceIdx int, migDeviceIdx int, opts ...func(*nvmlmock.De
 		// Change the name
 		d.GetNameFunc = func() (string, nvml.Return) {
 			return "MIG " + DefaultGPUName, nvml.SUCCESS
+		}
+		d.IsMigDeviceHandleFunc = func() (bool, nvml.Return) {
+			return true, nvml.SUCCESS
+		}
+
+		// Override GetAttributesFunc for this specific MIG child to correctly distribute parent's resources.
+		d.GetAttributesFunc = func() (nvml.DeviceAttributes, nvml.Return) {
+			numMigChildrenForParent, ok := MIGChildrenPerDevice[deviceIdx]
+			if !ok || numMigChildrenForParent == 0 {
+				// Should not happen if MIGChildrenPerDevice is consistent for a MIG-enabled parent
+				// Return error
+				return nvml.DeviceAttributes{}, nvml.ERROR_NOT_SUPPORTED
+			}
+
+			// core count and total memory - equally distribute between all mig devices
+			parentTotalCores := GPUCores[deviceIdx]
+			coresPerMigDevice := parentTotalCores / numMigChildrenForParent
+			memoryPerMigDevice := DefaultTotalMemory / uint64(numMigChildrenForParent)
+
+			migSpecificAttributes := nvml.DeviceAttributes{
+				MultiprocessorCount: uint32(coresPerMigDevice),
+				MemorySizeMB:        memoryPerMigDevice,
+			}
+
+			return migSpecificAttributes, nvml.SUCCESS
 		}
 	}
 
@@ -269,4 +298,15 @@ func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
 // GetTelemetryMock returns a mock of the telemetry.Component.
 func GetTelemetryMock(t testing.TB) telemetry.Mock {
 	return fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+}
+
+// GetTotalExpectedDevices calculates the total number of devices (physical + MIG)
+// based on the mock data defined in this package.
+func GetTotalExpectedDevices() int {
+	numPhysical := len(GPUUUIDs)
+	numMIG := 0
+	for _, count := range MIGChildrenPerDevice {
+		numMIG += count
+	}
+	return numPhysical + numMIG
 }
