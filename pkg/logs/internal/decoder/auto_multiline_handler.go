@@ -26,7 +26,7 @@ type AutoMultilineHandler struct {
 }
 
 // NewAutoMultilineHandler creates a new auto multiline handler.
-func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize int, flushTimeout time.Duration, tailerInfo *status.InfoRegistry, sourceSettings *config.SourceAutoMultiLineOptions, rawSourceSamples interface{}) *AutoMultilineHandler {
+func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize int, flushTimeout time.Duration, tailerInfo *status.InfoRegistry, sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample) *AutoMultilineHandler {
 
 	// Order is important
 	heuristics := []automultilinedetection.Heuristic{}
@@ -36,7 +36,7 @@ func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize i
 		tokenizerMaxInputBytes = *sourceSettings.TokenizerMaxInputBytes
 	}
 	heuristics = append(heuristics, automultilinedetection.NewTokenizer(tokenizerMaxInputBytes))
-	heuristics = append(heuristics, automultilinedetection.NewUserSamples(pkgconfigsetup.Datadog(), rawSourceSamples))
+	heuristics = append(heuristics, automultilinedetection.NewUserSamples(pkgconfigsetup.Datadog(), sourceSamples))
 
 	sourceHasSettings := sourceSettings != nil
 

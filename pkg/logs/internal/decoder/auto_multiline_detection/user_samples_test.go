@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -322,27 +323,10 @@ logs_config:
 	}
 }
 
-func TestUserPatternsWithJSONIntegrationSamples(t *testing.T) {
-	expectedOutput, _ := NewTokenizer(0).tokenize([]byte("sample"))
-
-	jsonSamples := `
-        [
-            {"sample": "sample"}
-        ]
-`
-
-	mockConfig := mock.NewFromYAML(t, "")
-
-	samples := NewUserSamples(mockConfig, jsonSamples)
-	assert.Equal(t, expectedOutput, samples.samples[0].tokens)
-	assert.Equal(t, defaultMatchThreshold, samples.samples[0].matchThreshold)
-	assert.Equal(t, startGroup, samples.samples[0].label)
-}
-
 func TestUserPatternsWithIntegrationSamples(t *testing.T) {
 	expectedOutput, _ := NewTokenizer(0).tokenize([]byte("sample"))
-	rawSamples := []interface{}{
-		map[string]interface{}{"sample": "sample"},
+	rawSamples := []*config.AutoMultilineSample{
+		{Sample: "sample"},
 	}
 
 	mockConfig := mock.NewFromYAML(t, "")
@@ -350,4 +334,42 @@ func TestUserPatternsWithIntegrationSamples(t *testing.T) {
 	samples := NewUserSamples(mockConfig, rawSamples)
 	assert.Equal(t, expectedOutput, samples.samples[0].tokens)
 	assert.Equal(t, defaultMatchThreshold, samples.samples[0].matchThreshold)
+}
+
+func TestUserPatternsWithIntegrationSamplesCollection(t *testing.T) {
+	noAggregateString := "no_aggregate"
+	aggregateString := "aggregate"
+	rawSamples := []*config.AutoMultilineSample{
+		{Sample: "sample"},
+		{Sample: "skip_me", Label: &noAggregateString},
+		{Regex: "regex", Label: &aggregateString},
+	}
+
+	mockConfig := mock.NewFromYAML(t, "")
+	samples := NewUserSamples(mockConfig, rawSamples)
+	tokenizer := NewTokenizer(60)
+
+	tests := []struct {
+		expectedLabel Label
+		shouldStop    bool
+		input         string
+	}{
+		{startGroup, false, "sample"},
+		{aggregate, true, "some random log line"},
+		{aggregate, true, "2023-03-28T14:33:53.743350Z App started successfully"},
+		{startGroup, false, "sample"},
+		{noAggregate, false, "skip_me"},
+		{aggregate, false, "regex"},
+	}
+
+	for _, test := range tests {
+		context := &messageContext{
+			rawMessage: []byte(test.input),
+			label:      aggregate,
+		}
+
+		assert.True(t, tokenizer.ProcessAndContinue(context))
+		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
+		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
+	}
 }
