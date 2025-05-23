@@ -40,7 +40,7 @@ func (client *Client) login() error {
 
 	// Request to /versa/analytics/login to obtain Analytics CSRF prevention token
 	analyticsPayload := url.Values{}
-	analyticsPayload.Set("endpoint", client.analyticsEndpoint) // TODO: WHY? Where can we get this for others?
+	analyticsPayload.Set("endpoint", client.analyticsEndpoint)
 
 	// Run this request twice to get the CSRF token from analytics
 	// the first succeeds but does not return the token
