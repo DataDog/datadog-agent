@@ -11,11 +11,11 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/logical"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
-func generateTypeInfos(program logical.Program, functionLoc map[logical.FunctionID]uint32, out io.Writer) {
+func generateTypeInfos(program sm.Program, functionLoc map[sm.FunctionID]uint32, out io.Writer) {
 	fmt.Fprintf(out, "typedef enum type {\n")
 	fmt.Fprintf(out, "\tTYPE_NONE = 0,\n")
 	for _, t := range program.Types {
@@ -23,9 +23,9 @@ func generateTypeInfos(program logical.Program, functionLoc map[logical.Function
 	}
 	fmt.Fprintf(out, "} type_t;\n\n")
 
-	typeFunc := make(map[ir.TypeID]logical.ProcessType)
+	typeFunc := make(map[ir.TypeID]sm.ProcessType)
 	for _, f := range program.Functions {
-		if f, ok := f.ID.(logical.ProcessType); ok {
+		if f, ok := f.ID.(sm.ProcessType); ok {
 			typeFunc[f.Type.GetID()] = f
 		}
 	}

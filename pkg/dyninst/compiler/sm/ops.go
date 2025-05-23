@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package logical
+package sm
 
 import "github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 
