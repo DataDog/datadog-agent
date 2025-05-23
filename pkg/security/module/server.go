@@ -530,7 +530,7 @@ func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportP
 		PIDCacheSize:        a.probe.Config.Probe.PIDCacheSize,
 	}
 
-	report, err := kfilters.NewFilterReport(cfg, ruleSet)
+	report, err := kfilters.ComputeFilters(cfg, ruleSet)
 	if err != nil {
 		return nil, err
 	}

@@ -7,7 +7,6 @@ package defaultforwarder
 
 import (
 	"math"
-	"math/rand"
 	"testing"
 	"time"
 
@@ -18,10 +17,6 @@ import (
 	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 )
-
-func init() {
-	rand.Seed(10)
-}
 
 func TestMinBackoffFactorValid(t *testing.T) {
 	mockConfig := mock.New(t)

@@ -10,6 +10,7 @@ package k8s
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
@@ -59,7 +60,7 @@ func (h *NodeHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourc
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Nodes:       models,
-		Tags:        pctx.ExtraTags,
+		Tags:        util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
 	}
 }
 
@@ -98,6 +99,17 @@ func (h *NodeHandlers) ResourceUID(ctx processors.ProcessorContext, resource int
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NodeHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*corev1.Node).ResourceVersion
+}
+
+// GetMetadataTags returns the tags in the metadata model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *NodeHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
+	m, ok := resourceMetadataModel.(*model.Node)
+	if !ok {
+		return nil
+	}
+	return m.Tags
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
