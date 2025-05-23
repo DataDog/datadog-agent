@@ -38,7 +38,7 @@ type statusProvider struct {
 
 // NewComponent creates a new fleetstatus component
 func NewComponent(reqs Requires) Provides {
-	 installerExec, _ := reqs.InstallerExec.Get()
+	installerExec, _ := reqs.InstallerExec.Get()
 	sp := &statusProvider{
 		Config:        reqs.Config,
 		InstallerExec: installerExec,
