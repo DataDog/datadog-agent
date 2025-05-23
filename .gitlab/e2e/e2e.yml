@@ -48,8 +48,11 @@
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_GCP credentials_json > ~/gcp-credentials.json || exit $?
     - export GOOGLE_APPLICATION_CREDENTIALS=~/gcp-credentials.json
     # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
+    # Install orchestrion
+    - cd test/new-e2e
     - go install github.com/DataDog/orchestrion@v1.1.0
     - orchestrion pin
+    - cd ../..
     - export DD_CIVISIBILITY_ENABLED=true
     - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
     - export DD_ENV=native-test
