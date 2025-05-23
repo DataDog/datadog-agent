@@ -1830,12 +1830,8 @@ static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *
 
 // update_classified_produce_api_version_hits_telemetry updates the array keeping track of produce api versions hits in the telemetry
 static __always_inline void update_classified_produce_api_version_hits_telemetry(kafka_telemetry_t *kafka_tel, __s16 version) {
-    if (version < 0 || version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
-        return;
-    }
-
     // We explicitly ensure the index is in bounds to avoid verifier errors
-    __u8 bucket_idx = version % (sizeof(kafka_tel->classified_produce_api_version_hits) + 1);
+    __u8 bucket_idx = version % (KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION+1);
     bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
     bucket_idx = bucket_idx > KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION ? KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION : bucket_idx;
 
@@ -1844,18 +1840,12 @@ static __always_inline void update_classified_produce_api_version_hits_telemetry
 
 // update_classified_fetch_api_version_hits_telemetry updates the array keeping track of fetch api versions hits in the telemetry
 static __always_inline void update_classified_fetch_api_version_hits_telemetry(kafka_telemetry_t *kafka_tel, __s16 version) {
-    if (version < 0 || version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) {
-        return;
-    }
-
     // We explicitly ensure the index is in bounds to avoid verifier errors
-    __u8 bucket_idx = version % (sizeof(kafka_tel->classified_fetch_api_version_hits) + 1);
+    __u8 bucket_idx = version % (KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION+1);
     bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
     bucket_idx = bucket_idx > KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION ? KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION : bucket_idx;
 
     __sync_fetch_and_add(&kafka_tel->classified_fetch_api_version_hits[bucket_idx], 1);
 }
-
-
 
 #endif

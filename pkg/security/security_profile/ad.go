@@ -327,7 +327,7 @@ func (m *Manager) pauseKernelEventCollection(ad *dump.ActivityDump) error {
 	newLoadConfig := *ad.LoadConfig.Load()
 	newLoadConfig.Paused = 1
 	ad.LoadConfig.Store(&newLoadConfig)
-	if err := m.activityDumpsConfigMap.Put(ad.Cookie, newLoadConfig); err != nil {
+	if err := m.activityDumpsConfigMap.Put(ad.Cookie, &newLoadConfig); err != nil {
 		return fmt.Errorf("failed to pause activity dump [%s]: %w", ad.Profile.Metadata.ContainerID, err)
 	}
 
