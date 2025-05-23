@@ -306,10 +306,22 @@ func (dp *DirectoryProvider) findProfile(path string) (cgroupModel.WorkloadSelec
 	return cgroupModel.WorkloadSelector{}, false
 }
 
+// getProfiles returns a *copy* of the current profile mapping so that the caller
+// can freely iterate over it without risking data races or "concurrent map
+// iteration and map write" panics. The underlying map can indeed be mutated by
+// other goroutines once the DirectoryProvider lock is released; returning the
+// original map would therefore be unsafe when the caller iterates over it
+// outside of the critical section.
 func (dp *DirectoryProvider) getProfiles() map[cgroupModel.WorkloadSelector]profileFSEntry {
-	dp.Lock()
-	defer dp.Unlock()
-	return dp.profileMapping
+    dp.Lock()
+    defer dp.Unlock()
+
+    // Create a shallow copy of the map to avoid concurrent access issues.
+    copyMap := make(map[cgroupModel.WorkloadSelector]profileFSEntry, len(dp.profileMapping))
+    for k, v := range dp.profileMapping {
+        copyMap[k] = v
+    }
+    return copyMap
 }
 
 // OnLocalStorageCleanup removes the provided files from the entries of the directory provider
