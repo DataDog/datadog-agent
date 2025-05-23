@@ -422,7 +422,6 @@ func getSharedFxOption() fx.Option {
 		rcservicemrfimpl.Module(),
 		remoteconfig.Bundle(),
 		fleetfx.Module(),
-		installerexec.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		autodiscoveryimpl.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
