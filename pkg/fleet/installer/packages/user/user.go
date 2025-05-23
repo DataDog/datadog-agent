@@ -41,7 +41,7 @@ func ensureGroup(ctx context.Context, groupName string) error {
 	if !errors.As(err, &unknownGroupError) {
 		log.Warnf("error looking up %s group: %w", groupName, err)
 	}
-	err = exec.CommandContext(ctx, "groupadd", "--system", groupName).Run()
+	err = exec.CommandContext(ctx, "groupadd", "--force", "--system", groupName).Run()
 	if err != nil {
 		return fmt.Errorf("error creating %s group: %w", groupName, err)
 	}
