@@ -39,7 +39,7 @@ func ensureGroup(ctx context.Context, groupName string) error {
 	}
 	var unknownGroupError *user.UnknownGroupError
 	if !errors.As(err, &unknownGroupError) {
-		log.Warnf("error looking up %s group: %w", groupName, err)
+		log.Warnf("error looking up %s group: %v", groupName, err)
 	}
 	err = exec.CommandContext(ctx, "groupadd", "--force", "--system", groupName).Run()
 	if err != nil {
@@ -55,7 +55,7 @@ func ensureUser(ctx context.Context, userName string, installPath string) error 
 	}
 	var unknownUserError *user.UnknownUserError
 	if !errors.As(err, &unknownUserError) {
-		log.Warnf("error looking up %s user: %w", userName, err)
+		log.Warnf("error looking up %s user: %v", userName, err)
 	}
 	err = exec.CommandContext(ctx, "useradd", "--system", "--shell", "/usr/sbin/nologin", "--home", installPath, "--no-create-home", "--no-user-group", "-g", "dd-agent", "dd-agent").Run()
 	if err != nil {
