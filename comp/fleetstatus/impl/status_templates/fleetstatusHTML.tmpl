@@ -1,0 +1,12 @@
+<div class="stat">
+  <span class="stat_title">Fleet Automation</span>
+  <span class="stat_data">
+    {{ with .fleetAutomationStatus }}
+    {{ if .remoteManagementEnabled }}
+      Fleet Management is enabled
+    {{ else }}
+      Fleet Management is disabled
+    {{ end }}
+    {{ end }}
+  </span>
+</div>
