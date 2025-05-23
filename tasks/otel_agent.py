@@ -51,7 +51,7 @@ def build(ctx, byoc="false"):
     env = {"GO111MODULE": "on"}
     build_tags = get_default_build_tags(build="otel-agent")
     ldflags = get_version_ldflags(ctx, major_version='7')
-    ldflags += ' -X main.BYOC=' + byoc
+    ldflags += f' -X github.com/DataDog/datadog-agent/cmd/otel-agent/command.BYOC={byoc}'
 
     cmd = f"go build -mod=readonly -tags=\"{' '.join(build_tags)}\" -ldflags=\"{ldflags}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
 

@@ -20,10 +20,6 @@ import (
 var BYOC string
 
 func main() {
-	var BYOCBool bool
-	if BYOC == "true" {
-		BYOCBool = true
-	}
 	flavor.SetFlavor(flavor.OTelAgent)
-	os.Exit(runcmd.Run(command.MakeRootCommand(BYOCBool)))
+	os.Exit(runcmd.Run(command.MakeRootCommand()))
 }
