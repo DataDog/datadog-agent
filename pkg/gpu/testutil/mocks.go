@@ -79,7 +79,7 @@ var DefaultProcessInfo = []nvml.ProcessInfo{
 }
 
 // DefaultTotalMemory is the total memory for the default device returned by the mock
-var DefaultTotalMemory = uint64(1000)
+var DefaultTotalMemory = uint64(1024 * 1024 * 1024)
 
 // DefaultMaxClockRates is an array of Max SM clock and Max Mem Clock rates for the default device
 var DefaultMaxClockRates = [2]uint32{1000, 2000}
@@ -205,7 +205,7 @@ func GetMIGDeviceMock(deviceIdx int, migDeviceIdx int, opts ...func(*nvmlmock.De
 
 			migSpecificAttributes := nvml.DeviceAttributes{
 				MultiprocessorCount: uint32(coresPerMigDevice),
-				MemorySizeMB:        memoryPerMigDevice,
+				MemorySizeMB:        memoryPerMigDevice / (1024 * 1024),
 			}
 
 			return migSpecificAttributes, nvml.SUCCESS
