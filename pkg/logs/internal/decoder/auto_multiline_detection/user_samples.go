@@ -8,7 +8,6 @@ package automultilinedetection
 
 import (
 	"encoding/json"
-	"fmt"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
