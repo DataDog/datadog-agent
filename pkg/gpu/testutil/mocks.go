@@ -167,6 +167,7 @@ func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Devi
 	return mock
 }
 
+// GetMIGDeviceMock returns a mock of the MIG Device.
 func GetMIGDeviceMock(deviceIdx int, migDeviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Device {
 	// Take the original mock and override only the relevant functions to make it a MIG device.
 	prepareMigDevice := func(d *nvmlmock.Device) {
@@ -221,9 +222,10 @@ type nvmlMockOptions struct {
 	extensionsFunc func() nvml.ExtendedInterface
 }
 
-type nvmlMockOption func(*nvmlMockOptions)
+type NvmlMockOption func(*nvmlMockOptions)
 
-func WithMIGDisabled() nvmlMockOption {
+// WithMIGDisabled disables MIG support for the nvml mock.
+func WithMIGDisabled() NvmlMockOption {
 	return func(o *nvmlMockOptions) {
 		o.deviceOptions = append(o.deviceOptions, func(d *nvmlmock.Device) {
 			d.GetMigModeFunc = func() (int, int, nvml.Return) {
@@ -242,7 +244,7 @@ func GetBasicNvmlMock() *nvmlmock.Interface {
 // GetBasicNvmlMockWithOptions returns a mock of the nvml.Interface with a single device with 10 cores,
 // allowing additional configuration through functional options.
 // It's ideal for tests that need custom NVML behavior beyond the defaults.
-func GetBasicNvmlMockWithOptions(options ...nvmlMockOption) *nvmlmock.Interface {
+func GetBasicNvmlMockWithOptions(options ...NvmlMockOption) *nvmlmock.Interface {
 	if len(GPUUUIDs) != len(GPUCores) {
 		// Make it really easy to spot errors if we change any of the arrays.
 		panic("GPUUUIDs and GPUCores must have the same length, please fix it")
@@ -272,7 +274,7 @@ func GetBasicNvmlMockWithOptions(options ...nvmlMockOption) *nvmlmock.Interface 
 // WithSymbolsMock returns an option that configures the mock NVML interface with the given symbols available.
 // It takes a map of symbols that should be considered available in the mock.
 // Any symbol not in the map will return an error when looked up.
-func WithSymbolsMock(availableSymbols map[string]struct{}) nvmlMockOption {
+func WithSymbolsMock(availableSymbols map[string]struct{}) NvmlMockOption {
 	return func(o *nvmlMockOptions) {
 		o.extensionsFunc = func() nvml.ExtendedInterface {
 			return &nvmlmock.ExtendedInterface{
