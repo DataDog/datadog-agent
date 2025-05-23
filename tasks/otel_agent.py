@@ -40,7 +40,7 @@ def byoc_release(ctx, image=DDOT_DEV_AGENT_TAG, branch=DDOT_DEV_AGENT_BRANCH, re
 
 
 @task
-def build(ctx, byoc="false"):
+def build(ctx, byoc=False):
     """
     Build the otel agent
     """

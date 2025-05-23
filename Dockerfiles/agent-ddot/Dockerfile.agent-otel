@@ -79,7 +79,7 @@ COPY manifest.yaml /workspace/datadog-agent-${AGENT_VERSION}/comp/otelcol/collec
 RUN . venv/bin/activate && dda inv collector.generate
 
 # Build the OTel agent
-RUN . venv/bin/activate && dda inv otel-agent.build --is-byoc=true
+RUN . venv/bin/activate && dda inv otel-agent.build --is-byoc
 
 
 # Use the final Datadog agent image
