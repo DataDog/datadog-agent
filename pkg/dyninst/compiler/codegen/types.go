@@ -26,6 +26,10 @@ func generateTypeInfos(program sm.Program, functionLoc map[sm.FunctionID]uint32,
 	})
 	mustFprintf(out, "typedef enum type {\n")
 	mustFprintf(out, "\tTYPE_NONE = 0,\n")
+
+	slices.SortFunc(program.Types, func(a, b ir.Type) int {
+		return cmp.Compare(a.GetID(), b.GetID())
+	})
 	for _, t := range program.Types {
 		mustFprintf(out, "\tTYPE_%d = %d, // %s\n", t.GetID(), t.GetID(), t.GetName())
 	}
