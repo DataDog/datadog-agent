@@ -6,6 +6,7 @@
 package agenttests
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -660,4 +661,127 @@ func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.Age
 func (s *testAgentUpgradeSuite) setExperimentMSIArgs(args []string) {
 	err := windowscommon.SetRegistryMultiString(s.Env().RemoteHost, `HKLM:SOFTWARE\Datadog\Datadog Agent`, "StartExperimentMSIArgs", args)
 	s.Require().NoError(err)
+}
+
+// TestConfigUpgradeSuccessful tests that the daemon can upgrade the Agent's config
+// through the experiment (start/promote) workflow.
+func (s *testAgentUpgradeSuite) TestConfigUpgradeSuccessful() {
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+
+	// assert that setup was successful
+	s.AssertSuccessfulConfigPromoteExperiment("empty")
+
+	// Act
+	config := installerwindows.InstallerConfig{
+		ID: "config-1",
+		Files: []installerwindows.InstallerConfigFile{
+			{
+				Path:     "/datadog.yaml",
+				Contents: json.RawMessage(`{"log_level": "debug"}`),
+			},
+		},
+	}
+
+	// Start config experiment
+	_, err := s.Installer().InstallConfigExperiment(consts.AgentPackage, config)
+	s.Require().NoError(err)
+	s.AssertSuccessfulConfigStartExperiment(config.ID)
+
+	// Promote config experiment
+	_, err = s.Installer().PromoteConfigExperiment(consts.AgentPackage)
+	s.Require().NoError(err)
+	s.AssertSuccessfulConfigPromoteExperiment(config.ID)
+}
+
+// TestConfigUpgradeFailure tests that the daemon can handle config experiment failures
+func (s *testAgentUpgradeSuite) TestConfigUpgradeFailure() {
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+
+	// Act
+	config := installerwindows.InstallerConfig{
+		ID: "config-1",
+		Files: []installerwindows.InstallerConfigFile{
+			{
+				Path:     "/datadog.yaml",
+				Contents: json.RawMessage(`{"log_level": "ENC[hi]"}`), // Invalid config
+			},
+		},
+	}
+
+	// Start config experiment
+	_, err := s.Installer().InstallConfigExperiment(consts.AgentPackage, config)
+	s.Require().NoError(err)
+
+	// Wait for experiment to fail
+	err = s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
+
+	// Stop config experiment
+	_, err = s.Installer().RemoveConfigExperiment(consts.AgentPackage)
+	s.Require().NoError(err)
+	s.AssertSuccessfulConfigStopExperiment()
+}
+
+// TestConfigUpgradeNewAgents tests that config experiments can enable security agent and system probe
+// on new agent installations.
+func (s *testAgentUpgradeSuite) TestConfigUpgradeNewAgents() {
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+
+	// Assert that the non-default services are not running
+	err := s.WaitForServicesWithBackoff("Stopped", &backoff.StopBackOff{},
+		"datadog-system-probe",
+		"datadog-security-agent",
+		"ddnpm",
+		"ddprocmon",
+	)
+	s.Require().NoError(err, "non-default services should not be running")
+
+	// Act
+	// Set config values that will cause the Agent to start the non-default services
+	config := installerwindows.InstallerConfig{
+		ID: "config-1",
+		Files: []installerwindows.InstallerConfigFile{
+			{
+				Path:     "/datadog.yaml",
+				Contents: json.RawMessage(`{"process_config": {"process_collection": {"enabled": true}}}`),
+			},
+			{
+				Path:     "/security-agent.yaml",
+				Contents: json.RawMessage(`{"runtime_security_config": {"enabled": true}}`),
+			},
+			{
+				Path:     "/system-probe.yaml",
+				Contents: json.RawMessage(`{"runtime_security_config": {"enabled": true}, "network_config": {"enabled": true}}`),
+			},
+		},
+	}
+
+	// Start config experiment
+	_, err = s.Installer().InstallConfigExperiment(consts.AgentPackage, config)
+	s.Require().NoError(err)
+	s.AssertSuccessfulConfigStartExperiment(config.ID)
+
+	// Promote config experiment
+	_, err = s.Installer().PromoteConfigExperiment(consts.AgentPackage)
+	s.Require().NoError(err)
+	s.AssertSuccessfulConfigPromoteExperiment(config.ID)
+
+	// Wait for all services to be running
+	// 30*10 -> 300 seconds (5 minutes)
+	b := backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10)
+	err = s.WaitForServicesWithBackoff("Running", b,
+		"datadogagent",
+		"datadog-system-probe",
+		"datadog-security-agent",
+		"datadog-process-agent",
+		"ddnpm",
+		"ddprocmon",
+	)
+	s.Require().NoError(err, "Failed waiting for services to start")
 }
