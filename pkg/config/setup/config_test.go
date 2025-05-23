@@ -1251,6 +1251,38 @@ use_proxy_for_cloud_metadata: true
 	assert.Equal(t, err.Error(), "index out of range 5 >= 2")
 }
 
+// configRetrieveFromPath gets a setting from the config, handling URLs correctly
+// viper would do this by looking for "known" keys and reconstructing the url piece by piece
+// This method should only be needed by tests
+// In nodetreemodel, settings like additional_endpoints are leaf values
+// We should be able to simplify this implementation once ntm is in use everywhere
+func configRetrieveFromPath(cfg model.Config, settingPath string) (interface{}, error) {
+	parts := strings.Split(settingPath, ".")
+
+	if ncfg, ok := cfg.(nodetreemodel.NodeTreeConfig); ok {
+		for i := range parts {
+			if i == 0 {
+				continue
+			}
+			partial := strings.Join(parts[0:i], ".")
+			node, err := ncfg.GetNode(partial)
+			if err != nil {
+				return nil, err
+			}
+			if leaf, match := node.(nodetreemodel.LeafNode); match {
+				// if we find a leaf, can't get a child of it
+				leafValue := leaf.Get()
+				if leafMap, isMap := leafValue.(map[string]interface{}); isMap {
+					remain := strings.Join(parts[i:], ".")
+					return leafMap[remain], nil
+				}
+			}
+		}
+	}
+
+	return cfg.Get(settingPath), nil
+}
+
 func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 
 	config := newTestConf(t)
@@ -1273,15 +1305,18 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	assert.NoError(t, err)
 
 	var expected interface{} = `different`
-	res := config.Get("secret_backend_command")
+	res, err := configRetrieveFromPath(config, "secret_backend_command")
+	assert.NoError(t, err)
 	require.Equal(t, expected, res)
 
 	expected = []interface{}([]interface{}{"first", "changed"})
-	res = config.Get("additional_endpoints.https://url1.com")
+	res, err = configRetrieveFromPath(config, "additional_endpoints.https://url1.com")
+	assert.NoError(t, err)
 	require.Equal(t, expected, res)
 
 	expected = []interface{}([]interface{}{"modified"})
-	res = config.Get("process_config.additional_endpoints.https://url2.eu")
+	res, err = configRetrieveFromPath(config, "process_config.additional_endpoints.https://url2.eu")
+	assert.NoError(t, err)
 	require.Equal(t, expected, res)
 }
 
