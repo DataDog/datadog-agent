@@ -462,9 +462,9 @@ def get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=False):
         config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config.
     """
 
-    assert (
-        diff_file or config_file and not (diff_file and config_file)
-    ), "You must provide either a diff file or a config file and not both"
+    assert diff_file or config_file and not (diff_file and config_file), (
+        "You must provide either a diff file or a config file and not both"
+    )
 
     # Load all the jobs from the files
     if config_file:
