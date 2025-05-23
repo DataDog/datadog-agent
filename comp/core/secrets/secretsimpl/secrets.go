@@ -267,7 +267,8 @@ func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
 		} else {
 			int63 = rd.Int63n(int64(r.refreshInterval))
 		}
-		r.scatterDuration = time.Duration(int63) / time.Second * time.Second
+		// Scatter when the refresh happens within the interval, with a minimum of 1 second
+		r.scatterDuration = time.Duration(int63) + time.Second
 		log.Infof("first secret refresh will happen in %s", r.scatterDuration)
 	} else {
 		r.scatterDuration = r.refreshInterval
