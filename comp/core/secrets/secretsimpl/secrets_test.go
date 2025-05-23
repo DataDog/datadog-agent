@@ -925,6 +925,36 @@ func TestStartRefreshRoutineWithScatter(t *testing.T) {
 	}
 }
 
+type alwaysZeroSource struct{}
+
+func (s *alwaysZeroSource) Int63() int64 {
+	return 0
+}
+
+func (s *alwaysZeroSource) Seed(int64) {}
+
+func TestScatterWithSmallRandomValue(t *testing.T) {
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
+	originalValue := isAllowlistEnabled()
+	setAllowlistEnabled(false)
+	defer func() {
+		setAllowlistEnabled(originalValue)
+	}()
+
+	resolver.refreshInterval = 1 * time.Second
+	resolver.refreshIntervalScatter = true
+	resolver.fetchHookFunc = func(_ []string) (map[string]string, error) {
+		return map[string]string{
+			"test-handle": fmt.Sprintf("updated-value"),
+		}, nil
+	}
+
+	r := rand.New(&alwaysZeroSource{})
+	resolver.startRefreshRoutine(r)
+	require.NotNil(t, resolver.ticker)
+}
+
 // helper to read number of rows in the audit file
 func auditFileNumRows(filename string) int {
 	data, _ := os.ReadFile(filename)
