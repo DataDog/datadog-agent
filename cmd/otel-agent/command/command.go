@@ -31,6 +31,7 @@ const (
 )
 
 var (
+	// Whether the otel agent was built via byoc
 	BYOC string
 )
 
