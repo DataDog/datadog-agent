@@ -247,6 +247,117 @@ var TopologyMetadataConfig = profiledefinition.MetadataConfig{
 	},
 }
 
+var VPNMetadataConfig = profiledefinition.MetadataConfig{
+	"cisco_ipsec_tunnel": {
+		Fields: map[string]profiledefinition.MetadataField{
+			"local_outside_ip": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.4",
+					Name: "cipSecTunLocalAddr",
+				},
+			},
+			"remote_outside_ip": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.5",
+					Name: "cipSecTunRemoteAddr",
+				},
+			},
+		},
+	},
+}
+
+var RouteMetadataConfig = profiledefinition.MetadataConfig{
+	"ipforward_obsolete": {
+		Fields: map[string]profiledefinition.MetadataField{
+			"route_mask": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.24.2.1.2",
+					Name: "ipForwardMask",
+				},
+			},
+			"if_index": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.24.2.1.5",
+					Name: "ipForwardIfIndex",
+				},
+			},
+			"route_type": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.24.2.1.6",
+					Name: "ipForwardType",
+				},
+			},
+		},
+	},
+	"ipforward_deprecated": {
+		Fields: map[string]profiledefinition.MetadataField{
+			"if_index": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.24.4.1.5",
+					Name: "ipCidrRouteIfIndex",
+				},
+			},
+			"route_type": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.24.4.1.6",
+					Name: "ipCidrRouteType",
+				},
+			},
+			"route_status": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.24.4.1.16",
+					Name: "ipCidrRouteStatus",
+				},
+			},
+		},
+	},
+	"ipforward": {
+		Fields: map[string]profiledefinition.MetadataField{
+			"if_index": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.24.7.1.7",
+					Name: "inetCidrRouteIfIndex",
+				},
+			},
+			"route_type": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.24.7.1.8",
+					Name: "inetCidrRouteType",
+				},
+			},
+			"route_status": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.24.7.1.17",
+					Name: "inetCidrRouteStatus",
+				},
+			},
+		},
+	},
+}
+
+var TunnelMetadataConfig = profiledefinition.MetadataConfig{
+	"tunnel_config_deprecated": {
+		Fields: map[string]profiledefinition.MetadataField{
+			"if_index": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.10.131.1.1.2.1.5",
+					Name: "tunnelConfigIfIndex",
+				},
+			},
+		},
+	},
+	"tunnel_config": {
+		Fields: map[string]profiledefinition.MetadataField{
+			"if_index": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.10.131.1.1.3.1.6",
+					Name: "tunnelInetConfigIfIndex",
+				},
+			},
+		},
+	},
+}
+
 // updateMetadataDefinitionWithDefaults will add metadata config for resources
 // that does not have metadata definitions
 func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.MetadataConfig, collectTopology bool) profiledefinition.MetadataConfig {
@@ -256,6 +367,10 @@ func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.Metad
 	if collectTopology {
 		mergeMetadata(newConfig, TopologyMetadataConfig)
 	}
+	// TODO: VPN Add Option
+	mergeMetadata(newConfig, VPNMetadataConfig)
+	mergeMetadata(newConfig, RouteMetadataConfig)
+	mergeMetadata(newConfig, TunnelMetadataConfig)
 	return newConfig
 }
 

@@ -7,6 +7,7 @@ package report
 
 import (
 	json "encoding/json"
+	"fmt"
 	"net"
 	"sort"
 	"strconv"
@@ -34,6 +35,7 @@ const topologyLinkSourceTypeLLDP = "lldp"
 const topologyLinkSourceTypeCDP = "cdp"
 const ciscoNetworkProtocolIPv4 = "1"
 const ciscoNetworkProtocolIPv6 = "20"
+const inetAddressIPv4 = "1"
 
 var supportedDeviceTypes = map[string]bool{
 	"access_point":  true,
@@ -51,6 +53,14 @@ var supportedDeviceTypes = map[string]bool{
 	"wlc":           true,
 }
 
+type deviceRoute struct {
+	Destination string
+	PrefixLen   int
+	NextHopIP   string
+	IfIndex     string
+	Type        string
+}
+
 // ReportNetworkDeviceMetadata reports device metadata
 func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, profile profiledefinition.ProfileDefinition, store *valuestore.ResultValueStore, origTags []string, origMetricTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus, diagnoses []devicemetadata.DiagnosisMetadata) {
 	tags := utils.CopyStrings(origTags)
@@ -66,6 +76,10 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
 	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
+	vpnTunnels := buildVPNTunnelsMetadata(config.DeviceID, metadataStore)
+
+	fmt.Println("VPN Tunnels:")
+	fmt.Println(vpnTunnels)
 
 	metadataPayloads := devicemetadata.BatchPayloads(integrations.SNMP, config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, topologyLinks, nil, diagnoses)
 
@@ -595,4 +609,345 @@ func formatID(idType string, store *metadata.Store, field string, strIndex strin
 		remoteDeviceID = store.GetColumnAsString(field, strIndex)
 	}
 	return remoteDeviceID
+}
+
+func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemetadata.VPNTunnelMetadata {
+	if store == nil {
+		// it's expected that the value store is nil if we can't reach the device
+		// in that case, we just return a nil slice.
+		return nil
+	}
+
+	vpnTunnelIndexes := store.GetColumnIndexes("cisco_ipsec_tunnel.local_outside_ip")
+	if len(vpnTunnelIndexes) == 0 {
+		log.Debugf("Unable to build VPN tunnels metadata: no cisco_ipsec_tunnel.local_outside_ip found")
+		return nil
+	}
+
+	var vpnTunnelByOutsideIPs map[string]*devicemetadata.VPNTunnelMetadata
+	var vpnTunnelByRemoteOutsideIP map[string]*devicemetadata.VPNTunnelMetadata
+	for _, strIndex := range vpnTunnelIndexes {
+		indexElems := strings.Split(strIndex, ".")
+
+		// The cipSecTunnelEntry index is composed of 1 element: cipSecTunIndex
+		if len(indexElems) != 1 {
+			log.Debugf("Expected 1 index element in cipSecTunnelEntry, but got %d, index=`%s`", len(indexElems), strIndex)
+			continue
+		}
+
+		localOutsideIP := net.IP(store.GetColumnAsByteArray("cisco_ipsec_tunnel.local_outside_ip", strIndex)).String()
+		remoteOutsideIP := net.IP(store.GetColumnAsByteArray("cisco_ipsec_tunnel.remote_outside_ip", strIndex)).String()
+
+		vpnTunnel := &devicemetadata.VPNTunnelMetadata{
+			DeviceID:        deviceID,
+			LocalOutsideIP:  localOutsideIP,
+			RemoteOutsideIP: remoteOutsideIP,
+			Protocol:        "ipsec",
+		}
+
+		vpnTunnelByOutsideIPs[localOutsideIP+remoteOutsideIP] = vpnTunnel
+		vpnTunnelByRemoteOutsideIP[remoteOutsideIP] = vpnTunnel
+	}
+
+	resolveVPNTunnelsRoutes(store, vpnTunnelByOutsideIPs, vpnTunnelByRemoteOutsideIP)
+
+	vpnTunnels := make([]devicemetadata.VPNTunnelMetadata, 0, len(vpnTunnelByOutsideIPs))
+	for _, vpnTunnel := range vpnTunnelByOutsideIPs {
+		vpnTunnels = append(vpnTunnels, *vpnTunnel)
+	}
+	return vpnTunnels
+}
+
+func resolveVPNTunnelsRoutes(store *metadata.Store,
+	vpnTunnelByOutsideIPs map[string]*devicemetadata.VPNTunnelMetadata,
+	vpnTunnelByRemoteOutsideIP map[string]*devicemetadata.VPNTunnelMetadata) {
+
+	routeObsoleteIndexes := store.GetColumnIndexes("ipforward_obsolete.if_index")
+	routeDeprecatedIndexes := store.GetColumnIndexes("ipforward_deprecated.if_index")
+	routeIndexes := store.GetColumnIndexes("ipforward.if_index")
+	if len(routeObsoleteIndexes) == 0 && len(routeDeprecatedIndexes) == 0 && len(routeIndexes) == 0 {
+		return
+	}
+
+	var routesByInterfaceIndex map[string][]deviceRoute
+
+	for _, strIndex := range routeObsoleteIndexes {
+		indexElems := strings.Split(strIndex, ".")
+		if len(indexElems) != 10 {
+			// We expect the index to be 10 elements:
+			// 4 ipForwardDest
+			// 1 ipForwardProto
+			// 1 ipForwardPolicy
+			// 4 ipForwardNextHop
+			continue
+		}
+
+		routeDestination := strings.Join(indexElems[0:4], ".")
+		nextHopIP := strings.Join(indexElems[6:10], ".")
+
+		routePrefixLen := netmaskToPrefixlen(store.GetColumnAsString("ipforward_obsolete.route_mask", strIndex))
+		ifIndex := store.GetColumnAsString("ipforward_obsolete.if_index", strIndex)
+		routeType := store.GetColumnAsString("ipforward_obsolete.route_type", strIndex)
+
+		route := deviceRoute{
+			Destination: routeDestination,
+			PrefixLen:   routePrefixLen,
+			NextHopIP:   nextHopIP,
+			IfIndex:     ifIndex,
+			Type:        routeType,
+		}
+		routesByInterfaceIndex[ifIndex] = append(routesByInterfaceIndex[ifIndex], route)
+
+		resolveRouteByNextHop(route, vpnTunnelByRemoteOutsideIP)
+	}
+
+	for _, strIndex := range routeDeprecatedIndexes {
+		routeStatus := store.GetColumnAsString("ipforward_deprecated.route_status", strIndex)
+		if routeStatus != "1" {
+			continue
+		}
+
+		indexElems := strings.Split(strIndex, ".")
+		if len(indexElems) != 13 {
+			// We expect the index to be 13 elements:
+			// 4 ipCidrRouteDest
+			// 4 ipCidrRouteMask
+			// 1 ipCidrRouteTos
+			// 4 ipCidrRouteNextHop
+			continue
+		}
+
+		routeDestination := strings.Join(indexElems[0:4], ".")
+		routePrefixLen := netmaskToPrefixlen(strings.Join(indexElems[4:8], "."))
+		nextHopIP := strings.Join(indexElems[9:13], ".")
+
+		ifIndex := store.GetColumnAsString("ipforward_deprecated.if_index", strIndex)
+		routeType := store.GetColumnAsString("ipforward_deprecated.route_type", strIndex)
+
+		route := deviceRoute{
+			Destination: routeDestination,
+			PrefixLen:   routePrefixLen,
+			NextHopIP:   nextHopIP,
+			IfIndex:     ifIndex,
+			Type:        routeType,
+		}
+		routesByInterfaceIndex[ifIndex] = append(routesByInterfaceIndex[ifIndex], route)
+
+		resolveRouteByNextHop(route, vpnTunnelByRemoteOutsideIP)
+	}
+
+	for _, strIndex := range routeIndexes {
+		routeStatus := store.GetColumnAsString("ipforward.route_status", strIndex)
+		if routeStatus != "1" {
+			continue
+		}
+
+		/* Example with full OID: 1.3.6.1.2.1.4.24.7.1.7.2.16.255.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.2.0.0.0.0
+		.1.3.6.1.2.1.4.24.7.1.7: Base OID
+		.2: Destination type
+		.16: Destination IP length
+		.255.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0: Destination IP
+		.8: Prefix
+		.2: Policy length
+		.0.0: Policy
+		.0: Next hop type
+		.0: Next hop length
+		*/
+		indexElems := strings.Split(strIndex, ".")
+		currMaxIndex := 2
+		if len(indexElems) < currMaxIndex {
+			continue
+		}
+
+		destAddrType := indexElems[currMaxIndex-2]
+		if destAddrType != inetAddressIPv4 {
+			continue
+		}
+
+		destLength, err := strconv.Atoi(indexElems[currMaxIndex-1])
+		if err != nil {
+			continue
+		}
+
+		currMaxIndex += destLength
+		if len(indexElems) < currMaxIndex {
+			continue
+		}
+
+		routeDestination := strings.Join(indexElems[currMaxIndex-destLength:currMaxIndex], ".")
+
+		currMaxIndex += 2
+		if len(indexElems) < currMaxIndex {
+			continue
+		}
+
+		routePrefixLen, err := strconv.Atoi(indexElems[currMaxIndex-2])
+		if err != nil {
+			continue
+		}
+
+		policyLength, err := strconv.Atoi(indexElems[currMaxIndex-1])
+		if err != nil {
+			continue
+		}
+
+		currMaxIndex += policyLength + 2
+		if len(indexElems) < currMaxIndex {
+			continue
+		}
+
+		nextHopAddrType := indexElems[currMaxIndex-2]
+		if nextHopAddrType != inetAddressIPv4 {
+			continue
+		}
+
+		nextHopLength, err := strconv.Atoi(indexElems[currMaxIndex-1])
+		if err != nil {
+			continue
+		}
+
+		currMaxIndex += nextHopLength
+		if len(indexElems) < currMaxIndex {
+			continue
+		}
+
+		nextHopIP := strings.Join(indexElems[currMaxIndex-nextHopLength:currMaxIndex], ".")
+
+		ifIndex := store.GetColumnAsString("ipforward.if_index", strIndex)
+		routeType := store.GetColumnAsString("ipforward.route_type", strIndex)
+
+		route := deviceRoute{
+			Destination: routeDestination,
+			PrefixLen:   routePrefixLen,
+			NextHopIP:   nextHopIP,
+			IfIndex:     ifIndex,
+			Type:        routeType,
+		}
+		routesByInterfaceIndex[ifIndex] = append(routesByInterfaceIndex[ifIndex], route)
+
+		resolveRouteByNextHop(route, vpnTunnelByRemoteOutsideIP)
+	}
+
+	for _, vpnTunnel := range vpnTunnelByOutsideIPs {
+		if len(vpnTunnel.RouteAddresses) != 0 {
+			continue
+		}
+
+		resolveRoutesByInterface(store, routesByInterfaceIndex, vpnTunnelByOutsideIPs)
+	}
+}
+
+func resolveRouteByNextHop(route deviceRoute, vpnTunnelByRemoteOutsideIP map[string]*devicemetadata.VPNTunnelMetadata) {
+	vpnTunnel, exists := vpnTunnelByRemoteOutsideIP[route.NextHopIP]
+	if !exists {
+		return
+	}
+
+	vpnTunnel.RouteAddresses = append(vpnTunnel.RouteAddresses,
+		fmt.Sprintf("%s/%d", route.Destination, route.PrefixLen))
+}
+
+func resolveRoutesByInterface(store *metadata.Store, routesByInterfaceIndex map[string][]deviceRoute,
+	vpnTunnelByOutsideIPs map[string]*devicemetadata.VPNTunnelMetadata) {
+
+	tunnelDeprecatedIndexes := store.GetColumnIndexes("tunnel_config_deprecated.if_index")
+	tunnelIndexes := store.GetColumnIndexes("tunnel_config.if_index")
+	if len(tunnelDeprecatedIndexes) == 0 && len(tunnelIndexes) == 0 {
+		return
+	}
+
+	for _, strIndex := range tunnelDeprecatedIndexes {
+		indexElems := strings.Split(strIndex, ".")
+		if len(indexElems) != 10 {
+			// We expect the index to be 10 elements:
+			// 4 tunnelConfigLocalAddress
+			// 4 tunnelConfigRemoteAddress
+			// 1 tunnelConfigEncapsMethod
+			// 1 tunnelConfigID
+			continue
+		}
+
+		localAddr := strings.Join(indexElems[0:4], ".")
+		remoteAddr := strings.Join(indexElems[4:8], ".")
+
+		ifIndex := store.GetColumnAsString("ipforward.if_index", strIndex)
+
+		addRoutesByInterfaceToVPNTunnel(localAddr, remoteAddr, ifIndex, routesByInterfaceIndex, vpnTunnelByOutsideIPs)
+	}
+
+	for _, strIndex := range tunnelIndexes {
+		/* Example with full OID: .1.3.6.1.2.1.10.131.1.1.3.1.6.1.4.10.0.2.91.4.3.134.54.211.1.1
+		.1.3.6.1.2.1.10.131.1.1.3.1.6: Base OID
+		.1: Addresses type
+		.4: Local address IP length
+		.10.0.2.91: Local address IP
+		.4: Remote address IP length
+		.3.134.54.211: Remote address IP
+		.1: Tunnel encapsulation method
+		.1: Tunnel config ID
+		*/
+		indexElems := strings.Split(strIndex, ".")
+		currMaxIndex := 2
+		if len(indexElems) < currMaxIndex {
+			continue
+		}
+
+		addrType := indexElems[currMaxIndex-2]
+		if addrType != inetAddressIPv4 {
+			continue
+		}
+
+		localAddrLength, err := strconv.Atoi(indexElems[currMaxIndex-1])
+		if err != nil {
+			continue
+		}
+
+		currMaxIndex += localAddrLength
+		if len(indexElems) < currMaxIndex {
+			continue
+		}
+
+		localAddr := strings.Join(indexElems[currMaxIndex-localAddrLength:currMaxIndex], ".")
+
+		currMaxIndex += 1
+		if len(indexElems) < currMaxIndex {
+			continue
+		}
+
+		remoteAddrLength, err := strconv.Atoi(indexElems[currMaxIndex-1])
+		if err != nil {
+			continue
+		}
+
+		currMaxIndex += remoteAddrLength
+		if len(indexElems) < currMaxIndex {
+			continue
+		}
+
+		remoteAddr := strings.Join(indexElems[currMaxIndex-remoteAddrLength:currMaxIndex], ".")
+
+		ifIndex := store.GetColumnAsString("tunnel_config.if_index", strIndex)
+
+		addRoutesByInterfaceToVPNTunnel(localAddr, remoteAddr, ifIndex, routesByInterfaceIndex, vpnTunnelByOutsideIPs)
+	}
+}
+
+func addRoutesByInterfaceToVPNTunnel(localAddr string, remoteAddr string, ifIndex string,
+	routesByInterfaceIndex map[string][]deviceRoute,
+	vpnTunnelByOutsideIPs map[string]*devicemetadata.VPNTunnelMetadata) {
+
+	vpnTunnel, exists := vpnTunnelByOutsideIPs[localAddr+remoteAddr]
+	if !exists {
+		return
+	}
+
+	routes, exists := routesByInterfaceIndex[ifIndex]
+	if !exists {
+		return
+	}
+
+	for _, route := range routes {
+		vpnTunnel.RouteAddresses = append(vpnTunnel.RouteAddresses,
+			fmt.Sprintf("%s/%d", route.Destination, route.PrefixLen))
+	}
 }
