@@ -94,6 +94,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	return nil
 }
 
+// getProcessCacheDifference returns new processes that exist in procCacheA and not in procCacheB
 func getProcessCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB map[int32]*procutil.Process) []*procutil.Process {
 	var newProcs []*procutil.Process
 	for pid, procA := range procCacheA {
