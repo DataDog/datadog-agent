@@ -71,31 +71,35 @@ func GetFxOptions() fx.Option {
 }
 
 // isEnabled returns a boolean indicating if the process collector is enabled and what collection interval to use if it is.
-func (c *collector) isEnabled() (bool, time.Duration) {
+func (c *collector) isEnabled() bool {
 	// TODO: implement the logic to check if the process collector is enabled based on dependent configs (process collection, language detection, service discovery)
 	// hardcoded to false until the new collector has all functionality/consolidation completed (service discovery, language collection, etc)
-	return false, time.Second * 10
+	return false
+}
+
+// collectionIntervalConfig returns the configured collection interval
+func (c *collector) collectionIntervalConfig() time.Duration {
+	// TODO: read configured collection interval once implemented
+	return time.Second * 10
 }
 
 // Start starts the collector. The collector should run until the context
 // is done. It also gets a reference to the store that started it so it
 // can use Notify, or get access to other entities in the store.
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	// TODO: implement the start-up logic for the process collector
-	// Once setup logic is complete, start collection and streaming goroutines
-	enabled, collectionInterval := c.isEnabled()
+	enabled := c.isEnabled()
 
 	if enabled {
 		c.store = store
-		go c.collect(ctx, c.clock.Ticker(collectionInterval))
+		go c.collect(ctx, c.clock.Ticker(c.collectionIntervalConfig()))
 		go c.stream(ctx)
 	}
 
 	return nil
 }
 
-// getProcessCacheDifference returns new processes that exist in procCacheA and not in procCacheB
-func getProcessCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB map[int32]*procutil.Process) []*procutil.Process {
+// processCacheDifference returns new processes that exist in procCacheA and not in procCacheB
+func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB map[int32]*procutil.Process) []*procutil.Process {
 	var newProcs []*procutil.Process
 	for pid, procA := range procCacheA {
 		procB, exists := procCacheB[pid]
@@ -127,14 +131,14 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 				return
 			}
 
-			// categorize the processes into storable events
-			createdProcs := getProcessCacheDifference(procs, c.lastCollectedProcesses)
+			// categorize the processes into events for workloadmeta
+			createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
 			var wlmCreatedProcs []*workloadmeta.Process
 			for _, proc := range createdProcs {
 				wlmCreatedProcs = append(wlmCreatedProcs, processToWorkloadMetaProcess(proc))
 			}
 
-			deletedProcs := getProcessCacheDifference(c.lastCollectedProcesses, procs)
+			deletedProcs := processCacheDifference(c.lastCollectedProcesses, procs)
 			var wlmDeletedProcs []*workloadmeta.Process
 			for _, proc := range deletedProcs {
 				wlmDeletedProcs = append(wlmDeletedProcs, processToWorkloadMetaProcess(proc))
@@ -157,12 +161,12 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 
 // stream processes events sent from data collection and notifies WorkloadMeta that updates have occurred
 func (c *collector) stream(ctx context.Context) {
-	health := health.RegisterLiveness(componentName)
+	healthCheck := health.RegisterLiveness(componentName)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	for {
 		select {
-		case <-health.C:
+		case <-healthCheck.C:
 
 		case processEvent := <-c.processEventsCh:
 			var events []workloadmeta.CollectorEvent
@@ -185,7 +189,7 @@ func (c *collector) stream(ctx context.Context) {
 			c.store.Notify(events)
 
 		case <-ctx.Done():
-			err := health.Deregister()
+			err := healthCheck.Deregister()
 			if err != nil {
 				log.Warnf("error de-registering health check: %s", err)
 			}

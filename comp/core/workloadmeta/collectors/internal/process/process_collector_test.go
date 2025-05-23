@@ -27,7 +27,6 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -53,14 +52,6 @@ func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}) co
 	processCollector := newProcessCollector(collectorID, mockStore, workloadmeta.NodeAgent, mockClock, mockProbe, processEventCh, make(map[int32]*procutil.Process))
 
 	return collectorTest{&processCollector, mockProbe, mockClock, mockStore}
-}
-
-// start used for testing purposes while we wait for configuration logic to be sorted out
-func (c *collector) start(ctx context.Context, store workloadmeta.Component, collectionInterval time.Duration) error {
-	c.store = store
-	go c.collect(ctx, c.clock.Ticker(collectionInterval))
-	go c.stream(ctx)
-	return nil
 }
 
 func createTestProcess1(pid int32, createTime int64) (*procutil.Process, *workloadmeta.Process) {
@@ -205,9 +196,11 @@ func TestCreatedProcessesCollection(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			// TODO: we should use Start() instead of start() once we have the config file logic finished
-			err := c.collector.start(ctx, c.mockStore, collectionInterval)
-			assert.NoError(t, err)
+			// TODO: we should use Start() instead of 3 lines below when configuration is sorted as Start() is currently
+			// by default disabled
+			c.collector.store = c.mockStore
+			go c.collector.collect(ctx, c.collector.clock.Ticker(collectionInterval))
+			go c.collector.stream(ctx)
 
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
 			// update clock to trigger processing
@@ -227,9 +220,6 @@ func TestCreatedProcessesCollection(t *testing.T) {
 
 // TestCreatedProcessesCollection tests the collector capturing lifecycle of a process (creation, deletion)
 func TestProcessLifecycleCollection(t *testing.T) {
-	originalFlavor := flavor.GetFlavor()
-	defer flavor.SetFlavor(originalFlavor)
-	flavor.SetFlavor(flavor.DefaultAgent)
 
 	collectionInterval := time.Second * 10
 	creationTime1 := time.Now().Unix()
@@ -310,9 +300,11 @@ func TestProcessLifecycleCollection(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			// TODO: we should use Start() instead of start() once we have the config file logic finished
-			err := c.collector.start(ctx, c.mockStore, collectionInterval)
-			assert.NoError(t, err)
+			// TODO: we should use Start() instead of 3 lines below when configuration is sorted as Start() is currently
+			// by default disabled
+			c.collector.store = c.mockStore
+			go c.collector.collect(ctx, c.collector.clock.Ticker(collectionInterval))
+			go c.collector.stream(ctx)
 
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollectA, nil).Times(1)
 			// update clock to trigger processing
