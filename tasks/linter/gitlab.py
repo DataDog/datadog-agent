@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from collections import defaultdict
@@ -31,6 +32,8 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_file_modifications
 from tasks.libs.common.utils import gitlab_section
 from tasks.libs.owners.parsing import read_owners
+
+from .shell import DEFAULT_SHELLCHECK_EXCLUDES, flatten_script, shellcheck_linter
 
 
 @task
@@ -554,3 +557,58 @@ def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_fil
     gitlab_owners = CodeOwners('\n'.join(parsed_owners))
 
     _gitlab_ci_jobs_codeowners_lint(path_codeowners, modified_yml_files, gitlab_owners)
+
+
+@task
+def gitlab_ci_shellcheck(
+    ctx,
+    diff_file=None,
+    config_file=None,
+    exclude=DEFAULT_SHELLCHECK_EXCLUDES,
+    shellcheck_args="",
+    fail_fast=False,
+    verbose=False,
+    use_bat=None,
+    only_errors=False,
+):
+    """Verifies that shell scripts with gitlab config are valid.
+
+    Args:
+        diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config.
+        config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config.
+    """
+
+    # Used by the CI to skip linting if no changes
+    if diff_file and not os.path.exists(diff_file):
+        print('No diff file found, skipping lint')
+        return
+
+    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
+
+    # No change, info already printed in get_gitlab_ci_lintable_jobs
+    if not full_config:
+        return
+
+    scripts = {}
+    for job, content in jobs:
+        # Skip jobs that are not executed
+        if not is_leaf_job(job, content):
+            continue
+
+        # Shellcheck is only for bash like scripts
+        is_powershell = any(
+            'powershell' in flatten_script(content.get(keyword, ''))
+            for keyword in ('before_script', 'script', 'after_script')
+        )
+        if is_powershell:
+            continue
+
+        if verbose:
+            print('Verifying job:', job)
+
+        # Lint scripts
+        for keyword in ('before_script', 'script', 'after_script'):
+            if keyword in content:
+                scripts[f'{job}.{keyword}'] = f'#!/bin/bash\n{flatten_script(content[keyword]).strip()}\n'
+
+    shellcheck_linter(ctx, scripts, exclude, shellcheck_args, fail_fast, use_bat, only_errors)
