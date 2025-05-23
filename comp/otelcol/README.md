@@ -7,7 +7,7 @@
 
 ## Overview
 
-The Datadog Distribution of the OpenTelemetry Collector provides a streamlined and optimized way to collect, process, and export observability data (traces, metrics, and logs) from your applications and infrastructure directly to Datadog. Built upon the robust and extensible OpenTelemetry Collector, this distribution offers Datadog-specific configurations and components out-of-the-box, simplifying your telemetry pipeline setup.
+The Datadog Distribution of the OpenTelemetry (DDOT) Collector provides a streamlined and optimized way to collect, process, and export observability data (traces, metrics, and logs) from your applications and infrastructure directly to Datadog. Built upon the robust and extensible OpenTelemetry Collector, this distribution offers Datadog-specific configurations and components out-of-the-box, simplifying your telemetry pipeline setup.
 
 This project empowers users to leverage the vendor-agnostic OpenTelemetry standard while benefiting from Datadog's powerful analytics, dashboards, and alerting capabilities. It's an ideal solution to support your OpenTelemetry observability needs while remaining fully integrated with the Datadog Agent and its facilities.
 
@@ -16,22 +16,23 @@ This project empowers users to leverage the vendor-agnostic OpenTelemetry standa
 
 ## Key Features
 
-- Seamless Datadog Integration: Pre-configured with the Datadog Exporter for easy transmission of traces, metrics, and logs to your Datadog account.
-- Optimized Defaults: Includes sensible default configurations for common components like the DD Exporter, Batch Processor, Datadog connector, etc tailored for Datadog best practices.
-- OpenTelemetry Protocol (OTLP) Support: Ready to receive telemetry data via OTLP over gRPC and HTTP, making it compatible with all OpenTelemetry SDKs.
-- Extensible: As a distribution of the OpenTelemetry Collector, it retains full extensibility, allowing you to add any other OpenTelemetry receivers, processors, or exporters as needed.
-- Kubernetes-Native: Specifically designed and optimized for deployment within Kubernetes environments.
-- Complementary to Datadog Agent: Works effectively alongside the Datadog Agent, allowing you to choose the best collection strategy for different types of telemetry.
+- **Seamless Datadog Integration**: Pre-configured with the Datadog Exporter for easy transmission of traces, metrics, and logs to your Datadog account.
+- **Optimized Defaults**: Includes sensible default configurations for common components like the DD Exporter, Batch Processor, Datadog connector, etc tailored for Datadog best practices.
+- **OpenTelemetry Protocol (OTLP) Support**: Ready to receive telemetry data via OTLP over gRPC and HTTP, making it compatible with all OpenTelemetry SDKs.
+- **Extensible**: As a distribution of the OpenTelemetry Collector, it retains full extensibility, allowing you to add any other OpenTelemetry receivers, processors, or exporters as needed.
+- **Kubernetes-Native**: Specifically designed and optimized for deployment within Kubernetes environments.
+- **Complementary to Datadog Agent**: Works effectively alongside the Datadog Agent, allowing you to choose the best collection strategy for different types of telemetry.
 
 ## Getting Started
 
 ### Prerequisites
 
-At the time of this writing only Kubernetes and daemonset (ie. [agent](https://opentelemetry.io/docs/collector/deployment/agent/) in OTel lingo) deployments are supported.
+**Supported deployments** :
+- Kubernetes (v1.18+ recommended)  
+- DaemonSet ([agent pattern](https://opentelemetry.io/docs/collector/deployment/agent/))
 
 Before you begin, ensure you have:
 - A Datadog API Key. You can find or generate one in your Datadog Organization Settings.
-- Access to a Kubernetes cluster (version 1.18+ recommended).
 - `kubectl` configured to interact with your Kubernetes cluster.
 
 ### Deployment
@@ -120,27 +121,27 @@ service:
 
 Please note that you can also bring your OpenTelemetry Collector configuration with your predefined pipelines. DDOT will enrich the provided configuration to seamlessly integrate with the Datadog Agent and Fleet Automation, and enable relevant troubleshooting and debug options.
 
-### BYOC
+### Custom Components
 
-DDOT ships with a curated and pre-defined set of components defined in the [manifest](https://github.com/DataDog/datadog-agent/blob/main/comp/otelcol/collector-contrib/impl/manifest.yaml) file. We understand that customer's particular use-cases may require additional components not shipping by default. To address these cases we have introduced the BYOC (Bring Your Own Components) workflow.
+DDOT ships with a curated and pre-defined set of components defined in the [manifest](https://github.com/DataDog/datadog-agent/blob/main/comp/otelcol/collector-contrib/impl/manifest.yaml) file. We understand that customer's particular use-cases may require additional components not shipping by default. To address these cases, we support a workflow to use custom OpenTelemetry components with the Datadog Agent.
 
-To learn more about how to build DDOT with support for your custom set of components please read our [documentation](https://docs.datadoghq.com/opentelemetry/setup/ddot_collector/custom_components/).
+To learn more about how to build the DDOT Collector with support for your custom set of components please read our [documentation](https://docs.datadoghq.com/opentelemetry/setup/ddot_collector/custom_components/).
 
 
 ### Development
 
-For developers, building and running the DDOT Collector locally is straight-forward once you have the Datadog Agent development environment set up. You can use our [development documentation](https://datadoghq.dev/datadog-agent/) to learn some more about the development guidelines, and instructions on the environment/tooling setup are available in this [guide](https://datadoghq.dev/datadog-agent/setup/).
+For developers, building and running the DDOT Collector locally is straightforward once you have the Datadog Agent development environment set up. You can use our [development documentation](https://datadoghq.dev/datadog-agent/) to learn some more about the development guidelines, and instructions on the environment and tooling setup are available in this [guide](https://datadoghq.dev/datadog-agent/setup/).
 
-Once your development environment is set up, you can build your DDOT collector as follows:
+Once your development environment is set up, you can build your DDOT Collector as follows:
 ```
 inv otel-agent.build
 ```
 
-The resulting binary will be dropped in the `./bin/otel-agent` directory. The default OTel configuration will be dropped in `./bin/otel-agent/dist/otel-config.yaml`.
+The resulting binary is dropped in the `./bin/otel-agent` directory. The default OTel configuration is dropped in `./bin/otel-agent/dist/otel-config.yaml`.
 
 The DDOT executable takes in two arguments `--core-config <agent configuration>` and `--config <otel configuration>`:
-- `--core-config`: this is your typical Datadog Agent configuration, it defines some settings that are leveraged by DDOT.
-- `--config`: this is the OpenTelemetry Collector configuration, with the relevant components (receivers, processors, exporters, connectors and extensions) that define your OTel observability pipelines. This file is in the same format as the upstream Collector configuration files.
+- `--core-config`: This is your typical Datadog Agent configuration that defines some settings that are leveraged by the DDOT Collector.
+- `--config`: This is the OpenTelemetry Collector configuration, with the relevant components (receivers, processors, exporters, connectors, and extensions) that define your OTel observability pipelines. This file is in the same format as the upstream Collector configuration files.
 
 
 You can run your DDOT local build simply by executing the resulting binary as follows:
@@ -163,7 +164,7 @@ Of course, contributions can also be made upstream in both the [OpenTelemetry Co
 
 For any questions, issues, or assistance with the Datadog Distribution of the OpenTelemetry Collector:
 - GitHub Issues: [Open](https://github.com/DataDog/datadog-agent/issues) an issue on this repository for bugs or feature requests.
-- Datadog Documentation: Consult the [Datadog OpenTelemetry documentation]() for integration specifics.
+- Datadog Documentation: Consult the [Datadog OpenTelemetry documentation](https://docs.datadoghq.com/opentelemetry/setup/ddot_collector) for integration specifics.
 - Datadog Support: For direct assistance, reach out to Datadog Support.
 
 ## License
