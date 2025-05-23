@@ -90,16 +90,18 @@ func main() {
 	var listenAddr string
 	var agentIpcAddress string
 	var agentAuthTokenFilePath string
+	var agentIPCCertFilePath string
 
 	flag.StringVar(&agentID, "agent-id", "", "Agent ID to register with")
 	flag.StringVar(&displayName, "display-name", "", "Display name to register with")
 	flag.StringVar(&listenAddr, "listen-addr", "", "Address to listen on")
 	flag.StringVar(&agentIpcAddress, "agent-ipc-address", "", "Agent IPC server address")
 	flag.StringVar(&agentAuthTokenFilePath, "agent-auth-token-file", "", "Path to Agent authentication token file")
+	flag.StringVar(&agentIPCCertFilePath, "agent-cert-file", "", "Path to Agent IPC certificate file")
 
 	flag.Parse()
 
-	if flag.NFlag() != 5 {
+	if flag.NFlag() != 6 {
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -119,7 +121,14 @@ func main() {
 	}
 
 	agentAuthToken := string(rawAgentAuthToken)
-	agentClient, err := newAgentSecureClient(agentIpcAddress, agentAuthToken)
+
+	// Read the IPC certificate from the agent
+	tlsCert, err := getAgentCert(agentIPCCertFilePath)
+	if err != nil {
+		log.Fatalf("failed to get agent IPC cert: %v", err)
+	}
+
+	agentClient, err := newAgentSecureClient(agentIpcAddress, agentAuthToken, tlsCert)
 	if err != nil {
 		log.Fatalf("failed to create agent client: %v", err)
 	}
@@ -153,6 +162,38 @@ func main() {
 
 		log.Println("Refreshed registration with Core Agent.")
 	}
+}
+
+func getAgentCert(path string) (tls.Certificate, error) {
+	cert := tls.Certificate{}
+
+	// Getting the IPC certificate from the agent
+	rawFile, err := os.ReadFile(path)
+	if err != nil {
+		return cert, fmt.Errorf("error while creating or fetching IPC cert: %w", err)
+	}
+
+	// Decode the certificate
+	block, rest := pem.Decode(rawFile)
+
+	if block == nil || block.Type != "CERTIFICATE" {
+		return cert, fmt.Errorf("failed to decode PEM block containing certificate")
+	}
+	rawCert := pem.EncodeToMemory(block)
+
+	block, _ = pem.Decode(rest)
+
+	if block == nil || block.Type != "EC PRIVATE KEY" {
+		return cert, fmt.Errorf("failed to decode PEM block containing key")
+	}
+
+	rawKey := pem.EncodeToMemory(block)
+
+	tlsCert, err := tls.X509KeyPair(rawCert, rawKey)
+	if err != nil {
+		return cert, fmt.Errorf("Unable to generate x509 cert from PERM IPC cert and key")
+	}
+	return tlsCert, nil
 }
 
 func buildAndSpawnGrpcServer(listenAddr string, server pbcore.RemoteAgentServer) (string, error) {
@@ -227,9 +268,11 @@ func generateAuthenticationToken() (string, error) {
 	return hex.EncodeToString(rawToken), nil
 }
 
-func newAgentSecureClient(ipcAddress string, agentAuthToken string) (pbcore.AgentSecureClient, error) {
+func newAgentSecureClient(ipcAddress string, agentAuthToken string, cert tls.Certificate) (pbcore.AgentSecureClient, error) {
+
 	tlsCreds := credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true,
+		Certificates:       []tls.Certificate{cert},
 	})
 
 	conn, err := grpc.NewClient(ipcAddress,
