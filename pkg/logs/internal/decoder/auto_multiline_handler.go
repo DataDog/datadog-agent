@@ -30,15 +30,14 @@ func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize i
 
 	// Order is important
 	heuristics := []automultilinedetection.Heuristic{}
+	sourceHasSettings := sourceSettings != nil
 
 	tokenizerMaxInputBytes := pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
-	if sourceSettings != nil && sourceSettings.TokenizerMaxInputBytes != nil {
+	if sourceHasSettings && sourceSettings.TokenizerMaxInputBytes != nil {
 		tokenizerMaxInputBytes = *sourceSettings.TokenizerMaxInputBytes
 	}
 	heuristics = append(heuristics, automultilinedetection.NewTokenizer(tokenizerMaxInputBytes))
 	heuristics = append(heuristics, automultilinedetection.NewUserSamples(pkgconfigsetup.Datadog(), sourceSamples))
-
-	sourceHasSettings := sourceSettings != nil
 
 	enableJSONAggregation := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_aggregation")
 	if sourceHasSettings && sourceSettings.EnableJSONAggregation != nil {
