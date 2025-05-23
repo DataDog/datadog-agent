@@ -1,5 +1,7 @@
 """Linting-related tasks for files related to Gitlab CI"""
 
+# Make tasks & helper methods accessible as they are used in unit test mocks
+from . import helpers, tasks
 from .tasks import (
     gitlab_change_paths,
     gitlab_ci,
@@ -13,6 +15,8 @@ from .tasks import (
 )
 
 __all__ = [
+    "helpers",
+    "tasks",
     "gitlab_change_paths",
     "gitlab_ci",
     "gitlab_ci_jobs_codeowners",
