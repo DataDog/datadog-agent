@@ -247,23 +247,31 @@ func (f *flowAccumulator) addRDNSEnrichment(aggHash uint64, srcAddr []byte, dstA
 	}
 }
 
-func (f *flowAccumulator) getFlowContextCount() int {
-	f.flowsMutex.Lock()
-	defer f.flowsMutex.Unlock()
-	return len(f.flows)
-}
-
-// getFlowContextCounts returns the total number of flow contexts and the number of nil flow contexts
-func (f *flowAccumulator) getFlowContextCounts() (total int, nilCount int) {
+// getFlowContextCounts returns the total number of flow contexts, number of nil flow contexts,
+// and counts of flows with different port rollup states
+func (f *flowAccumulator) getFlowContextCounts() (total int, nilCount int, noRollupCount int, srcRollupCount int, dstRollupCount int) {
 	f.flowsMutex.Lock()
 	defer f.flowsMutex.Unlock()
 	total = len(f.flows)
 	for _, flowCtx := range f.flows {
 		if flowCtx.flow == nil {
 			nilCount++
+			continue
+		}
+		// Count flows based on port rollup state
+		if flowCtx.flow.SrcPort == portrollup.EphemeralPort && flowCtx.flow.DstPort == portrollup.EphemeralPort {
+			// Both ports are rolled up
+			f.logger.Errorf("Unexpected state: both source and destination ports are rolled up for flow (src=%v, dst=%v)", flowCtx.flow.SrcAddr, flowCtx.flow.DstAddr)
+			continue
+		} else if flowCtx.flow.SrcPort == portrollup.EphemeralPort {
+			srcRollupCount++
+		} else if flowCtx.flow.DstPort == portrollup.EphemeralPort {
+			dstRollupCount++
+		} else {
+			noRollupCount++
 		}
 	}
-	return total, nilCount
+	return total, nilCount, noRollupCount, srcRollupCount, dstRollupCount
 }
 
 func (f *flowAccumulator) detectHashCollision(hash uint64, existingFlow common.Flow, flowToAdd common.Flow) {

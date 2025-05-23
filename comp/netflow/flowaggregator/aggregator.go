@@ -254,7 +254,7 @@ func (agg *FlowAggregator) flushLoop() {
 
 // Flush flushes the aggregator
 func (agg *FlowAggregator) flush() int {
-	flowsContexts, nilFlowContexts := agg.flowAcc.getFlowContextCounts()
+	flowsContexts, nilFlowContexts, noRollupCount, srcRollupCount, dstRollupCount := agg.flowAcc.getFlowContextCounts()
 	flushTime := agg.TimeNowFunction()
 	flowsToFlush := agg.flowAcc.flush()
 	agg.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
@@ -281,7 +281,10 @@ func (agg *FlowAggregator) flush() int {
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_received", float64(agg.receivedFlowCount.Load()), "", nil)
 	agg.sender.Count("datadog.netflow.aggregator.flows_flushed", float64(flushCount), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.flows_contexts", float64(flowsContexts), "", nil)
-	agg.sender.Gauge("datadog.netflow.aggregator.nil_flow_contexts", float64(nilFlowContexts), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.flows_contexts_nil", float64(nilFlowContexts), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.flows_contexts_no_port_rollup", float64(noRollupCount), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.flows_contexts_src_port_rollup", float64(srcRollupCount), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.flows_contexts_dst_port_rollup", float64(dstRollupCount), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.current_store_size", float64(agg.flowAcc.portRollup.GetCurrentStoreSize()), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.new_store_size", float64(agg.flowAcc.portRollup.GetNewStoreSize()), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.capacity", float64(cap(agg.flowIn)), "", nil)
