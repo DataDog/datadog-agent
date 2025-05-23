@@ -1,20 +1,13 @@
+"""Linting-related tasks for shell scripts (mostly shellcheck)"""
+
 from __future__ import annotations
 
-import os
-import re
-from glob import glob
 from tempfile import TemporaryDirectory
 
-import yaml
-from invoke import Exit, task
+from invoke.exceptions import Exit
 
-from tasks.libs.ciproviders.gitlab_api import (
-    is_leaf_job,
-)
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import gitlab_section
-
-from .gitlab import get_gitlab_ci_lintable_jobs
 
 # - SC2086 corresponds to using variables in this way $VAR instead of "$VAR" (used in every jobs).
 # - SC2016 corresponds to avoid using '$VAR' inside single quotes since it doesn't expand.
@@ -106,104 +99,3 @@ def shellcheck_linter(
                     f"{color_message('Error', Color.RED)}: {len(results)} shellcheck errors / warnings found, please fix them",
                     code=1,
                 )
-
-
-@task
-def gitlab_ci_shellcheck(
-    ctx,
-    diff_file=None,
-    config_file=None,
-    exclude=DEFAULT_SHELLCHECK_EXCLUDES,
-    shellcheck_args="",
-    fail_fast=False,
-    verbose=False,
-    use_bat=None,
-    only_errors=False,
-):
-    """Verifies that shell scripts with gitlab config are valid.
-
-    Args:
-        diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config.
-        config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config.
-    """
-
-    # Used by the CI to skip linting if no changes
-    if diff_file and not os.path.exists(diff_file):
-        print('No diff file found, skipping lint')
-        return
-
-    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
-
-    # No change, info already printed in get_gitlab_ci_lintable_jobs
-    if not full_config:
-        return
-
-    scripts = {}
-    for job, content in jobs:
-        # Skip jobs that are not executed
-        if not is_leaf_job(job, content):
-            continue
-
-        # Shellcheck is only for bash like scripts
-        is_powershell = any(
-            'powershell' in flatten_script(content.get(keyword, ''))
-            for keyword in ('before_script', 'script', 'after_script')
-        )
-        if is_powershell:
-            continue
-
-        if verbose:
-            print('Verifying job:', job)
-
-        # Lint scripts
-        for keyword in ('before_script', 'script', 'after_script'):
-            if keyword in content:
-                scripts[f'{job}.{keyword}'] = f'#!/bin/bash\n{flatten_script(content[keyword]).strip()}\n'
-
-    shellcheck_linter(ctx, scripts, exclude, shellcheck_args, fail_fast, use_bat, only_errors)
-
-
-@task
-def github_actions_shellcheck(
-    ctx,
-    exclude=DEFAULT_SHELLCHECK_EXCLUDES,
-    shellcheck_args="",
-    fail_fast=False,
-    use_bat=None,
-    only_errors=False,
-    all_files=False,
-):
-    """Lint github action workflows with shellcheck."""
-
-    if all_files:
-        files = glob('.github/workflows/*.yml')
-    else:
-        files = ctx.run(
-            "git diff --name-only \"$(git merge-base main HEAD)\" | grep -E '.github/workflows/.*\\.yml'", warn=True
-        ).stdout.splitlines()
-
-    if not files:
-        print('No github action workflow files to lint, skipping')
-        return
-
-    scripts = {}
-    for file in files:
-        with open(file) as f:
-            workflow = yaml.safe_load(f)
-
-        for job_name, job in workflow.get('jobs').items():
-            for i, step in enumerate(job['steps']):
-                step_name = step.get('name', f'step-{i + 1:02d}').replace(' ', '_')
-                if 'run' in step:
-                    script = step['run']
-                    if isinstance(script, list):
-                        script = '\n'.join(script)
-
-                    # "Escape" ${{...}} which is github actions only syntax
-                    script = re.sub(r'\${{(.*)}}', r'\\$\\{\\{\1\\}\\}', script, flags=re.MULTILINE)
-
-                    # We suppose all jobs are bash like scripts and not powershell or other exotic shells
-                    script = '#!/bin/bash\n' + script.strip() + '\n'
-                    scripts[f'{file.removeprefix(".github/workflows/")}-{job_name}-{step_name}'] = script
-
-    shellcheck_linter(ctx, scripts, exclude, shellcheck_args, fail_fast, use_bat, only_errors)

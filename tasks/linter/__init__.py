@@ -1,17 +1,36 @@
 """Module regrouping all invoke tasks used for linting the `datadog-agent` repo"""
 
-from .github import releasenote  # noqa: F401
+from .github import github_actions_shellcheck, releasenote
 from .gitlab import (
-    gitlab_change_paths,  # noqa: F401
-    gitlab_ci,  # noqa: F401
-    gitlab_ci_jobs_codeowners,  # noqa: F401
-    gitlab_ci_jobs_needs_rules,  # noqa: F401
-    gitlab_ci_jobs_owners,  # noqa: F401
-    job_change_path,  # noqa: F401
-    list_parameters,  # noqa: F401
-    ssm_parameters,  # noqa: F401
+    gitlab_change_paths,
+    gitlab_ci,
+    gitlab_ci_jobs_codeowners,
+    gitlab_ci_jobs_needs_rules,
+    gitlab_ci_jobs_owners,
+    gitlab_ci_shellcheck,
+    job_change_path,
+    list_parameters,
+    ssm_parameters,
 )
-from .go import go, update_go  # noqa: F401
-from .misc import copyrights, filenames  # noqa: F401
-from .old import *  # noqa: F403
-from .python import python  # noqa: F401
+from .go import go, update_go
+from .misc import copyrights, filenames
+from .python import python
+
+__all__ = [
+    "github_actions_shellcheck",
+    "releasenote",
+    "gitlab_change_paths",
+    "gitlab_ci",
+    "gitlab_ci_jobs_codeowners",
+    "gitlab_ci_jobs_needs_rules",
+    "gitlab_ci_jobs_owners",
+    "gitlab_ci_shellcheck",
+    "job_change_path",
+    "list_parameters",
+    "ssm_parameters",
+    "go",
+    "update_go",
+    "copyrights",
+    "filenames",
+    "python",
+]
