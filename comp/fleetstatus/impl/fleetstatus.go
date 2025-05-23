@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcstatus"
 	installerexec "github.com/DataDog/datadog-agent/comp/updater/installerexec/def"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -23,7 +22,6 @@ type Requires struct {
 	Config config.Component
 
 	InstallerExec option.Option[installerexec.Component]
-	RemoteConfig  rcstatus.Component
 }
 
 // Provides defines the output of the fleetstatus component
