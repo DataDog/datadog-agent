@@ -709,7 +709,7 @@ func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) 
 	return approvers, acceptModeRules, noDiscarderRules, nil
 }
 
-// GetevtApprovers returns approvers for the given event type and the fields
+// GetEventTypeApprovers returns approvers for the given event type and the fields
 func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, *Rule, []*Rule, error) {
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {

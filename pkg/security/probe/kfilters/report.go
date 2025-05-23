@@ -141,8 +141,14 @@ func ComputeFilters(config *config.Config, rs *rules.RuleSet) (*FilterReport, er
 		return approverReports, discarderReport, nil
 	}
 
+	var (
+		approverReports map[eval.EventType]*ApproverReport
+		discarderReport *rules.DiscardersReport
+		err             error
+	)
+
 	// first attempt to compute the approvers and discarders
-	approverReports, discarderReport, err := computeFilters(rs, allCapabilities)
+	approverReports, discarderReport, err = computeFilters(rs, allCapabilities)
 	if err != nil {
 		return nil, err
 	}

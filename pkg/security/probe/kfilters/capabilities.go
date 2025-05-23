@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
+// Capababilities is a map of event types to field capabilities
 type Capababilities map[eval.EventType]rules.FieldCapabilities
 
 // allCapabilities hold all the supported filtering capabilities
