@@ -277,10 +277,10 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 			ContentType:     "json",
 			// include collector tags as buffered Manifests share types, and only ExtraTags should be included in CollectorManifests
 			Tags:         util.ImmutableTagsJoin(ctx.GetCollectorTags(), p.h.GetMetadataTags(ctx, resourceMetadataModel)),
-			IsTerminated:    ctx.IsTerminatedResources(),
-			Kind:            ctx.GetKind(),
-			ApiVersion:      ctx.GetAPIVersion(),
-			NodeName:        p.h.GetNodeName(ctx, resource),
+			IsTerminated: ctx.IsTerminatedResources(),
+			Kind:         ctx.GetKind(),
+			ApiVersion:   ctx.GetAPIVersion(),
+			NodeName:     p.h.GetNodeName(ctx, resource),
 		})
 	}
 
