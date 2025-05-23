@@ -123,7 +123,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.guaranteedRunInterval = GetInterval(c.config, ConnectionsCheckName)
 	log.Infof(
 		"Connections check running: Capacity check interval=%v, Guaranteed full run interval=%v",
-		c.config.GetDuration("process_config.connections_capacity_check_interval"), // Log the capacity check interval for clarity
+		c.config.GetDuration("process_config.connections_capacity_check_interval"),
 		c.guaranteedRunInterval,
 	)
 

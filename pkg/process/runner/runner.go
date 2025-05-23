@@ -321,8 +321,11 @@ func (l *CheckRunner) listenForRTUpdates() {
 
 func (l *CheckRunner) runnerForCheck(c checks.Check) (func(), error) {
 	if !l.runRealTime || !c.SupportsRunOptions() {
+		log.Debug("Creating basic check runner for %s", c.Name())
 		return l.basicRunner(c), nil
 	}
+
+	log.Debug("Creating check runner for %s", c.Name())
 
 	rtName := checks.RTName(c.Name())
 	interval := checks.GetInterval(l.config, c.Name())
@@ -373,6 +376,7 @@ func (l *CheckRunner) basicRunner(c checks.Check) func() {
 			// For connections check, the ticker interval is controlled by the specific capacity check interval config
 			capacityInterval := l.config.GetDuration("process_config.connections_capacity_check_interval")
 			if capacityInterval > 0 {
+				log.Infof("Setting connections check interval to %s", capacityInterval)
 				tickerInterval = capacityInterval
 			} else {
 				log.Warnf(
