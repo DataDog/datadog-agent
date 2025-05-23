@@ -9,10 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
-	"strings"
-	"sync"
-
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
@@ -22,6 +18,8 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"slices"
+	"strings"
 )
 
 const (
@@ -117,8 +115,6 @@ var (
 	highCardOrchestratorLabels = map[string]string{
 		"io.rancher.container.name": tags.RancherContainer,
 	}
-
-	tagClusterOnce sync.Once
 )
 
 func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle) {
@@ -506,7 +502,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 			EntityID:             common.BuildTaggerEntityID(container.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
-			LowCardTags:          low,
+			LowCardTags:          append(low, clusterLow...),
 			StandardTags:         standard,
 		})
 	}
@@ -523,19 +519,15 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 		})
 	}
 
+	// add global cluster tags to EC2
 	if task.LaunchType == workloadmeta.ECSLaunchTypeEC2 {
-		// because there can be multiple tasks on the same EC2 instance
-		// we only add the global cluster name once, not once fo eachs
-		// task discovered
-		tagClusterOnce.Do(func() {
-			tagInfos = append(tagInfos, &types.TagInfo{
-				Source:               taskSource,
-				EntityID:             types.GetGlobalEntityID(),
-				HighCardTags:         clusterHigh,
-				OrchestratorCardTags: clusterOrch,
-				LowCardTags:          clusterLow,
-				StandardTags:         clusterStandard,
-			})
+		tagInfos = append(tagInfos, &types.TagInfo{
+			Source:               taskSource,
+			EntityID:             types.GetGlobalEntityID(),
+			HighCardTags:         clusterHigh,
+			OrchestratorCardTags: clusterOrch,
+			LowCardTags:          clusterLow,
+			StandardTags:         clusterStandard,
 		})
 	}
 
