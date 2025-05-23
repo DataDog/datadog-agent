@@ -193,6 +193,11 @@ func (cg *CGroupContext) Hash() string {
 	return string(cg.CGroupID)
 }
 
+// ParentScope returns the parent entity scope
+func (cg *CGroupContext) ParentScope() (eval.VariableScope, bool) {
+	return nil, false
+}
+
 // SyscallEvent contains common fields for all the event
 type SyscallEvent struct {
 	Retval int64 `field:"retval"` // SECLDoc[retval] Definition:`Return value of the syscall` Constants:`Error constants`
@@ -387,6 +392,11 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 // Hash returns a unique key for the entity
 func (pc *ProcessCacheEntry) Hash() string {
 	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm)
+}
+
+// ParentScope returns the parent entity scope
+func (pc *ProcessCacheEntry) ParentScope() (eval.VariableScope, bool) {
+	return pc.Ancestor, pc.Ancestor != nil
 }
 
 // ExecEvent represents a exec event
