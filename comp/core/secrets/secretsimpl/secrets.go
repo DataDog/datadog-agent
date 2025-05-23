@@ -701,9 +701,9 @@ func (r *secretResolver) GetDebugInfo(w io.Writer) {
 
 	fmt.Fprintf(w, "\n")
 	if r.refreshInterval > 0 {
-		fmt.Fprintf(w, "'secret_refresh interval' is enabled: the first refresh will happen %s after startup and then every %s\n", r.scatterDuration, r.refreshInterval)
+		fmt.Fprintf(w, "'secret_refresh_interval' is enabled: the first refresh will happen %s after startup and then every %s\n", r.scatterDuration, r.refreshInterval)
 	} else {
-		fmt.Fprintf(w, "'secret_refresh interval' is disabled\n")
+		fmt.Fprintf(w, "'secret_refresh_interval' is disabled\n")
 	}
 
 }
