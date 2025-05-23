@@ -21,7 +21,6 @@ type packageName string
 
 const (
 	datadogAgent     packageName = "datadog-agent"
-	datadogInstaller packageName = "datadog-installer"
 	datadogApmInject packageName = "datadog-apm-inject"
 )
 
