@@ -222,6 +222,7 @@ type nvmlMockOptions struct {
 	extensionsFunc func() nvml.ExtendedInterface
 }
 
+// NvmlMockOption is a functional option for configuring the nvml mock.
 type NvmlMockOption func(*nvmlMockOptions)
 
 // WithMIGDisabled disables MIG support for the nvml mock.
