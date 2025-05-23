@@ -200,10 +200,6 @@ func (c *collector) stream(ctx context.Context) {
 
 // processToWorkloadMetaProcess maps a procutil process to a workloadmeta process
 func processToWorkloadMetaProcess(process *procutil.Process) *workloadmeta.Process {
-	if process == nil {
-		return nil
-	}
-
 	return &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
