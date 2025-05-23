@@ -23,7 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -1549,4 +1551,17 @@ some_other_key: "********"
 app_key: '***********************************acccc'
 yet_another_key: "********"`
 	assert.YAMLEq(t, expected, scrubbed)
+}
+
+func TestLoadProxyFromEnv(t *testing.T) {
+	cfg := nodetreemodel.NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg.SetKnown("proxy.http")
+	cfg.SetKnown("proxy.https")
+	cfg.SetKnown("proxy.no_proxy")
+	t.Setenv("DD_PROXY_HTTP", "http://www.example.com/")
+	cfg.BuildSchema()
+
+	LoadProxyFromEnv(cfg)
+	assert.Equal(t, "http://www.example.com/", cfg.Get("proxy.http"))
+	assert.Equal(t, model.SourceAgentRuntime, cfg.GetSource("proxy.http"))
 }
