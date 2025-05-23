@@ -2,20 +2,17 @@ from __future__ import annotations
 
 import os
 import re
-import sys
 from glob import glob
 from tempfile import TemporaryDirectory
 
 import yaml
 from invoke import Exit, task
 
-from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
     is_leaf_job,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import GITHUB_REPO_NAME
-from tasks.libs.common.utils import gitlab_section, is_pr_context
+from tasks.libs.common.utils import gitlab_section
 
 from .gitlab import get_gitlab_ci_lintable_jobs
 
@@ -23,30 +20,6 @@ from .gitlab import get_gitlab_ci_lintable_jobs
 # - SC2016 corresponds to avoid using '$VAR' inside single quotes since it doesn't expand.
 # - SC2046 corresponds to avoid using $(...) to prevent word splitting.
 DEFAULT_SHELLCHECK_EXCLUDES = 'SC2059,SC2028,SC2086,SC2016,SC2046'
-
-
-@task
-def releasenote(ctx):
-    """Lints release notes with Reno."""
-
-    branch = os.environ.get("BRANCH_NAME")
-    pr_id = os.environ.get("PR_ID")
-
-    run_check = is_pr_context(branch, pr_id, "release note")
-    if run_check:
-        github = GithubAPI(repository=GITHUB_REPO_NAME, public_repo=True)
-        if github.is_release_note_needed(pr_id):
-            if not github.contains_release_note(pr_id):
-                print(
-                    f"{color_message('Error', 'red')}: No releasenote was found for this PR. Please add one using 'reno'"
-                    ", see https://datadoghq.dev/datadog-agent/guidelines/contributing/#reno"
-                    ", or apply the label 'changelog/no-changelog' to the PR.",
-                    file=sys.stderr,
-                )
-                raise Exit(code=1)
-            ctx.run("reno lint")
-        else:
-            print("'changelog/no-changelog' label found on the PR: skipping linting")
 
 
 def flatten_script(script: str | list[str]) -> str:

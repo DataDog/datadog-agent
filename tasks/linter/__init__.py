@@ -1,5 +1,6 @@
 """Module regrouping all invoke tasks used for linting the `datadog-agent` repo"""
 
+from .github import releasenote  # noqa: F401
 from .gitlab import (
     gitlab_change_paths,  # noqa: F401
     gitlab_ci,  # noqa: F401
