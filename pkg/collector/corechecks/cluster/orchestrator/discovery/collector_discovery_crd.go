@@ -47,7 +47,6 @@ func NewDiscoveryCollectorForInventory() *DiscoveryCollector {
 	}
 	return dc
 }
-
 func (d *DiscoveryCollector) fillCache() error {
 	if !d.cache.filled {
 		var err error
@@ -144,6 +143,7 @@ func (d *DiscoveryCollector) isSupportClusterCollector(collector collectors.K8sC
 		return nil, fmt.Errorf("failed to discover resource %s", collector.Metadata().Name)
 	}
 	return collector, nil
+
 }
 
 func (d *DiscoveryCollector) isSupportTerminatedPodCollector(collector collectors.K8sCollector, collectorInventory *inventory.CollectorInventory) (collectors.K8sCollector, error) {
@@ -156,4 +156,5 @@ func (d *DiscoveryCollector) isSupportTerminatedPodCollector(collector collector
 		return nil, fmt.Errorf("failed to discover resource %s", collector.Metadata().Name)
 	}
 	return collector, nil
+
 }

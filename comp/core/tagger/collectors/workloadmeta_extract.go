@@ -604,7 +604,6 @@ func (c *WorkloadMetaCollector) handleGardenContainer(container *workloadmeta.Co
 
 func (c *WorkloadMetaCollector) handleKubeDeployment(ev workloadmeta.Event) []*types.TagInfo {
 	deployment := ev.Entity.(*workloadmeta.KubernetesDeployment)
-	log.Debugf("deployment %s", deployment.Name)
 
 	groupResource := "deployments.apps"
 
@@ -633,8 +632,6 @@ func (c *WorkloadMetaCollector) handleKubeDeployment(ev workloadmeta.Event) []*t
 	if len(low)+len(orch)+len(high)+len(standard) == 0 {
 		return nil
 	}
-
-	log.Debugf("entityID: %s", common.BuildTaggerEntityID(deployment.EntityID))
 
 	tagInfos := []*types.TagInfo{
 		{

@@ -51,7 +51,7 @@ func NewProvider(filter *containers.Filter,
 		regexp.MustCompile("diskio[.]io_service_bytes[.]stats[.]total"),
 		regexp.MustCompile("network[.].._bytes"),
 		regexp.MustCompile("cpu[.].*[.]total"),
-	} // default enabled_rates
+	} //default enabled_rates
 
 	return &Provider{
 		filter:                filter,
@@ -98,6 +98,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	for i := range statsSummary.Pods {
 		podStats := &statsSummary.Pods[i]
 		if len(podStats.Containers) == 0 {
+
 			continue
 		}
 		if len(podStats.PodRef.Namespace) == 0 || len(podStats.PodRef.Name) == 0 || len(podStats.PodRef.UID) == 0 {
@@ -110,7 +111,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			continue
 		}
 
-		podData, err := p.store.GetKubernetesPod(podStats.PodRef.UID) // from workloadmeta store
+		podData, err := p.store.GetKubernetesPod(podStats.PodRef.UID) //from workloadmeta store
 		if err != nil || podData == nil {
 			log.Infof("Couldn't get pod data from workloadmeta store, error = %v ", err)
 			continue
@@ -124,9 +125,8 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 }
 
 func (p *Provider) processSystemStats(sender sender.Sender,
-	statsSummary *kubeletv1alpha1.Summary,
-) {
-	// System metrics
+	statsSummary *kubeletv1alpha1.Summary) {
+	//System metrics
 	reportFsMetric(sender, statsSummary.Node.Fs, "node.", p.config.Tags)
 	if statsSummary.Node.Runtime != nil {
 		reportFsMetric(sender, statsSummary.Node.Runtime.ImageFs, "node.image.", p.config.Tags)
@@ -151,8 +151,7 @@ func (p *Provider) processSystemStats(sender sender.Sender,
 func (p *Provider) processPodStats(sender sender.Sender,
 	podStats *kubeletv1alpha1.PodStats,
 	useStatsAsSource bool,
-	rateFilterList []*regexp.Regexp,
-) {
+	rateFilterList []*regexp.Regexp) {
 	if podStats == nil {
 		return
 	}
@@ -197,8 +196,7 @@ func (p *Provider) processPodStats(sender sender.Sender,
 func (p *Provider) processContainerStats(sender sender.Sender,
 	podStats *kubeletv1alpha1.PodStats,
 	podData *workloadmeta.KubernetesPod,
-	useStatsAsSource bool,
-) {
+	useStatsAsSource bool) {
 	if podStats == nil ||
 		len(podStats.Containers) == 0 ||
 		podData == nil ||
@@ -237,7 +235,7 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 			continue
 		}
 		tags = utils.ConcatenateTags(tags, p.config.Tags)
-		// collecting metric
+		//collecting metric
 		if containerStats.CPU != nil {
 			reportMetric(sender.Rate, "cpu.usage.total", containerStats.CPU.UsageCoreNanoSeconds, tags)
 		}
@@ -250,8 +248,7 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 }
 
 func reportMetric[T float64 | uint64](senderFunc func(string, float64, string, []string),
-	metricName string, value *T, tags []string,
-) {
+	metricName string, value *T, tags []string) {
 	if value == nil {
 		return
 	}
@@ -263,8 +260,7 @@ func reportMetric[T float64 | uint64](senderFunc func(string, float64, string, [
 func reportFsMetric(sender sender.Sender,
 	fsStats *kubeletv1alpha1.FsStats,
 	metricPrefix string,
-	tags []string,
-) {
+	tags []string) {
 	if fsStats == nil {
 		return
 	}
