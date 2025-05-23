@@ -122,7 +122,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	// Guaranteed run interval is driven by the standard connections check interval
 	c.guaranteedRunInterval = GetInterval(c.config, ConnectionsCheckName)
 	log.Infof(
-		"Connections check running: Capacity check interval=%v, Guaranteed full run interval=%v",
+		"connections check running: Capacity check interval=%v, Guaranteed full run interval=%v",
 		c.config.GetDuration("process_config.connections_capacity_check_interval"),
 		c.guaranteedRunInterval,
 	)
@@ -175,32 +175,30 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 		var capacityErr error
 		isNearCapacity, capacityErr = c.checkCapacity()
 		if capacityErr != nil {
-			log.Warnf("Failed to check system-probe connection capacity: %v. Proceeding based on time interval.", capacityErr)
+			log.Warnf("failed to check system-probe connection capacity: %v. Proceeding based on time interval.", capacityErr)
 			isNearCapacity = false
 		}
 	} else {
-		log.Trace("System probe client not available, skipping capacity check.")
+		log.Debug("system probe client not available, skipping capacity check.")
 	}
 
 	// Decide whether to run the full check
 	shouldRunFullCheck := isTimeForGuaranteedRun || isNearCapacity
 
 	if !shouldRunFullCheck {
-		log.Tracef("Skipping connections check run (Capacity OK, not time for guaranteed run). Last full run: %v ago", start.Sub(c.lastFullRunTime))
+		log.Debugf("skipping connections check run (Capacity OK, not time for guaranteed run). Last full run: %v ago", start.Sub(c.lastFullRunTime))
 		return StandardRunResult(nil), nil
 	}
 
 	status.UpdateLastCollectTime(start)
-	log.Debugf("Running connections check. Reason: TimeForGuaranteedRun=%v, NearCapacity=%v", isTimeForGuaranteedRun, isNearCapacity)
+	log.Debugf("running connections check. Reason: TimeForGuaranteedRun=%v, NearCapacity=%v", isTimeForGuaranteedRun, isNearCapacity)
 	// Update last run time *before* the potentially long-running operations
 	c.lastFullRunTime = start
 
 	conns, err := c.getConnections()
 	if err != nil {
-		// Don't return the error here, as we don't want to kill the check
-		// Let the runner handle logging the error
-		log.Errorf("Failed to get connections: %v", err)
-		return nil, err // Return error to runner for logging
+		log.Errorf("failed to get connections: %v", err)
+		return nil, err
 	}
 
 	// Filter out (in-place) connection data associated with docker-proxy
