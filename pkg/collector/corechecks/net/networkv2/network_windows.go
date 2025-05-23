@@ -10,7 +10,9 @@ package networkv2
 
 import (
 	"fmt"
+	"reflect"
 	"regexp"
+	"strings"
 	"syscall"
 	"unsafe"
 
@@ -140,21 +142,21 @@ const (
 // TCPSTATS DWORD mappings
 // https://learn.microsoft.com/en-us/windows/win32/api/tcpmib/ns-tcpmib-mib_tcpstats_lh
 type mibTcpStats struct {
-	DwRtoAlgorithm uint32
-	DwRtoMin       uint32
-	DwRtoMax       uint32
-	DwMaxConn      uint32
-	DwActiveOpens  uint32
-	DwPassiveOpens uint32
-	DwAttemptFails uint32
-	DwEstabResets  uint32
-	DwCurrEstab    uint32
-	DwInSegs       uint32
-	DwOutSegs      uint32
-	DwRetransSegs  uint32
-	DwInErrs       uint32
-	DwOutRsts      uint32
-	DwNumConns     uint32
+	dwRtoAlgorithm uint32
+	dwRtoMin       uint32
+	dwRtoMax       uint32
+	dwMaxConn      uint32
+	dwActiveOpens  uint32
+	dwPassiveOpens uint32
+	dwAttemptFails uint32
+	dwEstabResets  uint32
+	dwCurrEstab    uint32
+	dwInSegs       uint32
+	dwOutSegs      uint32
+	dwRetransSegs  uint32
+	dwInErrs       uint32
+	dwOutRsts      uint32
+	dwNumConns     uint32
 }
 
 var (
@@ -173,7 +175,7 @@ func getTcpStats(inet uint) (mibTcpStats, error) {
 }
 
 // Collect metrics from Microsoft's TCPSTATS
-func submitTcpStats(sender sender.Sender) {
+func submitTcpStats(sender sender.Sender) error {
 	tcpStatsMapping := map[string]string{
 		"dwActiveOpens":  ".active_opens",
 		"dwPassiveOpens": ".passive_opens",
@@ -193,6 +195,7 @@ func submitTcpStats(sender sender.Sender) {
 	if err != nil {
 		return err
 	}
+
 	tcp6Stats, err := getTcpStats(AF_INET6)
 	if err != nil {
 		return err
@@ -201,38 +204,43 @@ func submitTcpStats(sender sender.Sender) {
 	// Create tcp metrics that are a sum of tcp4 and tcp6 metrics
 	tcpAllStats := &mibTcpStats{}
 	if tcp4Stats != nil && tcp6Stats != nil {
-		tcpAllStats = mibTcpStats{
-			DwRtoAlgorithm: tcp4Stats.DwRtoAlgorithm + tcp6Stats.DwRtoAlgorithm,
-			DwRtoMin:       tcp4Stats.DwRtoMin + tcp6Stats.DwRtoMin,
-			DwRtoMax:       tcp4Stats.DwRtoMax + tcp6Stats.DwRtoMax,
-			DwMaxConn:      tcp4Stats.DwMaxConn + tcp6Stats.DwMaxConn,
-			DwActiveOpens:  tcp4Stats.DwActiveOpens + tcp6Stats.DwActiveOpens,
-			DwPassiveOpens: tcp4Stats.DwPassiveOpens + tcp6Stats.DwPassiveOpens,
-			DwAttemptFails: tcp4Stats.DwAttemptFails + tcp6Stats.DwAttemptFails,
-			DwEstabResets:  tcp4Stats.DwEstabResets + tcp6Stats.DwEstabResets,
-			DwCurrEstab:    tcp4Stats.DwCurrEstab + tcp6Stats.DwCurrEstab,
-			DwInSegs:       tcp4Stats.DwInSegs + tcp6Stats.DwInSegs,
-			DwOutSegs:      tcp4Stats.DwOutSegs + tcp6Stats.DwOutSegs,
-			DwRetransSegs:  tcp4Stats.DwRetransSegs + tcp6Stats.DwRetransSegs,
-			DwInErrs:       tcp4Stats.DwInErrs + tcp6Stats.DwInErrs,
-			DwOutRsts:      tcp4Stats.DwOutRsts + tcp6Stats.DwOutRsts,
-			DwNumConns:     tcp4Stats.DwNumConns + tcp6Stats.DwNumConns,
+		tcpAllStats = &mibTcpStats{
+			dwRtoAlgorithm: tcp4Stats.dwRtoAlgorithm + tcp6Stats.dwRtoAlgorithm,
+			dwRtoMin:       tcp4Stats.dwRtoMin + tcp6Stats.dwRtoMin,
+			dwRtoMax:       tcp4Stats.dwRtoMax + tcp6Stats.dwRtoMax,
+			dwMaxConn:      tcp4Stats.dwMaxConn + tcp6Stats.dwMaxConn,
+			dwActiveOpens:  tcp4Stats.dwActiveOpens + tcp6Stats.dwActiveOpens,
+			dwPassiveOpens: tcp4Stats.dwPassiveOpens + tcp6Stats.dwPassiveOpens,
+			dwAttemptFails: tcp4Stats.dwAttemptFails + tcp6Stats.dwAttemptFails,
+			dwEstabResets:  tcp4Stats.dwEstabResets + tcp6Stats.dwEstabResets,
+			dwCurrEstab:    tcp4Stats.dwCurrEstab + tcp6Stats.dwCurrEstab,
+			dwInSegs:       tcp4Stats.dwInSegs + tcp6Stats.dwInSegs,
+			dwOutSegs:      tcp4Stats.dwOutSegs + tcp6Stats.dwOutSegs,
+			dwRetransSegs:  tcp4Stats.dwRetransSegs + tcp6Stats.dwRetransSegs,
+			dwInErrs:       tcp4Stats.dwInErrs + tcp6Stats.dwInErrs,
+			dwOutRsts:      tcp4Stats.dwOutRsts + tcp6Stats.dwOutRsts,
+			dwNumConns:     tcp4Stats.dwNumConns + tcp6Stats.dwNumConns,
 		}
 	}
 
-	// TODO: iterate through the structs and submit tcp metrics
-	// "system.net.tcp."
-	// "system.net.tcp4."
-	// "system.net.tcp6."
+	submitMetricsFromStruct(sender, "system.net.tcp.", tcpAllStats, tcpStatsMapping)
+	submitMetricsFromStruct(sender, "system.net.tcp4.", tcp4Stats, tcpStatsMapping)
+	submitMetricsFromStruct(sender, "system.net.tcp6.", tcp6Stats, tcpStatsMapping)
+}
 
-	//	for proto, stats in proto_dict.items():
-	//	    for fieldname in tcpstats_dict:
-	//	        fieldvalue = getattr(stats, fieldname)
-	//	        metric_name = "system.net." + str(proto) + tcpstats_dict[fieldname]
-	//	        if tcpstats_dict[fieldname] in nstat_metrics_gauge_names:
-	//	            self._submit_netmetric_gauge(metric_name, fieldvalue, tags)
-	//	        else:
-	//	            self.submit_netmetric(metric_name, fieldvalue, tags)
+func submitMetricsFromStruct(sender sender.Sender, metricPrefix string, tcpStats *mibTcpStats, tcpStatsMapping map[string]string) {
+	sType := reflect.TypeOf(reflect.ValueOf(tcpStats))
+	for i := 0; i < sType.NumFields(); i++ {
+		field := sType.Field(i)
+		metricName := metricPrefix + tcpMapping[field.Name()]
+		metricValue := field.Uint()
+		if strings.HasSuffix(metricName, ".connections") || strings.HasSuffix(".current_established") {
+			sender.Gauge(metricName, float64(metricValue), "", nil)
+		} else {
+			sender.Rate(metricName, float64(metricValue), "", nil)
+			sender.MonotonicCount(fmt.Sprintf("%s.count", metricName), float64(metricValue), "", nil)
+		}
+	}
 }
 
 func (c *NetworkCheck) isDeviceExcluded(deviceName string) bool {
@@ -293,7 +301,7 @@ func Factory(cfg config.Component) option.Option[func() check.Check] {
 	})
 }
 
-func newCheck(cfg config.Component) check.Check {
+func newCheck(_ config.Component) check.Check {
 	return &NetworkCheck{
 		net:       defaultNetworkStats{},
 		CheckBase: core.NewCheckBase(CheckName),
