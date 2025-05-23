@@ -45,7 +45,7 @@ func NewFactoryForAgent(factories *otelcol.Factories, configProviderSettings ote
 	return &ddExtensionFactory{
 		factories:              factories,
 		configProviderSettings: configProviderSettings,
-		byoc: byoc,
+		byoc:                   byoc,
 	}
 }
 
