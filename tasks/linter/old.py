@@ -34,10 +34,9 @@ from tasks.libs.ciproviders.gitlab_api import (
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
-from tasks.libs.common.git import get_file_modifications, get_staged_files
+from tasks.libs.common.git import get_file_modifications
 from tasks.libs.common.utils import gitlab_section, is_pr_context
 from tasks.libs.owners.parsing import read_owners
-from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.modules import GoModule
 from tasks.test_core import LintResult, process_input_args, process_result
 from tasks.update_go import _update_go_mods, _update_references
@@ -46,63 +45,6 @@ from tasks.update_go import _update_go_mods, _update_references
 # - SC2016 corresponds to avoid using '$VAR' inside single quotes since it doesn't expand.
 # - SC2046 corresponds to avoid using $(...) to prevent word splitting.
 DEFAULT_SHELLCHECK_EXCLUDES = 'SC2059,SC2028,SC2086,SC2016,SC2046'
-
-
-@task
-def copyrights(ctx, fix=False, dry_run=False, debug=False, only_staged_files=False):
-    """Checks that all Go files contain the appropriate copyright header.
-
-    If '--fix' is provided as an option, it will try to fix problems as it finds them.
-    If '--dry_run' is provided when fixing, no changes to the files will be applied.
-    """
-
-    files = None
-
-    if only_staged_files:
-        staged_files = get_staged_files(ctx)
-        files = [path for path in staged_files if path.endswith(".go")]
-
-    try:
-        CopyrightLinter(debug=debug).assert_compliance(fix=fix, dry_run=dry_run, files=files)
-    except LintFailure:
-        # the linter prints useful messages on its own, so no need to print the exception
-        sys.exit(1)
-
-
-@task
-def filenames(ctx):
-    """Scans files to ensure there are no filenames too long or containing illegal characters."""
-
-    files = ctx.run("git ls-files -z", hide=True).stdout.split("\0")
-    failure = False
-
-    if sys.platform == 'win32':
-        print("Running on windows, no need to check filenames for illegal characters")
-    else:
-        print("Checking filenames for illegal characters")
-        forbidden_chars = '<>:"\\|?*'
-        for filename in files:
-            if any(char in filename for char in forbidden_chars):
-                print(f"Error: Found illegal character in path {filename}")
-                failure = True
-
-    print("Checking filename length")
-    # Approximated length of the prefix of the repo during the windows release build
-    prefix_length = 160
-    # Maximum length supported by the win32 API
-    max_length = 255
-    for filename in files:
-        if (
-            not filename.startswith(('tools/windows/DatadogAgentInstaller', 'test/workload-checks', 'test/regression'))
-            and prefix_length + len(filename) > max_length
-        ):
-            print(
-                f"Error: path {filename} is too long ({prefix_length + len(filename) - max_length} characters too many)"
-            )
-            failure = True
-
-    if failure:
-        raise Exit(code=1)
 
 
 @task(iterable=['flavors'])
