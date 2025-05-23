@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	installerexec "github.com/DataDog/datadog-agent/comp/updater/installerexec/def"
 	installerexecmock "github.com/DataDog/datadog-agent/comp/updater/installerexec/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,14 +64,16 @@ func TestFleetStatus(t *testing.T) {
 			cfg := config.NewMock(t)
 			cfg.SetWithoutSource("remote_updates", tt.remoteUpdatesConfig)
 
-			var installerExec installerexec.Component
+			var installerExecOption option.Option[installerexec.Component]
 			if tt.installerRunning {
-				installerExec = installerexecmock.Mock(t)
+				installerExecOption = option.New(installerexecmock.Mock(t))
+			} else {
+				installerExecOption = option.None[installerexec.Component]()
 			}
 
 			provides := NewComponent(Requires{
 				Config:        cfg,
-				InstallerExec: installerExec,
+				InstallerExec: installerExecOption,
 			})
 			statusProvider := provides.Status.Provider
 
