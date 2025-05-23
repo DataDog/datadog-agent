@@ -329,8 +329,10 @@ func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *tag
 	}
 }
 
-func (c *WorkloadMetaCollector) extractTagsFromPodInstrumentationTarget(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
-	target := pod.EvaluatedInstrumentationWorkloadTarget
+func (c *WorkloadMetaCollector) setTagsFromPodInstrumentationTarget(
+	target *workloadmeta.InstrumentationWorkloadTarget,
+	tagList *taglist.TagList,
+) {
 	if target == nil {
 		return
 	}
@@ -357,7 +359,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 	tagList.AddLow(tags.KubeRuntimeClass, pod.RuntimeClass)
 
 	c.extractTagsFromPodLabels(pod, tagList)
-	c.extractTagsFromPodInstrumentationTarget(pod, tagList)
+	c.setTagsFromPodInstrumentationTarget(pod.EvaluatedInstrumentationWorkloadTarget, tagList)
 
 	// pod labels as tags
 	for name, value := range pod.Labels {
@@ -470,16 +472,7 @@ Loop:
 	}
 
 	tagsList := taglist.NewTagList()
-	if target.Env != "" {
-		tagsList.AddStandard(tags.Env, target.Env)
-	}
-	if target.Service != "" {
-		tagsList.AddStandard(tags.Service, target.Service)
-	}
-	if target.Version != "" {
-		tagsList.AddStandard(tags.Version, target.Version)
-	}
-
+	c.setTagsFromPodInstrumentationTarget(target, tagsList)
 	_, _, _, standard := tagsList.Compute()
 	if len(standard) == 0 {
 		return nil
