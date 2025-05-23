@@ -8,7 +8,6 @@
 package diconfig
 
 import (
-	"fmt"
 	"math/rand"
 	"reflect"
 	"strings"
@@ -104,7 +103,6 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 				// This is not directly assigned, expect the address for it on the stack
 				if elementParam.Kind == uint(reflect.Pointer) {
 					targetExpressions = append(targetExpressions,
-						ditypes.PrintStatement("%s", "Dereferencing pointer"),
 						ditypes.ApplyOffsetLocationExpression(uint16(elementParam.FieldOffset)),
 						ditypes.DereferenceLocationExpression(uint16(elementParam.TotalSize)),
 					)
@@ -177,9 +175,6 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						continue
 					}
 
-					sliceLength.LocationExpressions = append(sliceLength.LocationExpressions,
-						ditypes.PrintStatement("%s", "Reading the length of slice"),
-					)
 					sliceLength.LocationExpressions = append(sliceLength.LocationExpressions, targetExpressions...)
 					if sliceLength.Location != nil {
 						sliceLength.LocationExpressions = append(sliceLength.LocationExpressions,
@@ -211,7 +206,6 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					if slicePointer.Location != nil && sliceLength.Location != nil {
 						// Fields of the slice are directly assigned
 						targetExpressions = append(targetExpressions,
-							ditypes.PrintStatement("%s", "Reading the length of slice and setting limit (directly read)"),
 							ditypes.DirectReadLocationExpression(sliceLength),
 							ditypes.SetLimitEntry(sliceIdentifier, uint16(ditypes.SliceMaxLength)),
 						)
@@ -219,7 +213,6 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 							GenerateLocationExpression(limitsInfo, sliceElementType)
 							expressionsToUseForEachSliceElement := collectAllLocationExpressions(sliceElementType, true)
 							targetExpressions = append(targetExpressions,
-								ditypes.PrintStatement("%s", "Reading slice element "+fmt.Sprintf("%d", i)),
 								ditypes.JumpToLabelIfEqualToLimit(uint16(i), sliceIdentifier, labelName),
 								ditypes.DirectReadLocationExpression(slicePointer),
 								ditypes.ApplyOffsetLocationExpression(uint16(sliceElementType.TotalSize)*uint16(i)),
@@ -230,10 +223,9 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						// Expect address of the slice struct on stack, use offsets accordingly
 						targetExpressions = append(targetExpressions,
 							ditypes.ApplyOffsetLocationExpression(uint16(elementParam.FieldOffset)), // Apply offset to the slice struct itself (incase we're in a struct on the stack or pointer)
-							ditypes.PrintStatement("%s", "Reading the length of slice and setting limit (indirect read)"),
-							ditypes.CopyLocationExpression(),         // Setup stack so it has two pointers to slice struct
-							ditypes.ApplyOffsetLocationExpression(8), // Change the top pointer to the address of the length field
-							ditypes.DereferenceLocationExpression(8), // Dereference to place length on top of the stack
+							ditypes.CopyLocationExpression(),                                        // Setup stack so it has two pointers to slice struct
+							ditypes.ApplyOffsetLocationExpression(8),                                // Change the top pointer to the address of the length field
+							ditypes.DereferenceLocationExpression(8),                                // Dereference to place length on top of the stack
 							ditypes.SetLimitEntry(sliceIdentifier, uint16(ditypes.SliceMaxLength)),
 						)
 						// Expect address of slice struct on top of the stack, check limit and copy/apply offset accordingly
@@ -241,7 +233,6 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 							GenerateLocationExpression(limitsInfo, sliceElementType)
 							expressionsToUseForEachSliceElement := collectAllLocationExpressions(sliceElementType, true)
 							targetExpressions = append(targetExpressions,
-								ditypes.PrintStatement("%s", "Reading slice element "+fmt.Sprintf("%d", i)),
 								ditypes.JumpToLabelIfEqualToLimit(uint16(i), sliceIdentifier, labelName),
 								ditypes.CopyLocationExpression(),
 								ditypes.DereferenceLocationExpression(8),
@@ -353,11 +344,6 @@ func isBasicType(kind uint) bool {
 	}
 }
 
-func randomLabel() string {
-	length := 6
-	randomString := make([]byte, length)
-	for i := 0; i < length; i++ {
-		randomString[i] = byte(65 + rand.Intn(25))
-	}
-	return string(randomString)
+func randomLabel() uint32 {
+	return uint32(rand.Intn(1000000)) // Generates a random 6-digit number (0-999999)
 }

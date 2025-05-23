@@ -113,6 +113,8 @@ type LocationExpressionOpcode uint
 const (
 	// OpInvalid represents an invalid operation
 	OpInvalid LocationExpressionOpcode = iota
+	// OpNoop represents a noop operation
+	OpNoop
 	// OpComment represents a comment operation
 	OpComment
 	// OpPrintStatement represents a print statement operation
@@ -167,6 +169,8 @@ func (op LocationExpressionOpcode) String() string {
 	switch op {
 	case OpInvalid:
 		return "Invalid"
+	case OpNoop:
+		return "Noop"
 	case OpComment:
 		return "Comment"
 	case OpPrintStatement:
@@ -369,7 +373,7 @@ func ReadStringToOutputLocationExpression(limit uint16) LocationExpression {
 // Arg1 = uint value (offset) we're adding to the 8-byte address on top of the stack
 func ApplyOffsetLocationExpression(offset uint16) LocationExpression {
 	if offset == 0 {
-		return LocationExpression{Opcode: OpComment, Label: "apply_offset(0) == no-op"}
+		return LocationExpression{Opcode: OpComment, Label: 0}
 	}
 	return LocationExpression{Opcode: OpApplyOffset, Arg1: offset}
 }
@@ -384,14 +388,14 @@ func PopLocationExpression(numElements, elementSize uint16) LocationExpression {
 
 // InsertLabel inserts a label in the bpf program
 // No args, just set label
-func InsertLabel(label string) LocationExpression {
+func InsertLabel(label uint32) LocationExpression {
 	return LocationExpression{Opcode: OpLabel, Label: label}
 }
 
 // SetLimitEntry associates a collection identifier with the passed limit
 // Arg1 = limit to set
 // CollectionIdentifier = the collection that we're limiting
-func SetLimitEntry(collectionIdentifier string, limit uint16) LocationExpression {
+func SetLimitEntry(collectionIdentifier uint32, limit uint16) LocationExpression {
 	return LocationExpression{Opcode: OpSetGlobalLimit, CollectionIdentifier: collectionIdentifier, Arg1: limit}
 }
 
@@ -400,22 +404,8 @@ func SetLimitEntry(collectionIdentifier string, limit uint16) LocationExpression
 // Arg1 = value to compare to global limit variable
 // CollectionIdentifier = the collection that we're limiting
 // Label = label to jump to if the value is equal to the global limit variable
-func JumpToLabelIfEqualToLimit(val uint16, collectionIdentifier, label string) LocationExpression {
+func JumpToLabelIfEqualToLimit(val uint16, collectionIdentifier, label uint32) LocationExpression {
 	return LocationExpression{Opcode: OpJumpIfGreaterThanLimit, CollectionIdentifier: collectionIdentifier, Arg1: val, Label: label}
-}
-
-// InsertComment inserts a comment into the bpf program
-// Label = comment
-func InsertComment(comment string) LocationExpression {
-	return LocationExpression{Opcode: OpComment, Label: comment}
-}
-
-// PrintStatement inserts a print statement into the bpf program
-// Label = format
-// CollectionIdentifier = arguments
-// Example usage: PrintStatement("%d", "variableName")
-func PrintStatement(format, arguments string) LocationExpression {
-	return LocationExpression{Opcode: OpPrintStatement, Label: format, CollectionIdentifier: arguments}
 }
 
 // SetParameterIndexLocationExpression creates an expression which
@@ -448,8 +438,8 @@ type LocationExpression struct {
 	Arg1                 uint16
 	Arg2                 uint16
 	Arg3                 uint16
-	CollectionIdentifier string
-	Label                string
+	CollectionIdentifier uint32
+	Label                uint32
 	IncludedExpressions  []LocationExpression
 }
 

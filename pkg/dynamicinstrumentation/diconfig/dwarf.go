@@ -15,6 +15,7 @@ import (
 	"io"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
@@ -283,7 +284,7 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dw
 		typeHeader.ParameterPieces = pointerElements
 		// pointers have a unique ID so we only capture the address once when generating
 		// location expressions
-		typeHeader.ID = randomLabel()
+		typeHeader.ID = strconv.Itoa(int(randomLabel()))
 	}
 
 	return &typeHeader, nil
