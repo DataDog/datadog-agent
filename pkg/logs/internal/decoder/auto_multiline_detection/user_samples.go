@@ -50,6 +50,15 @@ func NewUserSamples(config model.Reader, sourceSamples []*config.AutoMultilineSa
 	tokenizer := NewTokenizer(0)
 	s := make([]*UserSample, 0)
 	var err error
+
+	for _, sample := range sourceSamples {
+		s = append(s, &UserSample{
+			Sample: sample.Sample,
+			Label:  sample.Label,
+			Regex:  sample.Regex,
+		})
+	}
+
 	rawMainSamples := config.Get("logs_config.auto_multi_line_detection_custom_samples")
 	if rawMainSamples != nil {
 		if str, ok := rawMainSamples.(string); ok && str != "" {
@@ -62,14 +71,6 @@ func NewUserSamples(config model.Reader, sourceSamples []*config.AutoMultilineSa
 			log.Error("Failed to unmarshal main config custom samples: ", err)
 			s = make([]*UserSample, 0)
 		}
-	}
-
-	for _, sample := range sourceSamples {
-		s = append(s, &UserSample{
-			Sample: sample.Sample,
-			Label:  sample.Label,
-			Regex:  sample.Regex,
-		})
 	}
 
 	legacyAdditionalPatterns := config.GetStringSlice("logs_config.auto_multi_line_extra_patterns")
