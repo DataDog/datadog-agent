@@ -411,7 +411,7 @@ func (id *inodeDiscarders) discardParentInode(req *erpc.Request, rs *rules.RuleS
 type inodeEventGetter = func(event *model.Event) (eval.Field, *model.FileEvent, bool)
 
 func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter) discarderHandler {
-	return func(rs *rules.RuleSet, event *model.Event, probe *EBPFProbe, discarder Discarder) (bool, error) {
+	return func(rs *rules.RuleSet, event *model.Event, probe *EBPFProbe, _ Discarder) (bool, error) {
 		field, fileEvent, isDeleted := getter(event)
 
 		if fileEvent.PathResolutionError != nil {
@@ -568,7 +568,7 @@ func dumpDiscarders(resolver *dentry.Resolver, inodeMap, statsFB, statsBB *ebpf.
 	return dump, nil
 }
 
-func dnsResponseCodeDiscarderHandler(_ *rules.RuleSet, event *model.Event, probe *EBPFProbe, discarder Discarder) (bool, error) {
+func dnsResponseCodeDiscarderHandler(_ *rules.RuleSet, event *model.Event, probe *EBPFProbe, _ Discarder) (bool, error) {
 	dnsResponse := &event.DNS
 
 	if !dnsResponse.HasResponse() {
@@ -626,12 +626,12 @@ func init() {
 
 	allDiscarderHandlers["utimes.file.path"] = filenameDiscarderWrapper(model.FileUtimesEventType,
 		func(event *model.Event) (eval.Field, *model.FileEvent, bool) {
-			return "", &event.Utimes.File, false
+			return "utimes.file.path", &event.Utimes.File, false
 		})
 
 	allDiscarderHandlers["setxattr.file.path"] = filenameDiscarderWrapper(model.FileSetXAttrEventType,
 		func(event *model.Event) (eval.Field, *model.FileEvent, bool) {
-			return "", &event.SetXAttr.File, false
+			return "setxattr.file.path", &event.SetXAttr.File, false
 		})
 
 	allDiscarderHandlers["removexattr.file.path"] = filenameDiscarderWrapper(model.FileRemoveXAttrEventType,
@@ -641,17 +641,17 @@ func init() {
 
 	allDiscarderHandlers["mmap.file.path"] = filenameDiscarderWrapper(model.MMapEventType,
 		func(event *model.Event) (eval.Field, *model.FileEvent, bool) {
-			return "", &event.MMap.File, false
+			return "mmap.file.path", &event.MMap.File, false
 		})
 
 	allDiscarderHandlers["splice.file.path"] = filenameDiscarderWrapper(model.SpliceEventType,
 		func(event *model.Event) (eval.Field, *model.FileEvent, bool) {
-			return "", &event.Splice.File, false
+			return "splice.file.path", &event.Splice.File, false
 		})
 
 	allDiscarderHandlers["chdir.file.path"] = filenameDiscarderWrapper(model.FileOpenEventType,
 		func(event *model.Event) (eval.Field, *model.FileEvent, bool) {
-			return "", &event.Open.File, false
+			return "chdir.file.path", &event.Open.File, false
 		})
 
 	allDiscarderHandlers["dns.response.code"] = dnsResponseCodeDiscarderHandler
