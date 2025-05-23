@@ -373,3 +373,36 @@ func TestUserPatternsWithIntegrationSamplesCollection(t *testing.T) {
 		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
 	}
 }
+
+func TestUserPatternWithIntegrationSampleMatchThreshold(t *testing.T) {
+	matchThreshold := 0.6
+	rawSamples := []*config.AutoMultilineSample{
+		{Sample: "12345", MatchThreshold: &matchThreshold},
+	}
+
+	mockConfig := mock.NewFromYAML(t, "")
+	samples := NewUserSamples(mockConfig, rawSamples)
+	tokenizer := NewTokenizer(60)
+
+	tests := []struct {
+		expectedLabel Label
+		shouldStop    bool
+		input         string
+	}{
+		{startGroup, false, "12345"},
+		{aggregate, true, "12"},
+		{startGroup, false, "12345"},
+	}
+
+	for _, test := range tests {
+		context := &messageContext{
+			rawMessage: []byte(test.input),
+			label:      aggregate,
+		}
+
+		assert.True(t, tokenizer.ProcessAndContinue(context))
+		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
+		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
+	}
+
+}

@@ -53,9 +53,10 @@ func NewUserSamples(config model.Reader, sourceSamples []*config.AutoMultilineSa
 
 	for _, sample := range sourceSamples {
 		s = append(s, &UserSample{
-			Sample: sample.Sample,
-			Label:  sample.Label,
-			Regex:  sample.Regex,
+			Sample:         sample.Sample,
+			Label:          sample.Label,
+			Regex:          sample.Regex,
+			MatchThreshold: sample.MatchThreshold,
 		})
 	}
 

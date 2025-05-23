@@ -8,7 +8,8 @@ package config
 // AutoMultilineSample defines a sample used to create auto multiline detection
 // rules
 type AutoMultilineSample struct {
-	Sample string
-	Label  *string
-	Regex  string
+	Sample         string
+	Label          *string
+	Regex          string
+	MatchThreshold *float64 `mapstructure:"match_threshold,omitempty" json:"match_threshold,omitempty" yaml:"match_threshold,omitempty"`
 }
