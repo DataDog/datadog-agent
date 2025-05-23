@@ -509,12 +509,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 		)
 	}
 
-	switch runtime.GOOS {
-	case "windows":
-		return nil // TODO: start config experiment for Windows
-	default:
-		return i.hooks.PostStartExperiment(ctx, pkg)
-	}
+	return i.hooks.PostStartConfigExperiment(ctx, pkg)
 }
 
 // RemoveConfigExperiment removes an experiment.
@@ -522,7 +517,7 @@ func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) 
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	err := i.hooks.PreStopExperiment(ctx, pkg)
+	err := i.hooks.PreStopConfigExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
@@ -554,7 +549,7 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 	if err != nil {
 		log.Warnf("could not write user-facing config symlinks: %v", err)
 	}
-	return i.hooks.PostPromoteExperiment(ctx, pkg)
+	return i.hooks.PostPromoteConfigExperiment(ctx, pkg)
 }
 
 // Purge removes all packages.
