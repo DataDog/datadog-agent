@@ -137,10 +137,7 @@ func (agg *FlowAggregator) run() {
 }
 
 func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) {
-	for key, flow := range flows {
-		// JMW for each flow to flush, observe a histogram metric for duration of the flow (end time - start time), and/or current time - lastFlush
-		agg.logger.Infof("JMW Sending flow (key=%d, lastSuccessfulFlush=%s, nextFlush=%s), duration of flow: %d seconds", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String(), flow.EndTimestamp-flow.StartTimestamp)
-
+	for _, flow := range flows {
 		flowPayload := buildPayload(flow, agg.hostname, flushTime)
 
 		// Calling MarshalJSON directly as it's faster than calling json.Marshall
