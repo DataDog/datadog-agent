@@ -5,46 +5,44 @@
 
 //go:build linux_bpf
 
-package codegen
+package sm
 
 import (
 	"encoding/binary"
 	"fmt"
-
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/logical"
 )
 
-func makeInstruction(op logical.Op) encodable {
+func makeInstruction(op Op) codeFragment {
 	switch op := op.(type) {
-	case logical.CallOp:
+	case CallOp:
 		return callInstruction{target: op.FunctionID}
 
-	case logical.ReturnOp:
+	case ReturnOp:
 		return staticInstruction{
 			name:  "SM_OP_RETURN",
 			bytes: []byte{},
 		}
 
-	case logical.IllegalOp:
+	case IllegalOp:
 		return staticInstruction{
 			name:  "SM_OP_ILLEGAL",
 			bytes: []byte{},
 		}
 
-	case logical.IncrementOutputOffsetOp:
+	case IncrementOutputOffsetOp:
 		return staticInstruction{
 			name:  "SM_OP_INCREMENT_OUTPUT_OFFSET",
 			bytes: binary.LittleEndian.AppendUint32(nil, op.Value),
 		}
 
-	case logical.ExprPrepareOp:
+	case ExprPrepareOp:
 		return staticInstruction{
 			name:  "SM_OP_EXPR_PREPARE",
 			bytes: []byte{},
 		}
 
-	case logical.ExprSaveOp:
-		bytes := make([]byte, 12)
+	case ExprSaveOp:
+		bytes := make([]byte, 0, 12)
 		// Result offset and length.
 		e := op.EventRootType.Expressions[op.ExprIdx]
 		bytes = binary.LittleEndian.AppendUint32(bytes, e.Offset)
@@ -56,8 +54,8 @@ func makeInstruction(op logical.Op) encodable {
 			bytes: bytes,
 		}
 
-	case logical.ExprDereferenceCfaOp:
-		bytes := make([]byte, 8)
+	case ExprDereferenceCfaOp:
+		bytes := make([]byte, 0, 8)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Offset)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Len)
 		return staticInstruction{
@@ -65,14 +63,14 @@ func makeInstruction(op logical.Op) encodable {
 			bytes: bytes,
 		}
 
-	case logical.ExprReadRegisterOp:
+	case ExprReadRegisterOp:
 		return staticInstruction{
-			name:  "SM_OP_EXPR_DEREFERENCE_CFA",
+			name:  "SM_OP_EXPR_READ_REGISTER",
 			bytes: []byte{op.Register, op.Size},
 		}
 
-	case logical.ExprDereferencePtrOp:
-		bytes := make([]byte, 8)
+	case ExprDereferencePtrOp:
+		bytes := make([]byte, 0, 8)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Bias)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Len)
 		return staticInstruction{
@@ -80,68 +78,68 @@ func makeInstruction(op logical.Op) encodable {
 			bytes: bytes,
 		}
 
-	case logical.ProcessPointerOp:
+	case ProcessPointerOp:
 		return staticInstruction{
 			name:  "SM_OP_PROCESS_POINTER",
 			bytes: binary.LittleEndian.AppendUint32(nil, uint32(op.Pointee.GetID())),
 		}
 
-	case logical.ProcessArrayPrepOp:
+	case ProcessArrayPrepOp:
 		return staticInstruction{
 			name:  "SM_OP_PROCESS_ARRAY_PREP",
 			bytes: binary.LittleEndian.AppendUint32(nil, op.Array.Count),
 		}
 
-	case logical.ProcessArrayRepeatOp:
+	case ProcessArrayRepeatOp:
 		return staticInstruction{
 			name:  "SM_OP_PROCESS_ARRAY_PREP",
 			bytes: binary.LittleEndian.AppendUint32(nil, op.OffsetShift),
 		}
 
-	case logical.ProcessSliceOp:
+	case ProcessSliceOp:
 		return staticInstruction{
 			name:  "SM_OP_PROCESS_SLICE",
 			bytes: binary.LittleEndian.AppendUint32(nil, uint32(op.SliceData.GetID())),
 		}
 
-	case logical.ProcessSliceDataPrepOp:
+	case ProcessSliceDataPrepOp:
 		return staticInstruction{
 			name:  "SM_OP_PROCESS_SLICE_DATA_PREP",
 			bytes: []byte{},
 		}
 
-	case logical.ProcessSliceDataRepeatOp:
+	case ProcessSliceDataRepeatOp:
 		return staticInstruction{
 			name:  "SM_OP_PROCESS_SLICE_DATA_REPEAT",
 			bytes: binary.LittleEndian.AppendUint32(nil, op.OffsetShift),
 		}
 
-	case logical.ProcessStringOp:
+	case ProcessStringOp:
 		return staticInstruction{
 			name:  "SM_OP_PROCESS_STRING",
 			bytes: []byte{},
 		}
 
-	case logical.ProcessGoEmptyInterfaceOp:
+	case ProcessGoEmptyInterfaceOp:
 		return staticInstruction{
 			name:  "SM_OP_PROCESS_GO_EMPTY_INTERFACE",
 			bytes: []byte{},
 		}
 
-	case logical.ProcessGoInterfaceOp:
+	case ProcessGoInterfaceOp:
 		return staticInstruction{
 			name:  "SM_OP_PROCESS_GO_INTERFACE",
 			bytes: []byte{},
 		}
 
-	case logical.ProcessGoHmapOp:
+	case ProcessGoHmapOp:
 		return staticInstruction{
 			name:  "SM_OP_PROCESS_GO_HMAP",
 			bytes: binary.LittleEndian.AppendUint32(nil, uint32(op.BucketsArray.GetID())),
 		}
 
-	case logical.ProcessGoSwissMapOp:
-		bytes := make([]byte, 8)
+	case ProcessGoSwissMapOp:
+		bytes := make([]byte, 0, 8)
 		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.TablePtrSlice.GetID()))
 		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.Group.GetID()))
 		return staticInstruction{
@@ -149,20 +147,20 @@ func makeInstruction(op logical.Op) encodable {
 			bytes: bytes,
 		}
 
-	case logical.ProcessGoSwissMapGroupsOp:
+	case ProcessGoSwissMapGroupsOp:
 		return staticInstruction{
 			name:  "SM_OP_PROCESS_GO_SWISS_MAP_GROUPS",
 			bytes: binary.LittleEndian.AppendUint32(nil, uint32(op.Group.GetID())),
 		}
 
-	case logical.ChasePointersOp:
+	case ChasePointersOp:
 		return staticInstruction{
 			name:  "SM_OP_CHASE_POINTERS",
 			bytes: []byte{},
 		}
 
-	case logical.PrepareEventRootOp:
-		bytes := make([]byte, 8)
+	case PrepareEventRootOp:
+		bytes := make([]byte, 0, 8)
 		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.EventRootType.GetID()))
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.EventRootType.GetByteSize())
 		return staticInstruction{

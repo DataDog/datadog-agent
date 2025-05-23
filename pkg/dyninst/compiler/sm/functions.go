@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package logical
+package sm
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ import (
 type FunctionID interface {
 	logicalFuncID() // marker
 
-	PrettyString() string
+	String() string
 }
 
 // Implements interface marker.
@@ -33,8 +33,8 @@ type ChasePointers struct {
 	baseFunctionID
 }
 
-// PrettyString returns a human-readable identifier for the function.
-func (ChasePointers) PrettyString() string {
+// String returns a human-readable identifier for the function.
+func (ChasePointers) String() string {
 	return "ChasePointers"
 }
 
@@ -46,8 +46,8 @@ type ProcessEvent struct {
 	InjectionPC   uint64
 }
 
-// PrettyString returns a human-readable identifier for the function.
-func (e ProcessEvent) PrettyString() string {
+// String returns a human-readable identifier for the function.
+func (e ProcessEvent) String() string {
 	return fmt.Sprintf("ProcessEvent[%s@%x]", e.EventRootType.GetName(), e.InjectionPC)
 }
 
@@ -61,8 +61,8 @@ type ProcessExpression struct {
 	InjectionPC uint64
 }
 
-// PrettyString returns a human-readable identifier for the function.
-func (e ProcessExpression) PrettyString() string {
+// String returns a human-readable identifier for the function.
+func (e ProcessExpression) String() string {
 	return fmt.Sprintf("ProcessExpression[%s@0x%x.expr[%d]]", e.EventRootType.GetName(), e.InjectionPC, e.ExprIdx)
 }
 
@@ -74,7 +74,7 @@ type ProcessType struct {
 	Type ir.Type
 }
 
-// PrettyString returns a human-readable identifier for the function.
-func (e ProcessType) PrettyString() string {
+// String returns a human-readable identifier for the function.
+func (e ProcessType) String() string {
 	return fmt.Sprintf("ProcessType[%s]", e.Type.GetName())
 }
