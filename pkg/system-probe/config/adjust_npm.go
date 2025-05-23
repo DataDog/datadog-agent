@@ -21,7 +21,7 @@ const (
 	maxOffsetThreshold                                      = 3000
 	defaultMaxProcessesTracked                              = 1024
 	defaultMaxTrackedConnections                            = 65536
-	defaultClosedConnectionsBufferThresholdRatioSystemProbe = 0.9
+	defaultClosedConnectionsBufferThresholdRatioSystemProbe = 0.75
 )
 
 func adjustNetwork(cfg model.Config) {
