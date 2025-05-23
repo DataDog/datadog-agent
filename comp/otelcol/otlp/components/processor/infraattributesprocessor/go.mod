@@ -15,15 +15,15 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.64.1
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.64.1
 	github.com/stretchr/testify v1.10.0
-	go.opentelemetry.io/collector/component v1.32.0
-	go.opentelemetry.io/collector/component/componenttest v0.126.0
-	go.opentelemetry.io/collector/confmap v1.32.0
-	go.opentelemetry.io/collector/consumer v1.32.0
+	go.opentelemetry.io/collector/component v1.32.1-0.20250523042642-a867641d12bd
+	go.opentelemetry.io/collector/component/componenttest v0.126.1-0.20250523042642-a867641d12bd
+	go.opentelemetry.io/collector/confmap v1.32.1-0.20250523042642-a867641d12bd
+	go.opentelemetry.io/collector/consumer v1.32.1-0.20250523042642-a867641d12bd
 	go.opentelemetry.io/collector/consumer/consumertest v0.126.0
-	go.opentelemetry.io/collector/pdata v1.32.0
+	go.opentelemetry.io/collector/pdata v1.32.1-0.20250523042642-a867641d12bd
 	go.opentelemetry.io/collector/processor v1.32.0
 	go.opentelemetry.io/collector/processor/processortest v0.126.0
-	go.opentelemetry.io/collector/semconv v0.126.0
+	go.opentelemetry.io/collector/semconv v0.126.1-0.20250523042642-a867641d12bd
 	go.opentelemetry.io/otel/metric v1.35.0
 	go.opentelemetry.io/otel/trace v1.35.0
 	go.uber.org/fx v1.23.0
@@ -33,7 +33,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.1
-	go.opentelemetry.io/collector/confmap/xconfmap v0.126.0
+	go.opentelemetry.io/collector/confmap/xconfmap v0.126.1-0.20250523042642-a867641d12bd
 	go.opentelemetry.io/collector/processor/processorhelper v0.126.0
 )
 
@@ -43,7 +43,7 @@ require (
 )
 
 require (
-	go.opentelemetry.io/collector/internal/telemetry v0.126.0 // indirect
+	go.opentelemetry.io/collector/internal/telemetry v0.126.1-0.20250523042642-a867641d12bd // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.10.0 // indirect
 	go.opentelemetry.io/otel/log v0.11.0 // indirect
 )
@@ -51,7 +51,7 @@ require (
 require (
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	go.opentelemetry.io/collector/consumer/xconsumer v0.126.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.32.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.32.1-0.20250523042642-a867641d12bd // indirect
 	go.opentelemetry.io/collector/processor/xprocessor v0.126.0 // indirect
 )
 
@@ -102,8 +102,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.64.1 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.27.0 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.27.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.27.1 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.27.1 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.14.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -168,9 +168,9 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/collector/component/componentstatus v0.126.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.126.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.126.1-0.20250523042642-a867641d12bd // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.126.0 // indirect
-	go.opentelemetry.io/collector/pipeline v0.126.0 // indirect
+	go.opentelemetry.io/collector/pipeline v0.126.1-0.20250523042642-a867641d12bd // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 // indirect
 	go.opentelemetry.io/otel v1.35.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.35.0 // indirect
@@ -189,7 +189,7 @@ require (
 	google.golang.org/genproto v0.0.0-20250303144028-a0af3efb3deb // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250414145226-207652e42e2e // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250425173222-7b384671a197 // indirect
-	google.golang.org/grpc v1.72.0 // indirect
+	google.golang.org/grpc v1.72.1 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

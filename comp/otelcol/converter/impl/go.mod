@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3
 	github.com/stretchr/testify v1.10.0
-	go.opentelemetry.io/collector/confmap v1.32.0
+	go.opentelemetry.io/collector/confmap v1.32.1-0.20250523042642-a867641d12bd
 	go.opentelemetry.io/collector/confmap/provider/envprovider v1.32.0
 	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.32.0
 	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.32.0
@@ -80,7 +80,7 @@ require (
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.9.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	go.opentelemetry.io/collector/featuregate v1.32.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.32.1-0.20250523042642-a867641d12bd // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.18.1 // indirect
 	go.uber.org/fx v1.23.0 // indirect
