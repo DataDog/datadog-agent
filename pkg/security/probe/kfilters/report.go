@@ -191,6 +191,8 @@ func ComputeFilters(config *config.Config, rs *rules.RuleSet) (*FilterReport, er
 				}
 			}
 		}
+	} else {
+		return &FilterReport{ApproverReports: approverReports, DiscardersReport: discarderReport}, nil
 	}
 
 	// no improvement, return the initial report
