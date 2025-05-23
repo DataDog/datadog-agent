@@ -568,7 +568,6 @@ func resolveTypedefToRealType(outerType *dwarf.Entry, reader *dwarf.Reader, seen
 			return nil, err
 		}
 	}
-
 	return followedType, nil
 }
 
