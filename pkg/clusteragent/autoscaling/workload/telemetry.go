@@ -113,12 +113,11 @@ func trackPodAutoscalerStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 	}
 }
 
-func deletePodAutoscalerTelemetry(ns, targetName, autoscalerName string) {
+func deletePodAutoscalerTelemetry(ns, autoscalerName string) {
 	log.Debugf("Deleting pod autoscaler telemetry for %s/%s", ns, autoscalerName)
 	// unset horizontal scaling data
 	labels := prometheus.Labels{
 		"namespace":        ns,
-		"target_name":      targetName,
 		"autoscaler_name":  autoscalerName,
 		le.JoinLeaderLabel: le.JoinLeaderValue,
 	}
