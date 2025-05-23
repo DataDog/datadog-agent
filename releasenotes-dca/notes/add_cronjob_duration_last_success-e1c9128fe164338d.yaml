@@ -9,5 +9,5 @@
 
 enhancements:
   - |
-    Added a new metric to expose the ksm kube_cronjob_status_last_successful_time metric. The name of the metric is kubernetes_state.cronjob.duration_since_last_successful.
+    Added a new metric to expose the ksm ``kube_cronjob_status_last_successful_time`` metric. The name of the metric is ``kubernetes_state.cronjob.duration_since_last_successful``.
 
