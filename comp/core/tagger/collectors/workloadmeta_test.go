@@ -1520,6 +1520,8 @@ func TestHandleECSTask(t *testing.T) {
 						"task_arn:foobar",
 					},
 					LowCardTags: []string{
+						"cluster_name:ecs-cluster",
+						"ecs_cluster_name:ecs-cluster",
 						"ecs_container_name:agent",
 						"instance_type:g4dn.xlarge",
 						"owner_team:container-integrations",
@@ -1574,6 +1576,8 @@ func TestHandleECSTask(t *testing.T) {
 						"task_arn:foobar",
 					},
 					LowCardTags: []string{
+						"cluster_name:ecs-cluster",
+						"ecs_cluster_name:ecs-cluster",
 						"ecs_container_name:agent",
 						"task_family:datadog-agent",
 						"task_name:datadog-agent",
