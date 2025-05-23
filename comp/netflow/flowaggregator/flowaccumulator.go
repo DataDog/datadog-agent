@@ -247,11 +247,23 @@ func (f *flowAccumulator) addRDNSEnrichment(aggHash uint64, srcAddr []byte, dstA
 	}
 }
 
-func (f *flowAccumulator) getFlowContextCount() int { // JMW split this into two functions, one for active flows and one for previously flushed flows for which flowCtx.flow == nil, and track metric for both
+func (f *flowAccumulator) getFlowContextCount() int {
 	f.flowsMutex.Lock()
 	defer f.flowsMutex.Unlock()
-
 	return len(f.flows)
+}
+
+// getFlowContextCounts returns the total number of flow contexts and the number of nil flow contexts
+func (f *flowAccumulator) getFlowContextCounts() (total int, nilCount int) {
+	f.flowsMutex.Lock()
+	defer f.flowsMutex.Unlock()
+	total = len(f.flows)
+	for _, flowCtx := range f.flows {
+		if flowCtx.flow == nil {
+			nilCount++
+		}
+	}
+	return total, nilCount
 }
 
 func (f *flowAccumulator) detectHashCollision(hash uint64, existingFlow common.Flow, flowToAdd common.Flow) {
