@@ -13,11 +13,10 @@
       fi
     # Caching setup
     - DOCKER_CACHE_TARGET="${IMAGE}${TAG_SUFFIX}-${ARCH}:cache"
+    - CACHE_SOURCE="--cache-from type=registry,ref=${DOCKER_CACHE_TARGET}"
     # Don't use caching on nightlies, to allow for regular cache invalidation,
     # and update the cache on both main and nightly builds
-    - CACHE_SOURCE="--cache-from type=registry,ref=${DOCKER_CACHE_TARGET}"
     - |
-      CACHE_SOURCE="--cache-from type=registry,ref=${DOCKER_CACHE_TARGET}"
       if [[ "$BUCKET_BRANCH" == "nightly" ]]; then
         CACHE_SOURCE="--no-cache"
         CACHE_TO="--cache-to type=registry,ref=${DOCKER_CACHE_TARGET},mode=max"
