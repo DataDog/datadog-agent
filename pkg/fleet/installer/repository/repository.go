@@ -109,7 +109,7 @@ func (r *Repository) GetState() (State, error) {
 	}
 	stable := repository.stable.Target()
 	experiment := repository.experiment.Target()
-	if experiment == stable || experiment == stableVersionLink {
+	if experiment == stable {
 		experiment = ""
 	}
 	return State{
@@ -271,7 +271,7 @@ func (r *Repository) PromoteExperiment(ctx context.Context) error {
 	if !repository.experiment.Exists() {
 		return fmt.Errorf("experiment link does not exist, invalid state")
 	}
-	if repository.experiment.Target() == repository.stable.Target() || repository.experiment.Target() == stableVersionLink {
+	if repository.stable.Target() == repository.experiment.Target() {
 		return fmt.Errorf("no experiment to promote")
 	}
 	err = repository.stable.Set(*repository.experiment.packagePath)
@@ -449,15 +449,8 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 		}
 
 		log.Debugf("Removing package %s", pkgRepositoryPath)
-		realPkgRepositoryPath, err := filepath.EvalSymlinks(pkgRepositoryPath)
-		if err != nil {
-			log.Errorf("could not evaluate symlinks for package %s: %v", pkgRepositoryPath, err)
-		}
 		if err := os.RemoveAll(pkgRepositoryPath); err != nil {
 			log.Errorf("could not remove package %s directory, will retry: %v", pkgRepositoryPath, err)
-		}
-		if err := os.RemoveAll(realPkgRepositoryPath); err != nil {
-			log.Errorf("could not remove package %s directory, will retry: %v", realPkgRepositoryPath, err)
 		}
 	}
 
