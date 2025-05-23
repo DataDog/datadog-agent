@@ -8,9 +8,6 @@ package agentimpl
 
 import (
 	"context"
-	"crypto/subtle"
-	"crypto/x509"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -35,7 +32,6 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -82,32 +78,12 @@ type server struct {
 }
 
 func (s *server) BuildServer() http.Handler {
-	// Create a client certificate validator function
-	certValidator := func(cert *x509.Certificate) error {
-		serverTLSConfig := s.IPC.GetTLSServerConfig()
-		// Read the IPC certificate from the server TLS config
-		if serverTLSConfig == nil || len(serverTLSConfig.Certificates) == 0 || len(serverTLSConfig.Certificates[0].Certificate) == 0 {
-			return fmt.Errorf("no certificates found in server TLS config")
-		}
-
-		serverCert, err := x509.ParseCertificate(serverTLSConfig.Certificates[0].Certificate[0])
-		if err != nil {
-			return fmt.Errorf("error parsing IPC certificate: %v", err)
-		}
-
-		if !cert.Equal(serverCert) {
-			return fmt.Errorf("client certificate does not match server certificate")
-		}
-
-		return nil
-	}
-
 	maxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
 	opts := []googleGrpc.ServerOption{
 		googleGrpc.Creds(credentials.NewTLS(s.IPC.GetTLSServerConfig())),
-		googleGrpc.StreamInterceptor(grpcutil.ClientCertStreamValidator(certValidator)),
-		googleGrpc.UnaryInterceptor(grpcutil.ClientCertValidator(certValidator)),
+		googleGrpc.StreamInterceptor(grpcutil.RequireClientCertStream),
+		googleGrpc.UnaryInterceptor(grpcutil.RequireClientCert),
 		googleGrpc.MaxRecvMsgSize(maxMessageSize),
 		googleGrpc.MaxSendMsgSize(maxMessageSize),
 	}
@@ -178,17 +154,4 @@ func NewComponent(reqs Requires) (Provides, error) {
 		},
 	}
 	return provides, nil
-}
-
-// parseToken parses the token and validate it for our gRPC API, it returns an empty
-// struct and an error or nil
-func parseToken(token string) (interface{}, error) {
-	if subtle.ConstantTimeCompare([]byte(token), []byte(util.GetAuthToken())) == 0 {
-		return struct{}{}, errors.New("Invalid session token")
-	}
-
-	// Currently this empty struct doesn't add any information
-	// to the context, but we could potentially add some custom
-	// type.
-	return struct{}{}, nil
 }
