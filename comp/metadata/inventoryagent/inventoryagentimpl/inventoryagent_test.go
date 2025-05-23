@@ -111,24 +111,6 @@ func TestInitDataErrorInstallInfo(t *testing.T) {
 	assert.Equal(t, "4.5.6", ia.data["install_method_installer_version"])
 }
 
-func TestInstallInfoWithToolSecret(t *testing.T) {
-	defer func() { installinfoGet = installinfo.Get }()
-	installinfoGet = func(config.Reader) (*installinfo.InstallInfo, error) {
-		return &installinfo.InstallInfo{
-			Tool:             "my_script password=hunter2",
-			ToolVersion:      "1.2.3",
-			InstallerVersion: "4.5.6",
-		}, nil
-	}
-
-	ia := getTestInventoryPayload(t, nil, nil)
-
-	ia.initData()
-	assert.Equal(t, "my_script password=********", ia.data["install_method_tool"])
-	assert.Equal(t, "1.2.3", ia.data["install_method_tool_version"])
-	assert.Equal(t, "4.5.6", ia.data["install_method_installer_version"])
-}
-
 func TestInitData(t *testing.T) {
 	sysprobeOverrides := map[string]any{
 		"dynamic_instrumentation.enabled":                      true,

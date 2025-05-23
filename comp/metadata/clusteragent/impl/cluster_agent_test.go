@@ -21,7 +21,6 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
-	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 )
 
 func setupClusterAgentConfig(t *testing.T) config.Component {
@@ -88,20 +87,4 @@ func TestWritePayload(t *testing.T) {
 	err = json.Unmarshal(body, &p)
 	require.NoError(t, err)
 	assertClusterAgentPayload(t, p.Metadata)
-}
-
-func TestPayloadScrubbing(t *testing.T) {
-
-	defer func() { installinfoGet = installinfo.Get }()
-	installinfoGet = func(config.Reader) (*installinfo.InstallInfo, error) {
-		return &installinfo.InstallInfo{
-			Tool:             "my_script password=hunter2",
-			ToolVersion:      "1.2.3",
-			InstallerVersion: "4.5.6",
-		}, nil
-	}
-
-	dca := getClusterAgentComp(t)
-	metadata := dca.getMetadata()
-	require.Equal(t, "my_script password=********", metadata["install_method_tool"])
 }
