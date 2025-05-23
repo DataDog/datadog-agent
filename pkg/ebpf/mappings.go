@@ -261,7 +261,7 @@ func AddProbeFDMappings(mgr *manager.Manager) {
 	defer mappingLock.Unlock()
 
 	for _, p := range mgr.Probes {
-		if !p.IsRunning() {
+		if p == nil || !p.IsRunning() {
 			continue
 		}
 
