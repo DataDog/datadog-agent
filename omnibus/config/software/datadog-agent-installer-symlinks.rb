@@ -13,7 +13,7 @@ build do
       mkdir '/opt/datadog-packages/datadog-agent'
       link "/opt/datadog-agent", "/opt/datadog-packages/datadog-agent/#{version}"
       link "/opt/datadog-packages/datadog-agent/#{version}", "/opt/datadog-packages/datadog-agent/stable"
-      link "/opt/datadog-packages/datadog-agent/#{version}", "/opt/datadog-packages/datadog-agent/experiment"
+      link "/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/datadog-agent/experiment"
       project.extra_package_file "/opt/datadog-packages/datadog-agent"
     end
   end
