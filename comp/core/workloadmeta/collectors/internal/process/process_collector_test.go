@@ -54,6 +54,14 @@ func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}) co
 	return collectorTest{&processCollector, mockProbe, mockClock, mockStore}
 }
 
+// start used for testing purposes while we wait for configuration logic to be sorted out
+func (c *collector) start(ctx context.Context, store workloadmeta.Component, collectionInterval time.Duration) error {
+	c.store = store
+	go c.collect(ctx, c.clock.Ticker(collectionInterval))
+	go c.stream(ctx)
+	return nil
+}
+
 // TestCreatedProcessesCollection tests the collector capturing new processes
 func TestCreatedProcessesCollection(t *testing.T) {
 	originalFlavor := flavor.GetFlavor()
@@ -254,19 +262,18 @@ func TestProcessLifecycleCollection(t *testing.T) {
 	flavor.SetFlavor(flavor.DefaultAgent)
 
 	collectionInterval := time.Second * 10
-	creationTime1 := time.Now().Unix()
-	creationTime2 := time.Now().Add(time.Second).Unix()
+	creationTime := time.Now()
+	creationTime1 := creationTime.Unix()
+	creationTime2 := creationTime.Add(time.Second).Unix()
+	creationTime3 := creationTime.Add(2 * time.Second).Unix()
 
 	for _, tc := range []struct {
-		description     string
-		configOverrides map[string]interface{}
-		// start
-		processesToCollectA map[int32]*procutil.Process
-		expectedProcessesA  map[int32]*workloadmeta.Process
-
-		// end
-		processesToCollectB map[int32]*procutil.Process
-		expectedProcessesB  map[int32]*workloadmeta.Process
+		description              string
+		configOverrides          map[string]interface{}
+		processesToCollectA      map[int32]*procutil.Process
+		processesToCollectB      map[int32]*procutil.Process
+		expectedDeletedProcesses []*workloadmeta.Process
+		expectedLiveProcesses    []*workloadmeta.Process
 	}{
 		{
 			description:     "2 new processes and 1 finishes",
@@ -325,45 +332,6 @@ func TestProcessLifecycleCollection(t *testing.T) {
 					},
 				},
 			},
-			expectedProcessesA: map[int32]*workloadmeta.Process{
-				1234: {
-					EntityID: workloadmeta.EntityID{
-						Kind: workloadmeta.KindProcess,
-						ID:   "1234",
-					},
-
-					Pid:     1234,
-					Ppid:    6,
-					NsPid:   2,
-					Name:    "some name",
-					Cwd:     "some_directory/path",
-					Exe:     "test",
-					Comm:    "",
-					Cmdline: []string{"c1", "c2", "c3"},
-					Uids:    []int32{1, 2, 3, 4},
-					Gids:    []int32{1, 2, 3, 4, 5},
-					// time is created like this so it has the same precision as the
-					//CreationTime: time.UnixMilli(creationTime1.UnixMilli()).UTC(),
-					CreationTime: time.UnixMilli(creationTime1).UTC(),
-				},
-				9999: {
-					EntityID: workloadmeta.EntityID{
-						Kind: workloadmeta.KindProcess,
-						ID:   "9999",
-					},
-					Pid:          9999,
-					Ppid:         8,
-					NsPid:        3,
-					Name:         "some name 9999",
-					Cwd:          "some_directory/path/for",
-					Exe:          "exe",
-					Comm:         "something",
-					Cmdline:      []string{"c1", "c2", "c3", "c4"},
-					Uids:         []int32{},
-					Gids:         []int32{},
-					CreationTime: time.UnixMilli(creationTime2).UTC(),
-				},
-			},
 			processesToCollectB: map[int32]*procutil.Process{
 				9999: {
 					Pid:     9999,
@@ -392,9 +360,27 @@ func TestProcessLifecycleCollection(t *testing.T) {
 					},
 				},
 			},
-			expectedProcessesB: map[int32]*workloadmeta.Process{
-				1234: nil,
-				9999: {
+			expectedDeletedProcesses: []*workloadmeta.Process{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   "1234",
+					},
+					Pid:          1234,
+					Ppid:         6,
+					NsPid:        2,
+					Name:         "some name",
+					Cwd:          "some_directory/path",
+					Exe:          "test",
+					Comm:         "",
+					Cmdline:      []string{"c1", "c2", "c3"},
+					Uids:         []int32{1, 2, 3, 4},
+					Gids:         []int32{1, 2, 3, 4, 5},
+					CreationTime: time.UnixMilli(creationTime1).UTC(),
+				},
+			},
+			expectedLiveProcesses: []*workloadmeta.Process{
+				{
 					EntityID: workloadmeta.EntityID{
 						Kind: workloadmeta.KindProcess,
 						ID:   "9999",
@@ -470,13 +456,50 @@ func TestProcessLifecycleCollection(t *testing.T) {
 					},
 				},
 			},
-			expectedProcessesA: map[int32]*workloadmeta.Process{
-				1234: {
+			processesToCollectB:   map[int32]*procutil.Process{},
+			expectedLiveProcesses: []*workloadmeta.Process{},
+			expectedDeletedProcesses: []*workloadmeta.Process{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   "9999",
+					},
+					Pid:          9999,
+					Ppid:         8,
+					NsPid:        3,
+					Name:         "some name 9999",
+					Cwd:          "some_directory/path/for",
+					Exe:          "exe",
+					Comm:         "something",
+					Cmdline:      []string{"c1", "c2", "c3", "c4"},
+					Uids:         []int32{},
+					Gids:         []int32{},
+					CreationTime: time.UnixMilli(creationTime2).UTC(),
+				},
+				{
 					EntityID: workloadmeta.EntityID{
 						Kind: workloadmeta.KindProcess,
 						ID:   "1234",
 					},
-
+					Pid:          1234,
+					Ppid:         6,
+					NsPid:        2,
+					Name:         "some name",
+					Cwd:          "some_directory/path",
+					Exe:          "test",
+					Comm:         "",
+					Cmdline:      []string{"c1", "c2", "c3"},
+					Uids:         []int32{1, 2, 3, 4},
+					Gids:         []int32{1, 2, 3, 4, 5},
+					CreationTime: time.UnixMilli(creationTime1).UTC(),
+				},
+			},
+		},
+		{
+			description:     "2 new processes, 2 finish, but 2 new processes with the same pid",
+			configOverrides: map[string]interface{}{},
+			processesToCollectA: map[int32]*procutil.Process{
+				1234: {
 					Pid:     1234,
 					Ppid:    6,
 					NsPid:   2,
@@ -487,11 +510,157 @@ func TestProcessLifecycleCollection(t *testing.T) {
 					Cmdline: []string{"c1", "c2", "c3"},
 					Uids:    []int32{1, 2, 3, 4},
 					Gids:    []int32{1, 2, 3, 4, 5},
-					// time is created like this so it has the same precision as the
-					//CreationTime: time.UnixMilli(creationTime1.UnixMilli()).UTC(),
-					CreationTime: time.UnixMilli(creationTime1).UTC(),
+					Stats: &procutil.Stats{
+						CreateTime:  creationTime1,
+						Status:      "",
+						Nice:        0,
+						OpenFdCount: 0,
+						NumThreads:  0,
+						CPUPercent:  nil,
+						CPUTime:     nil,
+						MemInfo:     nil,
+						MemInfoEx:   nil,
+						IOStat:      nil,
+						IORateStat:  nil,
+						CtxSwitches: nil,
+					},
 				},
 				9999: {
+					Pid:     9999,
+					Ppid:    8,
+					NsPid:   3,
+					Name:    "some name 9999",
+					Cwd:     "some_directory/path/for",
+					Exe:     "exe",
+					Comm:    "something",
+					Cmdline: []string{"c1", "c2", "c3", "c4"},
+					Uids:    []int32{},
+					Gids:    []int32{},
+					Stats: &procutil.Stats{
+						CreateTime:  creationTime2,
+						Status:      "",
+						Nice:        0,
+						OpenFdCount: 0,
+						NumThreads:  0,
+						CPUPercent:  nil,
+						CPUTime:     nil,
+						MemInfo:     nil,
+						MemInfoEx:   nil,
+						IOStat:      nil,
+						IORateStat:  nil,
+						CtxSwitches: nil,
+					},
+				},
+			},
+			processesToCollectB: map[int32]*procutil.Process{
+				1234: {
+					Pid:     1234,
+					Ppid:    6,
+					NsPid:   2,
+					Name:    "some name",
+					Cwd:     "some_directory/path",
+					Exe:     "test",
+					Comm:    "",
+					Cmdline: []string{"c1", "c2", "c3"},
+					Uids:    []int32{1, 2, 3, 4},
+					Gids:    []int32{1, 2, 3, 4, 5},
+					Stats: &procutil.Stats{
+						CreateTime:  creationTime2,
+						Status:      "",
+						Nice:        0,
+						OpenFdCount: 0,
+						NumThreads:  0,
+						CPUPercent:  nil,
+						CPUTime:     nil,
+						MemInfo:     nil,
+						MemInfoEx:   nil,
+						IOStat:      nil,
+						IORateStat:  nil,
+						CtxSwitches: nil,
+					},
+				},
+				9999: {
+					Pid:     9999,
+					Ppid:    8,
+					NsPid:   3,
+					Name:    "some name 9999",
+					Cwd:     "some_directory/path/for",
+					Exe:     "exe",
+					Comm:    "something",
+					Cmdline: []string{"c1", "c2", "c3", "c4"},
+					Uids:    []int32{},
+					Gids:    []int32{},
+					Stats: &procutil.Stats{
+						CreateTime:  creationTime3,
+						Status:      "",
+						Nice:        0,
+						OpenFdCount: 0,
+						NumThreads:  0,
+						CPUPercent:  nil,
+						CPUTime:     nil,
+						MemInfo:     nil,
+						MemInfoEx:   nil,
+						IOStat:      nil,
+						IORateStat:  nil,
+						CtxSwitches: nil,
+					},
+				},
+			},
+			expectedLiveProcesses: []*workloadmeta.Process{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   "1234",
+					},
+					Pid:          1234,
+					Ppid:         6,
+					NsPid:        2,
+					Name:         "some name",
+					Cwd:          "some_directory/path",
+					Exe:          "test",
+					Comm:         "",
+					Cmdline:      []string{"c1", "c2", "c3"},
+					Uids:         []int32{1, 2, 3, 4},
+					Gids:         []int32{1, 2, 3, 4, 5},
+					CreationTime: time.UnixMilli(creationTime2).UTC(),
+				},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   "9999",
+					},
+					Pid:          9999,
+					Ppid:         8,
+					NsPid:        3,
+					Name:         "some name 9999",
+					Cwd:          "some_directory/path/for",
+					Exe:          "exe",
+					Comm:         "something",
+					Cmdline:      []string{"c1", "c2", "c3", "c4"},
+					Uids:         []int32{},
+					Gids:         []int32{},
+					CreationTime: time.UnixMilli(creationTime3).UTC(),
+				},
+			},
+			expectedDeletedProcesses: []*workloadmeta.Process{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   "1234",
+					},
+					Pid:          1234,
+					Ppid:         6,
+					NsPid:        2,
+					Name:         "some name",
+					Cwd:          "some_directory/path",
+					Exe:          "test",
+					Comm:         "",
+					Cmdline:      []string{"c1", "c2", "c3"},
+					Uids:         []int32{1, 2, 3, 4},
+					Gids:         []int32{1, 2, 3, 4, 5},
+					CreationTime: time.UnixMilli(creationTime1).UTC(),
+				},
+				{
 					EntityID: workloadmeta.EntityID{
 						Kind: workloadmeta.KindProcess,
 						ID:   "9999",
@@ -509,11 +678,6 @@ func TestProcessLifecycleCollection(t *testing.T) {
 					CreationTime: time.UnixMilli(creationTime2).UTC(),
 				},
 			},
-			processesToCollectB: map[int32]*procutil.Process{},
-			expectedProcessesB: map[int32]*workloadmeta.Process{
-				1234: nil,
-				9999: nil,
-			},
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
@@ -528,28 +692,31 @@ func TestProcessLifecycleCollection(t *testing.T) {
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollectA, nil).Times(1)
 			// update clock to trigger processing
 			c.mockClock.Add(collectionInterval)
-
-			assert.EventuallyWithT(t, func(cT *assert.CollectT) {
-				for pid, expectedProc := range tc.expectedProcessesA {
-					actualProc, err := c.mockStore.GetProcess(pid)
-					assert.NoError(cT, err)
-					assert.Equal(cT, expectedProc, actualProc)
-				}
-			}, time.Second, time.Millisecond*100)
-
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollectB, nil).Times(1)
 			// update clock to trigger processing
 			c.mockClock.Add(collectionInterval)
 
 			assert.EventuallyWithT(t, func(cT *assert.CollectT) {
-				for pid, expectedProc := range tc.expectedProcessesB {
-					actualProc, err := c.mockStore.GetProcess(pid)
-					if expectedProc != nil {
-						assert.NoError(cT, err)
-					} else {
-						assert.Error(cT, err)
+				actualProcs := c.mockStore.ListProcesses()
+				mapActualProcs := make(map[int32]*workloadmeta.Process, len(actualProcs))
+				for _, proc := range actualProcs {
+					mapActualProcs[proc.Pid] = proc
+				}
+
+				for _, expectedLiveProc := range tc.expectedLiveProcesses {
+					actualProc, exists := mapActualProcs[expectedLiveProc.Pid]
+					assert.True(cT, exists)
+					assert.Equal(cT, expectedLiveProc, actualProc)
+				}
+
+				for _, expectedDeletedProc := range tc.expectedDeletedProcesses {
+					actualProc, exists := mapActualProcs[expectedDeletedProc.Pid]
+
+					// the same process pid can exist so we ensure it is a different process by checking the creation time
+					if exists {
+						assert.NotEqual(cT, expectedDeletedProc.CreationTime, actualProc.CreationTime)
 					}
-					assert.Equal(cT, expectedProc, actualProc)
+
 				}
 			}, time.Second, time.Millisecond*100)
 		})

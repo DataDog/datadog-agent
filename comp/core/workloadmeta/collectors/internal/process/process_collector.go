@@ -29,20 +29,12 @@ const (
 )
 
 type collector struct {
-	id      string
-	store   workloadmeta.Component
-	catalog workloadmeta.AgentType ``
-
-	// generates clock ticker for collection interval
-	clock clock.Clock
-
-	// fetches process data
-	processProbe procutil.Probe
-
-	// channel for async processing of events
-	processEventsCh chan *Event
-
-	// cache of last collect processes for diff generation
+	id                     string
+	store                  workloadmeta.Component
+	catalog                workloadmeta.AgentType
+	clock                  clock.Clock
+	processProbe           procutil.Probe
+	processEventsCh        chan *Event
 	lastCollectedProcesses map[int32]*procutil.Process
 }
 
@@ -81,6 +73,7 @@ func GetFxOptions() fx.Option {
 // isEnabled returns a boolean indicating if the process collector is enabled and what collection interval to use if it is.
 func (c *collector) isEnabled() (bool, time.Duration) {
 	// TODO: implement the logic to check if the process collector is enabled based on dependent configs (process collection, language detection, service discovery)
+	// hardcoded to false until the new collector has all functionality/consolidation completed (service discovery, language collection, etc)
 	return false, time.Second * 10
 }
 
@@ -101,12 +94,24 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	return nil
 }
 
-// start used for testing purposes while we wait for configuration logic to be sorted out
-func (c *collector) start(ctx context.Context, store workloadmeta.Component, collectionInterval time.Duration) error {
-	c.store = store
-	go c.collect(ctx, c.clock.Ticker(collectionInterval))
-	go c.stream(ctx)
-	return nil
+func getProcessCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB map[int32]*procutil.Process) []*procutil.Process {
+	var newProcs []*procutil.Process
+	for pid, procA := range procCacheA {
+		if procA == nil {
+			log.Warnf("collected process %d was nil", pid)
+			continue
+		}
+		procB, exists := procCacheB[pid]
+
+		// new process
+		if !exists {
+			newProcs = append(newProcs, procA)
+		} else if procB.Stats.CreateTime != procA.Stats.CreateTime {
+			// same process PID exists, but different process due to creation time
+			newProcs = append(newProcs, procA)
+		}
+	}
+	return newProcs
 }
 
 // collect captures all the required process data for the process check
@@ -126,47 +131,22 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 			}
 
 			// categorize the processes into storable events
-			var createdProcesses []*workloadmeta.Process
-			var deletedProcesses []*workloadmeta.Process
-
-			// determine new processes
-			for pid, proc := range procs {
-				if proc == nil {
-					log.Warnf("collected process %d was nil", pid)
-					continue
-				}
-				oldProc, exists := c.lastCollectedProcesses[pid]
-
-				// new process
-				if !exists {
-					createdProcesses = append(createdProcesses, processToWorkloadMetaProcess(proc))
-				} else if exists && oldProc.Stats.CreateTime != proc.Stats.CreateTime {
-					// new process but same PID
-					createdProcesses = append(createdProcesses, processToWorkloadMetaProcess(proc))
-				}
+			createdProcs := getProcessCacheDifference(procs, c.lastCollectedProcesses)
+			var wlmCreatedProcs []*workloadmeta.Process
+			for _, proc := range createdProcs {
+				wlmCreatedProcs = append(wlmCreatedProcs, processToWorkloadMetaProcess(proc))
 			}
 
-			// determine deleted processes
-			for pid, oldProc := range c.lastCollectedProcesses {
-				if oldProc == nil {
-					log.Warnf("last stored process %d was nil", pid)
-					continue
-				}
-				proc, exists := procs[pid]
-
-				// old process was deleted
-				if !exists {
-					deletedProcesses = append(deletedProcesses, processToWorkloadMetaProcess(oldProc))
-				} else if exists && oldProc.Stats.CreateTime != proc.Stats.CreateTime {
-					// old process but same PID
-					deletedProcesses = append(deletedProcesses, processToWorkloadMetaProcess(oldProc))
-				}
+			deletedProcs := getProcessCacheDifference(c.lastCollectedProcesses, procs)
+			var wlmDeletedProcs []*workloadmeta.Process
+			for _, proc := range deletedProcs {
+				wlmDeletedProcs = append(wlmDeletedProcs, processToWorkloadMetaProcess(proc))
 			}
 
 			// send these events to the channel
 			c.processEventsCh <- &Event{
-				Created: createdProcesses,
-				Deleted: deletedProcesses,
+				Created: wlmCreatedProcs,
+				Deleted: wlmDeletedProcs,
 			}
 
 			// store latest collected processes
@@ -180,7 +160,6 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 
 // stream processes events sent from data collection and notifies WorkloadMeta that updates have occurred
 func (c *collector) stream(ctx context.Context) {
-	// TODO: implement the full streaming logic for the process collector
 	health := health.RegisterLiveness(componentName)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -194,19 +173,18 @@ func (c *collector) stream(ctx context.Context) {
 				continue
 			}
 
-			// TODO: implement the logic to handle events
 			var events []workloadmeta.CollectorEvent
-			for _, proc := range processEvent.Created {
+			for _, proc := range processEvent.Deleted {
 				events = append(events, workloadmeta.CollectorEvent{
-					Type:   workloadmeta.EventTypeSet,
+					Type:   workloadmeta.EventTypeUnset,
 					Entity: proc,
 					Source: workloadmeta.SourceProcessCollector,
 				})
 			}
 
-			for _, proc := range processEvent.Deleted {
+			for _, proc := range processEvent.Created {
 				events = append(events, workloadmeta.CollectorEvent{
-					Type:   workloadmeta.EventTypeUnset,
+					Type:   workloadmeta.EventTypeSet,
 					Entity: proc,
 					Source: workloadmeta.SourceProcessCollector,
 				})
