@@ -219,17 +219,3 @@ func (p *FrameParser) getParser(buffer []byte) (*gopacket.DecodingLayerParser, e
 		return nil, fmt.Errorf("unexpected IP version %d", version)
 	}
 }
-
-// removes the preceding ethernet header from the buffer
-func stripEthernetHeader(buf []byte) ([]byte, error) {
-	var eth layers.Ethernet
-	err := (&eth).DecodeFromBytes(buf, gopacket.NilDecodeFeedback)
-	if err != nil {
-		return nil, fmt.Errorf("stripEthernetHeader failed to decode ethernet: %w", err)
-	}
-	// return zero bytes when the it's not an IP packet
-	if eth.EthernetType != layers.EthernetTypeIPv4 && eth.EthernetType != layers.EthernetTypeIPv6 {
-		return nil, nil
-	}
-	return eth.Payload, nil
-}
