@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"unsafe"
 
+	"golang.org/x/sys/windows"
+
 	"github.com/shirou/gopsutil/v4/net"
 	yaml "gopkg.in/yaml.v2"
 
@@ -160,6 +162,7 @@ type mibTcpStats struct {
 }
 
 var (
+	iphlpapi               = windows.NewLazySystemDLL("iphlpapi.dll")
 	procGetTcpStatisticsEx = iphlpapi.NewProc("GetTcpStatisticsEx")
 )
 
