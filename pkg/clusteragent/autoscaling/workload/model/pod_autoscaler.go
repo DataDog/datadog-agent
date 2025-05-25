@@ -25,10 +25,10 @@ import (
 const (
 	// longestScalingRulePeriodAllowed is the maximum period allowed for a scaling rule
 	// increasing duration increase the number of events to keep in memory and to process for recommendations.
-	longestScalingRulePeriodAllowed = 30 * time.Minute
+	longestScalingRulePeriodAllowed = 60 * time.Minute
 
 	// statusRetainedActions is the number of horizontal actions kept in status
-	statusRetainedActions = 5
+	statusRetainedActions = 10
 
 	// CustomRecommenderAnnotationKey is the key used to store custom recommender configuration in annotations
 	CustomRecommenderAnnotationKey = "autoscaling.datadoghq.com/custom-recommender"

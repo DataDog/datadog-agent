@@ -1,0 +1,12 @@
+instances:
+  - hostname: api.datadoghq.eu
+    protocol: TCP
+    port: 443
+  - hostname: 8.8.8.8
+    protocol: UDP
+    port: 53
+    # Test out our new TCP method for windows
+  - hostname: 8.8.8.8
+    protocol: TCP
+    port: 443
+    tcp_method: syn_socket

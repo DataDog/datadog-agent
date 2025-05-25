@@ -10,9 +10,7 @@ package usm
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	nethttp "net/http"
+
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,6 +30,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	nethttp "net/http"
 )
 
 func testArch(t *testing.T, arch string) {
@@ -56,9 +57,9 @@ func testArch(t *testing.T, arch string) {
 	require.NoError(t, err)
 
 	if arch == runtime.GOARCH {
-		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 	} else {
-		utils.WaitForPathToBeBlocked(t, consts.USMModuleName, "shared_libraries", lib)
+		utils.WaitForPathToBeBlocked(t, consts.USMModuleName, UsmTLSAttacherName, lib)
 	}
 }
 
@@ -68,13 +69,6 @@ func TestArchAmd64(t *testing.T) {
 
 func TestArchArm64(t *testing.T) {
 	testArch(t, "arm64")
-}
-
-func TestContainerdTmpErrEnvironment(t *testing.T) {
-	hookFunction := addHooks(nil, "foo", nil)
-	path := utils.FilePath{PID: uint32(os.Getpid()), HostPath: "/foo/tmpmounts/containerd-mount/bar"}
-	err := hookFunction(path)
-	require.ErrorIs(t, err, utils.ErrEnvironment)
 }
 
 // TestSSLMapsCleaner verifies that SSL-related kernel maps are cleared correctly.

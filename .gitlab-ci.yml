@@ -166,47 +166,32 @@ variables:
 
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
-  # SUFFIX variable to _test_only
-  DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v64687676-fe2ba558
-  DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v64687676-fe2ba558
-  DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v64687676-fe2ba558
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v64687676-fe2ba558
-  # New images to enable different version per image - not used yet
-  CI_IMAGE_BTF_GEN: v64687676-fe2ba558
+  # SUFFIX variable to
+  CI_IMAGE_BTF_GEN: v65811902-e15e4d4d
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DEB_X64: v64687676-fe2ba558
+  CI_IMAGE_DEB_X64: v65811902-e15e4d4d
   CI_IMAGE_DEB_X64_SUFFIX: ""
-  CI_IMAGE_DEB_ARM64: v64687676-fe2ba558
+  CI_IMAGE_DEB_ARM64: v65811902-e15e4d4d
   CI_IMAGE_DEB_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v64687676-fe2ba558
+  CI_IMAGE_DEB_ARMHF: v65811902-e15e4d4d
   CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_DD_AGENT_TESTING: v64687676-fe2ba558
-  CI_IMAGE_DD_AGENT_TESTING_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v64687676-fe2ba558
+  CI_IMAGE_DOCKER_X64: v65811902-e15e4d4d
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v64687676-fe2ba558
+  CI_IMAGE_DOCKER_ARM64: v65811902-e15e4d4d
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v64687676-fe2ba558
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v65811902-e15e4d4d
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_17_X64: v64687676-fe2ba558
+  CI_IMAGE_LINUX_GLIBC_2_17_X64: v65811902-e15e4d4d
   CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v64687676-fe2ba558
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v65811902-e15e4d4d
   CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_X64: v64687676-fe2ba558
-  CI_IMAGE_SYSTEM_PROBE_X64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_ARM64: v64687676-fe2ba558
-  CI_IMAGE_SYSTEM_PROBE_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v64687676-fe2ba558
+  CI_IMAGE_RPM_X64: v65811902-e15e4d4d
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v64687676-fe2ba558
+  CI_IMAGE_RPM_ARM64: v65811902-e15e4d4d
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v64687676-fe2ba558
+  CI_IMAGE_RPM_ARMHF: v65811902-e15e4d4d
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v64687676-fe2ba558
+  CI_IMAGE_WIN_LTSC2022_X64: v65811902-e15e4d4d
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -244,7 +229,7 @@ variables:
 
   # Start vault variables
   AGENT_API_KEY_ORG2: agent-api-key-org-2  # agent-devx
-  AGENT_APP_KEY_ORG2: agent-ci-app-key-org-2  # agent-devx
+  AGENT_APP_KEY_ORG2: agent-app-key-org-2  # agent-devx
   AGENT_GITHUB_APP: agent-github-app  # agent-devx
   AGENT_QA_E2E: agent-qa-e2e  # agent-devx
   ATLASSIAN_WRITE: atlassian-write  # agent-devx
@@ -1235,7 +1220,7 @@ workflow:
   - !reference [.except_mergequeue]
   - changes:
       paths:
-        - pkg/fleet/installer/packages/embedded/*.service
+        - pkg/fleet/installer/packages/embedded/templates/**/*.service
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true
@@ -1246,14 +1231,14 @@ workflow:
   tags: ["runner:windows-docker", "windowsversion:2022"]
   variables:
     # Full image name for Agent windows build image, for use in docker run command
-    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${DATADOG_AGENT_WINBUILDIMAGES}
+    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${CI_IMAGE_WIN_LTSC2022_X64_SUFFIX}:${CI_IMAGE_WIN_LTSC2022_X64}
 
 # The windows-v2 runner is currently only used in container_build jobs needed to do authenticated push. It should not replace the basic windows runner, unless agreeded first with #ci-infra team
 .windows_docker_v2_2022:
   tags: ["windows-v2:2022"]
   variables:
     # Full image name for Agent windows build image, for use in docker run command
-    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${DATADOG_AGENT_WINBUILDIMAGES}
+    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${CI_IMAGE_WIN_LTSC2022_X64_SUFFIX}:${CI_IMAGE_WIN_LTSC2022_X64}
 
 # windows_docker_2019 configures the job to use the Windows Server 2019 runners.
 # Use in jobs that need to run on Windows Server 2019 runners.

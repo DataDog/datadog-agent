@@ -143,9 +143,9 @@ func (s *packageAgentSuite) TestUpgrade_Agent_OCI_then_DebRpm() {
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
 
 	state = s.host.State()
-	s.assertUnits(state, false)
+	s.assertUnits(state, true)
 	state.AssertDirExists("/opt/datadog-agent", 0755, "dd-agent", "dd-agent")
-	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.AssertPackageNotInstalledByInstaller("datadog-agent")
 }
 
 func (s *packageAgentSuite) TestExperimentTimeout() {

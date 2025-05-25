@@ -368,6 +368,9 @@ func ReadStringToOutputLocationExpression(limit uint16) LocationExpression {
 // adds `offset` to the 8-byte address on the top of the bpf parameter stack.
 // Arg1 = uint value (offset) we're adding to the 8-byte address on top of the stack
 func ApplyOffsetLocationExpression(offset uint) LocationExpression {
+	if offset == 0 {
+		return LocationExpression{Opcode: OpComment, Label: "apply_offset(0) == no-op"}
+	}
 	return LocationExpression{Opcode: OpApplyOffset, Arg1: offset}
 }
 
@@ -492,6 +495,10 @@ type FuncByPCEntry struct {
 	Line       int64
 }
 
-// RemoteConfigCallback is the name of the function in dd-trace-go which we hook for retrieving
+// RemoteConfigCallback is the name of the function in dd-trace-go v1 which we hook for retrieving
 // probe configurations
 const RemoteConfigCallback = "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.passProbeConfiguration"
+
+// RemoteConfigCallbackV2 is the name of the function in dd-trace-go v2 which we hook for retrieving
+// probe configurations
+const RemoteConfigCallbackV2 = "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.passProbeConfiguration"

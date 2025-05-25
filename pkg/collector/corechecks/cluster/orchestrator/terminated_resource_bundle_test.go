@@ -21,16 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
-func TestInsertDeletionTimestampIfPossible(t *testing.T) {
-	rs := &appsv1.ReplicaSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "rs",
-		},
-	}
-	obj := insertDeletionTimestampIfPossible(rs)
-	require.NotNil(t, obj.(*appsv1.ReplicaSet).DeletionTimestamp)
-}
-
 func TestToTypedSlice(t *testing.T) {
 	rs := &appsv1.ReplicaSet{
 		ObjectMeta: metav1.ObjectMeta{

@@ -39,8 +39,11 @@ type ExpBackoffPolicy struct {
 
 const secondsFloat = float64(time.Second)
 
-func randomBetween(min, max float64) float64 {
-	return rand.Float64()*(max-min) + min
+func randomBetween(r *rand.Rand, min, max float64) float64 {
+	if r == nil {
+		return rand.Float64()*(max-min) + min
+	}
+	return r.Float64()*(max-min) + min
 }
 
 // NewExpBackoffPolicy constructs new Backoff object with given parameters
@@ -72,7 +75,7 @@ func (e *ExpBackoffPolicy) GetBackoffDuration(numErrors int) time.Duration {
 		} else {
 			min := backoffTime / e.MinBackoffFactor
 			max := math.Min(e.MaxBackoffTime, backoffTime)
-			backoffTime = randomBetween(min, max)
+			backoffTime = randomBetween(nil, min, max)
 		}
 	}
 
