@@ -455,7 +455,6 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
 
         // Verify client software name
         s16 client_software_name_size = read_nullable_string_size(pkt, true, &offset);
-        log_debug("GUY Kafka API Versions request: client_software_name_size %d", client_software_name_size);
         if (client_software_name_size < 0 || client_software_name_size > CLIENT_SOFTWARE_STRING_MAX_SIZE) {
             return false;
         }
@@ -466,7 +465,6 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
 
         // Verify client software version
         s16 client_software_version_size = read_nullable_string_size(pkt, true, &offset);
-        log_debug("GUY Kafka API Versions request: client_software_version_size %d", client_software_version_size);
         if (client_software_version_size < 0 || client_software_version_size > CLIENT_SOFTWARE_STRING_MAX_SIZE) {
             return false;
         }
