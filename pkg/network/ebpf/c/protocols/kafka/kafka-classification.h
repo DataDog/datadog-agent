@@ -63,6 +63,24 @@ static __always_inline bool is_valid_client_id(pktbuf_t pkt, u32 offset, u16 rea
     CHECK_STRING_VALID_CLIENT_ID(CLIENT_ID_SIZE_TO_VALIDATE, real_client_id_size, client_id);
 }
 
+PKTBUF_READ_INTO_BUFFER(client_software_string, CLIENT_SOFTWARE_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
+
+// Verifies the specified string is valid (up to CLIENT_SOFTWARE_STRING_SIZE_TO_VALIDATE bytes from the given offset)
+// valid means composed only from characters from [a-zA-Z0-9._-].
+static __always_inline bool is_valid_client_software_string(pktbuf_t pkt, u32 offset, u16 real_string_size) {
+    const u32 key = 0;
+    // Use a buffer from per-cpu array as the stack is limited.
+    char *client_software_string = bpf_map_lookup_elem(&kafka_client_software, &key);
+    if (client_software_string == NULL) {
+        return false;
+    }
+    bpf_memset(client_software_string, 0, CLIENT_SOFTWARE_STRING_SIZE_TO_VALIDATE);
+    pktbuf_read_into_buffer_client_software_string(client_software_string, pkt, offset);
+
+    // Returns whether composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
+    CHECK_STRING_COMPOSED_OF_ASCII(CLIENT_SOFTWARE_STRING_SIZE_TO_VALIDATE, real_string_size, client_software_string, false);
+}
+
 // Checks the given kafka header represents a valid one.
 // * The message size should include the size of the header.
 // * The api version is not negative.
@@ -435,8 +453,35 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
             return false;
         }
 
-        // TODO check "client software name" and "client software version"
-        return true;
+        // Verify client software name
+        s16 client_software_name_size = read_nullable_string_size(pkt, true, &offset);
+        log_debug("GUY Kafka API Versions request: client_software_name_size %d", client_software_name_size);
+        if (client_software_name_size < 0 || client_software_name_size > CLIENT_SOFTWARE_STRING_MAX_SIZE) {
+            return false;
+        }
+        if (!is_valid_client_software_string(pkt, offset, client_software_name_size)) {
+            return false;
+        }
+        offset += client_software_name_size;
+
+        // Verify client software version
+        s16 client_software_version_size = read_nullable_string_size(pkt, true, &offset);
+        log_debug("GUY Kafka API Versions request: client_software_version_size %d", client_software_version_size);
+        if (client_software_version_size < 0 || client_software_version_size > CLIENT_SOFTWARE_STRING_MAX_SIZE) {
+            return false;
+        }
+        if (!is_valid_client_software_string(pkt, offset, client_software_version_size)) {
+            return false;
+        }
+        offset += client_software_version_size;
+
+        // Another tagged fields at the end of the request
+        if (!skip_request_tagged_fields(pkt, &offset)) {
+            return false;
+        }
+
+        // we should be at the end of the packet now
+        return offset == pktbuf_data_end(pkt);
     default:
         return false;
     }

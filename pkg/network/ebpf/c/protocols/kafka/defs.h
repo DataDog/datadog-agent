@@ -23,8 +23,10 @@
 #define CLIENT_ID_SIZE_TO_VALIDATE 30
 #define TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE 48 // 16 * 3. Must be a factor of 16, otherwise a verifier issue can pop in kernel 4.14.
 #define TOPIC_NAME_MAX_ALLOWED_SIZE 255
-
 #define TOPIC_NAME_MAX_STRING_SIZE 80
+
+#define CLIENT_SOFTWARE_STRING_MAX_SIZE 255
+#define CLIENT_SOFTWARE_STRING_SIZE_TO_VALIDATE 80 // 16 * 5. Must be a factor of 16, otherwise a verifier issue can pop in kernel 4.14.
 
 #define NUM_TOPICS_MAX 0x3fff // 16383
 #define NUM_BROKERS_MAX  0x3fff // 16383
