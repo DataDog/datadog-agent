@@ -65,24 +65,24 @@ update_stack:
 
 /*
  * Processes decrypted TLS traffic and dispatches it to appropriate protocol handlers.
- *
+ * 
  * This function is called by various TLS hookpoints (OpenSSL, GnuTLS, GoTLS, JavaTLS)
  * to process decrypted TLS payloads. It manages the protocol stack for each connection,
  * classifies the decrypted payload if the application protocol is not yet known, and
  * dispatches the traffic to the appropriate protocol handler via tail calls.
- *
+ * 
  * The function first creates or retrieves a protocol stack for the connection. If the
  * application protocol is unknown, it attempts to classify the payload. For Kafka traffic,
  * an additional classification step may be performed via a tail call if Kafka monitoring
  * is enabled.
- *
+ * 
  * For each supported protocol, the function performs a tail call to a dedicated handler:
  * - HTTP: PROG_HTTP
  * - HTTP2: PROG_HTTP2_HANDLE_FIRST_FRAME
  * - Kafka: PROG_KAFKA
  * - PostgreSQL: PROG_POSTGRES
  * - Redis: PROG_REDIS
- *
+ * 
  * The function takes the BPF program context, connection metadata (tuple), a pointer to
  * the decrypted payload and its length, and connection metadata tags as input.
  */
