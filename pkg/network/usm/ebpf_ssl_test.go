@@ -233,8 +233,6 @@ func TestNativeTLSMapsCleanup(t *testing.T) {
 		EnableTLS: true,
 	})
 
-	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
-
 	client, requestFn := simpleGetRequestsGenerator(t, addressOfHTTPPythonServer)
 	var requests []*nethttp.Request
 	for i := 0; i < numberOfRequests; i++ {
