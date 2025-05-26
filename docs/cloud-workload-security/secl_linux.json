@@ -5758,6 +5758,35 @@
       ]
     },
     {
+      "name": "setsockopt",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "setsockopt.level",
+          "definition": "Socket level",
+          "property_doc_link": "setsockopt-level-doc"
+        },
+        {
+          "name": "setsockopt.optname",
+          "definition": "Socket option name",
+          "property_doc_link": "setsockopt-optname-doc"
+        },
+        {
+          "name": "setsockopt.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "setsockopt.socket",
+          "definition": "Socket file descriptor",
+          "property_doc_link": "setsockopt-socket-doc"
+        }
+      ]
+    },
+    {
       "name": "setuid",
       "definition": "A process changed its effective uid",
       "type": "Process",
@@ -9493,6 +9522,7 @@
         "removexattr",
         "rename",
         "rmdir",
+        "setsockopt",
         "setxattr",
         "signal",
         "splice",
@@ -11014,6 +11044,42 @@
       "definition": "New group of the process",
       "prefixes": [
         "setgid"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.level",
+      "link": "setsockopt-level-doc",
+      "type": "int",
+      "definition": "Socket level",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.optname",
+      "link": "setsockopt-optname-doc",
+      "type": "int",
+      "definition": "Socket option name",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.socket",
+      "link": "setsockopt-socket-doc",
+      "type": "int",
+      "definition": "Socket file descriptor",
+      "prefixes": [
+        "setsockopt"
       ],
       "constants": "",
       "constants_link": "",

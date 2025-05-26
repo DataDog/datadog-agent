@@ -247,6 +247,12 @@ struct syscall_cache_t {
         struct {
             u32 action;
         } sysctl;
+
+        struct {
+            int socket;
+            int level;
+            int optname;
+        } setsockopt;
     };
 };
 

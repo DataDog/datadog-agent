@@ -542,6 +542,18 @@ type SyscallArgsSerializer struct {
 	FSType *string `json:"fs_type,omitempty"`
 }
 
+// SetSockOptEventSerializer defines a setsockopt event serializer
+// easyjson:json
+type SetSockOptEventSerializer struct {
+	// Socket is the socket file descriptor
+	Socket uint32 `json:"socket"`
+	// Level is the level at which the option is defined
+	Level uint32 `json:"level"`
+	// OptName is the name of the option being set
+	OptName uint32 `json:"optname"`
+	// OptValue is the value of the option being set
+}
+
 func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *SyscallArgsSerializer {
 
 	switch e.GetEventType() {
@@ -620,18 +632,19 @@ func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *Syscall
 // SyscallContextSerializer serializes syscall context
 // easyjson:json
 type SyscallContextSerializer struct {
-	Chmod  *SyscallArgsSerializer `json:"chmod,omitempty"`
-	Chown  *SyscallArgsSerializer `json:"chown,omitempty"`
-	Chdir  *SyscallArgsSerializer `json:"chdir,omitempty"`
-	Exec   *SyscallArgsSerializer `json:"exec,omitempty"`
-	Open   *SyscallArgsSerializer `json:"open,omitempty"`
-	Unlink *SyscallArgsSerializer `json:"unlink,omitempty"`
-	Link   *SyscallArgsSerializer `json:"link,omitempty"`
-	Rename *SyscallArgsSerializer `json:"rename,omitempty"`
-	Utimes *SyscallArgsSerializer `json:"utimes,omitempty"`
-	Mount  *SyscallArgsSerializer `json:"mount,omitempty"`
-	Mkdir  *SyscallArgsSerializer `json:"mkdir,omitempty"`
-	Rmdir  *SyscallArgsSerializer `json:"rmdir,omitempty"`
+	Chmod      *SyscallArgsSerializer `json:"chmod,omitempty"`
+	Chown      *SyscallArgsSerializer `json:"chown,omitempty"`
+	Chdir      *SyscallArgsSerializer `json:"chdir,omitempty"`
+	Exec       *SyscallArgsSerializer `json:"exec,omitempty"`
+	Open       *SyscallArgsSerializer `json:"open,omitempty"`
+	Unlink     *SyscallArgsSerializer `json:"unlink,omitempty"`
+	Link       *SyscallArgsSerializer `json:"link,omitempty"`
+	Rename     *SyscallArgsSerializer `json:"rename,omitempty"`
+	Utimes     *SyscallArgsSerializer `json:"utimes,omitempty"`
+	Mount      *SyscallArgsSerializer `json:"mount,omitempty"`
+	Mkdir      *SyscallArgsSerializer `json:"mkdir,omitempty"`
+	Rmdir      *SyscallArgsSerializer `json:"rmdir,omitempty"`
+	SetSockOpt *SyscallArgsSerializer `json:"setsockopt,omitempty"`
 }
 
 func newSyscallContextSerializer(sc *model.SyscallContext, e *model.Event, attachEventypeCb func(*SyscallContextSerializer, *SyscallArgsSerializer)) *SyscallContextSerializer {
@@ -681,6 +694,7 @@ type EventSerializer struct {
 	*RawPacketSerializer          `json:"packet,omitempty"`
 	*NetworkFlowMonitorSerializer `json:"network_flow_monitor,omitempty"`
 	*SysCtlEventSerializer        `json:"sysctl,omitempty"`
+	*SetSockOptEventSerializer    `json:"setsockopt,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -1254,6 +1268,13 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 		EventTypeState: e.EventTypeState.String(),
 	}
 }
+func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
+	return &SetSockOptEventSerializer{
+		Socket:  (e.SetSockOpt.Socket),
+		Level:   (e.SetSockOpt.Level),
+		OptName: (e.SetSockOpt.OptName),
+	}
+}
 
 // ToJSON returns json
 func (e *EventSerializer) ToJSON() ([]byte, error) {
@@ -1555,6 +1576,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 	case model.SysCtlEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.SysCtlEventSerializer = newSysCtlEventSerializer(&event.SysCtl, event)
+	case model.SetSockOptEventType:
+		s.SetSockOptEventSerializer = newSetSockOptEventSerializer(event)
 	}
 
 	return s
