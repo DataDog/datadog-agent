@@ -6,8 +6,6 @@ option go_package = "pkg/security/proto/api";
 
 package api;
 
-message GetEventParams {}
-
 message SecurityEventMessage {
     string RuleID = 1;
     bytes Data = 2;
@@ -16,8 +14,6 @@ message SecurityEventMessage {
     google.protobuf.Timestamp Timestamp = 5;
     string OriginalRuleID = 6;
 }
-
-message SecurityEventResponse {}
 
 message DumpProcessCacheParams {
     bool WithArgs = 1;
@@ -253,15 +249,11 @@ message TranscodingRequestMessage {
     repeated StorageRequestMessage Storage = 2;
 }
 
-message ActivityDumpStreamParams {}
-
 message ActivityDumpStreamMessage {
     WorkloadSelectorMessage Selector = 1;
     bytes Header = 2;
     bytes Data = 3;
 }
-
-message ActivityDumpStreamResponse {}
 
 message WorkloadSelectorMessage {
     string Name = 1;
@@ -338,6 +330,8 @@ message SecurityProfileSaveMessage {
     string Error = 1;
     string File = 2;
 }
+
+message EmptyResponse {}
 
 service SecurityModule {
     rpc DumpProcessCache(DumpProcessCacheParams) returns (SecurityDumpProcessCacheMessage) {}

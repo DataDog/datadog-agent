@@ -159,23 +159,6 @@ type APIServer struct {
 	securityAgentAPIClient *SecurityAgentAPIClient
 }
 
-/*
-// GetActivityDumpStream waits for activity dumps and forwards them to the stream
-func (a *APIServer) GetActivityDumpStream(_ *api.ActivityDumpStreamParams, stream api.SecurityModule_GetActivityDumpStreamServer) error {
-	for {
-		select {
-		case <-stream.Context().Done():
-			return nil
-		case <-a.stopChan:
-			return nil
-		case dump := <-a.activityDumps:
-			if err := stream.Send(dump); err != nil {
-				return err
-			}
-		}
-	}
-}*/
-
 // SendActivityDump queues an activity dump to the chan of activity dumps
 func (a *APIServer) SendActivityDump(imageName string, imageTag string, header []byte, data []byte) {
 	dump := &api.ActivityDumpStreamMessage{
@@ -189,32 +172,6 @@ func (a *APIServer) SendActivityDump(imageName string, imageTag string, header [
 
 	a.activityDumpSender.Send(dump, a.expireDump)
 }
-
-/*
-// GetEvents waits for security events
-
-	func (a *APIServer) GetEvents(_ *api.GetEventParams, stream api.SecurityModule_GetEventsServer) error {
-		if prev := a.connEstablished.Swap(true); !prev {
-			// should always be non nil
-			if a.cwsConsumer != nil {
-				a.cwsConsumer.onAPIConnectionEstablished()
-			}
-		}
-
-		for {
-			select {
-			case <-stream.Context().Done():
-				return nil
-			case <-a.stopChan:
-				return nil
-			case msg := <-a.msgs:
-				if err := stream.Send(msg); err != nil {
-					return err
-				}
-			}
-		}
-	}
-*/
 
 func (a *APIServer) enqueue(msg *pendingMsg) {
 	a.queueLock.Lock()
@@ -364,6 +321,7 @@ func (a *APIServer) start(ctx context.Context) {
 // Start the api server, starts to consume the msg queue
 func (a *APIServer) Start(ctx context.Context) {
 	go a.securityAgentAPIClient.SendEvents(ctx, a.events)
+	go a.securityAgentAPIClient.SendActivityDumps(ctx, a.activityDumps)
 	go a.start(ctx)
 }
 
