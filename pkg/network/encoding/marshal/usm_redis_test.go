@@ -70,7 +70,7 @@ func (s *RedisSuite) TestFormatRedisStats() {
 						FirstLatencySample: 1,
 						Count:              2,
 					},
-					redis.GenericErr: {
+					redis.Err: {
 						FirstLatencySample: 1,
 						Count:              2,
 					},
