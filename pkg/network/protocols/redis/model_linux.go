@@ -83,8 +83,8 @@ func (e *EventWrapper) RequestLatency() float64 {
 	return protocols.NSTimestampToFloat(e.Tx.Response_last_seen - e.Tx.Request_started)
 }
 
-// ErrorName returns the error name as a string, extracted from the null-terminated Error field.
-func (e *EventWrapper) ErrorName() ErrorType {
+// ErrorType returns the error type.
+func (e *EventWrapper) ErrorType() ErrorType {
 	if !e.errorSet {
 		e.error = ErrorType(e.Tx.Error)
 		e.errorSet = true

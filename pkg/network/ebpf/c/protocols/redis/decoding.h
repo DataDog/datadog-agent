@@ -269,7 +269,6 @@ static void __always_inline process_redis_response(pktbuf_t pkt, conn_tuple_t *t
         bool got_error = extract_redis_error_prefix(pkt, error_prefix, sizeof(error_prefix));
         if (got_error) {
             transaction->error = map_redis_error_prefix(error_prefix);
-            bpf_printk("[redis] error prefix: %s -> %d\n", error_prefix, transaction->error);
         } else {
             transaction->error = REDIS_ERR_UNKNOWN;
         }
