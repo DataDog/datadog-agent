@@ -84,9 +84,12 @@ def find_package_path(flavor, package_os, arch, extension=None):
     separator = '_' if package_os == 'debian' else '-'
     if not extension:
         extension = "deb" if package_os == 'debian' else "rpm"
-    glob_pattern = f'{package_dir}/{flavor}{separator}7*{arch}.{extension}'
+    pipeline_match = ""
+    if package_os == "windows":  # Windows builds are subject to artifacts leak and need their pipeline to match the msi
+        pipeline_match = f"{os.environ['CI_PIPELINE_ID']}-1-"
+    glob_pattern = f'{package_dir}/{flavor}{separator}7*{pipeline_match}{arch}.{extension}'
     package_paths = glob.glob(glob_pattern)
-    if len(package_paths) > 1 and package_os != "windows": # Temporarily allow windows to have multiple match
+    if len(package_paths) > 1:
         raise Exit(code=1, message=color_message(f"Too many files matching {glob_pattern}: {package_paths}", "red"))
     elif len(package_paths) == 0:
         raise Exit(code=1, message=color_message(f"Couldn't find any file matching {glob_pattern}", "red"))
