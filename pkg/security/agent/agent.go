@@ -33,7 +33,7 @@ type RuntimeSecurityAgent struct {
 	statsdClient         statsd.ClientInterface
 	hostname             string
 	reporter             common.RawReporter
-	server                  *RuntimeSecurityServer
+	server               *SecurityAgentAPIServer
 	client               *RuntimeSecurityClient
 	running              *atomic.Bool
 	wg                   sync.WaitGroup
@@ -72,6 +72,7 @@ func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *c
 		go rsa.startActivityDumpStorageTelemetry(ctx)
 	}
 
+	// Start the security agent grpc server
 	rsa.server.Start()
 }
 
