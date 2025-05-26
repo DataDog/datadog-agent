@@ -28,7 +28,7 @@ def byoc_release(ctx, image=DDOT_DEV_AGENT_TAG, branch=DDOT_DEV_AGENT_BRANCH, re
 
     with open(DDOT_BYOC_DOCKERFILE, 'w') as file:
         for line in contents:
-            if re.search("^ARG AGENT_VERSION=.*$", line):
+            if re.search("^ARG AGENT_REPO=.*$", line):
                 line = f"ARG AGENT_REPO={repo}\n"
             elif re.search("^ARG AGENT_VERSION=.*$", line):
                 line = f"ARG AGENT_VERSION={image}\n"

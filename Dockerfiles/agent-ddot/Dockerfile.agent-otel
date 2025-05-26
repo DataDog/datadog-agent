@@ -27,19 +27,14 @@ RUN apt-get update && \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# TEMP: Use github source code
-RUN git clone --filter=blob:none --branch "${AGENT_BRANCH}" --single-branch https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_VERSION}
-
-# Once we have stable releases, we can use the following code to download the source code
-# TODO: use released agent version once we have an agent release with the otel binary
-# Download and unpack source code
-#RUN curl -L https://github.com/DataDog/datadog-agent/archive/refs/tags/${AGENT_VERSION}.tar.gz -o datadog-agent-${AGENT_VERSION}.tar.gz && \
-#    tar -xzvf datadog-agent-${AGENT_VERSION}.tar.gz && \
-#    rm datadog-agent-${AGENT_VERSION}.tar.gz
-
+# We can't get tarballs for dev branches, so we can't just pull the tarball from github.
+# Instead we make a treeless clone at the reference provided, and build from the repo.
+# We also have to use the repo clone because some invoke tasks rely on git coommands unavailable
+# in repo tarball archives. For the same reason a shallow clone will also not work.
+RUN git clone --branch ${AGENT_BRANCH} --filter=tree:0 https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_BRANCH}
 
 # Set the working directory to the source code
-WORKDIR /workspace/datadog-agent-${AGENT_VERSION}
+WORKDIR /workspace/datadog-agent-${AGENT_BRANCH}
 
 # Install Go based on architecture
 RUN GO_VERSION=$(cat .go-version) && \
@@ -73,7 +68,7 @@ RUN python3 -m venv venv && \
     dda self dep sync -f legacy-tasks
 
 # Copy the manifest file
-COPY manifest.yaml /workspace/datadog-agent-${AGENT_VERSION}/comp/otelcol/collector-contrib/impl/manifest.yaml
+COPY manifest.yaml /workspace/datadog-agent-${AGENT_BRANCH}/comp/otelcol/collector-contrib/impl/manifest.yaml
 
 # Generate the files
 RUN . venv/bin/activate && dda inv collector.generate
@@ -83,6 +78,6 @@ RUN . venv/bin/activate && dda inv otel-agent.build
 
 # Use the final Datadog agent image
 FROM ${AGENT_REPO}:${AGENT_VERSION}
-ARG AGENT_VERSION
+ARG AGENT_BRANCH
 # Copy the built OTel agent from the builder stage
-COPY --from=builder /workspace/datadog-agent-${AGENT_VERSION}/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent
+COPY --from=builder /workspace/datadog-agent-${AGENT_BRANCH}/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent
