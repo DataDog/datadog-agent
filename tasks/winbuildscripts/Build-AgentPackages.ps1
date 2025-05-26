@@ -63,6 +63,7 @@ Invoke-BuildScript `
     if ($BuildUpgrade) {
         $inv_args += "--build-upgrade"
     }
+    $inv_args += "--log-level debug"
 
     Write-Host "dda inv -- -e winbuild.agent-package $inv_args"
     dda inv -- -e winbuild.agent-package @inv_args
