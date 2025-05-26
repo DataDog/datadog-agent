@@ -13,54 +13,58 @@ import (
 	"runtime"
 	"time"
 
-	empty "github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
-// APIClient is used to send request to security module
-type APIClient struct {
-	apiClient api.SecurityEventsClient
-	conn      *grpc.ClientConn
+// SecurityAgentAPIClient is used to send request to security module
+type SecurityAgentAPIClient struct {
+	SecurityAgentAPIClient api.SecurityAgentAPIClient
+	conn                   *grpc.ClientConn
 }
 
-// SecurityModuleClientWrapper represents a security module client
-type SecurityModuleClientWrapper interface {
-	SendEvent(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[api.SecurityEventMessage, empty.Empty], error)
-	SendActivityDumpStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[api.ActivityDumpStreamMessage, empty.Empty], error)
-	Close()
-}
-
-func (c *APIClient) Start() {
-	stream, err := c.apiClient.SendEvent(context.Background())
-	if err != nil {
-		fmt.Printf(">>>>>>>>>> Error starting grpc client: %v\n", err)
-	}
-
+func (c *SecurityAgentAPIClient) SendEvents(ctx context.Context, events chan *api.SecurityEventMessage) {
 	for {
-		err := stream.Send(&api.SecurityEventMessage{
-			RuleID: "test",
-		})
+		seclog.Debugf("sending events to security agent grpc client")
+
+		stream, err := c.SecurityAgentAPIClient.SendEvent(context.Background())
 		if err != nil {
-			fmt.Printf(">>>>>>>>>>> Error sending event: %v\n", err)
-		} else {
-			fmt.Printf(">>>>>>>>>>> Sent event\n")
+			seclog.Warnf("error starting security agent grpc client: %v", err)
+
+			// Wait for 1 second before trying to send events again
+			time.Sleep(time.Second)
+			continue
 		}
-		time.Sleep(1 * time.Second)
+
+	LOOP:
+		for {
+			select {
+			case event := <-events:
+				err := stream.Send(event)
+				if err != nil {
+					seclog.Errorf("error sending event: %v", err)
+					break LOOP
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+
+		_, _ = stream.CloseAndRecv()
+
+		// Wait for 1 second before trying to send events again
+		time.Sleep(time.Second)
 	}
 }
 
-// NewAPIClient instantiates a new APIClient
-func NewAPIClient() (*APIClient, error) {
-	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
-
-	socketPath = "/tmp/runtime-security.sock"
-
+// NewSecurityAgentAPIClient instantiates a new SecurityAgentAPIClient
+func NewSecurityAgentAPIClient(cfg *config.RuntimeSecurityConfig) (*SecurityAgentAPIClient, error) {
+	socketPath := cfg.SocketPath
 	if socketPath == "" {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
@@ -85,14 +89,12 @@ func NewAPIClient() (*APIClient, error) {
 			},
 		}))
 
-	fmt.Printf(">>>>>>>>>>> Connected to %s\n", socketPath)
-
 	if err != nil {
 		return nil, err
 	}
 
-	return &APIClient{
-		conn:      conn,
-		apiClient: api.NewSecurityEventsClient(conn),
+	return &SecurityAgentAPIClient{
+		conn:                   conn,
+		SecurityAgentAPIClient: api.NewSecurityAgentAPIClient(conn),
 	}, nil
 }

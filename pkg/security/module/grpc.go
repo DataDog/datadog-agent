@@ -48,8 +48,6 @@ func (g *GRPCServer) ServiceRegistrar() grpc.ServiceRegistrar {
 
 // Start the server
 func (g *GRPCServer) Start() error {
-	fmt.Printf("~~~~ %s %s\n", g.family, g.address)
-
 	ln, err := net.Listen(g.family, g.address)
 	if err != nil {
 		return fmt.Errorf("unable to create runtime security socket: %w", err)
