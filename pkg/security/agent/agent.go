@@ -68,6 +68,7 @@ type RSAOptions struct {
 	LogProfiledWorkloads bool
 }
 
+// SendEvent dispatches events to the backend
 func (rsa *RuntimeSecurityAgent) SendEvent(stream grpc.ClientStreamingServer[api.SecurityEventMessage, empty.Empty]) error {
 	for {
 		msg, err := stream.Recv()
@@ -91,9 +92,28 @@ func (rsa *RuntimeSecurityAgent) SendEvent(stream grpc.ClientStreamingServer[api
 	return nil
 }
 
-func (rsa *RuntimeSecurityAgent) SendActivityDumpStream(grpc.ClientStreamingServer[api.ActivityDumpStreamMessage, empty.Empty]) error {
+// SendActivityDumpStream dispatches activity dumps to the backend
+func (rsa *RuntimeSecurityAgent) SendActivityDumpStream(stream grpc.ClientStreamingServer[api.ActivityDumpStreamMessage, empty.Empty]) error {
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			break // read done.
+		}
 
-	fmt.Println("SendActivityDumpStream")
+		if err != nil {
+			return err
+		}
+
+		if seclog.DefaultLogger.IsTracing() {
+			seclog.DefaultLogger.Tracef("Got activity dump [%s]", msg.GetSelector())
+		}
+
+		rsa.activityDumpReceived.Inc()
+
+		// Dispatch activity dump
+		rsa.DispatchActivityDump(msg)
+	}
+
 	return nil
 }
 
@@ -130,99 +150,6 @@ func (rsa *RuntimeSecurityAgent) Stop() {
 	rsa.grpcServer.Stop()
 	rsa.wg.Wait()
 }
-
-/*
-// StartEventListener starts listening for new events from system-probe
-func (rsa *RuntimeSecurityAgent) StartEventListener() {
-	rsa.wg.Add(1)
-	defer rsa.wg.Done()
-
-	rsa.connected.Store(false)
-
-	logTicker := newLogBackoffTicker()
-
-	for rsa.running.Load() {
-		stream, err := rsa.client.GetEvents()
-		if err != nil {
-			rsa.connected.Store(false)
-
-			select {
-			case <-logTicker.C:
-				msg := fmt.Sprintf("error while connecting to the runtime security module: %v", err)
-
-				if e, ok := status.FromError(err); ok {
-					switch e.Code() {
-					case codes.Unavailable:
-						msg += ", please check that the runtime security module is enabled in the system-probe.yaml config file"
-					}
-				}
-				seclog.Errorf("%s", msg)
-			default:
-				// do nothing
-			}
-
-			// retry in 2 seconds
-			time.Sleep(2 * time.Second)
-			continue
-		}
-
-		if !rsa.connected.Load() {
-			rsa.connected.Store(true)
-
-			seclog.Infof("Successfully connected to the runtime security module")
-		}
-
-		for {
-			// Get new event from stream
-			in, err := stream.Recv()
-			if err == io.EOF || in == nil {
-				break
-			}
-
-			if seclog.DefaultLogger.IsTracing() {
-				seclog.DefaultLogger.Tracef("Got message from rule `%s` for event `%s`", in.RuleID, string(in.Data))
-			}
-
-			rsa.eventReceived.Inc()
-
-			// Dispatch security event
-			rsa.DispatchEvent(in)
-		}
-	}
-}*/
-
-/*
-// StartActivityDumpListener starts listening for new activity dumps from system-probe
-func (rsa *RuntimeSecurityAgent) StartActivityDumpListener() {
-	rsa.wg.Add(1)
-	defer rsa.wg.Done()
-
-	for rsa.running.Load() {
-		stream, err := rsa.client.GetActivityDumpStream()
-		if err != nil {
-			// retry in 2 seconds
-			time.Sleep(2 * time.Second)
-			continue
-		}
-
-		for {
-			// Get new activity dump from stream
-			msg, err := stream.Recv()
-			if err == io.EOF || msg == nil {
-				break
-			}
-
-			if seclog.DefaultLogger.IsTracing() {
-				seclog.DefaultLogger.Tracef("Got activity dump [%s]", msg.GetSelector())
-			}
-
-			rsa.activityDumpReceived.Inc()
-
-			// Dispatch activity dump
-			rsa.DispatchActivityDump(msg)
-		}
-	}
-}*/
 
 // DispatchEvent dispatches a security event message to the subsytems of the runtime security agent
 func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
