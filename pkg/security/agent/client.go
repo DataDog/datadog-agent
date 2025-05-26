@@ -42,8 +42,6 @@ type SecurityModuleClientWrapper interface {
 	RunSelfTest() (*api.SecuritySelfTestResultMessage, error)
 	ReloadPolicies() (*api.ReloadPoliciesResultMessage, error)
 	GetRuleSetReport() (*api.GetRuleSetReportMessage, error)
-	GetEvents() (api.SecurityModule_GetEventsClient, error)
-	GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error)
 	ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error)
 	SaveSecurityProfile(name string, tag string) (*api.SecurityProfileSaveMessage, error)
 	Close()
@@ -138,24 +136,6 @@ func (c *RuntimeSecurityClient) GetRuleSetReport() (*api.GetRuleSetReportMessage
 		return nil, err
 	}
 	return response, nil
-}
-
-// GetEvents returns a stream of events
-func (c *RuntimeSecurityClient) GetEvents() (api.SecurityModule_GetEventsClient, error) {
-	stream, err := c.apiClient.GetEvents(context.Background(), &api.GetEventParams{})
-	if err != nil {
-		return nil, err
-	}
-	return stream, nil
-}
-
-// GetActivityDumpStream returns a stream of activity dumps
-func (c *RuntimeSecurityClient) GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error) {
-	stream, err := c.apiClient.GetActivityDumpStream(context.Background(), &api.ActivityDumpStreamParams{})
-	if err != nil {
-		return nil, err
-	}
-	return stream, nil
 }
 
 // ListSecurityProfiles lists the profiles held in memory by the Security Profile manager
