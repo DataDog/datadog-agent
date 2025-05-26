@@ -20,29 +20,26 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SecurityModule_GetEvents_FullMethodName             = "/api.SecurityModule/GetEvents"
-	SecurityModule_DumpProcessCache_FullMethodName      = "/api.SecurityModule/DumpProcessCache"
-	SecurityModule_GetConfig_FullMethodName             = "/api.SecurityModule/GetConfig"
-	SecurityModule_GetStatus_FullMethodName             = "/api.SecurityModule/GetStatus"
-	SecurityModule_RunSelfTest_FullMethodName           = "/api.SecurityModule/RunSelfTest"
-	SecurityModule_GetRuleSetReport_FullMethodName      = "/api.SecurityModule/GetRuleSetReport"
-	SecurityModule_ReloadPolicies_FullMethodName        = "/api.SecurityModule/ReloadPolicies"
-	SecurityModule_DumpNetworkNamespace_FullMethodName  = "/api.SecurityModule/DumpNetworkNamespace"
-	SecurityModule_DumpDiscarders_FullMethodName        = "/api.SecurityModule/DumpDiscarders"
-	SecurityModule_DumpActivity_FullMethodName          = "/api.SecurityModule/DumpActivity"
-	SecurityModule_ListActivityDumps_FullMethodName     = "/api.SecurityModule/ListActivityDumps"
-	SecurityModule_StopActivityDump_FullMethodName      = "/api.SecurityModule/StopActivityDump"
-	SecurityModule_TranscodingRequest_FullMethodName    = "/api.SecurityModule/TranscodingRequest"
-	SecurityModule_GetActivityDumpStream_FullMethodName = "/api.SecurityModule/GetActivityDumpStream"
-	SecurityModule_ListSecurityProfiles_FullMethodName  = "/api.SecurityModule/ListSecurityProfiles"
-	SecurityModule_SaveSecurityProfile_FullMethodName   = "/api.SecurityModule/SaveSecurityProfile"
+	SecurityModule_DumpProcessCache_FullMethodName     = "/api.SecurityModule/DumpProcessCache"
+	SecurityModule_GetConfig_FullMethodName            = "/api.SecurityModule/GetConfig"
+	SecurityModule_GetStatus_FullMethodName            = "/api.SecurityModule/GetStatus"
+	SecurityModule_RunSelfTest_FullMethodName          = "/api.SecurityModule/RunSelfTest"
+	SecurityModule_GetRuleSetReport_FullMethodName     = "/api.SecurityModule/GetRuleSetReport"
+	SecurityModule_ReloadPolicies_FullMethodName       = "/api.SecurityModule/ReloadPolicies"
+	SecurityModule_DumpNetworkNamespace_FullMethodName = "/api.SecurityModule/DumpNetworkNamespace"
+	SecurityModule_DumpDiscarders_FullMethodName       = "/api.SecurityModule/DumpDiscarders"
+	SecurityModule_DumpActivity_FullMethodName         = "/api.SecurityModule/DumpActivity"
+	SecurityModule_ListActivityDumps_FullMethodName    = "/api.SecurityModule/ListActivityDumps"
+	SecurityModule_StopActivityDump_FullMethodName     = "/api.SecurityModule/StopActivityDump"
+	SecurityModule_TranscodingRequest_FullMethodName   = "/api.SecurityModule/TranscodingRequest"
+	SecurityModule_ListSecurityProfiles_FullMethodName = "/api.SecurityModule/ListSecurityProfiles"
+	SecurityModule_SaveSecurityProfile_FullMethodName  = "/api.SecurityModule/SaveSecurityProfile"
 )
 
 // SecurityModuleClient is the client API for SecurityModule service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SecurityModuleClient interface {
-	GetEvents(ctx context.Context, in *GetEventParams, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SecurityEventMessage], error)
 	DumpProcessCache(ctx context.Context, in *DumpProcessCacheParams, opts ...grpc.CallOption) (*SecurityDumpProcessCacheMessage, error)
 	GetConfig(ctx context.Context, in *GetConfigParams, opts ...grpc.CallOption) (*SecurityConfigMessage, error)
 	GetStatus(ctx context.Context, in *GetStatusParams, opts ...grpc.CallOption) (*Status, error)
@@ -56,7 +53,6 @@ type SecurityModuleClient interface {
 	ListActivityDumps(ctx context.Context, in *ActivityDumpListParams, opts ...grpc.CallOption) (*ActivityDumpListMessage, error)
 	StopActivityDump(ctx context.Context, in *ActivityDumpStopParams, opts ...grpc.CallOption) (*ActivityDumpStopMessage, error)
 	TranscodingRequest(ctx context.Context, in *TranscodingRequestParams, opts ...grpc.CallOption) (*TranscodingRequestMessage, error)
-	GetActivityDumpStream(ctx context.Context, in *ActivityDumpStreamParams, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ActivityDumpStreamMessage], error)
 	// Security Profiles
 	ListSecurityProfiles(ctx context.Context, in *SecurityProfileListParams, opts ...grpc.CallOption) (*SecurityProfileListMessage, error)
 	SaveSecurityProfile(ctx context.Context, in *SecurityProfileSaveParams, opts ...grpc.CallOption) (*SecurityProfileSaveMessage, error)
@@ -69,25 +65,6 @@ type securityModuleClient struct {
 func NewSecurityModuleClient(cc grpc.ClientConnInterface) SecurityModuleClient {
 	return &securityModuleClient{cc}
 }
-
-func (c *securityModuleClient) GetEvents(ctx context.Context, in *GetEventParams, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SecurityEventMessage], error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &SecurityModule_ServiceDesc.Streams[0], SecurityModule_GetEvents_FullMethodName, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &grpc.GenericClientStream[GetEventParams, SecurityEventMessage]{ClientStream: stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type SecurityModule_GetEventsClient = grpc.ServerStreamingClient[SecurityEventMessage]
 
 func (c *securityModuleClient) DumpProcessCache(ctx context.Context, in *DumpProcessCacheParams, opts ...grpc.CallOption) (*SecurityDumpProcessCacheMessage, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -209,25 +186,6 @@ func (c *securityModuleClient) TranscodingRequest(ctx context.Context, in *Trans
 	return out, nil
 }
 
-func (c *securityModuleClient) GetActivityDumpStream(ctx context.Context, in *ActivityDumpStreamParams, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ActivityDumpStreamMessage], error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &SecurityModule_ServiceDesc.Streams[1], SecurityModule_GetActivityDumpStream_FullMethodName, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &grpc.GenericClientStream[ActivityDumpStreamParams, ActivityDumpStreamMessage]{ClientStream: stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type SecurityModule_GetActivityDumpStreamClient = grpc.ServerStreamingClient[ActivityDumpStreamMessage]
-
 func (c *securityModuleClient) ListSecurityProfiles(ctx context.Context, in *SecurityProfileListParams, opts ...grpc.CallOption) (*SecurityProfileListMessage, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SecurityProfileListMessage)
@@ -252,7 +210,6 @@ func (c *securityModuleClient) SaveSecurityProfile(ctx context.Context, in *Secu
 // All implementations must embed UnimplementedSecurityModuleServer
 // for forward compatibility.
 type SecurityModuleServer interface {
-	GetEvents(*GetEventParams, grpc.ServerStreamingServer[SecurityEventMessage]) error
 	DumpProcessCache(context.Context, *DumpProcessCacheParams) (*SecurityDumpProcessCacheMessage, error)
 	GetConfig(context.Context, *GetConfigParams) (*SecurityConfigMessage, error)
 	GetStatus(context.Context, *GetStatusParams) (*Status, error)
@@ -266,7 +223,6 @@ type SecurityModuleServer interface {
 	ListActivityDumps(context.Context, *ActivityDumpListParams) (*ActivityDumpListMessage, error)
 	StopActivityDump(context.Context, *ActivityDumpStopParams) (*ActivityDumpStopMessage, error)
 	TranscodingRequest(context.Context, *TranscodingRequestParams) (*TranscodingRequestMessage, error)
-	GetActivityDumpStream(*ActivityDumpStreamParams, grpc.ServerStreamingServer[ActivityDumpStreamMessage]) error
 	// Security Profiles
 	ListSecurityProfiles(context.Context, *SecurityProfileListParams) (*SecurityProfileListMessage, error)
 	SaveSecurityProfile(context.Context, *SecurityProfileSaveParams) (*SecurityProfileSaveMessage, error)
@@ -280,9 +236,6 @@ type SecurityModuleServer interface {
 // pointer dereference when methods are called.
 type UnimplementedSecurityModuleServer struct{}
 
-func (UnimplementedSecurityModuleServer) GetEvents(*GetEventParams, grpc.ServerStreamingServer[SecurityEventMessage]) error {
-	return status.Errorf(codes.Unimplemented, "method GetEvents not implemented")
-}
 func (UnimplementedSecurityModuleServer) DumpProcessCache(context.Context, *DumpProcessCacheParams) (*SecurityDumpProcessCacheMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DumpProcessCache not implemented")
 }
@@ -319,9 +272,6 @@ func (UnimplementedSecurityModuleServer) StopActivityDump(context.Context, *Acti
 func (UnimplementedSecurityModuleServer) TranscodingRequest(context.Context, *TranscodingRequestParams) (*TranscodingRequestMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method TranscodingRequest not implemented")
 }
-func (UnimplementedSecurityModuleServer) GetActivityDumpStream(*ActivityDumpStreamParams, grpc.ServerStreamingServer[ActivityDumpStreamMessage]) error {
-	return status.Errorf(codes.Unimplemented, "method GetActivityDumpStream not implemented")
-}
 func (UnimplementedSecurityModuleServer) ListSecurityProfiles(context.Context, *SecurityProfileListParams) (*SecurityProfileListMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListSecurityProfiles not implemented")
 }
@@ -348,17 +298,6 @@ func RegisterSecurityModuleServer(s grpc.ServiceRegistrar, srv SecurityModuleSer
 	}
 	s.RegisterService(&SecurityModule_ServiceDesc, srv)
 }
-
-func _SecurityModule_GetEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(GetEventParams)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(SecurityModuleServer).GetEvents(m, &grpc.GenericServerStream[GetEventParams, SecurityEventMessage]{ServerStream: stream})
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type SecurityModule_GetEventsServer = grpc.ServerStreamingServer[SecurityEventMessage]
 
 func _SecurityModule_DumpProcessCache_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DumpProcessCacheParams)
@@ -576,17 +515,6 @@ func _SecurityModule_TranscodingRequest_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SecurityModule_GetActivityDumpStream_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(ActivityDumpStreamParams)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(SecurityModuleServer).GetActivityDumpStream(m, &grpc.GenericServerStream[ActivityDumpStreamParams, ActivityDumpStreamMessage]{ServerStream: stream})
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type SecurityModule_GetActivityDumpStreamServer = grpc.ServerStreamingServer[ActivityDumpStreamMessage]
-
 func _SecurityModule_ListSecurityProfiles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SecurityProfileListParams)
 	if err := dec(in); err != nil {
@@ -687,18 +615,7 @@ var SecurityModule_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SecurityModule_SaveSecurityProfile_Handler,
 		},
 	},
-	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "GetEvents",
-			Handler:       _SecurityModule_GetEvents_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "GetActivityDumpStream",
-			Handler:       _SecurityModule_GetActivityDumpStream_Handler,
-			ServerStreams: true,
-		},
-	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "pkg/security/proto/api/api.proto",
 }
 
