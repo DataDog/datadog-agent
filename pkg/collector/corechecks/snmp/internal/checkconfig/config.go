@@ -626,6 +626,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.InstanceTags = netutils.CopyStrings(c.InstanceTags)
 	newConfig.CollectDeviceMetadata = c.CollectDeviceMetadata
 	newConfig.CollectTopology = c.CollectTopology
+	newConfig.CollectVPN = c.CollectVPN
 	newConfig.UseDeviceIDAsHostname = c.UseDeviceIDAsHostname
 	newConfig.DeviceID = c.DeviceID
 

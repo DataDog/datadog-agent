@@ -3935,6 +3935,11 @@ api_key:
     #
     # collect_topology: true
 
+    ## @param collect_vpn - boolean - optional - default: false
+    ## Enable the collection of VPN tunnels data
+    #
+    # collect_vpn: true
+
     ## @param ping - custom object - optional
     ## Configure ICMP pings for all hosts in SNMP autodiscovery
     ## Devices will be pinged with these settings each time the SNMP
