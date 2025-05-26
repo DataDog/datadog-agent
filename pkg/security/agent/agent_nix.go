@@ -28,13 +28,7 @@ func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname strin
 		return nil, err
 	}
 
-	server, err := NewSecurityAgentAPIServer()
-	if err != nil {
-		return nil, err
-	}
-
-	return &RuntimeSecurityAgent{
-		server:               server,		
+	rsa := &RuntimeSecurityAgent{
 		client:               client,
 		statsdClient:         statsdClient,
 		hostname:             hostname,
@@ -43,5 +37,11 @@ func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname strin
 		connected:            atomic.NewBool(false),
 		eventReceived:        atomic.NewUint64(0),
 		activityDumpReceived: atomic.NewUint64(0),
-	}, nil
+	}
+
+	if err = rsa.setupAPIServer(); err != nil {
+		return nil, err
+	}
+
+	return rsa, nil
 }

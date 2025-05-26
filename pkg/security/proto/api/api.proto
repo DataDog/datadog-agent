@@ -340,7 +340,6 @@ message SecurityProfileSaveMessage {
 }
 
 service SecurityModule {
-    rpc GetEvents(GetEventParams) returns (stream SecurityEventMessage) {}
     rpc DumpProcessCache(DumpProcessCacheParams) returns (SecurityDumpProcessCacheMessage) {}
     rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
     rpc GetStatus(GetStatusParams) returns (Status) {}
@@ -355,7 +354,6 @@ service SecurityModule {
     rpc ListActivityDumps(ActivityDumpListParams) returns (ActivityDumpListMessage) {}
     rpc StopActivityDump(ActivityDumpStopParams) returns (ActivityDumpStopMessage) {}
     rpc TranscodingRequest(TranscodingRequestParams) returns (TranscodingRequestMessage) {}
-    rpc GetActivityDumpStream(ActivityDumpStreamParams) returns (stream ActivityDumpStreamMessage) {}
 
     // Security Profiles
     rpc ListSecurityProfiles(SecurityProfileListParams) returns (SecurityProfileListMessage) {}
