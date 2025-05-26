@@ -116,8 +116,8 @@
 /.gitlab/binary_build/cluster_agent_cloudfoundry.yml @DataDog/agent-integrations @DataDog/agent-delivery
 /.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-devx
-/.gitlab/binary_build/otel_agent.yml                 @DataDog/opentelemetry-agent @DataDog/agent-delivery
 /.gitlab/binary_build/serverless.yml                 @DataDog/serverless @Datadog/serverless-aws @DataDog/agent-delivery
+/.gitlab/binary_build/otel_agent.yml                 @DataDog/opentelemetry-agent @DataDog/agent-delivery
 /.gitlab/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-delivery
 /.gitlab/binary_build/windows.yml                    @DataDog/agent-delivery @DataDog/windows-agent
 
@@ -146,7 +146,6 @@
 /.gitlab/container_build/fakeintake.yml              @DataDog/agent-e2e-testing @DataDog/agent-devx
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-e2e-testing @DataDog/agent-devx
 
-/.gitlab/functional_test/serverless.yml              @DataDog/serverless @Datadog/serverless-aws @DataDog/agent-devx
 /.gitlab/functional_test/oracle.yml                  @DataDog/agent-devx @DataDog/database-monitoring
 
 /.gitlab/choco_build/choco_build.yml                 @DataDog/agent-delivery @DataDog/windows-agent
@@ -222,6 +221,7 @@
 /cmd/agent/installer.go                 @DataDog/fleet
 /cmd/agent/install*.sh                  @DataDog/container-ecosystems @DataDog/agent-delivery
 /cmd/cluster-agent/                     @DataDog/container-platform
+/cmd/cluster-agent/subcommands/autoscalerlist   @DataDog/container-autoscaling @DataDog/container-integrations
 /cmd/cluster-agent-cloudfoundry/        @DataDog/agent-integrations
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/agent-integrations
 /cmd/cws-instrumentation/               @DataDog/agent-security
@@ -252,10 +252,10 @@
 /dev/                                   @DataDog/agent-devx
 /devenv/                                @DataDog/agent-devx
 
-/Dockerfiles/                            @DataDog/container-integrations
-/Dockerfiles/agent/entrypoint.d.windows/ @DataDog/container-integrations @DataDog/windows-agent
-/Dockerfiles/agent/entrypoint.ps1        @DataDog/container-integrations @DataDog/windows-agent
-/Dockerfiles/agent/windows/              @DataDog/container-integrations @DataDog/windows-agent
+/Dockerfiles/                            @DataDog/agent-delivery
+/Dockerfiles/agent/entrypoint.d.windows/ @DataDog/agent-delivery @DataDog/windows-agent
+/Dockerfiles/agent/entrypoint.ps1        @DataDog/agent-delivery @DataDog/windows-agent
+/Dockerfiles/agent/windows/              @DataDog/agent-delivery @DataDog/windows-agent
 /Dockerfiles/agent-ddot                  @DataDog/opentelemetry-agent
 /Dockerfiles/agent/bouncycastle-fips     @DataDog/agent-metric-pipelines
 
@@ -343,6 +343,8 @@
 /comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
 /comp/trace/etwtracer @DataDog/windows-agent
+/comp/updater/installerexec @DataDog/fleet
+/comp/updater/ssistatus @DataDog/fleet
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/etw @DataDog/windows-agent
 /comp/haagent @DataDog/ndm-core
@@ -369,6 +371,7 @@
 /pkg/cli/subcommands/check              @DataDog/agent-runtimes @DataDog/agent-integrations
 /pkg/cli/subcommands/version            @DataDog/agent-runtimes
 /pkg/cli/subcommands/clusterchecks      @DataDog/container-platform
+/pkg/cli/subcommands/autoscalerlist     @DataDog/container-autoscaling @DataDog/container-integrations
 /pkg/discovery/                         @DataDog/agent-discovery
 /pkg/errors/                            @DataDog/agent-runtimes
 /pkg/fips                               @DataDog/agent-runtimes
@@ -465,6 +468,7 @@
 /pkg/diagnose/ports/*windows*.go        @DataDog/windows-agent
 /pkg/eventmonitor/                      @DataDog/ebpf-platform @DataDog/agent-security
 /pkg/dynamicinstrumentation/            @DataDog/debugger-go
+/pkg/dyninst/                           @DataDog/debugger-go
 /pkg/flare/                             @DataDog/agent-configuration
 /pkg/flare/clusteragent/manifests.go    @DataDog/container-ecosystems @DataDog/agent-configuration
 /pkg/flare/*_win.go                     @Datadog/windows-agent @DataDog/agent-configuration
@@ -663,7 +667,6 @@
 /test/integration/                      @DataDog/container-integrations
 /test/integration/docker/otel_agent_build_tests.py @DataDog/opentelemetry-agent
 /test/integration/serverless            @DataDog/serverless @Datadog/serverless-aws
-/test/integration/serverless_perf       @DataDog/serverless @Datadog/serverless-aws
 /test/fakeintake/                             @DataDog/agent-e2e-testing @DataDog/agent-devx
 /test/fakeintake/aggregator/ndmAggregator.go @DataDog/ndm-core
 /test/fakeintake/aggregator/ndmAggregator_test.go @DataDog/ndm-core

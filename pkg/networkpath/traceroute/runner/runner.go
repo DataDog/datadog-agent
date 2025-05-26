@@ -162,11 +162,13 @@ func makeSackParams(target net.IP, targetPort uint16, maxTTL uint8, timeout time
 		return sack.Params{}, fmt.Errorf("invalid target IP")
 	}
 	parallelParams := common.TracerouteParallelParams{
-		MinTTL:            DefaultMinTTL,
-		MaxTTL:            maxTTL,
-		TracerouteTimeout: timeout,
-		PollFrequency:     100 * time.Millisecond,
-		SendDelay:         10 * time.Millisecond,
+		TracerouteParams: common.TracerouteParams{
+			MinTTL:            DefaultMinTTL,
+			MaxTTL:            maxTTL,
+			TracerouteTimeout: timeout,
+			PollFrequency:     100 * time.Millisecond,
+			SendDelay:         10 * time.Millisecond,
+		},
 	}
 	params := sack.Params{
 		Target:           netip.AddrPortFrom(targetAddr, targetPort),
@@ -218,7 +220,7 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 	}
 
 	doSyn := func() (*common.Results, error) {
-		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout)
+		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout, cfg.TCPSynParisTracerouteMode)
 		return tr.TracerouteSequential()
 	}
 	doSack := func() (*common.Results, error) {
@@ -229,7 +231,7 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 		return sack.RunSackTraceroute(context.TODO(), params)
 	}
 	doSynSocket := func() (*common.Results, error) {
-		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout)
+		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout, cfg.TCPSynParisTracerouteMode)
 		return tr.TracerouteSequentialSocket()
 	}
 

@@ -83,23 +83,22 @@ static __always_inline bool is_valid_kafka_request_header(const kafka_header_t *
 }
 
 // Checks the given kafka api key (= operation) and api version is supported and wanted by us.
-static __always_inline bool is_supported_kafka_api_version(s16 api_key, s16 api_version) {
+static __always_inline bool is_supported_api_version_for_classification(s16 api_key, s16 api_version) {
     switch (api_key) {
     case KAFKA_FETCH:
-        if (api_version < KAFKA_MIN_SUPPORTED_FETCH_REQUEST_API_VERSION) {
+        if (api_version < KAFKA_CLASSIFICATION_MIN_SUPPORTED_FETCH_REQUEST_API_VERSION) {
             return false;
         }
-        if (api_version > KAFKA_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) {
-            // Fetch request version 13 and above is not supported.
+        if (api_version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) {
             return false;
         }
         break;
     case KAFKA_PRODUCE:
-        if (api_version < KAFKA_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
+        if (api_version < KAFKA_CLASSIFICATION_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
             // We have seen some false positives when both request_api_version and request_api_key are 0,
             // so dropping support for this case
             return false;
-        } else if (api_version > KAFKA_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
+        } else if (api_version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
             return false;
         }
         break;
@@ -218,7 +217,7 @@ static __always_inline s16 read_nullable_string_size(pktbuf_t pkt, bool flexible
         return 0;
     }
 
-    pktbuf_load_bytes(pkt, *offset, &topic_name_size_raw, sizeof(topic_name_size_raw));
+    pktbuf_load_bytes_with_telemetry(pkt, *offset, &topic_name_size_raw, sizeof(topic_name_size_raw));
 
     s16 topic_name_size = 0;
     if (flexible) {
@@ -267,6 +266,41 @@ static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexibl
     offset += topic_name_size;
 
     CHECK_STRING_VALID_TOPIC_NAME(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, topic_name);
+}
+
+// Reads the first topic id (can be multiple) from the given offset,
+// verifies if it is a valid UUID version 4
+static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible, u32 offset) {
+    // The topic id is a UUID, which is 16 bytes long.
+    // It is in network byte order (big-endian)
+    u8 topic_id[16] = {};
+
+    // Skipping number of entries for now
+    if (flexible) {
+        if (!skip_varint_number_of_topics(pkt, &offset)) {
+            return false;
+        }
+    } else {
+        offset += sizeof(s32);
+    }
+
+    if (offset + sizeof(topic_id) > pktbuf_data_end(pkt)) {
+        return false;
+    }
+
+    pktbuf_load_bytes_with_telemetry(pkt, offset, topic_id, sizeof(topic_id));
+    offset += sizeof(topic_id);
+
+    // The UUID version (13th digit 4 MSB) must be 4
+    __u8 uuid_version = topic_id[6] >> 4;
+    if (uuid_version != 4) {
+        // The UUID version is not 4
+        return false;
+    }
+
+    // The UUID variant (17th digit) may be 0x8, 0x9, 0xA or 0xB
+    __u8 uuid_variant = topic_id[8] >> 4;
+    return 0x8 <= uuid_variant && uuid_variant <= 0xB;
 }
 
 // Flexible API version can have an arbitrary number of tagged fields.  We don't
@@ -340,10 +374,14 @@ static __always_inline bool get_topic_offset_from_fetch_request(const kafka_head
         }
     }
 
-    // replica_id => INT32
+    // replica_id => INT32 (doesn't exist in v15+)
     // max_wait_ms => INT32
     // min_bytes => INT32
-    *offset += 3 * sizeof(s32);
+    if (kafka_header->api_version >= 15) {
+        *offset += 2 * sizeof(s32);
+    } else {
+        *offset += 3 * sizeof(s32);
+    }
 
     if (api_version >= 3) {
         // max_bytes => INT32
@@ -368,6 +406,7 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
     // name in the request, and then validate the topic. We have to have shared call for validate_first_topic_name
     // as the function is huge, rather than call validate_first_topic_name for each api_key.
     bool flexible = false;
+    bool topic_id_instead_of_name = false;
     switch (kafka_header->api_key) {
     case KAFKA_PRODUCE:
         if (!get_topic_offset_from_produce_request(kafka_header, pkt, &offset, NULL)) {
@@ -380,10 +419,16 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
             return false;
         }
         flexible = kafka_header->api_version >= 12;
+        topic_id_instead_of_name = kafka_header->api_version >= 13;
         break;
     default:
         return false;
     }
+
+    if (topic_id_instead_of_name) {
+        return validate_first_topic_id(pkt, flexible, offset);
+    }
+
     return validate_first_topic_name(pkt, flexible, offset);
 }
 
@@ -404,7 +449,7 @@ static __always_inline bool __is_kafka(pktbuf_t pkt, const char* buf, __u32 buf_
         return false;
     }
 
-    if(!is_supported_kafka_api_version(kafka_header.api_key, kafka_header.api_version)) {
+    if(!is_supported_api_version_for_classification(kafka_header.api_key, kafka_header.api_version)) {
         return false;
     }
 
