@@ -420,9 +420,9 @@ func (s *packageAgentSuite) TestInstallWithLeftoverDebDir() {
 }
 
 func (s *packageAgentSuite) TestInstallWithGroupPreviouslyCreated() {
-	s.host.MustRun("sudo userdel dd-agent")
-	s.host.MustRun("sudo groupdel dd-agent")
-	s.host.MustRun("sudo groupadd --system datadog")
+	s.host.Run("sudo userdel dd-agent || true")
+	s.host.Run("sudo groupdel dd-agent || true")
+	s.host.Run("sudo groupadd --system datadog")
 
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
