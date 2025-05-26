@@ -703,29 +703,29 @@ var SecurityModule_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	SecurityEvents_SendEvent_FullMethodName              = "/api.SecurityEvents/SendEvent"
-	SecurityEvents_SendActivityDumpStream_FullMethodName = "/api.SecurityEvents/SendActivityDumpStream"
+	SecurityAgentAPI_SendEvent_FullMethodName              = "/api.SecurityAgentAPI/SendEvent"
+	SecurityAgentAPI_SendActivityDumpStream_FullMethodName = "/api.SecurityAgentAPI/SendActivityDumpStream"
 )
 
-// SecurityEventsClient is the client API for SecurityEvents service.
+// SecurityAgentAPIClient is the client API for SecurityAgentAPI service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type SecurityEventsClient interface {
+type SecurityAgentAPIClient interface {
 	SendEvent(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[SecurityEventMessage, empty.Empty], error)
 	SendActivityDumpStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[ActivityDumpStreamMessage, empty.Empty], error)
 }
 
-type securityEventsClient struct {
+type securityAgentAPIClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewSecurityEventsClient(cc grpc.ClientConnInterface) SecurityEventsClient {
-	return &securityEventsClient{cc}
+func NewSecurityAgentAPIClient(cc grpc.ClientConnInterface) SecurityAgentAPIClient {
+	return &securityAgentAPIClient{cc}
 }
 
-func (c *securityEventsClient) SendEvent(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[SecurityEventMessage, empty.Empty], error) {
+func (c *securityAgentAPIClient) SendEvent(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[SecurityEventMessage, empty.Empty], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &SecurityEvents_ServiceDesc.Streams[0], SecurityEvents_SendEvent_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &SecurityAgentAPI_ServiceDesc.Streams[0], SecurityAgentAPI_SendEvent_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -734,11 +734,11 @@ func (c *securityEventsClient) SendEvent(ctx context.Context, opts ...grpc.CallO
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type SecurityEvents_SendEventClient = grpc.ClientStreamingClient[SecurityEventMessage, empty.Empty]
+type SecurityAgentAPI_SendEventClient = grpc.ClientStreamingClient[SecurityEventMessage, empty.Empty]
 
-func (c *securityEventsClient) SendActivityDumpStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[ActivityDumpStreamMessage, empty.Empty], error) {
+func (c *securityAgentAPIClient) SendActivityDumpStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[ActivityDumpStreamMessage, empty.Empty], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &SecurityEvents_ServiceDesc.Streams[1], SecurityEvents_SendActivityDumpStream_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &SecurityAgentAPI_ServiceDesc.Streams[1], SecurityAgentAPI_SendActivityDumpStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -747,81 +747,81 @@ func (c *securityEventsClient) SendActivityDumpStream(ctx context.Context, opts 
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type SecurityEvents_SendActivityDumpStreamClient = grpc.ClientStreamingClient[ActivityDumpStreamMessage, empty.Empty]
+type SecurityAgentAPI_SendActivityDumpStreamClient = grpc.ClientStreamingClient[ActivityDumpStreamMessage, empty.Empty]
 
-// SecurityEventsServer is the server API for SecurityEvents service.
-// All implementations must embed UnimplementedSecurityEventsServer
+// SecurityAgentAPIServer is the server API for SecurityAgentAPI service.
+// All implementations must embed UnimplementedSecurityAgentAPIServer
 // for forward compatibility.
-type SecurityEventsServer interface {
+type SecurityAgentAPIServer interface {
 	SendEvent(grpc.ClientStreamingServer[SecurityEventMessage, empty.Empty]) error
 	SendActivityDumpStream(grpc.ClientStreamingServer[ActivityDumpStreamMessage, empty.Empty]) error
-	mustEmbedUnimplementedSecurityEventsServer()
+	mustEmbedUnimplementedSecurityAgentAPIServer()
 }
 
-// UnimplementedSecurityEventsServer must be embedded to have
+// UnimplementedSecurityAgentAPIServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedSecurityEventsServer struct{}
+type UnimplementedSecurityAgentAPIServer struct{}
 
-func (UnimplementedSecurityEventsServer) SendEvent(grpc.ClientStreamingServer[SecurityEventMessage, empty.Empty]) error {
+func (UnimplementedSecurityAgentAPIServer) SendEvent(grpc.ClientStreamingServer[SecurityEventMessage, empty.Empty]) error {
 	return status.Errorf(codes.Unimplemented, "method SendEvent not implemented")
 }
-func (UnimplementedSecurityEventsServer) SendActivityDumpStream(grpc.ClientStreamingServer[ActivityDumpStreamMessage, empty.Empty]) error {
+func (UnimplementedSecurityAgentAPIServer) SendActivityDumpStream(grpc.ClientStreamingServer[ActivityDumpStreamMessage, empty.Empty]) error {
 	return status.Errorf(codes.Unimplemented, "method SendActivityDumpStream not implemented")
 }
-func (UnimplementedSecurityEventsServer) mustEmbedUnimplementedSecurityEventsServer() {}
-func (UnimplementedSecurityEventsServer) testEmbeddedByValue()                        {}
+func (UnimplementedSecurityAgentAPIServer) mustEmbedUnimplementedSecurityAgentAPIServer() {}
+func (UnimplementedSecurityAgentAPIServer) testEmbeddedByValue()                          {}
 
-// UnsafeSecurityEventsServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to SecurityEventsServer will
+// UnsafeSecurityAgentAPIServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to SecurityAgentAPIServer will
 // result in compilation errors.
-type UnsafeSecurityEventsServer interface {
-	mustEmbedUnimplementedSecurityEventsServer()
+type UnsafeSecurityAgentAPIServer interface {
+	mustEmbedUnimplementedSecurityAgentAPIServer()
 }
 
-func RegisterSecurityEventsServer(s grpc.ServiceRegistrar, srv SecurityEventsServer) {
-	// If the following call pancis, it indicates UnimplementedSecurityEventsServer was
+func RegisterSecurityAgentAPIServer(s grpc.ServiceRegistrar, srv SecurityAgentAPIServer) {
+	// If the following call pancis, it indicates UnimplementedSecurityAgentAPIServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&SecurityEvents_ServiceDesc, srv)
+	s.RegisterService(&SecurityAgentAPI_ServiceDesc, srv)
 }
 
-func _SecurityEvents_SendEvent_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(SecurityEventsServer).SendEvent(&grpc.GenericServerStream[SecurityEventMessage, empty.Empty]{ServerStream: stream})
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type SecurityEvents_SendEventServer = grpc.ClientStreamingServer[SecurityEventMessage, empty.Empty]
-
-func _SecurityEvents_SendActivityDumpStream_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(SecurityEventsServer).SendActivityDumpStream(&grpc.GenericServerStream[ActivityDumpStreamMessage, empty.Empty]{ServerStream: stream})
+func _SecurityAgentAPI_SendEvent_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(SecurityAgentAPIServer).SendEvent(&grpc.GenericServerStream[SecurityEventMessage, empty.Empty]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type SecurityEvents_SendActivityDumpStreamServer = grpc.ClientStreamingServer[ActivityDumpStreamMessage, empty.Empty]
+type SecurityAgentAPI_SendEventServer = grpc.ClientStreamingServer[SecurityEventMessage, empty.Empty]
 
-// SecurityEvents_ServiceDesc is the grpc.ServiceDesc for SecurityEvents service.
+func _SecurityAgentAPI_SendActivityDumpStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(SecurityAgentAPIServer).SendActivityDumpStream(&grpc.GenericServerStream[ActivityDumpStreamMessage, empty.Empty]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SecurityAgentAPI_SendActivityDumpStreamServer = grpc.ClientStreamingServer[ActivityDumpStreamMessage, empty.Empty]
+
+// SecurityAgentAPI_ServiceDesc is the grpc.ServiceDesc for SecurityAgentAPI service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var SecurityEvents_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "api.SecurityEvents",
-	HandlerType: (*SecurityEventsServer)(nil),
+var SecurityAgentAPI_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "api.SecurityAgentAPI",
+	HandlerType: (*SecurityAgentAPIServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "SendEvent",
-			Handler:       _SecurityEvents_SendEvent_Handler,
+			Handler:       _SecurityAgentAPI_SendEvent_Handler,
 			ClientStreams: true,
 		},
 		{
 			StreamName:    "SendActivityDumpStream",
-			Handler:       _SecurityEvents_SendActivityDumpStream_Handler,
+			Handler:       _SecurityAgentAPI_SendActivityDumpStream_Handler,
 			ClientStreams: true,
 		},
 	},

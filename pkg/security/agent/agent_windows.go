@@ -20,7 +20,7 @@ func NewRuntimeSecurityAgent(_ statsd.ClientInterface, hostname string) (*Runtim
 
 	// on windows do no telemetry
 
-	server, err := NewRuntimeSecurityServer()
+	server, err := NewSecurityAgentAPIServer()
 	if err != nil {
 		return nil, err
 	}
