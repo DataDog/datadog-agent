@@ -17,7 +17,7 @@ This project empowers users to leverage the vendor-agnostic OpenTelemetry standa
 ## Key Features
 
 - **Seamless Datadog Integration**: Pre-configured with the Datadog Exporter for easy transmission of traces, metrics, and logs to your Datadog account.
-- **Optimized Defaults**: Includes sensible default configurations for common components like the DD Exporter, Batch Processor, Datadog connector, etc tailored for Datadog best practices.
+- **Optimized Defaults**: Includes sensible default configurations for common components like the DD Exporter, Batch Processor, and Datadog connector, tailored for Datadog best practices.
 - **OpenTelemetry Protocol (OTLP) Support**: Ready to receive telemetry data via OTLP over gRPC and HTTP, making it compatible with all OpenTelemetry SDKs.
 - **Extensible**: As a distribution of the OpenTelemetry Collector, it retains full extensibility, allowing you to add any other OpenTelemetry receivers, processors, or exporters as needed.
 - **Kubernetes-Native**: Specifically designed and optimized for deployment within Kubernetes environments.
@@ -28,7 +28,7 @@ This project empowers users to leverage the vendor-agnostic OpenTelemetry standa
 ### Prerequisites
 
 **Supported deployments** :
-- Kubernetes (v1.18+ recommended)  
+- Kubernetes (v1.18+ recommended)
 - DaemonSet ([agent pattern](https://opentelemetry.io/docs/collector/deployment/agent/))
 
 Before you begin, ensure you have:
