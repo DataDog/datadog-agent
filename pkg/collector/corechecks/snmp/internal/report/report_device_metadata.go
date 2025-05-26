@@ -847,6 +847,8 @@ func resolveRouteByNextHop(route deviceRoute, vpnTunnelByRemoteOutsideIP map[str
 		return
 	}
 
+	vpnTunnel.InterfaceID = fmt.Sprintf("%s:%s", vpnTunnel.DeviceID, route.IfIndex)
+
 	vpnTunnel.RouteAddresses = append(vpnTunnel.RouteAddresses,
 		fmt.Sprintf("%s/%d", route.Destination, route.PrefixLen))
 }
@@ -946,6 +948,8 @@ func addRoutesByInterfaceToVPNTunnel(localAddr string, remoteAddr string, ifInde
 	if !exists {
 		return
 	}
+
+	vpnTunnel.InterfaceID = fmt.Sprintf("%s:%s", vpnTunnel.DeviceID, ifIndex)
 
 	routes, exists := routesByInterfaceIndex[ifIndex]
 	if !exists {

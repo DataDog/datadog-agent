@@ -49,6 +49,7 @@ func Test_batchPayloads(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		vpnTunnels = append(vpnTunnels, VPNTunnelMetadata{
 			DeviceID:        deviceID,
+			InterfaceID:     deviceID + ":1",
 			LocalOutsideIP:  "1.2.3.4",
 			RemoteOutsideIP: "4.3.2.1",
 			Protocol:        "ipsec",
