@@ -1428,7 +1428,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 }
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
-func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, error) {
 	p.enabledEventTypesLock.Lock()
 	clear(p.enabledEventTypes)
 	for _, eventType := range rs.GetEventTypes() {
@@ -1436,7 +1436,7 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 	}
 	p.enabledEventTypesLock.Unlock()
 
-	ars, err := kfilters.NewApplyRuleSetReport(p.config.Probe, rs)
+	filterReport, err := kfilters.ComputeFilters(p.config.Probe, rs)
 	if err != nil {
 		return nil, err
 	}
@@ -1446,7 +1446,7 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 	defer p.approverLock.Unlock()
 	clear(p.approvers)
 
-	for eventType, report := range ars.Policies {
+	for eventType, report := range filterReport.ApproverReports {
 		if err := p.setApprovers(eventType, report.Approvers); err != nil {
 			return nil, err
 		}
@@ -1458,7 +1458,7 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 		return nil, err
 	}
 
-	return ars, nil
+	return filterReport, nil
 }
 
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
