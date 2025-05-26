@@ -199,6 +199,7 @@ func GetMIGDeviceMock(deviceIdx int, migDeviceIdx int, opts ...func(*nvmlmock.De
 			}
 
 			// core count and total memory - equally distribute between all mig devices
+			// in the future, we might want to make this more sophisticated, to support more complex scenarios in our UTs
 			parentTotalCores := GPUCores[deviceIdx]
 			coresPerMigDevice := parentTotalCores / numMigChildrenForParent
 			memoryPerMigDevice := DefaultTotalMemory / uint64(numMigChildrenForParent)
