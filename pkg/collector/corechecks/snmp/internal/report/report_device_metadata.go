@@ -624,8 +624,8 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 		return nil
 	}
 
-	var vpnTunnelByOutsideIPs map[string]*devicemetadata.VPNTunnelMetadata
-	var vpnTunnelByRemoteOutsideIP map[string]*devicemetadata.VPNTunnelMetadata
+	vpnTunnelByOutsideIPs := make(map[string]*devicemetadata.VPNTunnelMetadata)
+	vpnTunnelByRemoteOutsideIP := make(map[string]*devicemetadata.VPNTunnelMetadata)
 	for _, strIndex := range vpnTunnelIndexes {
 		indexElems := strings.Split(strIndex, ".")
 
@@ -909,7 +909,7 @@ func resolveRoutesByInterface(store *metadata.Store, routesByInterfaceIndex map[
 
 		localAddr := strings.Join(indexElems[currMaxIndex-localAddrLength:currMaxIndex], ".")
 
-		currMaxIndex += 1
+		currMaxIndex++
 		if len(indexElems) < currMaxIndex {
 			continue
 		}

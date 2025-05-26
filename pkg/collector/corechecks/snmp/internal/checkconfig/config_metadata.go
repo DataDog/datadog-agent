@@ -247,6 +247,7 @@ var TopologyMetadataConfig = profiledefinition.MetadataConfig{
 	},
 }
 
+// VPNMetadataConfig contains VPN tunnels metadata
 var VPNMetadataConfig = profiledefinition.MetadataConfig{
 	"cisco_ipsec_tunnel": {
 		Fields: map[string]profiledefinition.MetadataField{
@@ -266,6 +267,7 @@ var VPNMetadataConfig = profiledefinition.MetadataConfig{
 	},
 }
 
+// RouteMetadataConfig contains route tables metadata
 var RouteMetadataConfig = profiledefinition.MetadataConfig{
 	"ipforward_obsolete": {
 		Fields: map[string]profiledefinition.MetadataField{
@@ -335,6 +337,7 @@ var RouteMetadataConfig = profiledefinition.MetadataConfig{
 	},
 }
 
+// TunnelMetadataConfig contains tunnel metadata
 var TunnelMetadataConfig = profiledefinition.MetadataConfig{
 	"tunnel_config_deprecated": {
 		Fields: map[string]profiledefinition.MetadataField{
@@ -360,17 +363,18 @@ var TunnelMetadataConfig = profiledefinition.MetadataConfig{
 
 // updateMetadataDefinitionWithDefaults will add metadata config for resources
 // that does not have metadata definitions
-func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.MetadataConfig, collectTopology bool) profiledefinition.MetadataConfig {
+func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.MetadataConfig, collectTopology bool, collectVPN bool) profiledefinition.MetadataConfig {
 	newConfig := make(profiledefinition.MetadataConfig)
 	mergeMetadata(newConfig, metadataConfig)
 	mergeMetadata(newConfig, LegacyMetadataConfig)
 	if collectTopology {
 		mergeMetadata(newConfig, TopologyMetadataConfig)
 	}
-	// TODO: VPN Add Option
+	//if collectVPN {
 	mergeMetadata(newConfig, VPNMetadataConfig)
 	mergeMetadata(newConfig, RouteMetadataConfig)
 	mergeMetadata(newConfig, TunnelMetadataConfig)
+	//}
 	return newConfig
 }
 
