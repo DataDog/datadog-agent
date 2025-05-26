@@ -8,6 +8,7 @@ package api
 
 import (
 	context "context"
+	empty "github.com/golang/protobuf/ptypes/empty"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -696,6 +697,132 @@ var SecurityModule_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "GetActivityDumpStream",
 			Handler:       _SecurityModule_GetActivityDumpStream_Handler,
 			ServerStreams: true,
+		},
+	},
+	Metadata: "pkg/security/proto/api/api.proto",
+}
+
+const (
+	SecurityEvents_SendEvent_FullMethodName              = "/api.SecurityEvents/SendEvent"
+	SecurityEvents_SendActivityDumpStream_FullMethodName = "/api.SecurityEvents/SendActivityDumpStream"
+)
+
+// SecurityEventsClient is the client API for SecurityEvents service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type SecurityEventsClient interface {
+	SendEvent(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[SecurityEventMessage, empty.Empty], error)
+	SendActivityDumpStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[ActivityDumpStreamMessage, empty.Empty], error)
+}
+
+type securityEventsClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewSecurityEventsClient(cc grpc.ClientConnInterface) SecurityEventsClient {
+	return &securityEventsClient{cc}
+}
+
+func (c *securityEventsClient) SendEvent(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[SecurityEventMessage, empty.Empty], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &SecurityEvents_ServiceDesc.Streams[0], SecurityEvents_SendEvent_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[SecurityEventMessage, empty.Empty]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SecurityEvents_SendEventClient = grpc.ClientStreamingClient[SecurityEventMessage, empty.Empty]
+
+func (c *securityEventsClient) SendActivityDumpStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[ActivityDumpStreamMessage, empty.Empty], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &SecurityEvents_ServiceDesc.Streams[1], SecurityEvents_SendActivityDumpStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ActivityDumpStreamMessage, empty.Empty]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SecurityEvents_SendActivityDumpStreamClient = grpc.ClientStreamingClient[ActivityDumpStreamMessage, empty.Empty]
+
+// SecurityEventsServer is the server API for SecurityEvents service.
+// All implementations must embed UnimplementedSecurityEventsServer
+// for forward compatibility.
+type SecurityEventsServer interface {
+	SendEvent(grpc.ClientStreamingServer[SecurityEventMessage, empty.Empty]) error
+	SendActivityDumpStream(grpc.ClientStreamingServer[ActivityDumpStreamMessage, empty.Empty]) error
+	mustEmbedUnimplementedSecurityEventsServer()
+}
+
+// UnimplementedSecurityEventsServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedSecurityEventsServer struct{}
+
+func (UnimplementedSecurityEventsServer) SendEvent(grpc.ClientStreamingServer[SecurityEventMessage, empty.Empty]) error {
+	return status.Errorf(codes.Unimplemented, "method SendEvent not implemented")
+}
+func (UnimplementedSecurityEventsServer) SendActivityDumpStream(grpc.ClientStreamingServer[ActivityDumpStreamMessage, empty.Empty]) error {
+	return status.Errorf(codes.Unimplemented, "method SendActivityDumpStream not implemented")
+}
+func (UnimplementedSecurityEventsServer) mustEmbedUnimplementedSecurityEventsServer() {}
+func (UnimplementedSecurityEventsServer) testEmbeddedByValue()                        {}
+
+// UnsafeSecurityEventsServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to SecurityEventsServer will
+// result in compilation errors.
+type UnsafeSecurityEventsServer interface {
+	mustEmbedUnimplementedSecurityEventsServer()
+}
+
+func RegisterSecurityEventsServer(s grpc.ServiceRegistrar, srv SecurityEventsServer) {
+	// If the following call pancis, it indicates UnimplementedSecurityEventsServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&SecurityEvents_ServiceDesc, srv)
+}
+
+func _SecurityEvents_SendEvent_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(SecurityEventsServer).SendEvent(&grpc.GenericServerStream[SecurityEventMessage, empty.Empty]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SecurityEvents_SendEventServer = grpc.ClientStreamingServer[SecurityEventMessage, empty.Empty]
+
+func _SecurityEvents_SendActivityDumpStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(SecurityEventsServer).SendActivityDumpStream(&grpc.GenericServerStream[ActivityDumpStreamMessage, empty.Empty]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SecurityEvents_SendActivityDumpStreamServer = grpc.ClientStreamingServer[ActivityDumpStreamMessage, empty.Empty]
+
+// SecurityEvents_ServiceDesc is the grpc.ServiceDesc for SecurityEvents service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var SecurityEvents_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "api.SecurityEvents",
+	HandlerType: (*SecurityEventsServer)(nil),
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SendEvent",
+			Handler:       _SecurityEvents_SendEvent_Handler,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "SendActivityDumpStream",
+			Handler:       _SecurityEvents_SendActivityDumpStream_Handler,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "pkg/security/proto/api/api.proto",

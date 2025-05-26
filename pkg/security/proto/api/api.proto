@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 import "google/protobuf/timestamp.proto";
-
+import "google/protobuf/empty.proto";
 option go_package = "pkg/security/proto/api";
 
 package api;
@@ -16,6 +16,8 @@ message SecurityEventMessage {
     google.protobuf.Timestamp Timestamp = 5;
     string OriginalRuleID = 6;
 }
+
+message SecurityEventResponse {}
 
 message DumpProcessCacheParams {
     bool WithArgs = 1;
@@ -259,6 +261,8 @@ message ActivityDumpStreamMessage {
     bytes Data = 3;
 }
 
+message ActivityDumpStreamResponse {}
+
 message WorkloadSelectorMessage {
     string Name = 1;
     string Tag = 2;
@@ -356,4 +360,9 @@ service SecurityModule {
     // Security Profiles
     rpc ListSecurityProfiles(SecurityProfileListParams) returns (SecurityProfileListMessage) {}
     rpc SaveSecurityProfile(SecurityProfileSaveParams) returns (SecurityProfileSaveMessage) {}
+}
+
+service SecurityEvents {
+    rpc SendEvent(stream SecurityEventMessage) returns (google.protobuf.Empty) {}
+    rpc SendActivityDumpStream(stream ActivityDumpStreamMessage) returns (google.protobuf.Empty) {}
 }
