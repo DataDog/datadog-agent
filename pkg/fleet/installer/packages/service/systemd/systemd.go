@@ -146,7 +146,7 @@ func IsRunning() (running bool, err error) {
 
 // JournaldLogs returns the logs for a given unit since a given time
 func JournaldLogs(ctx context.Context, unit string, since time.Time) (string, error) {
-	journalctlCmd := exec.CommandContext(ctx, "journalctl", "--unit", unit, "-e", "--no-pager", "--since", since.Format(time.RFC3339))
+	journalctlCmd := exec.CommandContext(ctx, "journalctl", "_COMM=systemd", "--unit", unit, "-e", "--no-pager", "--since", since.Format(time.RFC3339))
 	stdout, err := journalctlCmd.Output()
 	if err != nil {
 		return "", err
