@@ -131,6 +131,11 @@ func (s *Setup) Run() (err error) {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
 		}
 	}
+	if s.Packages.CopyInstallerToBin {
+		if err := copyInstallerToBin(s); err != nil {
+			return err
+		}
+	}
 	err = s.restartServices(packages)
 	if err != nil {
 		return fmt.Errorf("failed to restart services: %w", err)

@@ -7,6 +7,9 @@ package common
 
 import (
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 )
@@ -72,7 +75,8 @@ func resolvePackages(env *env.Env, packages Packages) []packageWithVersion {
 
 // Packages is a list of packages to install
 type Packages struct {
-	install map[string]packageWithVersion
+	install            map[string]packageWithVersion
+	CopyInstallerToBin bool // CopyInstallerToBin indicates whether the installer should be copied to /usr/bin/datadog-installer
 }
 
 type packageWithVersion struct {
@@ -86,4 +90,57 @@ func (p *Packages) Install(pkg string, version string) {
 		name:    pkg,
 		version: version,
 	}
+}
+
+func copyInstallerToBin(s *Setup) error {
+	destinationPath := "/usr/bin/datadog-installer"
+	s.Out.WriteString("Writing installer to /usr/bin/datadog-installer...\n")
+
+	// Get the current executable path
+	currentExecutable, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get current executable: %w", err)
+	}
+
+	// Open the current executable file
+	sourceFile, err := os.Open(currentExecutable)
+	if err != nil {
+		return fmt.Errorf("failed to open current executable: %w", err)
+	}
+	defer sourceFile.Close()
+
+	// Create /usr/bin directory if it doesn't exist (unlikely)
+	err = os.MkdirAll(filepath.Dir(destinationPath), 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create installer directory: %w", err)
+	}
+
+	// Check if the destination file already exists and remove it if it does (we don't want to overwrite a symlink)
+	if _, err := os.Stat(destinationPath); err == nil {
+		if err := os.Remove(destinationPath); err != nil {
+			return fmt.Errorf("failed to remove existing destination file: %w", err)
+		}
+	}
+
+	// Create the destination file
+	destinationFile, err := os.Create(destinationPath)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer destinationFile.Close()
+
+	// Copy the current executable to the destination file
+	_, err = io.Copy(destinationFile, sourceFile)
+	if err != nil {
+		return fmt.Errorf("failed to copy executable: %w", err)
+	}
+
+	// Set the permissions on the destination file to be executable
+	err = destinationFile.Chmod(0755)
+	if err != nil {
+		return fmt.Errorf("failed to set permissions on destination file: %w", err)
+	}
+
+	s.Out.WriteString("Successfully copied installer to /usr/bin/datadog-installer\n")
+	return nil
 }
