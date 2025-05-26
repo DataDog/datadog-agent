@@ -28,7 +28,8 @@ type SecurityAgentAPIClient struct {
 	conn                   *grpc.ClientConn
 }
 
-func (c *SecurityAgentAPIClient) SendEvents(ctx context.Context, events chan *api.SecurityEventMessage) {
+// SendEvents sends events to the security agent
+func (c *SecurityAgentAPIClient) SendEvents(ctx context.Context, msgs chan *api.SecurityEventMessage) {
 	for {
 		seclog.Debugf("sending events to security agent grpc client")
 
@@ -44,8 +45,43 @@ func (c *SecurityAgentAPIClient) SendEvents(ctx context.Context, events chan *ap
 	LOOP:
 		for {
 			select {
-			case event := <-events:
-				err := stream.Send(event)
+			case msg := <-msgs:
+				err := stream.Send(msg)
+				if err != nil {
+					seclog.Errorf("error sending event: %v", err)
+					break LOOP
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+
+		_, _ = stream.CloseAndRecv()
+
+		// Wait for 1 second before trying to send events again
+		time.Sleep(time.Second)
+	}
+}
+
+// SendActivityDumps sends activity dumps to the security agent
+func (c *SecurityAgentAPIClient) SendActivityDumps(ctx context.Context, msgs chan *api.ActivityDumpStreamMessage) {
+	for {
+		seclog.Debugf("sending events to security agent grpc client")
+
+		stream, err := c.SecurityAgentAPIClient.SendActivityDumpStream(context.Background())
+		if err != nil {
+			seclog.Warnf("error starting security agent grpc client: %v", err)
+
+			// Wait for 1 second before trying to send events again
+			time.Sleep(time.Second)
+			continue
+		}
+
+	LOOP:
+		for {
+			select {
+			case msg := <-msgs:
+				err := stream.Send(msg)
 				if err != nil {
 					seclog.Errorf("error sending event: %v", err)
 					break LOOP
