@@ -11,4 +11,11 @@ RUN rm -f /.cargo/config.toml
 
 # Make Bazel output stuff to a volume we're mounting
 RUN echo "startup --output_user_root=/tmp/bazel/build_output" > /etc/bazel.bazelrc
-
+# Add platform flag to bazelrc file to pick up the right glibc-targeting toolchain
+ARG BASE_IMAGE
+RUN \
+  if [ "${BASE_IMAGE}" = "linux-glibc-2-17-x64" ]; then \
+    echo "build --platforms=//bazel/platforms:linux_x64" > /etc/bazel.bazelrc; \
+  else \
+    echo "build --platforms=//bazel/platforms:linux_arm64" > /etc/bazel.bazelrc; \
+fi
