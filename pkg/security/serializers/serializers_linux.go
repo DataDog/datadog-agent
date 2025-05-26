@@ -551,7 +551,6 @@ type SetSockOptEventSerializer struct {
 	Level uint32 `json:"level"`
 	// OptName is the name of the option being set
 	OptName uint32 `json:"optname"`
-	// OptValue is the value of the option being set
 }
 
 func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *SyscallArgsSerializer {
@@ -1270,9 +1269,9 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 }
 func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
 	return &SetSockOptEventSerializer{
-		Socket:  (e.SetSockOpt.Socket),
-		Level:   (e.SetSockOpt.Level),
-		OptName: (e.SetSockOpt.OptName),
+		Socket:  e.SetSockOpt.Socket,
+		Level:   e.SetSockOpt.Level,
+		OptName: e.SetSockOpt.OptName,
 	}
 }
 

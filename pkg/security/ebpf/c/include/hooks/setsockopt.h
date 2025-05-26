@@ -4,10 +4,6 @@
 #include "constants/syscall_macro.h"
 #include "helpers/syscalls.h"
 
-
-
-
-// setsockopt(4, SOL_SOCKET, SO_ATTACH_FILTER, {len=229, filter=0x7f7f2012a4b0}, 16 <unfinished ...>
 long __attribute__((always_inline)) trace__sys_setsock_opt(u8 async, int socket, int level, int optname) {
     if (is_discarded_by_pid()) {
         return 0;
@@ -25,9 +21,6 @@ long __attribute__((always_inline)) trace__sys_setsock_opt(u8 async, int socket,
         }
     };
 
-    // if (!async) {
-    //     collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_INT(1), (void *)filename, (void *)&mode, NULL);
-    // }
     cache_syscall(&syscall);
 
     return 0;
@@ -48,8 +41,7 @@ int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
         .level = syscall->setsockopt.level,
         .optname = syscall->setsockopt.optname,
     };
-    bpf_printk("DEBUG SETSOCKOPT | socket: %d | level: %d | optname: %d\n", event.socket, event.level, event.optname); 
-    // récupérer meta data socket
+    //bpf_printk("DEBUG SETSOCKOPT | socket: %d | level: %d | optname: %d\n", event.socket, event.level, event.optname); 
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
