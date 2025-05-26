@@ -759,13 +759,12 @@ def print_gitlab_ci_configuration(yml: dict, sort_jobs: bool):
         yaml.safe_dump({job: content}, sys.stdout, default_flow_style=False, sort_keys=True, indent=2)
 
 
-def test_gitlab_configuration(ctx, entry_point, input_config, context=None):
+def test_gitlab_configuration(ctx, config_name: str, config_object: dict, context=None):
     agent = get_gitlab_repo()
     # Update config and lint it
     config = get_gitlab_ci_configuration(
         ctx,
-        input_file=entry_point,
-        input_config=input_config,
+        input_config_or_file=config_object,
         gitlab_context=context,
         keep_special_objects=True,
         return_dump=True,
@@ -773,15 +772,15 @@ def test_gitlab_configuration(ctx, entry_point, input_config, context=None):
     res = agent.ci_lint.create({"content": config, "dry_run": True, "include_jobs": True})
     status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
 
-    print(f"{color_message(entry_point, Color.BOLD)} config is {status}")
+    print(f"{color_message(config_name, Color.BOLD)} config is {status}")
     if len(res.warnings) > 0:
         print(
-            f'{color_message("warning", Color.ORANGE)}: {color_message(entry_point, Color.BOLD)}: {res.warnings})',
+            f'{color_message("warning", Color.ORANGE)}: {color_message(config_name, Color.BOLD)}: {res.warnings})',
             file=sys.stderr,
         )
     if not res.valid:
         print(
-            f'{color_message("error", Color.RED)}: {color_message(entry_point, Color.BOLD)}: {res.errors})',
+            f'{color_message("error", Color.RED)}: {color_message(config_name, Color.BOLD)}: {res.errors})',
             file=sys.stderr,
         )
         raise Exit(code=1)
@@ -861,30 +860,33 @@ def get_trigger_filenames(node):
 
 def resolve_gitlab_ci_configuration(
     ctx,
-    input_file: str = '.gitlab-ci.yml',
+    input_config_or_file: str | dict = '.gitlab-ci.yml',
     return_dict: bool = True,
     with_lint: bool = True,
     git_ref: str | None = None,
-    input_config: dict | None = None,
 ) -> str | dict:
     """Returns the full gitlab-ci configuration by resolving all includes and applying postprocessing (extends / !reference).
 
     Uses the /lint endpoint from the gitlab api to apply postprocessing.
 
     Args:
-        input_config: If not None, will use this config instead of parsing existing yaml file at `input_file`.
+        ctx: Invoke task context
+        input_config_or_file: The gitlab config to resolve, either as a path to a file or a loaded dict
+        return_dict: Return a loaded dict - If false, return a yaml string representing the config
+        with_lint: Whether to lint the config before returning it
+        git_ref: From which git ref to read the input config file. No effect if input config is passed as a dict.
     """
 
-    if not input_config:
+    if isinstance(input_config_or_file, str):
         # Read includes
-        concat_config = read_includes(ctx, input_file, return_config=True, git_ref=git_ref)
-        assert concat_config
+        input_config = read_includes(ctx, input_config_or_file, return_config=True, git_ref=git_ref)
+        assert input_config
     else:
-        concat_config = input_config
+        input_config = input_config_or_file
 
     if with_lint:
         agent = get_gitlab_repo()
-        res = agent.ci_lint.create({"content": yaml.safe_dump(concat_config), "dry_run": True, "include_jobs": True})
+        res = agent.ci_lint.create({"content": yaml.safe_dump(input_config), "dry_run": True, "include_jobs": True})
 
         if not res.valid:
             errors = '; '.join(res.errors)
@@ -895,13 +897,12 @@ def resolve_gitlab_ci_configuration(
         else:
             return res.merged_yaml
     else:
-        return concat_config
+        return input_config
 
 
 def get_gitlab_ci_configuration(
     ctx,
-    input_file: str = '.gitlab-ci.yml',
-    input_config: dict | None = None,
+    input_config_or_file: str | dict = '.gitlab-ci.yml',
     gitlab_context: dict | None = None,
     return_dump: bool = False,
     with_lint: bool = True,
@@ -921,14 +922,11 @@ def get_gitlab_ci_configuration(
     """
 
     # Make full configuration
-    yml = resolve_gitlab_ci_configuration(
-        ctx, input_file, input_config=input_config, with_lint=with_lint, git_ref=git_ref
-    )
+    yml = resolve_gitlab_ci_configuration(ctx, input_config_or_file, with_lint=with_lint, git_ref=git_ref)
 
     # Filter
     yml = filter_gitlab_ci_configuration(yml, job, keep_special_objects=keep_special_objects)
 
-    # Clean
     if clean:
         yml = clean_gitlab_ci_configuration(yml)
 
