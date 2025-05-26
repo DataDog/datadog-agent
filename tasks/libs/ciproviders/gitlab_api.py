@@ -767,9 +767,9 @@ def test_gitlab_configuration(ctx, config_name: str, config_object: dict, contex
         input_config_or_file=config_object,
         gitlab_context=context,
         keep_special_objects=True,
-        return_dump=True,
     )
-    res = agent.ci_lint.create({"content": config, "dry_run": True, "include_jobs": True})
+    config_dump = yaml.safe_dump(config)
+    res = agent.ci_lint.create({"content": config_dump, "dry_run": True, "include_jobs": True})
     status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
 
     print(f"{color_message(config_name, Color.BOLD)} config is {status}")
@@ -861,10 +861,9 @@ def get_trigger_filenames(node):
 def resolve_gitlab_ci_configuration(
     ctx,
     input_config_or_file: str | dict = '.gitlab-ci.yml',
-    return_dict: bool = True,
     with_lint: bool = True,
     git_ref: str | None = None,
-) -> str | dict:
+) -> dict:
     """Returns the full gitlab-ci configuration by resolving all includes and applying postprocessing (extends / !reference).
 
     Uses the /lint endpoint from the gitlab api to apply postprocessing.
@@ -892,10 +891,7 @@ def resolve_gitlab_ci_configuration(
             errors = '; '.join(res.errors)
             raise RuntimeError(f"{color_message('Invalid configuration', Color.RED)}: {errors}")
 
-        if return_dict:
-            return yaml.safe_load(res.merged_yaml)
-        else:
-            return res.merged_yaml
+        return yaml.safe_load(res.merged_yaml)
     else:
         return input_config
 
@@ -904,7 +900,6 @@ def get_gitlab_ci_configuration(
     ctx,
     input_config_or_file: str | dict = '.gitlab-ci.yml',
     gitlab_context: dict | None = None,
-    return_dump: bool = False,
     with_lint: bool = True,
     job: str | None = None,
     keep_special_objects: bool = False,
@@ -938,7 +933,7 @@ def get_gitlab_ci_configuration(
     if gitlab_context:
         yml.get('variables', {}).update(gitlab_context)
 
-    return yaml.safe_dump(yml) if return_dump else yml
+    return yml
 
 
 def read_includes(ctx, yaml_files, includes=None, return_config=False, add_file_path=False, git_ref: str | None = None):
