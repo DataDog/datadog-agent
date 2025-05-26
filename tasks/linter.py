@@ -401,9 +401,7 @@ def gitlab_change_paths(ctx):
     """Verifies that rules: changes: paths match existing files in the repository."""
 
     # Read gitlab config
-    config = get_gitlab_ci_configuration(
-        ctx, input_config_or_file=".gitlab-ci.yml", gitlab_context=None, return_dump=False
-    )
+    config = get_gitlab_ci_configuration(ctx, input_config_or_file=".gitlab-ci.yml", gitlab_context=None)
     error_paths = []
     for path in set(retrieve_all_paths(config)):
         files = glob(path, recursive=True)
