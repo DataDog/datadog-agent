@@ -82,7 +82,7 @@ build do
 
     # This is not necessarily the version we built, but the version
     # the Python build system expects.
-    openssl_version = "3.0.16"
+    openssl_version = "3.0.16.2"
     python_arch = "amd64"
 
     mkdir "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\include"
