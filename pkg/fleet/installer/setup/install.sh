@@ -29,7 +29,8 @@ aarch64)
   installer_sha256="INSTALLER_ARM64_SHA256"
   ;;
 esac
-installer_domain=${DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE:-$([[ "$DD_SITE" == "datad0g.com" ]] && echo "install.datad0g.com" || echo "install.datadoghq.com")}
+site=${DD_SITE:-datadoghq.com}
+installer_domain=${DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE:-$([[ "$site" == "datad0g.com" ]] && echo "install.datad0g.com" || echo "install.datadoghq.com")}
 installer_url="https://${installer_domain}/v2/PACKAGE_NAME/blobs/sha256:${installer_sha256}"
 
 tmp_dir="/opt/datadog-packages/tmp"
@@ -44,10 +45,10 @@ else
 fi
 
 # This migrates legacy installs by removing the legacy deb / rpm installer package
-if command -v dpkg >/dev/null && dpkg -s datadog-installer >/dev/null; then
+if command -v dpkg >/dev/null && dpkg -s datadog-installer >/dev/null 2>&1; then
   "${sudo_cmd[@]}" datadog-installer purge >/dev/null 2>&1 || true
   "${sudo_cmd[@]}" dpkg --purge datadog-installer >/dev/null 2>&1 || true
-elif command -v rpm >/dev/null && rpm -q datadog-installer >/dev/null; then
+elif command -v rpm >/dev/null && rpm -q datadog-installer >/dev/null 2>&1; then
   "${sudo_cmd[@]}" datadog-installer purge >/dev/null 2>&1 || true
   "${sudo_cmd[@]}" rpm -e datadog-installer >/dev/null 2>&1 || true
 fi
@@ -69,7 +70,8 @@ fi
 "${sudo_cmd[@]}" chmod +x "$tmp_bin"
 
 echo "Verifying installer integrity..."
-sha256sum -c <<<"$installer_sha256  $tmp_bin"
+sha256sum -c <<<"$installer_sha256  $tmp_bin" >/dev/null
+echo "Installer integrity verified."
 
 echo "Starting the Datadog installer..."
 "${sudo_env_cmd[@]}" "$tmp_bin" setup --flavor "$flavor" "$@"
