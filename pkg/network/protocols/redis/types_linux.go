@@ -30,6 +30,7 @@ type EbpfEvent struct {
 }
 type EbpfTx struct {
 	Buf                [128]byte
+	Error              uint8
 	Request_started    uint64
 	Response_last_seen uint64
 	Buf_len            uint16
@@ -39,3 +40,33 @@ type EbpfTx struct {
 	Is_error           bool
 	Pad_cgo_0          [2]byte
 }
+
+type ErrorType uint8
+
+const (
+	NoErr       = ErrorType(0x0)
+	UnknownErr  = ErrorType(0x1)
+	Err         = ErrorType(0x2)
+	WrongType   = ErrorType(0x3)
+	NoAuth      = ErrorType(0x4)
+	NoPerm      = ErrorType(0x5)
+	Busy        = ErrorType(0x6)
+	NoScript    = ErrorType(0x7)
+	Loading     = ErrorType(0x8)
+	ReadOnly    = ErrorType(0x9)
+	ExecAbort   = ErrorType(0xa)
+	MasterDown  = ErrorType(0xb)
+	Misconf     = ErrorType(0xc)
+	CrossSlot   = ErrorType(0xd)
+	TryAgain    = ErrorType(0xe)
+	Ask         = ErrorType(0xf)
+	Moved       = ErrorType(0x10)
+	ClusterDown = ErrorType(0x11)
+	NoReplicas  = ErrorType(0x12)
+	Oom         = ErrorType(0x13)
+	NoQuorum    = ErrorType(0x14)
+	BusyKey     = ErrorType(0x15)
+	Unblocked   = ErrorType(0x16)
+	WrongPass   = ErrorType(0x17)
+	InvalidObj  = ErrorType(0x18)
+)

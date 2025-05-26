@@ -184,6 +184,31 @@ static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *co
     bpf_map_update_with_telemetry(redis_in_flight, conn_tuple, &transaction, BPF_ANY);
 }
 
+// Extracts the error prefix (ERRPREFIX) from a Redis error response line: "-ERRPREFIX message\r\n" -> "ERRPREFIX".
+static __always_inline bool extract_redis_error_prefix(pktbuf_t pkt, char *buf, u8 buf_len) {
+    // Assumes current offset is at the '-' (RESP_ERROR_PREFIX)
+    char first_byte;
+    if (pktbuf_load_bytes_from_current_offset(pkt, &first_byte, 1) < 0 || first_byte != RESP_ERROR_PREFIX) {
+        return false;
+    }
+    pktbuf_advance(pkt, 1); // Skip '-'
+
+    u8 i = 0;
+    char c = 0;
+    // Read up to buf_len-1 chars for null-termination
+    for (; i < buf_len - 1; i++) {
+        if (pktbuf_load_bytes_from_current_offset(pkt, &c, 1) < 0) {
+            break;
+        }
+        if (c == ' ' || c == RESP_TERMINATOR_1 || c == RESP_TERMINATOR_2) {
+            break;
+        }
+        buf[i] = c;
+        pktbuf_advance(pkt, 1);
+    }
+    buf[i] = '\0';
+    return i > 0;
+}
 
 // Handles TCP connection termination by cleaning up in-flight transactions.
 // Removes entries from redis_in_flight map for both directions.
@@ -209,6 +234,33 @@ static __always_inline void redis_batch_enqueue_wrapper(conn_tuple_t *tuple, red
 
 // Processes Redis response messages and validates their format.
 // Handles error responses and command-specific response types.
+static __always_inline redis_error_t map_redis_error_prefix(const char *prefix) {
+    if (bpf_memcmp(prefix, "ERR", 3) == 0) return REDIS_ERR_ERR;
+    if (bpf_memcmp(prefix, "WRONGTYPE", 9) == 0) return REDIS_ERR_WRONGTYPE;
+    if (bpf_memcmp(prefix, "NOAUTH", 6) == 0) return REDIS_ERR_NOAUTH;
+    if (bpf_memcmp(prefix, "NOPERM", 6) == 0) return REDIS_ERR_NOPERM;
+    if (bpf_memcmp(prefix, "BUSY", 4) == 0) return REDIS_ERR_BUSY;
+    if (bpf_memcmp(prefix, "NOSCRIPT", 8) == 0) return REDIS_ERR_NOSCRIPT;
+    if (bpf_memcmp(prefix, "LOADING", 7) == 0) return REDIS_ERR_LOADING;
+    if (bpf_memcmp(prefix, "READONLY", 8) == 0) return REDIS_ERR_READONLY;
+    if (bpf_memcmp(prefix, "EXECABORT", 9) == 0) return REDIS_ERR_EXECABORT;
+    if (bpf_memcmp(prefix, "MASTERDOWN", 10) == 0) return REDIS_ERR_MASTERDOWN;
+    if (bpf_memcmp(prefix, "MISCONF", 7) == 0) return REDIS_ERR_MISCONF;
+    if (bpf_memcmp(prefix, "CROSSSLOT", 9) == 0) return REDIS_ERR_CROSSSLOT;
+    if (bpf_memcmp(prefix, "TRYAGAIN", 8) == 0) return REDIS_ERR_TRYAGAIN;
+    if (bpf_memcmp(prefix, "ASK", 3) == 0) return REDIS_ERR_ASK;
+    if (bpf_memcmp(prefix, "MOVED", 5) == 0) return REDIS_ERR_MOVED;
+    if (bpf_memcmp(prefix, "CLUSTERDOWN", 11) == 0) return REDIS_ERR_CLUSTERDOWN;
+    if (bpf_memcmp(prefix, "NOREPLICAS", 10) == 0) return REDIS_ERR_NOREPLICAS;
+    if (bpf_memcmp(prefix, "OOM", 3) == 0) return REDIS_ERR_OOM;
+    if (bpf_memcmp(prefix, "NOQUORUM", 8) == 0) return REDIS_ERR_NOQUORUM;
+    if (bpf_memcmp(prefix, "BUSYKEY", 7) == 0) return REDIS_ERR_BUSYKEY;
+    if (bpf_memcmp(prefix, "UNBLOCKED", 9) == 0) return REDIS_ERR_UNBLOCKED;
+    if (bpf_memcmp(prefix, "WRONGPASS", 9) == 0) return REDIS_ERR_WRONGPASS;
+    if (bpf_memcmp(prefix, "INVALIDOBJ", 7) == 0) return REDIS_ERR_INVALIDOBJ;
+    return REDIS_ERR_UNKNOWN;
+}
+
 static void __always_inline process_redis_response(pktbuf_t pkt, conn_tuple_t *tup, redis_transaction_t *transaction) {
     char first_byte;
     if (pktbuf_load_bytes_from_current_offset(pkt, &first_byte, sizeof(first_byte)) < 0) {
@@ -216,6 +268,13 @@ static void __always_inline process_redis_response(pktbuf_t pkt, conn_tuple_t *t
     }
     if (first_byte == RESP_ERROR_PREFIX) {
         transaction->is_error = true;
+        char error_prefix[MAX_ERROR_SIZE] = {};
+        bool got_error = extract_redis_error_prefix(pkt, error_prefix, sizeof(error_prefix));
+        if (got_error) {
+            transaction->error = map_redis_error_prefix(error_prefix);
+        } else {
+            transaction->error = REDIS_ERR_UNKNOWN;
+        }
         goto enqueue;
     }
     if (transaction->command == REDIS_GET && first_byte == RESP_BULK_PREFIX) {
