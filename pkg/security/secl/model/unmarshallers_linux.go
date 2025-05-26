@@ -1523,5 +1523,5 @@ func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.Level = binary.NativeEndian.Uint32(data[4:8])
 	e.OptName = binary.NativeEndian.Uint32(data[8:12])
-	return 12, nil
+	return 12 + read, nil
 }
