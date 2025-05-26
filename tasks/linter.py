@@ -19,7 +19,6 @@ from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
     full_config_get_all_leaf_jobs,
     full_config_get_all_stages,
-    generate_gitlab_full_configuration,
     get_all_gitlab_ci_configurations,
     get_gitlab_ci_configuration,
     get_preset_contexts,
@@ -400,7 +399,7 @@ def gitlab_change_paths(ctx):
     """Verifies that rules: changes: paths match existing files in the repository."""
 
     # Read gitlab config
-    config = generate_gitlab_full_configuration(ctx, ".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
+    config = get_gitlab_ci_configuration(ctx, input_file=".gitlab-ci.yml", gitlab_context=None, return_dump=False)
     error_paths = []
     for path in set(retrieve_all_paths(config)):
         files = glob(path, recursive=True)

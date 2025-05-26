@@ -762,7 +762,14 @@ def print_gitlab_ci_configuration(yml: dict, sort_jobs: bool):
 def test_gitlab_configuration(ctx, entry_point, input_config, context=None):
     agent = get_gitlab_repo()
     # Update config and lint it
-    config = generate_gitlab_full_configuration(ctx, entry_point, context=context, input_config=input_config)
+    config = get_gitlab_ci_configuration(
+        ctx,
+        input_file=entry_point,
+        input_config=input_config,
+        gitlab_context=context,
+        keep_special_objects=True,
+        return_dump=True,
+    )
     res = agent.ci_lint.create({"content": config, "dry_run": True, "include_jobs": True})
     status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
 
@@ -894,6 +901,9 @@ def resolve_gitlab_ci_configuration(
 def get_gitlab_ci_configuration(
     ctx,
     input_file: str = '.gitlab-ci.yml',
+    input_config: dict | None = None,
+    gitlab_context: dict | None = None,
+    return_dump: bool = False,
     with_lint: bool = True,
     job: str | None = None,
     keep_special_objects: bool = False,
@@ -904,12 +914,16 @@ def get_gitlab_ci_configuration(
     """Creates, filters and processes the gitlab-ci configuration.
 
     Args:
+        return_dump: Whether to return the string dump or the dict object representing the configuration.
+        input_config: If not None, will use this config instead of parsing existing yaml file at `input_file`.
         keep_special_objects: Will keep special objects (not jobs) in the configuration (variables, stages, etc.).
         expand_matrix: Will expand matrix jobs into multiple jobs.
     """
 
     # Make full configuration
-    yml = resolve_gitlab_ci_configuration(ctx, input_file, with_lint=with_lint, git_ref=git_ref)
+    yml = resolve_gitlab_ci_configuration(
+        ctx, input_file, input_config=input_config, with_lint=with_lint, git_ref=git_ref
+    )
 
     # Filter
     yml = filter_gitlab_ci_configuration(yml, job, keep_special_objects=keep_special_objects)
@@ -922,53 +936,11 @@ def get_gitlab_ci_configuration(
     if expand_matrix:
         yml = expand_matrix_jobs(yml)
 
-    return yml
-
-
-def generate_gitlab_full_configuration(
-    ctx, input_file, context=None, compare_to=None, return_dump=True, apply_postprocessing=False, input_config=None
-):
-    """Generates a full gitlab-ci configuration by resolving all includes.
-
-    Args:
-        input_file: Initial gitlab yaml file (.gitlab-ci.yml).
-        context: Gitlab variables.
-        compare_to: Override compare_to on change rules.
-        return_dump: Whether to return the string dump or the dict object representing the configuration.
-        apply_postprocessing: Whether or not to solve `extends` and `!reference` tags.
-        input_config: If not None, will use this config instead of parsing existing yaml file at `input_file`.
-    """
-
-    if apply_postprocessing:
-        full_configuration = resolve_gitlab_ci_configuration(ctx, input_file, input_config=input_config)
-    elif input_config:
-        full_configuration = deepcopy(input_config)
-    else:
-        full_configuration = read_includes(None, input_file, return_config=True)
-
     # Override some variables with a dedicated context
-    if context:
-        full_configuration.get('variables', {}).update(context)
-    if compare_to:
-        for value in full_configuration.values():
-            if (
-                isinstance(value, dict)
-                and "changes" in value
-                and isinstance(value["changes"], dict)
-                and "compare_to" in value["changes"]
-            ):
-                value["changes"]["compare_to"] = compare_to
-            elif isinstance(value, list):
-                for v in value:
-                    if (
-                        isinstance(v, dict)
-                        and "changes" in v
-                        and isinstance(v["changes"], dict)
-                        and "compare_to" in v["changes"]
-                    ):
-                        v["changes"]["compare_to"] = compare_to
+    if gitlab_context:
+        yml.get('variables', {}).update(gitlab_context)
 
-    return yaml.safe_dump(full_configuration) if return_dump else full_configuration
+    return yaml.safe_dump(yml) if return_dump else yml
 
 
 def read_includes(ctx, yaml_files, includes=None, return_config=False, add_file_path=False, git_ref: str | None = None):
