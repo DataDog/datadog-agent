@@ -21,13 +21,7 @@ func NewRuntimeSecurityAgent(_ statsd.ClientInterface, hostname string, _ RSAOpt
 
 	// on windows do no telemetry
 
-	server, err := NewSecurityAgentAPIServer()
-	if err != nil {
-		return nil, err
-	}
-
-	return &RuntimeSecurityAgent{
-		server:               server,
+	rsa := &RuntimeSecurityAgent{
 		client:               client,
 		hostname:             hostname,
 		storage:              nil,
@@ -35,5 +29,11 @@ func NewRuntimeSecurityAgent(_ statsd.ClientInterface, hostname string, _ RSAOpt
 		connected:            atomic.NewBool(false),
 		eventReceived:        atomic.NewUint64(0),
 		activityDumpReceived: atomic.NewUint64(0),
-	}, nil
+	}
+
+	if err := rsa.setupAPIServer(); err != nil {
+		return nil, err
+	}
+
+	return rsa, nil
 }
