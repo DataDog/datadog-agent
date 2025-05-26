@@ -85,5 +85,5 @@ ignore_names = ["test_*", "Test*"]
 paths = ["tasks"]
 
 [tool.ddev]
-repo = agent
+repo = "agent"
 
