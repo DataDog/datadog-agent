@@ -117,7 +117,3 @@ func isRemoteManagementEnabled(conf config.Component) bool {
 func isRemoteConfigEnabled() bool {
 	return expvar.Get("remoteConfigStatus") != nil
 }
-
-func isInstallerRunning(installer installerexec.Component) bool {
-	return installer != nil
-}
