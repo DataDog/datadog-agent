@@ -46,7 +46,11 @@ import (
 )
 
 const (
-	pathCheck = "/check"
+	pathCheck    = "/check"
+	pathLanguage = "/language"
+	pathIo       = "/io"
+	pathNetwork  = "/network"
+	pathServices = "/services"
 
 	// Use a low cache validity to ensure that we refresh information every time
 	// the check is run if needed. This is the same as cacheValidityNoRT in
@@ -252,6 +256,11 @@ func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/state", s.handleStateEndpoint)
 	httpMux.HandleFunc("/debug", s.handleDebugEndpoint)
 	httpMux.HandleFunc(pathCheck, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleCheck))
+
+	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))
+	httpMux.HandleFunc(pathLanguage, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleLanguage))
+	httpMux.HandleFunc(pathNetwork, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleNetwork))
+
 	return nil
 }
 
@@ -381,6 +390,37 @@ func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
 	}
 
 	utils.WriteAsJSON(w, services, utils.CompactOutput)
+}
+
+func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
+	params, err := parseParams(req.URL.Query())
+	if err != nil {
+		_ = log.Errorf("invalid params to /discovery%s: %v", pathCheck, err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+}
+
+func (s *discovery) handleLanguage(w http.ResponseWriter, req *http.Request) {
+	params, err := parseParams(req.URL.Query())
+	if err != nil {
+		_ = log.Errorf("invalid params to /discovery%s: %v", pathCheck, err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	log.Debugf("/discovery/language params: %+v", params)
+}
+
+func (s *discovery) handleNetwork(w http.ResponseWriter, req *http.Request) {
+	params, err := parseParams(req.URL.Query())
+	if err != nil {
+		_ = log.Errorf("invalid params to /discovery%s: %v", pathCheck, err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	log.Debugf("/discovery/network params: %+v", params)
 }
 
 // socketInfo stores information related to each socket.
