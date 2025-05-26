@@ -21,7 +21,13 @@ func NewRuntimeSecurityAgent(_ statsd.ClientInterface, hostname string, _ RSAOpt
 
 	// on windows do no telemetry
 
+	server, err := NewRuntimeSecurityServer()
+	if err != nil {
+		return nil, err
+	}
+
 	return &RuntimeSecurityAgent{
+		server:               server,
 		client:               client,
 		hostname:             hostname,
 		storage:              nil,
