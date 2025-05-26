@@ -31,12 +31,44 @@ import (
 const (
 	collectorID  = "service"
 	pullInterval = 30 * time.Second
+
+	// The maximum number of times that we check if a process has open ports
+	// before ignoring it forever.
+	maxPortCheckTries = 10
 )
+
+type pidSet map[int32]struct{}
+
+func (s pidSet) has(pid int32) bool {
+	_, present := s[pid]
+	return present
+}
+
+func (s pidSet) add(pid int32) {
+	s[pid] = struct{}{}
+}
+
+// cleanPidSets deletes dead PIDs from the provided maps. This function is not
+// thread-safe and it is up to the caller to ensure s.mux is locked.
+func cleanPidMap[T any](alivePids pidSet, maps ...map[int32]T) {
+	for _, m := range maps {
+		for pid := range m {
+			if alivePids.has(pid) {
+				continue
+			}
+
+			delete(m, pid)
+		}
+	}
+}
 
 type collector struct {
 	id      string
 	catalog workloadmeta.AgentType
 	store   workloadmeta.Component
+
+	serviceRetries map[int32]uint
+	ignoredPids    pidSet
 
 	sysProbeClient *http.Client
 	startTime      time.Time
@@ -48,6 +80,8 @@ func NewCollector() (workloadmeta.CollectorProvider, error) {
 		Collector: &collector{
 			id:             collectorID,
 			catalog:        workloadmeta.NodeAgent,
+			serviceRetries: make(map[int32]uint),
+			ignoredPids:    make(pidSet),
 			sysProbeClient: sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
 			startTime:      time.Now(),
 			startupTimeout: pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
@@ -66,24 +100,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		for {
 			select {
 			case <-ticker.C:
-				pids, err := process.Pids()
-				if err != nil {
-					log.Errorf("failed to get pids: %s", err)
-					continue
-				}
-
-				services, err := c.getDiscoveryServices(pids)
-				if err != nil {
-					if time.Since(c.startTime) < c.startupTimeout {
-						log.Warnf("service collector: system-probe not started yet: %v", err)
-						continue
-					}
-
-					log.Errorf("failed to get services: %s", err)
-					continue
-				}
-
-				log.Debugf("service collector: running services count: %d", services.RunningServicesCount)
+				c.updateServices()
 			case <-ctx.Done():
 				ticker.Stop()
 				return
@@ -104,6 +121,70 @@ func (c *collector) GetID() string {
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
+}
+
+func (c *collector) updateServices() {
+	alivePids, err := getAlivePids()
+	if err != nil {
+		log.Errorf("failed to get alive pids: %s", err)
+		return
+	}
+
+	pids, pidsToService := c.getPidsToRequest(alivePids)
+	resp, err := c.getDiscoveryServices(pids)
+	if err != nil {
+		if time.Since(c.startTime) < c.startupTimeout {
+			log.Warnf("service collector: system-probe not started yet: %v", err)
+			return
+		}
+
+		log.Errorf("failed to get services: %s", err)
+		return
+	}
+
+	for i, service := range resp.Services {
+		pidsToService[int32(service.PID)] = &resp.Services[i]
+		log.Debugf("found service: %+v", service)
+	}
+
+	for _, pid := range pids {
+		if service := pidsToService[pid]; service != nil {
+			continue
+		}
+
+		log.Debugf("no service found for pid: %d", pid)
+		tries := c.serviceRetries[pid]
+		tries++
+		if tries < maxPortCheckTries {
+			log.Debugf("adding service retry for pid: %d", pid)
+			c.serviceRetries[pid] = tries
+		} else {
+			log.Tracef("[pid: %d] ignoring due to max number of retries", pid)
+			c.ignoredPids.add(pid)
+			delete(c.serviceRetries, pid)
+		}
+	}
+
+	cleanPidMap(alivePids, c.ignoredPids)
+	cleanPidMap(alivePids, c.serviceRetries)
+}
+
+func (c *collector) getPidsToRequest(alivePids pidSet) ([]int32, map[int32]*model.Service) {
+	pidsToRequest := make([]int32, 0, len(alivePids))
+	pidsToService := make(map[int32]*model.Service, len(alivePids))
+
+	for pid := range alivePids {
+		if c.ignoredPids.has(pid) {
+			continue
+		}
+
+		// TODO: check heartbeat here
+
+		pidsToRequest = append(pidsToRequest, pid)
+		pidsToService[pid] = nil
+	}
+
+	return pidsToRequest, pidsToService
 }
 
 func (c *collector) getDiscoveryServices(pids []int32) (*model.ServicesResponse, error) {
@@ -135,6 +216,20 @@ func (c *collector) getDiscoveryServices(pids []int32) (*model.ServicesResponse,
 	}
 
 	return &responseData, nil
+}
+
+func getAlivePids() (pidSet, error) {
+	pids, err := process.Pids()
+	if err != nil {
+		return nil, err
+	}
+
+	alivePids := make(pidSet)
+	for _, pid := range pids {
+		alivePids.add(pid)
+	}
+
+	return alivePids, nil
 }
 
 func getDiscoveryURL(endpoint string, pids []int32) string {
