@@ -481,11 +481,11 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType() {
 	case service.SystemdType:
-		return systemd.StopUnits(ctx, s.SystemdUnitsStable...)
+		return systemd.StopUnits(ctx, s.SystemdMainUnitStable)
 	case service.UpstartType:
-		return upstart.StopAll(ctx, s.UpstartServices...)
+		return upstart.StopAll(ctx, reverseStringSlice(s.UpstartServices)...)
 	case service.SysvinitType:
-		return sysvinit.StopAll(ctx, s.SysvinitServices...)
+		return sysvinit.StopAll(ctx, reverseStringSlice(s.SysvinitServices)...)
 	default:
 		return fmt.Errorf("unsupported service manager")
 	}
@@ -658,4 +658,12 @@ func writeEmbeddedUnit(dir string, unit string, content []byte) error {
 		return fmt.Errorf("failed to write file: %v", err)
 	}
 	return nil
+}
+
+func reverseStringSlice(slice []string) []string {
+	reversed := make([]string, len(slice))
+	for i := range slice {
+		reversed[i] = slice[len(slice)-1-i]
+	}
+	return reversed
 }
