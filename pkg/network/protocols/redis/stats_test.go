@@ -17,11 +17,11 @@ import (
 
 func TestAddRequest(t *testing.T) {
 	stats := NewRequestStats()
-	stats.AddRequest(RedisNoErr, 10, 1, 10.0)
-	stats.AddRequest(RedisNoErr, 15, 2, 15.0)
-	stats.AddRequest(RedisNoErr, 20, 3, 20.0)
+	stats.AddRequest(NoErr, 10, 1, 10.0)
+	stats.AddRequest(NoErr, 15, 2, 15.0)
+	stats.AddRequest(NoErr, 20, 3, 20.0)
 
-	s := stats.ErrorToStats[RedisNoErr]
+	s := stats.ErrorToStats[NoErr]
 
 	if assert.NotNil(t, s) {
 		assert.Equal(t, 45, s.Count)
@@ -41,15 +41,15 @@ func TestCombineWith(t *testing.T) {
 	stats3 := NewRequestStats()
 	stats4 := NewRequestStats()
 
-	stats2.AddRequest(RedisNoErr, 10, 1, 10.0)
-	stats3.AddRequest(RedisNoErr, 15, 2, 15.0)
-	stats4.AddRequest(RedisNoErr, 20, 3, 20.0)
+	stats2.AddRequest(NoErr, 10, 1, 10.0)
+	stats3.AddRequest(NoErr, 15, 2, 15.0)
+	stats4.AddRequest(NoErr, 20, 3, 20.0)
 
 	stats.CombineWith(stats2)
 	stats.CombineWith(stats3)
 	stats.CombineWith(stats4)
 
-	s := stats.ErrorToStats[RedisNoErr]
+	s := stats.ErrorToStats[NoErr]
 
 	if assert.NotNil(t, s) {
 		assert.Equal(t, 45, s.Count)
@@ -77,7 +77,7 @@ func benchmarkRequestStatsPool(b *testing.B, reqNum int) {
 	for i := 0; i < b.N; i++ {
 		stats := NewRequestStats()
 		for j := 0; j < reqNum; j++ {
-			stats.AddRequest(RedisNoErr, 1, 1, 1)
+			stats.AddRequest(NoErr, 1, 1, 1)
 		}
 		stats.Close()
 	}

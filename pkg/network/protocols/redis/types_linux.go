@@ -46,7 +46,7 @@ type ErrorType uint8
 const (
 	NoErr       = ErrorType(0x0)
 	UnknownErr  = ErrorType(0x1)
-	GenericErr         = ErrorType(0x2)
+	Err         = ErrorType(0x2)
 	WrongType   = ErrorType(0x3)
 	NoAuth      = ErrorType(0x4)
 	NoPerm      = ErrorType(0x5)
