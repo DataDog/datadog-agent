@@ -62,9 +62,8 @@ func TestFleetStatus(t *testing.T) {
 			cfg := config.NewMock(t)
 			cfg.SetWithoutSource("remote_updates", tt.remoteUpdatesConfig)
 
-
 			provides := NewComponent(Requires{
-				Config:        cfg,
+				Config: cfg,
 			})
 			statusProvider := provides.Status.Provider
 

@@ -8,19 +8,15 @@ package fleetstatusimpl
 
 import (
 	"embed"
-	"expvar"
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	installerexec "github.com/DataDog/datadog-agent/comp/updater/installerexec/def"
 )
 
 // Requires defines the dependencies for the fleetstatus component
 type Requires struct {
 	Config config.Component
-
-//InstallerExec option.Option[installerexec.Component]
 }
 
 // Provides defines the output of the fleetstatus component
@@ -29,16 +25,13 @@ type Provides struct {
 }
 
 type statusProvider struct {
-	Config        config.Component
-	//InstallerExec installerexec.Component
+	Config config.Component
 }
 
 // NewComponent creates a new fleetstatus component
 func NewComponent(reqs Requires) Provides {
-	//installerExec, _ := reqs.InstallerExec.Get()
 	sp := &statusProvider{
-		Config:        reqs.Config,
-		//InstallerExec: installerExec,
+		Config: reqs.Config,
 	}
 
 	return Provides{
@@ -87,27 +80,10 @@ func (sp statusProvider) HTML(_ bool, buffer io.Writer) error {
 func (sp statusProvider) populateStatus(stats map[string]interface{}) {
 	status := make(map[string]interface{})
 
-	remoteManagementEnabled := isRemoteManagementEnabled(sp.Config)
-	remoteConfigEnabled := isRemoteConfigEnabled()
-	installerRunning := isInstallerRunning(nil)
-
-	status["remoteManagementEnabled"] = remoteManagementEnabled
-	status["remoteConfigEnabled"] = remoteConfigEnabled
-	status["installerRunning"] = installerRunning
-
-	status["fleetAutomationEnabled"] = remoteManagementEnabled && remoteConfigEnabled && installerRunning
-
+	status["remoteManagementEnabled"] = isRemoteManagementEnabled(sp.Config)
 	stats["fleetAutomationStatus"] = status
 }
 
 func isRemoteManagementEnabled(conf config.Component) bool {
 	return conf.GetBool("remote_updates")
-}
-
-func isRemoteConfigEnabled() bool {
-	return expvar.Get("remoteConfigStatus") != nil
-}
-
-func isInstallerRunning(installer installerexec.Component) bool {
-	return installer != nil
 }
