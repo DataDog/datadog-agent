@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
@@ -662,8 +663,7 @@ func writeEmbeddedUnit(dir string, unit string, content []byte) error {
 
 func reverseStringSlice(slice []string) []string {
 	reversed := make([]string, len(slice))
-	for i := range slice {
-		reversed[i] = slice[len(slice)-1-i]
-	}
+	copy(reversed, slice)
+	slices.Reverse(reversed)
 	return reversed
 }
