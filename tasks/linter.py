@@ -256,10 +256,10 @@ def gitlab_ci(ctx, test="all", custom_context=None, input_file=".gitlab-ci.yml")
     print(f'{color_message("info", Color.BLUE)}: Fetching Gitlab CI configurations...')
     configs = get_all_gitlab_ci_configurations(ctx, input_file=input_file, with_lint=False)
 
-    for entry_point, input_config in configs.items():
-        with gitlab_section(f"Testing {entry_point}", echo=True):
+    for config_filename, config_object in configs.items():
+        with gitlab_section(f"Testing {config_filename}", echo=True):
             # Only the main config should be tested with all contexts
-            if entry_point == ".gitlab-ci.yml":
+            if config_filename == ".gitlab-ci.yml":
                 all_contexts = []
                 if custom_context:
                     all_contexts = load_context(custom_context)
@@ -269,9 +269,11 @@ def gitlab_ci(ctx, test="all", custom_context=None, input_file=".gitlab-ci.yml")
                 print(f'{color_message("info", Color.BLUE)}: We will test {len(all_contexts)} contexts')
                 for context in all_contexts:
                     print("Test gitlab configuration with context: ", context)
-                    test_gitlab_configuration(ctx, entry_point, input_config, dict(context))
+                    test_gitlab_configuration(
+                        ctx, config_name=config_filename, config_object=config_object, context=dict(context)
+                    )
             else:
-                test_gitlab_configuration(ctx, entry_point, input_config)
+                test_gitlab_configuration(ctx, config_name=config_filename, config_object=config_object)
 
 
 @task
@@ -399,7 +401,9 @@ def gitlab_change_paths(ctx):
     """Verifies that rules: changes: paths match existing files in the repository."""
 
     # Read gitlab config
-    config = get_gitlab_ci_configuration(ctx, input_file=".gitlab-ci.yml", gitlab_context=None, return_dump=False)
+    config = get_gitlab_ci_configuration(
+        ctx, input_config_or_file=".gitlab-ci.yml", gitlab_context=None, return_dump=False
+    )
     error_paths = []
     for path in set(retrieve_all_paths(config)):
         files = glob(path, recursive=True)
