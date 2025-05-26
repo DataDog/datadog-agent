@@ -801,7 +801,7 @@ func resolveVPNTunnelsRoutes(store *metadata.Store,
 		}
 
 		nextHopAddrType := indexElems[currMaxIndex-2]
-		if nextHopAddrType != inetAddressIPv4 {
+		if nextHopAddrType != "0" && nextHopAddrType != inetAddressIPv4 {
 			continue
 		}
 
@@ -815,7 +815,12 @@ func resolveVPNTunnelsRoutes(store *metadata.Store,
 			continue
 		}
 
-		nextHopIP := strings.Join(indexElems[currMaxIndex-nextHopLength:currMaxIndex], ".")
+		var nextHopIP string
+		if nextHopLength == 0 {
+			nextHopIP = "0.0.0.0"
+		} else {
+			nextHopIP = strings.Join(indexElems[currMaxIndex-nextHopLength:currMaxIndex], ".")
+		}
 
 		ifIndex := store.GetColumnAsString("ipforward.if_index", strIndex)
 		routeType := store.GetColumnAsString("ipforward.route_type", strIndex)
