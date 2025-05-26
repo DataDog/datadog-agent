@@ -185,7 +185,7 @@ func (v *baseStatusSuite) testDefaultInstallStatus(processAgentContain, processA
 		},
 		{
 			name:            "Fleet Automation",
-			shouldContain:    []string{"Bli bla blo"},
+			shouldContain:   []string{"Bli bla blo"},
 			shouldBePresent: true,
 		},
 		{

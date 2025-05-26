@@ -178,7 +178,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	// runtime init routines
-
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 )
 

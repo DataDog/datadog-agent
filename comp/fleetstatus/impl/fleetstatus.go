@@ -14,14 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	installerexec "github.com/DataDog/datadog-agent/comp/updater/installerexec/def"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Requires defines the dependencies for the fleetstatus component
 type Requires struct {
 	Config config.Component
 
-	InstallerExec option.Option[installerexec.Component]
+//InstallerExec option.Option[installerexec.Component]
 }
 
 // Provides defines the output of the fleetstatus component
@@ -31,15 +30,15 @@ type Provides struct {
 
 type statusProvider struct {
 	Config        config.Component
-	InstallerExec installerexec.Component
+	//InstallerExec installerexec.Component
 }
 
 // NewComponent creates a new fleetstatus component
 func NewComponent(reqs Requires) Provides {
-	installerExec, _ := reqs.InstallerExec.Get()
+	//installerExec, _ := reqs.InstallerExec.Get()
 	sp := &statusProvider{
 		Config:        reqs.Config,
-		InstallerExec: installerExec,
+		//InstallerExec: installerExec,
 	}
 
 	return Provides{
@@ -90,7 +89,7 @@ func (sp statusProvider) populateStatus(stats map[string]interface{}) {
 
 	remoteManagementEnabled := isRemoteManagementEnabled(sp.Config)
 	remoteConfigEnabled := isRemoteConfigEnabled()
-	installerRunning := isInstallerRunning(sp.InstallerExec)
+	installerRunning := isInstallerRunning(nil)
 
 	status["remoteManagementEnabled"] = remoteManagementEnabled
 	status["remoteConfigEnabled"] = remoteConfigEnabled
