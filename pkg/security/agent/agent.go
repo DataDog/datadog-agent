@@ -33,6 +33,7 @@ type RuntimeSecurityAgent struct {
 	statsdClient         statsd.ClientInterface
 	hostname             string
 	reporter             common.RawReporter
+	server                  *RuntimeSecurityServer
 	client               *RuntimeSecurityClient
 	running              *atomic.Bool
 	wg                   sync.WaitGroup
@@ -70,6 +71,8 @@ func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *c
 		go rsa.StartActivityDumpListener()
 		go rsa.startActivityDumpStorageTelemetry(ctx)
 	}
+
+	rsa.server.Start()
 }
 
 // Stop the runtime recurity agent
@@ -77,6 +80,7 @@ func (rsa *RuntimeSecurityAgent) Stop() {
 	rsa.cancel()
 	rsa.running.Store(false)
 	rsa.client.Close()
+	rsa.server.Stop()
 	rsa.wg.Wait()
 }
 
