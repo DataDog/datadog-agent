@@ -46,3 +46,7 @@ type CheckResponse struct {
 	HeartbeatServices    []Service `json:"heartbeat_services"`
 	RunningServicesCount int       `json:"running_services_count"`
 }
+
+type ServicesResponse struct {
+	Services []Service `json:"services"`
+}

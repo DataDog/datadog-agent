@@ -399,6 +399,15 @@ func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
+	services, err := s.getServices(params)
+	if err != nil {
+		_ = log.Errorf("failed to handle /discovery%s: %v", pathServices, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	utils.WriteAsJSON(w, services, utils.CompactOutput)
 }
 
 func (s *discovery) handleLanguage(w http.ResponseWriter, req *http.Request) {
@@ -1225,6 +1234,26 @@ func (s *discovery) getCheckServices(params params) (*model.CheckResponse, error
 	s.maybeUpdateNetworkStats(response)
 
 	response.RunningServicesCount = len(s.runningServices)
+
+	return response, nil
+}
+
+func (s *discovery) getServices(params params) (*model.ServicesResponse, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	response := &model.ServicesResponse{
+		Services: make([]model.Service, 0),
+	}
+
+	context := newParsingContext()
+
+	for _, pid := range params.pids {
+		service := s.getService(context, int32(pid))
+		if service == nil {
+			continue
+		}
+		response.Services = append(response.Services, *service)
+	}
 
 	return response, nil
 }
