@@ -215,6 +215,10 @@ func cleanDeadPidsInSslMaps(t *testing.T, manager *manager.Manager) {
 // correctly removes entries from the ssl_sock_by_ctx and ssl_ctx_by_tuple maps
 // when the TCP connection associated with a TLS session is closed.
 func TestNativeTLSMapsCleanup(t *testing.T) {
+	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
+		t.Skip("TLS not supported for this setup")
+	}
+
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
