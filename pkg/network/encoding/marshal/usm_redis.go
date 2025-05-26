@@ -113,7 +113,7 @@ func mapRedisErrorType(err redis.ErrorType) int32 {
 		return int32(model.RedisErrorType_RedisNoError)
 	case redis.UnknownErr:
 		return int32(model.RedisErrorType_RedisErrorTypeUnknown)
-	case redis.GenericErr:
+	case redis.Err:
 		return int32(model.RedisErrorType_RedisErrErr)
 	case redis.WrongType:
 		return int32(model.RedisErrorType_RedisErrWrongType)
