@@ -971,8 +971,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
 	if runtime.GOOS == "windows" {
 		config.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3334")
+		config.BindEnvAndSetDefault("runtime_security_config.cmd_socket", "localhost:3335")
 	} else {
 		config.BindEnvAndSetDefault("runtime_security_config.socket", filepath.Join(InstallPath, "run/runtime-security.sock"))
+		config.BindEnvAndSetDefault("runtime_security_config.cmd_socket", filepath.Join(InstallPath, "run/runtime-security-cmd.sock"))
 	}
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)

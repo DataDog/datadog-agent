@@ -18,13 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/golang/protobuf/ptypes/empty"
 )
 
-// RuntimeSecurityServer is used to send request to security module
-type RuntimeSecurityServer struct {
+// SecurityAgentAPIServer is used to send request to security module
+type SecurityAgentAPIServer struct {
 	grpcServer *module.GRPCServer
-	apiServer  api.SecurityEventsServer
+	apiServer  api.SecurityAgentAPIServer
 }
 
 // SecurityModuleClientWrapper represents a security module client
@@ -32,15 +33,12 @@ type SecurityEventAPIServerWrapper interface {
 }
 
 type SecurityEventAPIServer struct {
-	api.UnimplementedSecurityEventsServer
+	api.UnimplementedSecurityAgentAPIServer
 }
 
 func (s *SecurityEventAPIServer) SendEvent(stream grpc.ClientStreamingServer[api.SecurityEventMessage, empty.Empty]) error {
-	fmt.Println("SendEvent")
-
 	for {
 		msg, err := stream.Recv()
-		fmt.Printf(">>>>>>>>>>> Received event: %v %v\n", msg, err)
 		if err == io.EOF {
 			break // read done.
 		}
@@ -60,22 +58,20 @@ func (s *SecurityEventAPIServer) SendActivityDumpStream(grpc.ClientStreamingServ
 	return nil
 }
 
-func (s *RuntimeSecurityServer) Start() {
+func (s *SecurityAgentAPIServer) Start() {
 	err := s.grpcServer.Start()
 	if err != nil {
-		fmt.Printf(">>>>>>>>>> Error starting grpc server: %v\n", err)
+		seclog.Errorf("error starting security agent grpc server: %v", err)
 	}
 }
 
-func (s *RuntimeSecurityServer) Stop() {
+func (s *SecurityAgentAPIServer) Stop() {
 	s.grpcServer.Stop()
 }
 
-// NewRuntimeSecurityServer instantiates a new RuntimeSecurityServer
-func NewRuntimeSecurityServer() (*RuntimeSecurityServer, error) {
-	cfgSocketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket_events")
-
-	cfgSocketPath = "/tmp/runtime-security.sock"
+// NewSecurityAgentAPIServer instantiates a new SecurityAgentAPIServer
+func NewSecurityAgentAPIServer() (*SecurityAgentAPIServer, error) {
+	cfgSocketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
 	socketPath := cfgSocketPath
 
 	if socketPath == "" {
@@ -94,11 +90,9 @@ func NewRuntimeSecurityServer() (*RuntimeSecurityServer, error) {
 	grpcServer := module.NewGRPCServer(family, cfgSocketPath)
 	apiServer := &SecurityEventAPIServer{}
 
-	api.RegisterSecurityEventsServer(grpcServer.ServiceRegistrar(), apiServer)
+	api.RegisterSecurityAgentAPIServer(grpcServer.ServiceRegistrar(), apiServer)
 
-	fmt.Printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n")
-
-	return &RuntimeSecurityServer{
+	return &SecurityAgentAPIServer{
 		grpcServer: grpcServer,
 		apiServer:  apiServer,
 	}, nil
