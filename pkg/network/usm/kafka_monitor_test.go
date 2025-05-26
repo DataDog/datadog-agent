@@ -154,16 +154,27 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 	produce12fetch12.SetMaxKeyVersion(kafka.FetchAPIKey, 12)
 	versions = append(versions, produce12fetch12)
 
-	produce12fetch17 := kversion.V4_0_0()
-	produce12fetch17.SetMaxKeyVersion(kafka.ProduceAPIKey, 12)
-	produce12fetch17.SetMaxKeyVersion(kafka.FetchAPIKey, 17)
-	versions = append(versions, produce12fetch17)
+	fetch16metadata10 := kversion.V3_8_0()
+	fetch16metadata10.SetMaxKeyVersion(kafka.FetchAPIKey, 16)
+	fetch16metadata10.SetMaxKeyVersion(kafka.MetadataAPIKey, 10)
+	versions = append(versions, fetch16metadata10)
+
+	fetch17metadata13 := kversion.V4_0_0()
+	fetch17metadata13.SetMaxKeyVersion(kafka.FetchAPIKey, 17)
+	fetch17metadata13.SetMaxKeyVersion(kafka.MetadataAPIKey, 13)
+	versions = append(versions, fetch17metadata13)
 
 	versionName := func(version *kversion.Versions) string {
 		produce, found := version.LookupMaxKeyVersion(kafka.ProduceAPIKey)
 		require.True(t, found)
 		fetch, found := version.LookupMaxKeyVersion(kafka.FetchAPIKey)
 		require.True(t, found)
+		// metadata is required in fetch v13+
+		if fetch > 12 {
+			metadata, found := version.LookupMaxKeyVersion(kafka.MetadataAPIKey)
+			require.True(t, found)
+			return fmt.Sprintf("metadata%d_fetch%d_produce%d", metadata, fetch, produce)
+		}
 		return fmt.Sprintf("produce%d_fetch%d", produce, fetch)
 	}
 
@@ -291,7 +302,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					ServerAddress: ctx.targetAddress,
 					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(kversion.V1_0_0()),
+						kgo.MaxVersions(version),
 						kgo.ClientID(""),
 					},
 				})
@@ -307,7 +318,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				getAndValidateKafkaStats(t, monitor, fixCount(1), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(1),
 					expectedNumberOfFetchRequests:   0,
-					expectedAPIVersionProduce:       5,
+					expectedAPIVersionProduce:       expectedAPIVersionProduce,
 					expectedAPIVersionFetch:         0,
 					tlsEnabled:                      tls,
 				}, kafkaSuccessErrorCode)
@@ -1321,6 +1332,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 func (s *KafkaProtocolParsingSuite) TestKafkaFetchRaw() {
 	t := s.T()
 	versions := []int{4, 5, 7, 11, 12}
+	require.Contains(t, versions, kafka.DecodingMaxSupportedFetchRequestApiVersion, "The latest API version for FetchRequest should be tested")
 
 	t.Run("without TLS", func(t *testing.T) {
 		for _, version := range versions {
@@ -1549,7 +1561,8 @@ func getSplitGroups(req kmsg.Request, resp kmsg.Response, formatter *kmsg.Reques
 
 func (s *KafkaProtocolParsingSuite) TestKafkaProduceRaw() {
 	t := s.T()
-	versions := []int{8, 9, 10}
+	versions := []int{8, 9, 10, 12}
+	require.Contains(t, versions, kafka.DecodingMaxSupportedProduceRequestApiVersion, "The latest API version for ProduceRequest should be tested")
 
 	t.Run("without TLS", func(t *testing.T) {
 		for _, version := range versions {

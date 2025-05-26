@@ -43,6 +43,10 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
 #define CHECK_STRING_VALID_CLIENT_ID(max_buffer_size, real_size, buffer)   \
     CHECK_STRING_COMPOSED_OF_ASCII(max_buffer_size, real_size, buffer, true)
 
+// The UUID must be v4 and its variant (17th digit) may be 0x8, 0x9, 0xA or 0xB
+#define IS_UUID_V4(topic_id) \
+    (topic_id[6] >> 4) == 4 && \
+    0x8 <= (topic_id[8] >> 4) && (topic_id[8] >> 4) <= 0xB
 
 PKTBUF_READ_INTO_BUFFER(client_id, CLIENT_ID_SIZE_TO_VALIDATE, BLK_SIZE)
 
@@ -317,16 +321,7 @@ static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible,
     pktbuf_load_bytes_with_telemetry(pkt, offset, topic_id, sizeof(topic_id));
     offset += sizeof(topic_id);
 
-    // The UUID version (13th digit 4 MSB) must be 4
-    __u8 uuid_version = topic_id[6] >> 4;
-    if (uuid_version != 4) {
-        // The UUID version is not 4
-        return false;
-    }
-
-    // The UUID variant (17th digit) may be 0x8, 0x9, 0xA or 0xB
-    __u8 uuid_variant = topic_id[8] >> 4;
-    return 0x8 <= uuid_variant && uuid_variant <= 0xB;
+    return IS_UUID_V4(topic_id);
 }
 
 // Flexible API version can have an arbitrary number of tagged fields.  We don't
