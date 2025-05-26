@@ -9,6 +9,7 @@ package irgen_test
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"os"
 	"path"
@@ -22,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/obgect"
+	object "github.com/DataDog/datadog-agent/pkg/dyninst/obgect"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
@@ -73,6 +74,10 @@ func runTest(
 	testFile *testFile,
 ) {
 	binPath, err := testprogs.GetBinary(testFile.binary, cfg)
+	if errors.Is(err, testprogs.ErrProgsDirNotFound) {
+		t.Skip("progs directory not found, skipping test")
+		return
+	}
 	require.NoError(t, err)
 	elfFile, err := safeelf.Open(binPath)
 	require.NoError(t, err)

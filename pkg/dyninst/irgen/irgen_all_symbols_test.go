@@ -8,6 +8,7 @@
 package irgen_test
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -27,6 +28,10 @@ func TestIRGenAllProbes(t *testing.T) {
 			for _, cfg := range testprogs.CommonConfigs {
 				t.Run(cfg.String(), func(t *testing.T) {
 					bin, err := testprogs.GetBinary(pkg, cfg)
+					if errors.Is(err, testprogs.ErrProgsDirNotFound) {
+						t.Skip("progs directory not found, skipping test")
+						return
+					}
 					require.NoError(t, err)
 					testAllProbes(t, bin)
 				})

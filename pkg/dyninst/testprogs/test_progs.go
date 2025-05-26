@@ -28,6 +28,15 @@ var CommonConfigs = []Config{
 	{GOARCH: Arm64, GOTOOLCHAIN: CurrentVersion},
 }
 
+// ErrProgsDirNotFound is an error returned when the progs directory is not
+// found.  This can happen when the testing is not run from source directory.
+//
+// TODO: Returning this error is a short-term fix to work around KMT tests
+// not having access to the relevant portion of the source tree. A follow-up
+// change will make sure that the binaries are available in all the settings
+// in which the tests are supposed to run and will then eliminate this error.
+var ErrProgsDirNotFound = errors.New("progs directory not found")
+
 // GetBinary returns the path to the binary for the given name and metadata.
 func GetBinary(
 	name string,
@@ -40,6 +49,12 @@ func GetBinary(
 	binaryDir := path.Join(binariesDir, cfg.String())
 	binaryPath := path.Join(binaryDir, name)
 	progDir := path.Join(progsDir, name)
+
+	// If we don't have the progs dir, then we're not in a situation to
+	// run the tests.
+	if _, err := os.Stat(progDir); os.IsNotExist(err) {
+		return "", ErrProgsDirNotFound
+	}
 
 	if err := os.MkdirAll(binaryDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create binary directory: %w", err)
@@ -170,7 +185,7 @@ var progsDir = path.Join(testProgsDir, "progs")
 var Packages = func() []string {
 	files, err := os.ReadDir(progsDir)
 	if err != nil {
-		panic(err)
+		return nil
 	}
 	var names []string
 	for _, file := range files {
@@ -201,7 +216,11 @@ var CurrentVersion = func() string {
 		}
 		return "go" + match[1]
 	}
-	panic("go.mod not found")
+	// If we get here, we're not in a situation to compile binaries.
+	//
+	// TODO: Like the workaround that lead to ErrProgsDirNotFound, we'll
+	// need an alternative way to configure the expected go version.
+	return ""
 }()
 
 func compileBinary(progDir string, cfg Config, binPath string) error {

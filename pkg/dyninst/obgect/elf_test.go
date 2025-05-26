@@ -9,11 +9,12 @@ package object_test
 
 import (
 	"debug/dwarf"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/obgect"
+	object "github.com/DataDog/datadog-agent/pkg/dyninst/obgect"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
@@ -23,6 +24,10 @@ import (
 func TestElfObject(t *testing.T) {
 	for _, cfg := range testprogs.CommonConfigs {
 		binaryPath, err := testprogs.GetBinary("simple", cfg)
+		if errors.Is(err, testprogs.ErrProgsDirNotFound) {
+			t.Skip("progs directory not found, skipping test")
+			return
+		}
 		require.NoError(t, err)
 		elf, err := safeelf.Open(binaryPath)
 		require.NoError(t, err)
