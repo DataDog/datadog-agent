@@ -98,6 +98,7 @@ WINDOWS_CORECHECKS = [
     "windows_registry",
     "winkmem",
     "wincrashdetect",
+    "windows_certificate",
     "winproc",
     "win32_event_log",
 ]

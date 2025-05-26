@@ -121,6 +121,7 @@ struct syscall_cache_t {
             struct dentry *dentry;
             struct file_t file;
             const char *name;
+            u64 pid_tgid;
         } xattr;
 
         struct {
@@ -212,6 +213,7 @@ struct syscall_cache_t {
             u16 family;
             u16 port;
             u16 protocol;
+            u64 pid_tgid;
         } bind;
 
          struct {
@@ -219,6 +221,7 @@ struct syscall_cache_t {
             u16 family;
             u16 port;
             u16 protocol;
+            u64 pid_tgid;
         } connect;
 
          struct {

@@ -57,21 +57,21 @@ func (lt *LoaderThree) Load(_ sender.SenderManager, _ integration.Config, _ inte
 
 func TestLoaderCatalog(t *testing.T) {
 	l1 := LoaderOne{}
-	factory1 := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, error) {
-		return l1, nil
+	factory1 := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, int, error) {
+		return l1, 20, nil
 	}
 	l2 := LoaderTwo{}
-	factory2 := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, error) {
-		return l2, nil
+	factory2 := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, int, error) {
+		return l2, 10, nil
 	}
 	var l3 *LoaderThree
-	factory3 := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, error) {
-		return l3, errors.New("error")
+	factory3 := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, int, error) {
+		return l3, 30, errors.New("error")
 	}
 
-	RegisterLoader(20, factory1)
-	RegisterLoader(10, factory2)
-	RegisterLoader(30, factory3)
+	RegisterLoader(factory1)
+	RegisterLoader(factory2)
+	RegisterLoader(factory3)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()

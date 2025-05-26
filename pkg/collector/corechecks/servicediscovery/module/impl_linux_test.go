@@ -408,17 +408,7 @@ func TestServiceName(t *testing.T) {
 	data, err := trMeta.MarshalMsg(nil)
 	require.NoError(t, err)
 
-	// Create memfd with the metadata
-	fd, err := unix.MemfdCreate("datadog-tracer-info-xxx", 0)
-	require.NoError(t, err)
-	t.Cleanup(func() { unix.Close(fd) })
-	err = unix.Ftruncate(fd, int64(len(data)))
-	require.NoError(t, err)
-	mappedData, err := unix.Mmap(fd, 0, len(data), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
-	require.NoError(t, err)
-	copy(mappedData, data)
-	err = unix.Munmap(mappedData)
-	require.NoError(t, err)
+	createTracerMemfd(t, data)
 
 	listener, err := net.Listen("tcp", "")
 	require.NoError(t, err)
@@ -1411,6 +1401,51 @@ func getStateResponse(t *testing.T, url string) *state {
 	resp.Body.Close()
 
 	return &state
+}
+
+func createTracerMemfd(t *testing.T, data []byte) int {
+	t.Helper()
+	fd, err := unix.MemfdCreate("datadog-tracer-info-xxx", 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { unix.Close(fd) })
+	err = unix.Ftruncate(fd, int64(len(data)))
+	require.NoError(t, err)
+	mappedData, err := unix.Mmap(fd, 0, len(data), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	require.NoError(t, err)
+	copy(mappedData, data)
+	err = unix.Munmap(mappedData)
+	require.NoError(t, err)
+	return fd
+}
+
+func TestValidInvalidTracerMetadata(t *testing.T) {
+	discovery := newDiscovery(t, nil)
+	require.NotEmpty(t, discovery)
+	self := os.Getpid()
+
+	t.Run("valid metadata", func(t *testing.T) {
+		// Test with valid metadata from file
+		curDir, err := testutil.CurDir()
+		require.NoError(t, err)
+		testDataPath := filepath.Join(curDir, "testdata/tracer_cpp.data")
+		data, err := os.ReadFile(testDataPath)
+		require.NoError(t, err)
+
+		createTracerMemfd(t, data)
+
+		info, err := discovery.getServiceInfo(int32(self))
+		require.NoError(t, err)
+		require.Equal(t, language.CPlusPlus, info.language)
+		require.Equal(t, apm.Provided, info.apmInstrumentation)
+	})
+
+	t.Run("invalid metadata", func(t *testing.T) {
+		createTracerMemfd(t, []byte("invalid data"))
+
+		info, err := discovery.getServiceInfo(int32(self))
+		require.NoError(t, err)
+		require.Equal(t, apm.None, info.apmInstrumentation)
+	})
 }
 
 func TestStateEndpoint(t *testing.T) {

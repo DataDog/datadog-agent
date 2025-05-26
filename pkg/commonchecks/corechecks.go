@@ -8,11 +8,13 @@ package commonchecks
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/agentprofiling"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
@@ -31,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/networkv2"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/ntp"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/wlan"
 	ciscosdwan "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan"
@@ -52,6 +55,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/windowscertificate"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winkmem"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
@@ -60,7 +64,7 @@ import (
 
 // RegisterChecks registers all core checks
 func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg config.Component,
-	telemetry telemetry.Component, rcClient rcclient.Component) {
+	telemetry telemetry.Component, rcClient rcclient.Component, flare flare.Component) {
 	// Required checks
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
 	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
@@ -75,6 +79,7 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(containerimage.CheckName, containerimage.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(containerlifecycle.CheckName, containerlifecycle.Factory(store))
 	corecheckLoader.RegisterCheck(generic.CheckName, generic.Factory(store, tagger))
+	corecheckLoader.RegisterCheck(agentprofiling.CheckName, agentprofiling.Factory(flare, cfg))
 
 	// Flavor specific checks
 	corecheckLoader.RegisterCheck(load.CheckName, load.Factory())
@@ -89,7 +94,11 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(tcpqueuelength.CheckName, tcpqueuelength.Factory(tagger))
 	corecheckLoader.RegisterCheck(apm.CheckName, apm.Factory())
 	corecheckLoader.RegisterCheck(process.CheckName, process.Factory())
-	corecheckLoader.RegisterCheck(network.CheckName, network.Factory())
+	if cfg.GetBool("use_networkv2_check") {
+		corecheckLoader.RegisterCheck(network.CheckName, networkv2.Factory(cfg))
+	} else {
+		corecheckLoader.RegisterCheck(network.CheckName, network.Factory())
+	}
 	corecheckLoader.RegisterCheck(nvidia.CheckName, nvidia.Factory())
 	corecheckLoader.RegisterCheck(oracle.CheckName, oracle.Factory())
 	corecheckLoader.RegisterCheck(oracle.OracleDbmCheckName, oracle.Factory())
@@ -99,6 +108,7 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 		corecheckLoader.RegisterCheck(disk.CheckName, disk.Factory())
 	}
 	corecheckLoader.RegisterCheck(wincrashdetect.CheckName, wincrashdetect.Factory())
+	corecheckLoader.RegisterCheck(windowscertificate.CheckName, windowscertificate.Factory())
 	corecheckLoader.RegisterCheck(winkmem.CheckName, winkmem.Factory())
 	corecheckLoader.RegisterCheck(winproc.CheckName, winproc.Factory())
 	corecheckLoader.RegisterCheck(systemd.CheckName, systemd.Factory())

@@ -31,8 +31,6 @@ func NewEnvironmentListener(ServiceListernerDeps) (ServiceListener, error) {
 }
 
 // Listen starts the goroutine to detect checks based on environment
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (l *EnvironmentListener) Listen(newSvc chan<- Service, _ chan<- Service) {
 	l.newService = newSvc
 
@@ -87,8 +85,8 @@ func (s *EnvironmentService) GetServiceID() string {
 }
 
 // GetADIdentifiers return the single AD identifier for an environment service
-func (s *EnvironmentService) GetADIdentifiers() ([]string, error) {
-	return []string{s.adIdentifier}, nil
+func (s *EnvironmentService) GetADIdentifiers() []string {
+	return []string{s.adIdentifier}
 }
 
 // GetHosts is not supported
@@ -128,21 +126,15 @@ func (s *EnvironmentService) IsReady() bool {
 }
 
 // HasFilter is not supported
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (s *EnvironmentService) HasFilter(_ containers.FilterType) bool {
 	return false
 }
 
 // GetExtraConfig is not supported
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (s *EnvironmentService) GetExtraConfig(_ string) (string, error) {
 	return "", ErrNotSupported
 }
 
 // FilterTemplates does nothing.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (s *EnvironmentService) FilterTemplates(_ map[string]integration.Config) {
 }

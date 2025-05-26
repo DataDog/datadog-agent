@@ -1496,6 +1496,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "event.rule.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.BaseEvent.RuleTags
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "event.service":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -5658,8 +5669,53 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "ondemand.arg5.str":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveOnDemandArg5Str(ev, &ev.OnDemand)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ondemand.arg5.uint":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveOnDemandArg5Uint(ev, &ev.OnDemand))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ondemand.arg6.str":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveOnDemandArg6Str(ev, &ev.OnDemand)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ondemand.arg6.uint":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveOnDemandArg6Uint(ev, &ev.OnDemand))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "ondemand.name":
 		return &eval.StringEvaluator{
+			OpOverrides: OnDemandNameOverrides,
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -22509,6 +22565,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"event.hostname",
 		"event.origin",
 		"event.os",
+		"event.rule.tags",
 		"event.service",
 		"event.timestamp",
 		"exec.args",
@@ -22847,6 +22904,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"ondemand.arg3.uint",
 		"ondemand.arg4.str",
 		"ondemand.arg4.uint",
+		"ondemand.arg5.str",
+		"ondemand.arg5.uint",
+		"ondemand.arg6.str",
+		"ondemand.arg6.uint",
 		"ondemand.name",
 		"open.file.change_time",
 		"open.file.destination.mode",
@@ -24106,6 +24167,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "event.os":
 		return "", reflect.String, "string", nil
+	case "event.rule.tags":
+		return "", reflect.String, "string", nil
 	case "event.service":
 		return "", reflect.String, "string", nil
 	case "event.timestamp":
@@ -24781,6 +24844,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "ondemand.arg4.str":
 		return "ondemand", reflect.String, "string", nil
 	case "ondemand.arg4.uint":
+		return "ondemand", reflect.Int, "int", nil
+	case "ondemand.arg5.str":
+		return "ondemand", reflect.String, "string", nil
+	case "ondemand.arg5.uint":
+		return "ondemand", reflect.Int, "int", nil
+	case "ondemand.arg6.str":
+		return "ondemand", reflect.String, "string", nil
+	case "ondemand.arg6.uint":
 		return "ondemand", reflect.Int, "int", nil
 	case "ondemand.name":
 		return "ondemand", reflect.String, "string", nil
@@ -27729,6 +27800,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "event.os"}
 		}
 		ev.BaseEvent.Os = rv
+		return nil
+	case "event.rule.tags":
+		switch rv := value.(type) {
+		case string:
+			ev.BaseEvent.RuleTags = append(ev.BaseEvent.RuleTags, rv)
+		case []string:
+			ev.BaseEvent.RuleTags = append(ev.BaseEvent.RuleTags, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "event.rule.tags"}
+		}
 		return nil
 	case "event.service":
 		rv, ok := value.(string)
@@ -30819,6 +30900,34 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ondemand.arg4.uint"}
 		}
 		ev.OnDemand.Arg4Uint = uint64(rv)
+		return nil
+	case "ondemand.arg5.str":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ondemand.arg5.str"}
+		}
+		ev.OnDemand.Arg5Str = rv
+		return nil
+	case "ondemand.arg5.uint":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ondemand.arg5.uint"}
+		}
+		ev.OnDemand.Arg5Uint = uint64(rv)
+		return nil
+	case "ondemand.arg6.str":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ondemand.arg6.str"}
+		}
+		ev.OnDemand.Arg6Str = rv
+		return nil
+	case "ondemand.arg6.uint":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ondemand.arg6.uint"}
+		}
+		ev.OnDemand.Arg6Uint = uint64(rv)
 		return nil
 	case "ondemand.name":
 		rv, ok := value.(string)

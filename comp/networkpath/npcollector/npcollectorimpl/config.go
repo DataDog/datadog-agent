@@ -29,6 +29,7 @@ type collectorConfigs struct {
 	sourceExcludedConns          map[string][]string
 	destExcludedConns            map[string][]string
 	tcpMethod                    payload.TCPMethod
+	tcpSynParisTracerouteMode    bool
 }
 
 func newConfig(agentConfig config.Component) *collectorConfigs {
@@ -53,6 +54,7 @@ func newConfig(agentConfig config.Component) *collectorConfigs {
 		sourceExcludedConns:       agentConfig.GetStringMapStringSlice("network_path.collector.source_excludes"),
 		destExcludedConns:         agentConfig.GetStringMapStringSlice("network_path.collector.dest_excludes"),
 		tcpMethod:                 payload.MakeTCPMethod(agentConfig.GetString("network_path.collector.tcp_method")),
+		tcpSynParisTracerouteMode: agentConfig.GetBool("network_path.collector.tcp_syn_paris_traceroute_mode"),
 		networkDevicesNamespace:   agentConfig.GetString("network_devices.namespace"),
 	}
 }
