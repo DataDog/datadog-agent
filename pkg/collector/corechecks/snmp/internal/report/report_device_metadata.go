@@ -623,6 +623,7 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 		log.Debugf("Unable to build VPN tunnels metadata: no cisco_ipsec_tunnel.local_outside_ip found")
 		return nil
 	}
+	sort.Strings(vpnTunnelIndexes)
 
 	vpnTunnelByOutsideIPs := make(map[string]*devicemetadata.VPNTunnelMetadata)
 	vpnTunnelByRemoteOutsideIP := make(map[string]*devicemetadata.VPNTunnelMetadata)
@@ -668,6 +669,9 @@ func resolveVPNTunnelsRoutes(store *metadata.Store,
 	if len(routeObsoleteIndexes) == 0 && len(routeDeprecatedIndexes) == 0 && len(routeIndexes) == 0 {
 		return
 	}
+	sort.Strings(routeObsoleteIndexes)
+	sort.Strings(routeDeprecatedIndexes)
+	sort.Strings(routeIndexes)
 
 	routesByInterfaceIndex := make(map[string][]deviceRoute)
 
@@ -855,6 +859,8 @@ func resolveRoutesByInterface(store *metadata.Store, routesByInterfaceIndex map[
 	if len(tunnelDeprecatedIndexes) == 0 && len(tunnelIndexes) == 0 {
 		return
 	}
+	sort.Strings(tunnelDeprecatedIndexes)
+	sort.Strings(tunnelIndexes)
 
 	for _, strIndex := range tunnelDeprecatedIndexes {
 		indexElems := strings.Split(strIndex, ".")
