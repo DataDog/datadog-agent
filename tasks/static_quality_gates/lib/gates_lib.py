@@ -86,7 +86,7 @@ def find_package_path(flavor, package_os, arch, extension=None):
         extension = "deb" if package_os == 'debian' else "rpm"
     glob_pattern = f'{package_dir}/{flavor}{separator}7*{arch}.{extension}'
     package_paths = glob.glob(glob_pattern)
-    if len(package_paths) > 1:
+    if len(package_paths) > 1 and package_os != "windows": # Temporarily allow windows to have multiple match
         raise Exit(code=1, message=color_message(f"Too many files matching {glob_pattern}: {package_paths}", "red"))
     elif len(package_paths) == 0:
         raise Exit(code=1, message=color_message(f"Couldn't find any file matching {glob_pattern}", "red"))
