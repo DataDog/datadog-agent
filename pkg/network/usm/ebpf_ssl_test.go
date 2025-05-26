@@ -221,6 +221,9 @@ func TestNativeTLSMapsCleanup(t *testing.T) {
 	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 
 	addressOfHTTPPythonServer := "127.0.0.1:8001"
+	_ = testutil.HTTPPythonServer(t, addressOfHTTPPythonServer, testutil.Options{
+		EnableTLS: true,
+	})
 
 	client, requestFn := simpleGetRequestsGenerator(t, addressOfHTTPPythonServer)
 	var requests []*nethttp.Request
