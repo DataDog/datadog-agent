@@ -8,7 +8,7 @@ package daemonchecker
 
 import "github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 
-// team: fleet-automation
+// team: fleet
 
 // Component is the component type.
 type Component interface {
