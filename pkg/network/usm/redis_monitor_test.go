@@ -241,11 +241,11 @@ func validateRedis(t *testing.T, monitor *Monitor, expectedStats map[string]map[
 			if hasTLSTag != tls {
 				continue
 			}
-			if _, ok := found[key.KeyName]; !ok {
-				found[key.KeyName] = make(map[redis.CommandType]int)
+			if _, ok := found[key.KeyName.Get()]; !ok {
+				found[key.KeyName.Get()] = make(map[redis.CommandType]int)
 			}
 			for _, stat := range stats.ErrorToStats {
-				found[key.KeyName][key.Command] += stat.Count
+				found[key.KeyName.Get()][key.Command] += stat.Count
 			}
 		}
 		return reflect.DeepEqual(expectedStats, found)
