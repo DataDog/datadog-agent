@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Release a new `otel-agent` container image packaging the Datadog Distribution of OpenTelemetry Collector 
+    Learn more at: https://docs.datadoghq.com/fr/opentelemetry/setup/ddot_collector/.
