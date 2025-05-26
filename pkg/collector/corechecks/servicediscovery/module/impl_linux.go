@@ -373,7 +373,7 @@ func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	services, err := s.getServices(params)
+	services, err := s.getCheckServices(params)
 	if err != nil {
 		_ = log.Errorf("failed to handle /discovery%s: %v", pathCheck, err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -797,7 +797,7 @@ func (s *discovery) cleanCache(alivePids pidSet) {
 	}
 }
 
-func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.ServicesResponse) {
+func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.CheckResponse) {
 	for pid, info := range s.cache {
 		if !info.addedToMap {
 			err := s.network.addPid(uint32(pid))
@@ -846,7 +846,7 @@ func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.Ser
 	updateResponseNetworkStats(response.HeartbeatServices)
 }
 
-func (s *discovery) maybeUpdateNetworkStats(response *model.ServicesResponse) {
+func (s *discovery) maybeUpdateNetworkStats(response *model.CheckResponse) {
 	if s.network == nil {
 		return
 	}
@@ -881,7 +881,7 @@ func (s *discovery) cleanPidSets(alivePids pidSet, sets ...pidSet) {
 // updateServicesCPUStats updates the CPU stats of cached services, as well as the
 // global CPU time cache for future updates. This function is not thread-safe and
 // it is up to the caller to ensure s.mux is locked.
-func (s *discovery) updateServicesCPUStats(response *model.ServicesResponse) error {
+func (s *discovery) updateServicesCPUStats(response *model.CheckResponse) error {
 	if time.Since(s.lastCPUTimeUpdate) < s.config.cpuUsageUpdateDelay {
 		return nil
 	}
@@ -1056,7 +1056,7 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[i
 	}
 }
 
-func (s *discovery) updateCacheInfo(response *model.ServicesResponse, now time.Time) {
+func (s *discovery) updateCacheInfo(response *model.CheckResponse, now time.Time) {
 	updateCachedHeartbeat := func(service *model.Service) {
 		info, ok := s.cache[int32(service.PID)]
 		if !ok {
@@ -1084,7 +1084,7 @@ func (s *discovery) updateCacheInfo(response *model.ServicesResponse, now time.T
 // running are still alive. If not, it will use the latest cached information
 // about them to generate a stop event for the service. This function is not
 // thread-safe and it is up to the caller to ensure s.mux is locked.
-func (s *discovery) handleStoppedServices(response *model.ServicesResponse, alivePids pidSet) {
+func (s *discovery) handleStoppedServices(response *model.CheckResponse, alivePids pidSet) {
 	for pid := range s.runningServices {
 		if alivePids.has(pid) {
 			continue
@@ -1104,7 +1104,7 @@ func (s *discovery) handleStoppedServices(response *model.ServicesResponse, aliv
 }
 
 // getStatus returns the list of currently running services.
-func (s *discovery) getServices(params params) (*model.ServicesResponse, error) {
+func (s *discovery) getCheckServices(params params) (*model.CheckResponse, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
@@ -1115,7 +1115,7 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 
 	context := newParsingContext()
 
-	response := &model.ServicesResponse{
+	response := &model.CheckResponse{
 		StartedServices:   make([]model.Service, 0, len(s.potentialServices)),
 		StoppedServices:   make([]model.Service, 0),
 		HeartbeatServices: make([]model.Service, 0),

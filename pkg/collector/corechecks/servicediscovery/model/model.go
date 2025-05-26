@@ -39,8 +39,8 @@ type Service struct {
 	TxBps                      float64                         `json:"tx_bps"`
 }
 
-// ServicesResponse is the response for the system-probe /discovery/check endpoint.
-type ServicesResponse struct {
+// CheckResponse is the response for the system-probe /discovery/check endpoint.
+type CheckResponse struct {
 	StartedServices      []Service `json:"started_services"`
 	StoppedServices      []Service `json:"stopped_services"`
 	HeartbeatServices    []Service `json:"heartbeat_services"`

@@ -162,7 +162,7 @@ func Test_linuxImpl(t *testing.T) {
 	t.Setenv("DD_DISCOVERY_ENABLED", "true")
 
 	type checkRun struct {
-		servicesResp *model.ServicesResponse
+		servicesResp *model.CheckResponse
 		time         time.Time
 	}
 
@@ -175,21 +175,21 @@ func Test_linuxImpl(t *testing.T) {
 			name: "basic",
 			checkRun: []*checkRun{
 				{
-					servicesResp: &model.ServicesResponse{StartedServices: []model.Service{
+					servicesResp: &model.CheckResponse{StartedServices: []model.Service{
 						portTCP5000,
 						portTCP8080,
 					}},
 					time: calcTime(0),
 				},
 				{
-					servicesResp: &model.ServicesResponse{HeartbeatServices: []model.Service{
+					servicesResp: &model.CheckResponse{HeartbeatServices: []model.Service{
 						portTCP5000,
 						portTCP8080UpdatedRSS,
 					}},
 					time: calcTime(20 * time.Minute),
 				},
 				{
-					servicesResp: &model.ServicesResponse{StoppedServices: []model.Service{
+					servicesResp: &model.CheckResponse{StoppedServices: []model.Service{
 						portTCP8080UpdatedRSS,
 					}},
 					time: calcTime(20 * time.Minute),
@@ -356,8 +356,8 @@ func Test_linuxImpl(t *testing.T) {
 		},
 	}
 
-	makeServiceResponseWithTime := func(responseTime time.Time, resp *model.ServicesResponse) *model.ServicesResponse {
-		respWithTime := &model.ServicesResponse{
+	makeServiceResponseWithTime := func(responseTime time.Time, resp *model.CheckResponse) *model.CheckResponse {
+		respWithTime := &model.CheckResponse{
 			StartedServices:   make([]model.Service, 0, len(resp.StartedServices)),
 			StoppedServices:   make([]model.Service, 0, len(resp.StoppedServices)),
 			HeartbeatServices: make([]model.Service, 0, len(resp.HeartbeatServices)),
@@ -407,7 +407,7 @@ func Test_linuxImpl(t *testing.T) {
 				mTimer.EXPECT().Now().Return(cr.time).AnyTimes()
 
 				// set mocks
-				check.os.(*linuxImpl).getDiscoveryServices = func(_ *sysprobeclient.CheckClient) (*model.ServicesResponse, error) {
+				check.os.(*linuxImpl).getDiscoveryServices = func(_ *sysprobeclient.CheckClient) (*model.CheckResponse, error) {
 					return makeServiceResponseWithTime(cr.time, cr.servicesResp), nil
 				}
 				check.sender.hostname = mHostname

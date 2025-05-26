@@ -21,7 +21,7 @@ func init() {
 }
 
 type linuxImpl struct {
-	getDiscoveryServices func(client *sysprobeclient.CheckClient) (*model.ServicesResponse, error)
+	getDiscoveryServices func(client *sysprobeclient.CheckClient) (*model.CheckResponse, error)
 	sysProbeClient       *sysprobeclient.CheckClient
 }
 
@@ -32,14 +32,14 @@ func newLinuxImpl() (osImpl, error) {
 	}, nil
 }
 
-func getDiscoveryServices(client *sysprobeclient.CheckClient) (*model.ServicesResponse, error) {
-	resp, err := sysprobeclient.GetCheck[model.ServicesResponse](client, sysconfig.DiscoveryModule)
+func getDiscoveryServices(client *sysprobeclient.CheckClient) (*model.CheckResponse, error) {
+	resp, err := sysprobeclient.GetCheck[model.CheckResponse](client, sysconfig.DiscoveryModule)
 	if err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
-func (li *linuxImpl) DiscoverServices() (*model.ServicesResponse, error) {
+func (li *linuxImpl) DiscoverServices() (*model.CheckResponse, error) {
 	return li.getDiscoveryServices(li.sysProbeClient)
 }
