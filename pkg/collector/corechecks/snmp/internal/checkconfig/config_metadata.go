@@ -370,11 +370,11 @@ func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.Metad
 	if collectTopology {
 		mergeMetadata(newConfig, TopologyMetadataConfig)
 	}
-	if collectVPN {
-		mergeMetadata(newConfig, VPNMetadataConfig)
-		mergeMetadata(newConfig, RouteMetadataConfig)
-		mergeMetadata(newConfig, TunnelMetadataConfig)
-	}
+	//if collectVPN {
+	mergeMetadata(newConfig, VPNMetadataConfig)
+	mergeMetadata(newConfig, RouteMetadataConfig)
+	mergeMetadata(newConfig, TunnelMetadataConfig)
+	//}
 	return newConfig
 }
 

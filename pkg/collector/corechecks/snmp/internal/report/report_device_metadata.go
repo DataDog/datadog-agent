@@ -669,7 +669,7 @@ func resolveVPNTunnelsRoutes(store *metadata.Store,
 		return
 	}
 
-	var routesByInterfaceIndex map[string][]deviceRoute
+	routesByInterfaceIndex := make(map[string][]deviceRoute)
 
 	for _, strIndex := range routeObsoleteIndexes {
 		indexElems := strings.Split(strIndex, ".")
