@@ -7,12 +7,14 @@
 package fleetstatusimpl
 
 import (
+	"context"
 	"embed"
 	"expvar"
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	daemonchecker "github.com/DataDog/datadog-agent/comp/daemonchecker/def"
 	installerexec "github.com/DataDog/datadog-agent/comp/updater/installerexec/def"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -22,6 +24,7 @@ type Requires struct {
 	Config config.Component
 
 	InstallerExec option.Option[installerexec.Component]
+	DaemonChecker option.Option[daemonchecker.Component]
 }
 
 // Provides defines the output of the fleetstatus component
@@ -32,14 +35,17 @@ type Provides struct {
 type statusProvider struct {
 	Config        config.Component
 	InstallerExec installerexec.Component
+	DaemonChecker daemonchecker.Component
 }
 
 // NewComponent creates a new fleetstatus component
 func NewComponent(reqs Requires) Provides {
 	installerExec, _ := reqs.InstallerExec.Get()
+	daemonChecker, _ := reqs.DaemonChecker.Get()
 	sp := &statusProvider{
 		Config:        reqs.Config,
 		InstallerExec: installerExec,
+		DaemonChecker: daemonChecker,
 	}
 
 	return Provides{
@@ -90,13 +96,16 @@ func (sp statusProvider) populateStatus(stats map[string]interface{}) {
 
 	remoteManagementEnabled := isRemoteManagementEnabled(sp.Config)
 	remoteConfigEnabled := isRemoteConfigEnabled()
-	installerRunning := isInstallerRunning(sp.InstallerExec)
+	isInstallerRunning := sp.InstallerExec !=nil && sp.DaemonChecker !=nil
+	if isInstallerRunning {
+		isInstallerRunning, _ = sp.DaemonChecker.IsRunning(context.Background())
+	}
 
 	status["remoteManagementEnabled"] = remoteManagementEnabled
 	status["remoteConfigEnabled"] = remoteConfigEnabled
-	status["installerRunning"] = installerRunning
+	status["installerRunning"] = isInstallerRunning
 
-	status["fleetAutomationEnabled"] = remoteManagementEnabled && remoteConfigEnabled && installerRunning
+	status["fleetAutomationEnabled"] = remoteManagementEnabled && remoteConfigEnabled && isInstallerRunning
 
 	stats["fleetAutomationStatus"] = status
 }

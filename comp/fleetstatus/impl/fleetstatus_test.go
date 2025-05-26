@@ -7,15 +7,20 @@ package fleetstatusimpl
 
 import (
 	"bytes"
+	"context"
 	"expvar"
+	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	daemonchecker "github.com/DataDog/datadog-agent/comp/daemonchecker/def"
+	daemoncheckerMock "github.com/DataDog/datadog-agent/comp/daemonchecker/mock"
 	installerexec "github.com/DataDog/datadog-agent/comp/updater/installerexec/def"
 	installerexecmock "github.com/DataDog/datadog-agent/comp/updater/installerexec/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFleetStatus(t *testing.T) {
@@ -43,7 +48,7 @@ func TestFleetStatus(t *testing.T) {
 			fleetAutomationEnabled: false,
 		},
 		{
-			name:                   "instaler not running",
+			name:                   "installer not running",
 			remoteUpdatesConfig:    true,
 			installerRunning:       false,
 			fleetAutomationEnabled: false,
@@ -65,15 +70,22 @@ func TestFleetStatus(t *testing.T) {
 			cfg.SetWithoutSource("remote_updates", tt.remoteUpdatesConfig)
 
 			var installerExecOption option.Option[installerexec.Component]
+			var daemonCheckerOption option.Option[daemonchecker.Component]
 			if tt.installerRunning {
 				installerExecOption = option.New(installerexecmock.Mock(t))
+				mockDaemonChecker := daemoncheckerMock.Mock(t)
+				daemonCheckerOption = option.New(mockDaemonChecker)
+				bli, _:= mockDaemonChecker.IsRunning(context.Background())
+				fmt.Println("isrunning", bli)
 			} else {
 				installerExecOption = option.None[installerexec.Component]()
+				daemonCheckerOption = option.None[daemonchecker.Component]()
 			}
 
 			provides := NewComponent(Requires{
 				Config:        cfg,
 				InstallerExec: installerExecOption,
+				DaemonChecker: daemonCheckerOption,
 			})
 			statusProvider := provides.Status.Provider
 
