@@ -1,23 +1,7 @@
-########################################
-# Preparation stage: layout and chmods #
-########################################
 ARG BASE_IMAGE_UBUNTU_VERSION=24.04
 ARG BASE_IMAGE_UBUNTU_NAME=noble
-FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION as builder
-ARG TARGETARCH
-ARG BASE_IMAGE_UBUNTU_VERSION
-ARG BASE_IMAGE_UBUNTU_NAME
-LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
-LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
-LABEL org.opencontainers.image.base.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
-LABEL org.opencontainers.image.title "Datadog Cluster Agent"
 
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y adduser
-
-RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-FROM builder AS nosys-seccomp
+FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS nosys-seccomp
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
 COPY nosys-seccomp/nosys.c   /tmp/nosys.c
@@ -33,6 +17,8 @@ FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION
 LABEL maintainer "Datadog <package@datadoghq.com>"
 LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
 LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
+LABEL org.opencontainers.image.base.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
+LABEL org.opencontainers.image.title "Datadog Cluster Agent"
 
 ARG CIBUILD
 # NOTE about APT mirrorlists:
