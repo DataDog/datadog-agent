@@ -182,9 +182,9 @@ func (c *RuntimeSecurityClient) Close() {
 
 // NewRuntimeSecurityClient instantiates a new RuntimeSecurityClient
 func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
-	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
+	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.cmd_socket")
 	if socketPath == "" {
-		return nil, errors.New("runtime_security_config.socket must be set")
+		return nil, errors.New("runtime_security_config.cmd_socket must be set")
 	}
 
 	family := config.GetFamilyAddress(socketPath)

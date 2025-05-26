@@ -36,7 +36,7 @@ func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname strin
 		return nil, err
 	}
 
-	server, err := NewRuntimeSecurityServer()
+	server, err := NewSecurityAgentAPIServer()
 	if err != nil {
 		return nil, err
 	}

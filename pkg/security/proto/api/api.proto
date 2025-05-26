@@ -342,7 +342,7 @@ service SecurityModule {
     rpc SaveSecurityProfile(SecurityProfileSaveParams) returns (SecurityProfileSaveMessage) {}
 }
 
-service SecurityEvents {
+service SecurityAgentAPI {
     rpc SendEvent(stream SecurityEventMessage) returns (google.protobuf.Empty) {}
     rpc SendActivityDumpStream(stream ActivityDumpStreamMessage) returns (google.protobuf.Empty) {}
 }
