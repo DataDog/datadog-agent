@@ -346,6 +346,7 @@
 /comp/updater/installerexec @DataDog/fleet
 /comp/updater/ssistatus @DataDog/fleet
 /comp/autoscaling/datadogclient @DataDog/container-integrations
+/comp/daemonchecker @DataDog/fleet
 /comp/etw @DataDog/windows-agent
 /comp/fleetstatus @DataDog/fleet
 /comp/haagent @DataDog/ndm-core

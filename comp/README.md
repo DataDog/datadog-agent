@@ -681,6 +681,12 @@ Package updater is the updater component.
 
 Package datadogclient provides a client to query the datadog API
 
+### [comp/daemonchecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/daemonchecker)
+
+*Datadog Team*: fleet
+
+Package daemonchecker ... /* TODO: detailed doc comment for the component */
+
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
 *Datadog Team*: windows-agent
