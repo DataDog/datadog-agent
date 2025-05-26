@@ -93,14 +93,6 @@ bool Three::init()
             PyConfig_Clear(&_config);
             return false;
         }
-
-        // Set the executable path
-        status = PyConfig_SetBytesString(&_config, &_config.executable, _pythonExe.c_str());
-        if (PyStatus_Exception(status)) {
-            setError("Failed to set executable path" + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
-            PyConfig_Clear(&_config);
-            return false;
-        }
     }
 
     // add custom builtins init funcs to Python inittab, one by one
