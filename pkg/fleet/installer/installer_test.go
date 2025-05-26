@@ -138,6 +138,30 @@ func (h *testHooks) PostPromoteExperiment(ctx context.Context, pkg string) error
 	return nil
 }
 
+func (h *testHooks) PostStartConfigExperiment(ctx context.Context, pkg string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg)
+	return nil
+}
+
+func (h *testHooks) PreStopConfigExperiment(ctx context.Context, pkg string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg)
+	return nil
+}
+
+func (h *testHooks) PostPromoteConfigExperiment(ctx context.Context, pkg string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg)
+	return nil
+}
+
 func (i *testPackageManager) ConfigFS(f fixtures.Fixture) fs.FS {
 	return os.DirFS(filepath.Join(i.userConfigsDir, f.Package))
 }

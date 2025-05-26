@@ -56,7 +56,7 @@ func Redis(stats map[redis.Key]*redis.RequestStats) []RequestSummary {
 
 		requestSummary := RequestSummary{
 			Truncated: k.Truncated,
-			KeyName:   k.KeyName,
+			KeyName:   k.KeyName.Get(),
 			Command:   k.Command.String(),
 			key: key{
 				Client: address{
