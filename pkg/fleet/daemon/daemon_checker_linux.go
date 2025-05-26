@@ -20,4 +20,4 @@ func (c *daemonCheckerImpl) IsRunning(ctx context.Context) (bool, error) {
 	}
 	conn.Close()
 	return true, nil
-} 
+}

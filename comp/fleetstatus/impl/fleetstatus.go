@@ -95,7 +95,7 @@ func (sp statusProvider) populateStatus(stats map[string]interface{}) {
 
 	remoteManagementEnabled := isRemoteManagementEnabled(sp.Config)
 	remoteConfigEnabled := isRemoteConfigEnabled()
-	isInstallerRunning := sp.InstallerExec !=nil && sp.DaemonChecker !=nil
+	isInstallerRunning := sp.InstallerExec != nil && sp.DaemonChecker != nil
 	if isInstallerRunning {
 		isInstallerRunning, _ = sp.DaemonChecker.IsRunning(context.Background())
 	}

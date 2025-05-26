@@ -19,4 +19,4 @@ func (c *daemonCheckerImpl) IsRunning(ctx context.Context) (bool, error) {
 
 func NewDaemonChecker() DaemonChecker {
 	return &daemonCheckerImpl{}
-} 
+}
