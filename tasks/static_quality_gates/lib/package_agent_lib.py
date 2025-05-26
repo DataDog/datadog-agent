@@ -1,5 +1,9 @@
 import tempfile
 
+from gitlab.v4.objects import ProjectPipeline
+from invoke import Exit
+
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo, get_commit
 from tasks.libs.common.color import color_message
 from tasks.libs.package.size import directory_size, extract_package, file_size
 from tasks.static_quality_gates.lib.gates_lib import argument_extractor, find_package_path, read_byte_input
@@ -76,3 +80,49 @@ def generic_package_agent_quality_gate(gate_name, arch, os, flavor, **kwargs):
         ctx, os, package_path, gate_name, metric_handler
     )
     check_package_size(package_on_wire_size, package_on_disk_size, max_on_wire_size, max_on_disk_size)
+
+def extract_ancestor_packages(ancestor_sha : str):
+    repo = get_gitlab_repo("DataDog/datadog-agent")
+    pipeline_list = repo.pipelines.list(sha=ancestor_sha)
+    if not len(pipeline_list):
+        raise Exit(code=1, message="Ancestor commit has no pipeline attached.")
+    ancestor_pipeline : ProjectPipeline = pipeline_list[0]
+    ancestor_pipeline.jobs.list()
+
+
+
+
+
+def debug_package_size(ctx, package_os, package_path):
+    # Manual control over temporary folders
+    current_pipeline_extract_dir = tempfile.TemporaryDirectory()
+    ancestor_pipeline_extract_dir = tempfile.TemporaryDirectory()
+
+    extract_package(ctx=ctx, package_os=package_os, package_path=package_path, extract_dir=current_pipeline_extract_dir)
+
+    #Cleanup temporary directories
+    current_pipeline_extract_dir.cleanup()
+
+
+def generic_debug_package_agent_quality_gate(ancestor_, arch, os, flavor, **kwargs):
+    arguments = argument_extractor(
+        kwargs, ctx=None
+    )
+    ctx = arguments.ctx
+
+    package_arch = arch
+    if os == "centos" or os == "suse":
+        if arch == "arm64":
+            package_arch = "aarch64"
+        elif arch == "amd64":
+            package_arch = "x86_64"
+        elif arch == "armhf":
+            package_arch = "armv7hl"
+
+    package_os = os
+    if os == "heroku":
+        package_os = "debian"
+
+    package_path = find_package_path(flavor, package_os, package_arch)
+
+    debug_package_size(ctx, os, package_path)

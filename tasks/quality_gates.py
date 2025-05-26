@@ -289,6 +289,51 @@ def manual_threshold_update(self, filename="static_gate_report.json"):
     pr_url = update_quality_gates_threshold(self, metric_handler, github)
     notify_threshold_update(pr_url)
 
+@task
+def debug_specific_quality_gate(ctx, gate_name):
+    """
+    Parse and executes static quality gates
+    :param ctx: Invoke context
+    :param gate_name: Static quality gates configuration file path
+    :return:
+    """
+
+    gate_list = [gate_name]
+    quality_gates_mod = __import__("tasks.static_quality_gates", fromlist=gate_list)
+    metric_handler = GateMetricHandler(
+        git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
+    )
+    newline_tab = "\n\t"
+    print(f"The following gates are going to run:{newline_tab}- {(newline_tab + '- ').join(gate_list)}")
+    final_state = "success"
+    gate_states = []
+
+    nightly_run = False
+    branch = os.environ["CI_COMMIT_BRANCH"]
+
+    DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")
+    if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
+        nightly_run = True
+
+    for gate in gate_list:
+        gate_inputs = {"ctx": ctx, "nightly": nightly_run}
+        try:
+            gate_mod = getattr(quality_gates_mod, gate)
+            gate_mod.entrypoint(**gate_inputs)
+            print(f"Gate {gate} succeeded !")
+            gate_states.append({"name": gate, "state": True, "error_type": None, "message": None})
+        except InfraError as e:
+            print(f"Gate {gate} flaked ! (InfraError)\n Restarting the job...")
+            raise Exit(code=42) from e
+        except Exception:
+            print(f"Gate {gate} failed ! (StackTrace)")
+            final_state = "failure"
+            gate_states.append(
+                {"name": gate, "state": False, "error_type": "StackTrace", "message": traceback.format_exc()}
+            )
+
+    _print_quality_gates_report(gate_states)
+
 
 @task()
 def exception_threshold_bump(ctx):
