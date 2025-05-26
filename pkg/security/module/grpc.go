@@ -41,8 +41,15 @@ func NewGRPCServer(family string, address string) *GRPCServer {
 	}
 }
 
+// ServiceRegistrar returns the gRPC server
+func (g *GRPCServer) ServiceRegistrar() grpc.ServiceRegistrar {
+	return g.server
+}
+
 // Start the server
 func (g *GRPCServer) Start() error {
+	fmt.Printf("~~~~ %s %s\n", g.family, g.address)
+
 	ln, err := net.Listen(g.family, g.address)
 	if err != nil {
 		return fmt.Errorf("unable to create runtime security socket: %w", err)
@@ -50,7 +57,7 @@ func (g *GRPCServer) Start() error {
 
 	if g.family == "unix" {
 		if err := os.Chmod(g.address, 0700); err != nil {
-			return fmt.Errorf("unable to create runtime security socket: %w", err)
+			return fmt.Errorf("unable to update permissions of runtime security socket: %w", err)
 		}
 	}
 

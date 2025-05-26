@@ -54,6 +54,7 @@ type CWSConsumer struct {
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
 	apiServer      *APIServer
+	apiClient      *APIClient
 	rateLimiter    *events.RateLimiter
 	sendStatsChan  chan chan bool
 	eventSender    events.EventSender
@@ -92,6 +93,11 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		return nil, err
 	}
 
+	apiClient, err := NewAPIClient()
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	c := &CWSConsumer{
@@ -102,6 +108,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		ctx:           ctx,
 		cancelFnc:     cancelFnc,
 		apiServer:     apiServer,
+		apiClient:     apiClient,
 		rateLimiter:   events.NewRateLimiter(cfg, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
 		grpcServer:    NewGRPCServer(family, cfg.SocketPath),
@@ -183,6 +190,7 @@ func (c *CWSConsumer) Start() error {
 
 	// start api server
 	c.apiServer.Start(c.ctx)
+	go c.apiClient.Start()
 
 	if err := c.ruleEngine.Start(c.ctx, c.reloader.Chan()); err != nil {
 		return err
