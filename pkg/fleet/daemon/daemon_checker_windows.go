@@ -8,13 +8,17 @@
 package daemon
 
 import (
-	"context"
 	"time"
 
 	"github.com/Microsoft/go-winio"
 )
 
-func (c *daemonCheckerImpl) IsRunning(ctx context.Context) (bool, error) {
+// NewDaemonChecker creates a new DaemonChecker instance
+func NewDaemonChecker() Checker {
+	return &daemonCheckerImpl{}
+}
+
+func (c *daemonCheckerImpl) IsRunning() (bool, error) {
 	timeout := 100 * time.Millisecond
 	conn, err := winio.DialPipe("\\\\.\\pipe\\DD_INSTALLER", &timeout)
 	if err != nil {
