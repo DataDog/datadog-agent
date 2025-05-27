@@ -482,7 +482,7 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType() {
 	case service.SystemdType:
-		return systemd.StopUnits(ctx, s.SystemdMainUnitStable)
+		return systemd.StopUnits(ctx, reverseStringSlice(s.SystemdUnitsStable)...)
 	case service.UpstartType:
 		return upstart.StopAll(ctx, reverseStringSlice(s.UpstartServices)...)
 	case service.SysvinitType:
