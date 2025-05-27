@@ -291,7 +291,14 @@ func (a *APIServer) start(ctx context.Context) {
 
 // Start the api server, starts to consume the msg queue
 func (a *APIServer) Start(ctx context.Context) {
-	go a.securityAgentAPIClient.SendEvents(ctx, a.events)
+	go a.securityAgentAPIClient.SendEvents(ctx, a.events, func() {
+		if prev := a.connEstablished.Swap(true); !prev {
+			// should always be non nil
+			if a.cwsConsumer != nil {
+				a.cwsConsumer.onAPIConnectionEstablished()
+			}
+		}
+	})
 	go a.securityAgentAPIClient.SendActivityDumps(ctx, a.activityDumps)
 	go a.start(ctx)
 }
