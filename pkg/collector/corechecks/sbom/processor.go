@@ -162,8 +162,42 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 			}
 
 			if container.SBOM != nil {
-				status := model.SBOMStatus_value[string(container.SBOM.Status)]
+				if container.SBOM.CycloneDXBOM == nil {
+					log.Debugf("Received empty SBOM for container %s", container.ID)
+					continue
+				}
 
+				containerImage, err := p.workloadmetaStore.GetImage(container.Image.ID)
+				if err != nil {
+					log.Debugf("Failed to find image %s for container %s", container.Image.ID, container.ID)
+					continue
+				}
+
+				if containerImage.SBOM == nil || containerImage.SBOM.CycloneDXBOM == nil {
+					log.Debugf("Failed to find SBOM for image %s, container %s", container.Image.ID, container.ID)
+					continue
+				}
+
+				if containerImage.SBOM.CycloneDXBOM.Components != nil && container.SBOM.CycloneDXBOM.Components != nil {
+					imageRefs := make(map[string]bool)
+					for _, component := range *containerImage.SBOM.CycloneDXBOM.Components {
+						imageRefs[component.BOMRef] = true
+					}
+
+					i := 0
+					componentCount := len(*container.SBOM.CycloneDXBOM.Components)
+					for _, component := range *container.SBOM.CycloneDXBOM.Components {
+						if imageRefs[component.BOMRef] {
+							*container.SBOM.CycloneDXBOM.Components = append((*container.SBOM.CycloneDXBOM.Components)[:i], (*container.SBOM.CycloneDXBOM.Components)[i+1:]...)
+							continue
+						}
+						i++
+					}
+
+					log.Debugf("Stripped %d components from SBOM for container %s that were parts of the base image %s", componentCount-len(*container.SBOM.CycloneDXBOM.Components), container.ID, container.Image.ID)
+				}
+
+				status := model.SBOMStatus_value[string(container.SBOM.Status)]
 				sbomEntity := &model.SBOMEntity{
 					Type:               model.SBOMSourceType_CONTAINER_FILE_SYSTEM,
 					Id:                 container.ID,
