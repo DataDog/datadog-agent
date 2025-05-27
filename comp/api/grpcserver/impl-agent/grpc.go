@@ -113,7 +113,7 @@ func (s *server) BuildServer() http.Handler {
 func (s *server) BuildGatewayMux(cmdAddr string) (http.Handler, error) {
 	dopts := []googleGrpc.DialOption{googleGrpc.WithTransportCredentials(credentials.NewTLS(s.IPC.GetTLSClientConfig()))}
 	ctx := context.Background()
-	gwmux := runtime.NewServeMux()
+	gwmux := runtime.NewServeMux(runtime.WithMiddlewares(mTLSMiddleware))
 	err := pb.RegisterAgentHandlerFromEndpoint(
 		ctx, gwmux, cmdAddr, dopts)
 	if err != nil {
@@ -127,6 +127,18 @@ func (s *server) BuildGatewayMux(cmdAddr string) (http.Handler, error) {
 	}
 
 	return gwmux, nil
+}
+
+// mTLSMiddleware is a middleware that prevents access to the grpc gateway if the request is not using mTLS.
+// The underlying gRPC server is enforcing mTLS, so this middleware is only needed for the HTTP gateway.
+func mTLSMiddleware(h runtime.HandlerFunc) runtime.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, m map[string]string) {
+		if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		h(w, r, m)
+	}
 }
 
 // Provides defines the output of the grpc component
