@@ -118,6 +118,7 @@ type EBPFProbe struct {
 
 	// internals
 	event          *model.Event
+	dnsLayer       *layers.DNS
 	monitors       *EBPFMonitors
 	profileManager *securityprofile.Manager
 	fieldHandlers  *EBPFFieldHandlers
@@ -974,13 +975,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	case model.ShortDNSResponseEventType:
 		if p.config.Probe.DNSResolutionEnabled {
-			var dnsLayer = new(layers.DNS)
-			if err := dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
+			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
 				seclog.Errorf("failed to decode DNS response: %s", err)
 				return
 			}
 
-			p.addToDNSResolver(dnsLayer)
+			p.addToDNSResolver(p.dnsLayer)
 		}
 		return
 	}
@@ -1325,23 +1325,22 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			}
 			offset += read
 
-			var dnsLayer = new(layers.DNS)
-			if err := dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
+			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
 				seclog.Warnf("failed to decode DNS response: %s", err)
 				return
 			}
-			p.addToDNSResolver(dnsLayer)
+			p.addToDNSResolver(p.dnsLayer)
 			event.Type = uint32(model.DNSEventType) // remap to regular DNS event type
 			event.DNS = model.DNSEvent{
-				ID: dnsLayer.ID,
+				ID: p.dnsLayer.ID,
 				Question: model.DNSQuestion{
-					Name:  string(dnsLayer.Questions[0].Name),
-					Class: uint16(dnsLayer.Questions[0].Class),
-					Type:  uint16(dnsLayer.Questions[0].Type),
+					Name:  string(p.dnsLayer.Questions[0].Name),
+					Class: uint16(p.dnsLayer.Questions[0].Class),
+					Type:  uint16(p.dnsLayer.Questions[0].Type),
 					Size:  uint16(len(data[offset:])),
 				},
 				Response: &model.DNSResponse{
-					ResponseCode: uint8(dnsLayer.ResponseCode),
+					ResponseCode: uint8(p.dnsLayer.ResponseCode),
 				},
 			}
 		}
@@ -2432,6 +2431,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		newTCNetDevices:      make(chan model.NetDevice, 16),
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, onDemandBurst),
 		playSnapShotState:    atomic.NewBool(false),
+		dnsLayer:             new(layers.DNS),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
