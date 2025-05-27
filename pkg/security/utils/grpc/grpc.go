@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package module holds module related files
-package module
+// Package grpc holds grpc related files
+package grpc
 
 import (
 	"fmt"
