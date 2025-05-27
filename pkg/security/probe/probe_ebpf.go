@@ -1376,12 +1376,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode accept event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		if p.config.Probe.DNSResolutionEnabled {
-			ip, ok := netip.AddrFromSlice(event.Accept.Addr.IPNet.IP)
-			if ok {
-				event.Accept.Hostnames = p.Resolvers.DNSResolver.HostListFromIP(ip)
-			}
-		}
 	case model.BindEventType:
 		if _, err = event.Bind.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1391,12 +1385,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if _, err = event.Connect.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode connect event: %s (offset %d, len %d)", err, offset, len(data))
 			return
-		}
-		if p.config.Probe.DNSResolutionEnabled {
-			ip, ok := netip.AddrFromSlice(event.Connect.Addr.IPNet.IP)
-			if ok {
-				event.Connect.Hostnames = p.Resolvers.DNSResolver.HostListFromIP(ip)
-			}
 		}
 	case model.SyscallsEventType:
 		if _, err = event.Syscalls.UnmarshalBinary(data[offset:]); err != nil {
@@ -1476,16 +1464,14 @@ func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eva
 
 	seclog.Tracef("New discarder of type %s for field %s", eventType, field)
 
-	if handlers, ok := allDiscarderHandlers[eventType]; ok {
-		for _, handler := range handlers {
-			discarderPushed, _ := handler(rs, ev, p, Discarder{Field: field})
+	if handler, ok := allDiscarderHandlers[field]; ok {
+		discarderPushed, _ := handler(rs, ev, p, Discarder{Field: field})
 
-			if discarderPushed {
-				p.discarderPushedCallbacksLock.RLock()
-				defer p.discarderPushedCallbacksLock.RUnlock()
-				for _, cb := range p.discarderPushedCallbacks {
-					cb(eventType, ev, field)
-				}
+		if discarderPushed {
+			p.discarderPushedCallbacksLock.RLock()
+			defer p.discarderPushedCallbacksLock.RUnlock()
+			for _, cb := range p.discarderPushedCallbacks {
+				cb(eventType, ev, field)
 			}
 		}
 	}
@@ -2014,7 +2000,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 		}
 	}
 
-	filterReport, err := kfilters.NewFilterReport(p.config.Probe, rs)
+	filterReport, err := kfilters.ComputeFilters(p.config.Probe, rs)
 	if err != nil {
 		return nil, err
 	}
