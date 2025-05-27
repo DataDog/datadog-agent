@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from difflib import Differ
 from functools import lru_cache
 from itertools import product
-from typing import Any
+from typing import Any, Literal
 
 import gitlab
 import yaml
@@ -803,6 +803,7 @@ def post_process_gitlab_ci_configuration(
     config: dict,
     clean: bool = True,
     variable_overrides: dict | None = None,
+    do_filtering: bool = False,
     filter_jobs: str | set[str] | None = None,
     keep_special_objects: bool = False,
     expand_matrix: bool = False,
@@ -814,6 +815,7 @@ def post_process_gitlab_ci_configuration(
     Args:
         config: The gitlab config object to apply post-processing to.
         variable_overrides: Dictionary containing variables to override in the output config (gitlab `variables` tag).
+        do_filtering: Whether to apply the `filter_gitlab_ci_configuration` method to the provided config. If `filter_jobs` or `keep_special_objects` are set, this will be considered True.
         filter_jobs:
             If not None, only the job objects with names specified here will be included in the config.
             Note that an empty set means no jobs will be returned !
@@ -822,7 +824,8 @@ def post_process_gitlab_ci_configuration(
         expand_matrix: Will expand matrix jobs into multiple jobs.
     """
     # Apply filtering
-    config = filter_gitlab_ci_configuration(config, filter_jobs, keep_special_objects)
+    if do_filtering or filter_jobs or keep_special_objects:
+        config = filter_gitlab_ci_configuration(config, filter_jobs, keep_special_objects)
 
     if clean:
         config = clean_gitlab_ci_configuration(config)
@@ -841,10 +844,9 @@ def post_process_gitlab_ci_configuration(
 def get_all_gitlab_ci_configurations(
     ctx,
     input_file: str = '.gitlab-ci.yml',
-    filter_configs: bool = False,
-    clean_configs: bool = False,
     partial_resolve: bool = False,
     git_ref: str | None = None,
+    postprocess_options: dict[str, Any] | Literal['False'] | None = None,
 ) -> dict[str, dict]:
     """Returns all possible gitlab CI entrypoints and corresponding fully-resolved configurations, rooted at the input file.
     This is useful when the CI contains 'trigger jobs', which launch new, independent pipelines.
@@ -852,12 +854,15 @@ def get_all_gitlab_ci_configurations(
 
     Args:
         input_file: Path to a gitlab CI configuration file from which to constructing.
-        filter_configs: Whether to apply post process filtering to the configurations (get only jobs...).
-        clean_configs: Whether to apply post process cleaning to the configurations (remove extends, flatten lists of lists...).
         ignore_errors: Ignore gitlab lint errors.
         partial_resolve:
             Whether to skip the gitlab `/lint` endpoint when resolving configs.
             In this case, only `include`s will be resolved, not `extend`s or `!reference`s
+        postprocess_options:
+            Controls how postprocessing is done.
+            You can pass a dict of options that will be passed to `post_process_gitlab_ci_configuration` for each resolved config object, overriding that function's parameters.
+            When None (default), this has the same effect as passing in an empty dict -- all the default arguments of `post_process_gitlab_ci_configuration` will be used.
+            If `false`, post-processing will be DISABLED.
     Returns:
         A dictionary of [entry point] -> configuration
     """
@@ -870,14 +875,16 @@ def get_all_gitlab_ci_configurations(
         input_file, configurations=configurations, ctx=ctx, partial_resolve=partial_resolve, git_ref=git_ref
     )
     # Post process
-    for file_name, config in configurations.items():
-        if filter_configs:
-            config = filter_gitlab_ci_configuration(config)
+    # Note: the is check with False is not an error - we want to skip postprocessing when it is exactly `False`, not just a Falsy value.
+    if postprocess_options is False:
+        return configurations
 
-        if clean_configs:
-            config = clean_gitlab_ci_configuration(config)
+    if postprocess_options is None:
+        postprocess_options = {}
 
-        configurations[file_name] = config
+    if postprocess_options is not False:
+        for file_name, config in configurations.items():
+            configurations[file_name] = post_process_gitlab_ci_configuration(config, **postprocess_options)  # type: ignore
 
     return configurations
 
@@ -1233,10 +1240,10 @@ def compute_gitlab_ci_config_diff(ctx, before: str, after: str):
     before = get_common_ancestor(ctx, before, after or "HEAD")
 
     print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
-    after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after, clean_configs=True)
+    after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after)
 
     print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
-    before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before, clean_configs=True)
+    before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before)
 
     diff = MultiGitlabCIDiff.from_contents(before_config, after_config)
 

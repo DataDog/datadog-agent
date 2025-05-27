@@ -289,7 +289,7 @@ def print_entry_points(ctx):
     """Prints gitlab ci configuration entry points."""
 
     print(color_message('info:', Color.BLUE), 'Fetching entry points...')
-    entry_points = get_all_gitlab_ci_configurations(ctx, filter_configs=True, clean_configs=True)
+    entry_points = get_all_gitlab_ci_configurations(ctx, postprocess_options={"do_filtering": True})
 
     print(len(entry_points), 'entry points:')
     for entry_point, config in entry_points.items():
