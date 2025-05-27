@@ -240,7 +240,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Accept.Addr)
 		}
-		_ = ev.FieldHandlers.ResolveAcceptHostnames(ev, &ev.Accept)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveAcceptHostnames(ev, &ev.Accept)
+		}
 	case "bind":
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr)
@@ -310,7 +312,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
 		}
-		_ = ev.FieldHandlers.ResolveConnectHostnames(ev, &ev.Connect)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveConnectHostnames(ev, &ev.Connect)
+		}
 	case "dns":
 	case "exec":
 		if ev.Exec.Process.IsNotKworker() {
