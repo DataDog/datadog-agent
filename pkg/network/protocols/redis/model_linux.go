@@ -129,7 +129,7 @@ func (e ErrorType) String() string {
 		return "NO_ERR"
 	case UnknownErr:
 		return "ERR_UNKNOWN"
-	case GenericErr:
+	case Err:
 		return "ERR"
 	case WrongType:
 		return "ERR_WRONGTYPE"
