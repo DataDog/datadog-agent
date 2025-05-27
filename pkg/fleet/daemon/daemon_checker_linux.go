@@ -8,12 +8,11 @@
 package daemon
 
 import (
-	"context"
 	"net"
 	"time"
 )
 
-func (c *daemonCheckerImpl) IsRunning(ctx context.Context) (bool, error) {
+func (c *daemonCheckerImpl) IsRunning() (bool, error) {
 	conn, err := net.DialTimeout("unix", "/var/run/datadog/installer.sock", 100*time.Millisecond)
 	if err != nil {
 		return false, nil

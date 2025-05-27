@@ -7,7 +7,6 @@
 package fleetstatusimpl
 
 import (
-	"context"
 	"embed"
 	"expvar"
 	"io"
@@ -98,7 +97,7 @@ func (sp statusProvider) populateStatus(stats map[string]interface{}) {
 	remoteConfigEnabled := isRemoteConfigEnabled()
 	isInstallerRunning := sp.InstallerExec != nil && sp.DaemonChecker != nil
 	if isInstallerRunning {
-		isInstallerRunning, _ = sp.DaemonChecker.IsRunning(context.Background())
+		isInstallerRunning, _ = sp.DaemonChecker.IsRunning()
 	}
 
 	status["remoteManagementEnabled"] = remoteManagementEnabled

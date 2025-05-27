@@ -5,13 +5,11 @@
 
 package daemon
 
-import "context"
-
 type daemonCheckerImpl struct{}
 
 // Checker defines the interface for checking the daemon's running state
 type Checker interface {
-	IsRunning(context.Context) (bool, error)
+	IsRunning() (bool, error)
 }
 
 // NewDaemonChecker creates a new DaemonChecker instance
