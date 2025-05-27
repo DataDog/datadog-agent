@@ -583,8 +583,7 @@ func (ns *networkState) storeClosedConnection(c *ConnectionStats) {
 		client.closed.insert(c, ns.maxClosedConns)
 
 		// Check if the buffer is near capacity using the configured threshold
-		if ns.closedConnectionsBufferThresholdRatio > 0 &&
-			float64(len(client.closed.conns)) >= float64(ns.maxClosedConns)*ns.closedConnectionsBufferThresholdRatio {
+		if float64(len(client.closed.conns)) >= float64(ns.maxClosedConns)*ns.closedConnectionsBufferThresholdRatio {
 			if !client.closedConnectionsNearCapacity.Load() {
 				log.Warnf("Closed connections buffer for client %s is nearing capacity (%d/%d, threshold: %.2f%%). Setting flag.", clientID, len(client.closed.conns), ns.maxClosedConns, ns.closedConnectionsBufferThresholdRatio*100)
 				client.closedConnectionsNearCapacity.Store(true)

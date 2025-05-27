@@ -321,11 +321,8 @@ func (l *CheckRunner) listenForRTUpdates() {
 
 func (l *CheckRunner) runnerForCheck(c checks.Check) (func(), error) {
 	if !l.runRealTime || !c.SupportsRunOptions() {
-		log.Debug("Creating basic check runner for %s", c.Name())
 		return l.basicRunner(c), nil
 	}
-
-	log.Debug("Creating check runner for %s", c.Name())
 
 	rtName := checks.RTName(c.Name())
 	interval := checks.GetInterval(l.config, c.Name())
