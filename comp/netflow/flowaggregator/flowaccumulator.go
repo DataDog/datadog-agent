@@ -50,9 +50,9 @@ type flowAccumulator struct {
 func newFlowContext(flow *common.Flow) flowContext {
 	now := timeNow()
 	return flowContext{
-		flow: flow,
-		//nextFlush: now, // JMW this is causing the first flush for a new flow to be within 10 seconds (the next time flushFlowsToSendInterval triggers)
-		nextFlush: now.Add(300 * time.Second), //JMWJMW
+		flow:      flow,
+		nextFlush: now, // JMW this is causing the first flush for a new flow to be within 10 seconds (the next time flushFlowsToSendInterval triggers)
+		//nextFlush: now.Add(300 * time.Second), //JMWJMW - breaks unit tests
 		// JMW add a config option, true or false, true = use now + aggregatorFlushInterval for nextFlush, false = use now for nextFlush
 		// JMW add a config option, number of seconds to wait before flushing a new flow (set nextFlush to now + this config option)
 		numberOfUses:    1,
