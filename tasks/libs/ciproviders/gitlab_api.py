@@ -790,7 +790,7 @@ def get_gitlab_ci_configuration(
     ctx,
     input_file: str = '.gitlab-ci.yml',
     gitlab_context: dict | None = None,
-    with_lint: bool = True,
+    partial_resolve: bool = True,
     job: str | None = None,
     keep_special_objects: bool = False,
     clean: bool = True,
@@ -806,7 +806,9 @@ def get_gitlab_ci_configuration(
     Args:
         input_file: Path to a gitlab CI configuration file from which to resolve the configuration object.
         gitlab_context: Dictionary containing variables to override in the output config.
-        with_lint: Whether to use the gitlab `/lint` endpoint when resolving configs.
+        partial_resolve:
+            Whether to skip the gitlab `/lint` endpoint when resolving configs.
+            In this case, only `include`s will be resolved, not `extend`s or `!reference`s
         job: If not None, only the job object with this name will be included in the config.
         keep_special_objects: Will keep special objects (not jobs) in the configuration (variables, stages, etc.).
         clean: If True, apply the `clean_gitlab_ci_configuration` to the output.
@@ -815,7 +817,7 @@ def get_gitlab_ci_configuration(
     """
 
     # Make full configuration
-    yml = resolve_gitlab_ci_configuration(ctx, input_file, with_lint=with_lint, git_ref=git_ref)
+    yml = resolve_gitlab_ci_configuration(ctx, input_file, partial_resolve=partial_resolve, git_ref=git_ref)
 
     # Filter
     yml = filter_gitlab_ci_configuration(yml, job, keep_special_objects=keep_special_objects)
@@ -839,7 +841,7 @@ def get_all_gitlab_ci_configurations(
     input_file: str = '.gitlab-ci.yml',
     filter_configs: bool = False,
     clean_configs: bool = False,
-    with_lint: bool = True,
+    partial_resolve: bool = False,
     git_ref: str | None = None,
 ) -> dict[str, dict]:
     """Returns all possible gitlab CI entrypoints and corresponding fully-resolved configurations, rooted at the input file.
@@ -852,8 +854,9 @@ def get_all_gitlab_ci_configurations(
         filter_configs: Whether to apply post process filtering to the configurations (get only jobs...).
         clean_configs: Whether to apply post process cleaning to the configurations (remove extends, flatten lists of lists...).
         ignore_errors: Ignore gitlab lint errors.
-        git_ref: If provided, use this git reference to fetch the configuration.
-
+        partial_resolve:
+            Whether to skip the gitlab `/lint` endpoint when resolving configs.
+            In this case, only `include`s will be resolved, not `extend`s or `!reference`s
     Returns:
         A dictionary of [entry point] -> configuration
     """
@@ -863,7 +866,7 @@ def get_all_gitlab_ci_configurations(
 
     # Traverse all gitlab-ci configurations
     _traverse_config_search_triggers(
-        input_file, configurations=configurations, ctx=ctx, with_lint=with_lint, git_ref=git_ref
+        input_file, configurations=configurations, ctx=ctx, partial_resolve=partial_resolve, git_ref=git_ref
     )
     # Post process
     for file_name, config in configurations.items():
@@ -878,7 +881,9 @@ def get_all_gitlab_ci_configurations(
     return configurations
 
 
-def _traverse_config_search_triggers(input_file: str, configurations: dict[str, dict], ctx, with_lint, git_ref) -> None:
+def _traverse_config_search_triggers(
+    input_file: str, configurations: dict[str, dict], ctx, partial_resolve, git_ref
+) -> None:
     """
     Produces a DFS to discover all possible gitlab CI entrypoints and corresponding configurations, rooted at the input file.
     THIS IS A RECURSIVE HELPER FUNCTION: Use `get_all_gitlab_ci_configurations` instead.
@@ -889,7 +894,9 @@ def _traverse_config_search_triggers(input_file: str, configurations: dict[str, 
         input_file: Path to a gitlab CI configuration file from which to start constructing the DFS.
         configurations: Dictionary object storing the result. THIS ARGUMENT WILL BE WRITTEN TO.
         ctx: Invoke task context
-        with_lint: Whether to use the gitlab `/lint` endpoint when resolving configs
+        partial_resolve:
+            Whether to skip the gitlab `/lint` endpoint when resolving configs.
+            In this case, only `include`s will be resolved, not `extend`s or `!reference`s
         git_ref: What git ref to use when opening the `input_file`
     """
 
@@ -897,7 +904,7 @@ def _traverse_config_search_triggers(input_file: str, configurations: dict[str, 
         return
 
     # Read and parse the configuration from this input_file
-    config = resolve_gitlab_ci_configuration(ctx, input_file, with_lint=with_lint, git_ref=git_ref)
+    config = resolve_gitlab_ci_configuration(ctx, input_file, partial_resolve=partial_resolve, git_ref=git_ref)
     configurations[input_file] = config
 
     # Search and add configurations called by the trigger keyword
@@ -905,7 +912,7 @@ def _traverse_config_search_triggers(input_file: str, configurations: dict[str, 
         if 'trigger' in job and 'include' in job['trigger']:
             for trigger in _get_trigger_filenames(job['trigger']['include']):
                 _traverse_config_search_triggers(
-                    trigger, configurations=configurations, ctx=ctx, with_lint=with_lint, git_ref=git_ref
+                    trigger, configurations=configurations, ctx=ctx, partial_resolve=partial_resolve, git_ref=git_ref
                 )
 
 
@@ -927,18 +934,21 @@ def _get_trigger_filenames(node):
 def resolve_gitlab_ci_configuration(
     ctx,
     input_config_or_file: str | dict = '.gitlab-ci.yml',
-    with_lint: bool = True,
+    partial_resolve: bool = False,
     git_ref: str | None = None,
 ) -> dict:
     """Returns a full gitlab-ci configuration object by resolving all `include`s, `extends`s and `!reference`s.
 
-    If with_lint is True, uses the /lint endpoint from the gitlab api to apply postprocessing.
+    If partial_resolve is True, only `include`s will be resolved.
+    Otherwise, the `/lint` Gitlab API endpoint will be called, fully resolving the config.
 
     Args:
         ctx: Invoke task context
         input_config_or_file: The gitlab config to resolve, either as a path to a file or a loaded dict
         return_dict: Return a loaded dict - If false, return a yaml string representing the config
-        with_lint: Whether to use the gitlab `/lint` endpoint when resolving configs
+        partial_resolve:
+            Whether to skip the gitlab `/lint` endpoint when resolving configs.
+            In this case, only `include`s will be resolved, not `extend`s or `!reference`s
         git_ref: From which git ref to read the input config file. No effect if input config is passed as a dict.
     """
 
@@ -949,7 +959,7 @@ def resolve_gitlab_ci_configuration(
     else:
         input_config = input_config_or_file
 
-    if not with_lint:
+    if partial_resolve:
         return input_config
 
     agent = get_gitlab_repo()
