@@ -295,7 +295,7 @@ func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, pRules []*Policy
 func (rs *RuleSet) GetDiscardersReport() (*DiscardersReport, error) {
 	var report DiscardersReport
 
-	event := rs.eventCtor()
+	event := rs.newFakeEvent()
 	ctx := eval.NewContext(event)
 
 	errFieldNotFound := &eval.ErrFieldNotFound{}
