@@ -407,7 +407,7 @@ func TestAdjustVisibleDevicesForMigDevices(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			devices := adjustVisibleDevicesForMig(tc.systemDevices)
+			devices := getVisibleDevicesForMig(tc.systemDevices)
 			require.Equal(t, tc.expectedDevices, devices)
 		})
 	}
