@@ -17,11 +17,11 @@ import (
 
 type mockDaemonChecker struct{}
 
-func (m *mockDaemonChecker) IsRunning(ctx context.Context) (bool, error) {
+func (m *mockDaemonChecker) IsRunning(_ context.Context) (bool, error) {
 	return true, nil
 }
 
 // Mock returns a mock for daemonchecker component.
-func Mock(t *testing.T) daemonchecker.Component {
+func Mock(_ *testing.T) daemonchecker.Component {
 	return &mockDaemonChecker{}
 }

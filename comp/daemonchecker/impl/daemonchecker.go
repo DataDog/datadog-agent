@@ -21,7 +21,7 @@ type Provides struct {
 }
 
 // NewComponent creates a new daemonchecker component
-func NewComponent(reqs Requires) (Provides, error) {
+func NewComponent(_ Requires) (Provides, error) {
 	return Provides{
 		Comp: daemon.NewDaemonChecker(),
 	}, nil
