@@ -50,12 +50,22 @@ type btfDistroCatalog map[string]btfReleaseCatalog
 type btfReleaseCatalog map[string]btfEntry
 
 type btfEntry struct {
-	URL    string `json:"url"`
 	SHA256 string `json:"sha256"`
 }
 
 func (b *orderedBTFLoader) loadRemoteConfig() (*returnBTF, error) {
 	if !b.rcBTFEnabled {
+		return nil, nil
+	}
+
+	var arch string
+	switch runtime.GOARCH {
+	case "amd64":
+		arch = "x86_64"
+	case "arm64":
+		arch = "arm64"
+	default:
+		log.Warnf("unsupported BTF architecture: %s", runtime.GOARCH)
 		return nil, nil
 	}
 
@@ -82,6 +92,7 @@ func (b *orderedBTFLoader) loadRemoteConfig() (*returnBTF, error) {
 		platform:        platform,
 		platformVersion: platformVersion,
 		kernelVersion:   kernelVersion,
+		arch:            arch,
 		result:          make(chan *returnBTF),
 	}
 
@@ -114,6 +125,7 @@ type rcBTFLoader struct {
 	platform        btfPlatform
 	platformVersion string
 	kernelVersion   string
+	arch            string
 	result          chan *returnBTF
 	ignoreUpdates   atomic.Bool
 }
@@ -150,7 +162,8 @@ func (r *rcBTFLoader) rcCallback(update map[string]state.RawConfig, applyStateCa
 }
 
 func (r *rcBTFLoader) processEntry(entry *btfEntry) (*returnBTF, error) {
-	btfTarballBuffer, err := r.downloadFile(entry.URL, entry.SHA256)
+	btfURL := fmt.Sprintf("https://install.datadoghq.com/btfs/%s/%s/%s/%s.btf.tar.xz", r.platform, r.platformVersion, r.arch, r.kernelVersion)
+	btfTarballBuffer, err := r.downloadFile(btfURL, entry.SHA256)
 	if err != nil {
 		return nil, fmt.Errorf("BTF download: %s", err)
 	}
@@ -173,14 +186,11 @@ func (r *rcBTFLoader) findEntry(config state.RawConfig) (*btfEntry, error) {
 	}
 
 	var entry *btfEntry
-	switch runtime.GOARCH {
-	case "amd64":
+	switch r.arch {
+	case "x86_64":
 		entry = catalog.X64.get(r.platform, r.platformVersion, r.kernelVersion)
 	case "arm64":
 		entry = catalog.Arm64.get(r.platform, r.platformVersion, r.kernelVersion)
-	default:
-		log.Warnf("unsupported BTF architecture: %s", runtime.GOARCH)
-		return nil, nil
 	}
 	return entry, nil
 }
