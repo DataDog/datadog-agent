@@ -30,15 +30,15 @@ type EbpfEvent struct {
 }
 type EbpfTx struct {
 	Buf                [128]byte
-	Error              uint8
 	Request_started    uint64
 	Response_last_seen uint64
 	Buf_len            uint16
+	Error              uint8
 	Command            uint8
 	Tags               uint8
 	Truncated          bool
 	Is_error           bool
-	Pad_cgo_0          [2]byte
+	Pad_cgo_0          [1]byte
 }
 
 type ErrorType uint8

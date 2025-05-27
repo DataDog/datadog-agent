@@ -48,15 +48,15 @@ typedef enum {
 
 // Redis in-flight transaction info
 typedef struct {
-    char buf[MAX_KEY_LEN];
-    redis_error_t error;
-    __u64 request_started;
-    __u64 response_last_seen;
-    __u16 buf_len;
-    redis_command_t command;
-    __u8 tags;
-    bool truncated;
-    bool is_error;
+    char buf[MAX_KEY_LEN];        // 128 bytes
+    __u64 request_started;        // 8 bytes
+    __u64 response_last_seen;     // 8 bytes
+    __u16 buf_len;               // 2 bytes
+    redis_error_t error;          // 1 byte
+    redis_command_t command;      // 1 byte
+    __u8 tags;                   // 1 byte
+    bool truncated;              // 1 byte
+    bool is_error;               // 1 byte
 } redis_transaction_t;
 
 // The struct we send to userspace, containing the connection tuple and the transaction information.
