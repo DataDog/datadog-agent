@@ -289,50 +289,41 @@ def manual_threshold_update(self, filename="static_gate_report.json"):
     pr_url = update_quality_gates_threshold(self, metric_handler, github)
     notify_threshold_update(pr_url)
 
+
 @task
 def debug_specific_quality_gate(ctx, gate_name):
     """
-    Parse and executes static quality gates
+    Executes a single static quality gate to compare it to its ancestor and run debug on it
+
     :param ctx: Invoke context
-    :param gate_name: Static quality gates configuration file path
+    :param gate_name: Static quality gates to debug
     :return:
     """
+    if not gate_name:
+        raise Exit(
+            code=0,
+            message="Please ensure to set the GATE_NAME variable inside of the manual job execution gitlab page when executing this debug job.",
+        )
 
-    gate_list = [gate_name]
-    quality_gates_mod = __import__("tasks.static_quality_gates", fromlist=gate_list)
-    metric_handler = GateMetricHandler(
-        git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
-    )
-    newline_tab = "\n\t"
-    print(f"The following gates are going to run:{newline_tab}- {(newline_tab + '- ').join(gate_list)}")
-    final_state = "success"
-    gate_states = []
+    quality_gates_module = __import__("tasks.static_quality_gate", fromlist=[gate_name])
+    gate_inputs = {"ctx": ctx}
+    try:
+        gate_module = getattr(quality_gates_module, gate_name)
+    except AttributeError as e:
+        raise Exit(
+            code=0,
+            message=f"The provided quality gate to debug ({gate_name}) is invalid and wasn't found as part of tasks.static_quality_gates.",
+        ) from e
 
-    nightly_run = False
-    branch = os.environ["CI_COMMIT_BRANCH"]
-
-    DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")
-    if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
-        nightly_run = True
-
-    for gate in gate_list:
-        gate_inputs = {"ctx": ctx, "nightly": nightly_run}
-        try:
-            gate_mod = getattr(quality_gates_mod, gate)
-            gate_mod.entrypoint(**gate_inputs)
-            print(f"Gate {gate} succeeded !")
-            gate_states.append({"name": gate, "state": True, "error_type": None, "message": None})
-        except InfraError as e:
-            print(f"Gate {gate} flaked ! (InfraError)\n Restarting the job...")
-            raise Exit(code=42) from e
-        except Exception:
-            print(f"Gate {gate} failed ! (StackTrace)")
-            final_state = "failure"
-            gate_states.append(
-                {"name": gate, "state": False, "error_type": "StackTrace", "message": traceback.format_exc()}
-            )
-
-    _print_quality_gates_report(gate_states)
+    # As it is a debug job we do not want the job to actually fail on failures.
+    try:
+        gate_module.debug_entrypoint(**gate_inputs)
+    except NotImplementedError:
+        print(f"The {gate_name} static quality gate doesn't support debugging yet.")
+    except Exception as e:
+        print(
+            f"The {gate_name} debugging failed with the following trace:\n{traceback.format_exc()}\nError message:\n{str(e)}"
+        )
 
 
 @task()

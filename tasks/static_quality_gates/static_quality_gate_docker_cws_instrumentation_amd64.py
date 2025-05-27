@@ -8,3 +8,7 @@ def entrypoint(**kwargs):
         flavor="cws-instrumentation",
         **kwargs,
     )
+
+
+def debug_entrypoint(**kwargs):
+    raise NotImplementedError()

@@ -5,3 +5,7 @@ def entrypoint(**kwargs):
     generic_package_agent_quality_gate(
         "static_quality_gate_agent_heroku_amd64", "amd64", "heroku", "datadog-heroku-agent", **kwargs
     )
+
+
+def debug_entrypoint(**kwargs):
+    raise NotImplementedError()

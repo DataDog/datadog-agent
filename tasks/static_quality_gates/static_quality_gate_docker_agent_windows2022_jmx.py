@@ -9,3 +9,7 @@ def entrypoint(**kwargs):
         image_suffix="-winltsc2022",
         **kwargs,
     )
+
+
+def debug_entrypoint(**kwargs):
+    raise NotImplementedError()

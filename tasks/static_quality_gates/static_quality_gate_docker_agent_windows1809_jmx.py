@@ -9,3 +9,7 @@ def entrypoint(**kwargs):
         image_suffix="-win1809",
         **kwargs,
     )
+
+
+def debug_entrypoint(**kwargs):
+    raise NotImplementedError()

@@ -1,11 +1,13 @@
 import tempfile
 
-from gitlab.v4.objects import ProjectPipeline
+from gitlab.v4.objects import ProjectJob, ProjectPipeline
 from invoke import Exit
 
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo, get_commit
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
-from tasks.libs.package.size import directory_size, extract_package, file_size
+from tasks.libs.common.diff import diff as _diff
+from tasks.libs.common.git import get_common_ancestor
+from tasks.libs.package.size import directory_size, extract_package, extract_zip_archive, file_size
 from tasks.static_quality_gates.lib.gates_lib import argument_extractor, find_package_path, read_byte_input
 
 
@@ -81,34 +83,46 @@ def generic_package_agent_quality_gate(gate_name, arch, os, flavor, **kwargs):
     )
     check_package_size(package_on_wire_size, package_on_disk_size, max_on_wire_size, max_on_disk_size)
 
-def extract_ancestor_packages(ancestor_sha : str):
+
+def download_ancestor_packages(ctx, ancestor_sha, ancestor_download_dir, build_job_name):
+    ancestor_zip_path = f"{ancestor_download_dir}/ancestor_package.zip"
+
+    # Fetch the ancestor's build_job object with the gitlab API
     repo = get_gitlab_repo("DataDog/datadog-agent")
     pipeline_list = repo.pipelines.list(sha=ancestor_sha)
     if not len(pipeline_list):
         raise Exit(code=1, message="Ancestor commit has no pipeline attached.")
-    ancestor_pipeline : ProjectPipeline = pipeline_list[0]
-    ancestor_pipeline.jobs.list()
+    ancestor_pipeline: ProjectPipeline = pipeline_list[0]
+    ancestor_job: ProjectJob = next(filter(lambda job: job.name == build_job_name, ancestor_pipeline.jobs.list()))
+    # Download & extract the artifact from the build_job
+    with open(ancestor_zip_path, "wb") as f:
+        ancestor_job.artifacts(streamed=True, action=f.write)
+    extract_zip_archive(ctx, ancestor_zip_path, ancestor_download_dir)
 
 
-
-
-
-def debug_package_size(ctx, package_os, package_path):
+def debug_package_size(ctx, package_os, package_path, ancestor_package_path):
     # Manual control over temporary folders
     current_pipeline_extract_dir = tempfile.TemporaryDirectory()
     ancestor_pipeline_extract_dir = tempfile.TemporaryDirectory()
 
+    # extract both packages
     extract_package(ctx=ctx, package_os=package_os, package_path=package_path, extract_dir=current_pipeline_extract_dir)
-
-    #Cleanup temporary directories
-    current_pipeline_extract_dir.cleanup()
-
-
-def generic_debug_package_agent_quality_gate(ancestor_, arch, os, flavor, **kwargs):
-    arguments = argument_extractor(
-        kwargs, ctx=None
+    extract_package(
+        ctx=ctx, package_os=package_os, package_path=ancestor_package_path, extract_dir=ancestor_pipeline_extract_dir
     )
+
+    # Compare both packages content
+    _diff(current_pipeline_extract_dir, ancestor_pipeline_extract_dir)
+
+    # Cleanup temporary directories
+    current_pipeline_extract_dir.cleanup()
+    ancestor_pipeline_extract_dir.cleanup()
+
+
+def generic_debug_package_agent_quality_gate(arch, os, flavor, **kwargs):
+    arguments = argument_extractor(kwargs, ctx=None, build_job_name=None)
     ctx = arguments.ctx
+    build_job_name = arguments.build_job_name
 
     package_arch = arch
     if os == "centos" or os == "suse":
@@ -123,6 +137,15 @@ def generic_debug_package_agent_quality_gate(ancestor_, arch, os, flavor, **kwar
     if os == "heroku":
         package_os = "debian"
 
-    package_path = find_package_path(flavor, package_os, package_arch)
+    with tempfile.TemporaryDirectory() as ancestor_download_dir:
+        ancestor_sha = get_common_ancestor(ctx, "HEAD")
+        download_ancestor_packages(ancestor_sha, ancestor_download_dir, build_job_name)
 
-    debug_package_size(ctx, os, package_path)
+        package_path = find_package_path(flavor, package_os, package_arch)
+        # Find the ancestor package path from its download directory
+        original_workdir = os.getcwd()
+        os.chdir(ancestor_download_dir)
+        ancestor_package_path = find_package_path(flavor, package_os, package_arch)
+        os.chdir(original_workdir)
+
+        debug_package_size(ctx, os, package_path, ancestor_package_path)

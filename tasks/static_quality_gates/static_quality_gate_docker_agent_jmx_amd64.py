@@ -5,3 +5,7 @@ def entrypoint(**kwargs):
     generic_docker_agent_quality_gate(
         gate_name="static_quality_gate_docker_agent_jmx_amd64", arch="amd64", jmx=True, **kwargs
     )
+
+
+def debug_entrypoint(**kwargs):
+    raise NotImplementedError()
