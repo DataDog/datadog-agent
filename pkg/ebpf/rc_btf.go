@@ -141,18 +141,20 @@ func (r *rcBTFLoader) rcCallback(update map[string]state.RawConfig, applyStateCa
 
 		entry, err := r.findEntry(config)
 		if err != nil {
-			log.Errorf("error for BTF catalog key %q: %s", k, err)
+			log.Errorf("BTF remote config key %q: %s", k, err)
 			applyStateCallback(k, state.ApplyStatus{Error: err.Error()})
 			continue
 		}
-		// we only indicate an error to remote config if we have trouble unmarshalling the data
-		applyStateCallback(k, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+
 		if entry != nil {
 			rbtf, err = r.processEntry(entry)
 			if err != nil {
-				log.Warn(err)
+				log.Error(err)
+				applyStateCallback(k, state.ApplyStatus{Error: err.Error()})
+				continue
 			}
 		}
+		applyStateCallback(k, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 	if rbtf == nil {
 		r.cancelCause(fmt.Errorf("no BTF in catalog found for %s/%s/%s", r.platform, r.platformVersion, r.kernelVersion))
