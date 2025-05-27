@@ -989,6 +989,7 @@ type SysCtlEvent struct {
 	ValueTruncated    bool   `field:"value_truncated"`     // SECLDoc[value_truncated] Definition:`Indicates that the value field is truncated`
 }
 
+// SetSockOptEvent represents a set socket option event
 type SetSockOptEvent struct {
 	SyscallEvent
 	SyscallContext
