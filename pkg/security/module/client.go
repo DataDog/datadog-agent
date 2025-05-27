@@ -61,7 +61,7 @@ func (c *SecurityAgentAPIClient) logConnectError(err error) {
 // SendEvents sends events to the security agent
 func (c *SecurityAgentAPIClient) SendEvents(ctx context.Context, msgs chan *api.SecurityEventMessage, onConnectCb func()) {
 	for {
-		seclog.Trace("sending events to security agent grpc client")
+		seclog.Trace("connecting to security agent event grpc server")
 
 		stream, err := c.SecurityAgentAPIClient.SendEvent(context.Background())
 		if err != nil {
@@ -99,7 +99,7 @@ func (c *SecurityAgentAPIClient) SendEvents(ctx context.Context, msgs chan *api.
 // SendActivityDumps sends activity dumps to the security agent
 func (c *SecurityAgentAPIClient) SendActivityDumps(ctx context.Context, msgs chan *api.ActivityDumpStreamMessage) {
 	for {
-		seclog.Trace("sending activity dumps to security agent grpc client")
+		seclog.Trace("connecting to security agent activity dump grpc server")
 
 		stream, err := c.SecurityAgentAPIClient.SendActivityDumpStream(context.Background())
 		if err != nil {
