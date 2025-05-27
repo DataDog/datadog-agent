@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
 	"github.com/golang/protobuf/ptypes/empty"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
@@ -181,16 +180,6 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 	}
 }
 
-// newLogBackoffTicker returns a ticker based on an exponential backoff, used to trigger connect error logs
-func newLogBackoffTicker() *backoff.Ticker {
-	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 2 * time.Second
-	expBackoff.MaxInterval = 60 * time.Second
-	expBackoff.MaxElapsedTime = 0
-	expBackoff.Reset()
-	return backoff.NewTicker(expBackoff)
-}
-
 func (rsa *RuntimeSecurityAgent) startActivityDumpStorageTelemetry(ctx context.Context) {
 	metricsTicker := time.NewTicker(1 * time.Minute)
 	defer metricsTicker.Stop()
@@ -208,23 +197,17 @@ func (rsa *RuntimeSecurityAgent) startActivityDumpStorageTelemetry(ctx context.C
 }
 
 func (rsa *RuntimeSecurityAgent) setupAPIServer() error {
-	cfgSocketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
-	socketPath := cfgSocketPath
-
+	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
 	if socketPath == "" {
 		return errors.New("runtime_security_config.socket_events must be set")
 	}
 
 	family := secconfig.GetFamilyAddress(socketPath)
-	if family == "unix" {
-		if runtime.GOOS == "windows" {
-			return fmt.Errorf("unix sockets are not supported on Windows")
-		}
-
-		socketPath = fmt.Sprintf("unix://%s", socketPath)
+	if family == "unix" && runtime.GOOS == "windows" {
+		return fmt.Errorf("unix sockets are not supported on Windows")
 	}
 
-	rsa.grpcServer = module.NewGRPCServer(family, cfgSocketPath)
+	rsa.grpcServer = module.NewGRPCServer(family, socketPath)
 	api.RegisterSecurityAgentAPIServer(rsa.grpcServer.ServiceRegistrar(), rsa)
 
 	return nil
