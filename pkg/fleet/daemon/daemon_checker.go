@@ -18,8 +18,3 @@ type Checker interface {
 func NewDaemonChecker() Checker {
 	return &daemonCheckerImpl{}
 }
-
-func (d *daemonCheckerImpl) IsRunning(_ context.Context) (bool, error) {
-	// TODO: Implement actual daemon check logic
-	return false, nil
-}
