@@ -712,18 +712,27 @@ func (s *testAgentUpgradeSuite) TestConfigUpgradeFailure() {
 		},
 	}
 
-	// Start config experiment
-	_, err := s.Installer().InstallConfigExperiment(consts.AgentPackage, config)
-	s.Require().NoError(err)
+	// Start config experiment, block until services stop
+	s.waitForDaemonToStop(func() {
+		_, err := s.Installer().InstallConfigExperiment(consts.AgentPackage, config)
+		s.Require().NoError(err)
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 
-	// Wait for experiment to fail
-	err = s.WaitForInstallerService("Running")
-	s.Require().NoError(err)
+	// Assert services failed to start with invalid config
+	s.Require().Host(s.Env().RemoteHost).
+		HasAService(consts.ServiceName).
+		WithStatus("Stopped")
 
 	// Stop config experiment
-	_, err = s.Installer().RemoveConfigExperiment(consts.AgentPackage)
+	_, err := s.Installer().RemoveConfigExperiment(consts.AgentPackage)
 	s.Require().NoError(err)
 	s.AssertSuccessfulConfigStopExperiment()
+
+	// Wait for services to be running again
+	s.WaitForServicesWithBackoff("Running", backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10),
+		consts.ServiceName,
+		"datadogagent",
+	)
 }
 
 // TestConfigUpgradeNewAgents tests that config experiments can enable security agent and system probe
