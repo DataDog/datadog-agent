@@ -9,7 +9,6 @@
 package mock
 
 import (
-	"context"
 	"testing"
 
 	daemonchecker "github.com/DataDog/datadog-agent/comp/daemonchecker/def"
@@ -17,7 +16,7 @@ import (
 
 type mockDaemonChecker struct{}
 
-func (m *mockDaemonChecker) IsRunning(_ context.Context) (bool, error) {
+func (m *mockDaemonChecker) IsRunning() (bool, error) {
 	return true, nil
 }
 
