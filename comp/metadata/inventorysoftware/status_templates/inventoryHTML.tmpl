@@ -1,0 +1,30 @@
+<div class="stat">
+  <span class="stat_title">Software Inventory Metadata</span>
+  <div class="stat_data inventory-scrollbox" style="max-height: 400px; overflow-y: auto;">
+    {{- $swMap := index . "software_inventory_metadata" }}
+    {{- if not $swMap }}
+      <div style="font-weight: bold; padding: 1em;">No software inventory metadata - is System Probe running?</div>
+    {{- else }}
+      {{- range $productCode, $meta := $swMap }}
+        <details>
+          <summary>
+            {{- if index $meta "DisplayName" }}
+              {{ index $meta "DisplayName" }}
+            {{- else }}
+              {{ $productCode }}
+            {{- end }}
+          </summary>
+          {{- if $meta }}
+            <ul style="margin:1em 0; padding-left:2em;">
+              {{- range $k, $v := $meta }}
+                <li><strong>{{ $k }}:</strong> {{ $v }}</li>
+              {{- end }}
+            </ul>
+          {{- else }}
+            <p style="margin:1em 0; padding-left:2em;"><em>No metadata</em></p>
+          {{- end }}
+        </details>
+      {{- end }}
+    {{- end }}
+  </div>
+</div>
