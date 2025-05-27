@@ -60,9 +60,6 @@ type Config struct {
 	// SocketPath is the path to the socket that is used to communicate with the security agent
 	SocketPath string
 
-	// CmdSocketPath is the path to the socket that is used to communicate with system-probe
-	CmdSocketPath string
-
 	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
 	EventServerBurst int
 
@@ -222,7 +219,6 @@ func NewConfig() (*Config, error) {
 
 		// event server
 		SocketPath:       pkgconfigsetup.SystemProbe().GetString(join(evNS, "socket")),
-		CmdSocketPath:    pkgconfigsetup.SystemProbe().GetString(join(evNS, "cmd_socket")),
 		EventServerBurst: pkgconfigsetup.SystemProbe().GetInt(join(evNS, "event_server.burst")),
 
 		// runtime compilation

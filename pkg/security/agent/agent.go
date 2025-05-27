@@ -195,10 +195,11 @@ func (rsa *RuntimeSecurityAgent) startActivityDumpStorageTelemetry(ctx context.C
 	}
 }
 
+//nolint:unused,deadcode
 func (rsa *RuntimeSecurityAgent) setupAPIServer() error {
 	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
 	if socketPath == "" {
-		return errors.New("runtime_security_config.socket_events must be set")
+		return errors.New("runtime_security_config.socket must be set")
 	}
 
 	family := secconfig.GetFamilyAddress(socketPath)
