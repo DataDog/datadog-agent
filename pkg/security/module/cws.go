@@ -59,7 +59,7 @@ type CWSConsumer struct {
 	rateLimiter    *events.RateLimiter
 	sendStatsChan  chan chan bool
 	eventSender    events.EventSender
-	grpcServer     *grpcutils.GRPCServer
+	grpcServer     *grpcutils.Server
 	ruleEngine     *rulesmodule.RuleEngine
 	selfTester     *selftests.SelfTester
 	selfTestCount  int
@@ -106,7 +106,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		apiServer:     apiServer,
 		rateLimiter:   events.NewRateLimiter(cfg, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
-		grpcServer:    grpcutils.NewGRPCServer(family, cfg.CmdSocketPath),
+		grpcServer:    grpcutils.NewServer(family, cfg.CmdSocketPath),
 		selfTester:    selfTester,
 		reloader:      NewReloader(),
 		crtelemetry:   crtelemetry,

@@ -51,7 +51,7 @@ type RuntimeSecurityAgent struct {
 
 	// grpc server
 	api.UnimplementedSecurityAgentAPIServer
-	grpcServer *grpcutils.GRPCServer
+	grpcServer *grpcutils.Server
 }
 
 // ADStorage represents the interface for the activity dump storage
@@ -206,7 +206,7 @@ func (rsa *RuntimeSecurityAgent) setupAPIServer() error {
 		return fmt.Errorf("unix sockets are not supported on Windows")
 	}
 
-	rsa.grpcServer = grpcutils.NewGRPCServer(family, socketPath)
+	rsa.grpcServer = grpcutils.NewServer(family, socketPath)
 	api.RegisterSecurityAgentAPIServer(rsa.grpcServer.ServiceRegistrar(), rsa)
 
 	return nil
