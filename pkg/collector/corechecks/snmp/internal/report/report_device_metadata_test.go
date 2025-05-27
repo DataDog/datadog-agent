@@ -859,12 +859,6 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 							Name: "ipForwardIfIndex",
 						},
 					},
-					"route_type": {
-						Symbol: profiledefinition.SymbolConfig{
-							OID:  "1.3.6.1.2.1.4.24.2.1.6",
-							Name: "ipForwardType",
-						},
-					},
 				},
 			},
 			"ipforward_deprecated": {
@@ -873,12 +867,6 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.4.24.4.1.5",
 							Name: "ipCidrRouteIfIndex",
-						},
-					},
-					"route_type": {
-						Symbol: profiledefinition.SymbolConfig{
-							OID:  "1.3.6.1.2.1.4.24.4.1.6",
-							Name: "ipCidrRouteType",
 						},
 					},
 					"route_status": {
@@ -895,12 +883,6 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.4.24.7.1.7",
 							Name: "inetCidrRouteIfIndex",
-						},
-					},
-					"route_type": {
-						Symbol: profiledefinition.SymbolConfig{
-							OID:  "1.3.6.1.2.1.4.24.7.1.8",
-							Name: "inetCidrRouteType",
 						},
 					},
 					"route_status": {
