@@ -104,6 +104,13 @@ build do
 
   if with_bazel?
     # Note: we run these commands not from the copy that Omnibus does but from the original "untouched" checkout
+    target = "//rtloader:datadog-agent-three"
+    command "bazel build #{target}", cwd: source_path
+    command "cp $(bazel cquery --output=files #{target}) #{install_dir}/embedded/lib", cwd: source_path
+    if linux_target?
+      command "patchelf --add-rpath #{install_dir}/embedded/lib #{install_dir}/embedded/lib/libdatadog-agent-three.so"
+    end
+
     target = "//cmd/agent:agent_binaries"
     command "bazel build #{target}", cwd: source_path
     command "tar -xvf $(bazel cquery --output=files #{target}) -C #{install_dir}", cwd: source_path
