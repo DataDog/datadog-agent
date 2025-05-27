@@ -253,7 +253,7 @@ func (agg *FlowAggregator) flushLoop() {
 }
 
 // Flush flushes the aggregator
-func (agg *FlowAggregator) flush() int {
+func (agg *FlowAggregator) flush() {
 	flowsContexts, nilFlowContexts, noRollupCount, srcRollupCount, dstRollupCount := agg.flowAcc.getFlowContextCounts()
 	flushTime := agg.TimeNowFunction()
 	flowsToFlush := agg.flowAcc.flush()
@@ -269,7 +269,7 @@ func (agg *FlowAggregator) flush() int {
 		}
 	}
 
-	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
+	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats() // JMW?
 	if len(flowsToFlush) > 0 {
 		agg.sendFlows(flowsToFlush, flushTime)
 	}
@@ -298,7 +298,6 @@ func (agg *FlowAggregator) flush() int {
 	// We increase `flushedFlowCount` at the end to be sure that the metrics are submitted before hand.
 	// Tests will wait for `flushedFlowCount` to be increased before asserting the metrics.
 	agg.flushedFlowCount.Add(uint64(flushCount))
-	return len(flowsToFlush) // JMW --> return flushCount OR skip returning the number, it isn't used
 }
 
 // getSequenceDelta return the delta of current sequence number compared to previously saved sequence number

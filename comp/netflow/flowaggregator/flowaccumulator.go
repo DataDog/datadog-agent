@@ -24,6 +24,7 @@ type flowContext struct {
 	nextFlush           time.Time
 	lastSuccessfulFlush time.Time
 	numberOfUses        int
+	flowsAggregated     int // Number of flows that have been aggregated in this flowContext
 }
 
 // flowAccumulator is used to accumulate aggregated flows
@@ -49,10 +50,13 @@ type flowAccumulator struct {
 func newFlowContext(flow *common.Flow) flowContext {
 	now := timeNow()
 	return flowContext{
-		flow:      flow,
-		nextFlush: now, // JMW this is causing the first flush for a new flow to be within 10 seconds (the next time flushFlowsToSendInterval triggers)
+		flow: flow,
+		//nextFlush: now, // JMW this is causing the first flush for a new flow to be within 10 seconds (the next time flushFlowsToSendInterval triggers)
+		nextFlush: now.Add(300 * time.Second), //JMWJMW
+		// JMW add a config option, true or false, true = use now + aggregatorFlushInterval for nextFlush, false = use now for nextFlush
 		// JMW add a config option, number of seconds to wait before flushing a new flow (set nextFlush to now + this config option)
-		numberOfUses: 1,
+		numberOfUses:    1,
+		flowsAggregated: 1,
 	}
 }
 
@@ -91,8 +95,8 @@ func (f *flowAccumulator) flush() []*common.Flow {
 			f.logger.Tracef("Delete flow context (key=%d, lastSuccessfulFlush=%s, nextFlush=%s)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String())
 			// delete flowCtx wrapper if there is no successful flushes since `flowContextTTL`
 			// JMW add metric for this to see how many flow contexts are not reused
-			// log key as hexidecimal
-			f.logger.Infof("JMW Deleted flow context (key=0x%x, lastSuccessfulFlush=%s, nextFlush=%s)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String())
+			f.logger.Infof("JMW Deleting flow context (key=0x%x, lastSuccessfulFlush=%s, nextFlush=%s, numberOfUses=%d)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String(), flowCtx.numberOfUses)
+			// JMW add histogram of how many uses before deletion
 			delete(f.flows, key)
 			continue
 		}
@@ -103,7 +107,7 @@ func (f *flowAccumulator) flush() []*common.Flow {
 			flowsToFlush = append(flowsToFlush, flowCtx.flow)
 
 			// JMW for each flow to flush, observe a histogram metric for duration of the flow (end time - start time), and/or current time - lastFlush
-			f.logger.Infof("JMW Sending flow (key=%d, lastSuccessfulFlush=%s, nextFlush=%s), duration of flow: %d seconds", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String(), flowCtx.flow.EndTimestamp-flowCtx.flow.StartTimestamp)
+			f.logger.Infof("JMW Sending flow (key=0x%x, lastSuccessfulFlush=%s, nextFlush=%s), duration of flow: %d seconds", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String(), flowCtx.flow.EndTimestamp-flowCtx.flow.StartTimestamp)
 
 			flowCtx.lastSuccessfulFlush = now
 			flowCtx.flow = nil
@@ -139,11 +143,12 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 		return
 	}
+	// JMWMON for reused flow context keep track of how many flows were aggregated into it
 	if aggFlow.flow == nil {
 		// flowToAdd is for the same hash as an aggregated flow that has been flushed
-		// JMW add metric for this to see how many flow contexts are reused
+		// JMW add metric to see how many flow contexts are reused, how many are new when this method is called
 		aggFlow.numberOfUses++
-		f.logger.Infof("JMW Reusing flow (key=%d, lastSuccessfulFlush=%s, nextFlush=%s, numberOfUses=%d)", aggHash, aggFlow.lastSuccessfulFlush.String(), aggFlow.nextFlush.String(), aggFlow.numberOfUses)
+		f.logger.Infof("JMW Reusing flow (key=0x%x, lastSuccessfulFlush=%s, nextFlush=%s, numberOfUses=%d)", aggHash, aggFlow.lastSuccessfulFlush.String(), aggFlow.nextFlush.String(), aggFlow.numberOfUses)
 		aggFlow.flow = flowToAdd
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 	} else {
@@ -158,6 +163,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		aggFlow.flow.EndTimestamp = common.Max(aggFlow.flow.EndTimestamp, flowToAdd.EndTimestamp)
 		aggFlow.flow.SequenceNum = common.Max(aggFlow.flow.SequenceNum, flowToAdd.SequenceNum)
 		aggFlow.flow.TCPFlags |= flowToAdd.TCPFlags
+		aggFlow.flowsAggregated++
 
 		// keep first non-null value for custom fields
 		if flowToAdd.AdditionalFields != nil {
@@ -172,7 +178,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 			}
 		}
 	}
-	f.flows[aggHash] = aggFlow
+	f.flows[aggHash] = aggFlow // JMWMON isn't this a noop?  Isn't it already there?
 }
 
 func (f *flowAccumulator) setSrcReverseDNSHostname(aggHash uint64, hostname string, acquireLock bool) {

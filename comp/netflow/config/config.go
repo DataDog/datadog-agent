@@ -119,7 +119,7 @@ func (mainConfig *NetflowConfig) SetDefaults(namespace string, logger log.Compon
 	if mainConfig.AggregatorFlushInterval == 0 {
 		mainConfig.AggregatorFlushInterval = common.DefaultAggregatorFlushInterval
 	}
-	if mainConfig.AggregatorFlowContextTTL == 0 {
+	if mainConfig.AggregatorFlowContextTTL == 0 { // JMW try smaller value for this with the theory that if a flowContext is flushed that it will typically see more flows within a few seconds if it ever will
 		// Set AggregatorFlowContextTTL to AggregatorFlushInterval to keep flow context around
 		// for 1 flush-interval time after a flush.
 		mainConfig.AggregatorFlowContextTTL = mainConfig.AggregatorFlushInterval
