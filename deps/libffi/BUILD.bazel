@@ -4,14 +4,15 @@ configure_make(
     name = "libffi",
     configure_options = [
         "--disable-doc",
-        "--disable-multi-os-directory",
+        "--disable-static",
     ],
     lib_source = "@libffi//:all",
+    out_lib_dir = "lib64",
     out_shared_libs = select({
         "@platforms//os:linux": [
             "libffi.so",
-            "libffi.so.8",
-            "libffi.so.8.1.4",
+            "libffi.so.6",
+            "libffi.so.6.0.4",
         ],
     }),
     visibility = ["//visibility:public"],
