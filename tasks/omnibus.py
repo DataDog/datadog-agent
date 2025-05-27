@@ -72,7 +72,7 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
                     return
                 except UnexpectedExit as e:
                     if not should_retry_bundle_install(e.result):
-                        print(f'Fatal error while installing omnibus: {e.result.stdout}. Cannot continue.')
+                        print(f'Fatal error while installing omnibus: {e.result.stderr}. Cannot continue.')
                         raise
                     print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
         raise Exit('Too many failures while installing omnibus, giving up')
@@ -435,6 +435,10 @@ def build_repackaged_agent(ctx, log_level="info"):
 
     env['OMNIBUS_REPACKAGE_SOURCE_URL'] = f"https://apt.datad0g.com/{latest_package.filename}"
     env['OMNIBUS_REPACKAGE_SOURCE_SHA256'] = latest_package.sha256
+    for env_var in ["DD_CC", "DD_CXX", "DD_CMAKE_TOOLCHAIN"]:
+        if (value := os.environ.get(f"{env_var}_PATH")) is not None:
+            env[env_var] = value
+
     print("Using the following package as a base:", env['OMNIBUS_REPACKAGE_SOURCE_URL'])
 
     bundle_install_omnibus(ctx, None, env)

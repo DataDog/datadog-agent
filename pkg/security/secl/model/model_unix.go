@@ -193,6 +193,11 @@ func (cg *CGroupContext) Hash() string {
 	return string(cg.CGroupID)
 }
 
+// ParentScope returns the parent entity scope
+func (cg *CGroupContext) ParentScope() (eval.VariableScope, bool) {
+	return nil, false
+}
+
 // SyscallEvent contains common fields for all the event
 type SyscallEvent struct {
 	Retval int64 `field:"retval"` // SECLDoc[retval] Definition:`Return value of the syscall` Constants:`Error constants`
@@ -387,6 +392,11 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 // Hash returns a unique key for the entity
 func (pc *ProcessCacheEntry) Hash() string {
 	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm)
+}
+
+// ParentScope returns the parent entity scope
+func (pc *ProcessCacheEntry) ParentScope() (eval.VariableScope, bool) {
+	return pc.Ancestor, pc.Ancestor != nil
 }
 
 // ExecEvent represents a exec event
@@ -824,19 +834,29 @@ type PathKey struct {
 	PathID  uint32 `field:"-"`
 }
 
+// OnDemandPerArgSize is the size of each argument in Data in the on-demand event
+const OnDemandPerArgSize = 64
+
+// OnDemandParsedArgsCount is the number of parsed arguments in the on-demand event
+const OnDemandParsedArgsCount = 6
+
 // OnDemandEvent identifies an on-demand event generated from on-demand probes
 type OnDemandEvent struct {
-	ID       uint32    `field:"-"`
-	Name     string    `field:"name,handler:ResolveOnDemandName"`
-	Data     [256]byte `field:"-"`
-	Arg1Str  string    `field:"arg1.str,handler:ResolveOnDemandArg1Str"`
-	Arg1Uint uint64    `field:"arg1.uint,handler:ResolveOnDemandArg1Uint"`
-	Arg2Str  string    `field:"arg2.str,handler:ResolveOnDemandArg2Str"`
-	Arg2Uint uint64    `field:"arg2.uint,handler:ResolveOnDemandArg2Uint"`
-	Arg3Str  string    `field:"arg3.str,handler:ResolveOnDemandArg3Str"`
-	Arg3Uint uint64    `field:"arg3.uint,handler:ResolveOnDemandArg3Uint"`
-	Arg4Str  string    `field:"arg4.str,handler:ResolveOnDemandArg4Str"`
-	Arg4Uint uint64    `field:"arg4.uint,handler:ResolveOnDemandArg4Uint"`
+	ID       uint32                                             `field:"-"`
+	Name     string                                             `field:"name,handler:ResolveOnDemandName" op_override:"OnDemandNameOverrides"`
+	Data     [OnDemandParsedArgsCount * OnDemandPerArgSize]byte `field:"-"`
+	Arg1Str  string                                             `field:"arg1.str,handler:ResolveOnDemandArg1Str"`
+	Arg1Uint uint64                                             `field:"arg1.uint,handler:ResolveOnDemandArg1Uint"`
+	Arg2Str  string                                             `field:"arg2.str,handler:ResolveOnDemandArg2Str"`
+	Arg2Uint uint64                                             `field:"arg2.uint,handler:ResolveOnDemandArg2Uint"`
+	Arg3Str  string                                             `field:"arg3.str,handler:ResolveOnDemandArg3Str"`
+	Arg3Uint uint64                                             `field:"arg3.uint,handler:ResolveOnDemandArg3Uint"`
+	Arg4Str  string                                             `field:"arg4.str,handler:ResolveOnDemandArg4Str"`
+	Arg4Uint uint64                                             `field:"arg4.uint,handler:ResolveOnDemandArg4Uint"`
+	Arg5Str  string                                             `field:"arg5.str,handler:ResolveOnDemandArg5Str"`
+	Arg5Uint uint64                                             `field:"arg5.uint,handler:ResolveOnDemandArg5Uint"`
+	Arg6Str  string                                             `field:"arg6.str,handler:ResolveOnDemandArg6Str"`
+	Arg6Uint uint64                                             `field:"arg6.uint,handler:ResolveOnDemandArg6Uint"`
 }
 
 // LoginUIDWriteEvent is used to propagate login UID updates to user space
