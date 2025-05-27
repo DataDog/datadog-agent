@@ -9,6 +9,7 @@ package servicediscovery
 
 import (
 	"cmp"
+	"context"
 	"testing"
 	"time"
 
@@ -16,13 +17,19 @@ import (
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type testProc struct {
@@ -384,8 +391,15 @@ func Test_linuxImpl(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
+			// setup workloadmeta mock
+			mockWmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				core.MockBundle(),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+
 			// check and mocks setup
-			check := newCheck()
+			check := newCheck(mockWmeta)
 
 			mSender := mocksender.NewMockSender(check.ID())
 			mSender.SetupAcceptAll()
