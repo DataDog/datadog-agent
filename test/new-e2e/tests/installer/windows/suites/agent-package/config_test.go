@@ -41,6 +41,9 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 
 	// assert that setup was successful
 	s.AssertSuccessfulConfigPromoteExperiment("empty")
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		WithConfigValueEqual("log_level", "info")
 
 	// Act
 	config := installerwindows.ConfigExperiment{
@@ -56,8 +59,16 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 	// Start config experiment
 	s.mustStartConfigExperiment(config)
 
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		WithConfigValueEqual("log_level", "debug")
+
 	// Promote config experiment
 	s.mustPromoteConfigExperiment(config)
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		WithConfigValueEqual("log_level", "debug")
 }
 
 // TestConfigUpgradeFailure tests that the Agent's config can be rolled back
