@@ -36,7 +36,7 @@ func (g *promGauge) Delete(tagsValue ...string) {
 	g.pg.DeleteLabelValues(tagsValue...)
 }
 
-// DeletePartialMatch deletes all metrics where the variable labels contain all of those
+// DeletePartialMatch deletes the values for the Gauges that match the subset of given tags
 func (g *promGauge) DeletePartialMatch(tagsValue map[string]string) {
 	g.pg.DeletePartialMatch(tagsValue)
 }
