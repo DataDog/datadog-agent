@@ -6,6 +6,8 @@
 package testinfradefinition
 
 import (
+	"fmt"
+	bos "os"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -52,6 +54,11 @@ type vmTestCase struct {
 }
 
 func TestVMSuite(t *testing.T) {
+	fmt.Println("DD_TRACE_DEBUG", bos.Getenv("DD_TRACE_DEBUG"))
+	fmt.Println("DD_ENV", bos.Getenv("DD_ENV"))
+	fmt.Println("DD_CIVISIBILITY_ENABLED", bos.Getenv("DD_CIVISIBILITY_ENABLED"))
+	fmt.Println("DD_CIVISIBILITY_AGENTLESS_ENABLED", bos.Getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED"))
+
 	testCases := []vmTestCase{
 		{
 			testName:    "testWithAMI",
