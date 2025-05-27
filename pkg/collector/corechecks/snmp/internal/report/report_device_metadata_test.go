@@ -766,29 +766,42 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 				},
 			},
 
-			// Route Table
+			// Route Table (Current)
 			"1.3.6.1.2.1.4.24.7.1.7": { // Interface Index
 				"1.4.100.0.0.0.16.2.0.0.0.0": valuestore.ResultValue{
 					Value: "2",
+				},
+				"1.4.110.0.0.0.24.2.0.0.1.4.40.0.0.1": valuestore.ResultValue{
+					Value: "4",
 				},
 			},
 			"1.3.6.1.2.1.4.24.7.1.17": { // Status
 				"1.4.100.0.0.0.16.2.0.0.0.0": valuestore.ResultValue{
 					Value: "1",
 				},
+				"1.4.110.0.0.0.24.2.0.0.1.4.40.0.0.1": valuestore.ResultValue{
+					Value: "1",
+				},
 			},
+			// Route Table (Deprecated)
 			"1.3.6.1.2.1.4.24.4.1.5": { // Interface Index
-				"110.0.0.0.255.255.255.0.0.40.0.0.1": valuestore.ResultValue{
+				"100.1.0.0.255.255.0.0.0.0.0.0.0": valuestore.ResultValue{
+					Value: "2",
+				},
+				"110.1.0.0.255.255.255.0.0.40.0.0.1": valuestore.ResultValue{
 					Value: "4",
 				},
 			},
 			"1.3.6.1.2.1.4.24.4.1.16": { // Status
-				"110.0.0.0.255.255.255.0.0.40.0.0.1": valuestore.ResultValue{
+				"100.1.0.0.255.255.0.0.0.0.0.0.0": valuestore.ResultValue{
+					Value: "1",
+				},
+				"110.1.0.0.255.255.255.0.0.40.0.0.1": valuestore.ResultValue{
 					Value: "1",
 				},
 			},
 
-			// Tunnels
+			// Tunnels (Current)
 			"1.3.6.1.2.1.10.131.1.1.3.1.6": { // Interface Index
 				"1.4.10.0.0.1.4.20.0.0.1.1.1": valuestore.ResultValue{
 					Value: "2",
@@ -935,8 +948,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 			"id_tags": null,
 			"tags": [],
             "ip_address": "1.2.3.4",
-            "status":1,
-			"ping_status":1,
+            "status": 1,
+			"ping_status": 1,
             "subnet": "127.0.0.0/29",
 			"integration": "snmp",
 			"device_type": "other"
@@ -950,6 +963,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 			"remote_outside_ip": "20.0.0.1",
 			"protocol": "ipsec",
 			"route_addresses": [
+				"100.1.0.0/16",
 				"100.0.0.0/16"
 			]
 		},
@@ -960,6 +974,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 			"remote_outside_ip": "40.0.0.1",
 			"protocol": "ipsec",
 			"route_addresses": [
+				"110.1.0.0/24",
 				"110.0.0.0/24"
 			]
 		}

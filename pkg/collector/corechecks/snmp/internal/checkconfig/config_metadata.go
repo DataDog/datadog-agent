@@ -299,12 +299,6 @@ var RouteMetadataConfig = profiledefinition.MetadataConfig{
 					Name: "ipCidrRouteIfIndex",
 				},
 			},
-			"route_type": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.4.24.4.1.6",
-					Name: "ipCidrRouteType",
-				},
-			},
 			"route_status": {
 				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.2.1.4.24.4.1.16",
@@ -319,12 +313,6 @@ var RouteMetadataConfig = profiledefinition.MetadataConfig{
 				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.2.1.4.24.7.1.7",
 					Name: "inetCidrRouteIfIndex",
-				},
-			},
-			"route_type": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.4.24.7.1.8",
-					Name: "inetCidrRouteType",
 				},
 			},
 			"route_status": {

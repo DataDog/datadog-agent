@@ -114,10 +114,15 @@ instances:
     #
     collect_device_metadata: "%%extra_collect_device_metadata%%"
 
-    ## @param collect_topology - boolean - optional - default: false
-    ## Enabled collection of topology data.
+    ## @param collect_topology - boolean - optional - default: true
+    ## Enable collection of topology data.
     #
     collect_topology: "%%extra_collect_topology%%"
+
+    ## @param collect_vpn - boolean - optional - default: false
+    ## Enable collection of VPN tunnels and route table data
+    #
+    collect_vpn: "%%extra_collect_vpn%%"
 
     ## @param namespace - string - optional - default: default
     ## Namespace can be used to disambiguate devices with same IPs.

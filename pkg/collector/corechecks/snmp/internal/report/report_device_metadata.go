@@ -58,7 +58,6 @@ type deviceRoute struct {
 	PrefixLen   int
 	NextHopIP   string
 	IfIndex     string
-	Type        string
 }
 
 // ReportNetworkDeviceMetadata reports device metadata
@@ -691,14 +690,12 @@ func resolveVPNTunnelsRoutes(store *metadata.Store,
 
 		routePrefixLen := netmaskToPrefixlen(store.GetColumnAsString("ipforward_obsolete.route_mask", strIndex))
 		ifIndex := store.GetColumnAsString("ipforward_obsolete.if_index", strIndex)
-		routeType := store.GetColumnAsString("ipforward_obsolete.route_type", strIndex)
 
 		route := deviceRoute{
 			Destination: routeDestination,
 			PrefixLen:   routePrefixLen,
 			NextHopIP:   nextHopIP,
 			IfIndex:     ifIndex,
-			Type:        routeType,
 		}
 		routesByInterfaceIndex[ifIndex] = append(routesByInterfaceIndex[ifIndex], route)
 
@@ -726,14 +723,12 @@ func resolveVPNTunnelsRoutes(store *metadata.Store,
 		nextHopIP := strings.Join(indexElems[9:13], ".")
 
 		ifIndex := store.GetColumnAsString("ipforward_deprecated.if_index", strIndex)
-		routeType := store.GetColumnAsString("ipforward_deprecated.route_type", strIndex)
 
 		route := deviceRoute{
 			Destination: routeDestination,
 			PrefixLen:   routePrefixLen,
 			NextHopIP:   nextHopIP,
 			IfIndex:     ifIndex,
-			Type:        routeType,
 		}
 		routesByInterfaceIndex[ifIndex] = append(routesByInterfaceIndex[ifIndex], route)
 
@@ -823,14 +818,12 @@ func resolveVPNTunnelsRoutes(store *metadata.Store,
 		}
 
 		ifIndex := store.GetColumnAsString("ipforward.if_index", strIndex)
-		routeType := store.GetColumnAsString("ipforward.route_type", strIndex)
 
 		route := deviceRoute{
 			Destination: routeDestination,
 			PrefixLen:   routePrefixLen,
 			NextHopIP:   nextHopIP,
 			IfIndex:     ifIndex,
-			Type:        routeType,
 		}
 		routesByInterfaceIndex[ifIndex] = append(routesByInterfaceIndex[ifIndex], route)
 

@@ -3936,7 +3936,7 @@ api_key:
     # collect_topology: true
 
     ## @param collect_vpn - boolean - optional - default: false
-    ## Enable the collection of VPN tunnels data
+    ## Enable collection of VPN tunnels and route table data
     #
     # collect_vpn: true
 
