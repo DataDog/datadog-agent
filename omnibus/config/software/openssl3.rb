@@ -70,7 +70,6 @@ build do
 
   configure_args << [
     "--libdir=lib",
-    "--prefix=#{install_dir}/embedded",
     "no-idea",
     "no-mdc2",
     "no-rc5",
@@ -80,7 +79,10 @@ build do
   ]
 
   if windows?
-    configure_args << "no-zlib"
+    configure_args << [
+      "--prefix=#{python_3_embedded}",
+      "no-zlib",
+    ]
     if ENV["AGENT_FLAVOR"] == "fips"
       configure_args << '--openssldir="C:/Program Files/Datadog/Datadog Agent/embedded3/ssl"'
       # Provide a context name for our configuration through the registry
@@ -88,6 +90,7 @@ build do
     end
   else
     configure_args << [
+      "--prefix=#{install_dir}/embedded",
       "--with-zlib-lib=#{install_dir}/embedded/lib",
       "--with-zlib-include=#{install_dir}/embedded/include",
       "zlib",
