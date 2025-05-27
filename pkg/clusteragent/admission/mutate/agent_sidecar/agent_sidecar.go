@@ -314,12 +314,12 @@ func (w *Webhook) getVolumeTemplates(feats ...feature) []corev1.Volume {
 	for _, feat := range feats {
 		if vols, ok := featuresToVolumes[feat]; ok {
 			for _, vol := range vols {
-				volumes.Add(vol)
+				volumes.add(vol)
 			}
 		}
 	}
 
-	return volumes.ToSlice()
+	return volumes.toSlice()
 }
 
 func (w *Webhook) getVolumeMountTemplates(feats ...feature) []corev1.VolumeMount {
@@ -328,12 +328,12 @@ func (w *Webhook) getVolumeMountTemplates(feats ...feature) []corev1.VolumeMount
 	for _, feat := range feats {
 		if vms, ok := featuresToVolumeMounts[feat]; ok {
 			for _, vm := range vms {
-				volumeMounts.Add(vm)
+				volumeMounts.add(vm)
 			}
 		}
 	}
 
-	return volumeMounts.ToSlice()
+	return volumeMounts.toSlice()
 }
 
 func (w *Webhook) addSecurityConfigToAgent(agentContainer *corev1.Container) {

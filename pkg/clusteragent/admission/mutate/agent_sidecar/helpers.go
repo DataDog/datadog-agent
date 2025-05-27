@@ -9,11 +9,11 @@ package agentsidecar
 
 type set[T comparable] map[T]struct{}
 
-func (s set[T]) Add(e T) {
+func (s set[T]) add(e T) {
 	s[e] = struct{}{}
 }
 
-func (s set[T]) ToSlice() []T {
+func (s set[T]) toSlice() []T {
 	var buf []T
 
 	for key := range s {
@@ -24,6 +24,5 @@ func (s set[T]) ToSlice() []T {
 }
 
 func newSet[T comparable]() set[T] {
-	s := make(map[T]struct{})
-	return s
+	return make(map[T]struct{})
 }
