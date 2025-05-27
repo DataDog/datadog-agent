@@ -76,11 +76,11 @@ build do
     "shared",
     "no-ssl3",
     "no-gost",
-    "no-uplink",
   ]
 
   if windows?
     configure_args << "no-zlib"
+    configure_args << "no-uplink"
     if ENV["AGENT_FLAVOR"] == "fips"
       configure_args << '--openssldir="C:/Program Files/Datadog/Datadog Agent/embedded3/ssl"'
       # Provide a context name for our configuration through the registry

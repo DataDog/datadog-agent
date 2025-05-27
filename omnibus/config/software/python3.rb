@@ -82,14 +82,13 @@ build do
 
     # This is not necessarily the version we built, but the version
     # the Python build system expects.
-    openssl_version = "3.0.16"
+    openssl_version = "3.0.16.2"
     python_arch = "amd64"
 
     mkdir "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\include"
     # Copy the import library to have them point at our own built versions, regardless of
     # their names in usual python builds
     copy "#{install_dir}\\embedded3\\lib\\libcrypto.dll.a", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libcrypto.lib"
-    copy "#{install_dir}\\embedded3\\lib\\libssl.dll.a", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libssl.lib"
     copy "#{install_dir}\\embedded3\\lib\\libssl.dll.a", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libssl.lib"
     # Copy the actual DLLs, be sure to keep the same name since that's what the IMPLIBs expect
     copy "#{install_dir}\\embedded3\\bin\\libssl-3-x64.dll", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libssl-3.dll"
