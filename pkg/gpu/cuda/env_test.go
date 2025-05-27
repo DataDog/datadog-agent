@@ -331,7 +331,7 @@ func TestGetVisibleDevicesWithMIG(t *testing.T) {
 	}
 }
 
-func TestAdjustVisibleDevicesForMigDevices(t *testing.T) {
+func TestGetVisibleDevicesForMig(t *testing.T) {
 	gpuNoMig := &ddnvml.PhysicalDevice{
 		DeviceInfo: ddnvml.DeviceInfo{
 			UUID: "GPU-1234",
