@@ -368,7 +368,7 @@ func TestInjectSocket(t *testing.T) {
 							ReadOnly: pointer.Ptr(true),
 							Driver:   "k8s.csi.datadoghq.com",
 							VolumeAttributes: map[string]string{
-								"type": string(csiDatadogSocketsDirectory),
+								"type": string(csiDSDSocketDirectory),
 							},
 						},
 					},

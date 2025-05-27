@@ -331,7 +331,7 @@ func TestGetVisibleDevicesWithMIG(t *testing.T) {
 	}
 }
 
-func TestAdjustVisibleDevicesForMigDevices(t *testing.T) {
+func TestGetVisibleDevicesForMig(t *testing.T) {
 	gpuNoMig := &ddnvml.PhysicalDevice{
 		DeviceInfo: ddnvml.DeviceInfo{
 			UUID: "GPU-1234",
@@ -407,7 +407,7 @@ func TestAdjustVisibleDevicesForMigDevices(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			devices := adjustVisibleDevicesForMig(tc.systemDevices)
+			devices := getVisibleDevicesForMig(tc.systemDevices)
 			require.Equal(t, tc.expectedDevices, devices)
 		})
 	}
