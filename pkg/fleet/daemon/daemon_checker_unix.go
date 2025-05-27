@@ -1,0 +1,27 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build !windows
+
+package daemon
+
+import (
+	"net"
+	"time"
+)
+
+// NewDaemonChecker creates a new DaemonChecker instance
+func NewDaemonChecker() Checker {
+	return &daemonCheckerImpl{}
+}
+
+func (c *daemonCheckerImpl) IsRunning() (bool, error) {
+	conn, err := net.DialTimeout("unix", "/var/run/datadog/installer.sock", 100*time.Millisecond)
+	if err != nil {
+		return false, nil
+	}
+	conn.Close()
+	return true, nil
+}
