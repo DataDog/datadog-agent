@@ -70,7 +70,7 @@ func (mc *MSICollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	var index uint32 = 0
+	var index uint32
 	var warnings []*Warning
 	var entries []*SoftwareEntry
 	for {
