@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2024-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
 //go:build test
 
@@ -368,4 +368,34 @@ func TestGetDirectorStatus(t *testing.T) {
 
 	// Check contents
 	require.Equal(t, expectedDirectorStatus, actualDirectorStatus)
+}
+
+func TestGetSLAMetrics(t *testing.T) {
+	expectedSLAMetrics := []SLAMetrics{
+		{
+			DrillKey:            "test-branch-2B,Controller-2,INET-1,INET-1,fc_nc",
+			LocalSite:           "test-branch-2B",
+			RemoteSite:          "Controller-2",
+			LocalAccessCircuit:  "INET-1",
+			RemoteAccessCircuit: "INET-1",
+			ForwardingClass:     "fc_nc",
+			Delay:               101.0,
+			FwdDelayVar:         0.0,
+			RevDelayVar:         0.0,
+			FwdLossRatio:        0.0,
+			RevLossRatio:        0.0,
+			PDULossRatio:        0.0,
+		},
+	}
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	slaMetrics, err := client.GetSLAMetrics()
+	require.NoError(t, err)
+
+	require.Equal(t, len(slaMetrics), 1)
+	require.Equal(t, expectedSLAMetrics, slaMetrics)
 }

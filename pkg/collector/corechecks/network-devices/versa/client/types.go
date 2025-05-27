@@ -6,13 +6,16 @@
 // Package client implements a Versa API client
 package client
 
+import "fmt"
+
 // Content encapsulates the content types of the Versa API
 type Content interface {
 	[]Appliance |
 		int | // for row counts
 		[]TenantConfig |
 		OrganizationListResponse |
-		DirectorStatus
+		DirectorStatus |
+		SLAMetricsResponse
 }
 
 // DirectorStatus /versa/ncs-services/vnms/dashboard/vdStatus
@@ -35,6 +38,7 @@ type DirectorHAConfig struct {
 	DesignatedMaster               bool     `json:"designatedMaster"`
 	StartupMode                    string   `json:"startupMode"`
 	MyVnfManagementIPs             []string `json:"myVnfManagementIps"`
+	MyAddress                      string   `json:"myAddress"`
 	VDSBInterfaces                 []string `json:"vdsbinterfaces"`
 	StartupModeHA                  bool     `json:"startupModeHA"`
 	MyNcsHaSetAsMaster             bool     `json:"myNcsHaSetAsMaster"`
@@ -306,4 +310,43 @@ type Organization struct {
 	ProviderOrg             bool     `json:"providerOrg"`
 	Depth                   int      `json:"depth"`
 	PushCaConfig            bool     `json:"pushCaConfig"`
+}
+
+// SLAMetricsResponse /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+// with query parameters
+type SLAMetricsResponse struct {
+	QTime                int             `json:"qTime"`
+	SEcho                int             `json:"sEcho"`
+	ITotalDisplayRecords int             `json:"iTotalDisplayRecords"`
+	ITotalRecords        int             `json:"iTotalRecords"`
+	AaData               [][]interface{} `json:"aaData"`
+}
+
+// SLAMetrics represents the columns to parse from the SLAMetricsResponse interface/API call
+type SLAMetrics struct {
+	// TODO: utilize this ordered list of fields for AaData
+	DrillKey            string
+	LocalSite           string
+	RemoteSite          string
+	LocalAccessCircuit  string
+	RemoteAccessCircuit string
+	ForwardingClass     string
+	Delay               float64
+	FwdDelayVar         float64
+	RevDelayVar         float64
+	FwdLossRatio        float64
+	RevLossRatio        float64
+	PDULossRatio        float64
+}
+
+// IPAddress returns the first management IP address of the director
+// or an error if no management IPs are found
+func (d *DirectorStatus) IPAddress() (string, error) {
+	if d.HAConfig.MyAddress != "" {
+		return d.HAConfig.MyAddress, nil
+	}
+	if len(d.HAConfig.MyVnfManagementIPs) == 0 {
+		return "", fmt.Errorf("no management IPs found for director")
+	}
+	return d.HAConfig.MyVnfManagementIPs[0], nil
 }

@@ -286,7 +286,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					ServerAddress: ctx.targetAddress,
 					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(kversion.V1_0_0()),
+						kgo.MaxVersions(version),
 						kgo.ClientID(""),
 					},
 				})
@@ -302,7 +302,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				getAndValidateKafkaStats(t, monitor, fixCount(1), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(1),
 					expectedNumberOfFetchRequests:   0,
-					expectedAPIVersionProduce:       5,
+					expectedAPIVersionProduce:       expectedAPIVersionProduce,
 					expectedAPIVersionFetch:         0,
 					tlsEnabled:                      tls,
 				}, kafkaSuccessErrorCode)
@@ -1316,6 +1316,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 func (s *KafkaProtocolParsingSuite) TestKafkaFetchRaw() {
 	t := s.T()
 	versions := []int{4, 5, 7, 11, 12}
+	require.Contains(t, versions, kafka.DecodingMaxSupportedFetchRequestApiVersion, "The latest API version for FetchRequest should be tested")
 
 	t.Run("without TLS", func(t *testing.T) {
 		for _, version := range versions {
@@ -1544,7 +1545,8 @@ func getSplitGroups(req kmsg.Request, resp kmsg.Response, formatter *kmsg.Reques
 
 func (s *KafkaProtocolParsingSuite) TestKafkaProduceRaw() {
 	t := s.T()
-	versions := []int{8, 9, 10}
+	versions := []int{8, 9, 10, 12}
+	require.Contains(t, versions, kafka.DecodingMaxSupportedProduceRequestApiVersion, "The latest API version for ProduceRequest should be tested")
 
 	t.Run("without TLS", func(t *testing.T) {
 		for _, version := range versions {
@@ -1707,7 +1709,12 @@ func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kaf
 			continue
 		}
 		assert.Equal(t, topicName[:min(len(topicName), 80)], kafkaKey.TopicName.Get())
-		assert.Greater(t, requestStats.FirstLatencySample, float64(1))
+		if requestStats.Count == 1 {
+			assert.Greater(t, requestStats.FirstLatencySample, float64(1))
+		} else {
+			require.NotNil(t, requestStats.Latencies)
+			assert.Equal(t, requestStats.Latencies.GetCount(), float64(requestStats.Count))
+		}
 		switch kafkaKey.RequestAPIKey {
 		case kafka.ProduceAPIKey:
 			assert.Equal(t, uint16(validation.expectedAPIVersionProduce), kafkaKey.RequestVersion)

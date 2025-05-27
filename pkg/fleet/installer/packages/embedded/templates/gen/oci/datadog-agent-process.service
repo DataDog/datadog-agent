@@ -1,0 +1,19 @@
+[Unit]
+Description=Datadog Process Agent
+After=network.target datadog-agent.service datadog-agent-exp.service
+BindsTo=datadog-agent.service
+Conflicts=datadog-agent-exp.service datadog-agent-process-exp.service
+
+[Service]
+Type=simple
+PIDFile=/opt/datadog-packages/datadog-agent/stable/run/process-agent.pid
+User=dd-agent
+Restart=on-failure
+EnvironmentFile=-/etc/datadog-agent/environment
+Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/stable"
+ExecStart=/opt/datadog-packages/datadog-agent/stable/embedded/bin/process-agent --cfgpath=/etc/datadog-agent/datadog.yaml --sysprobe-config=/etc/datadog-agent/system-probe.yaml --pid=/opt/datadog-packages/datadog-agent/stable/run/process-agent.pid
+StartLimitInterval=10
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

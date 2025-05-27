@@ -302,7 +302,18 @@ type ProcessInfo struct {
 	ProbesByID             *ProbesByID
 	InstrumentationUprobes *InstrumentationUprobesMap
 	InstrumentationObjects *InstrumentationObjectsMap
+	DDTracegoVersion       DDTraceGoVersion
 }
+
+// DDTraceGoVersion is the version of dd-trace-go that is used by the process
+type DDTraceGoVersion byte
+
+const (
+	// DDTraceGoVersionV1 represents that the process is using dd-trace-go v1
+	DDTraceGoVersionV1 DDTraceGoVersion = iota + 1
+	// DDTraceGoVersionV2 represents that the process is using dd-trace-go v2
+	DDTraceGoVersionV2
+)
 
 // SetupConfigUprobe sets the configuration probe for the process
 func (pi *ProcessInfo) SetupConfigUprobe() (*ebpf.Map, error) {

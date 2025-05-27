@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -39,7 +40,7 @@ var (
 // Setup allows setup scripts to define packages and configurations to install.
 type Setup struct {
 	configDir string
-	installer installer.Installer
+	installer installertypes.Installer
 	start     time.Time
 	flavor    string
 

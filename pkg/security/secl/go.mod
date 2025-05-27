@@ -1,12 +1,13 @@
 module github.com/DataDog/datadog-agent/pkg/security/secl
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/alecthomas/participle v0.7.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/gopacket v1.1.19
+	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/jellydator/ttlcache/v3 v3.3.0
@@ -14,6 +15,7 @@ require (
 	github.com/spf13/cast v1.8.0
 	github.com/stretchr/testify v1.10.0
 	github.com/xeipuuv/gojsonschema v1.2.0
+	go.uber.org/atomic v1.11.0
 	golang.org/x/sys v0.33.0
 	gopkg.in/yaml.v3 v3.0.1
 	sigs.k8s.io/yaml v1.4.0

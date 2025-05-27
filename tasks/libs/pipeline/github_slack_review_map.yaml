@@ -25,6 +25,7 @@
 '@datadog/apm-trace-storage': '#apm-trace-storage'
 '@datadog/asm-go': '#k9-library-go'
 '@datadog/container-app': '#container-app'
+'@datadog/container-autoscaling': '#container-autoscaling'
 '@datadog/container-ecosystems': '#agent-onboarding'
 '@datadog/container-intake': '#process-agent-ops'
 '@datadog/container-integrations': '#container-integrations'

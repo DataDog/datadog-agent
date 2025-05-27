@@ -68,6 +68,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetTemperature"),
 		toNativeName("GetTotalEnergyConsumption"),
 		toNativeName("GetUtilizationRates"),
+		toNativeName("IsMigDeviceHandle"),
 	}
 }
 

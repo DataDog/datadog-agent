@@ -76,8 +76,8 @@ func (s *dockerDiscoveryTestSuite) TestServiceDiscoveryContainerID() {
 
 		foundMap := make(map[string]*aggregator.ServiceDiscoveryPayload)
 		for _, p := range payloads {
-			name := p.Payload.ServiceName
-			t.Log("RequestType", p.RequestType, "ServiceName", name)
+			name := p.Payload.GeneratedServiceName
+			t.Log("RequestType", p.RequestType, "GeneratedServiceName", name)
 
 			if p.RequestType == "start-service" {
 				foundMap[name] = p

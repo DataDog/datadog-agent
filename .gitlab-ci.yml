@@ -244,7 +244,7 @@ variables:
 
   # Start vault variables
   AGENT_API_KEY_ORG2: agent-api-key-org-2  # agent-devx
-  AGENT_APP_KEY_ORG2: agent-ci-app-key-org-2  # agent-devx
+  AGENT_APP_KEY_ORG2: agent-app-key-org-2  # agent-devx
   AGENT_GITHUB_APP: agent-github-app  # agent-devx
   AGENT_QA_E2E: agent-qa-e2e  # agent-devx
   ATLASSIAN_WRITE: atlassian-write  # agent-devx
@@ -1235,7 +1235,7 @@ workflow:
   - !reference [.except_mergequeue]
   - changes:
       paths:
-        - pkg/fleet/installer/packages/embedded/*.service
+        - pkg/fleet/installer/packages/embedded/templates/**/*.service
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true

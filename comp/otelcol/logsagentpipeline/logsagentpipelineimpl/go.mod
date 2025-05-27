@@ -12,15 +12,14 @@ require (
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1
-	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.64.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/logs/sender v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/status/health v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.61.0
@@ -31,7 +30,7 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.150 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.152 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.61.0 // indirect
@@ -49,7 +48,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/sds v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/sender v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.61.0 // indirect

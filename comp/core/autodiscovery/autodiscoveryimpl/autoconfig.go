@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
@@ -47,7 +48,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/cenkalti/backoff"
 )
 
 var listenerCandidateIntl = 30 * time.Second
@@ -86,7 +86,6 @@ type AutoConfig struct {
 	taggerComp               tagger.Component
 	logs                     logComp.Component
 	telemetryStore           *acTelemetry.Store
-	startOnce                sync.Once
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -178,11 +177,11 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
-			ac.Start()
+			ac.start()
 			return nil
 		},
 		OnStop: func(_ context.Context) error {
-			ac.Stop()
+			ac.stop()
 			return nil
 		},
 	})
@@ -391,23 +390,19 @@ func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
 	return nil
 }
 
-// Start will listen to the service channels before anything is sent to them
-// Usually, Start and Stop methods should not be in the component interface as it should be handled using Lifecycle hooks.
-// We make exceptions here because we need to disable it at runtime.
-func (ac *AutoConfig) Start() {
-	ac.startOnce.Do(func() {
-		listeners.RegisterListeners(ac.serviceListenerFactories)
-		providers.RegisterProviders(ac.providerCatalog)
-		setupAcErrors()
-		// Start the service listener
-		go ac.serviceListening()
-	})
+// start will listen to the service channels before anything is sent to them
+func (ac *AutoConfig) start() {
+	listeners.RegisterListeners(ac.serviceListenerFactories)
+	providers.RegisterProviders(ac.providerCatalog)
+	setupAcErrors()
+	// Start the service listener
+	go ac.serviceListening()
 }
 
-// Stop just shuts down AutoConfig in a clean way.
+// stop just shuts down AutoConfig in a clean way.
 // AutoConfig is not supposed to be restarted, so this is expected
 // to be called only once at program exit.
-func (ac *AutoConfig) Stop() {
+func (ac *AutoConfig) stop() {
 	// stop polled config providers without holding ac.m
 	for _, pd := range ac.getConfigPollers() {
 		pd.stop()

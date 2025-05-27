@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package providers defines the ConfigProvider interface and includes
+// implementations that collect check configurations from multiple sources (such
+// as containers, files, etc.).
 package providers
 
 import (

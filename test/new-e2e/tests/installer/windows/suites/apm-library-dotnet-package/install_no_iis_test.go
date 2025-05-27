@@ -35,7 +35,7 @@ func (s *testDotnetLibraryInstallSuiteWithoutIIS) TestInstallDotnetLibraryPackag
 	// TODO: remove override once image is published in prod
 	_, err := s.Installer().InstallPackage("datadog-apm-library-dotnet",
 		installer.WithVersion("3.13.0-pipeline.58951229.beta.sha-af5a1fab-1"),
-		installer.WithRegistry("install.datad0g.com"),
+		installer.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
 	)
 	s.Require().Error(err, "Installing the dotnet library package without IIS should fail")
 	// TODO today the package does not get deleted but I think it should

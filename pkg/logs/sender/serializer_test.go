@@ -14,39 +14,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-func TestLineSerializer(t *testing.T) {
-	var messages []*message.Message
-	var payload []byte
-
-	serializer := LineSerializer
-
-	payload = serializeToBytes(t, serializer, messages)
-	assert.Len(t, payload, 0)
-
-	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0)}
-	payload = serializeToBytes(t, serializer, messages)
-	assert.Equal(t, []byte("a"), payload)
-
-	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0), message.NewMessage([]byte("b"), nil, "", 0)}
-	payload = serializeToBytes(t, serializer, messages)
-	assert.Equal(t, []byte("a\nb"), payload)
-}
-
 func TestArraySerializer(t *testing.T) {
 	var messages []*message.Message
 	var payload []byte
 
-	serializer := ArraySerializer
-
-	payload = serializeToBytes(t, serializer, messages)
-	assert.Equal(t, []byte("[]"), payload)
+	serializer := NewArraySerializer()
 
 	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0)}
 	payload = serializeToBytes(t, serializer, messages)
+	serializer.Reset()
 	assert.Equal(t, []byte("[a]"), payload)
 
 	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0), message.NewMessage([]byte("b"), nil, "", 0)}
 	payload = serializeToBytes(t, serializer, messages)
+	serializer.Reset()
 	assert.Equal(t, []byte("[a,b]"), payload)
 }
 
@@ -54,7 +35,11 @@ func serializeToBytes(t *testing.T, s Serializer, messages []*message.Message) [
 	t.Helper()
 
 	var payload bytes.Buffer
-	err := s.Serialize(messages, &payload)
+	for _, m := range messages {
+		err := s.Serialize(m, &payload)
+		assert.NoError(t, err)
+	}
+	err := s.Finish(&payload)
 	assert.NoError(t, err)
 	return payload.Bytes()
 }

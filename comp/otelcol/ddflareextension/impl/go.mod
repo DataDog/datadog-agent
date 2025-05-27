@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.0.0-00010101000000-000000000000
@@ -144,7 +144,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.64.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0 // indirect
@@ -181,7 +181,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4 v4.3.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.3.3 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.150 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.152 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.64.1 // indirect

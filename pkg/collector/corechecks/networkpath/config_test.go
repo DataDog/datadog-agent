@@ -352,17 +352,17 @@ tcp_method: prefer_SACK
 			rawInstance: []byte(`
 hostname: 1.2.3.4
 protocol: tcp
-tcp_syn_compatibility_mode: true
+tcp_syn_paris_traceroute_mode: true
 `),
 			rawInitConfig: []byte(``),
 			expectedConfig: &CheckConfig{
-				DestHostname:            "1.2.3.4",
-				MinCollectionInterval:   time.Duration(60) * time.Second,
-				Namespace:               "my-namespace",
-				Protocol:                payload.ProtocolTCP,
-				Timeout:                 setup.DefaultNetworkPathTimeout * time.Millisecond,
-				MaxTTL:                  setup.DefaultNetworkPathMaxTTL,
-				TCPSynCompatibilityMode: true,
+				DestHostname:              "1.2.3.4",
+				MinCollectionInterval:     time.Duration(60) * time.Second,
+				Namespace:                 "my-namespace",
+				Protocol:                  payload.ProtocolTCP,
+				Timeout:                   setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                    setup.DefaultNetworkPathMaxTTL,
+				TCPSynParisTracerouteMode: true,
 			},
 		},
 	}

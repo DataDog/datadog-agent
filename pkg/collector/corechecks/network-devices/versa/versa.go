@@ -55,6 +55,7 @@ type checkCfg struct {
 	CollectHardwareStatus           *bool    `yaml:"collect_hardware_status"`
 	CollectCloudApplicationsMetrics *bool    `yaml:"collect_cloud_applications_metrics"`
 	CollectBGPNeighborStates        *bool    `yaml:"collect_bgp_neighbor_states"`
+	CollectSLAMetrics               *bool    `yaml:"collect_sla_metrics"`
 }
 
 // VersaCheck contains the fields for the Versa check
@@ -111,11 +112,11 @@ func (v *VersaCheck) Run() error {
 	deviceMetadata := make([]devicemetadata.DeviceMetadata, 0, len(appliances)+1)
 	deviceMetadata = append(deviceMetadata, payload.GetDeviceMetadataFromAppliances(v.config.Namespace, appliances)...)
 
-	directorDeviceMetdata, err := payload.GetDeviceMetadataFromDirector(v.config.Namespace, directorStatus)
+	directorDeviceMetadata, err := payload.GetDeviceMetadataFromDirector(v.config.Namespace, directorStatus)
 	if err != nil {
 		log.Errorf("error getting director device metadata: %v", err)
 	} else {
-		deviceMetadata = append(deviceMetadata, directorDeviceMetdata)
+		deviceMetadata = append(deviceMetadata, directorDeviceMetadata)
 	}
 
 	// Send the tags to the metrics sender
@@ -130,6 +131,17 @@ func (v *VersaCheck) Run() error {
 	}
 	v.metricsSender.SetDeviceTagsMap(deviceTags)
 
+	// Temporarily commenting out the SLA metrics collection until Versa Analytics auth is sorted out
+	//if *v.config.CollectSLAMetrics {
+	//	deviceNameToIDMap := generateDeviceNameToIDMap(deviceMetadata)
+	//	v.metricsSender.SetDeviceTagsMap(deviceTags)
+	//	slaMetrics, err := c.GetSLAMetrics()
+	//	if err != nil {
+	//		log.Warnf("error getting SLA metrics from Versa client: %v", err)
+	//	}
+	//	v.metricsSender.SendSLAMetrics(slaMetrics, deviceNameToIDMap)
+	//}
+
 	// Send the metadata to the metrics sender
 	if *v.config.SendNDMMetadata {
 		v.metricsSender.SendMetadata(deviceMetadata, nil, nil)
@@ -143,6 +155,11 @@ func (v *VersaCheck) Run() error {
 		v.metricsSender.SendDeviceMetrics(appliances)
 		v.metricsSender.SendUptimeMetrics(uptimes)
 		v.metricsSender.SendDeviceStatusMetrics(deviceStatus)
+
+		// Director metrics
+		v.metricsSender.SendDirectorDeviceMetrics(directorStatus)
+		v.metricsSender.SendDirectorUptimeMetrics(directorStatus)
+		v.metricsSender.SendDirectorStatus(directorStatus)
 	}
 
 	// Commit
@@ -182,6 +199,7 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectHardwareStatus = boolPointer(false)
 	instanceConfig.CollectCloudApplicationsMetrics = boolPointer(false)
 	instanceConfig.CollectBGPNeighborStates = boolPointer(false)
+	instanceConfig.CollectSLAMetrics = boolPointer(false)
 
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {
@@ -246,6 +264,17 @@ func filterOrganizations(orgs []client.Organization, includedOrgs []string, excl
 	}
 
 	return filteredOrgs
+}
+
+// generateDeviceNameToIDMap generates a map of device ID to device name to enrich the results from Analytics responses
+func generateDeviceNameToIDMap(deviceMetadata []devicemetadata.DeviceMetadata) map[string]string {
+	deviceNameToIDMap := make(map[string]string)
+	for _, device := range deviceMetadata {
+		if device.Name != "" {
+			deviceNameToIDMap[device.Name] = device.ID
+		}
+	}
+	return deviceNameToIDMap
 }
 
 func boolPointer(b bool) *bool {

@@ -36,7 +36,7 @@ func EvaluateRegoRule(ctx context.Context, resolvedInputs ResolvedInputs, benchm
 		return nil
 	}
 
-	log.Infof("running rego check for rule=%s", rule.ID)
+	log.Debugf("running rego check for rule=%s", rule.ID)
 	log.Tracef("building rego modules for rule=%s", rule.ID)
 	modules, err := buildRegoModules(benchmark.dirname, rule)
 	if err != nil {

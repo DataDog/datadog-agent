@@ -5,7 +5,6 @@ default_version "3.12.9"
 unless windows?
   dependency "libxcrypt"
   dependency "libffi"
-  dependency "ncurses"
   dependency "zlib"
   dependency "bzip2"
   dependency "libsqlite3"

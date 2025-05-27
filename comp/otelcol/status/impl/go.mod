@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/status/impl
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
@@ -35,7 +35,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.63.0 // indirect

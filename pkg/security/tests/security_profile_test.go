@@ -173,7 +173,7 @@ func TestSecurityProfile(t *testing.T) {
 		}
 		defer dockerInstance.stop()
 
-		cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+		cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
 			t.Fatal(err)
@@ -197,7 +197,7 @@ func TestSecurityProfile(t *testing.T) {
 					t.Fatalf("Found %d nodes, expected only one.", len(nodes))
 				}
 				for name := range nodes[0].DNSNames {
-					if name == "foo.bar" {
+					if name == "one.one.one.one" {
 						return true
 					}
 				}
@@ -326,7 +326,7 @@ func TestAnomalyDetection(t *testing.T) {
 		}
 		defer dockerInstance.stop()
 
-		cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+		cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
 			t.Fatal(err)
@@ -362,7 +362,7 @@ func TestAnomalyDetection(t *testing.T) {
 		}
 		defer dockerInstance.stop()
 
-		cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+		cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
 			t.Fatal(err)
@@ -458,7 +458,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 
 	t.Run("anomaly-detection-warmup-1", func(t *testing.T) {
 		test.GetCustomEventSent(t, func() error {
-			cmd := testDockerInstance1.Command("nslookup", []string{"foo.bar"}, []string{})
+			cmd := testDockerInstance1.Command("nslookup", []string{"one.one.one.one"}, []string{})
 			cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
@@ -469,7 +469,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 
 	t.Run("anomaly-detection-warmed-up-autolearned-1", func(t *testing.T) {
 		test.GetCustomEventSent(t, func() error {
-			cmd := testDockerInstance1.Command("nslookup", []string{"foo.bar"}, []string{})
+			cmd := testDockerInstance1.Command("nslookup", []string{"one.one.one.one"}, []string{})
 			cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
@@ -512,7 +512,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 
 	t.Run("anomaly-detection-warmed-up-autolearned-2", func(t *testing.T) {
 		test.GetCustomEventSent(t, func() error {
-			cmd := testDockerInstance2.Command("nslookup", []string{"foo.bar"}, []string{})
+			cmd := testDockerInstance2.Command("nslookup", []string{"one.one.one.one"}, []string{})
 			cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
@@ -633,7 +633,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 		}
 		defer dockerInstance.stop()
 
-		cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+		cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
 			t.Fatal(err)
@@ -700,7 +700,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 		}
 		defer dockerInstance.stop()
 
-		cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+		cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
 			t.Fatal(err)
@@ -762,7 +762,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 		},
 		{
 			ID:         "test_autosuppression_dns",
-			Expression: `dns.question.type == A && dns.question.name == "foo.bar"`,
+			Expression: `dns.question.type == A && dns.question.name == "one.one.one.one"`,
 			Tags:       map[string]string{"allow_autosuppression": "true"},
 		},
 		{
@@ -829,7 +829,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 	t.Run("auto-suppression-dns-signal", func(t *testing.T) {
 		// check that we generate an event during profile learning phase
 		err = test.GetEventSent(t, func() error {
-			cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+			cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(rule *rules.Rule, event *model.Event) bool {
@@ -869,7 +869,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 	t.Run("auto-suppression-dns-suppression", func(t *testing.T) {
 		// check we autosuppress signals
 		err = test.GetEventSent(t, func() error {
-			cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+			cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, event *model.Event) bool {
