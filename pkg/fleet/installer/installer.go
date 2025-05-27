@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -29,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -39,38 +41,6 @@ const (
 	packageDatadogInstaller = "datadog-installer"
 	packageAPMLibraryDotnet = "datadog-apm-library-dotnet"
 )
-
-// Installer is a package manager that installs and uninstalls packages.
-type Installer interface {
-	IsInstalled(ctx context.Context, pkg string) (bool, error)
-
-	AvailableDiskSpace() (uint64, error)
-	State(ctx context.Context, pkg string) (repository.State, error)
-	States(ctx context.Context) (map[string]repository.State, error)
-	ConfigState(ctx context.Context, pkg string) (repository.State, error)
-	ConfigStates(ctx context.Context) (map[string]repository.State, error)
-
-	Install(ctx context.Context, url string, args []string) error
-	ForceInstall(ctx context.Context, url string, args []string) error
-	SetupInstaller(ctx context.Context, path string) error
-	Remove(ctx context.Context, pkg string) error
-	Purge(ctx context.Context)
-
-	InstallExperiment(ctx context.Context, url string) error
-	RemoveExperiment(ctx context.Context, pkg string) error
-	PromoteExperiment(ctx context.Context, pkg string) error
-
-	InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) error
-	RemoveConfigExperiment(ctx context.Context, pkg string) error
-	PromoteConfigExperiment(ctx context.Context, pkg string) error
-
-	GarbageCollect(ctx context.Context) error
-
-	InstrumentAPMInjector(ctx context.Context, method string) error
-	UninstrumentAPMInjector(ctx context.Context, method string) error
-
-	Close() error
-}
 
 // installerImpl is the implementation of the package manager.
 type installerImpl struct {
@@ -88,12 +58,28 @@ type installerImpl struct {
 }
 
 // NewInstaller returns a new Package Manager.
-func NewInstaller(env *env.Env) (Installer, error) {
+func NewInstaller(env *env.Env) (installertypes.Installer, error) {
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
-	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
+
+	options := []db.Option{
+		db.WithTimeout(10 * time.Second),
+	}
+
+	// On Linux, if we're not root, we can only open the database in read-only mode.
+	if runtime.GOOS == "linux" {
+		currentUser, err := user.Current()
+		if err != nil {
+			return nil, fmt.Errorf("could not get current user: %w", err)
+		}
+		if currentUser.Uid != "0" {
+			options = append(options, db.WithReadOnly())
+		}
+	}
+
+	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), options...)
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
@@ -523,12 +509,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 		)
 	}
 
-	switch runtime.GOOS {
-	case "windows":
-		return nil // TODO: start config experiment for Windows
-	default:
-		return i.hooks.PostStartExperiment(ctx, pkg)
-	}
+	return i.hooks.PostStartConfigExperiment(ctx, pkg)
 }
 
 // RemoveConfigExperiment removes an experiment.
@@ -536,7 +517,7 @@ func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) 
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	err := i.hooks.PreStopExperiment(ctx, pkg)
+	err := i.hooks.PreStopConfigExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
@@ -568,7 +549,7 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 	if err != nil {
 		log.Warnf("could not write user-facing config symlinks: %v", err)
 	}
-	return i.hooks.PostPromoteExperiment(ctx, pkg)
+	return i.hooks.PostPromoteConfigExperiment(ctx, pkg)
 }
 
 // Purge removes all packages.

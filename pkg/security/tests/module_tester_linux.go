@@ -1348,7 +1348,7 @@ func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, s
 	_, _ = cmd.CombinedOutput()
 
 	// dns
-	cmd = dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+	cmd = dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 	_, _ = cmd.CombinedOutput()
 
 	// bind

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 import tempfile
 from contextlib import contextmanager
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 TAG_BATCH_SIZE = 3
+RE_RELEASE_BRANCH = re.compile(r'(\d+)\.(\d+)\.x')
 
 
 @contextmanager
@@ -124,6 +126,12 @@ def get_modified_files(ctx, base_branch=None) -> list[str]:
 
 def get_current_branch(ctx) -> str:
     return ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+
+
+def is_a_release_branch(ctx, branch=None) -> bool:
+    if not branch:
+        branch = get_current_branch(ctx)
+    return RE_RELEASE_BRANCH.match(branch) is not None
 
 
 def is_agent6(ctx) -> bool:
