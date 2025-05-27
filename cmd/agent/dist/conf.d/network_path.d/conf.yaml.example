@@ -59,6 +59,13 @@ instances:
     #
     # destination_service: <DESTINATION_SERVICE>
 
+    ## @param tcp_method - string - optional - default: syn
+    ## Traceroute method used to monitor an endpoint via Network Path
+    ## Available methods: syn, sack, prefer_sack, syn_socket
+    ## Note: only syn_socket is supported on Window Clients Versions
+    #
+    # tcp_method: <METHOD>
+
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.
     ##
