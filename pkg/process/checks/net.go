@@ -170,8 +170,8 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	// Determine if we need to run the check using capacity-aware logic
 	timeSinceLastRun := start.Sub(c.lastFullRunTime)
-	// Add a small tolerance (1 second) to account for timing variations in test environments
-	guaranteedIntervalWithTolerance := c.guaranteedRunInterval - time.Second
+	// Add a small tolerance (250ms) to account for timing variations in test environments
+	guaranteedIntervalWithTolerance := c.guaranteedRunInterval - (time.Millisecond * 250)
 	isTimeForGuaranteedRun := c.lastFullRunTime.IsZero() || timeSinceLastRun >= guaranteedIntervalWithTolerance
 	isNearCapacity := false
 	if c.sysprobeClient != nil {
