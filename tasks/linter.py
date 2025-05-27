@@ -401,7 +401,7 @@ def gitlab_change_paths(ctx):
 
     # Read gitlab configs for all entrypoints
     configs = get_all_gitlab_ci_configurations(
-        ctx, input_file=".gitlab-ci.yml", filter_configs=True, clean_configs=True
+        ctx, input_file=".gitlab-ci.yml", postprocess_options={"do_filtering": True}
     )
     error_paths = []
     for _, config in configs.items():
@@ -580,7 +580,7 @@ def job_change_path(ctx, job_files=None):
     # Read gitlab configs for all entrypoints
     # The config is filtered to only include jobs
     configs = get_all_gitlab_ci_configurations(
-        ctx, input_file=".gitlab-ci.yml", filter_configs=True, clean_configs=True
+        ctx, input_file=".gitlab-ci.yml", postprocess_options={"do_filtering": True}
     )
     # Fetch all test jobs
     test_config = read_includes(ctx, job_files, return_config=True, add_file_path=True)
