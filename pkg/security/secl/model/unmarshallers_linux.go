@@ -1359,13 +1359,14 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *OnDemandEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 260 {
+	const eventSize = 4 + OnDemandParsedArgsCount*OnDemandPerArgSize
+	if len(data) < eventSize {
 		return 0, ErrNotEnoughData
 	}
 
 	e.ID = binary.NativeEndian.Uint32(data[0:4])
-	SliceToArray(data[4:260], e.Data[:])
-	return 260, nil
+	SliceToArray(data[4:eventSize], e.Data[:])
+	return eventSize, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

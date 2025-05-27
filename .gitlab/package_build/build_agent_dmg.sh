@@ -9,7 +9,6 @@ else
 fi
 
 # --- Setup environment ---
-unset OMNIBUS_GIT_CACHE_DIR
 unset OMNIBUS_BASE_DIR
 WORKDIR="/tmp"
 export INSTALL_DIR="$WORKDIR/datadog-agent-build/bin"

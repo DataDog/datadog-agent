@@ -449,7 +449,7 @@ func (s *packageApmInjectSuite) TestDefaultPackageVersion() {
 		envForceInstall("datadog-agent"),
 	)
 	defer s.Purge()
-	s.host.AssertPackagePrefix("datadog-apm-library-python", "2")
+	s.host.AssertPackagePrefix("datadog-apm-library-python", "3")
 }
 
 func (s *packageApmInjectSuite) TestInstallWithUmask() {

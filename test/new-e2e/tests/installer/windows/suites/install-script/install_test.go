@@ -20,8 +20,8 @@ type testInstallScriptSuite struct {
 }
 
 const (
-	oldInstallerURL     = "http://install.datadoghq.com/datadog-installer-7.63.0-installer-0.12.5-1-x86_64.exe"
-	oldInstallerScript  = "http://install.datadoghq.com/Install-Datadog-7.63.0-installer-0.12.5-1.ps1"
+	oldInstallerURL     = "http://dd-agent.s3.amazonaws.com/datadog-installer-7.63.0-installer-0.12.5-1-x86_64.exe"
+	oldInstallerScript  = "http://dd-agent.s3.amazonaws.com/Install-Datadog-7.63.0-installer-0.12.5-1.ps1"
 	oldInstallerVersion = "7.62"
 	oldAgentVersion     = "7.63.2"
 )
@@ -82,6 +82,7 @@ func (s *testInstallScriptSuite) mustInstallVersion(versionPredicate string, opt
 		fmt.Printf("%s\n", output)
 	}
 	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogInstallerService().
 		HasARunningDatadogAgentService().
@@ -120,11 +121,11 @@ func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
 		installerwindows.WithExtraEnvVars(map[string]string{
 			// all of these make sure we install old versions from install.datadoghq.com
 			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER": oldInstallerVersion,
-			"DD_INSTALLER_REGISTRY_URL_DATADOG_INSTALLER":        "install.datadoghq.com",
+			"DD_INSTALLER_REGISTRY_URL_DATADOG_INSTALLER":        "dd-agent.s3.amazonaws.com",
 			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT":     agentVersion,
-			"DD_INSTALLER_REGISTRY_URL_DATADOG_AGENT":            "install.datadoghq.com",
-			"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":            "install.datadoghq.com",
-			"DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE":        "install.datadoghq.com",
+			"DD_INSTALLER_REGISTRY_URL_DATADOG_AGENT":            "dd-agent.s3.amazonaws.com",
+			"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":            "dd-agent.s3.amazonaws.com",
+			"DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE":        "dd-agent.s3.amazonaws.com",
 		}),
 		installerwindows.WithInstallerURL(oldInstallerURL),
 		installerwindows.WithInstallerScript(oldInstallerScript),
@@ -137,6 +138,7 @@ func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
 
 	// Assert
 	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogInstallerService().
 		HasARunningDatadogAgentService().
