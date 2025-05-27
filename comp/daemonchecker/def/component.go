@@ -12,5 +12,5 @@ import "github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 
 // Component is the component type.
 type Component interface {
-	daemon.DaemonChecker
+	daemon.Checker
 }
