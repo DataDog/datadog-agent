@@ -256,7 +256,13 @@ func (agg *FlowAggregator) flushLoop() {
 func (agg *FlowAggregator) flush() {
 	flowsContexts, nilFlowContexts, noRollupCount, srcRollupCount, dstRollupCount := agg.flowAcc.getFlowContextCounts()
 	flushTime := agg.TimeNowFunction()
-	flowsToFlush := agg.flowAcc.flush()
+	flowsToFlush, flowStats := agg.flowAcc.flush()
+
+	for _, flowStat := range flowStats {
+		agg.sender.Distribution("datadog.netflow.aggregator.flow_context_number_of_uses", float64(flowStat.numberOfUses), "", nil)
+		agg.sender.Distribution("datadog.netflow.aggregator.flow_context_flows_aggregated", float64(flowStat.flowsAggregated), "", nil)
+	}
+
 	agg.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
 	sequenceDeltaPerExporter := agg.getSequenceDelta(flowsToFlush)

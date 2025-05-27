@@ -23,8 +23,14 @@ type flowContext struct {
 	flow                *common.Flow
 	nextFlush           time.Time
 	lastSuccessfulFlush time.Time
-	numberOfUses        int
-	flowsAggregated     int // Number of flows that have been aggregated in this flowContext
+	numberOfUses        uint64
+	flowsAggregated     uint64
+}
+
+// flowStat tracks statistics about flows being processed
+type flowStat struct {
+	numberOfUses    uint64
+	flowsAggregated uint64
 }
 
 // flowAccumulator is used to accumulate aggregated flows
@@ -84,19 +90,19 @@ func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowCon
 // We need to keep flowContext (contains `nextFlush` and `lastSuccessfulFlush`) after flush
 // to be able to flush at regular interval (`flowFlushInterval`).
 // Example, after a flush, flowContext will have a new nextFlush, that will be the next flush time for new flows being added.
-func (f *flowAccumulator) flush() []*common.Flow {
+func (f *flowAccumulator) flush() ([]*common.Flow, []flowStat) {
 	f.flowsMutex.Lock()
 	defer f.flowsMutex.Unlock()
 
 	var flowsToFlush []*common.Flow
+	var flowStats []flowStat
+
 	for key, flowCtx := range f.flows {
 		now := timeNow()
 		if flowCtx.flow == nil && (flowCtx.lastSuccessfulFlush.Add(f.flowContextTTL).Before(now)) {
 			f.logger.Tracef("Delete flow context (key=%d, lastSuccessfulFlush=%s, nextFlush=%s)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String())
 			// delete flowCtx wrapper if there is no successful flushes since `flowContextTTL`
-			// JMW add metric for this to see how many flow contexts are not reused
 			f.logger.Infof("JMW Deleting flow context (key=0x%x, lastSuccessfulFlush=%s, nextFlush=%s, numberOfUses=%d)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String(), flowCtx.numberOfUses)
-			// JMW add histogram of how many uses before deletion
 			delete(f.flows, key)
 			continue
 		}
@@ -106,7 +112,14 @@ func (f *flowAccumulator) flush() []*common.Flow {
 		if flowCtx.flow != nil {
 			flowsToFlush = append(flowsToFlush, flowCtx.flow)
 
-			// JMW for each flow to flush, observe a histogram metric for duration of the flow (end time - start time), and/or current time - lastFlush
+			// Create stats for this flow
+			stats := flowStat{
+				numberOfUses:    flowCtx.numberOfUses,
+				flowsAggregated: flowCtx.flowsAggregated,
+				// JMW for each flow to flush, observe a histogram metric for duration of the flow (end time - start time), and/or current time - lastFlush
+			}
+			flowStats = append(flowStats, stats)
+
 			f.logger.Infof("JMW Sending flow (key=0x%x, lastSuccessfulFlush=%s, nextFlush=%s), duration of flow: %d seconds", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String(), flowCtx.flow.EndTimestamp-flowCtx.flow.StartTimestamp)
 
 			flowCtx.lastSuccessfulFlush = now
@@ -115,7 +128,8 @@ func (f *flowAccumulator) flush() []*common.Flow {
 		flowCtx.nextFlush = flowCtx.nextFlush.Add(f.flowFlushInterval)
 		f.flows[key] = flowCtx
 	}
-	return flowsToFlush
+
+	return flowsToFlush, flowStats
 }
 
 func (f *flowAccumulator) add(flowToAdd *common.Flow) {
