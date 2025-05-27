@@ -18,16 +18,16 @@ import (
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
-// GRPCServer defines a gRPC server
-type GRPCServer struct {
+// Server defines a gRPC server
+type Server struct {
 	server  *grpc.Server
 	wg      sync.WaitGroup
 	family  string
 	address string
 }
 
-// NewGRPCServer returns a new gRPC server
-func NewGRPCServer(family string, address string) *GRPCServer {
+// NewServer returns a new gRPC server
+func NewServer(family string, address string) *Server {
 	// force socket cleanup of previous socket not cleanup
 	if family == "unix" {
 		if err := os.Remove(address); err != nil && !os.IsNotExist(err) {
@@ -38,7 +38,7 @@ func NewGRPCServer(family string, address string) *GRPCServer {
 	// Add gRPC metrics interceptors
 	opts := grpcutil.ServerOptionsWithMetrics()
 
-	return &GRPCServer{
+	return &Server{
 		family:  family,
 		address: address,
 		server:  grpc.NewServer(opts...),
@@ -46,12 +46,12 @@ func NewGRPCServer(family string, address string) *GRPCServer {
 }
 
 // ServiceRegistrar returns the gRPC server
-func (g *GRPCServer) ServiceRegistrar() grpc.ServiceRegistrar {
+func (g *Server) ServiceRegistrar() grpc.ServiceRegistrar {
 	return g.server
 }
 
 // Start the server
-func (g *GRPCServer) Start() error {
+func (g *Server) Start() error {
 	ln, err := net.Listen(g.family, g.address)
 	if err != nil {
 		return fmt.Errorf("unable to create runtime security socket: %w", err)
@@ -76,7 +76,7 @@ func (g *GRPCServer) Start() error {
 }
 
 // Stop the server
-func (g *GRPCServer) Stop() {
+func (g *Server) Stop() {
 	if g.server != nil {
 		g.server.Stop()
 	}
