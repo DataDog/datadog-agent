@@ -769,31 +769,25 @@ def print_gitlab_ci_configuration(yml: dict, sort_jobs: bool):
         yaml.safe_dump({job: content}, sys.stdout, default_flow_style=False, sort_keys=True, indent=2)
 
 
-def test_gitlab_configuration(ctx, config_name: str, config_object: dict, context=None):
+def test_gitlab_configuration(entry_point: str, config_object: dict, context=None):
     agent = get_gitlab_repo()
-    # Update config and lint it
-    config = resolve_gitlab_ci_configuration(
-        ctx,
-        config_object,
+    # Apply the new variables from context
+    config_object = post_process_gitlab_ci_configuration(
+        config_object, variable_overrides=context, keep_special_objects=True
     )
-    config = post_process_gitlab_ci_configuration(
-        config,
-        variable_overrides=context,
-        keep_special_objects=True,
-    )
-    config_dump = yaml.safe_dump(config)
+    config_dump = yaml.safe_dump(config_object)
     res = agent.ci_lint.create({"content": config_dump, "dry_run": True, "include_jobs": True})
     status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
 
-    print(f"{color_message(config_name, Color.BOLD)} config is {status}")
+    print(f"{color_message(entry_point, Color.BOLD)} config is {status}")
     if len(res.warnings) > 0:
         print(
-            f'{color_message("warning", Color.ORANGE)}: {color_message(config_name, Color.BOLD)}: {res.warnings})',
+            f'{color_message("warning", Color.ORANGE)}: {color_message(entry_point, Color.BOLD)}: {res.warnings})',
             file=sys.stderr,
         )
     if not res.valid:
         print(
-            f'{color_message("error", Color.RED)}: {color_message(config_name, Color.BOLD)}: {res.errors})',
+            f'{color_message("error", Color.RED)}: {color_message(entry_point, Color.BOLD)}: {res.errors})',
             file=sys.stderr,
         )
         raise Exit(code=1)
