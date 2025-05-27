@@ -622,5 +622,27 @@ a {
 #main #logs .load_more:active {
   background-color: #a2a2a2;
 }
+.inventory-scrollbox {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 2px solid #6b419a;
+  background: #f6f3fa;
+  box-shadow: 0 2px 8px rgba(107, 65, 154, 0.2);
+  border-radius: 6px;
+  padding: 0.5em;
+  margin-bottom: 1em;
+  scrollbar-width: thin;
+  scrollbar-color: #6b419a #e8e0f2;
+}
+.inventory-scrollbox::-webkit-scrollbar {
+  width: 12px;
+  background: #e8e0f2;
+  border-radius: 6px;
+}
+.inventory-scrollbox::-webkit-scrollbar-thumb {
+  background: #6b419a;
+  border-radius: 6px;
+  border: 2px solid #f6f3fa;
+}
 
 /*# sourceMappingURL=stylesheet.css.map */
