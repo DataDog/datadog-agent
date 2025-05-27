@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/debugging"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
@@ -65,11 +66,15 @@ type EBPFResolvers struct {
 	UserSessionsResolver *usersessions.Resolver
 	SyscallCtxResolver   *syscallctx.Resolver
 	DNSResolver          *dns.Resolver
+
+	Logger *debugging.AtomicString
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
 func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts) (*EBPFResolvers, error) {
-	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
+	var logger debugging.AtomicString
+
+	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC, &logger)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +131,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	if opts.PathResolutionEnabled {
 		// Force the use of redemption for now, as it seems that the kernel reference counter on mounts used to remove mounts is not working properly.
 		// This means that we can remove mount entries that are still in use.
-		mountResolver, err = mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true})
+		mountResolver, err = mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true}, &logger)
 		if err != nil {
 			return nil, err
 		}
@@ -192,6 +197,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		UserSessionsResolver: userSessionsResolver,
 		SyscallCtxResolver:   syscallctx.NewResolver(),
 		DNSResolver:          dnsResolver,
+		Logger:               &logger,
 	}
 
 	return resolvers, nil

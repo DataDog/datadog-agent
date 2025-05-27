@@ -266,11 +266,14 @@ int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, enum TAI
 #pragma unroll
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++) {
         iteration_key = state->key;
+
         map_value = bpf_map_lookup_elem(&pathnames, &iteration_key);
         if (map_value == NULL) {
             resolution_err = DR_ERPC_CACHE_MISS;
             goto exit;
         }
+        //bpf_printk("[chlg=%u] result=%s :: mmap ino=%d, mountid=%d, pathid=%d",state->challenge,     map_value->name, iteration_key.ino, iteration_key.mount_id, iteration_key.path_id);
+
 
         // make sure we do not write outside of the provided buffer
         if (state->cursor + sizeof(state->key) >= state->buffer_size) {
@@ -319,6 +322,7 @@ int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, enum TAI
     }
 
 exit:
+    //bpf_printk("--------------------- EXIT ---------------------");
     monitor_resolution_err(resolution_err);
     return 0;
 }

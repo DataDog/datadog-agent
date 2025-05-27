@@ -26,4 +26,6 @@ type ResolverInterface interface {
 	ResolveMount(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (*model.Mount, model.MountSource, model.MountOrigin, error)
 	SendStats() error
 	ToJSON() ([]byte, error)
+	ResetDebugLog()
+	AddToMountLog(s string)
 }

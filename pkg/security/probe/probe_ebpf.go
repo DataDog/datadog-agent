@@ -832,6 +832,45 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 		}
 	}
 
+	if eventType == model.ExecEventType {
+		if event.ProcessContext != nil {
+			execPath := utils.ProcExePath(event.ProcessContext.Pid)
+			var fileStats unix.Statx_t
+			if err := unix.Statx(unix.AT_FDCWD, execPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStats); err == nil {
+				event.Debug = fmt.Sprintf("Mount id: %d | ino: %d", fileStats.Mnt_id, fileStats.Ino)
+
+				mounts, err := utilkernel.ParseMountInfoFile(int32(event.ProcessContext.Pid))
+				if err != nil {
+					seclog.Errorf("Parse mount error: %v", err)
+				}
+
+				getMountInfo := func(mountid int) *mountinfo.Info {
+					for _, mnt := range mounts {
+						if mountid == mnt.ID {
+							return mnt
+						}
+					}
+
+					return nil
+				}
+
+				cur := getMountInfo(int(fileStats.Mnt_id))
+				event.Debug += fmt.Sprintf("\n cur mount: %+v", cur)
+
+				if cur != nil {
+					seclog.Errorf("Found path for mountid: %+v", cur)
+					parent := getMountInfo(cur.Parent)
+					event.Debug += fmt.Sprintf("\n parent mount: %+v", parent)
+				}
+
+			} else {
+				event.Debug = fmt.Sprintf("Mount id: err %v. ExecPath is %v", err, execPath)
+			}
+		} else {
+			event.Debug = "nil processcontext"
+		}
+	}
+
 	// flush exited process
 	p.Resolvers.ProcessResolver.DequeueExited()
 
@@ -859,6 +898,9 @@ func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, cgrou
 }
 
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
+
+	p.Resolvers.DentryResolver.ResetDebugLog()
+	p.Resolvers.MountResolver.ResetDebugLog()
 	// handle play snapshot
 	if p.playSnapShotState.Swap(false) {
 		// do not notify consumers as we are replaying the snapshot after a ruleset reload
@@ -1327,7 +1369,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 			var dnsLayer = new(layers.DNS)
 			if err := dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
-				seclog.Warnf("failed to decode DNS response: %s", err)
+				seclog.Warnf("failed to decode DNS response: %s. Dump: %x", err, data[offset:])
 				return
 			}
 			p.addToDNSResolver(dnsLayer)
@@ -1941,16 +1983,18 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	// Our dentry resolution of the exec event causes the inode/mount_id to be put in cache,
 	// so we remove all dentry entries belonging to the mountID.
 	p.Resolvers.DentryResolver.DelCacheEntries(m.MountID)
-
+	//fmt.Printf("MNTP SetMountPoint")
 	// Resolve mount point
 	if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
 		return fmt.Errorf("failed to set mount point: %w", err)
 	}
 	// Resolve root
+	//fmt.Printf("MNTP ResolveRoot")
 	if err := p.Resolvers.PathResolver.SetMountRoot(ev, m); err != nil {
 		return fmt.Errorf("failed to set mount root: %w", err)
 	}
 
+	//fmt.Printf("MNTP MountResolver Insert")
 	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
 	if err := p.Resolvers.MountResolver.Insert(*m, 0); err != nil {
 		return fmt.Errorf("failed to insert mount event: %w", err)

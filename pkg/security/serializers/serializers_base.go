@@ -313,6 +313,13 @@ type SysCtlEventSerializer struct {
 	OldValueTruncated bool `json:"old_value_truncated,omitempty"`
 }
 
+// DebugSerializer just to debug wrong mountpoints
+// easyjson:json
+type DebugSerializer struct {
+	// debug is the string used for debug
+	DebugString string `json:"debug,omitempty"`
+}
+
 func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
 	mrs := MatchedRuleSerializer{
 		ID:            r.RuleID,

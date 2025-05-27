@@ -11,6 +11,8 @@ package path
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
@@ -90,15 +92,28 @@ func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDC
 	return pathStr, mountPath, source, origin, nil
 }
 
-// SetMountRoot set the mount point information
-func (r *Resolver) SetMountRoot(_ *model.Event, e *model.Mount) error {
-	var err error
-
-	e.RootStr, err = r.dentryResolver.Resolve(e.RootPathKey, true)
-	if err != nil {
-		return &ErrPathResolutionNotCritical{Err: err}
+func resolveFromProc(mountid int, pce *model.ProcessCacheEntry) string {
+	if pce == nil {
+		return ""
 	}
-	return nil
+
+	pids, _ := pce.GetContainerPIDs()
+	pids = append(pids, pce.Pid)
+
+	for _, pid := range pids {
+		mounts, err := kernel.ParseMountInfoFile(int32(pid))
+		if err != nil {
+			break
+		}
+
+		for _, mnt := range mounts {
+			if mnt.ID == mountid {
+				return mnt.Mountpoint
+			}
+		}
+	}
+
+	return ""
 }
 
 // ResolveMountRoot resolves the mountpoint to a full path
@@ -111,11 +126,36 @@ func (r *Resolver) ResolveMountRoot(ev *model.Event, e *model.Mount) (string, er
 	return e.RootStr, nil
 }
 
-// SetMountPoint set the mount point information
-func (r *Resolver) SetMountPoint(_ *model.Event, e *model.Mount) error {
+// SetMountRoot set the mount point information
+func (r *Resolver) SetMountRoot(ev *model.Event, e *model.Mount) error {
 	var err error
+	e.RootStr, err, e.RootStrSrc = r.dentryResolver.ResolveSrc(e.RootPathKey, true)
 
-	e.MountPointStr, err = r.dentryResolver.Resolve(e.ParentPathKey, true)
+	mountPointFromProc := resolveFromProc(int(e.RootPathKey.MountID), ev.ProcessCacheEntry)
+
+	if mountPointFromProc != "" && mountPointFromProc != e.MountPointStr {
+		seclog.Errorf("Different mount root detected: From proc: %s. e.MountPointStr=%s. mountEvent=%+v ", mountPointFromProc, e.MountPointStr, e)
+		//fmt.Printf("MNTP SetMountRoot :: (Different mountpoint). MountpointFromProc = %s. e.MountPointStr=%s. MountEvent=%+v\n", mountPointFromProc, e.MountPointStr, e)
+	}
+
+	if err != nil {
+		return &ErrPathResolutionNotCritical{Err: err}
+	}
+	return nil
+}
+
+// SetMountPoint set the mount point information
+func (r *Resolver) SetMountPoint(ev *model.Event, e *model.Mount) error {
+	var err error
+	e.MountPointStr, err, e.MountPointStrSrc = r.dentryResolver.ResolveSrc(e.ParentPathKey, true)
+
+	mountPointFromProc := resolveFromProc(int(e.MountID), ev.ProcessCacheEntry)
+
+	if mountPointFromProc != "" && mountPointFromProc != e.MountPointStr {
+		seclog.Errorf("Different mountpoint detected: From proc: %s. e.MountPointStr=%s | mountEvent =%+v", mountPointFromProc, e.MountPointStr, e)
+		//fmt.Printf("MNTP SetMountPoint :: (Different mountpoint). From proc: %s. e.MountPointStr=%s. MountEvent=%+v\n", mountPointFromProc, e.MountPointStr, e)
+	}
+
 	if err != nil {
 		return &ErrPathResolutionNotCritical{Err: err}
 	}
