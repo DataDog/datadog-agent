@@ -12,5 +12,5 @@ def entrypoint(**kwargs):
 
 def debug_entrypoint(**kwargs):
     generic_debug_package_agent_quality_gate(
-        "arm64", "debian", "datadog-agent", build_job_name="agent_deb_arm64-a7", **kwargs
+        "arm64", "debian", "datadog-agent", build_job_name="agent_deb-arm64-a7", **kwargs
     )
