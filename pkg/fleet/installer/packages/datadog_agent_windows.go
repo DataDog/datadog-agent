@@ -580,7 +580,7 @@ func setFleetPoliciesDir(path string) error {
 // postStartConfigExperimentDatadogAgent runs post start scripts for a config experiment.
 //
 // Sets the fleet_policies_dir registry key to the experiment config path and restarts the agent service.
-func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
+func postStartConfigExperimentDatadogAgent(_ HookContext) error {
 	// Set the registry key to point to the experiment config
 	experimentPath := filepath.Join(paths.ConfigsPath, "datadog-agent", "experiment")
 	err := setFleetPoliciesDir(experimentPath)
@@ -599,7 +599,7 @@ func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
 // preStopConfigExperimentDatadogAgent runs pre stop scripts for a config experiment.
 //
 // Sets the fleet_policies_dir registry key to the stable config path and restarts the agent service.
-func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
+func preStopConfigExperimentDatadogAgent(_ HookContext) error {
 	// Set the registry key to point to the previous stable config
 	stablePath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
 	err := setFleetPoliciesDir(stablePath)
@@ -618,7 +618,7 @@ func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 // postPromoteConfigExperimentDatadogAgent runs post promote scripts for a config experiment.
 //
 // Sets the fleet_policies_dir registry key to the stable config path and restarts the agent service.
-func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
+func postPromoteConfigExperimentDatadogAgent(_ HookContext) error {
 	// Set the registry key to point to the stable config (which now contains the promoted experiment)
 	stablePath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
 	err := setFleetPoliciesDir(stablePath)
