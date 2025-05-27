@@ -51,6 +51,12 @@ func GenerateProgram(program ir.Program) Program {
 		typeFuncMetadata: make(map[ir.TypeID]typeFuncMetadata, len(program.Types)),
 		functionReg:      make(map[FunctionID]bool),
 	}
+
+	g.addFunction(ChasePointers{}, []Op{
+		ChasePointersOp{},
+		ReturnOp{},
+	})
+
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
 			for _, injectionPC := range event.InjectionPCs {
@@ -62,9 +68,13 @@ func GenerateProgram(program ir.Program) Program {
 		g.addTypeHandler(g.typeQueue[0])
 		g.typeQueue = g.typeQueue[1:]
 	}
+	types := make([]ir.Type, 0, len(g.typeFuncMetadata))
+	for _, t := range program.Types {
+		types = append(types, t)
+	}
 	return Program{
 		Functions: g.functions,
-		Types:     program.Types,
+		Types:     types,
 	}
 }
 
@@ -175,7 +185,7 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool) {
 			ops = append(ops, CallOp{FunctionID: elemFunc})
 			offsetShift = field.Offset + g.typeFuncMetadata[field.Type.GetID()].offsetShift
 		}
-
+		ops = append(ops, ReturnOp{})
 	// Sequential containers
 
 	case *ir.ArrayType:
@@ -220,7 +230,10 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool) {
 		needed = true
 		offsetShift = 0
 		ops = []Op{
-			ProcessPointerOp{},
+			ProcessPointerOp{
+				Pointee: t.Pointee,
+			},
+			ReturnOp{},
 		}
 
 	case *ir.GoSliceHeaderType:
@@ -229,6 +242,7 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool) {
 		offsetShift = 0
 		ops = []Op{
 			ProcessSliceOp{},
+			ReturnOp{},
 		}
 
 	case *ir.GoStringHeaderType:
@@ -237,6 +251,7 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool) {
 		offsetShift = 0
 		ops = []Op{
 			ProcessStringOp{},
+			ReturnOp{},
 		}
 
 	case *ir.GoEmptyInterfaceType:
@@ -356,8 +371,9 @@ func (g *generator) typeMemoryLayout(t ir.Type) []memoryLayoutPiece {
 
 // `ops` is used as an output buffer for the encoded instructions.
 func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) []Op {
+	fmt.Printf("EncodeLocationOp: %#v\n", *op.Variable)
 	for _, loclist := range op.Variable.Locations {
-		if pc < loclist.Range.Start || pc >= loclist.Range.End {
+		if pc < loclist.Range[0] || pc >= loclist.Range[1] {
 			continue
 		}
 		// NOTE: Tricky.

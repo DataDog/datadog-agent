@@ -94,13 +94,15 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 		for _, event := range probe.Events {
 			id := typeCatalog.idAlloc
 			typeCatalog.idAlloc++
-			byteSize := uint32(0)
+			presenceBitsetSize := uint32(len(probe.Subprogram.Variables)+7) / 8
+			byteSize := presenceBitsetSize
 			var expressions []*ir.RootExpression
 			for _, variable := range probe.Subprogram.Variables {
 				if !variable.IsParameter || variable.IsReturn {
 					continue
 				}
 				variableSize := variable.Type.GetByteSize()
+				fmt.Printf("parameter: %#v %d\n", variable.Name, variableSize)
 				expr := &ir.RootExpression{
 					Name:   variable.Name,
 					Offset: uint32(byteSize),
@@ -122,10 +124,11 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 				TypeCommon: ir.TypeCommon{
 					ID: id,
 					// TODO: Give this a better name.
-					Name: "ProbeEvent",
+					Name:     "ProbeEvent",
+					ByteSize: uint32(byteSize),
 				},
 				// TODO: Populate the presence bitset size and expressions.
-				PresenseBitsetSize: 0,
+				PresenseBitsetSize: presenceBitsetSize,
 				Expressions:        expressions,
 			}
 		}
@@ -464,6 +467,7 @@ func (v *subprogramChildVisitor) push(entry *dwarf.Entry) (childVisitor visitor,
 		if err != nil {
 			return nil, err
 		}
+		fmt.Printf("processing variable name: %s\n", name)
 		typeOffset, err := getAttrVal[dwarf.Offset](entry, dwarf.AttrType)
 		if err != nil {
 			return nil, err
@@ -512,6 +516,7 @@ func computeLocations(typ ir.Type, v *subprogramChildVisitor, locField *dwarf.Fi
 	totalSize := int64(typ.GetByteSize())
 	pointerSize := int(v.root.object.PointerSize())
 	var locations []ir.Location
+	fmt.Printf("computeLocations: %#v\n", *locField)
 	switch locField.Class {
 	case dwarf.ClassLocListPtr:
 		offset, ok := locField.Val.(int64)
@@ -523,9 +528,14 @@ func computeLocations(typ ir.Type, v *subprogramChildVisitor, locField *dwarf.Fi
 		}
 		var entry loclist.Entry
 		for v.root.loclistReader.Next(&entry) {
+			fmt.Printf("entry: %#v %d %d\n", entry, totalSize, pointerSize)
 			locationPieces, err := locexpr.Exec(entry.Instr, totalSize, pointerSize)
 			if err != nil {
 				return nil, err
+			}
+			// Workaround for delve not returning sizes.
+			if len(locationPieces) == 1 {
+				locationPieces[0].Size = totalSize
 			}
 			locations = append(locations, ir.Location{
 				Range:  ir.PCRange{entry.LowPC, entry.HighPC},
@@ -541,6 +551,10 @@ func computeLocations(typ ir.Type, v *subprogramChildVisitor, locField *dwarf.Fi
 		locationPieces, err := locexpr.Exec(locationExpression, totalSize, pointerSize)
 		if err != nil {
 			return nil, err
+		}
+		// Workaround for delve not returning sizes.
+		if len(locationPieces) == 1 {
+			locationPieces[0].Size = totalSize
 		}
 		for _, r := range v.ranges {
 			locations = append(locations, ir.Location{

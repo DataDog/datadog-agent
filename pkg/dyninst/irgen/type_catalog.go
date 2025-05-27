@@ -208,6 +208,8 @@ func (c *typeCatalog) buildType(
 				return nil, err
 			}
 		}
+		// TODO: propagate pointer size from compliation unit
+		common.ByteSize = 8
 		return &ir.PointerType{
 			TypeCommon:       common,
 			GoTypeAttributes: goAttrs,

@@ -3,4 +3,4 @@
 
 package runtime
 
-var Dyninstevent = newAsset("dyninst_event.c", "2b0854f6d15d8ad614d0e7b1b3b3fa4b3736caf0c0a77f8e79b890b32107f4a2")
+var Dyninstevent = newAsset("dyninst_event.c", "b72abd59211b8510b24c6bceb34ac37dc0076fde27557b5e68e065399223a546")

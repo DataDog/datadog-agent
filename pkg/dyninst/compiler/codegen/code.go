@@ -48,6 +48,7 @@ func GenerateCCode(program sm.Program, out io.Writer) error {
 	numProbes := 0
 	fmt.Fprintf(out, "const probe_params_t probe_params[] = {\n")
 	for _, f := range program.Functions {
+		fmt.Printf("0x%x: %#v\n", metadata.FunctionLoc[f.ID], f)
 		if f, ok := f.ID.(sm.ProcessEvent); ok {
 			numProbes++
 			fmt.Fprintf(out, "\t{.stack_machine_pc = 0x%x, .stream_id = %d, .frameless = false},\n", metadata.FunctionLoc[f], 0)

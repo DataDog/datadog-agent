@@ -84,10 +84,12 @@ func Exec(expression []byte, totalSize int64, pointerSize int) ([]LocationPiece,
 	var fakeCFA int64 = 0x080000
 	var fakeFrameBase int64 = 0x100000
 	reg := op.DwarfRegisters{CFA: fakeCFA, FrameBase: fakeFrameBase}
+	fmt.Printf("reg: %#v\n", reg)
 	offset, opPieces, err := op.ExecuteStackProgram(reg, expression, pointerSize, op.ReadMemoryFunc(nil))
 	if err != nil {
 		return nil, fmt.Errorf("an error occurred while executing the location expression; expression=(%s): %w", Format(expression), err)
 	}
+	fmt.Printf("opPieces: %#v\n", opPieces)
 
 	// translateOffset adjusts the offset if it depended on the CFA or frame base:
 	// 1. If the offset is greater than the midpoint between between the fake CFA and FrameBase,

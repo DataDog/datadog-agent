@@ -11,9 +11,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/cilium/ebpf"
+
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
-	"github.com/cilium/ebpf"
 )
 
 func TestCompileBPFProgram(t *testing.T) {

@@ -10,6 +10,7 @@ package compiler
 import (
 	"bytes"
 	"io"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/codegen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
@@ -28,6 +29,7 @@ func getCFlags(config *ddebpf.Config) []string {
 		"-Wno-unused-variable",
 		"-Wno-unused-function",
 		"-DDYNINST_GENERATED_CODE",
+		"-DDYNINST_DEBUG=10",
 	}
 	if config.BPFDebug {
 		cflags = append(cflags, "-DDEBUG=1")
@@ -52,7 +54,14 @@ func CompileBPFProgram(program ir.Program) (ebpfruntime.CompiledOutput, error) {
 		if err != nil {
 			return err
 		}
-		return t.Execute(out, generatedCode.String())
+		var buf bytes.Buffer
+		err = t.Execute(&buf, generatedCode.String())
+		if err != nil {
+			return err
+		}
+		os.WriteFile("/git/datadog-agent/pkg/dyninst/test/pinger.ebpf.c", buf.Bytes(), 0644)
+		_, err = out.Write(buf.Bytes())
+		return err
 	}
 
 	cfg := ddebpf.NewConfig()

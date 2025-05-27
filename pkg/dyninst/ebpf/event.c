@@ -94,6 +94,7 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
       .fp = global_ctx.regs->bp,
       .stack_idx = 0,
   };
+  LOG(1, "stack machine entry pc: %d", params->stack_machine_pc);
   if (params->stack_machine_pc != 0) {
     process_steps = stack_machine_process_frame(&global_ctx, &frame_data,
                                                 params->stack_machine_pc);

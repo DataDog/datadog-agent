@@ -42,7 +42,7 @@ func makeInstruction(op Op) codeFragment {
 		}
 
 	case ExprSaveOp:
-		bytes := make([]byte, 12)
+		bytes := make([]byte, 0, 12)
 		// Result offset and length.
 		e := op.EventRootType.Expressions[op.ExprIdx]
 		bytes = binary.LittleEndian.AppendUint32(bytes, e.Offset)
@@ -55,7 +55,7 @@ func makeInstruction(op Op) codeFragment {
 		}
 
 	case ExprDereferenceCfaOp:
-		bytes := make([]byte, 8)
+		bytes := make([]byte, 0, 8)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Offset)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Len)
 		return staticInstruction{
@@ -65,12 +65,12 @@ func makeInstruction(op Op) codeFragment {
 
 	case ExprReadRegisterOp:
 		return staticInstruction{
-			name:  "SM_OP_EXPR_DEREFERENCE_CFA",
+			name:  "SM_OP_EXPR_READ_REGISTER",
 			bytes: []byte{op.Register, op.Size},
 		}
 
 	case ExprDereferencePtrOp:
-		bytes := make([]byte, 8)
+		bytes := make([]byte, 0, 8)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Bias)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Len)
 		return staticInstruction{
@@ -79,6 +79,7 @@ func makeInstruction(op Op) codeFragment {
 		}
 
 	case ProcessPointerOp:
+		fmt.Printf("ProcessPointerOp: %#v\n", op)
 		return staticInstruction{
 			name:  "SM_OP_PROCESS_POINTER",
 			bytes: binary.LittleEndian.AppendUint32(nil, uint32(op.Pointee.GetID())),
@@ -139,7 +140,7 @@ func makeInstruction(op Op) codeFragment {
 		}
 
 	case ProcessGoSwissMapOp:
-		bytes := make([]byte, 8)
+		bytes := make([]byte, 0, 8)
 		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.TablePtrSlice.GetID()))
 		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.Group.GetID()))
 		return staticInstruction{
@@ -160,7 +161,8 @@ func makeInstruction(op Op) codeFragment {
 		}
 
 	case PrepareEventRootOp:
-		bytes := make([]byte, 8)
+		fmt.Printf("PrepareEventRootOp: %#v\n", *op.EventRootType)
+		bytes := make([]byte, 0, 8)
 		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.EventRootType.GetID()))
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.EventRootType.GetByteSize())
 		return staticInstruction{
