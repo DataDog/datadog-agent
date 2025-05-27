@@ -11,11 +11,13 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	e2ecommon "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 )
 
 const (
@@ -102,8 +104,8 @@ func (r *RemoteWindowsHostAssertions) NoFileExists(path string, msgAndArgs ...in
 // HasARunningDatadogAgentService checks if the remote host has a Datadog Agent installed & running.
 // It does not run a full test suite on it, but merely checks if it has the required
 // service running.
-func (r *RemoteWindowsHostAssertions) HasARunningDatadogAgentService() *RemoteWindowsBinaryAssertions {
-	r.suite.T().Helper()
+func (r *RemoteWindowsHostAssertions) HasARunningDatadogAgentService() *RemoteWindowsAgentAssertions {
+	r.context.T().Helper()
 
 	installPath, err := windowsagent.GetInstallPathFromRegistry(r.remoteHost)
 	r.require.NoError(err)
@@ -111,9 +113,19 @@ func (r *RemoteWindowsHostAssertions) HasARunningDatadogAgentService() *RemoteWi
 	r.FileExists(binPath)
 
 	r.HasAService("datadogagent").WithStatus("Running")
-	return &RemoteWindowsBinaryAssertions{
-		RemoteWindowsHostAssertions: r,
-		binaryPath:                  binPath,
+
+	agentClient, err := client.NewHostAgentClientWithParams(r.context, r.remoteHost.HostOutput,
+		agentclientparams.WithAgentInstallPath(installPath),
+		agentclientparams.WithSkipWaitForAgentReady(),
+	)
+	r.require.NoError(err)
+
+	return &RemoteWindowsAgentAssertions{
+		RemoteWindowsBinaryAssertions: &RemoteWindowsBinaryAssertions{
+			RemoteWindowsHostAssertions: r,
+			binaryPath:                  binPath,
+		},
+		agentClient: agentClient,
 	}
 }
 
