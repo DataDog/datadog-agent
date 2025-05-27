@@ -858,6 +858,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 				event.Debug += fmt.Sprintf("\n cur mount: %+v", cur)
 
 				if cur != nil {
+					seclog.Errorf("Found path for mountid: %+v", cur)
 					parent := getMountInfo(cur.Parent)
 					event.Debug += fmt.Sprintf("\n parent mount: %+v", parent)
 				}

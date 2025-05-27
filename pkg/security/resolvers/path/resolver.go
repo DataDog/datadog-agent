@@ -134,7 +134,7 @@ func (r *Resolver) SetMountRoot(ev *model.Event, e *model.Mount) error {
 	mountPointFromProc := resolveFromProc(int(e.RootPathKey.MountID), ev.ProcessCacheEntry)
 
 	if mountPointFromProc != "" && mountPointFromProc != e.MountPointStr {
-		seclog.Errorf("Different mountpoint detected: From proc: %s. e.MountPointStr=%s. mountEvent=%+v ", mountPointFromProc, e.MountPointStr, e)
+		seclog.Errorf("Different mount root detected: From proc: %s. e.MountPointStr=%s. mountEvent=%+v ", mountPointFromProc, e.MountPointStr, e)
 		//fmt.Printf("MNTP SetMountRoot :: (Different mountpoint). MountpointFromProc = %s. e.MountPointStr=%s. MountEvent=%+v\n", mountPointFromProc, e.MountPointStr, e)
 	}
 
@@ -147,7 +147,6 @@ func (r *Resolver) SetMountRoot(ev *model.Event, e *model.Mount) error {
 // SetMountPoint set the mount point information
 func (r *Resolver) SetMountPoint(ev *model.Event, e *model.Mount) error {
 	var err error
-
 	e.MountPointStr, err, e.MountPointStrSrc = r.dentryResolver.ResolveSrc(e.ParentPathKey, true)
 
 	mountPointFromProc := resolveFromProc(int(e.MountID), ev.ProcessCacheEntry)

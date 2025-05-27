@@ -217,6 +217,8 @@ func (mr *Resolver) AddToMountLog(s string) {
 }
 
 func (mr *Resolver) deleteOne(curr *model.Mount, now time.Time) {
+	mr.mountLog.Add(fmt.Sprintf("deleteOne: %+v", curr))
+
 	mr.mounts.Remove(curr.MountID)
 	mr.pidToMounts.RemoveKey2(curr.MountID)
 
@@ -293,21 +295,11 @@ func (mr *Resolver) DelPid(pid uint32) {
 }
 
 func (mr *Resolver) insert(m *model.Mount, pid uint32) {
-	mr.mountLog.Add(fmt.Sprintf("insert pid=%d: %+v", pid, *m))
-
+	var prev *model.Mount
+	var ok bool
 	// umount the previous one if exists
-	if prev, ok := mr.mounts.Get(m.MountID); prev != nil && ok {
+	if prev, ok = mr.mounts.Get(m.MountID); prev != nil && ok {
 		// Log duplicate mountID detection
-		prevPath := prev.Path
-		if prevPath == "" {
-			prevPath = prev.MountPointStr
-		}
-		newPath := m.Path
-		if newPath == "" {
-			newPath = m.MountPointStr
-		}
-
-		mr.mountLog.Add(fmt.Sprintf("dupe. prev:%+v", *prev))
 
 		// put the prev entry and the all the children in the redemption list
 		mr.delete(prev)
@@ -326,6 +318,12 @@ func (mr *Resolver) insert(m *model.Mount, pid uint32) {
 
 	if mr.minMountID > m.MountID {
 		mr.minMountID = m.MountID
+	}
+
+	mr.mountLog.Add(fmt.Sprintf("insert pid=%d: %+v. had prev? %+v", pid, *m, prev))
+
+	if strings.HasPrefix(m.MountPointStr, "/sys/") {
+		seclog.Warnf(fmt.Sprintf("insert /sys/ pid=%d: %+v. had prev? %+v", pid, *m, prev))
 	}
 
 	mr.mounts.Add(m.MountID, m)

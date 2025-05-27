@@ -2,6 +2,7 @@ package debugging
 
 import (
 	"sync"
+	"time"
 )
 
 type AtomicString struct {
@@ -23,6 +24,7 @@ func (a *AtomicString) Add(str string) {
 	if a.logToConsole {
 		//fmt.Println("MNTP", str)
 	}
+	str = "[" + time.Now().Format("2006-01-02 15:04:05.0000000") + "] " + str
 	defer a.mu.Unlock()
 	a.s += str
 }

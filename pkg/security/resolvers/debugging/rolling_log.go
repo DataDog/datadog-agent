@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 )
 
 type RollingLog struct {
@@ -46,9 +47,12 @@ func NewRollingLog(maxSize uint64) *RollingLog {
 func (a *RollingLog) Add(str string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	str = "[" + time.Now().Format("2006-01-02 15:04:05.0000000") + "] " + str
 	sz := uint64(len(str))
 	err := a.removeUntilFits(sz)
-	fmt.Println("Error: ", err)
+	if err != nil {
+		fmt.Println("Error: ", err)
+	}
 	a.size += sz
 	a.logList = append(a.logList, str)
 }
