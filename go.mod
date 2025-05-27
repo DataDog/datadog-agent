@@ -21,6 +21,8 @@ replace (
 	github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 )
 
+replace github.com/moby/buildkit => github.com/moby/buildkit v0.13.0-beta1.0.20231219135447-957cb50df991
+
 require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
@@ -698,6 +700,7 @@ require (
 )
 
 require (
+	github.com/go-test/deep v1.1.0 // indirect
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v0.126.0 // indirect
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.126.0 // indirect
@@ -787,7 +790,6 @@ require (
 	github.com/glebarez/go-sqlite v1.22.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-resty/resty/v2 v2.15.3 // indirect
-	github.com/go-test/deep v1.1.0 // indirect
 	github.com/go-zookeeper/zk v1.0.4 // indirect
 	github.com/gobuffalo/flect v1.0.2 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
