@@ -1,13 +1,15 @@
+import os
 import tempfile
 
-from gitlab.v4.objects import ProjectJob, ProjectPipeline
+from gitlab.v4.objects import ProjectPipeline, ProjectPipelineJob
 from invoke import Exit
 
+from tasks.debugging.dump import download_job_artifacts
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
 from tasks.libs.common.diff import diff as _diff
 from tasks.libs.common.git import get_common_ancestor
-from tasks.libs.package.size import directory_size, extract_package, extract_zip_archive, file_size
+from tasks.libs.package.size import directory_size, extract_package, file_size
 from tasks.static_quality_gates.lib.gates_lib import argument_extractor, find_package_path, read_byte_input
 
 
@@ -50,7 +52,7 @@ def check_package_size(package_on_wire_size, package_on_disk_size, max_on_wire_s
         raise AssertionError(error_message)
 
 
-def generic_package_agent_quality_gate(gate_name, arch, os, flavor, **kwargs):
+def generic_package_agent_quality_gate(gate_name, arch, sys_os, flavor, **kwargs):
     arguments = argument_extractor(
         kwargs, max_on_wire_size=read_byte_input, max_on_disk_size=read_byte_input, ctx=None, metricHandler=None
     )
@@ -59,12 +61,12 @@ def generic_package_agent_quality_gate(gate_name, arch, os, flavor, **kwargs):
     max_on_wire_size = arguments.max_on_wire_size
     max_on_disk_size = arguments.max_on_disk_size
 
-    metric_handler.register_gate_tags(gate_name, gate_name=gate_name, arch=arch, os=os)
+    metric_handler.register_gate_tags(gate_name, gate_name=gate_name, arch=arch, os=sys_os)
 
     metric_handler.register_metric(gate_name, "max_on_wire_size", max_on_wire_size)
     metric_handler.register_metric(gate_name, "max_on_disk_size", max_on_disk_size)
     package_arch = arch
-    if os == "centos" or os == "suse":
+    if sys_os == "centos" or sys_os == "suse":
         if arch == "arm64":
             package_arch = "aarch64"
         elif arch == "amd64":
@@ -72,32 +74,30 @@ def generic_package_agent_quality_gate(gate_name, arch, os, flavor, **kwargs):
         elif arch == "armhf":
             package_arch = "armv7hl"
 
-    package_os = os
-    if os == "heroku":
+    package_os = sys_os
+    if sys_os == "heroku":
         package_os = "debian"
 
     package_path = find_package_path(flavor, package_os, package_arch)
 
     package_on_wire_size, package_on_disk_size = calculate_package_size(
-        ctx, os, package_path, gate_name, metric_handler
+        ctx, sys_os, package_path, gate_name, metric_handler
     )
     check_package_size(package_on_wire_size, package_on_disk_size, max_on_wire_size, max_on_disk_size)
 
 
-def download_ancestor_packages(ctx, ancestor_sha, ancestor_download_dir, build_job_name):
-    ancestor_zip_path = f"{ancestor_download_dir}/ancestor_package.zip"
-
+def download_ancestor_packages(ancestor_sha, ancestor_download_dir, build_job_name):
     # Fetch the ancestor's build_job object with the gitlab API
     repo = get_gitlab_repo("DataDog/datadog-agent")
     pipeline_list = repo.pipelines.list(sha=ancestor_sha)
     if not len(pipeline_list):
         raise Exit(code=1, message="Ancestor commit has no pipeline attached.")
     ancestor_pipeline: ProjectPipeline = pipeline_list[0]
-    ancestor_job: ProjectJob = next(filter(lambda job: job.name == build_job_name, ancestor_pipeline.jobs.list()))
+    ancestor_job: ProjectPipelineJob = next(
+        filter(lambda job: job.name == build_job_name, ancestor_pipeline.jobs.list(iterator=True))
+    )
     # Download & extract the artifact from the build_job
-    with open(ancestor_zip_path, "wb") as f:
-        ancestor_job.artifacts(streamed=True, action=f.write)
-    extract_zip_archive(ctx, ancestor_zip_path, ancestor_download_dir)
+    download_job_artifacts(repo, ancestor_job.get_id(), ancestor_download_dir)
 
 
 def debug_package_size(ctx, package_os, package_path, ancestor_package_path):
@@ -119,13 +119,13 @@ def debug_package_size(ctx, package_os, package_path, ancestor_package_path):
     ancestor_pipeline_extract_dir.cleanup()
 
 
-def generic_debug_package_agent_quality_gate(arch, os, flavor, **kwargs):
+def generic_debug_package_agent_quality_gate(arch, sys_os, flavor, **kwargs):
     arguments = argument_extractor(kwargs, ctx=None, build_job_name=None)
     ctx = arguments.ctx
     build_job_name = arguments.build_job_name
 
     package_arch = arch
-    if os == "centos" or os == "suse":
+    if sys_os == "centos" or sys_os == "suse":
         if arch == "arm64":
             package_arch = "aarch64"
         elif arch == "amd64":
@@ -133,8 +133,8 @@ def generic_debug_package_agent_quality_gate(arch, os, flavor, **kwargs):
         elif arch == "armhf":
             package_arch = "armv7hl"
 
-    package_os = os
-    if os == "heroku":
+    package_os = sys_os
+    if sys_os == "heroku":
         package_os = "debian"
 
     with tempfile.TemporaryDirectory() as ancestor_download_dir:
@@ -145,7 +145,8 @@ def generic_debug_package_agent_quality_gate(arch, os, flavor, **kwargs):
         # Find the ancestor package path from its download directory
         original_workdir = os.getcwd()
         os.chdir(ancestor_download_dir)
+        os.environ['OMNIBUS_PACKAGE_DIR'] = "omnibus/pkg"
         ancestor_package_path = find_package_path(flavor, package_os, package_arch)
         os.chdir(original_workdir)
 
-        debug_package_size(ctx, os, package_path, ancestor_package_path)
+        debug_package_size(ctx, sys_os, package_path, ancestor_package_path)

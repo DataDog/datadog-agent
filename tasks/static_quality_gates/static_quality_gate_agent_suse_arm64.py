@@ -1,4 +1,7 @@
-from tasks.static_quality_gates.lib.package_agent_lib import generic_package_agent_quality_gate
+from tasks.static_quality_gates.lib.package_agent_lib import (
+    generic_debug_package_agent_quality_gate,
+    generic_package_agent_quality_gate,
+)
 
 
 def entrypoint(**kwargs):
@@ -8,4 +11,6 @@ def entrypoint(**kwargs):
 
 
 def debug_entrypoint(**kwargs):
-    raise NotImplementedError()
+    generic_debug_package_agent_quality_gate(
+        "arm64", "suse", "datadog-agent", build_job_name="agent_suse-arm64-a7", **kwargs
+    )

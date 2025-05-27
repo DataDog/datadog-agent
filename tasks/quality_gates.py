@@ -305,7 +305,7 @@ def debug_specific_quality_gate(ctx, gate_name):
             message="Please ensure to set the GATE_NAME variable inside of the manual job execution gitlab page when executing this debug job.",
         )
 
-    quality_gates_module = __import__("tasks.static_quality_gate", fromlist=[gate_name])
+    quality_gates_module = __import__("tasks.static_quality_gates", fromlist=[gate_name])
     gate_inputs = {"ctx": ctx}
     try:
         gate_module = getattr(quality_gates_module, gate_name)
