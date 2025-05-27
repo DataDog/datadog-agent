@@ -25,10 +25,10 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
+	grpcutils "github.com/DataDog/datadog-agent/pkg/security/utils/grpc"
 )
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
@@ -51,8 +51,7 @@ type RuntimeSecurityAgent struct {
 
 	// grpc server
 	api.UnimplementedSecurityAgentAPIServer
-	grpcServer *module.GRPCServer
-	apiServer  api.SecurityAgentAPIServer
+	grpcServer *grpcutils.GRPCServer
 }
 
 // ADStorage represents the interface for the activity dump storage
@@ -207,7 +206,7 @@ func (rsa *RuntimeSecurityAgent) setupAPIServer() error {
 		return fmt.Errorf("unix sockets are not supported on Windows")
 	}
 
-	rsa.grpcServer = module.NewGRPCServer(family, socketPath)
+	rsa.grpcServer = grpcutils.NewGRPCServer(family, socketPath)
 	api.RegisterSecurityAgentAPIServer(rsa.grpcServer.ServiceRegistrar(), rsa)
 
 	return nil
