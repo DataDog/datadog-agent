@@ -286,6 +286,20 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 		}
 	}
 	r.backendCommand = params.Command
+	// only use the backend type option if the backend command is not set
+	if r.backendType != "" && r.backendCommand == "" {
+		if runtime.GOOS == "windows" {
+			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "secret-generic-connector.exe")
+		} else {
+			nonWindowsPath := path.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
+			permission, _ := filesystem.NewPermission()
+			err := permission.RestrictAccessToUser(nonWindowsPath)
+			if err != nil {
+				log.Warnf("Cannot give the user access to %s: %s", nonWindowsPath, err)
+			}
+			r.backendCommand = nonWindowsPath
+		}
+	}
 	r.backendArguments = params.Arguments
 	r.backendTimeout = params.Timeout
 	if r.backendTimeout == 0 {
@@ -399,20 +413,6 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 	if !r.enabled {
 		log.Infof("Agent secrets is disabled by caller")
 		return nil, nil
-	}
-	// only use the backend type option if the backend command is not set
-	if r.backendType != "" && r.backendCommand == "" {
-		if runtime.GOOS == "windows" {
-			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "secret-generic-connector.exe")
-		} else {
-			nonWindowsPath := path.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
-			permission, _ := filesystem.NewPermission()
-			err := permission.RestrictAccessToUser(nonWindowsPath)
-			if err != nil {
-				log.Warnf("Cannot give the user access to %s: %s", nonWindowsPath, err)
-			}
-			r.backendCommand = nonWindowsPath
-		}
 	}
 	if data == nil || r.backendCommand == "" {
 		return data, nil
