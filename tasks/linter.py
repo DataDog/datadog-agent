@@ -20,7 +20,6 @@ from tasks.libs.ciproviders.gitlab_api import (
     full_config_get_all_leaf_jobs,
     full_config_get_all_stages,
     get_all_gitlab_ci_configurations,
-    get_gitlab_ci_configuration,
     get_preset_contexts,
     is_leaf_job,
     load_context,
@@ -400,13 +399,16 @@ def ssm_parameters(ctx, mode="all", folders=None):
 def gitlab_change_paths(ctx):
     """Verifies that rules: changes: paths match existing files in the repository."""
 
-    # Read gitlab config
-    config = get_gitlab_ci_configuration(ctx, input_config_or_file=".gitlab-ci.yml", gitlab_context=None)
+    # Read gitlab configs for all entrypoints
+    configs = get_all_gitlab_ci_configurations(
+        ctx, input_file=".gitlab-ci.yml", filter_configs=True, clean_configs=True
+    )
     error_paths = []
-    for path in set(retrieve_all_paths(config)):
-        files = glob(path, recursive=True)
-        if len(files) == 0:
-            error_paths.append(path)
+    for _, config in configs.items():
+        for path in set(retrieve_all_paths(config)):
+            files = glob(path, recursive=True)
+            if len(files) == 0:
+                error_paths.append(path)
     if error_paths:
         raise Exit(
             f"{color_message('No files found for paths', Color.RED)}:\n{chr(10).join(' - ' + path for path in error_paths)}"
@@ -575,10 +577,11 @@ def job_change_path(ctx, job_files=None):
 
     job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/e2e/install_packages/*.yml')))
 
-    # Read and parse gitlab config
+    # Read gitlab configs for all entrypoints
     # The config is filtered to only include jobs
-    config = get_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
-
+    configs = get_all_gitlab_ci_configurations(
+        ctx, input_file=".gitlab-ci.yml", filter_configs=True, clean_configs=True
+    )
     # Fetch all test jobs
     test_config = read_includes(ctx, job_files, return_config=True, add_file_path=True)
     tests = [(test, data['_file_path']) for test, data in test_config.items() if test[0] != '.']
@@ -598,13 +601,23 @@ def job_change_path(ctx, job_files=None):
     tests_without_change_path = defaultdict(list)
     tests_without_change_path_allowed = defaultdict(list)
     for test, filepath in tests:
-        if "rules" in config[test] and not any(
-            contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)
-        ):
-            if test in tests_without_change_path_allow_list:
-                tests_without_change_path_allowed[filepath].append(test)
-            else:
-                tests_without_change_path[filepath].append(test)
+        # For each config entrypoint that contains this test (there might be multiple), verify that there is a change path defined
+        configs_containing_test = {entry_point: config for (entry_point, config) in configs.items() if test in config}
+        if len(configs_containing_test) == 0:
+            raise RuntimeError(
+                color_message(
+                    f'Specified test {color_message(filepath, Color.BLUE)} was not found in the gitlab config for any entrypoint !',
+                    Color.RED,
+                )
+            )
+        for entry_point, config in configs_containing_test.items():
+            if "rules" in config[test] and not any(
+                contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)
+            ):
+                if test in tests_without_change_path_allow_list:
+                    tests_without_change_path_allowed[f"{filepath} ({entry_point})"].append(test)
+                else:
+                    tests_without_change_path[f"{filepath} ({entry_point})"].append(test)
 
     if len(tests_without_change_path_allowed) != 0:
         with gitlab_section('Allow-listed jobs', collapsed=True):
@@ -614,15 +627,15 @@ def job_change_path(ctx, job_files=None):
                     Color.ORANGE,
                 )
             )
-            for filepath, tests in tests_without_change_path_allowed.items():
-                print(f"- {color_message(filepath, Color.BLUE)}: {', '.join(tests)}")
+            for filepath_and_entrypoint, tests in tests_without_change_path_allowed.items():
+                print(f"- {color_message(filepath_and_entrypoint, Color.BLUE)}: {', '.join(tests)}")
             print(color_message('warning: End of allow-listed jobs', Color.ORANGE))
             print()
 
     if len(tests_without_change_path) != 0:
         print(color_message("error: Tests without required change paths rule:", "red"), file=sys.stderr)
-        for filepath, tests in tests_without_change_path.items():
-            print(f"- {color_message(filepath, Color.BLUE)}: {', '.join(tests)}", file=sys.stderr)
+        for filepath_and_entrypoint, tests in tests_without_change_path.items():
+            print(f"- {color_message(filepath_and_entrypoint, Color.BLUE)}: {', '.join(tests)}", file=sys.stderr)
 
         raise RuntimeError(
             color_message(
@@ -630,8 +643,8 @@ def job_change_path(ctx, job_files=None):
                 Color.RED,
             )
         )
-    else:
-        print(color_message("success: All tests contain a change paths rule or are allow-listed", "green"))
+
+    print(color_message("success: All tests contain a change paths rule or are allow-listed", "green"))
 
 
 ## === Job ownership === ##
