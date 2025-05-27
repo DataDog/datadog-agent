@@ -19,6 +19,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	scaleclient "k8s.io/client-go/scale"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
@@ -499,7 +500,11 @@ func (c *Controller) updateLocalFallbackEnabled(podAutoscalerInternal *model.Pod
 }
 
 func (c *Controller) unsetTelemetry(key, _ string) {
-	ns, autoscalerName := model.ParsePodAutoscalerID(key)
+	ns, autoscalerName, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		log.Debugf("Unable to split key %s to delete telemetry: %v", key, err)
+		return
+	}
 	deletePodAutoscalerTelemetry(ns, autoscalerName)
 }
 
