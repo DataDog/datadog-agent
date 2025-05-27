@@ -473,7 +473,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e
 	github.com/kraken-hpc/go-fork v0.1.1
-	github.com/mattn/go-sqlite3 v1.14.24
+	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/safchain/ethtool v0.5.10
 	github.com/shirou/gopsutil/v4 v4.25.4
 	go.opentelemetry.io/collector/component/componenttest v0.126.0
