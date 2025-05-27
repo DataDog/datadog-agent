@@ -2776,8 +2776,6 @@ func latestEpochTime() uint64 {
 }
 
 func newDefaultState() *networkState {
-	// Pass nil for telemetry component
-	// Using 0.9 as the default threshold ratio for tests, mirroring the previous hardcoded 9/10
 	return NewState(nil, 1*time.Minute, 10000, 0.9, 65553, 10000, 10000, 10000, 10000, 10000, false, false).(*networkState)
 }
 
