@@ -11,8 +11,3 @@ type daemonCheckerImpl struct{}
 type Checker interface {
 	IsRunning() (bool, error)
 }
-
-// NewDaemonChecker creates a new DaemonChecker instance
-func NewDaemonChecker() Checker {
-	return &daemonCheckerImpl{}
-}

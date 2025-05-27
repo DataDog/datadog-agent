@@ -12,6 +12,11 @@ import (
 	"time"
 )
 
+// NewDaemonChecker creates a new DaemonChecker instance
+func NewDaemonChecker() Checker {
+	return &daemonCheckerImpl{}
+}
+
 func (c *daemonCheckerImpl) IsRunning() (bool, error) {
 	conn, err := net.DialTimeout("unix", "/var/run/datadog/installer.sock", 100*time.Millisecond)
 	if err != nil {
