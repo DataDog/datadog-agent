@@ -6,7 +6,15 @@ update_rc_build_links:
   rules:
     - if: $RC_BUILD == "true"
   needs:
-    - job: docker_trigger_internal
+    - job: publish_internal_container_image-jmx
+      artifacts: false
+    - job: publish_internal_container_image-fips
+      artifacts: false
+    - job: publish_internal_container_image-ot_standalone
+      artifacts: false
+    - job: publish_internal_dca_container_image
+      artifacts: false
+    - job: publish_internal_container_image-full
       artifacts: false
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
