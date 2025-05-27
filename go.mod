@@ -21,8 +21,6 @@ replace (
 	github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 )
 
-replace github.com/moby/buildkit => github.com/moby/buildkit v0.13.0-beta1.0.20231219135447-957cb50df991
-
 require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2

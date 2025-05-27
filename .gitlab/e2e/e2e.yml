@@ -50,7 +50,9 @@
     # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
     # Install orchestrion
     - go install github.com/DataDog/orchestrion@v1.1.0
+    - cd test/new-e2e
     - orchestrion pin
+    - cd ../..
     - export DD_CIVISIBILITY_ENABLED=true
     - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
     - export DD_ENV=nativetest
