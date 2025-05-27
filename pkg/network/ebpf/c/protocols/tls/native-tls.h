@@ -362,15 +362,11 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_shutdown, void *ssl_ctx) {
     log_debug("uprobe/SSL_shutdown: pid_tgid=%llx ctx=%p", pid_tgid, ssl_ctx);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
     if (t == NULL) {
-        // If we can't find the tuple, we likely can't find the sock* either.
-        // Still attempt to delete the original map entry based on ssl_ctx.
-        bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
         return 0;
     }
 
     // tls_finish can launch a tail call, thus cleanup should be done before.
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
-    bpf_map_delete_elem(&ssl_ctx_by_tuple, t);
     tls_finish(ctx, t, false);
 
     return 0;
@@ -531,15 +527,11 @@ static __always_inline void gnutls_goodbye(struct pt_regs *ctx, void *ssl_sessio
     log_debug("gnutls_goodbye: pid=%llu ctx=%p", pid_tgid, ssl_session);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
     if (t == NULL) {
-        // If we can't find the tuple, we likely can't find the sock* either.
-        // Still attempt to delete the original map entry based on ssl_session.
-        bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_session);
         return;
     }
 
     // tls_finish can launch a tail call, thus cleanup should be done before.
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_session);
-    bpf_map_delete_elem(&ssl_ctx_by_tuple, t);
     tls_finish(ctx, t, false);
 }
 
