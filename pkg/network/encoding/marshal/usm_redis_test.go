@@ -88,13 +88,13 @@ func (s *RedisSuite) TestFormatRedisStats() {
 						KeyName:   dummyKey.KeyName.Get(),
 						Truncated: dummyKey.Truncated,
 						ErrorToStats: map[int32]*model.RedisStatsEntry{
-							0: {
+							int32(redis.NoErr): {
 								FirstLatencySample: in.USMData.Redis[dummyKey].ErrorToStats[redis.NoErr].FirstLatencySample,
 								Count:              uint32(in.USMData.Redis[dummyKey].ErrorToStats[redis.NoErr].Count),
 							},
-							1: {
-								FirstLatencySample: in.USMData.Redis[dummyKey].ErrorToStats[redis.NoErr].FirstLatencySample,
-								Count:              uint32(in.USMData.Redis[dummyKey].ErrorToStats[redis.NoErr].Count),
+							int32(redis.Err): {
+								FirstLatencySample: in.USMData.Redis[dummyKey].ErrorToStats[redis.Err].FirstLatencySample,
+								Count:              uint32(in.USMData.Redis[dummyKey].ErrorToStats[redis.Err].Count),
 							},
 						},
 					},
