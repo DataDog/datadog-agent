@@ -7,7 +7,6 @@ package fleetstatusimpl
 
 import (
 	"bytes"
-	"context"
 	"expvar"
 	"fmt"
 	"testing"
@@ -75,7 +74,7 @@ func TestFleetStatus(t *testing.T) {
 				installerExecOption = option.New(installerexecmock.Mock(t))
 				mockDaemonChecker := daemoncheckerMock.Mock(t)
 				daemonCheckerOption = option.New(mockDaemonChecker)
-				bli, _ := mockDaemonChecker.IsRunning(context.Background())
+				bli, _ := mockDaemonChecker.IsRunning()
 				fmt.Println("isrunning", bli)
 			} else {
 				installerExecOption = option.None[installerexec.Component]()
