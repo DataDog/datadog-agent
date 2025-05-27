@@ -227,7 +227,7 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 			// Apply security context to container
 			w.addSecurityConfigToAgent(agentSidecarContainer)
 
-			// Don't want to apply any overrides to the agent sidecar nit container
+			// Don't want to apply any overrides to the agent sidecar init container
 			defer func() {
 				initContainer := w.getSecurityInitTemplate()
 				pod.Spec.InitContainers = append(pod.Spec.InitContainers, *initContainer)
@@ -421,6 +421,17 @@ func (w *Webhook) getDefaultSidecarTemplate() *corev1.Container {
 			Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",
 			Value: "true",
 		})
+	}
+
+	if w.isEKSLoggingEnabled {
+		_, _ = withEnvOverrides(agentContainer,
+			corev1.EnvVar{
+				Name:  "DD_LOGS_CONFIG_K8S_CONTAINER_USE_KUBELET_API",
+				Value: "true",
+			}, corev1.EnvVar{
+				Name:  "DD_LOGS_CONFIG_RUN_PATH",
+				Value: "/opt/datadog-agent/run",
+			})
 	}
 
 	return agentContainer
